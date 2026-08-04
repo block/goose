@@ -9,6 +9,7 @@ pub mod api_client {
 }
 pub mod avian;
 pub mod azure;
+pub mod azure_foundry_def;
 pub mod azureauth;
 pub mod base;
 #[cfg(feature = "aws-providers")]
@@ -58,6 +59,7 @@ pub mod oauth_device_flow;
 pub mod ollama {
     pub use goose_providers::ollama::*;
 }
+pub mod ollama_cloud;
 pub mod ollama_def;
 pub mod openai {
     pub use goose_providers::openai::*;
@@ -67,6 +69,7 @@ pub mod openai_compatible {
 }
 pub mod openrouter;
 pub mod pi_acp;
+mod private_file;
 pub mod provider_registry;
 pub mod provider_secrets;
 pub mod provider_test;

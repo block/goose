@@ -3,8 +3,9 @@ use std::sync::Arc;
 use axum::body::Body;
 use axum::http::{HeaderValue, Method, Request, Response, StatusCode};
 use axum::Router;
+use goose::acp::server::AcpBuiltinSelection;
 use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
-use goose::acp::transport::{create_acp_router, create_authenticated_acp_router, create_router};
+use goose::acp::transport::{create_acp_router, create_router};
 use goose::agents::GoosePlatform;
 use tower::ServiceExt;
 
@@ -16,26 +17,26 @@ fn test_router(require_token: bool, dir: &tempfile::TempDir) -> Router {
 
 fn test_acp_router(dir: &tempfile::TempDir) -> Router {
     let server = Arc::new(AcpServer::new(AcpServerFactoryConfig {
-        builtins: vec![],
+        builtins: AcpBuiltinSelection::default(),
         data_dir: dir.path().join("data"),
         config_dir: dir.path().join("config"),
         goose_platform: GoosePlatform::GooseCli,
         additional_source_roots: Vec::new(),
-        scheduler: None,
+        enable_scheduler: false,
     }));
     create_acp_router(server)
 }
 
 fn test_authenticated_acp_router(dir: &tempfile::TempDir) -> Router {
     let server = Arc::new(AcpServer::new(AcpServerFactoryConfig {
-        builtins: vec![],
+        builtins: AcpBuiltinSelection::default(),
         data_dir: dir.path().join("data"),
         config_dir: dir.path().join("config"),
         goose_platform: GoosePlatform::GooseCli,
         additional_source_roots: Vec::new(),
-        scheduler: None,
+        enable_scheduler: false,
     }));
-    create_authenticated_acp_router(server, SECRET.to_string())
+    create_router(server, SECRET.to_string(), true, Vec::new())
 }
 
 fn test_router_with_origins(
@@ -44,12 +45,12 @@ fn test_router_with_origins(
     additional_allowed_origins: Vec<HeaderValue>,
 ) -> Router {
     let server = Arc::new(AcpServer::new(AcpServerFactoryConfig {
-        builtins: vec![],
+        builtins: AcpBuiltinSelection::default(),
         data_dir: dir.path().join("data"),
         config_dir: dir.path().join("config"),
         goose_platform: GoosePlatform::GooseCli,
         additional_source_roots: Vec::new(),
-        scheduler: None,
+        enable_scheduler: false,
     }));
     create_router(
         server,

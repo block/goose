@@ -98,6 +98,26 @@ impl GooseAcpAgent {
         }
     }
 
+    pub(super) async fn on_local_inference_model_evict(
+        &self,
+        req: LocalInferenceModelEvictRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        #[cfg(feature = "local-inference")]
+        {
+            crate::providers::local_inference::configure_huggingface_auth();
+            crate::providers::local_inference::management::evict_model(&req.model_id)
+                .await
+                .invalid_params_err()?;
+            Ok(EmptyResponse {})
+        }
+
+        #[cfg(not(feature = "local-inference"))]
+        {
+            let _ = req;
+            Err(local_inference_unavailable())
+        }
+    }
+
     pub(super) async fn on_local_inference_model_settings_read(
         &self,
         req: LocalInferenceModelSettingsReadRequest,

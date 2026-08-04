@@ -22,6 +22,13 @@ pub fn run_read_migrations(config: &mut Mapping) {
     migrate_platform_extensions(config);
 }
 
+fn read_enabled_field(value: &serde_yaml::Value) -> Option<bool> {
+    value
+        .as_mapping()?
+        .get(serde_yaml::Value::String("enabled".to_string()))?
+        .as_bool()
+}
+
 fn migrate_platform_extensions(config: &mut Mapping) -> bool {
     let extensions_key = serde_yaml::Value::String(EXTENSIONS_CONFIG_KEY.to_string());
 
@@ -68,9 +75,8 @@ fn migrate_platform_extensions(config: &mut Mapping) -> bool {
             let existing_entry =
                 existing.and_then(|v| serde_yaml::from_value::<ExtensionEntry>(v.clone()).ok());
 
-            let enabled = existing_entry
-                .as_ref()
-                .map(|e| e.enabled)
+            let enabled = existing
+                .and_then(read_enabled_field)
                 .unwrap_or(def.default_enabled);
 
             // If the extension already exists as type 'builtin', preserve that type

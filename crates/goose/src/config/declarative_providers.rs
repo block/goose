@@ -15,7 +15,6 @@ use std::str::FromStr;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use utoipa::ToSchema;
 
 pub use goose_providers::declarative::*;
 
@@ -57,7 +56,7 @@ pub fn expand_env_vars(template: &str, env_vars: &[EnvVarConfig]) -> Result<Stri
     Ok(result)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoadedProvider {
     pub config: DeclarativeProviderConfig,
     pub is_editable: bool,
@@ -430,6 +429,22 @@ pub fn register_declarative_provider(
                             huggingface_declarative_inventory_configured(&cfg)
                         },
                     );
+            } else if crate::providers::ollama_cloud::OllamaCloudProvider::matches_declarative_config(&config) {
+                registry.register_with_name::<crate::providers::ollama_cloud::OllamaCloudProvider, _, _>(
+                    &config,
+                    provider_type,
+                    config.dynamic_models.unwrap_or(false),
+                    move |tls_config| {
+                        let mut cfg = captured.clone();
+                        resolve_config(&mut cfg)?;
+                        crate::providers::ollama_cloud::OllamaCloudProvider::from_custom_config(cfg, tls_config)
+                    },
+                    move || {
+                        let mut cfg = identity_config.clone();
+                        resolve_config(&mut cfg)?;
+                        declarative_inventory_identity(&cfg)
+                    },
+                );
             } else {
                 registry.register_with_name::<OpenAiProviderDef, _, _>(
                     &config,
@@ -534,6 +549,8 @@ mod tests {
                 currency: None,
                 supports_cache_control: None,
                 reasoning: false,
+                thinking_preservation_format: None,
+                request_params: None,
             }],
             headers: None,
             timeout_seconds: None,

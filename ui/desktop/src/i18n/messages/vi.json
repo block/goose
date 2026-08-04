@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "Ứng dụng tùy chỉnh"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "Các ứng dụng từ máy chủ MCP của bạn và các ứng dụng do goose tự tạo. Bạn có thể yêu cầu nó tạo ứng dụng mới thông qua giao diện trò chuyện và chúng sẽ xuất hiện ở đây."
   },
   "appsView.errorLoading": {
     "defaultMessage": "Lỗi khi tải ứng dụng: {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "Nhập ứng dụng"
@@ -41,14 +50,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Không có ứng dụng nào"
   },
-  "appsView.retry": {
-    "defaultMessage": "Thử lại"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Thử lại"
   },
   "appsView.title": {
     "defaultMessage": "Ứng dụng"
@@ -121,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "Về trang chủ"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Mất kết nối. Đang kết nối lại…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Đã cập nhật tiện ích mở rộng"
@@ -1185,7 +1197,7 @@
     "defaultMessage": "Khóa bí mật"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "Khóa bí mật được cấu hình trên máy chủ goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "Khóa bí mật được cấu hình trên máy chủ Goose (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Nhập khóa bí mật của máy chủ"
@@ -1736,11 +1748,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Đang tải xuống"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Mô hình nổi bật"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Đăng nhập để tăng giới hạn tốc độ khi tìm kiếm và tải xuống mô hình, và để truy cập các kho lưu trữ Hugging Face riêng tư hoặc bị giới hạn."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Cài đặt mô hình"
@@ -2011,6 +2029,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "đang chờ"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent}% đầu vào)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "đọc cache"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "ghi cache"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Nén"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Chi phí"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(ước tính)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Token đầu tiên"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Đầu vào"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Đầu ra"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(được báo cáo)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Tốc độ"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Tổng"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Tổng thời gian"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Chọn micrô nào để sử dụng cho việc đọc chính tả"
@@ -2297,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Cuộc trò chuyện"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Đã tạo"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Thư mục"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Mô hình"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Trạng thái"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Đã cập nhật"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "Không có cuộc trò chuyện gần đây"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Lỗi"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Nhàn rỗi"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Đang truyền"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Hoạt động chưa đọc"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Phiên chưa đặt tên"
@@ -2753,6 +2843,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Từ mẫu hoặc thiết lập thủ công"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Không có nhà cung cấp nào khớp với \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Tìm kiếm nhà cung cấp..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "Logo {providerName}"
   },
@@ -2956,12 +3052,6 @@
   },
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "Sử dụng nhà cung cấp mặc định"
-  },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "Tên công thức"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "Sẽ được định dạng tự động (chữ thường, dấu gạch ngang thay cho khoảng trắng)"
   },
   "recipeWarningModal.cancel": {
     "defaultMessage": "Hủy"
@@ -3593,6 +3683,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "Đã sao chép JSON của phiên"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Đã sao chép văn bản"
   },
@@ -3623,6 +3716,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Đang tải JSON..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "Không thể đổi tên phiên: {error}"
   },
@@ -3647,6 +3746,9 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "Xem JSON của phiên"
   },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
+  },
   "sessionIndicators.error": {
     "defaultMessage": "Phiên gặp lỗi"
   },
@@ -3655,24 +3757,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Đang truyền phát"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Phiên này không chứa tin nhắn nào"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "Không tìm thấy tin nhắn nào"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Lỗi khi tải chi tiết phiên"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Thử lại"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "Bạn"
   },
   "sessions.action.delete": {
     "defaultMessage": "Xóa phiên"
@@ -3983,6 +4067,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Trò chuyện"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Backend bên ngoài"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Bàn phím"
   },
@@ -3995,14 +4082,8 @@
   "settingsView.tabPrompts": {
     "defaultMessage": "Lời nhắc"
   },
-  "settingsView.tabSession": {
-    "defaultMessage": "Phiên làm việc"
-  },
   "settingsView.title": {
     "defaultMessage": "Cài đặt"
-  },
-  "sheet.close": {
-    "defaultMessage": "Đóng"
   },
   "shortcutRecorder.cancel": {
     "defaultMessage": "Hủy"
@@ -4069,15 +4150,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "Nhà cung cấp {name} đã được định cấu hình"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Ứng dụng Ollama"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "Để sử dụng, hoặc là"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "phải được cài đặt trên máy của bạn và đang mở, hoặc bạn phải nhập một giá trị cho OLLAMA_HOST."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "Thêm hiện có"
@@ -4493,6 +4565,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Chỉnh sửa"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Hình ảnh đính kèm:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "Chỉnh sửa tại chỗ"
   },
@@ -4525,5 +4600,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Tạo một phiên làm việc mới với tin nhắn đã chỉnh sửa"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Xóa hình ảnh khỏi tin nhắn"
   }
 }

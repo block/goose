@@ -8,6 +8,8 @@ import {
   Settings2,
   Eye,
   RefreshCw,
+  Cpu,
+  PowerOff,
 } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { useModelAndProvider } from '../../ModelAndProviderContext';
@@ -18,6 +20,7 @@ import {
   getLocalModelDownloadProgress,
   cancelLocalModelDownload,
   deleteLocalModel,
+  evictLocalModel,
   type DownloadProgress,
   type DownloadModelRequest,
   type LocalModelResponse,
@@ -106,6 +109,14 @@ const i18n = defineMessages({
     id: 'localInferenceSettings.modelSettingsTitle',
     defaultMessage: 'Model settings',
   },
+  loadedInMemory: {
+    id: 'localInferenceSettings.loadedInMemory',
+    defaultMessage: 'Loaded in memory',
+  },
+  evictFromMemory: {
+    id: 'localInferenceSettings.evictFromMemory',
+    defaultMessage: 'Evict from memory',
+  },
   vision: {
     id: 'localInferenceSettings.vision',
     defaultMessage: 'Vision',
@@ -181,6 +192,7 @@ export const LocalInferenceSettings = () => {
   const [downloadRequests, setDownloadRequests] = useState<Map<string, DownloadModelRequest>>(
     new Map()
   );
+  const [evictingModelId, setEvictingModelId] = useState<string | null>(null);
   const [showAllFeatured, setShowAllFeatured] = useState(false);
   const [settingsOpenFor, setSettingsOpenFor] = useState<string | null>(null);
   const { currentModel, currentProvider, refreshCurrentModelAndProvider } = useModelAndProvider();
@@ -371,6 +383,18 @@ export const LocalInferenceSettings = () => {
     }
   };
 
+  const handleEvictModel = async (modelId: string) => {
+    setEvictingModelId(modelId);
+    try {
+      await evictLocalModel(modelId);
+      await loadModels();
+    } catch (error) {
+      console.error('Failed to evict model:', error);
+    } finally {
+      setEvictingModelId(null);
+    }
+  };
+
   const handleHfDownloadStarted = (modelId: string, request: DownloadModelRequest) => {
     setDownloadRequests((prev) => new Map(prev).set(modelId, request));
     pollDownloadProgress(modelId);
@@ -392,6 +416,15 @@ export const LocalInferenceSettings = () => {
       .filter(([, progress]) => progress.status === 'downloading')
       .map(([modelId]) => modelId)
   );
+
+  useEffect(() => {
+    if (downloadedModels.length === 0) return;
+
+    const interval = setInterval(() => {
+      loadModels();
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [downloadedModels.length, loadModels]);
 
   return (
     <div className="space-y-6">
@@ -526,18 +559,26 @@ export const LocalInferenceSettings = () => {
                       : 'border-border-subtle bg-background-default hover:border-border-default'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-2 flex-wrap">
                       <input
                         type="radio"
                         checked={isSelected}
                         onChange={() => selectModel(model.id)}
                         className="cursor-pointer"
                       />
-                      <span className="text-sm font-medium text-text-default">{model.id}</span>
+                      <span className="text-sm font-medium text-text-default break-all">
+                        {model.id}
+                      </span>
                       <span className="text-xs text-text-muted">
                         {formatBytes(model.sizeBytes)}
                       </span>
+                      {model.isLoaded && (
+                        <span className="inline-flex items-center gap-1 text-xs text-green-400 bg-green-500/10 px-2 py-0.5 rounded">
+                          <Cpu className="w-3 h-3" />
+                          {intl.formatMessage(i18n.loadedInMemory)}
+                        </span>
+                      )}
                       {model.recommended && (
                         <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">
                           {intl.formatMessage(i18n.recommended)}
@@ -545,7 +586,7 @@ export const LocalInferenceSettings = () => {
                       )}
                       <VisionBadge model={model} intl={intl} />
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex shrink-0 items-center gap-1">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -554,6 +595,17 @@ export const LocalInferenceSettings = () => {
                       >
                         <Settings2 className="w-4 h-4" />
                       </Button>
+                      {model.isLoaded && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEvictModel(model.id)}
+                          disabled={evictingModelId === model.id}
+                          title={intl.formatMessage(i18n.evictFromMemory)}
+                        >
+                          <PowerOff className="w-4 h-4" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"

@@ -84,3 +84,14 @@ result
 # Goose self-test artifacts
 gooseselftest/
 .tasks/
+
+# Generated goose-sdk Maven bindings and native libraries
+/crates/goose-sdk/maven/src/main/
+/crates/goose-sdk/maven/.gradle/
+/crates/goose-sdk/maven/.kotlin/
+/crates/goose-sdk/maven/build/
+
+# Generated goose-sdk Kotlin example build artifacts
+/crates/goose-sdk/examples/uniffi/kotlin/.gradle/
+/crates/goose-sdk/examples/uniffi/kotlin/.kotlin/
+/crates/goose-sdk/examples/uniffi/kotlin/build/

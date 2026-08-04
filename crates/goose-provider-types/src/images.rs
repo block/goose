@@ -1,7 +1,7 @@
 use std::{borrow::Cow, io::Read as _, path::Path};
 
 use base64::Engine as _;
-use rmcp::model::{AnnotateAble as _, ImageContent, RawImageContent};
+use rmcp::model::ImageContent;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -234,12 +234,7 @@ pub fn load_image_file(path: &str) -> Result<ImageContent, ProviderError> {
     // Convert to base64
     let data = base64::prelude::BASE64_STANDARD.encode(&bytes);
 
-    Ok(RawImageContent {
-        mime_type: mime_type.to_string(),
-        data,
-        meta: None,
-    }
-    .no_annotation())
+    Ok(ImageContent::new(data, mime_type))
 }
 
 #[cfg(test)]

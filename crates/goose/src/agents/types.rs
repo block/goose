@@ -4,7 +4,6 @@ use rmcp::model::{CallToolResult, Tool};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
-use utoipa::ToSchema;
 
 /// Type alias for the tool result channel receiver
 pub type ToolResultReceiver = Arc<Mutex<mpsc::Receiver<(String, ToolResult<CallToolResult>)>>>;
@@ -19,7 +18,7 @@ pub const DEFAULT_RETRY_TIMEOUT_SECONDS: u64 = 300;
 pub const DEFAULT_ON_FAILURE_TIMEOUT_SECONDS: u64 = 600;
 
 /// Configuration for retry logic in recipe execution
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetryConfig {
     /// Maximum number of retry attempts before giving up
     pub max_retries: u32,
@@ -62,7 +61,7 @@ impl RetryConfig {
 }
 
 /// A single success check to validate recipe completion
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum SuccessCheck {
     /// Execute a shell command and check its exit status

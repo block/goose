@@ -319,7 +319,13 @@ impl BedrockProvider {
         let bedrock_messages = visible_messages
             .iter()
             .enumerate()
-            .map(|(idx, m)| to_bedrock_message_with_caching(m, enable_caching && idx == last_idx))
+            .map(|(idx, m)| {
+                to_bedrock_message_with_caching(
+                    m,
+                    enable_caching && idx == last_idx,
+                    Some(&model.model_name),
+                )
+            })
             .collect::<Result<Vec<_>>>()?;
 
         let tool_config = if tools.is_empty() {
@@ -941,6 +947,7 @@ mod tests {
                 toolshim_model: None,
                 request_params: None,
                 reasoning: None,
+                request_headers: None,
             },
         )
     }

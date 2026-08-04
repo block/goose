@@ -6,16 +6,26 @@ These examples exercise the in-process Goose SDK UniFFI bindings from Python and
 
 ```bash
 source bin/activate-hermit
+```
+
+The Python example uses the declarative DeepSeek provider:
+
+```bash
 export DEEPSEEK_API_KEY=...
+```
+
+The Kotlin/JVM Maven smoke test uses the native OpenAI provider:
+
+```bash
+export OPENAI_API_KEY=...
 ```
 
 ## Generate bindings
 
-Regenerate the Python and Kotlin bindings before running the examples:
+Regenerate the Python bindings before running the Python example:
 
 ```bash
 just --justfile crates/goose-sdk/justfile _generate python
-just --justfile crates/goose-sdk/justfile _generate kotlin
 ```
 
 This writes generated bindings and the debug native library under `crates/goose-sdk/generated/`.
@@ -27,27 +37,22 @@ DYLD_LIBRARY_PATH=target/debug LD_LIBRARY_PATH=target/debug \
   uv run --script crates/goose-sdk/examples/uniffi/provider.py
 ```
 
-## Kotlin provider example
+## Kotlin/JVM Maven smoke test
 
-Download JNA if it is not already present:
-
-```bash
-curl -sSL -o crates/goose-sdk/examples/uniffi/jna.jar \
-  https://repo1.maven.org/maven2/net/java/dev/jna/jna/5.14.0/jna-5.14.0.jar
-```
-
-Compile and run:
+Build the local Maven artifact and run the downstream smoke test app:
 
 ```bash
-kotlinc -cp crates/goose-sdk/examples/uniffi/jna.jar -nowarn \
-  crates/goose-sdk/generated/io/aaif/goose/goose.kt \
-  crates/goose-sdk/examples/uniffi/Provider.kt \
-  -include-runtime -d crates/goose-sdk/examples/uniffi/provider.jar
-
-java -Djna.library.path=target/debug \
-  --enable-native-access=ALL-UNNAMED \
-  -cp crates/goose-sdk/examples/uniffi/provider.jar:crates/goose-sdk/examples/uniffi/jna.jar \
-  aaif.example.ProviderKt
+just --justfile crates/goose-sdk/justfile maven-package
+cd crates/goose-sdk/examples/uniffi/kotlin
+gradle --no-daemon run
 ```
 
-On Linux, use the same command; `LD_LIBRARY_PATH=target/debug` can also be set if needed. On macOS, `-Djna.library.path=target/debug` is usually enough, but `DYLD_LIBRARY_PATH=target/debug` can also be set if JNA cannot find `libgoose_sdk.dylib`.
+Or run the same flow through the goose-sdk justfile:
+
+```bash
+just --justfile crates/goose-sdk/justfile kotlin
+```
+
+The Kotlin example consumes the local Maven artifact `io.github.aaif-goose:gdk` from `mavenLocal()` and imports the generated package namespace `io.github.aaif_goose`.
+
+On newer JDKs, the example enables native access with `--enable-native-access=ALL-UNNAMED` because the SDK uses JNA to load the bundled native library.

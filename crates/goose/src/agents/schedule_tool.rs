@@ -3,15 +3,64 @@
 //! This module contains all the handlers for the schedule management platform tool,
 //! including job creation, execution, monitoring, and session management.
 
+use std::io::Read;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::mcp_utils::ToolResult;
 use chrono::Utc;
-use rmcp::model::{Content, ErrorCode, ErrorData};
+use rmcp::model::{ContentBlock, ErrorCode, ErrorData};
 
 use super::Agent;
 use crate::recipe::Recipe;
+use crate::scheduler::{
+    open_regular_schedule_recipe, ValidatedScheduleRecipe, MAX_SCHEDULE_RECIPE_BYTES,
+};
 use crate::scheduler_trait::SchedulerTrait;
+
+fn recipe_file_error(message: &str) -> ErrorData {
+    ErrorData::new(ErrorCode::INTERNAL_ERROR, message.to_string(), None)
+}
+
+fn read_schedule_recipe(path: &Path) -> Result<(String, PathBuf), ErrorData> {
+    let canonical_path = path
+        .canonicalize()
+        .map_err(|_| recipe_file_error("Cannot read recipe file"))?;
+    let file = open_regular_schedule_recipe(&canonical_path).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::InvalidInput {
+            recipe_file_error("Recipe path must reference a regular file")
+        } else {
+            recipe_file_error("Cannot read recipe file")
+        }
+    })?;
+    let opened_metadata = file
+        .metadata()
+        .map_err(|_| recipe_file_error("Cannot read recipe file"))?;
+    if !opened_metadata.is_file() {
+        return Err(recipe_file_error(
+            "Recipe path must reference a regular file",
+        ));
+    }
+    if opened_metadata.len() > MAX_SCHEDULE_RECIPE_BYTES {
+        return Err(recipe_file_error(
+            "Recipe file exceeds the 1048576 byte limit",
+        ));
+    }
+
+    let mut bytes = Vec::new();
+    file.take(MAX_SCHEDULE_RECIPE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| recipe_file_error("Cannot read recipe file"))?;
+    if bytes.len() as u64 > MAX_SCHEDULE_RECIPE_BYTES {
+        return Err(recipe_file_error(
+            "Recipe file exceeds the 1048576 byte limit",
+        ));
+    }
+
+    let content = String::from_utf8(bytes)
+        .map_err(|_| recipe_file_error("Recipe file must be valid UTF-8"))?;
+    Ok((content, canonical_path))
+}
 
 impl Agent {
     /// Handle schedule management tool calls
@@ -19,7 +68,7 @@ impl Agent {
         &self,
         arguments: serde_json::Value,
         _request_id: String,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let scheduler = self.config.scheduler_service.clone().ok_or_else(|| {
             ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
@@ -61,7 +110,7 @@ impl Agent {
     async fn handle_list_jobs(
         &self,
         scheduler: Arc<dyn SchedulerTrait>,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let jobs = scheduler.list_scheduled_jobs().await;
         let jobs_json = serde_json::to_string_pretty(&jobs).map_err(|e| {
             ErrorData::new(
@@ -70,7 +119,7 @@ impl Agent {
                 None,
             )
         })?;
-        Ok(vec![Content::text(format!(
+        Ok(vec![ContentBlock::text(format!(
             "Scheduled Jobs:\n{}",
             jobs_json
         ))])
@@ -80,7 +129,7 @@ impl Agent {
         &self,
         scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let recipe_path = arguments
             .get("recipe_path")
             .and_then(|v| v.as_str())
@@ -109,50 +158,24 @@ impl Agent {
             .and_then(|v| v.as_str())
             .unwrap_or("background");
 
-        if !std::path::Path::new(recipe_path).exists() {
-            return Err(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Recipe file not found: {}", recipe_path),
-                None,
-            ));
-        }
-
-        // Validate it's a valid recipe by trying to parse it
-        match std::fs::read_to_string(recipe_path) {
-            Ok(content) => {
-                if recipe_path.ends_with(".json") {
-                    serde_json::from_str::<Recipe>(&content).map_err(|e| {
-                        ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            format!("Invalid JSON recipe: {}", e),
-                            None,
-                        )
-                    })?;
-                } else {
-                    serde_yaml::from_str::<Recipe>(&content).map_err(|e| {
-                        ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            format!("Invalid YAML recipe: {}", e),
-                            None,
-                        )
-                    })?;
-                }
-            }
-            Err(e) => {
-                return Err(ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Cannot read recipe file: {}", e),
-                    None,
-                ))
-            }
+        let (content, canonical_recipe_path) = read_schedule_recipe(Path::new(recipe_path))?;
+        if recipe_path.ends_with(".json") {
+            serde_json::from_str::<Recipe>(&content)
+                .map_err(|_| recipe_file_error("Invalid JSON recipe"))?;
+        } else {
+            serde_yaml::from_str::<Recipe>(&content)
+                .map_err(|_| recipe_file_error("Invalid YAML recipe"))?;
         }
 
         // Generate unique job ID
         let job_id = format!("agent_created_{}", Utc::now().timestamp());
 
+        let recipe_base_dir = canonical_recipe_path
+            .parent()
+            .map(|path| path.to_string_lossy().into_owned());
         let job = crate::scheduler::ScheduledJob {
             id: job_id.clone(),
-            source: recipe_path.to_string(),
+            source: canonical_recipe_path.to_string_lossy().into_owned(),
             cron: cron_expression.to_string(),
             last_run: None,
             currently_running: false,
@@ -160,11 +183,17 @@ impl Agent {
             current_session_id: None,
             process_start_time: None,
             parameters: vec![],
-            recipe_base_dir: None,
+            recipe_base_dir,
         };
 
-        match scheduler.add_scheduled_job(job, true).await {
-            Ok(()) => Ok(vec![Content::text(format!(
+        match scheduler
+            .add_scheduled_job_with_recipe(
+                job,
+                ValidatedScheduleRecipe::new(content.into_bytes(), canonical_recipe_path),
+            )
+            .await
+        {
+            Ok(()) => Ok(vec![ContentBlock::text(format!(
                 "Successfully created scheduled job '{}' for recipe '{}' with cron expression '{}' in {} mode",
                 job_id, recipe_path, cron_expression, execution_mode
             ))]),
@@ -181,7 +210,7 @@ impl Agent {
         &self,
         scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let job_id = arguments
             .get("job_id")
             .and_then(|v| v.as_str())
@@ -194,7 +223,7 @@ impl Agent {
             })?;
 
         match scheduler.run_now(job_id).await {
-            Ok(session_id) => Ok(vec![Content::text(format!(
+            Ok(session_id) => Ok(vec![ContentBlock::text(format!(
                 "Successfully started job '{}'. Session ID: {}",
                 job_id, session_id
             ))]),
@@ -211,7 +240,7 @@ impl Agent {
         &self,
         scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let job_id = arguments
             .get("job_id")
             .and_then(|v| v.as_str())
@@ -224,7 +253,7 @@ impl Agent {
             })?;
 
         match scheduler.pause_schedule(job_id).await {
-            Ok(()) => Ok(vec![Content::text(format!(
+            Ok(()) => Ok(vec![ContentBlock::text(format!(
                 "Successfully paused job '{}'",
                 job_id
             ))]),
@@ -241,7 +270,7 @@ impl Agent {
         &self,
         scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let job_id = arguments
             .get("job_id")
             .and_then(|v| v.as_str())
@@ -254,7 +283,7 @@ impl Agent {
             })?;
 
         match scheduler.unpause_schedule(job_id).await {
-            Ok(()) => Ok(vec![Content::text(format!(
+            Ok(()) => Ok(vec![ContentBlock::text(format!(
                 "Successfully unpaused job '{}'",
                 job_id
             ))]),
@@ -271,7 +300,7 @@ impl Agent {
         &self,
         scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let job_id = arguments
             .get("job_id")
             .and_then(|v| v.as_str())
@@ -284,7 +313,7 @@ impl Agent {
             })?;
 
         match scheduler.remove_scheduled_job(job_id, false).await {
-            Ok(()) => Ok(vec![Content::text(format!(
+            Ok(()) => Ok(vec![ContentBlock::text(format!(
                 "Successfully removed schedule for job '{}'",
                 job_id
             ))]),
@@ -301,7 +330,7 @@ impl Agent {
         &self,
         scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let job_id = arguments
             .get("job_id")
             .and_then(|v| v.as_str())
@@ -314,7 +343,7 @@ impl Agent {
             })?;
 
         match scheduler.kill_running_job(job_id).await {
-            Ok(()) => Ok(vec![Content::text(format!(
+            Ok(()) => Ok(vec![ContentBlock::text(format!(
                 "Successfully killed running job '{}'",
                 job_id
             ))]),
@@ -331,7 +360,7 @@ impl Agent {
         &self,
         scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let job_id = arguments
             .get("job_id")
             .and_then(|v| v.as_str())
@@ -346,12 +375,12 @@ impl Agent {
         match scheduler.get_running_job_info(job_id).await {
             Ok(Some((session_id, start_time))) => {
                 let duration = Utc::now().signed_duration_since(start_time);
-                Ok(vec![Content::text(format!(
+                Ok(vec![ContentBlock::text(format!(
                     "Job '{}' is currently running:\n- Session ID: {}\n- Started: {}\n- Duration: {} seconds",
                     job_id, session_id, start_time.to_rfc3339(), duration.num_seconds()
                 ))])
             }
-            Ok(None) => Ok(vec![Content::text(format!(
+            Ok(None) => Ok(vec![ContentBlock::text(format!(
                 "Job '{}' is not currently running",
                 job_id
             ))]),
@@ -368,7 +397,7 @@ impl Agent {
         &self,
         scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let job_id = arguments
             .get("job_id")
             .and_then(|v| v.as_str())
@@ -388,7 +417,7 @@ impl Agent {
         match scheduler.sessions(job_id, limit).await {
             Ok(sessions) => {
                 if sessions.is_empty() {
-                    Ok(vec![Content::text(format!(
+                    Ok(vec![ContentBlock::text(format!(
                         "No sessions found for job '{}'",
                         job_id
                     ))])
@@ -405,7 +434,7 @@ impl Agent {
                         })
                         .collect();
 
-                    Ok(vec![Content::text(format!(
+                    Ok(vec![ContentBlock::text(format!(
                         "Sessions for job '{}':\n{}",
                         job_id,
                         sessions_info.join("\n")
@@ -424,7 +453,7 @@ impl Agent {
     async fn handle_session_content(
         &self,
         arguments: serde_json::Value,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let session_id = arguments
             .get("session_id")
             .and_then(|v| v.as_str())
@@ -464,7 +493,7 @@ impl Agent {
             }
         };
 
-        Ok(vec![Content::text(format!(
+        Ok(vec![ContentBlock::text(format!(
             "Session '{}' Content:\n\nSession:\n{}",
             session_id, metadata_json
         ))])

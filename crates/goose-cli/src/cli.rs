@@ -17,7 +17,6 @@ use crate::commands::configure::configure_telemetry_consent_dialog;
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::plugin::{handle_plugin_install, handle_plugin_update};
-use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
 use crate::commands::term::{
     handle_term_info, handle_term_init, handle_term_log, handle_term_run, Shell,
@@ -38,8 +37,6 @@ use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
 use std::io::Read;
 use std::path::PathBuf;
-use tracing::warn;
-
 const GOOSE_SERVER_SECRET_KEY_ENV: &str = "GOOSE_SERVER__SECRET_KEY";
 
 fn generate_serve_secret_key() -> String {
@@ -838,6 +835,9 @@ enum Command {
             value_delimiter = ','
         )]
         builtins: Vec<String>,
+
+        #[arg(long, help = "Enable scheduled recipe execution")]
+        enable_scheduler: bool,
     },
 
     /// Start ACP server over HTTP and WebSocket
@@ -884,6 +884,9 @@ enum Command {
             help = "Allow an exact Origin value for ACP CORS; may be specified multiple times and replaces the default loopback origins"
         )]
         allowed_origins: Vec<String>,
+
+        #[arg(long, help = "Enable scheduled recipe execution")]
+        enable_scheduler: bool,
     },
 
     /// Start or resume interactive chat sessions
@@ -939,14 +942,6 @@ enum Command {
         #[command(flatten)]
         extension_opts: ExtensionOptions,
     },
-
-    /// Open the last project directory
-    #[command(about = "Open the last project directory", visible_alias = "p")]
-    Project {},
-
-    /// List recent project directories
-    #[command(about = "List recent project directories", visible_alias = "ps")]
-    Projects,
 
     /// Execute commands from an instruction file
     #[command(about = "Execute commands from an instruction file or stdin")]
@@ -1343,8 +1338,6 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Acp { .. }) => "acp",
         Some(Command::Serve { .. }) => "serve",
         Some(Command::Session { .. }) => "session",
-        Some(Command::Project {}) => "project",
-        Some(Command::Projects) => "projects",
         Some(Command::Run { .. }) => "run",
         Some(Command::Gateway { .. }) => "gateway",
         Some(Command::Schedule { .. }) => "schedule",
@@ -1388,10 +1381,12 @@ struct ServeCommandArgs {
     builtins: Vec<String>,
     dangerously_unauthenticated: bool,
     allowed_origins: Vec<String>,
+    enable_scheduler: bool,
 }
 
 async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
     use axum::http::HeaderValue;
+    use goose::acp::server::AcpBuiltinSelection;
     use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
     use goose::acp::transport::create_router;
     use goose::config::paths::Paths;
@@ -1409,12 +1404,19 @@ async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
         builtins,
         dangerously_unauthenticated,
         allowed_origins,
+        enable_scheduler,
     } = args;
 
     let builtins = if builtins.is_empty() {
-        vec!["developer".to_string()]
+        AcpBuiltinSelection {
+            defaults: vec!["developer".to_string()],
+            explicit: Vec::new(),
+        }
     } else {
-        builtins
+        AcpBuiltinSelection {
+            defaults: Vec::new(),
+            explicit: builtins,
+        }
     };
 
     let additional_source_roots = Config::global()
@@ -1435,7 +1437,7 @@ async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
         config_dir: Paths::config_dir(),
         goose_platform: platform.into(),
         additional_source_roots,
-        scheduler: None,
+        enable_scheduler,
     }));
     let env_secret = std::env::var(GOOSE_SERVER_SECRET_KEY_ENV)
         .ok()
@@ -1465,6 +1467,9 @@ async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
         })
         .collect::<Result<Vec<_>>>()?;
     let secret_key = env_secret.unwrap_or_else(generate_serve_secret_key);
+    if let Err(error) = server.start_scheduler().await {
+        warn!("Scheduler failed to start; scheduled jobs will not run until a client connects: {error}");
+    }
     let router = create_router(
         server,
         secret_key,
@@ -1840,7 +1845,9 @@ fn parse_run_input(
             Ok(Some((input_config, Some(recipe))))
         }
         (None, None, None) => {
-            eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
+            eprintln!(
+                "Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin."
+            );
             std::process::exit(1);
         }
     }
@@ -2208,10 +2215,6 @@ pub async fn cli() -> anyhow::Result<()> {
 
     let cli = Cli::parse();
 
-    if let Err(e) = crate::project_tracker::update_project_tracker(None, None) {
-        warn!("Warning: Failed to update project tracker: {}", e);
-    }
-
     let command_name = get_command_name(&cli.command);
     tracing::info!(
         monotonic_counter.goose.cli_commands = 1,
@@ -2229,7 +2232,10 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Doctor {}) => crate::commands::doctor::handle_doctor().await,
         Some(Command::Info { verbose, check }) => handle_info(verbose, check).await,
         Some(Command::Mcp { server }) => handle_mcp_command(server).await,
-        Some(Command::Acp { builtins }) => goose::acp::server::run(builtins).await,
+        Some(Command::Acp {
+            builtins,
+            enable_scheduler,
+        }) => goose::acp::server::run(builtins, enable_scheduler).await,
         Some(Command::Serve {
             host,
             port,
@@ -2240,6 +2246,7 @@ pub async fn cli() -> anyhow::Result<()> {
             builtins,
             dangerously_unauthenticated,
             allowed_origins,
+            enable_scheduler,
         }) => {
             handle_serve_command(ServeCommandArgs {
                 host,
@@ -2251,6 +2258,7 @@ pub async fn cli() -> anyhow::Result<()> {
                 builtins,
                 dangerously_unauthenticated,
                 allowed_origins,
+                enable_scheduler,
             })
             .await
         }
@@ -2277,14 +2285,6 @@ pub async fn cli() -> anyhow::Result<()> {
                 extension_opts,
             )
             .await
-        }
-        Some(Command::Project {}) => {
-            handle_project_default()?;
-            Ok(())
-        }
-        Some(Command::Projects) => {
-            handle_projects_interactive()?;
-            Ok(())
         }
         Some(Command::Run {
             input_opts,

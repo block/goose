@@ -22,6 +22,7 @@ pub(super) struct LocalGenerationRequest<'a> {
     pub temperature: Option<f32>,
     pub max_tokens: Option<i32>,
     pub context_limit: usize,
+    pub model_load_ms: Option<u64>,
     pub resolved_model: &'a ResolvedModelPaths,
     pub draft_model_path: Option<std::path::PathBuf>,
     pub message_id: &'a str,
