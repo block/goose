@@ -167,12 +167,11 @@ export function TerminalTabView({
   return (
     <div
       ref={containerRef}
-      className="h-full w-full min-h-0 overflow-hidden"
-      // Keep inactive tabs in the layout tree without display:none so xterm
-      // does not tear down its renderer when switching tabs.
+      data-testid={`terminal-xterm-host-${tabId}`}
+      className="absolute inset-0 min-h-0 overflow-hidden"
+      // Keep inactive tabs mounted without display:none so scrollback survives.
+      // Always position inside the content host (never the tab strip).
       style={{
-        position: isActive ? 'relative' : 'absolute',
-        inset: 0,
         visibility: isActive ? 'visible' : 'hidden',
         pointerEvents: isActive && isPanelOpen ? 'auto' : 'none',
         zIndex: isActive ? 1 : 0,

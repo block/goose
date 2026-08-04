@@ -237,63 +237,77 @@ export function TerminalPanel({
       aria-label={intl.formatMessage(i18n.terminal)}
       aria-hidden={!open}
     >
+      {/* Below the tab strip only — full-height hit target stole clicks on tabs. */}
       <button
         type="button"
         aria-label={intl.formatMessage(i18n.resize)}
-        className="absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize"
+        className="absolute bottom-0 left-0 top-9 z-20 w-1.5 cursor-col-resize"
         onMouseDown={onResizeStart}
         tabIndex={open ? 0 : -1}
       />
 
-      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border-primary px-2">
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-          {tabs.map((tab) => (
-            <div
-              key={tab.id}
-              className={cn(
-                'group flex max-w-[9rem] items-center gap-1 rounded-md px-2 py-1 text-xs',
-                tab.id === activeTabId
-                  ? 'bg-background-secondary text-text-primary'
-                  : 'text-text-secondary hover:bg-background-secondary/60'
-              )}
+      {/* z-30 keeps controls above xterm's helper textarea, which otherwise eats clicks. */}
+      <div
+        data-testid="terminal-tab-strip"
+        className="relative z-30 flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-b border-border-primary bg-background-primary px-2"
+      >
+        {tabs.map((tab) => (
+          <div
+            key={tab.id}
+            data-testid={`terminal-tab-${tab.id}`}
+            className={cn(
+              'group flex max-w-[9rem] shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs',
+              tab.id === activeTabId
+                ? 'bg-background-secondary text-text-primary'
+                : 'text-text-secondary hover:bg-background-secondary/60'
+            )}
+          >
+            <button
+              type="button"
+              className="min-w-0 truncate"
+              onClick={() => {
+                setActiveTabId(tab.id);
+                persist({ activeTabId: tab.id });
+                setFocusToken((n) => n + 1);
+              }}
             >
-              <button
-                type="button"
-                className="min-w-0 truncate"
-                onClick={() => {
-                  setActiveTabId(tab.id);
-                  persist({ activeTabId: tab.id });
-                  setFocusToken((n) => n + 1);
-                }}
-              >
-                {intl.formatMessage(i18n.terminal)} {tab.title}
-              </button>
-              <button
-                type="button"
-                data-testid={`terminal-close-tab-${tab.id}`}
-                className="rounded px-1 opacity-60 hover:opacity-100"
-                aria-label={intl.formatMessage(i18n.closeTab)}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  closeTab(tab.id);
-                }}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
+              {intl.formatMessage(i18n.terminal)} {tab.title}
+            </button>
+            <button
+              type="button"
+              data-testid={`terminal-close-tab-${tab.id}`}
+              className="rounded px-1 opacity-60 hover:opacity-100"
+              aria-label={intl.formatMessage(i18n.closeTab)}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                closeTab(tab.id);
+              }}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        {/* Sits after the newest tab in document order, not pinned to the pane edge. */}
         <button
           type="button"
-          className="rounded px-2 py-1 text-sm text-text-secondary hover:bg-background-secondary hover:text-text-primary"
+          data-testid="terminal-new-tab"
+          className="shrink-0 rounded px-2 py-1 text-sm text-text-secondary hover:bg-background-secondary hover:text-text-primary"
           aria-label={intl.formatMessage(i18n.newTab)}
-          onClick={addTab}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            addTab();
+          }}
         >
           +
         </button>
       </div>
 
-      <div className="relative min-h-0 flex-1">
+      <div
+        data-testid="terminal-content"
+        className="relative z-0 min-h-0 flex-1 overflow-hidden"
+      >
         {tabs.map((tab) => (
           <TerminalTabView
             key={tab.id}

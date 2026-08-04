@@ -204,7 +204,7 @@ describe('TerminalPanel collapse/reopen preserves the same terminal', () => {
     const { container } = renderPanel();
 
     const firstTabId = await openViaShortcut();
-    await user.click(screen.getByRole('button', { name: 'New terminal tab' }));
+    await user.click(screen.getByTestId('terminal-new-tab'));
 
     const views = await waitFor(() => screen.getAllByTestId(/terminal-tab-view-/));
     expect(views).toHaveLength(2);
@@ -226,5 +226,61 @@ describe('TerminalPanel collapse/reopen preserves the same terminal', () => {
     const stored = loadTerminalState(sessionId);
     expect(stored.open).toBe(true);
     expect(stored.tabs.map((t) => t.id)).toEqual([secondTabId]);
+  });
+
+  it('places the new-tab control immediately after the newest tab, not pinned to the pane edge', async () => {
+    const user = userEvent.setup();
+    renderPanel();
+
+    const firstTabId = await openViaShortcut();
+    await user.click(screen.getByTestId('terminal-new-tab'));
+
+    const views = await waitFor(() => screen.getAllByTestId(/terminal-tab-view-/));
+    expect(views).toHaveLength(2);
+    const secondTabId = views
+      .map((node) => node.getAttribute('data-tab-id')!)
+      .find((id) => id !== firstTabId)!;
+
+    const strip = screen.getByTestId('terminal-tab-strip');
+    const stripChildren = Array.from(strip.children);
+    const tabIndexes = stripChildren.map((el) => el.getAttribute('data-testid'));
+
+    expect(tabIndexes).toEqual([
+      `terminal-tab-${firstTabId}`,
+      `terminal-tab-${secondTabId}`,
+      'terminal-new-tab',
+    ]);
+
+    // + is a sibling after tabs in the same strip — not a separate flex-end pin.
+    expect(strip.querySelector('[data-testid="terminal-new-tab"]')?.parentElement).toBe(strip);
+    expect(screen.getByTestId('terminal-tab-strip').className).toContain('z-30');
+    expect(screen.getByTestId('terminal-content').className).toContain('z-0');
+  });
+
+  it('new-tab and close-tab buttons receive clicks above the terminal content layer', async () => {
+    const user = userEvent.setup();
+    renderPanel();
+
+    const firstTabId = await openViaShortcut();
+
+    // Click + must add a second tab (regression: xterm overlay ate the click).
+    await user.click(screen.getByTestId('terminal-new-tab'));
+    await waitFor(() => {
+      expect(screen.getAllByTestId(/terminal-tab-view-/)).toHaveLength(2);
+    });
+
+    const secondTabId = screen
+      .getAllByTestId(/terminal-tab-view-/)
+      .map((node) => node.getAttribute('data-tab-id')!)
+      .find((id) => id !== firstTabId)!;
+
+    // Click × on the active/newest tab must close that tab only.
+    await user.click(screen.getByTestId(`terminal-close-tab-${secondTabId}`));
+    expect(window.electron.terminalKill).toHaveBeenCalledWith({
+      sessionId,
+      tabId: secondTabId,
+    });
+    expect(screen.queryByTestId(`terminal-tab-view-${secondTabId}`)).not.toBeInTheDocument();
+    expect(screen.getByTestId(`terminal-tab-view-${firstTabId}`)).toBeInTheDocument();
   });
 });
