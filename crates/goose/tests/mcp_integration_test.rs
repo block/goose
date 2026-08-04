@@ -171,7 +171,7 @@ async fn test_replayed_session(
         ("GOOSE_MCP_CLIENT_VERSION", Some("0.0.0")),
         ("GOOSE_PROVIDER", Some("openai")),
         ("GOOSE_MODEL", Some("gpt-4o")),
-        ("GOOSE_WORKING_DIR", Some("/tmp/goose_test")),
+        ("GOOSE_WORKING_DIR", Some(".")),
     ]);
 
     // Setup test file for developer extension tests
@@ -257,6 +257,8 @@ async fn test_replayed_session(
         ExtensionManagerCapabilities {
             mcpui: true,
             host_info: None,
+            elicitation_handler: None,
+            protocol_version: None,
         },
         true,
     ));
