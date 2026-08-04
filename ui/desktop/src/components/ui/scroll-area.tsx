@@ -141,8 +141,10 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
         userScrolledUpRef.current = true;
         setIsFollowing(false);
         onScrollChange?.(false);
-      } else if (currentIsAtBottom && userScrolledUpRef.current) {
-        // user scrolled back to bottom
+      } else if (currentIsAtBottom && !isScrollingUp && userScrolledUpRef.current) {
+        // user scrolled back down to the bottom: only resume when the scroll is
+        // no longer moving up, so a multi-event upward scroll within the
+        // threshold does not immediately re-enable following.
         userScrolledUpRef.current = false;
         setIsFollowing(true);
         onScrollChange?.(true);

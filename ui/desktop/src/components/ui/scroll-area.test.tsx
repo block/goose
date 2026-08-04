@@ -61,4 +61,18 @@ describe('ScrollArea auto-follow', () => {
     scrollTo(viewport, 500);
     expect(ref.current?.isFollowing).toBe(true);
   });
+
+  it('stays unfollowed across consecutive upward scroll events within the threshold', () => {
+    const { ref, viewport } = setup();
+
+    scrollTo(viewport, 500);
+    // A slow scroll-up arrives as several small events, all still within the
+    // 200px band. Following must stay off for the whole gesture.
+    scrollTo(viewport, 480);
+    expect(ref.current?.isFollowing).toBe(false);
+    scrollTo(viewport, 460);
+    expect(ref.current?.isFollowing).toBe(false);
+    scrollTo(viewport, 440);
+    expect(ref.current?.isFollowing).toBe(false);
+  });
 });
