@@ -4,10 +4,10 @@ use agent_client_protocol::schema::v1::{
     LoadSessionRequest, McpCapabilities, McpServer, McpServerHttp, McpServerStdio,
     NewSessionRequest, NewSessionResponse, PromptRequest, PromptResponse, RequestPermissionOutcome,
     RequestPermissionRequest, RequestPermissionResponse, Role as AcpRole, SessionConfigKind,
-    SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOptions, SessionId,
-    SessionModeState, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
-    SetSessionModeRequest, SetSessionModeResponse, StopReason, TextContent, ToolCallContent,
-    ToolCallStatus, ToolKind,
+    SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOption,
+    SessionConfigSelectOptions, SessionId, SessionModeState, SessionNotification, SessionUpdate,
+    SetSessionConfigOptionRequest, SetSessionModeRequest, SetSessionModeResponse, StopReason,
+    TextContent, ToolCallContent, ToolCallStatus, ToolKind,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
@@ -44,9 +44,19 @@ use crate::token_counter::create_token_counter;
 use crate::utils::sanitize_unicode_tags;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
+use goose_providers::thinking::{
+    ThinkingEffortCapability, ThinkingEffortOption, ThinkingEffortSupport,
+};
 
 /// Sentinel: resolved to the actual model name during connect().
 pub const ACP_CURRENT_MODEL: &str = "current";
+
+/// Config option id used by agents that advertise a thinking-effort selector
+/// without categorizing it as `thought_level`.
+const EFFORT_CONFIG_OPTION_ID: &str = "effort";
+
+/// Session request param holding the selected thinking effort.
+const THINKING_EFFORT_PARAM: &str = "thinking_effort";
 
 pub struct AcpProviderConfig {
     pub command: PathBuf,
@@ -255,6 +265,14 @@ pub struct AcpProvider {
     /// redundant `SetConfigOption` calls.
     applied_model: Arc<Mutex<Option<String>>>,
 
+    /// The agent's thinking-effort config option, mirrored from every
+    /// config-options payload it sends. `None` means the agent offers no effort
+    /// selector for its current model.
+    effort_state: Arc<Mutex<Option<ThinkingEffortCapability>>>,
+    /// Effort value currently applied via the agent's effort option, used to
+    /// avoid redundant `SetConfigOption` calls.
+    applied_effort: Arc<Mutex<Option<String>>>,
+
     tx: Option<mpsc::Sender<ClientRequest>>,
     cancel_tx: Option<oneshot::Sender<()>>,
     loop_thread: Option<JoinHandle<()>>,
@@ -350,11 +368,13 @@ impl AcpProvider {
         let pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>> =
             Arc::new(Mutex::new(HashMap::new()));
         let context_size = Arc::new(AtomicU64::new(0));
+        let effort_state = Arc::new(Mutex::new(None));
         let client_loop = AcpClientLoop::new(
             config,
             goose_mode_shared.clone(),
             pending_tool_updates.clone(),
             context_size.clone(),
+            effort_state.clone(),
         );
         let (cancel_tx, cancel_rx) = oneshot::channel();
         let loop_thread = spawn_client_loop(run(client_loop, rx, init_tx, cancel_rx));
@@ -399,6 +419,8 @@ impl AcpProvider {
             context_size,
             model_config_option_id,
             applied_model: Arc::new(Mutex::new(applied_model)),
+            effort_state,
+            applied_effort: Arc::new(Mutex::new(None)),
             tx: client_loop_guard.tx.take(),
             cancel_tx: client_loop_guard.cancel_tx.take(),
             loop_thread: client_loop_guard.thread.take(),
@@ -496,6 +518,64 @@ impl AcpProvider {
             .map_err(|_| anyhow::anyhow!("applied_model lock poisoned"))?;
         *applied = Some(model_name.to_string());
         Ok(())
+    }
+
+    fn effort_capability(&self) -> Result<Option<ThinkingEffortCapability>> {
+        Ok(self
+            .effort_state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("effort_state lock poisoned"))?
+            .clone())
+    }
+
+    async fn set_effort_option(
+        &self,
+        goose_id: &str,
+        option_id: &str,
+        value: String,
+    ) -> Result<()> {
+        {
+            let applied = self
+                .applied_effort
+                .lock()
+                .map_err(|_| anyhow::anyhow!("applied_effort lock poisoned"))?;
+            if applied.as_deref() == Some(value.as_str()) {
+                return Ok(());
+            }
+        }
+
+        self.send_set_config_option(goose_id, option_id.to_string(), value.clone())
+            .await?;
+
+        let mut applied = self
+            .applied_effort
+            .lock()
+            .map_err(|_| anyhow::anyhow!("applied_effort lock poisoned"))?;
+        *applied = Some(value);
+        Ok(())
+    }
+
+    /// Forward the session's persisted thinking effort to the agent when it
+    /// differs from what was last applied. A recreated provider (model switch,
+    /// provider switch, session reload) starts from the agent's own default, so
+    /// the persisted value has to be re-applied rather than assumed.
+    async fn apply_effort_if_changed(&self, model_config: &ModelConfig) -> Result<()> {
+        let Some(value) = model_config.request_param::<String>(THINKING_EFFORT_PARAM) else {
+            return Ok(());
+        };
+        let Some(capability) = self.effort_capability()? else {
+            return Ok(());
+        };
+        let Some(mapped) = map_effort_value(&capability, &value) else {
+            tracing::debug!(
+                value,
+                "agent offers no matching thinking effort; leaving its default"
+            );
+            return Ok(());
+        };
+
+        self.set_effort_option("", &capability.option_id, mapped)
+            .await
     }
 
     async fn prompt(
@@ -638,6 +718,45 @@ impl Provider for AcpProvider {
         Ok(())
     }
 
+    fn thinking_effort_support(&self) -> ThinkingEffortSupport {
+        match self.effort_capability().ok().flatten() {
+            Some(capability) => ThinkingEffortSupport::Options(capability),
+            None => ThinkingEffortSupport::Unsupported,
+        }
+    }
+
+    async fn set_thinking_effort(
+        &self,
+        session_id: &str,
+        value: &str,
+    ) -> Result<bool, ProviderError> {
+        let capability = self
+            .effort_capability()
+            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+        // No effort selector: the caller falls back to its legacy path.
+        let Some(capability) = capability else {
+            return Ok(false);
+        };
+        let mapped = map_effort_value(&capability, value).ok_or_else(|| {
+            ProviderError::RequestFailed(format!("Agent offers no thinking effort '{value}'"))
+        })?;
+
+        self.set_effort_option(session_id, &capability.option_id, mapped)
+            .await
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to set ACP effort option: {e}"))
+            })?;
+        Ok(true)
+    }
+
+    async fn apply_model_selection(&self, model_config: &ModelConfig) -> Result<(), ProviderError> {
+        self.apply_model_if_changed(&model_config.model_name)
+            .await
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to set ACP model option: {e}"))
+            })
+    }
+
     fn permission_routing(&self) -> PermissionRouting {
         PermissionRouting::ActionRequired
     }
@@ -672,6 +791,12 @@ impl Provider for AcpProvider {
             .await
             .map_err(|e| {
                 ProviderError::RequestFailed(format!("Failed to set ACP model option: {e}"))
+            })?;
+
+        self.apply_effort_if_changed(model_config)
+            .await
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to set ACP effort option: {e}"))
             })?;
 
         let current_prompt_blocks = messages_to_prompt(messages, None);
@@ -960,6 +1085,7 @@ struct AcpClientLoop {
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
     context_size: Arc<AtomicU64>,
+    effort_state: Arc<Mutex<Option<ThinkingEffortCapability>>>,
 }
 
 impl AcpClientLoop {
@@ -968,6 +1094,7 @@ impl AcpClientLoop {
         goose_mode: Arc<Mutex<GooseMode>>,
         pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
         context_size: Arc<AtomicU64>,
+        effort_state: Arc<Mutex<Option<ThinkingEffortCapability>>>,
     ) -> Self {
         Self {
             config,
@@ -975,6 +1102,7 @@ impl AcpClientLoop {
             prompt_response_tx: Arc::new(Mutex::new(None)),
             pending_tool_updates,
             context_size,
+            effort_state,
         }
     }
 
@@ -1029,6 +1157,7 @@ impl AcpClientLoop {
             prompt_response_tx,
             pending_tool_updates,
             context_size,
+            effort_state,
         } = self;
         let notification_callback = config.notification_callback.clone();
         let reverse_modes = reverse_mode_mapping(&config.mode_mapping);
@@ -1042,6 +1171,7 @@ impl AcpClientLoop {
                     let goose_mode = goose_mode.clone();
                     let pending_tool_updates = pending_tool_updates.clone();
                     let context_size = context_size.clone();
+                    let effort_state = effort_state.clone();
                     async move |notification: SessionNotification, _cx| {
                         if let Some(ref cb) = notification_callback {
                             cb(notification.clone());
@@ -1059,6 +1189,7 @@ impl AcpClientLoop {
                                 }
                             }
                             SessionUpdate::ConfigOptionUpdate(update) => {
+                                refresh_effort_state(&effort_state, &update.config_options);
                                 for opt in &update.config_options {
                                     if opt.category == Some(SessionConfigOptionCategory::Mode) {
                                         if let SessionConfigKind::Select(sel) = &opt.kind {
@@ -1236,7 +1367,16 @@ impl AcpClientLoop {
                 agent_client_protocol::on_receive_request!(),
             )
             .connect_with(transport, async move |cx: ConnectionTo<Agent>| {
-                handle_requests(config, goose_mode, cx, rx, prompt_response_tx, init_tx).await
+                handle_requests(
+                    config,
+                    goose_mode,
+                    cx,
+                    rx,
+                    prompt_response_tx,
+                    effort_state,
+                    init_tx,
+                )
+                .await
             })
             .await?;
 
@@ -1339,6 +1479,7 @@ async fn handle_requests(
     cx: ConnectionTo<Agent>,
     rx: &mut mpsc::Receiver<ClientRequest>,
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
+    effort_state: Arc<Mutex<Option<ThinkingEffortCapability>>>,
     init_tx: oneshot::Sender<Result<InitializeResponse>>,
 ) -> Result<(), agent_client_protocol::Error> {
     let mut init_tx = Some(init_tx);
@@ -1384,6 +1525,10 @@ async fn handle_requests(
                 let result = match session {
                     Ok(session) => {
                         session_ids.push(session.session_id.clone());
+                        refresh_effort_state(
+                            &effort_state,
+                            session.config_options.as_deref().unwrap_or_default(),
+                        );
                         apply_session_config_options(&config, &cx, session.session_id.clone())
                             .await?;
                         apply_session_mode(&config, &goose_mode, &cx, session).await
@@ -1462,11 +1607,13 @@ async fn handle_requests(
             } => {
                 let value_id = agent_client_protocol::schema::v1::SessionConfigValueId::new(value);
                 let req = SetSessionConfigOptionRequest::new(session_id, config_id, value_id);
+                // The agent rebuilds per-model effort levels in this response,
+                // so it is the freshest source after a goose-initiated switch.
                 let result: Result<()> = cx
                     .send_request(req)
                     .block_task()
                     .await
-                    .map(|_| ())
+                    .map(|response| refresh_effort_state(&effort_state, &response.config_options))
                     .map_err(anyhow::Error::from);
                 log_undelivered(
                     response_tx.send(result),
@@ -1917,22 +2064,10 @@ fn extract_model_info_from_config_options(
     })?;
 
     let current = select.current_value.0.to_string();
-    let available = match &select.options {
-        SessionConfigSelectOptions::Ungrouped(options) => options
-            .iter()
-            .map(|option| option.value.0.to_string())
-            .collect(),
-        SessionConfigSelectOptions::Grouped(groups) => groups
-            .iter()
-            .flat_map(|group| {
-                group
-                    .options
-                    .iter()
-                    .map(|option| option.value.0.to_string())
-            })
-            .collect(),
-        _ => Vec::new(),
-    };
+    let available = select_option_values(&select.options)
+        .into_iter()
+        .map(|option| option.value)
+        .collect();
     Some((current, available))
 }
 
@@ -1949,6 +2084,90 @@ fn resolve_model_info(
     Err(ProviderError::RequestFailed(format!(
         "{provider_name}: agent returned no model config_options"
     )))
+}
+
+fn select_option_values(options: &SessionConfigSelectOptions) -> Vec<ThinkingEffortOption> {
+    let effort_option = |option: &SessionConfigSelectOption| ThinkingEffortOption {
+        value: option.value.0.to_string(),
+        label: option.name.clone(),
+    };
+    match options {
+        SessionConfigSelectOptions::Ungrouped(options) => {
+            options.iter().map(effort_option).collect()
+        }
+        SessionConfigSelectOptions::Grouped(groups) => groups
+            .iter()
+            .flat_map(|group| group.options.iter().map(effort_option))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Find the agent's thinking-effort selector. Detection is by category so any
+/// ACP agent advertising `thought_level` is supported without per-provider
+/// config, with the well-known option id as a fallback.
+fn extract_effort_capability(
+    config_options: &[SessionConfigOption],
+) -> Option<ThinkingEffortCapability> {
+    let option = config_options
+        .iter()
+        .find(|opt| opt.category.as_ref() == Some(&SessionConfigOptionCategory::ThoughtLevel))
+        .or_else(|| {
+            config_options
+                .iter()
+                .find(|opt| opt.id.0.as_ref() == EFFORT_CONFIG_OPTION_ID)
+        })?;
+    let SessionConfigKind::Select(select) = &option.kind else {
+        return None;
+    };
+
+    let values = select_option_values(&select.options);
+    if values.is_empty() {
+        return None;
+    }
+    Some(ThinkingEffortCapability {
+        option_id: option.id.0.to_string(),
+        values,
+        current: Some(select.current_value.0.to_string()),
+    })
+}
+
+/// Config-options payloads carry the agent's full set, so a payload without an
+/// effort selector means the current model has none and the mirrored capability
+/// must be dropped.
+fn refresh_effort_state(
+    effort_state: &Arc<Mutex<Option<ThinkingEffortCapability>>>,
+    config_options: &[SessionConfigOption],
+) {
+    if let Ok(mut state) = effort_state.lock() {
+        *state = extract_effort_capability(config_options);
+    }
+}
+
+/// Map a goose effort value onto the agent's advertised vocabulary. Values goose
+/// and the agent share pass through; goose's own enum values map onto their
+/// closest agent equivalent. Anything else yields `None` so we never send a
+/// value the agent would reject.
+fn map_effort_value(capability: &ThinkingEffortCapability, value: &str) -> Option<String> {
+    let offered = |candidate: &str| {
+        capability
+            .values
+            .iter()
+            .find(|option| option.value.eq_ignore_ascii_case(candidate))
+            .map(|option| option.value.clone())
+    };
+
+    offered(value).or_else(|| {
+        let synonyms: &[&str] = match value.to_lowercase().as_str() {
+            // Harnesses that always reason have no "off"; their default is the
+            // closest thing to not forcing an effort level.
+            "off" => &["default"],
+            "max" => &["xhigh"],
+            "xhigh" => &["max"],
+            _ => &[],
+        };
+        synonyms.iter().find_map(|candidate| offered(candidate))
+    })
 }
 
 fn reverse_mode_mapping(
@@ -1993,7 +2212,8 @@ mod tests {
     use super::*;
     use crate::agents::extension::Envs;
     use agent_client_protocol::schema::v1::{
-        ErrorCode, SessionConfigSelectOption, SessionMode, SessionModeId,
+        ConfigOptionUpdate, ErrorCode, SessionConfigSelectGroup, SessionConfigSelectOption,
+        SessionMode, SessionModeId,
     };
 
     use test_case::test_case;
@@ -2145,6 +2365,8 @@ mod tests {
                 context_size: Arc::new(AtomicU64::new(0)),
                 model_config_option_id: None,
                 applied_model: Arc::new(Mutex::new(None)),
+                effort_state: Arc::new(Mutex::new(None)),
+                applied_effort: Arc::new(Mutex::new(None)),
                 tx,
                 cancel_tx: None,
                 loop_thread: None,
@@ -2990,6 +3212,420 @@ mod tests {
 
         provider
             .apply_model_if_changed(ACP_CURRENT_MODEL)
+            .await
+            .unwrap();
+
+        assert!(rx.try_recv().is_err());
+    }
+
+    fn effort_select_options(values: &[&str]) -> Vec<SessionConfigSelectOption> {
+        values
+            .iter()
+            .map(|value| SessionConfigSelectOption::new(value.to_string(), *value))
+            .collect()
+    }
+
+    fn effort_capability(values: &[&str], current: &str) -> ThinkingEffortCapability {
+        ThinkingEffortCapability {
+            option_id: EFFORT_CONFIG_OPTION_ID.to_string(),
+            values: values
+                .iter()
+                .map(|value| ThinkingEffortOption {
+                    value: value.to_string(),
+                    label: value.to_string(),
+                })
+                .collect(),
+            current: Some(current.to_string()),
+        }
+    }
+
+    fn test_provider_with_effort(
+        tx: mpsc::Sender<ClientRequest>,
+        capability: Option<ThinkingEffortCapability>,
+        applied_effort: Option<String>,
+    ) -> AcpProvider {
+        let (provider, _) = test_provider_with_tx(Some(tx));
+        *provider.effort_state.lock().unwrap() = capability;
+        *provider.applied_effort.lock().unwrap() = applied_effort;
+        provider
+    }
+
+    fn model_with_effort(value: &str) -> ModelConfig {
+        ModelConfig::new(ACP_CURRENT_MODEL).with_merged_request_params(HashMap::from([(
+            THINKING_EFFORT_PARAM.to_string(),
+            serde_json::json!(value),
+        )]))
+    }
+
+    async fn expect_set_config_option(rx: &mut mpsc::Receiver<ClientRequest>) -> (String, String) {
+        match rx.recv().await.expect("expected a SetConfigOption request") {
+            ClientRequest::SetConfigOption {
+                config_id,
+                value,
+                response_tx,
+                ..
+            } => {
+                let _ = response_tx.send(Ok(()));
+                (config_id, value)
+            }
+            _ => panic!("unexpected request kind"),
+        }
+    }
+
+    #[test]
+    fn extract_effort_capability_reads_thought_level_option() {
+        let options = vec![
+            SessionConfigOption::select(
+                "model",
+                "Model",
+                "sonnet",
+                effort_select_options(&["sonnet"]),
+            )
+            .category(SessionConfigOptionCategory::Model),
+            SessionConfigOption::select(
+                "effort",
+                "Thinking",
+                "high",
+                effort_select_options(&["default", "low", "high", "xhigh"]),
+            )
+            .category(SessionConfigOptionCategory::ThoughtLevel),
+        ];
+
+        let capability =
+            extract_effort_capability(&options).expect("effort option should be found");
+
+        assert_eq!(capability.option_id, "effort");
+        assert_eq!(capability.current.as_deref(), Some("high"));
+        assert_eq!(
+            capability
+                .values
+                .iter()
+                .map(|option| option.value.as_str())
+                .collect::<Vec<_>>(),
+            vec!["default", "low", "high", "xhigh"]
+        );
+    }
+
+    #[test]
+    fn extract_effort_capability_falls_back_to_effort_option_id() {
+        let options = vec![SessionConfigOption::select(
+            "effort",
+            "Reasoning",
+            "low",
+            effort_select_options(&["low", "high"]),
+        )];
+
+        let capability =
+            extract_effort_capability(&options).expect("effort option should be found");
+
+        assert_eq!(capability.option_id, "effort");
+        assert_eq!(capability.current.as_deref(), Some("low"));
+    }
+
+    #[test]
+    fn extract_effort_capability_keeps_agent_labels() {
+        let options = vec![SessionConfigOption::select(
+            "effort",
+            "Thinking",
+            "default",
+            vec![
+                SessionConfigSelectOption::new("default", "Default"),
+                SessionConfigSelectOption::new("xhigh", "Extra high"),
+            ],
+        )
+        .category(SessionConfigOptionCategory::ThoughtLevel)];
+
+        let capability =
+            extract_effort_capability(&options).expect("effort option should be found");
+
+        assert_eq!(
+            capability
+                .values
+                .iter()
+                .map(|option| (option.value.as_str(), option.label.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("default", "Default"), ("xhigh", "Extra high")]
+        );
+    }
+
+    #[test]
+    fn extract_effort_capability_flattens_grouped_values() {
+        let options = vec![SessionConfigOption::select(
+            "effort",
+            "Thinking",
+            "medium",
+            vec![
+                SessionConfigSelectGroup::new(
+                    "standard",
+                    "Standard",
+                    effort_select_options(&["low", "medium"]),
+                ),
+                SessionConfigSelectGroup::new(
+                    "extended",
+                    "Extended",
+                    effort_select_options(&["high", "max"]),
+                ),
+            ],
+        )
+        .category(SessionConfigOptionCategory::ThoughtLevel)];
+
+        let capability =
+            extract_effort_capability(&options).expect("effort option should be found");
+
+        assert_eq!(
+            capability
+                .values
+                .iter()
+                .map(|option| option.value.as_str())
+                .collect::<Vec<_>>(),
+            vec!["low", "medium", "high", "max"]
+        );
+    }
+
+    #[test]
+    fn extract_effort_capability_returns_none_without_effort_option() {
+        let options = vec![SessionConfigOption::select(
+            "model",
+            "Model",
+            "sonnet",
+            effort_select_options(&["sonnet"]),
+        )
+        .category(SessionConfigOptionCategory::Model)];
+
+        assert!(extract_effort_capability(&options).is_none());
+    }
+
+    #[test]
+    fn config_option_update_replaces_effort_state() {
+        let effort_state = Arc::new(Mutex::new(Some(effort_capability(&["low"], "low"))));
+        let update = ConfigOptionUpdate::new(vec![SessionConfigOption::select(
+            "effort",
+            "Thinking",
+            "xhigh",
+            effort_select_options(&["default", "xhigh"]),
+        )
+        .category(SessionConfigOptionCategory::ThoughtLevel)]);
+
+        refresh_effort_state(&effort_state, &update.config_options);
+
+        let state = effort_state
+            .lock()
+            .unwrap()
+            .clone()
+            .expect("state replaced");
+        assert_eq!(state.current.as_deref(), Some("xhigh"));
+        assert_eq!(
+            state
+                .values
+                .iter()
+                .map(|option| option.value.as_str())
+                .collect::<Vec<_>>(),
+            vec!["default", "xhigh"]
+        );
+    }
+
+    #[test]
+    fn refresh_effort_state_clears_when_agent_drops_the_option() {
+        let effort_state = Arc::new(Mutex::new(Some(effort_capability(&["low", "high"], "low"))));
+
+        refresh_effort_state(
+            &effort_state,
+            &[SessionConfigOption::select(
+                "model",
+                "Model",
+                "sonnet",
+                effort_select_options(&["sonnet"]),
+            )
+            .category(SessionConfigOptionCategory::Model)],
+        );
+
+        assert!(effort_state.lock().unwrap().is_none());
+    }
+
+    #[test_case("high" => Some("high".to_string()) ; "exact match passes through")]
+    #[test_case("HIGH" => Some("high".to_string()) ; "match ignores case")]
+    #[test_case("off" => Some("default".to_string()) ; "off maps to the agent default")]
+    #[test_case("max" => Some("xhigh".to_string()) ; "max maps to xhigh")]
+    #[test_case("medium" => None ; "value the agent does not offer is not forwarded")]
+    fn map_effort_value_maps_goose_values_onto_agent_values(value: &str) -> Option<String> {
+        map_effort_value(
+            &effort_capability(&["default", "low", "high", "xhigh"], "default"),
+            value,
+        )
+    }
+
+    #[test]
+    fn map_effort_value_prefers_max_when_agent_offers_it() {
+        let capability = effort_capability(&["default", "max", "xhigh"], "default");
+
+        assert_eq!(
+            map_effort_value(&capability, "max"),
+            Some("max".to_string())
+        );
+        assert_eq!(
+            map_effort_value(&capability, "xhigh"),
+            Some("xhigh".to_string())
+        );
+    }
+
+    #[test]
+    fn thinking_effort_support_reports_agent_options() {
+        let (tx, _rx) = mpsc::channel(1);
+        let capability = effort_capability(&["default", "high"], "default");
+        let provider = test_provider_with_effort(tx, Some(capability.clone()), None);
+
+        assert_eq!(
+            provider.thinking_effort_support(),
+            ThinkingEffortSupport::Options(capability)
+        );
+    }
+
+    #[test]
+    fn thinking_effort_support_is_unsupported_without_an_effort_option() {
+        let (provider, _) = test_provider();
+
+        assert_eq!(
+            provider.thinking_effort_support(),
+            ThinkingEffortSupport::Unsupported
+        );
+    }
+
+    #[tokio::test]
+    async fn set_thinking_effort_forwards_the_pick_to_the_agent() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_effort(
+            tx,
+            Some(effort_capability(&["default", "high"], "default")),
+            None,
+        );
+
+        let handle = tokio::spawn(async move {
+            let handled = provider
+                .set_thinking_effort("session", "high")
+                .await
+                .unwrap();
+            (handled, provider)
+        });
+
+        assert_eq!(
+            expect_set_config_option(&mut rx).await,
+            ("effort".to_string(), "high".to_string())
+        );
+
+        let (handled, provider) = handle.await.unwrap();
+        assert!(handled);
+        assert_eq!(
+            provider.applied_effort.lock().unwrap().as_deref(),
+            Some("high")
+        );
+    }
+
+    #[tokio::test]
+    async fn set_thinking_effort_is_unhandled_without_an_effort_option() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_effort(tx, None, None);
+
+        assert!(!provider
+            .set_thinking_effort("session", "high")
+            .await
+            .unwrap());
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_thinking_effort_rejects_values_the_agent_does_not_offer() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_effort(
+            tx,
+            Some(effort_capability(&["default", "high"], "default")),
+            None,
+        );
+
+        let result = provider.set_thinking_effort("session", "medium").await;
+
+        assert!(matches!(result, Err(ProviderError::RequestFailed(_))));
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn apply_effort_if_changed_forwards_the_persisted_value() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_effort(
+            tx,
+            Some(effort_capability(&["default", "low", "xhigh"], "default")),
+            None,
+        );
+        let model = model_with_effort("max");
+
+        let handle =
+            tokio::spawn(async move { provider.apply_effort_if_changed(&model).await.unwrap() });
+
+        assert_eq!(
+            expect_set_config_option(&mut rx).await,
+            ("effort".to_string(), "xhigh".to_string())
+        );
+
+        handle.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn apply_effort_if_changed_skips_when_already_applied() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_effort(
+            tx,
+            Some(effort_capability(&["default", "high"], "default")),
+            Some("high".to_string()),
+        );
+
+        provider
+            .apply_effort_if_changed(&model_with_effort("high"))
+            .await
+            .unwrap();
+
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn apply_effort_if_changed_skips_unmapped_value() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_effort(
+            tx,
+            Some(effort_capability(&["default", "high"], "default")),
+            None,
+        );
+
+        provider
+            .apply_effort_if_changed(&model_with_effort("medium"))
+            .await
+            .unwrap();
+
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn apply_effort_if_changed_skips_without_an_effort_option() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_effort(tx, None, None);
+
+        provider
+            .apply_effort_if_changed(&model_with_effort("high"))
+            .await
+            .unwrap();
+
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn apply_effort_if_changed_skips_session_without_a_persisted_value() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_effort(
+            tx,
+            Some(effort_capability(&["default", "high"], "default")),
+            None,
+        );
+
+        provider
+            .apply_effort_if_changed(&ModelConfig::new(ACP_CURRENT_MODEL))
             .await
             .unwrap();
 
