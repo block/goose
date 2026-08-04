@@ -112,8 +112,6 @@ impl SnowflakeProvider {
             .and_then(|v| v.to_str().ok())
             .map(|v| v.to_ascii_lowercase())
             .is_some_and(|v| v.contains("json"));
-        // A 200 with a JSON body is an error payload, not the SSE generation
-        // stream; bound its read since this request has no total deadline.
         let payload_text: String = if status.is_success() && !is_json {
             response.text().await.ok().unwrap_or_default()
         } else {

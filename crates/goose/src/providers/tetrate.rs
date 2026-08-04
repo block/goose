@@ -169,9 +169,6 @@ impl Provider for TetrateProvider {
                     .is_some_and(|v| v.contains("json"));
 
                 if is_json {
-                    // Streaming responses should be SSE; when we get JSON instead, parse it to map
-                    // explicit error payloads and otherwise fail as a protocol mismatch. The read
-                    // is bounded: this request is exempt from the total deadline.
                     let body = goose_providers::http_status::read_error_body(
                         resp,
                         self.api_client.timeout(),

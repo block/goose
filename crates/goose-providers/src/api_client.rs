@@ -289,10 +289,6 @@ impl ApiClient {
         self.timeout
     }
 
-    /// The total-request deadline is applied per request in `send_request` so
-    /// streaming requests can opt out of it: an SSE body is the whole
-    /// generation, so streams are bounded by `read_timeout` (reset per chunk)
-    /// rather than end-to-end duration.
     fn client_builder(timeout: Duration) -> reqwest::ClientBuilder {
         Client::builder()
             .connect_timeout(Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
@@ -450,8 +446,6 @@ impl<'a> ApiRequestBuilder<'a> {
         }
     }
 
-    /// Exempts this request from the total-request deadline; the stream is
-    /// bounded by the client's read timeout instead.
     pub fn streaming(mut self, streaming: bool) -> Self {
         self.streaming = streaming;
         self
@@ -462,10 +456,6 @@ impl<'a> ApiRequestBuilder<'a> {
         ApiResponse::from_response(response).await
     }
 
-    /// `send()` resolves when response headers arrive, so for streaming
-    /// requests (exempt from the per-request total deadline) this still bounds
-    /// connect, request upload, and time-to-first-byte; only the streamed
-    /// response body is unbounded.
     async fn send_bounded(&self, request: reqwest::RequestBuilder) -> Result<Response> {
         if self.streaming {
             Ok(tokio::time::timeout(self.client.timeout, request.send()).await??)
