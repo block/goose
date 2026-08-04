@@ -195,6 +195,10 @@ fn convert_key_to_pkcs8_pem(key_pem_str: &str) -> Result<String> {
 #[async_trait]
 pub trait AuthProvider: Send + Sync {
     async fn get_auth_header(&self) -> Result<(String, String)>;
+
+    async fn refresh_credentials(&self) -> Result<()> {
+        anyhow::bail!("credential refresh not supported")
+    }
 }
 
 pub struct ApiResponse {
@@ -275,6 +279,10 @@ impl ApiClient {
         &self.host
     }
 
+    pub fn timeout(&self) -> Duration {
+        self.timeout
+    }
+
     fn rebuild_client(&mut self) -> Result<()> {
         let mut client_builder = Client::builder()
             .timeout(self.timeout)
@@ -353,6 +361,13 @@ impl ApiClient {
             client: self,
             path,
             headers: HeaderMap::new(),
+        }
+    }
+
+    pub async fn refresh_credentials(&self) -> Result<()> {
+        match &self.auth {
+            AuthMethod::Custom(provider) => provider.refresh_credentials().await,
+            _ => anyhow::bail!("credential refresh not supported"),
         }
     }
 

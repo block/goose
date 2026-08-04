@@ -728,32 +728,6 @@ goose serve --with-builtin developer,memory
 
 ---
 
-### Project Management
-
-#### project
-Start working on your last project or create a new one.
-
-**Alias**: `p`
-
-**Usage:**
-```bash
-goose project
-```
-
----
-
-#### projects
-Choose one of your projects to start working on.
-
-**Alias**: `ps`
-
-**Usage:**
-```bash
-goose projects
-```
-
----
-
 ### Terminal Integration
 
 #### term

@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Discussions"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Créé"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Répertoire"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Modèle"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Statut"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Mis à jour"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "Aucune discussion récente"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Erreur"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Inactif"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Diffusion en continu"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Activité non lue"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Session sans titre"
@@ -4538,6 +4565,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Modifier"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Images jointes :"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "Modifier sur place"
   },
@@ -4570,5 +4600,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Créer une nouvelle session avec le message modifié"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Supprimer l'image du message"
   }
 }

@@ -1,3 +1,4 @@
+use crate::base::ThinkingPreservationFormat;
 use crate::conversation::message::{Message, MessageContentBlock, ProviderMetadata};
 use crate::conversation::token_usage::{CostSource, ProviderUsage, Usage};
 use crate::errors::ProviderError;
@@ -48,13 +49,24 @@ fn describe_json_value(value: &Value) -> &'static str {
     }
 }
 
-fn is_reserved_request_param_key(key: &str) -> bool {
+fn output_token_limit_tool_error(function_name: &str, id: &str) -> ErrorData {
+    ErrorData {
+        code: ErrorCode::INVALID_PARAMS,
+        message: Cow::from(format!(
+            "Tool arguments for {function_name} (id {id}) were truncated because the model reached its output token limit"
+        )),
+        data: None,
+    }
+}
+
+pub fn is_reserved_request_param_key(key: &str) -> bool {
     matches!(key, "messages" | "model" | "stream" | "stream_options")
 }
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct OpenAiFormatOptions {
     pub preserve_thinking_context: bool,
+    pub thinking_preservation_format: Option<ThinkingPreservationFormat>,
 }
 
 fn merge_reasoning_text(prefix: &str, suffix: &str) -> String {
@@ -187,6 +199,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         image_format,
         OpenAiFormatOptions {
             preserve_thinking_context: true,
+            ..Default::default()
         },
     )
 }
@@ -500,7 +513,41 @@ pub fn format_messages_with_options(
     }
 
     merge_split_tool_call_messages(&mut messages_spec);
+
+    if let Some(format) = options.thinking_preservation_format {
+        inline_reasoning_content(&mut messages_spec, format);
+    }
+
     messages_spec
+}
+
+/// Rewrites `reasoning_content` into the message `content` for models that reject a
+/// separate reasoning field on replay.
+///
+/// Must run after `merge_split_tool_call_messages`, which relies on `reasoning_content`
+/// to identify messages split from the same assistant turn.
+fn inline_reasoning_content(messages: &mut [Value], format: ThinkingPreservationFormat) {
+    let wrap: fn(&str) -> String = match format {
+        ThinkingPreservationFormat::ReasoningContent => return,
+        ThinkingPreservationFormat::ContentPrepend => |text| format!("{text}\n\n"),
+        ThinkingPreservationFormat::ContentXml => |text| format!("<think>\n{text}\n</think>\n\n"),
+    };
+
+    for message in messages {
+        let Some(object) = message.as_object_mut() else {
+            continue;
+        };
+        let Some(Value::String(reasoning)) = object.remove("reasoning_content") else {
+            continue;
+        };
+        let prefix = wrap(&reasoning);
+
+        match object.entry("content").or_insert(Value::Null) {
+            Value::String(content) => content.insert_str(0, &prefix),
+            Value::Array(blocks) => blocks.insert(0, json!({"type": "text", "text": prefix})),
+            content => *content = json!(prefix.trim_end()),
+        }
+    }
 }
 
 /// The agent splits a single assistant response with N tool_calls into N
@@ -634,6 +681,11 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
 
 /// Convert OpenAI's API response to internal Message format
 pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
+    let output_token_limit_reached = response
+        .pointer("/choices/0/finish_reason")
+        .and_then(Value::as_str)
+        == Some("length");
+
     let Some(original) = response
         .get("choices")
         .and_then(|c| c.get(0))
@@ -714,6 +766,16 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                     })
                     .filter(|m: &serde_json::Map<String, Value>| !m.is_empty());
 
+                if output_token_limit_reached {
+                    let error = output_token_limit_tool_error(&function_name, &id);
+                    content.push(MessageContentBlock::tool_request_with_metadata(
+                        id,
+                        Err(error),
+                        metadata.as_ref(),
+                    ));
+                    continue;
+                }
+
                 if function_name.is_empty() {
                     let error = ErrorData {
                         code: ErrorCode::INVALID_REQUEST,
@@ -778,11 +840,9 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
         }
     }
 
-    Ok(Message::new(
-        Role::Assistant,
-        chrono::Utc::now().timestamp(),
-        content,
-    ))
+    let mut message = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
+    message.metadata.output_token_limit_reached = output_token_limit_reached;
+    Ok(message)
 }
 
 pub fn get_usage(usage: &Value) -> Usage {
@@ -1026,6 +1086,15 @@ fn parse_streaming_chunk(line: &str) -> Result<StreamingChunk, ProviderError> {
     })
 }
 
+fn output_token_limit_marker(id: Option<String>) -> Message {
+    let mut message = Message::assistant();
+    if let Some(id) = id {
+        message = message.with_id(id);
+    }
+    message.metadata.output_token_limit_reached = true;
+    message
+}
+
 pub fn response_to_streaming_message<S>(
     mut stream: S,
 ) -> impl Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
@@ -1046,6 +1115,9 @@ where
         // reasoning_content in a later chunk would produce duplicated reasoning.
         let mut pending_inline_thinking = String::new();
         let mut last_seen_model: Option<String> = None;
+        let mut last_response_id: Option<String> = None;
+        let mut output_token_limit_reached = false;
+        let mut output_token_limit_metadata_emitted = false;
 
         'outer: while let Some(response) = stream.next().await {
             let response_str = response?;
@@ -1065,6 +1137,9 @@ where
             if let Some(model) = &chunk.model {
                 last_seen_model = Some(model.clone());
             }
+            if let Some(id) = &chunk.id {
+                last_response_id = Some(id.clone());
+            }
 
             if !chunk.choices.is_empty() {
                 if let Some(details) = &chunk.choices[0].delta.reasoning_details {
@@ -1080,6 +1155,11 @@ where
             }
 
             let mut usage = extract_usage_with_output_tokens(&chunk, last_seen_model.as_deref());
+            output_token_limit_reached |= chunk
+                .choices
+                .first()
+                .and_then(|choice| choice.finish_reason.as_deref())
+                == Some("length");
 
             if chunk.choices.is_empty() {
                 yield (None, usage)
@@ -1095,7 +1175,10 @@ where
                     }
                 }
 
-                let is_complete = chunk.choices[0].finish_reason == Some("tool_calls".to_string());
+                let is_complete = matches!(
+                    chunk.choices[0].finish_reason.as_deref(),
+                    Some("tool_calls" | "length")
+                );
 
                 if !is_complete {
                     let mut done = false;
@@ -1111,12 +1194,19 @@ where
                                 if let Some(model) = &tool_chunk.model {
                                     last_seen_model = Some(model.clone());
                                 }
+                                if let Some(id) = &tool_chunk.id {
+                                    last_response_id = Some(id.clone());
+                                }
 
                                 if let Some(chunk_usage) = extract_usage_with_output_tokens(&tool_chunk, last_seen_model.as_deref()) {
                                     usage = Some(chunk_usage);
                                 }
 
                                 if !tool_chunk.choices.is_empty() {
+                                    output_token_limit_reached |=
+                                        tool_chunk.choices[0].finish_reason.as_deref()
+                                            == Some("length");
+
                                     if let Some(details) = &tool_chunk.choices[0].delta.reasoning_details {
                                         accumulated_reasoning.extend(details.iter().cloned());
                                     }
@@ -1225,7 +1315,13 @@ where
                             extra_fields.as_ref().filter(|m| !m.is_empty()).cloned()
                         };
 
-                        let content = if arguments.is_empty() {
+                        let content = if output_token_limit_reached {
+                            MessageContentBlock::tool_request_with_metadata(
+                                id.clone(),
+                                Err(output_token_limit_tool_error(function_name, id)),
+                                metadata.as_ref(),
+                            )
+                        } else if arguments.is_empty() {
                             MessageContentBlock::tool_request_with_metadata(
                                 id.clone(),
                                 Ok(CallToolRequestParams::new(function_name.clone()).with_arguments(object(json!({})))),
@@ -1282,6 +1378,8 @@ where
                 if let Some(id) = chunk.id {
                     msg = msg.with_id(id);
                 }
+                msg.metadata.output_token_limit_reached = output_token_limit_reached;
+                output_token_limit_metadata_emitted |= output_token_limit_reached;
 
                 yield (
                     Some(msg),
@@ -1360,14 +1458,23 @@ where
                 content.push(MessageContentBlock::thinking(trailing_thinking, ""));
             }
 
-            yield (
-                Some(Message::new(
-                    Role::Assistant,
-                    chrono::Utc::now().timestamp(),
-                    content,
-                )),
-                None,
-            )
+            let mut message = Message::new(
+                Role::Assistant,
+                chrono::Utc::now().timestamp(),
+                content,
+            );
+            if let Some(id) = last_response_id.clone() {
+                message = message.with_id(id);
+            }
+            message.metadata.output_token_limit_reached =
+                output_token_limit_reached && !output_token_limit_metadata_emitted;
+            output_token_limit_metadata_emitted |= message.metadata.output_token_limit_reached;
+
+            yield (Some(message), None)
+        }
+
+        if output_token_limit_reached && !output_token_limit_metadata_emitted {
+            yield (Some(output_token_limit_marker(last_response_id)), None)
         }
     }
 }
@@ -1389,6 +1496,7 @@ pub fn create_request(
         for_streaming,
         OpenAiFormatOptions {
             preserve_thinking_context: true,
+            ..Default::default()
         },
     )
 }
@@ -1402,13 +1510,39 @@ pub fn create_request_with_options(
     for_streaming: bool,
     format_options: OpenAiFormatOptions,
 ) -> anyhow::Result<Value, Error> {
+    let (wire_model_name, _) = extract_reasoning_effort(&model_config.model_name);
+    create_request_for_model_with_options(
+        model_config,
+        &wire_model_name,
+        &model_config.model_name,
+        system,
+        messages,
+        tools,
+        image_format,
+        for_streaming,
+        format_options,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn create_request_for_model_with_options(
+    model_config: &ModelConfig,
+    wire_model_name: &str,
+    capability_model_name: &str,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+    image_format: &ImageFormat,
+    for_streaming: bool,
+    format_options: OpenAiFormatOptions,
+) -> anyhow::Result<Value, Error> {
     if model_config.model_name.starts_with("o1-mini") {
         return Err(anyhow!(
             "o1-mini model is not currently supported since goose uses tool calling and o1-mini does not support it. Please use o1 or o3 models instead."
         ));
     }
 
-    let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
+    let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(capability_model_name);
     let is_reasoning_model = is_openai_responses_model(&model_name);
     let supports_xai_effort = supports_xai_reasoning_effort(&model_name);
     let reasoning_effort = if is_reasoning_model {
@@ -1439,7 +1573,7 @@ pub fn create_request_with_options(
     messages_array.extend(messages_spec);
 
     let mut payload = json!({
-        "model": model_name,
+        "model": wire_model_name,
         "messages": messages_array
     });
 
@@ -2111,6 +2245,76 @@ mod tests {
     }
 
     #[test]
+    fn test_response_to_message_marks_length_finish_reason() -> anyhow::Result<()> {
+        let response = json!({
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": "Partial answer"
+                },
+                "finish_reason": "length"
+            }]
+        });
+
+        let message = response_to_message(&response)?;
+
+        assert_eq!(message.as_concat_text(), "Partial answer");
+        assert!(message.metadata.output_token_limit_reached);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_rejects_length_terminated_tool_calls() -> anyhow::Result<()> {
+        let response = json!({
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": null,
+                    "tool_calls": [
+                        {
+                            "id": "call_empty",
+                            "type": "function",
+                            "function": {
+                                "name": "empty_tool",
+                                "arguments": ""
+                            }
+                        },
+                        {
+                            "id": "call_valid",
+                            "type": "function",
+                            "function": {
+                                "name": "valid_tool",
+                                "arguments": "{\"value\":true}"
+                            }
+                        }
+                    ]
+                },
+                "finish_reason": "length"
+            }]
+        });
+
+        let message = response_to_message(&response)?;
+
+        assert!(message.metadata.output_token_limit_reached);
+        assert_eq!(message.content.len(), 2);
+        for (content, expected_id) in message.content.iter().zip(["call_empty", "call_valid"]) {
+            let MessageContentBlock::ToolRequest(request) = content else {
+                panic!("expected tool request");
+            };
+            assert_eq!(request.id, expected_id);
+            let error = request
+                .tool_call
+                .as_ref()
+                .expect_err("length-terminated tool call must not be executable");
+            assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
+            assert!(error.message.contains("output token limit"));
+        }
+
+        Ok(())
+    }
+
+    #[test]
     fn test_response_to_message_valid_toolrequest() -> anyhow::Result<()> {
         let response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
         let message = response_to_message(&response)?;
@@ -2692,6 +2896,8 @@ mod tests {
         usage: Option<ProviderUsage>,
         tool_calls: Vec<String>,
         has_text_content: bool,
+        text: String,
+        output_token_limit_message_ids: Vec<Option<String>>,
     }
 
     async fn run_streaming_test(response_lines: &str) -> anyhow::Result<StreamingUsageTestResult> {
@@ -2705,6 +2911,8 @@ mod tests {
             usage: None,
             tool_calls: Vec::new(),
             has_text_content: false,
+            text: String::new(),
+            output_token_limit_message_ids: Vec::new(),
         };
 
         while let Some(Ok((message, usage))) = messages.next().await {
@@ -2713,6 +2921,9 @@ mod tests {
                 result.usage = Some(u);
             }
             if let Some(msg) = message {
+                if msg.metadata.output_token_limit_reached {
+                    result.output_token_limit_message_ids.push(msg.id.clone());
+                }
                 for content in &msg.content {
                     match content {
                         MessageContentBlock::ToolRequest(req) => {
@@ -2722,6 +2933,7 @@ mod tests {
                         }
                         MessageContentBlock::Text(text) if !text.text.is_empty() => {
                             result.has_text_content = true;
+                            result.text.push_str(&text.text);
                         }
                         _ => {}
                     }
@@ -2748,6 +2960,26 @@ mod tests {
         assert_eq!(usage.usage.input_tokens, Some(expected_input));
         assert_eq!(usage.usage.output_tokens, Some(expected_output));
         assert_eq!(usage.usage.total_tokens, Some(expected_total));
+    }
+
+    #[tokio::test]
+    async fn test_streaming_marks_length_on_empty_terminal_chunk() -> anyhow::Result<()> {
+        let response_lines = r#"
+data: {"id":"chatcmpl-limit","model":"test-model","choices":[{"index":0,"delta":{"role":"assistant","content":"Partial answer"},"finish_reason":null}]}
+data: {"id":"chatcmpl-limit","model":"test-model","choices":[{"index":0,"delta":{},"finish_reason":"length"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}
+data: [DONE]
+"#;
+
+        let result = run_streaming_test(response_lines).await?;
+
+        assert_eq!(result.text, "Partial answer");
+        assert_eq!(
+            result.output_token_limit_message_ids,
+            vec![Some("chatcmpl-limit".to_string())]
+        );
+        assert_usage_yielded_once(&result, 10, 5, 15);
+
+        Ok(())
     }
 
     #[test]
@@ -3070,7 +3302,8 @@ data: [DONE]"#;
     async fn test_streaming_non_object_arguments_does_not_panic() -> anyhow::Result<()> {
         // Streamed tool call whose arguments are valid JSON but NOT an object.
         // Must yield an INVALID_PARAMS tool error, not panic via rmcp `object()`.
-        let response_lines = r#"data: {"model":"test-model","choices":[{"delta":{"role":"assistant","tool_calls":[{"id":"call_bad","function":{"name":"test_tool","arguments":"[1, 2, 3]"},"type":"function","index":0}]},"index":0,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110},"object":"chat.completion.chunk","id":"test-id","created":1234567890}
+        let response_lines = r#"data: {"model":"test-model","choices":[{"delta":{"role":"assistant","tool_calls":[{"id":"call_bad","function":{"name":"test_tool","arguments":"[1, "},"type":"function","index":0}]},"index":0,"finish_reason":null}],"object":"chat.completion.chunk","id":"test-id","created":1234567890}
+data: {"model":"test-model","choices":[{"delta":{"tool_calls":[{"function":{"arguments":"2, 3]"},"index":0}]},"index":0,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110},"object":"chat.completion.chunk","id":"test-id","created":1234567890}
 data: [DONE]"#;
 
         let response_stream =
@@ -3078,9 +3311,17 @@ data: [DONE]"#;
         let messages = response_to_streaming_message(response_stream);
         pin!(messages);
 
-        while let Some(Ok((message, _usage))) = messages.next().await {
+        let mut found_tool_error = false;
+        let mut usage_count = 0;
+        while let Some(result) = messages.next().await {
+            let (message, usage) = result?;
+            if usage.is_some() {
+                usage_count += 1;
+            }
             if let Some(msg) = message {
                 if let MessageContentBlock::ToolRequest(request) = &msg.content[0] {
+                    assert!(!msg.metadata.output_token_limit_reached);
+                    assert_eq!(msg.id.as_deref(), Some("test-id"));
                     match &request.tool_call {
                         Err(ErrorData {
                             code: ErrorCode::INVALID_PARAMS,
@@ -3092,14 +3333,60 @@ data: [DONE]"#;
                                 m.contains("test_tool"),
                                 "error must name the original tool so the model can retry it: {m}"
                             );
-                            return Ok(());
+                            found_tool_error = true;
                         }
                         _ => panic!("expected INVALID_PARAMS for non-object streamed args"),
                     }
                 }
             }
         }
-        panic!("expected a tool request message");
+
+        assert!(found_tool_error, "expected a tool request message");
+        assert_eq!(usage_count, 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_length_rejects_tool_calls_regardless_of_arguments() -> anyhow::Result<()>
+    {
+        let response_lines = r#"data: {"model":"test-model","choices":[{"delta":{"role":"assistant","tool_calls":[{"id":"call_empty","function":{"name":"empty_tool","arguments":""},"type":"function","index":0},{"id":"call_valid","function":{"name":"valid_tool","arguments":"{\"value\":"},"type":"function","index":1}]},"index":0,"finish_reason":null}],"object":"chat.completion.chunk","id":"test-id","created":1234567890}
+data: {"model":"test-model","choices":[{"delta":{"tool_calls":[{"function":{"arguments":""},"index":0},{"function":{"arguments":"true}"},"index":1}]},"index":0,"finish_reason":"length"}],"usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110},"object":"chat.completion.chunk","id":"test-id","created":1234567890}
+data: [DONE]"#;
+
+        let response_stream =
+            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
+        let messages = response_to_streaming_message(response_stream);
+        pin!(messages);
+
+        let mut tool_error_ids = Vec::new();
+        let mut usage_count = 0;
+        while let Some(result) = messages.next().await {
+            let (message, usage) = result?;
+            if usage.is_some() {
+                usage_count += 1;
+            }
+            if let Some(msg) = message {
+                assert!(msg.metadata.output_token_limit_reached);
+                assert_eq!(msg.id.as_deref(), Some("test-id"));
+                for content in msg.content {
+                    if let MessageContentBlock::ToolRequest(request) = content {
+                        let request_id = request.id.clone();
+                        match request.tool_call {
+                            Err(error) => {
+                                assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
+                                assert!(error.message.contains("output token limit"));
+                                tool_error_ids.push(request_id);
+                            }
+                            Ok(_) => panic!("length-terminated tool call must not be executable"),
+                        }
+                    }
+                }
+            }
+        }
+
+        assert_eq!(tool_error_ids, vec!["call_empty", "call_valid"]);
+        assert_eq!(usage_count, 1);
+        Ok(())
     }
 
     #[tokio::test]
@@ -3137,6 +3424,87 @@ data: [DONE]"#;
 
         assert_eq!(text, "y");
         assert_eq!(thinking, "x");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_truncated_inline_think_preserves_output_token_limit(
+    ) -> anyhow::Result<()> {
+        let response_lines = concat!(
+            "data: {\"id\":\"chunk-1\",\"model\":\"test-model\",\"choices\":[{\"delta\":{\"content\":\"<think>unfinished reasoning\"},\"index\":0,\"finish_reason\":null}]}\n",
+            "data: {\"id\":\"chunk-1\",\"choices\":[{\"delta\":{},\"index\":0,\"finish_reason\":\"length\"}],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":5,\"total_tokens\":15}}\n",
+            "data: [DONE]\n"
+        );
+
+        let response_stream =
+            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+        let mut streamed_messages = Vec::new();
+        let mut usage_count = 0;
+
+        while let Some(result) = messages.next().await {
+            let (message, usage) = result?;
+            if usage.is_some() {
+                usage_count += 1;
+            }
+            if let Some(message) = message {
+                streamed_messages.push(message);
+            }
+        }
+
+        assert_eq!(usage_count, 1);
+        assert_eq!(
+            streamed_messages
+                .iter()
+                .filter(|message| message.metadata.output_token_limit_reached)
+                .count(),
+            1
+        );
+        let trailing_message = streamed_messages
+            .last()
+            .expect("expected trailing thinking");
+        assert!(trailing_message.metadata.output_token_limit_reached);
+        assert!(matches!(
+            trailing_message.content.as_slice(),
+            [MessageContentBlock::Thinking(thinking)]
+                if thinking.thinking == "unfinished reasoning"
+        ));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_partial_think_tag_emits_one_output_limit_marker() -> anyhow::Result<()>
+    {
+        let response_lines = concat!(
+            "data: {\"id\":\"chunk-1\",\"model\":\"test-model\",\"choices\":[{\"delta\":{\"content\":\"<thi\"},\"index\":0,\"finish_reason\":null}]}\n",
+            "data: {\"id\":\"chunk-1\",\"choices\":[{\"delta\":{},\"index\":0,\"finish_reason\":\"length\"}],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":5,\"total_tokens\":15}}\n",
+            "data: [DONE]\n"
+        );
+
+        let response_stream =
+            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+        let mut streamed_messages = Vec::new();
+        let mut usage_count = 0;
+
+        while let Some(result) = messages.next().await {
+            let (message, usage) = result?;
+            usage_count += usize::from(usage.is_some());
+            if let Some(message) = message {
+                streamed_messages.push(message);
+            }
+        }
+
+        assert_eq!(usage_count, 1);
+        let marked_messages: Vec<_> = streamed_messages
+            .iter()
+            .filter(|message| message.metadata.output_token_limit_reached)
+            .collect();
+        assert_eq!(marked_messages.len(), 1);
+        assert_eq!(marked_messages[0].id.as_deref(), Some("chunk-1"));
+        assert_eq!(marked_messages[0].as_concat_text(), "<thi");
 
         Ok(())
     }
@@ -3305,6 +3673,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3363,6 +3732,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: false,
+                ..Default::default()
             },
         );
 
@@ -3415,6 +3785,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3445,6 +3816,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3473,6 +3845,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3497,6 +3870,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3533,6 +3907,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3591,6 +3966,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3638,6 +4014,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3908,6 +4285,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
         assert_eq!(spec.len(), 1);
@@ -3942,6 +4320,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
         assert_eq!(spec.len(), 1);
@@ -4392,5 +4771,112 @@ data: [DONE]"#;
                 _ => {}
             }
         }
+    }
+
+    fn format_with_preservation(
+        messages: &[Message],
+        format: ThinkingPreservationFormat,
+    ) -> Vec<Value> {
+        format_messages_with_options(
+            messages,
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+                thinking_preservation_format: Some(format),
+            },
+        )
+    }
+
+    #[test]
+    fn test_thinking_preservation_content_prepend() {
+        let message = Message::assistant()
+            .with_thinking("Thinking process", "")
+            .with_text("Hello");
+
+        let spec = format_with_preservation(
+            std::slice::from_ref(&message),
+            ThinkingPreservationFormat::ContentPrepend,
+        );
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["content"], json!("Thinking process\n\nHello"));
+        assert!(spec[0].get("reasoning_content").is_none());
+    }
+
+    #[test]
+    fn test_thinking_preservation_content_xml() {
+        let message = Message::assistant()
+            .with_thinking("Thinking process", "")
+            .with_text("Hello");
+
+        let spec = format_with_preservation(
+            std::slice::from_ref(&message),
+            ThinkingPreservationFormat::ContentXml,
+        );
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(
+            spec[0]["content"],
+            json!("<think>\nThinking process\n</think>\n\nHello")
+        );
+        assert!(spec[0].get("reasoning_content").is_none());
+    }
+
+    #[test]
+    fn test_thinking_preservation_reasoning_content_is_unchanged() {
+        let message = Message::assistant()
+            .with_thinking("Thinking process", "")
+            .with_text("Hello");
+
+        let spec = format_with_preservation(
+            std::slice::from_ref(&message),
+            ThinkingPreservationFormat::ReasoningContent,
+        );
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["content"], json!("Hello"));
+        assert_eq!(spec[0]["reasoning_content"], json!("Thinking process"));
+    }
+
+    #[test]
+    fn test_thinking_preservation_runs_after_split_tool_call_merge() {
+        // Split tool-call messages are reunited by matching reasoning_content, so
+        // inlining must happen afterwards or the merge silently stops working.
+        let messages = vec![
+            Message::assistant().with_thinking("reasoning", ""),
+            Message::assistant()
+                .with_thinking("reasoning", "")
+                .with_tool_request(
+                    "tool1",
+                    Ok(CallToolRequestParams::new("tool_a").with_arguments(object!({}))),
+                ),
+            Message::user().with_tool_response(
+                "tool1",
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    ContentBlock::text("result1"),
+                ])),
+            ),
+            Message::assistant()
+                .with_thinking("reasoning", "")
+                .with_tool_request(
+                    "tool2",
+                    Ok(CallToolRequestParams::new("tool_b").with_arguments(object!({}))),
+                ),
+        ];
+
+        let spec = format_with_preservation(&messages, ThinkingPreservationFormat::ContentXml);
+
+        let assistant: Vec<_> = spec
+            .iter()
+            .filter(|m| m.get("role") == Some(&json!("assistant")))
+            .collect();
+
+        assert_eq!(assistant.len(), 1);
+        assert_eq!(assistant[0]["tool_calls"].as_array().unwrap().len(), 2);
+        assert!(assistant[0].get("reasoning_content").is_none());
+        assert_eq!(
+            assistant[0]["content"],
+            json!("<think>\nreasoning\n</think>")
+        );
     }
 }

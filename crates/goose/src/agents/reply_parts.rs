@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 use tracing::debug;
 
 use super::super::agents::Agent;
+use super::gen_ai_telemetry;
 #[cfg(feature = "code-mode")]
 use crate::agents::platform_extensions::code_execution;
 use crate::config::{Config, GooseMode};
@@ -295,7 +296,21 @@ impl Agent {
 
     #[tracing::instrument(
         skip(provider, model_config, session_id, system_prompt, messages, tools, toolshim_tools),
-        fields(session.id = %session_id)
+        fields(
+            session.id = %session_id,
+            gen_ai.conversation.id = %session_id,
+            gen_ai.operation.name = "chat",
+            gen_ai.provider.name = %provider.get_name(),
+            gen_ai.request.model = %model_config.model_name,
+            gen_ai.request.stream = true,
+            gen_ai.response.model = tracing::field::Empty,
+            gen_ai.usage.input_tokens = tracing::field::Empty,
+            gen_ai.usage.output_tokens = tracing::field::Empty,
+            gen_ai.usage.cache_read.input_tokens = tracing::field::Empty,
+            gen_ai.usage.cache_creation.input_tokens = tracing::field::Empty,
+            gen_ai.input.messages = tracing::field::Empty,
+            gen_ai.output.messages = tracing::field::Empty,
+        )
     )]
     pub(crate) async fn stream_response_from_provider(
         provider: Arc<dyn Provider>,
@@ -319,6 +334,13 @@ impl Agent {
         } else {
             filtered_messages
         };
+        let span = tracing::Span::current();
+        let capture_message_content = gen_ai_telemetry::capture_message_content();
+        if capture_message_content {
+            let input_messages =
+                gen_ai_telemetry::input_messages_json(messages_for_provider.messages());
+            span.record("gen_ai.input.messages", input_messages.as_str());
+        }
 
         // Clone owned data to move into the async stream
         let system_prompt = system_prompt.to_owned();
@@ -405,11 +427,18 @@ impl Agent {
                 // The toolshim interpreter call below must not count toward elapsed time.
                 if let Some(usage) = final_usage.as_mut() {
                     fill_stream_timing(usage, request_started, first_content_at);
+                    gen_ai_telemetry::record_provider_usage(&span, usage);
                 }
 
                 if let Some(msg) = accumulated_message {
-                    let processed = toolshim_postprocess(msg, &toolshim_tools).await?;
-                    yield (Some(processed.with_generated_id_if_missing()), final_usage);
+                    let processed = toolshim_postprocess(msg, &toolshim_tools)
+                        .await?
+                        .with_generated_id_if_missing();
+                    if capture_message_content {
+                        let output_messages = gen_ai_telemetry::output_message_json(&processed);
+                        span.record("gen_ai.output.messages", output_messages.as_str());
+                    }
+                    yield (Some(processed), final_usage);
                 } else if final_usage.is_some() {
                     // Preserve usage-only responses (no message content)
                     yield (None, final_usage);
@@ -417,6 +446,7 @@ impl Agent {
             } else {
                 let mut first_content_at: Option<std::time::Instant> = None;
                 let mut active_mergeable_assistant_id: Option<String> = None;
+                let mut output_message: Option<Message> = None;
                 while let Some(result) = stream.next().await {
                     let (message, mut usage) = result?;
 
@@ -427,6 +457,12 @@ impl Agent {
                     }
                     if let Some(usage) = usage.as_mut() {
                         fill_stream_timing(usage, request_started, first_content_at);
+                        gen_ai_telemetry::record_provider_usage(&span, usage);
+                    }
+                    if capture_message_content {
+                        if let Some(message) = message.as_ref() {
+                            gen_ai_telemetry::append_message(&mut output_message, message);
+                        }
                     }
 
                     let message = message.map(|message| {
@@ -445,6 +481,10 @@ impl Agent {
                     });
 
                     yield (message, usage);
+                }
+                if let Some(output_message) = output_message {
+                    let output_messages = gen_ai_telemetry::output_message_json(&output_message);
+                    span.record("gen_ai.output.messages", output_messages.as_str());
                 }
             }
         }))
@@ -567,6 +607,8 @@ impl Agent {
 
         let mut filtered_message =
             Message::new(response.role.clone(), response.created, filtered_content);
+        filtered_message.metadata.output_token_limit_reached =
+            response.metadata.output_token_limit_reached;
 
         // Preserve the ID if it exists
         if let Some(id) = response.id.clone() {
@@ -705,6 +747,7 @@ pub fn is_tool_visible_to_model(tool: &Tool) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents::gen_ai_telemetry::{self, test_support::SpanFieldCapture};
     use crate::agents::{AgentConfig, GoosePlatform};
     use crate::config::permission::PermissionLevel;
     use crate::config::{GooseMode, PermissionManager};
@@ -742,6 +785,33 @@ mod tests {
     }
 
     #[derive(Clone)]
+    struct GenAiTracingProvider;
+
+    #[async_trait]
+    impl Provider for GenAiTracingProvider {
+        fn get_name(&self) -> &str {
+            "test-provider"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            let usage = ProviderUsage::new(
+                "resolved-model".to_string(),
+                Usage::new(Some(11), Some(7), Some(18)).with_cache_tokens(Some(3), Some(2)),
+            );
+            Ok(Box::pin(futures::stream::iter(vec![
+                Ok((Some(Message::assistant().with_text("hello ")), None)),
+                Ok((Some(Message::assistant().with_text("world")), Some(usage))),
+            ])))
+        }
+    }
+
+    #[derive(Clone)]
     struct CapturingProvider {
         messages: Arc<Mutex<Vec<Message>>>,
     }
@@ -764,6 +834,54 @@ mod tests {
             let usage = ProviderUsage::new("capturing".to_string(), Usage::default());
             Ok(stream_from_single_message(message, usage))
         }
+    }
+
+    #[tokio::test]
+    async fn provider_stream_records_gen_ai_span_attributes() {
+        use futures::StreamExt;
+        use goose_test_support::otel::clear_otel_env;
+
+        let _env = clear_otel_env(&[(gen_ai_telemetry::CAPTURE_MESSAGE_CONTENT_ENV, "true")]);
+        let capture = SpanFieldCapture::new("stream_response_from_provider");
+        let _subscriber = capture.clone().set_default();
+        let messages = vec![Message::user().with_text("Say hello")];
+
+        let mut stream = Agent::stream_response_from_provider(
+            Arc::new(GenAiTracingProvider),
+            ModelConfig::new("requested-model"),
+            "test-session",
+            "system",
+            &messages,
+            &[],
+            &[],
+        )
+        .await
+        .unwrap();
+        while let Some(item) = stream.next().await {
+            item.unwrap();
+        }
+        drop(stream);
+
+        let fields = capture.fields();
+        assert_eq!(fields["gen_ai.operation.name"], "chat");
+        assert_eq!(fields["gen_ai.provider.name"], "test-provider");
+        assert_eq!(fields["gen_ai.request.model"], "requested-model");
+        assert_eq!(fields["gen_ai.request.stream"], true);
+        assert_eq!(fields["gen_ai.conversation.id"], "test-session");
+        assert_eq!(fields["gen_ai.response.model"], "resolved-model");
+        assert_eq!(fields["gen_ai.usage.input_tokens"], 11);
+        assert_eq!(fields["gen_ai.usage.output_tokens"], 7);
+        assert_eq!(fields["gen_ai.usage.cache_read.input_tokens"], 3);
+        assert_eq!(fields["gen_ai.usage.cache_creation.input_tokens"], 2);
+
+        let input: Value =
+            serde_json::from_str(fields["gen_ai.input.messages"].as_str().unwrap()).unwrap();
+        assert_eq!(input[0]["parts"][0]["content"], "Say hello");
+
+        let output: Value =
+            serde_json::from_str(fields["gen_ai.output.messages"].as_str().unwrap()).unwrap();
+        assert_eq!(output[0]["finish_reason"], "stop");
+        assert_eq!(output[0]["parts"][0]["content"], "hello world");
     }
 
     #[tokio::test]
@@ -1305,17 +1423,19 @@ mod tests {
     #[tokio::test]
     async fn categorize_tool_requests_keeps_thinking_when_not_previously_streamed() {
         let agent = crate::agents::Agent::new();
-        let response = Message::assistant()
+        let mut response = Message::assistant()
             .with_thinking("final-only reasoning", "")
             .with_tool_request(
                 "tool-1",
                 Ok(rmcp::model::CallToolRequestParams::new("test_tool")),
             );
+        response.metadata.output_token_limit_reached = true;
 
         let (_frontend_requests, other_requests, filtered_message) =
             agent.categorize_tool_requests(&response, &[], false).await;
 
         assert_eq!(other_requests.len(), 1);
+        assert!(filtered_message.metadata.output_token_limit_reached);
         assert_eq!(filtered_message.content.len(), 2);
         assert!(matches!(
             filtered_message.content[0],

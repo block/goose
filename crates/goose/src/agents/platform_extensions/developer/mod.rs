@@ -1,6 +1,7 @@
 pub mod edit;
 pub mod image;
 pub mod shell;
+mod shell_output_streaming;
 pub mod tree;
 
 use crate::agents::extension::PlatformExtensionContext;
@@ -206,7 +207,13 @@ impl McpClientTrait for DeveloperClient {
             "shell" => match Self::parse_args::<ShellParams>(arguments) {
                 Ok(params) => Ok(self
                     .shell_tool
-                    .shell_with_cwd(params, working_dir, Some(&ctx.session_id), cancel_token)
+                    .shell_with_cwd_and_emitter(
+                        params,
+                        working_dir,
+                        Some(&ctx.session_id),
+                        ctx.notification_emitter().cloned(),
+                        cancel_token,
+                    )
                     .await),
                 Err(error) => Ok(ShellTool::error_result(&format!("Error: {error}"), None)),
             },

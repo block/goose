@@ -23,6 +23,9 @@ use tokio_util::task::AbortOnDropHandle;
 pub use self::export::{message_to_markdown, user_projected_message_to_markdown};
 pub use builder::{build_session, SessionBuilderConfig};
 use console::Color;
+use goose::agents::platform_extensions::developer::shell::{
+    parse_shell_output_notification, ShellOutputNotificationParams, ShellOutputStream,
+};
 use goose::agents::AgentEvent;
 use goose::agents::SUBAGENT_TOOL_REQUEST_TYPE;
 use goose::permission::permission_confirmation::PrincipalType;
@@ -63,6 +66,9 @@ use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
 const GOOSE_PLANNER_CONTEXT_LIMIT: &str = "GOOSE_PLANNER_CONTEXT_LIMIT";
+const SHELL_STATUS_FALLBACK_WIDTH: usize = 120;
+const SHELL_STATUS_MAX_LINES: usize = 3;
+const SHELL_STATUS_RESERVED_WIDTH: usize = 2;
 
 fn planner_provider_messages(plan_messages: &Conversation) -> Conversation {
     let projected_messages = plan_messages.agent_visible_messages();
@@ -730,16 +736,6 @@ impl CliSession {
             RunMode::Normal => {
                 history.save(editor);
                 self.push_message(Message::user().with_text(content));
-
-                if let Err(e) = crate::project_tracker::update_project_tracker(
-                    Some(content),
-                    Some(&self.session_id),
-                ) {
-                    eprintln!(
-                        "Warning: Failed to update project tracker with instruction: {}",
-                        e
-                    );
-                }
 
                 let _provider = self.agent.provider().await?;
 
@@ -2265,8 +2261,69 @@ fn handle_mcp_notification(
                 );
             }
         }
+        ServerNotification::CustomNotification(notification) => {
+            if let Some(params) = parse_shell_output_notification(notification) {
+                if is_stream_json_mode
+                    || is_json_mode
+                    || !interactive
+                    || !std::io::stdout().is_terminal()
+                {
+                    return;
+                }
+                display_shell_output_notification(params, progress_bars);
+            }
+        }
         _ => (),
     }
+}
+
+fn display_shell_output_notification(
+    params: ShellOutputNotificationParams,
+    progress_bars: &mut output::McpSpinners,
+) {
+    if params.truncated {
+        return;
+    }
+
+    let max_width = console::Term::stdout()
+        .size_checked()
+        .map(|(_, width)| usize::from(width).saturating_sub(SHELL_STATUS_RESERVED_WIDTH))
+        .unwrap_or(SHELL_STATUS_FALLBACK_WIDTH);
+    let lines = latest_shell_output_lines(&params, max_width)
+        .into_iter()
+        .map(|(stream, line)| match stream {
+            ShellOutputStream::Stdout => console::style(line).dim().to_string(),
+            ShellOutputStream::Stderr => console::style(line).yellow().dim().to_string(),
+        })
+        .collect::<Vec<_>>();
+    if !lines.is_empty() {
+        progress_bars.log_shell_output(lines, SHELL_STATUS_MAX_LINES);
+    }
+}
+
+fn latest_shell_output_lines(
+    params: &ShellOutputNotificationParams,
+    max_width: usize,
+) -> Vec<(ShellOutputStream, String)> {
+    let mut lines = params
+        .chunks
+        .iter()
+        .rev()
+        .flat_map(|chunk| {
+            chunk
+                .output
+                .lines()
+                .rev()
+                .map(move |line| (chunk.stream, line))
+        })
+        .take(SHELL_STATUS_MAX_LINES)
+        .map(|(stream, line)| {
+            let line = output::sanitize_terminal_line(line);
+            (stream, safe_truncate(&line, max_width))
+        })
+        .collect::<Vec<_>>();
+    lines.reverse();
+    lines
 }
 
 /// Format a logging notification from MCP, returns (formatted_message, subagent_id, notification_type)

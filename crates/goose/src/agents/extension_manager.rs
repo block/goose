@@ -1,7 +1,7 @@
 use anyhow::Result;
 use axum::http::{HeaderMap, HeaderName, HeaderValue};
 use chrono::{DateTime, Utc};
-use futures::stream::{FuturesUnordered, StreamExt};
+use futures::stream::{self, FuturesUnordered, StreamExt};
 use futures::Stream;
 use futures::{future, FutureExt};
 use once_cell::sync::Lazy;
@@ -17,13 +17,13 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use std::task::{Context, Poll};
 use std::time::Duration;
 use tempfile::{tempdir, TempDir};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
@@ -33,7 +33,7 @@ use super::extension::{
     ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PlatformExtensionContext,
     ToolInfo, PLATFORM_EXTENSIONS,
 };
-use super::tool_execution::{ToolCallContext, ToolCallResult};
+use super::tool_execution::{ToolCallContext, ToolCallNotificationEmitter, ToolCallResult};
 use super::types::SharedProvider;
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::Envs;
@@ -50,13 +50,15 @@ use crate::prompt_template;
 use crate::subprocess::configure_subprocess;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, ContentBlock, ErrorCode, ErrorData, GetPromptResult,
-    MetaObject, Prompt, Resource, ResourceContents, ServerInfo, Tool,
+    MetaObject, Prompt, Resource, ResourceContents, ServerInfo, ServerNotification, Tool,
 };
 use rmcp::transport::auth::{AuthClient, CredentialStore};
 use schemars::_private::NoSerialize;
 use serde_json::Value;
 
 type McpClientBox = Arc<dyn McpClientTrait>;
+
+const TOOL_CALL_NOTIFICATION_CHANNEL_CAPACITY: usize = 32;
 
 struct ActionRequiredStream {
     inner: ReceiverStream<crate::conversation::message::Message>,
@@ -418,6 +420,7 @@ fn clone_command(command: &Command) -> Command {
     cloned
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn child_process_client(
     mut command: Command,
     timeout: &Option<u64>,
@@ -426,6 +429,7 @@ async fn child_process_client(
     docker_container: Option<String>,
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
+    extension_manager: Weak<ExtensionManager>,
 ) -> ExtensionResult<McpClient> {
     configure_subprocess(&mut command);
 
@@ -469,6 +473,7 @@ async fn child_process_client(
         client_name,
         capabilities,
         working_dir.clone(),
+        extension_manager,
     )
     .await;
 
@@ -639,6 +644,7 @@ async fn connect_with_auth(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    extension_manager: Weak<ExtensionManager>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     let mut auth_headers = HeaderMap::new();
     auth_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
@@ -673,6 +679,7 @@ async fn connect_with_auth(
             client_name,
             capabilities,
             roots_dir.to_path_buf(),
+            extension_manager,
         )
         .await?,
     ))
@@ -690,6 +697,7 @@ async fn create_streamable_http_client(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    extension_manager: Weak<ExtensionManager>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     #[cfg(unix)]
     if let Some(socket_path) = socket {
@@ -703,6 +711,7 @@ async fn create_streamable_http_client(
             client_name,
             capabilities,
             roots_dir,
+            extension_manager,
         )
         .await;
     }
@@ -758,6 +767,7 @@ async fn create_streamable_http_client(
                     client_name.clone(),
                     capabilities.clone(),
                     roots_dir,
+                    extension_manager.clone(),
                 )
                 .await;
 
@@ -796,6 +806,7 @@ async fn create_streamable_http_client(
         client_name.clone(),
         capabilities.clone(),
         roots_dir.to_path_buf(),
+        extension_manager.clone(),
     )
     .await;
 
@@ -811,6 +822,7 @@ async fn create_streamable_http_client(
                     client_name,
                     capabilities,
                     roots_dir,
+                    extension_manager,
                 )
                 .await
             }
@@ -833,6 +845,7 @@ async fn create_unix_socket_http_client(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    extension_manager: Weak<ExtensionManager>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     use rmcp::transport::UnixSocketHttpClient;
 
@@ -870,6 +883,7 @@ async fn create_unix_socket_http_client(
         client_name.clone(),
         capabilities.clone(),
         roots_dir.to_path_buf(),
+        extension_manager,
     )
     .await;
 
@@ -1018,6 +1032,7 @@ impl ExtensionManager {
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
                     &effective_working_dir,
+                    Arc::downgrade(self),
                 )
                 .await?
             }
@@ -1075,6 +1090,7 @@ impl ExtensionManager {
                             Some(container_id.to_string()),
                             self.client_name.clone(),
                             self.mcp_client_capabilities(),
+                            Arc::downgrade(self),
                         )
                         .await?;
                         Box::new(client)
@@ -1091,6 +1107,7 @@ impl ExtensionManager {
                                 self.client_name.clone(),
                                 self.mcp_client_capabilities(),
                                 effective_working_dir.clone(),
+                                Arc::downgrade(self),
                             )
                             .await?,
                         )
@@ -1152,6 +1169,7 @@ impl ExtensionManager {
                     container.map(|c| c.id().to_string()),
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
+                    Arc::downgrade(self),
                 )
                 .await?;
                 Box::new(client)
@@ -1184,6 +1202,7 @@ impl ExtensionManager {
                     container.map(|c| c.id().to_string()),
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
+                    Arc::downgrade(self),
                 )
                 .await?;
 
@@ -1408,7 +1427,7 @@ impl ExtensionManager {
         Some(attachment)
     }
 
-    async fn invalidate_tools_cache_and_bump_version(&self) {
+    pub(crate) async fn invalidate_tools_cache_and_bump_version(&self) {
         self.tools_cache_version.fetch_add(1, Ordering::SeqCst);
         *self.tools_cache.lock().await = None;
     }
@@ -1844,7 +1863,7 @@ impl ExtensionManager {
         let arguments = tool_call.arguments.clone();
         let client = resolved.client.clone();
         let hydration_client = client.clone();
-        let notifications_receiver = client.subscribe().await;
+        let client_notifications_receiver = client.subscribe().await;
         let session_id = ctx.session_id.clone();
         let action_required_tool_call_request_id = ctx.tool_call_request_id.clone();
         let action_required_receiver =
@@ -1877,6 +1896,32 @@ impl ExtensionManager {
             ctx.working_dir.clone(),
             ctx.tool_call_request_id.clone(),
         );
+        let (owned_ctx, tool_call_notifications_receiver) =
+            if let Some(notification_emitter) = ctx.notification_emitter().cloned() {
+                (
+                    owned_ctx.with_notification_emitter(notification_emitter),
+                    None,
+                )
+            } else if owned_ctx.tool_call_request_id.is_some() {
+                let (tool_call_notifications_sender, tool_call_notifications_receiver) =
+                    mpsc::channel(TOOL_CALL_NOTIFICATION_CHANNEL_CAPACITY);
+                (
+                    owned_ctx.with_notification_emitter(ToolCallNotificationEmitter::new(
+                        tool_call_notifications_sender,
+                    )),
+                    Some(tool_call_notifications_receiver),
+                )
+            } else {
+                (owned_ctx, None)
+            };
+        let notification_stream: Box<dyn Stream<Item = ServerNotification> + Send + Unpin> =
+            match tool_call_notifications_receiver {
+                Some(tool_call_notifications_receiver) => Box::new(stream::select(
+                    ReceiverStream::new(client_notifications_receiver),
+                    ReceiverStream::new(tool_call_notifications_receiver),
+                )),
+                None => Box::new(ReceiverStream::new(client_notifications_receiver)),
+            };
 
         let fut = async move {
             tracing::debug!(
@@ -1917,7 +1962,7 @@ impl ExtensionManager {
 
         Ok(ToolCallResult {
             result: Box::new(fut.boxed()),
-            notification_stream: Some(Box::new(ReceiverStream::new(notifications_receiver))),
+            notification_stream: Some(notification_stream),
             action_required_stream: action_required_receiver.map(
                 |(rx, session_id, tool_call_request_id)| {
                     Box::new(ActionRequiredStream::new(
@@ -2140,7 +2185,7 @@ impl ExtensionManager {
 mod tests {
     use super::*;
     use rmcp::model::CallToolResult;
-    use rmcp::model::{InitializeResult, JsonObject};
+    use rmcp::model::{CustomNotification, InitializeResult, JsonObject};
     use rmcp::{object, ServiceError as Error};
 
     use rmcp::model::ListPromptsResult;
@@ -2290,6 +2335,164 @@ mod tests {
         async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
             mpsc::channel(1).1
         }
+    }
+
+    struct ContextNotificationClient;
+
+    #[async_trait::async_trait]
+    impl McpClientTrait for ContextNotificationClient {
+        fn get_info(&self) -> Option<&InitializeResult> {
+            None
+        }
+
+        async fn list_tools(
+            &self,
+            session_id: &str,
+            next_cursor: Option<String>,
+            cancellation_token: CancellationToken,
+        ) -> Result<ListToolsResult, Error> {
+            MockClient {}
+                .list_tools(session_id, next_cursor, cancellation_token)
+                .await
+        }
+
+        async fn call_tool(
+            &self,
+            ctx: &ToolCallContext,
+            _name: &str,
+            _arguments: Option<JsonObject>,
+            _cancellation_token: CancellationToken,
+        ) -> Result<CallToolResult, Error> {
+            if let Some(emitter) = ctx.notification_emitter() {
+                let request_id = ctx
+                    .tool_call_request_id
+                    .as_deref()
+                    .expect("an emitter requires a request ID");
+                emitter.emit_best_effort(ServerNotification::CustomNotification(
+                    CustomNotification::new(format!("scoped/{request_id}"), None),
+                ));
+            }
+            Ok(CallToolResult::success(vec![]))
+        }
+
+        async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
+            let (sender, receiver) = mpsc::channel(1);
+            sender
+                .try_send(ServerNotification::CustomNotification(
+                    CustomNotification::new("client/subscription", None),
+                ))
+                .expect("test notification should fit");
+            receiver
+        }
+    }
+
+    async fn dispatch_notification_methods(ctx: ToolCallContext) -> Vec<String> {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let extension_manager =
+            ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+        extension_manager
+            .add_mock_extension(
+                "notifications".to_string(),
+                Arc::new(ContextNotificationClient),
+            )
+            .await;
+
+        let tool_call = CallToolRequestParams::new("notifications__tool".to_string())
+            .with_arguments(object!({}));
+        let dispatched = extension_manager
+            .dispatch_tool_call(&ctx, tool_call, CancellationToken::default())
+            .await
+            .expect("tool call should dispatch");
+
+        assert!(dispatched.result.await.is_ok());
+
+        let mut methods = dispatched
+            .notification_stream
+            .expect("notification stream should exist")
+            .filter_map(|notification| async move {
+                match notification {
+                    ServerNotification::CustomNotification(notification) => {
+                        Some(notification.method)
+                    }
+                    _ => None,
+                }
+            })
+            .collect::<Vec<_>>()
+            .await;
+        methods.sort();
+        methods
+    }
+
+    #[tokio::test]
+    async fn dispatch_merges_request_scoped_and_client_notifications() {
+        let methods = dispatch_notification_methods(ToolCallContext::new(
+            "session".to_string(),
+            None,
+            Some("request".to_string()),
+        ))
+        .await;
+
+        assert_eq!(methods, vec!["client/subscription", "scoped/request"]);
+    }
+
+    #[tokio::test]
+    async fn dispatch_reuses_existing_notification_emitter() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let extension_manager =
+            ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+        extension_manager
+            .add_mock_extension(
+                "notifications".to_string(),
+                Arc::new(ContextNotificationClient),
+            )
+            .await;
+        let (sender, mut receiver) = mpsc::channel(1);
+        let ctx = ToolCallContext::new(
+            "nested-session".to_string(),
+            None,
+            Some("nested-request".to_string()),
+        )
+        .with_notification_emitter(ToolCallNotificationEmitter::new(sender));
+        let tool_call = CallToolRequestParams::new("notifications__tool".to_string())
+            .with_arguments(object!({}));
+
+        let dispatched = extension_manager
+            .dispatch_tool_call(&ctx, tool_call, CancellationToken::default())
+            .await
+            .expect("tool call should dispatch");
+        assert!(dispatched.result.await.is_ok());
+
+        let notification = receiver
+            .try_recv()
+            .expect("parent emitter should receive nested notification");
+        let ServerNotification::CustomNotification(notification) = notification else {
+            panic!("expected a custom notification");
+        };
+        assert_eq!(notification.method, "scoped/nested-request");
+
+        let methods = dispatched
+            .notification_stream
+            .expect("client notification stream should exist")
+            .filter_map(|notification| async move {
+                match notification {
+                    ServerNotification::CustomNotification(notification) => {
+                        Some(notification.method)
+                    }
+                    _ => None,
+                }
+            })
+            .collect::<Vec<_>>()
+            .await;
+        assert_eq!(methods, vec!["client/subscription"]);
+    }
+
+    #[tokio::test]
+    async fn dispatch_without_request_id_uses_only_client_notifications() {
+        let methods =
+            dispatch_notification_methods(ToolCallContext::new("session".to_string(), None, None))
+                .await;
+
+        assert_eq!(methods, vec!["client/subscription"]);
     }
 
     #[tokio::test]
@@ -3170,6 +3373,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            Weak::new(),
         )
         .await;
 
@@ -3207,6 +3411,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            Weak::new(),
         )
         .await;
 
@@ -3255,6 +3460,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            Weak::new(),
         )
         .await;
 
@@ -3338,6 +3544,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            Weak::new(),
         )
         .await;
 

@@ -1009,7 +1009,7 @@ async fn forward_child_stderr(mut stderr: tokio::process::ChildStderr) {
                 }
             }
             Err(e) => {
-                tracing::debug!(target: "acp::child::stderr", error = %e, "stderr read error");
+                tracing::debug!(target: "goose::acp::child::stderr", error = %e, "stderr read error");
                 break;
             }
         }
@@ -1022,7 +1022,7 @@ fn emit_stderr_line(line: &mut Vec<u8>) {
         return;
     }
     let trimmed = line.strip_suffix(b"\r").unwrap_or(line);
-    tracing::info!(target: "acp::child::stderr", "{}", String::from_utf8_lossy(trimmed));
+    tracing::info!(target: "goose::acp::child::stderr", "{}", String::from_utf8_lossy(trimmed));
     line.clear();
 }
 

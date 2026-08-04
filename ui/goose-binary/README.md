@@ -48,12 +48,10 @@ For manual publishing:
 ./ui/scripts/publish.sh --real
 ```
 
-This will publish all native packages along with `@aaif/goose-sdk` and `@aaif/goose`.
+This will publish all native packages along with `@aaif/goose-sdk`.
 
 ## Usage
 
-These packages are installed as optional dependencies by `@aaif/goose` (the TUI).
-The appropriate package for the user's platform is automatically selected during
-installation.
-
-See `ui/text/scripts/postinstall.mjs` for how the binary path is resolved.
+These packages are installed as optional dependencies by `@aaif/goose-sdk`, which
+resolves the appropriate package for the user's platform automatically. See
+`ui/sdk/src/resolve-binary.ts` for how the binary path is resolved.

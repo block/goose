@@ -344,6 +344,7 @@ impl GooseAcpAgent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::acp::server::AcpBuiltinSelection;
     use crate::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
     use crate::agents::GoosePlatform;
     use goose_sdk_types::custom_requests::{ListRecipesRequest, ScheduleRecipeRequest};
@@ -369,7 +370,7 @@ mod tests {
             ("GOOSE_PATH_ROOT", root.path().to_str()),
         ]);
         let server = AcpServer::new(AcpServerFactoryConfig {
-            builtins: Vec::new(),
+            builtins: AcpBuiltinSelection::default(),
             data_dir: root.path().join("data"),
             config_dir: root.path().join("config"),
             goose_platform: GoosePlatform::GooseCli,

@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "채팅"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "생성됨"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "디렉터리"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "모델"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "상태"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "업데이트됨"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "최근 채팅 없음"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "오류"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "유휴"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "스트리밍"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "읽지 않은 활동"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "제목 없는 세션"
@@ -4538,6 +4565,9 @@
   "userMessage.editButton": {
     "defaultMessage": "편집"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "첨부된 이미지:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "바로 편집"
   },
@@ -4570,5 +4600,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "편집한 메시지로 새 세션 만들기"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "메시지에서 이미지 제거"
   }
 }

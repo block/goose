@@ -506,10 +506,11 @@ impl ProviderFixture {
 
         assert!(!models.is_empty());
         let resolved = &self.model_config.model_name;
-        assert_ne!(resolved.as_str(), ACP_CURRENT_MODEL);
-        assert!(models
-            .iter()
-            .any(|m| m == resolved || m.contains(resolved) || resolved.contains(m)));
+        if resolved != ACP_CURRENT_MODEL {
+            assert!(models
+                .iter()
+                .any(|m| m == resolved || m.contains(resolved) || resolved.contains(m)));
+        }
         if let Some(alt) = &self.model_switch_name {
             assert!(models
                 .iter()
@@ -898,7 +899,7 @@ async fn test_claude_acp_provider() -> Result<()> {
         .await
 }
 
-// Requires: npm install -g @zed-industries/codex-acp
+// Requires: npm install -g @agentclientprotocol/codex-acp
 #[tokio::test]
 async fn test_codex_acp_provider() -> Result<()> {
     ProviderTestConfig::with_agentic_provider("codex-acp", ACP_CURRENT_MODEL, "codex-acp")

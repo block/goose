@@ -11,6 +11,7 @@ use tracing_futures::Instrument;
 
 use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
+use super::gen_ai_telemetry;
 use super::mcp_client::GooseMcpHostInfo;
 use super::platform_tools;
 use super::tool_confirmation_router::ToolConfirmationRouter;
@@ -52,7 +53,7 @@ use crate::session::{Session, SessionManager, SessionNameUpdate};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
-use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
 use goose_providers::thinking::ThinkingEffort;
 use regex::Regex;
@@ -650,10 +651,21 @@ impl Agent {
             .as_ref()
             .map(|a| serde_json::Value::Object(a.clone()));
         let category = categorize_tool(&tool_name);
+        let span = tracing::Span::current();
+        let capture_message_content = gen_ai_telemetry::capture_message_content();
 
         let fut = async move {
             let processed_result =
                 super::large_response_handler::process_tool_response(result.result.await);
+            if capture_message_content {
+                let output = gen_ai_telemetry::tool_result_json(&processed_result);
+                span.record("output", output.as_str());
+                if let Some(result) =
+                    gen_ai_telemetry::successful_tool_result_json(&processed_result)
+                {
+                    span.record("gen_ai.tool.call.result", result.as_str());
+                }
+            }
             let event = match &processed_result {
                 Ok(call_result) if call_result.is_error != Some(true) => {
                     crate::hooks::HookEvent::PostToolUse
@@ -1104,7 +1116,20 @@ impl Agent {
     }
 
     /// Dispatch a single tool call to the appropriate client
-    #[instrument(skip(self, tool_call, request_id, cancellation_token, session), fields(input, output, session.id = %session.id))]
+    #[instrument(
+        skip(self, tool_call, request_id, cancellation_token, session),
+        fields(
+            input,
+            output,
+            session.id = %session.id,
+            gen_ai.conversation.id = %session.id,
+            gen_ai.operation.name = "execute_tool",
+            gen_ai.tool.name = %tool_call.name,
+            gen_ai.tool.call.id = %request_id,
+            gen_ai.tool.call.arguments = tracing::field::Empty,
+            gen_ai.tool.call.result = tracing::field::Empty,
+        )
+    )]
     pub async fn dispatch_tool_call(
         &self,
         tool_call: CallToolRequestParams,
@@ -1117,6 +1142,17 @@ impl Agent {
             "arguments": tool_call.arguments,
         });
         tracing::Span::current().record("input", tracing::field::display(&input_summary));
+        if gen_ai_telemetry::capture_message_content() {
+            let arguments = tool_call
+                .arguments
+                .as_ref()
+                .map(|arguments| Value::Object(arguments.clone()))
+                .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
+            tracing::Span::current().record(
+                "gen_ai.tool.call.arguments",
+                tracing::field::display(arguments),
+            );
+        }
 
         self.prompt_manager
             .lock()
@@ -1593,7 +1629,16 @@ impl Agent {
 
     #[instrument(
         skip(self, user_message, session_config, cancel_token),
-        fields(user_message, trace_input, session.id = %session_config.id)
+        fields(
+            user_message,
+            trace_input,
+            session.id = %session_config.id,
+            gen_ai.operation.name = "invoke_agent",
+            gen_ai.input.messages = tracing::field::Empty,
+            gen_ai.output.messages = tracing::field::Empty,
+            gen_ai.usage.input_tokens = tracing::field::Empty,
+            gen_ai.usage.output_tokens = tracing::field::Empty,
+        )
     )]
     pub async fn reply(
         &self,
@@ -1622,6 +1667,12 @@ impl Agent {
         let message_text_for_trace = agent_visible_message_text(&user_message);
         tracing::Span::current().record("user_message", message_text_for_trace.as_str());
         tracing::Span::current().record("trace_input", message_text_for_trace.as_str());
+        if gen_ai_telemetry::capture_message_content() {
+            tracing::Span::current().record(
+                "gen_ai.input.messages",
+                gen_ai_telemetry::simple_input_json(&message_text_for_trace).as_str(),
+            );
+        }
 
         for content in &user_message.content {
             if let MessageContent::ActionRequired(action_required) = content {
@@ -1835,6 +1886,7 @@ impl Agent {
         .await?;
 
         let conversation_to_compact = conversation.clone();
+        let reply_span = tracing::Span::current();
 
         Ok(Box::pin(async_stream::try_stream! {
             for event in command_preamble {
@@ -1906,7 +1958,7 @@ impl Agent {
                 }
             };
 
-            let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token).await?;
+            let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token, reply_span.clone()).await?;
             while let Some(event) = reply_stream.next().await {
                 yield event?;
             }
@@ -1919,6 +1971,7 @@ impl Agent {
         session_config: SessionConfig,
         session: Session,
         cancel_token: Option<CancellationToken>,
+        reply_span: tracing::Span,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let context = self
             .prepare_reply_context(&session.id, conversation, session.working_dir.as_path())
@@ -1949,7 +2002,7 @@ impl Agent {
             .ok()
             .and_then(|model_info| model_info.resolved_model)
             .map(|resolved_model| InferenceMetadata {
-                provider: provider_name,
+                provider: provider_name.clone(),
                 requested_model,
                 resolved_model: Some(resolved_model),
             });
@@ -1988,14 +2041,35 @@ impl Agent {
 
         let working_dir = session.working_dir.clone();
         let reply_stream_span = tracing::info_span!(
-            target: "goose::agents::agent",
+            parent: &reply_span,
             "reply_stream",
             trace_output = tracing::field::Empty,
             session.id = %session_config.id,
             session.user = %crate::session_context::session_user(),
             session.host = %crate::session_context::session_host(),
             session.agent_type = "goose",
+            gen_ai.operation.name = "invoke_agent",
+            gen_ai.conversation.id = %session_config.id,
+            gen_ai.request.model = %model_config.model_name,
+            gen_ai.provider.name = %provider_name,
+            gen_ai.input.messages = tracing::field::Empty,
+            gen_ai.output.messages = tracing::field::Empty,
+            gen_ai.usage.input_tokens = tracing::field::Empty,
+            gen_ai.usage.output_tokens = tracing::field::Empty,
         );
+        if gen_ai_telemetry::capture_message_content() {
+            if let Some(last_user_msg) = conversation
+                .messages()
+                .iter()
+                .rev()
+                .find(|m| m.role == rmcp::model::Role::User)
+            {
+                reply_stream_span.record(
+                    "gen_ai.input.messages",
+                    gen_ai_telemetry::simple_input_json(&last_user_msg.as_concat_text()).as_str(),
+                );
+            }
+        }
         let inner = Box::pin(async_stream::try_stream! {
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or_else(|| {
@@ -2007,6 +2081,7 @@ impl Agent {
             let mut empty_turn_retries = 0u32;
             let mut retrying_after_empty_turn = false;
             let mut last_assistant_text = String::new();
+            let mut turn_total_usage = Usage::default();
             let mut goal_check_pending = false;
             let mut tool_pair_summarization_done = false;
             let mut stop_hook_handled_for_exit = false;
@@ -2161,6 +2236,7 @@ impl Agent {
                 let mut exit_chat = false;
                 let mut provider_errored = false;
                 let mut provider_produced_content = false;
+                let mut provider_reached_output_token_limit = false;
                 let mut pending_final_output: Option<String> = None;
                 let mut pending_turn_usage: Option<ProviderUsage> = None;
                 let mut preferred_turn_usage_message_id: Option<String> = None;
@@ -2182,15 +2258,18 @@ impl Agent {
                             if let Some(ref usage) = usage {
                                 let enriched = self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, None).await?;
                                 yield AgentEvent::Usage(enriched.clone());
+                                turn_total_usage += enriched.usage;
                                 pending_turn_usage = Some(enriched);
                             }
 
                             if let Some(response) = response {
+                                provider_reached_output_token_limit |=
+                                    response.metadata.output_token_limit_reached;
+
                                 if !response.content.is_empty()
-                                    && response
-                                    .content
-                                    .iter()
-                                    .all(|content| matches!(content, MessageContent::SystemNotification(_)))
+                                    && response.content.iter().all(|content| {
+                                        matches!(content, MessageContent::SystemNotification(_))
+                                    })
                                 {
                                     yield AgentEvent::Message(response);
                                     tokio::task::yield_now().await;
@@ -2248,7 +2327,9 @@ impl Agent {
                                     },
                                 );
 
-                                if !filtered_response.content.is_empty() {
+                                if !filtered_response.content.is_empty()
+                                    || filtered_response.metadata.output_token_limit_reached
+                                {
                                     yield AgentEvent::Message(filtered_response.clone());
                                     tokio::task::yield_now().await;
                                 }
@@ -2801,6 +2882,7 @@ impl Agent {
                     && !exit_chat
                     && !provider_errored
                     && !did_recovery_compact_this_iteration
+                    && !provider_reached_output_token_limit
                     && !provider_produced_content
                     && last_assistant_text.is_empty();
 
@@ -3053,7 +3135,18 @@ impl Agent {
 
             if !last_assistant_text.is_empty() {
                 tracing::Span::current().record("trace_output", last_assistant_text.as_str());
+                if gen_ai_telemetry::capture_message_content() {
+                    let output_json =
+                        gen_ai_telemetry::simple_output_json(&last_assistant_text);
+                    tracing::Span::current().record(
+                        "gen_ai.output.messages",
+                        output_json.as_str(),
+                    );
+                    reply_span.record("gen_ai.output.messages", output_json.as_str());
+                }
             }
+            gen_ai_telemetry::record_usage(&tracing::Span::current(), &turn_total_usage);
+            gen_ai_telemetry::record_usage(&reply_span, &turn_total_usage);
 
             if !stop_hook_handled_for_exit {
                 self.emit_stop_hook(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy()).await;
@@ -3624,6 +3717,7 @@ impl Agent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents::gen_ai_telemetry::{self, test_support::SpanFieldCapture};
     use crate::permission::permission_confirmation::PrincipalType;
     use crate::plugins::discovery::{DiscoveredPlugin, PluginScope};
     use crate::providers::base::{stream_from_single_message, MessageStream, PermissionRouting};
@@ -3634,6 +3728,105 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
+
+    async fn tracing_test_agent_and_session() -> (Agent, Session, TempDir) {
+        let data_dir = TempDir::new().unwrap();
+        let data_path = data_dir.path().to_path_buf();
+        let session_manager = Arc::new(SessionManager::new(data_path.clone()));
+        let agent = Agent::with_config(AgentConfig::new(
+            Arc::clone(&session_manager),
+            Arc::new(PermissionManager::new(data_path)),
+            None,
+            GooseMode::default(),
+            false,
+            GoosePlatform::GooseCli,
+        ));
+        let session = session_manager
+            .create_session(
+                std::env::current_dir().unwrap(),
+                "otel-tool-span".to_string(),
+                SessionType::Hidden,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        (agent, session, data_dir)
+    }
+
+    #[tokio::test]
+    async fn tool_dispatch_records_gen_ai_span_attributes() {
+        use goose_test_support::otel::clear_otel_env;
+        use rmcp::object;
+
+        let _env = clear_otel_env(&[(gen_ai_telemetry::CAPTURE_MESSAGE_CONTENT_ENV, "true")]);
+        let capture = SpanFieldCapture::new("dispatch_tool_call");
+        let _subscriber = capture.clone().set_default();
+        let (agent, session, _data_dir) = tracing_test_agent_and_session().await;
+        let tool_call = CallToolRequestParams::new(PLATFORM_MANAGE_SCHEDULE_TOOL_NAME)
+            .with_arguments(object!({ "action": "list" }));
+
+        let (request_id, result) = agent
+            .dispatch_tool_call(
+                tool_call,
+                "call-42".to_string(),
+                Some(CancellationToken::new()),
+                &session,
+            )
+            .await;
+        assert_eq!(request_id, "call-42");
+        let result = result.unwrap();
+        assert!(result.result.await.is_err());
+
+        let fields = capture.fields();
+        assert_eq!(fields["gen_ai.operation.name"], "execute_tool");
+        assert_eq!(
+            fields["gen_ai.tool.name"],
+            PLATFORM_MANAGE_SCHEDULE_TOOL_NAME
+        );
+        assert_eq!(fields["gen_ai.tool.call.id"], "call-42");
+        assert_eq!(fields["gen_ai.conversation.id"], session.id);
+        let arguments: Value =
+            serde_json::from_str(fields["gen_ai.tool.call.arguments"].as_str().unwrap()).unwrap();
+        assert_eq!(arguments["action"], "list");
+        let output: Value = serde_json::from_str(fields["output"].as_str().unwrap()).unwrap();
+        assert_eq!(output["status"], "error");
+        assert!(!fields.contains_key("gen_ai.tool.call.result"));
+    }
+
+    #[tokio::test]
+    async fn successful_tool_result_is_recorded_after_execution() {
+        use goose_test_support::otel::clear_otel_env;
+        use rmcp::model::ContentBlock;
+
+        let _env = clear_otel_env(&[(gen_ai_telemetry::CAPTURE_MESSAGE_CONTENT_ENV, "true")]);
+        let capture = SpanFieldCapture::new("successful_tool");
+        let _subscriber = capture.clone().set_default();
+        let (agent, session, _data_dir) = tracing_test_agent_and_session().await;
+        let tool_call = CallToolRequestParams::new("test_tool");
+        let span = tracing::info_span!(
+            "successful_tool",
+            output = tracing::field::Empty,
+            gen_ai.tool.call.result = tracing::field::Empty,
+        );
+        let entered = span.enter();
+        let result = agent.with_post_tool_hook(
+            ToolCallResult::from(Ok(CallToolResult::success(vec![ContentBlock::text(
+                "done",
+            )]))),
+            &tool_call,
+            &session,
+        );
+        drop(entered);
+        drop(span);
+
+        assert!(result.result.await.is_ok());
+        let fields = capture.fields();
+        let result: Value =
+            serde_json::from_str(fields["gen_ai.tool.call.result"].as_str().unwrap()).unwrap();
+        assert_eq!(result["content"][0]["text"], "done");
+        let output: Value = serde_json::from_str(fields["output"].as_str().unwrap()).unwrap();
+        assert_eq!(output["status"], "success");
+    }
 
     #[test]
     fn ensure_message_event_id_assigns_missing_ids_and_preserves_existing_ids() {
@@ -4043,6 +4236,55 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         }
     }
 
+    struct OutputLimitMarkerProvider {
+        include_content: bool,
+        call_count: AtomicUsize,
+    }
+
+    impl OutputLimitMarkerProvider {
+        fn new(include_content: bool) -> Self {
+            Self {
+                include_content,
+                call_count: AtomicUsize::new(0),
+            }
+        }
+
+        fn call_count(&self) -> usize {
+            self.call_count.load(Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for OutputLimitMarkerProvider {
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system_prompt: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            self.call_count.fetch_add(1, Ordering::SeqCst);
+            let message_id = "provider-output-limit";
+            let content = Message::assistant()
+                .with_text("Partial answer")
+                .with_id(message_id);
+            let mut marker = Message::assistant().with_id(message_id);
+            marker.metadata.output_token_limit_reached = true;
+            let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
+
+            let mut events = Vec::new();
+            if self.include_content {
+                events.push(Ok((Some(content), None)));
+            }
+            events.push(Ok((Some(marker), Some(usage))));
+            Ok(Box::pin(futures::stream::iter(events)))
+        }
+
+        fn get_name(&self) -> &str {
+            "output-limit-marker"
+        }
+    }
+
     struct RefusingProvider {
         call_count: AtomicUsize,
     }
@@ -4200,6 +4442,78 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             .map(Message::as_concat_text)
             .filter(|text| !text.is_empty())
             .collect()
+    }
+
+    #[tokio::test]
+    async fn output_limit_marker_is_emitted_and_persisted() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let provider = Arc::new(OutputLimitMarkerProvider::new(true));
+        let (agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider).await?;
+
+        let messages = run_stop_hook_test_turn(&agent, &session_id, "hello").await?;
+        let marker = messages
+            .iter()
+            .find(|message| message.metadata.output_token_limit_reached)
+            .expect("output-limit marker should be emitted");
+        assert!(marker.content.is_empty());
+        assert_eq!(marker.id.as_deref(), Some("provider-output-limit"));
+
+        let session = agent
+            .config
+            .session_manager
+            .get_session(&session_id, true)
+            .await?;
+        let conversation = session
+            .conversation
+            .expect("session should have a conversation");
+        let persisted = conversation
+            .messages()
+            .iter()
+            .find(|message| message.id.as_deref() == Some("provider-output-limit"))
+            .expect("provider response should be persisted");
+        assert_eq!(persisted.as_concat_text(), "Partial answer");
+        assert!(persisted.metadata.output_token_limit_reached);
+        assert!(persisted.metadata.usage.is_some());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn zero_content_output_limit_is_persisted_without_empty_response_retry() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let provider = Arc::new(OutputLimitMarkerProvider::new(false));
+        let (agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+
+        run_stop_hook_test_turn(&agent, &session_id, "hello").await?;
+
+        assert_eq!(provider.call_count(), 1);
+        let session = agent
+            .config
+            .session_manager
+            .get_session(&session_id, true)
+            .await?;
+        let conversation = session
+            .conversation
+            .expect("session should have a conversation");
+        let persisted = conversation
+            .messages()
+            .iter()
+            .find(|message| message.id.as_deref() == Some("provider-output-limit"))
+            .expect("zero-content output-limit marker should be persisted");
+        assert!(persisted.content.is_empty());
+        assert!(persisted.metadata.user_visible);
+        assert!(!persisted.metadata.agent_visible);
+        assert!(persisted.metadata.output_token_limit_reached);
+        assert!(conversation
+            .agent_visible_messages()
+            .iter()
+            .all(|message| message.id.as_deref() != Some("provider-output-limit")));
+
+        Ok(())
     }
 
     #[tokio::test]
