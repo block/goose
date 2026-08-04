@@ -1066,6 +1066,10 @@ fn strip_data_prefix(line: &str) -> Option<&str> {
 ///
 /// A frame with `"choices": []` is NOT metadata — that is the standard usage-only chunk,
 /// so it still deserializes and flows through the empty-choices paths below.
+///
+/// A choice-less frame carrying a human-readable `message`/`detail` is NOT metadata either:
+/// it is an in-stream failure, and skipping it would report a failed turn as an empty
+/// successful one. Those become `ServerError` alongside the two shapes handled above.
 fn parse_streaming_chunk(line: &str) -> Result<Option<StreamingChunk>, ProviderError> {
     let value: Value = serde_json::from_str(line).map_err(|e| {
         ProviderError::stream_decode_error(format!(
@@ -1093,6 +1097,17 @@ fn parse_streaming_chunk(line: &str) -> Result<Option<StreamingChunk>, ProviderE
         .as_object()
         .is_some_and(|o| !o.contains_key("choices"))
     {
+        // Not every gateway reports an in-stream failure with one of the two shapes above.
+        // Azure APIM, for one, rate-limits with a bare `{"statusCode": 429, "message": …}`
+        // on an HTTP 200. Classify those before skipping: swallowing one would turn a failed
+        // turn into an empty successful response and prompt the user to retry into the wall.
+        if let Some(message) = value
+            .get("message")
+            .or_else(|| value.get("detail"))
+            .and_then(|m| m.as_str())
+        {
+            return Err(ProviderError::ServerError(message.to_string()));
+        }
         return Ok(None);
     }
 
@@ -4373,10 +4388,15 @@ data: [DONE]"#;
     #[tokio::test]
     async fn test_error_frames_still_surface_as_server_error() {
         // Skipping choice-less frames must not swallow gateway error frames, which are also
-        // choice-less. Both spellings are handled ahead of the metadata check.
+        // choice-less. Every one of these is handled ahead of the metadata skip.
         for line in [
             r#"{"error":{"message":"upstream exploded"}}"#,
             r#"{"object":"error","message":"upstream exploded"}"#,
+            // No `error` key and no `object`: the shape Azure APIM rate-limits with, on an
+            // HTTP 200. Skipping this would report the failed turn as an empty success.
+            r#"{"statusCode":429,"message":"upstream exploded"}"#,
+            // FastAPI-style servers report failures under `detail`.
+            r#"{"detail":"upstream exploded"}"#,
         ] {
             match parse_streaming_chunk(line) {
                 Err(ProviderError::ServerError(msg)) => {
@@ -4385,6 +4405,27 @@ data: [DONE]"#;
                 other => panic!("expected ServerError for {line}, got {other:?}"),
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_in_stream_error_frame_aborts_rather_than_ending_empty() {
+        // End-to-end counterpart: the turn must fail, not complete with no content. A silent
+        // skip here tells the user to resend — the worst possible advice into a 429.
+        let response_lines = concat!(
+            r#"data: {"statusCode":429,"message":"rate limited"}"#,
+            "\n",
+            "data: [DONE]"
+        );
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+
+        let first = messages.next().await.expect("stream should yield an item");
+        let err = first.expect_err("an in-stream error frame must not be skipped");
+        assert!(
+            err.to_string().contains("rate limited"),
+            "the gateway's message must reach the caller: {err}"
+        );
     }
 
     #[test]
