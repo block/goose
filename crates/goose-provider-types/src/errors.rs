@@ -6,6 +6,9 @@ use crate::request_log::LogError;
 
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum ProviderError {
+    #[error("Provider is not configured")]
+    NotConfigured,
+
     #[error("Authentication error: {0}")]
     Authentication(String),
 
@@ -59,6 +62,7 @@ impl ProviderError {
 
     pub fn telemetry_type(&self) -> &'static str {
         match self {
+            ProviderError::NotConfigured => "not_configured",
             ProviderError::Authentication(_) => "auth",
             ProviderError::ContextLengthExceeded(_) => "context_length",
             ProviderError::RateLimitExceeded { .. } => "rate_limit",

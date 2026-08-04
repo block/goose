@@ -707,6 +707,9 @@ impl Provider for XaiOAuthProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        if self.auth_provider.cache.load().is_none() {
+            return Err(ProviderError::NotConfigured);
+        }
         self.inner.fetch_supported_models().await
     }
 

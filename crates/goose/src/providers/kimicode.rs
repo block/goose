@@ -441,6 +441,10 @@ impl Provider for KimiCodeProvider {
             data: Vec<ModelEntry>,
         }
 
+        if self.cached_token.lock().await.is_none() && self.token_cache.load().await.is_none() {
+            return Err(ProviderError::NotConfigured);
+        }
+
         let access_token = self.get_access_token().await.map_err(|e| {
             ProviderError::Authentication(format!("Failed to get Kimi access token: {}", e))
         })?;
@@ -754,8 +758,7 @@ mod tests {
 
         let err = provider.fetch_supported_models().await.unwrap_err();
 
-        assert!(matches!(err, ProviderError::Authentication(_)));
-        assert!(err.to_string().contains("not configured"));
+        assert_eq!(err, ProviderError::NotConfigured);
         assert!(server.received_requests().await.unwrap().is_empty());
     }
 }

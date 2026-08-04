@@ -474,18 +474,6 @@ impl GooseAcpAgent {
         &self,
         req: ProviderSupportedModelsListRequest,
     ) -> Result<ProviderSupportedModelsListResponse, agent_client_protocol::Error> {
-        let entry = crate::providers::get_from_registry(&req.provider_id)
-            .await
-            .invalid_params_err_ctx("Unknown provider")?;
-        let provider_id = req.provider_id.clone();
-        let is_configured = tokio::task::spawn_blocking(move || entry.inventory_configured())
-            .await
-            .internal_err_ctx("Failed to check provider configuration")?;
-        if !is_configured {
-            return Err(agent_client_protocol::Error::invalid_params()
-                .data(format!("Provider is not configured: {provider_id}")));
-        }
-
         let provider = self
             .create_provider(&req.provider_id, Vec::new(), None)
             .await

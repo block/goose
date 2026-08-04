@@ -325,15 +325,7 @@ impl GithubCopilotProvider {
 
     async fn refresh_api_info(&self) -> Result<CopilotTokenInfo> {
         let config = Config::global();
-        let token = match config.get_secret::<String>("GITHUB_COPILOT_TOKEN") {
-            Ok(token) => token,
-            Err(ConfigError::NotFound(_)) => {
-                return Err(anyhow!(
-                    "GitHub Copilot is not configured. Sign in before using this provider."
-                ));
-            }
-            Err(err) => return Err(err.into()),
-        };
+        let token = config.get_secret::<String>("GITHUB_COPILOT_TOKEN")?;
         let resp = self
             .client
             .get(&self.urls.copilot_token_url)
@@ -606,6 +598,12 @@ impl Provider for GithubCopilotProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        match Config::global().get_secret::<String>("GITHUB_COPILOT_TOKEN") {
+            Ok(_) => {}
+            Err(ConfigError::NotFound(_)) => return Err(ProviderError::NotConfigured),
+            Err(error) => return Err(ProviderError::ExecutionError(error.to_string())),
+        }
+
         let (endpoint, token) = self.get_api_info().await?;
         let url = format!("{}/models", endpoint);
 
