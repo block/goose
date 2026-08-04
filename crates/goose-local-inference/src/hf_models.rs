@@ -292,24 +292,47 @@ fn parse_quantization(filename: &str) -> String {
         stem
     };
 
-    // The quantization tag is typically the last hyphen-separated component
-    // that looks like a quant identifier (starts with Q, IQ, F, BF, TQ, MXFP, etc.)
-    // e.g. "Qwen3-Coder-Next-Q4_K_M" -> "Q4_K_M"
-    //      "Model-UD-IQ1_M" -> "IQ1_M"
-    if let Some((_, candidate)) = stem.rsplit_once('-') {
-        if looks_like_quant(candidate) {
-            return candidate.to_string();
+    // Publishers do not agree on where the quantization tag goes. Most append it
+    // ("Model-Q4_K_M"), but some bury it mid-name ("gemma-4-26B_q4_0-it"). Scan
+    // name components right-to-left and, within each, peel `_`-separated prefixes
+    // so a tag fused to a neighbouring token still resolves. Whole components are
+    // tested before their suffixes so tags absent from QUANT_TABLE survive intact
+    // ("Q6_K_L" must not degrade to the "Q6_K" inside it).
+    for component in stem.rsplit(['-', '.']) {
+        let mut candidate = component;
+        loop {
+            if let Some(canonical) = canonical_quant(candidate) {
+                return canonical.to_string();
+            }
+            if looks_like_quant(candidate) {
+                return candidate.to_string();
+            }
+            match candidate.split_once('_') {
+                Some((_, rest)) => candidate = rest,
+                None => break,
+            }
         }
     }
 
-    // Fallback: try dot separator (e.g. "model.Q4_K_M")
-    if let Some((_, candidate)) = stem.rsplit_once('.') {
-        if looks_like_quant(candidate) {
-            return candidate.to_string();
+    // Some publishers put a named preset rather than a quantization in the tag
+    // position ("...-APEX-I-Quality"). Keep accepting a trailing Q-word so those
+    // repos still expose the single variant they ship.
+    if let Some((_, tail)) = stem.rsplit_once('-') {
+        if tail.starts_with(['Q', 'q']) {
+            return tail.to_string();
         }
     }
 
     "unknown".to_string()
+}
+
+/// Resolve a tag to its QUANT_TABLE spelling, so casing differences between
+/// publishers still hit the description and quality-rank lookup.
+fn canonical_quant(candidate: &str) -> Option<&'static str> {
+    QUANT_TABLE
+        .iter()
+        .map(|(name, _, _)| *name)
+        .find(|name| name.eq_ignore_ascii_case(candidate))
 }
 
 fn quant_bits(quantization: &str) -> u8 {
@@ -330,12 +353,22 @@ fn mmproj_precision_preference(quantization: &str) -> u8 {
     }
 }
 
+/// Shape check for quantization tags missing from QUANT_TABLE (e.g. "Q6_K_L",
+/// "Q4_0_4_4"). The family prefix must be followed by a digit, so model names
+/// like "Qwen3" are not mistaken for quantizations.
 fn looks_like_quant(s: &str) -> bool {
     let upper = s.to_uppercase();
-    upper.starts_with("Q")
-        || upper.starts_with("IQ")
-        || upper.starts_with("TQ")
-        || upper.starts_with("MXFP")
+    let digit_follows = |prefix: &str| {
+        upper
+            .strip_prefix(prefix)
+            .and_then(|rest| rest.chars().next())
+            .is_some_and(|c| c.is_ascii_digit())
+    };
+
+    digit_follows("Q")
+        || digit_follows("IQ")
+        || digit_follows("TQ")
+        || digit_follows("MXFP")
         || upper == "F16"
         || upper == "F32"
         || upper == "BF16"
@@ -451,22 +484,34 @@ fn select_best_mmproj(
         })
 }
 
-/// Derive the expected model filename stem from a repo_id.
-/// e.g. "unsloth/gemma-4-26B-A4B-it-GGUF" → "gemma-4-26b-a4b-it" (lowercased)
-fn model_stem_from_repo(repo_id: &str) -> String {
-    let repo_name = repo_id.rsplit('/').next().unwrap_or(repo_id);
-    let stem = repo_name
-        .strip_suffix("-GGUF")
-        .or_else(|| repo_name.strip_suffix("-gguf"))
-        .unwrap_or(repo_name);
-    stem.to_lowercase()
-}
+const AUXILIARY_TOKENS: &[&str] = &["encoder", "draft", "drafter", "adapter", "lora"];
 
-/// Check whether a GGUF file belongs to the main model (vs auxiliary files like mmproj).
-/// Matches files whose basename starts with the model stem derived from the repo name.
-fn is_model_file(filename: &str, model_stem_lower: &str) -> bool {
-    let basename = filename.rsplit('/').next().unwrap_or(filename);
-    basename.to_lowercase().starts_with(model_stem_lower)
+/// Check whether a GGUF file ships alongside the weights rather than being a
+/// downloadable variant itself (projectors, vision encoders, speculative drafters).
+///
+/// Filenames are matched by exclusion rather than by a repo-name prefix, because
+/// publishers routinely rename files relative to the repo — Google drops the `qat`
+/// segment, unsloth drops `MTP`, Qwen writes `Qwen3VL` for `Qwen3-VL`.
+///
+/// MTP drafters are published either under an `MTP/` directory or with a leading
+/// `mtp-` on the basename; models whose *name* contains MTP carry it mid-name and
+/// are real weights, so only the leading/directory forms count as auxiliary.
+pub fn is_auxiliary_gguf_file(filename: &str) -> bool {
+    let lowercase = filename.to_lowercase();
+
+    if lowercase.contains("mmproj") {
+        return true;
+    }
+
+    if parent_components(&lowercase).contains(&"mtp") {
+        return true;
+    }
+
+    let basename = lowercase.rsplit('/').next().unwrap_or(&lowercase);
+    let stem = basename.trim_end_matches(".gguf");
+    let tokens: Vec<&str> = stem.split(['-', '_', '.']).collect();
+
+    tokens.first() == Some(&"mtp") || tokens.iter().any(|token| AUXILIARY_TOKENS.contains(token))
 }
 
 /// Collect GGUF files into quantization variants.
@@ -476,13 +521,11 @@ fn is_model_file(filename: &str, model_stem_lower: &str) -> bool {
 fn group_into_variants(repo_id: &str, files: Vec<HfApiSibling>) -> Vec<HfQuantVariant> {
     use std::collections::HashMap;
 
-    let stem = model_stem_from_repo(repo_id);
-
     let gguf_files: Vec<_> = files
         .into_iter()
         .filter(|s| {
             s.rfilename.ends_with(".gguf")
-                && is_model_file(&s.rfilename, &stem)
+                && !is_auxiliary_gguf_file(&s.rfilename)
                 && parse_quantization(&s.rfilename) != "unknown"
         })
         .collect();
@@ -499,6 +542,18 @@ fn group_into_variants(repo_id: &str, files: Vec<HfApiSibling>) -> Vec<HfQuantVa
             single_files.push(file);
         }
     }
+
+    // A repo can ship the same quant twice (e.g. "Model-Q4_K_M" alongside an
+    // MTP-enabled "Model-Q4_K_M-mtp"); keep the plainest name so each
+    // quantization appears once.
+    single_files.sort_by_key(|s| {
+        (
+            parse_quantization(&s.rfilename),
+            s.rfilename.len(),
+            s.rfilename.clone(),
+        )
+    });
+    single_files.dedup_by_key(|s| parse_quantization(&s.rfilename));
 
     let mut variants: Vec<HfQuantVariant> = Vec::new();
     let mut seen_quants: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -711,13 +766,11 @@ pub async fn get_repo_gguf_files(repo_id: &str) -> Result<Vec<HfGgufFile>> {
     let model: HfApiModel = response.json().await?;
     let siblings = model.siblings.unwrap_or_default();
 
-    let stem = model_stem_from_repo(repo_id);
-
     let files = siblings
         .into_iter()
         .filter(|s| s.rfilename.ends_with(".gguf"))
         .filter(|s| !is_shard_file(&s.rfilename))
-        .filter(|s| is_model_file(&s.rfilename, &stem))
+        .filter(|s| !is_auxiliary_gguf_file(&s.rfilename))
         .map(|s| {
             let quantization = parse_quantization(&s.rfilename);
             let download_url = build_download_url(repo_id, &s.rfilename);
@@ -778,14 +831,13 @@ pub async fn resolve_model_spec_full(spec: &str) -> Result<(String, ResolvedMode
 
     let model: HfApiModel = response.json().await?;
     let siblings = model.siblings.unwrap_or_default();
-    let stem = model_stem_from_repo(&repo_id);
 
     // Collect all GGUF files matching the quantization
     let matching: Vec<_> = siblings
         .iter()
         .filter(|s| {
             s.rfilename.ends_with(".gguf")
-                && is_model_file(&s.rfilename, &stem)
+                && !is_auxiliary_gguf_file(&s.rfilename)
                 && parse_quantization(&s.rfilename).eq_ignore_ascii_case(&quant)
         })
         .collect();
@@ -809,7 +861,9 @@ pub async fn resolve_model_spec_full(spec: &str) -> Result<(String, ResolvedMode
         }
     }
 
-    // Prefer single file if available
+    // Prefer single file if available, picking the same plainest-name candidate
+    // that `group_into_variants` advertised for this quantization.
+    single_files.sort_by_key(|s| (s.rfilename.len(), s.rfilename.clone()));
     if let Some(single) = single_files.first() {
         let mmproj = select_best_mmproj(&repo_id, &siblings, &single.rfilename, &quant);
         let file = HfGgufFile {
@@ -1265,19 +1319,6 @@ mod tests {
     }
 
     #[test]
-    fn test_model_stem_from_repo() {
-        assert_eq!(
-            model_stem_from_repo("unsloth/gemma-4-26B-A4B-it-GGUF"),
-            "gemma-4-26b-a4b-it"
-        );
-        assert_eq!(
-            model_stem_from_repo("bartowski/Llama-3.2-3B-Instruct-GGUF"),
-            "llama-3.2-3b-instruct"
-        );
-        assert_eq!(model_stem_from_repo("someone/SomeModel"), "somemodel");
-    }
-
-    #[test]
     fn hf_download_progress_init_preserves_cancelled_reservation() {
         let model_id = "test-cancelled-hf-progress-init";
         let download_id = format!("{}-model", model_id);
@@ -1310,15 +1351,62 @@ mod tests {
     }
 
     #[test]
-    fn test_is_model_file() {
-        let stem = "gemma-3-27b-it";
-        assert!(is_model_file("gemma-3-27b-it-Q4_K_M.gguf", stem));
-        assert!(is_model_file(
-            "BF16/gemma-3-27b-it-BF16-00001-of-00002.gguf",
-            stem
+    fn test_is_auxiliary_gguf_file() {
+        assert!(!is_auxiliary_gguf_file("gemma-3-27b-it-Q4_K_M.gguf"));
+        assert!(!is_auxiliary_gguf_file(
+            "BF16/gemma-3-27b-it-BF16-00001-of-00002.gguf"
         ));
-        assert!(!is_model_file("mmproj-BF16.gguf", stem));
-        assert!(!is_model_file("vision-encoder-Q4_K_M.gguf", stem));
+        assert!(is_auxiliary_gguf_file("mmproj-BF16.gguf"));
+        assert!(is_auxiliary_gguf_file("gemma-4-26B-it-mmproj.gguf"));
+        assert!(is_auxiliary_gguf_file("vision-encoder-Q4_K_M.gguf"));
+    }
+
+    #[test]
+    fn test_is_auxiliary_gguf_file_distinguishes_mtp_drafters_from_mtp_models() {
+        assert!(is_auxiliary_gguf_file(
+            "MTP/mtp-gemma-4-26B-A4B-it-BF16.gguf"
+        ));
+        assert!(is_auxiliary_gguf_file("mtp-Qwen3.6-35B-A3B-BF16.gguf"));
+        // "MTP" mid-name is part of the model name, not a drafter marker.
+        assert!(!is_auxiliary_gguf_file(
+            "Qwopus3.6-27B-Coder-MTP-Q3_K_M.gguf"
+        ));
+        assert!(!is_auxiliary_gguf_file("Ornith-1.0-9B-MTP-BF16.gguf"));
+    }
+
+    #[test]
+    fn test_parse_quantization_tag_not_in_final_position() {
+        // google/gemma-4-26B-A4B-it-qat-q4_0-gguf
+        assert_eq!(parse_quantization("gemma-4-26B_q4_0-it.gguf"), "Q4_0");
+        // google/gemma-3-27b-it-qat-q4_0-gguf
+        assert_eq!(parse_quantization("gemma-3-27b-it-q4_0.gguf"), "Q4_0");
+        // Qwen/Qwen3-VL-30B-A3B-Instruct-GGUF
+        assert_eq!(
+            parse_quantization("Qwen3VL-30B-A3B-Instruct-F16-split-00001-of-00002.gguf"),
+            "F16"
+        );
+        assert_eq!(
+            parse_quantization("Wan2_1-InfiniteTalk_Multi_Q4_K_M.gguf"),
+            "Q4_K_M"
+        );
+    }
+
+    #[test]
+    fn test_parse_quantization_prefers_longest_match() {
+        // "Q2_K" is a delimiter-bounded substring of "Q2_K_L"; the longer tag wins.
+        assert_eq!(parse_quantization("Model-Q2_K_L.gguf"), "Q2_K_L");
+        assert_eq!(parse_quantization("Model-Q4_K_M.gguf"), "Q4_K_M");
+        // "F16" must not match inside "BF16".
+        assert_eq!(parse_quantization("mmproj-BF16.gguf"), "BF16");
+    }
+
+    #[test]
+    fn test_parse_quantization_canonicalizes_case() {
+        assert_eq!(parse_quantization("Model-q4_k_m.gguf"), "Q4_K_M");
+        assert_eq!(
+            quant_info(&parse_quantization("gemma-4-26B_q4_0-it.gguf")).quality_rank,
+            42
+        );
     }
 
     #[test]
@@ -1613,6 +1701,21 @@ async fn model_info_to_local_model_info(
     }
 
     if variants.is_empty() {
+        let unusable: Vec<&str> = info
+            .siblings
+            .as_deref()
+            .unwrap_or(&[])
+            .iter()
+            .map(|s| s.rfilename.as_str())
+            .filter(|name| name.ends_with(".gguf"))
+            .collect();
+        if !unusable.is_empty() {
+            tracing::warn!(
+                repo_id,
+                files = ?unusable,
+                "Dropping repo from results: no GGUF file yielded a recognizable quantization"
+            );
+        }
         return Ok(None);
     }
 
