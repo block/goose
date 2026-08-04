@@ -879,8 +879,7 @@ mod tests {
         let output: Value =
             serde_json::from_str(fields["gen_ai.output.messages"].as_str().unwrap()).unwrap();
         assert_eq!(output[0]["finish_reason"], "stop");
-        assert_eq!(output[0]["parts"][0]["content"], "hello ");
-        assert_eq!(output[0]["parts"][1]["content"], "world");
+        assert_eq!(output[0]["parts"][0]["content"], "hello world");
     }
 
     #[tokio::test]

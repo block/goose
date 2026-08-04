@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Chats"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Erstellt"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Verzeichnis"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Modell"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Status"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Aktualisiert"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "Keine aktuellen Chats"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Fehler"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Inaktiv"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Streaming"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Ungelesene Aktivität"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Unbenannte Sitzung"
@@ -4538,6 +4565,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Bearbeiten"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Angehängte Bilder:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "An Ort und Stelle bearbeiten"
   },
@@ -4570,5 +4600,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Eine neue Sitzung mit der bearbeiteten Nachricht erstellen"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Bild aus Nachricht entfernen"
   }
 }

@@ -15,7 +15,7 @@ use crate::agents::{
     Agent, AgentConfig, ExtensionConfig, ExtensionLoadResult, GoosePlatform, SessionConfig,
 };
 use crate::config::base::CONFIG_YAML_NAME;
-use crate::config::extensions::get_enabled_extensions_with_config;
+use crate::config::extensions::{configured_enabled_state, get_enabled_extensions_with_config};
 use crate::config::paths::Paths;
 use crate::config::permission::PermissionManager;
 use crate::config::{Config, GooseMode};
@@ -177,9 +177,15 @@ struct ActivePromptRun {
     cancel_token: CancellationToken,
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct AcpBuiltinSelection {
+    pub defaults: Vec<String>,
+    pub explicit: Vec<String>,
+}
+
 pub struct GooseAcpAgentOptions {
     pub provider_factory: AcpProviderFactory,
-    pub builtins: Vec<String>,
+    pub builtin_selection: AcpBuiltinSelection,
     pub data_dir: std::path::PathBuf,
     pub config_dir: std::path::PathBuf,
     pub disable_session_naming: bool,
@@ -197,7 +203,7 @@ pub struct GooseAcpAgent {
     closed_session_ids: Arc<Mutex<HashSet<String>>>,
     agent_manager: Arc<AgentManager>,
     provider_factory: AcpProviderFactory,
-    builtins: Vec<String>,
+    builtin_selection: AcpBuiltinSelection,
     client_fs_capabilities: OnceCell<FileSystemCapabilities>,
     client_terminal: OnceCell<bool>,
     client_mcp_host_info: OnceCell<GooseMcpHostInfo>,
@@ -392,6 +398,25 @@ fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConf
         McpServer::Sse(_) => Err("SSE is unsupported, migrate to streamable_http".to_string()),
         _ => Err("Unknown MCP server type".to_string()),
     }
+}
+
+fn selected_builtin_extensions(
+    config: &Config,
+    builtin_selection: &AcpBuiltinSelection,
+) -> Vec<ExtensionConfig> {
+    let mut extensions = Vec::new();
+
+    for builtin in &builtin_selection.defaults {
+        if configured_enabled_state(config, builtin) != Some(false) {
+            push_or_replace_extension(&mut extensions, builtin_to_extension_config(builtin));
+        }
+    }
+
+    for builtin in &builtin_selection.explicit {
+        push_or_replace_extension(&mut extensions, builtin_to_extension_config(builtin));
+    }
+
+    extensions
 }
 
 fn push_or_replace_extension(extensions: &mut Vec<ExtensionConfig>, extension: ExtensionConfig) {
@@ -621,7 +646,7 @@ impl GooseAcpAgent {
             closed_session_ids: Arc::new(Mutex::new(HashSet::new())),
             agent_manager,
             provider_factory: options.provider_factory,
-            builtins: options.builtins,
+            builtin_selection: options.builtin_selection,
             client_fs_capabilities: OnceCell::new(),
             client_terminal: OnceCell::new(),
             client_mcp_host_info: OnceCell::new(),
@@ -724,10 +749,7 @@ impl GooseAcpAgent {
         goose_extensions: Option<Vec<GooseExtension>>,
         recipe_extensions: Option<&[ExtensionConfig]>,
     ) -> Result<Vec<ExtensionConfig>, agent_client_protocol::Error> {
-        let mut extensions = Vec::new();
-        for builtin in &self.builtins {
-            push_or_replace_extension(&mut extensions, builtin_to_extension_config(builtin));
-        }
+        let mut extensions = selected_builtin_extensions(config, &self.builtin_selection);
 
         if let Some(recipe_extensions) = recipe_extensions {
             for extension in recipe_extensions {
@@ -2304,7 +2326,10 @@ pub async fn run(builtins: Vec<String>, enable_scheduler: bool) -> Result<()> {
 
     let server = crate::acp::server_factory::AcpServer::new(
         crate::acp::server_factory::AcpServerFactoryConfig {
-            builtins,
+            builtins: AcpBuiltinSelection {
+                explicit: builtins,
+                ..Default::default()
+            },
             data_dir: Paths::data_dir(),
             config_dir: Paths::config_dir(),
             goose_platform: GoosePlatform::GooseCli,
@@ -2330,6 +2355,101 @@ mod tests {
     use std::path::PathBuf;
     use tempfile::NamedTempFile;
     use test_case::test_case;
+
+    fn config_with_yaml(yaml: &str) -> (Config, NamedTempFile, NamedTempFile) {
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        std::fs::write(config_file.path(), yaml).unwrap();
+        let config =
+            Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap();
+        (config, config_file, secrets_file)
+    }
+
+    fn has_developer(extensions: &[ExtensionConfig]) -> bool {
+        extensions.iter().any(|ext| ext.name() == "developer")
+    }
+
+    fn default_builtin(name: &str) -> AcpBuiltinSelection {
+        AcpBuiltinSelection {
+            defaults: vec![name.to_string()],
+            ..Default::default()
+        }
+    }
+
+    fn explicit_builtin(name: &str) -> AcpBuiltinSelection {
+        AcpBuiltinSelection {
+            explicit: vec![name.to_string()],
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn default_builtin_developer_loads_when_config_is_empty() {
+        let (config, _c, _s) = config_with_yaml("");
+        let selected = selected_builtin_extensions(&config, &default_builtin("developer"));
+        assert!(
+            has_developer(&selected),
+            "developer should load by default on a fresh config"
+        );
+    }
+
+    #[test]
+    fn default_builtin_developer_loads_when_enabled() {
+        let (config, _c, _s) = config_with_yaml(
+            r#"
+extensions:
+  developer:
+    enabled: true
+    type: builtin
+    name: developer
+"#,
+        );
+        let selected = selected_builtin_extensions(&config, &default_builtin("developer"));
+        assert!(has_developer(&selected));
+    }
+
+    #[test]
+    fn default_builtin_developer_skipped_when_disabled() {
+        let (config, _c, _s) = config_with_yaml(
+            r#"
+extensions:
+  developer:
+    enabled: false
+    type: builtin
+    name: developer
+"#,
+        );
+        let selected = selected_builtin_extensions(&config, &default_builtin("developer"));
+        assert!(
+            !has_developer(&selected),
+            "developer must NOT load when the user disabled it (issue #10221)"
+        );
+    }
+
+    #[test]
+    fn explicit_builtin_developer_loads_when_disabled() {
+        let (config, _c, _s) = config_with_yaml(
+            r#"
+extensions:
+  developer:
+    enabled: false
+    type: builtin
+    name: developer
+"#,
+        );
+        let selected = selected_builtin_extensions(&config, &explicit_builtin("developer"));
+        assert!(has_developer(&selected));
+    }
+
+    #[test]
+    fn default_off_builtin_loads_when_explicitly_requested() {
+        let (config, _c, _s) = config_with_yaml("");
+        let selected = selected_builtin_extensions(&config, &explicit_builtin("chatrecall"));
+        assert!(
+            selected.iter().any(|ext| ext.name() == "chatrecall"),
+            "default-off builtins must load when explicitly requested via builtins"
+        );
+    }
 
     #[test_case(
         McpServer::Stdio(

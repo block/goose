@@ -53,7 +53,7 @@ use crate::session::{Session, SessionManager, SessionNameUpdate};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
-use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
 use goose_providers::thinking::ThinkingEffort;
 use regex::Regex;
@@ -1623,7 +1623,16 @@ impl Agent {
 
     #[instrument(
         skip(self, user_message, session_config, cancel_token),
-        fields(user_message, trace_input, session.id = %session_config.id)
+        fields(
+            user_message,
+            trace_input,
+            session.id = %session_config.id,
+            gen_ai.operation.name = "invoke_agent",
+            gen_ai.input.messages = tracing::field::Empty,
+            gen_ai.output.messages = tracing::field::Empty,
+            gen_ai.usage.input_tokens = tracing::field::Empty,
+            gen_ai.usage.output_tokens = tracing::field::Empty,
+        )
     )]
     pub async fn reply(
         &self,
@@ -1652,6 +1661,12 @@ impl Agent {
         let message_text_for_trace = agent_visible_message_text(&user_message);
         tracing::Span::current().record("user_message", message_text_for_trace.as_str());
         tracing::Span::current().record("trace_input", message_text_for_trace.as_str());
+        if gen_ai_telemetry::capture_message_content() {
+            tracing::Span::current().record(
+                "gen_ai.input.messages",
+                gen_ai_telemetry::simple_input_json(&message_text_for_trace).as_str(),
+            );
+        }
 
         for content in &user_message.content {
             if let MessageContent::ActionRequired(action_required) = content {
@@ -1865,6 +1880,7 @@ impl Agent {
         .await?;
 
         let conversation_to_compact = conversation.clone();
+        let reply_span = tracing::Span::current();
 
         Ok(Box::pin(async_stream::try_stream! {
             for event in command_preamble {
@@ -1936,7 +1952,7 @@ impl Agent {
                 }
             };
 
-            let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token).await?;
+            let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token, reply_span.clone()).await?;
             while let Some(event) = reply_stream.next().await {
                 yield event?;
             }
@@ -1949,6 +1965,7 @@ impl Agent {
         session_config: SessionConfig,
         session: Session,
         cancel_token: Option<CancellationToken>,
+        reply_span: tracing::Span,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let context = self
             .prepare_reply_context(&session.id, conversation, session.working_dir.as_path())
@@ -1979,7 +1996,7 @@ impl Agent {
             .ok()
             .and_then(|model_info| model_info.resolved_model)
             .map(|resolved_model| InferenceMetadata {
-                provider: provider_name,
+                provider: provider_name.clone(),
                 requested_model,
                 resolved_model: Some(resolved_model),
             });
@@ -2018,14 +2035,35 @@ impl Agent {
 
         let working_dir = session.working_dir.clone();
         let reply_stream_span = tracing::info_span!(
-            target: "goose::agents::agent",
+            parent: &reply_span,
             "reply_stream",
             trace_output = tracing::field::Empty,
             session.id = %session_config.id,
             session.user = %crate::session_context::session_user(),
             session.host = %crate::session_context::session_host(),
             session.agent_type = "goose",
+            gen_ai.operation.name = "invoke_agent",
+            gen_ai.conversation.id = %session_config.id,
+            gen_ai.request.model = %model_config.model_name,
+            gen_ai.provider.name = %provider_name,
+            gen_ai.input.messages = tracing::field::Empty,
+            gen_ai.output.messages = tracing::field::Empty,
+            gen_ai.usage.input_tokens = tracing::field::Empty,
+            gen_ai.usage.output_tokens = tracing::field::Empty,
         );
+        if gen_ai_telemetry::capture_message_content() {
+            if let Some(last_user_msg) = conversation
+                .messages()
+                .iter()
+                .rev()
+                .find(|m| m.role == rmcp::model::Role::User)
+            {
+                reply_stream_span.record(
+                    "gen_ai.input.messages",
+                    gen_ai_telemetry::simple_input_json(&last_user_msg.as_concat_text()).as_str(),
+                );
+            }
+        }
         let inner = Box::pin(async_stream::try_stream! {
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or_else(|| {
@@ -2037,6 +2075,7 @@ impl Agent {
             let mut empty_turn_retries = 0u32;
             let mut retrying_after_empty_turn = false;
             let mut last_assistant_text = String::new();
+            let mut turn_total_usage = Usage::default();
             let mut goal_check_pending = false;
             let mut tool_pair_summarization_done = false;
             let mut stop_hook_handled_for_exit = false;
@@ -2212,6 +2251,7 @@ impl Agent {
                             if let Some(ref usage) = usage {
                                 let enriched = self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, None).await?;
                                 yield AgentEvent::Usage(enriched.clone());
+                                turn_total_usage += enriched.usage;
                                 pending_turn_usage = Some(enriched);
                             }
 
@@ -3083,7 +3123,18 @@ impl Agent {
 
             if !last_assistant_text.is_empty() {
                 tracing::Span::current().record("trace_output", last_assistant_text.as_str());
+                if gen_ai_telemetry::capture_message_content() {
+                    let output_json =
+                        gen_ai_telemetry::simple_output_json(&last_assistant_text);
+                    tracing::Span::current().record(
+                        "gen_ai.output.messages",
+                        output_json.as_str(),
+                    );
+                    reply_span.record("gen_ai.output.messages", output_json.as_str());
+                }
             }
+            gen_ai_telemetry::record_usage(&tracing::Span::current(), &turn_total_usage);
+            gen_ai_telemetry::record_usage(&reply_span, &turn_total_usage);
 
             if !stop_hook_handled_for_exit {
                 self.emit_stop_hook(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy()).await;

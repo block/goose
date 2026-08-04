@@ -777,6 +777,26 @@ pub fn create_request(
     tools: &[Tool],
     options: AnthropicFormatOptions,
 ) -> Result<Value> {
+    create_request_for_model(
+        provider_name,
+        model_config,
+        &model_config.model_name,
+        system,
+        messages,
+        tools,
+        options,
+    )
+}
+
+pub fn create_request_for_model(
+    provider_name: &str,
+    model_config: &ModelConfig,
+    wire_model_name: &str,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+    options: AnthropicFormatOptions,
+) -> Result<Value> {
     let options = options.for_model(model_config);
     let anthropic_messages = format_messages_with_options(messages, options);
     let tool_specs = format_tools(tools);
@@ -788,7 +808,7 @@ pub fn create_request(
 
     let max_tokens = model_config.max_output_tokens();
     let mut payload = json!({
-        "model": model_config.model_name,
+        "model": wire_model_name,
         "messages": anthropic_messages,
         "max_tokens": max_tokens,
     });

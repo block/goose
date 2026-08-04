@@ -37,6 +37,7 @@ use super::{
 };
 use crate::config::ExtensionConfig;
 use crate::providers::anthropic_def::AnthropicProviderDef;
+use crate::providers::azure_foundry_def::AzureFoundryProviderDef;
 use crate::providers::base::ProviderType;
 use crate::providers::databricks_def::{self, DatabricksProviderDef};
 use crate::providers::databricks_v2_def::{self, DatabricksV2ProviderDef};
@@ -69,6 +70,10 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         );
         registry.register::<AvianProvider>(false);
         registry.register::<AzureProvider>(false);
+        registry.register_with_inventory::<AzureFoundryProviderDef>(
+            true,
+            Some(registrations::azure_foundry_inventory()),
+        );
         #[cfg(feature = "aws-providers")]
         registry.register::<BedrockProvider>(false);
         #[cfg(feature = "local-inference")]
@@ -91,7 +96,10 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             Some(registrations::copilot_acp_inventory()),
         );
         registry.register::<CodexProvider>(true);
-        registry.register::<CursorAgentProvider>(false);
+        registry.register_with_inventory::<CursorAgentProvider>(
+            false,
+            Some(registrations::refresh_only()),
+        );
         registry.register_with_inventory::<DatabricksProviderDef>(
             true,
             Some(registrations::refresh_only()),

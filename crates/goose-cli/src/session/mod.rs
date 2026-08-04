@@ -737,16 +737,6 @@ impl CliSession {
                 history.save(editor);
                 self.push_message(Message::user().with_text(content));
 
-                if let Err(e) = crate::project_tracker::update_project_tracker(
-                    Some(content),
-                    Some(&self.session_id),
-                ) {
-                    eprintln!(
-                        "Warning: Failed to update project tracker with instruction: {}",
-                        e
-                    );
-                }
-
                 let _provider = self.agent.provider().await?;
 
                 println!();

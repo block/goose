@@ -4,6 +4,7 @@ use rmcp::model::Role;
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
@@ -23,6 +24,7 @@ use rmcp::model::Tool;
 
 const CURSOR_AGENT_PROVIDER_NAME: &str = "cursor-agent";
 pub const CURSOR_AGENT_DEFAULT_MODEL: &str = "auto";
+// Fallback when `cursor-agent models` cannot be queried.
 pub const CURSOR_AGENT_KNOWN_MODELS: &[&str] = &[
     "auto",
     "composer-2",
@@ -32,6 +34,8 @@ pub const CURSOR_AGENT_KNOWN_MODELS: &[&str] = &[
 ];
 
 pub const CURSOR_AGENT_DOC_URL: &str = "https://docs.cursor.com/en/cli/overview";
+
+const CURSOR_AGENT_LIST_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Debug, serde::Serialize)]
 pub struct CursorAgentProvider {
@@ -63,6 +67,69 @@ impl CursorAgentProvider {
             .ok()
             .map(|output| String::from_utf8_lossy(&output.stdout).contains("✓ Logged in as"))
             .unwrap_or(false)
+    }
+
+    fn prepare_cli_command(&self) -> Command {
+        let mut cmd = Command::new(&self.command);
+        configure_subprocess(&mut cmd);
+        if let Ok(path) = SearchPaths::builder().with_npm().path() {
+            cmd.env("PATH", path);
+        }
+        cmd
+    }
+
+    async fn list_models_from_cli(&self) -> Result<Vec<String>, ProviderError> {
+        // Prefer the dedicated `models` subcommand; fall back to `--list-models`.
+        for args in [&["models"][..], &["--list-models"][..]] {
+            let mut cmd = self.prepare_cli_command();
+            cmd.args(args);
+            cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+            cmd.kill_on_drop(true);
+
+            let output = match tokio::time::timeout(CURSOR_AGENT_LIST_TIMEOUT, cmd.output()).await {
+                Ok(Ok(output)) => output,
+                Ok(Err(e)) => {
+                    return Err(ProviderError::RequestFailed(format!(
+                        "Failed to spawn cursor-agent for model listing: {e}"
+                    )));
+                }
+                Err(_) => {
+                    tracing::debug!(
+                        args = ?args,
+                        timeout_secs = CURSOR_AGENT_LIST_TIMEOUT.as_secs(),
+                        "cursor-agent model listing timed out"
+                    );
+                    continue;
+                }
+            };
+
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if !output.status.success() {
+                tracing::debug!(
+                    args = ?args,
+                    status = ?output.status.code(),
+                    stderr = %stderr,
+                    "cursor-agent model listing command failed"
+                );
+                continue;
+            }
+
+            let models = parse_cursor_agent_models_output(&stdout);
+            if !models.is_empty() {
+                return Ok(models);
+            }
+
+            if !stdout.trim().is_empty() {
+                tracing::debug!(
+                    args = ?args,
+                    stdout = %stdout,
+                    "cursor-agent model listing returned no parseable models"
+                );
+            }
+        }
+
+        Ok(Vec::new())
     }
 
     /// Convert goose messages to a simple prompt format for cursor-agent CLI
@@ -205,13 +272,7 @@ impl CursorAgentProvider {
             println!("================================");
         }
 
-        let mut cmd = Command::new(&self.command);
-        configure_subprocess(&mut cmd);
-
-        if let Ok(path) = SearchPaths::builder().with_npm().path() {
-            cmd.env("PATH", path);
-        }
-
+        let mut cmd = self.prepare_cli_command();
         cmd.arg("--model").arg(&model.model_name);
 
         cmd.arg("--print")
@@ -312,6 +373,91 @@ impl CursorAgentProvider {
     }
 }
 
+fn static_known_models() -> Vec<String> {
+    CURSOR_AGENT_KNOWN_MODELS
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
+}
+
+// Parse `cursor-agent models` / `--list-models` human-readable output.
+fn parse_cursor_agent_models_output(stdout: &str) -> Vec<String> {
+    let mut models = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+
+    for raw_line in stdout.lines() {
+        let line = strip_ansi(raw_line).trim().to_string();
+        if line.is_empty() {
+            continue;
+        }
+        let lower = line.to_ascii_lowercase();
+        if lower.starts_with("available models")
+            || lower.starts_with("no models available")
+            || lower.starts_with("tip:")
+            || lower.starts_with("failed to load models")
+        {
+            continue;
+        }
+
+        // Lines look like: "<id> - <display name> (current, default)"
+        let candidate = line
+            .split_whitespace()
+            .next()
+            .unwrap_or_default()
+            .trim_matches(|c: char| c == '-' || c == ':' || c == ',' || c == '(' || c == ')');
+
+        if candidate.is_empty() || !is_plausible_model_id(candidate) {
+            continue;
+        }
+
+        if seen.insert(candidate.to_string()) {
+            models.push(candidate.to_string());
+        }
+    }
+
+    if models.is_empty() {
+        return models;
+    }
+
+    // Keep auto routing available even if the CLI omits it.
+    if seen.insert(CURSOR_AGENT_DEFAULT_MODEL.to_string()) {
+        models.insert(0, CURSOR_AGENT_DEFAULT_MODEL.to_string());
+    }
+
+    models
+}
+
+fn is_plausible_model_id(value: &str) -> bool {
+    let mut chars = value.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if !(first.is_ascii_alphanumeric() || first == '_') {
+        return false;
+    }
+    chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | ':' | '/'))
+}
+
+fn strip_ansi(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            if chars.peek() == Some(&'[') {
+                chars.next();
+                for next in chars.by_ref() {
+                    if next.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+            }
+            continue;
+        }
+        out.push(c);
+    }
+    out
+}
+
 impl goose_providers::base::ProviderDescriptor for CursorAgentProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
@@ -349,11 +495,29 @@ impl Provider for CursorAgentProvider {
         &self.name
     }
 
+    fn skip_canonical_filtering(&self) -> bool {
+        // Cursor model IDs are CLI/account-specific and often absent from the
+        // canonical registry. Keep the live list intact for inventory/config.
+        true
+    }
+
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        Ok(CURSOR_AGENT_KNOWN_MODELS
-            .iter()
-            .map(|s| s.to_string())
-            .collect())
+        match self.list_models_from_cli().await {
+            Ok(models) if !models.is_empty() => Ok(models),
+            Ok(_) => {
+                tracing::debug!(
+                    "cursor-agent returned no models; falling back to known static models"
+                );
+                Ok(static_known_models())
+            }
+            Err(error) => {
+                tracing::debug!(
+                    error = %error,
+                    "failed to list models via cursor-agent; falling back to known static models"
+                );
+                Ok(static_known_models())
+            }
+        }
     }
 
     async fn stream(
@@ -465,5 +629,54 @@ printf '%s\n' '{"type":"result","result":"ok"}'
             Message::user().with_text(SENTINEL),
         ])
         .await;
+    }
+
+    #[test]
+    fn parse_models_output_extracts_ids_and_preserves_auto() {
+        let stdout = r#"
+Available models
+
+auto - Auto
+composer-2-fast - Composer 2 Fast (current, default)
+gpt-5 - GPT-5
+sonnet-4 - Claude Sonnet 4
+sonnet-4-thinking - Claude Sonnet 4 Thinking
+"#;
+        let models = parse_cursor_agent_models_output(stdout);
+        assert_eq!(
+            models,
+            vec![
+                "auto".to_string(),
+                "composer-2-fast".to_string(),
+                "gpt-5".to_string(),
+                "sonnet-4".to_string(),
+                "sonnet-4-thinking".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_models_output_inserts_auto_when_missing() {
+        let stdout = "composer-2 - Composer 2\ngpt-5 - GPT-5\n";
+        let models = parse_cursor_agent_models_output(stdout);
+        assert_eq!(models.first().map(String::as_str), Some("auto"));
+        assert!(models.iter().any(|m| m == "composer-2"));
+        assert!(models.iter().any(|m| m == "gpt-5"));
+    }
+
+    #[test]
+    fn parse_models_output_ignores_status_and_tip_lines() {
+        let stdout = "No models available for this account.
+Tip: use --model <id> to switch.
+";
+        let models = parse_cursor_agent_models_output(stdout);
+        assert!(models.is_empty());
+    }
+
+    #[test]
+    fn parse_models_output_strips_ansi_codes() {
+        let stdout = "\u{1b}[36mcomposer-2-fast\u{1b}[39m - Composer 2 Fast\n";
+        let models = parse_cursor_agent_models_output(stdout);
+        assert!(models.iter().any(|m| m == "composer-2-fast"));
     }
 }

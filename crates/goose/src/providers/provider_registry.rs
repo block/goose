@@ -232,14 +232,9 @@ impl ProviderRegistry {
             .models
             .iter()
             .map(|m| ModelInfo {
-                name: m.name.clone(),
                 resolved_model: None,
-                context_limit: m.context_limit,
-                input_token_cost: m.input_token_cost,
-                output_token_cost: m.output_token_cost,
-                currency: m.currency.clone(),
                 supports_cache_control: Some(m.supports_cache_control.unwrap_or(false)),
-                reasoning: m.reasoning,
+                ..m.clone()
             })
             .collect();
 

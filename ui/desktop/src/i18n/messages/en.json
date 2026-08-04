@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Chats"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Created"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Directory"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Model"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Status"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Updated"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "No recent chats"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Error"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Idle"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Streaming"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Unread activity"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Untitled session"
@@ -4538,6 +4565,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Edit"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Attached images:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "Edit in Place"
   },
@@ -4570,5 +4600,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Create a new session with the edited message"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Remove image from message"
   }
 }

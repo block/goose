@@ -878,7 +878,7 @@ pub fn format_tool_info(tools: &[Tool]) -> String {
         tool_info.push_str(&format!(
             "Tool Name: {}\nSchema: {}\nDescription: {:?}\n\n",
             tool.name,
-            serde_json::to_string_pretty(&tool.input_schema).unwrap_or_default(),
+            serde_json::to_string(&tool.input_schema).unwrap_or_default(),
             tool.description
         ));
     }
@@ -1059,6 +1059,25 @@ mod tests {
                 "interpreter should not be called".to_string(),
             ))
         }
+    }
+
+    #[test]
+    fn formats_tool_schemas_as_compact_lossless_json() {
+        let schema = object(
+            json!({"type": "object", "properties": {"query": {"type": "string", "description": "café 工"}, "options": {"type": "object", "properties": {}}}}),
+        );
+        let tool = Tool::new("search".to_string(), "Search records".to_string(), schema);
+
+        let output = format_tool_info(std::slice::from_ref(&tool));
+        let description = format!("\nDescription: {:?}\n\n", tool.description);
+        let schema = output
+            .strip_prefix("Tool Name: search\nSchema: ")
+            .and_then(|value| value.strip_suffix(&description))
+            .unwrap();
+
+        assert!(!schema.contains('\n'));
+        let parsed: Value = serde_json::from_str(schema).unwrap();
+        assert_eq!(parsed, serde_json::to_value(&tool.input_schema).unwrap());
     }
 
     #[test]
