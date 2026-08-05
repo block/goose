@@ -147,15 +147,9 @@ pub struct DeclarativeProviderConfig {
     pub fast_model: Option<String>,
     #[serde(default)]
     pub preserves_thinking: bool,
-    /// Emit `clear_thinking: false` on the request's thinking object.
-    ///
-    /// This is a Z.AI/GLM-specific field (the switch that preserves prior
-    /// reasoning across turns, added for #7363). It is NOT part of
-    /// Anthropic's thinking schema, so a provider on the shared `anthropic`
-    /// engine that is NOT Z.AI must leave this false — strict Anthropic
-    /// endpoints reject the extra field with
-    /// `thinking.<type>.clear_thinking: Extra inputs are not permitted`.
-    /// Default false; only Z.AI-family providers opt in.
+    /// Emit the Z.AI/GLM-only `clear_thinking: false` field on thinking
+    /// requests (#7363). Not part of Anthropic's schema — strict endpoints
+    /// reject it — so it stays false for every non-Z.AI provider.
     #[serde(default)]
     pub emit_clear_thinking: bool,
 }

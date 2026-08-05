@@ -145,10 +145,6 @@ pub struct CreateCustomProviderParams {
     pub catalog_provider_id: Option<String>,
     pub base_path: Option<String>,
     pub preserves_thinking: Option<bool>,
-    /// Opt into emitting the Z.AI/GLM `clear_thinking` preservation switch
-    /// (see `DeclarativeProviderConfig::emit_clear_thinking`). Only meaningful
-    /// for a custom provider targeting a Z.AI-family endpoint; defaults off.
-    pub emit_clear_thinking: Option<bool>,
 }
 
 #[derive(Debug, Clone)]
@@ -165,10 +161,6 @@ pub struct UpdateCustomProviderParams {
     pub catalog_provider_id: Option<String>,
     pub base_path: Option<String>,
     pub preserves_thinking: Option<bool>,
-    /// Opt into emitting the Z.AI/GLM `clear_thinking` preservation switch
-    /// (see `DeclarativeProviderConfig::emit_clear_thinking`). Only meaningful
-    /// for a custom provider targeting a Z.AI-family endpoint; defaults off.
-    pub emit_clear_thinking: Option<bool>,
 }
 
 pub fn create_custom_provider(
@@ -223,10 +215,7 @@ pub fn create_custom_provider(
         setup_steps: vec![],
         fast_model: None,
         preserves_thinking,
-        // Off unless the caller opts in — only a custom provider pointing at a
-        // Z.AI-family endpoint wants the `clear_thinking` switch (see
-        // DeclarativeProviderConfig).
-        emit_clear_thinking: params.emit_clear_thinking.unwrap_or(false),
+        emit_clear_thinking: false,
     };
 
     let custom_providers_dir = custom_providers_dir();
@@ -281,11 +270,6 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             }
             None => existing_config.preserves_thinking,
         };
-        // Use the param when supplied; otherwise carry the existing value
-        // forward (so a Z.AI-family custom provider keeps its opt-in).
-        let emit_clear_thinking = params
-            .emit_clear_thinking
-            .unwrap_or(existing_config.emit_clear_thinking);
 
         let updated_config = DeclarativeProviderConfig {
             name: params.id.clone(),
@@ -312,7 +296,7 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             setup_steps: existing_config.setup_steps,
             fast_model: existing_config.fast_model.clone(),
             preserves_thinking,
-            emit_clear_thinking,
+            emit_clear_thinking: existing_config.emit_clear_thinking,
         };
 
         let file_path = custom_provider_file_path(&updated_config.name)?;
@@ -715,58 +699,6 @@ mod tests {
     }
 
     #[test]
-    fn test_emit_clear_thinking_defaults_false_when_absent() {
-        // A provider JSON without the key deserializes to false — the safe
-        // default for every non-Z.AI provider on the shared anthropic engine.
-        let json = r#"{
-            "name": "custom_anthropic_compat",
-            "engine": "anthropic",
-            "display_name": "Custom Anthropic-compatible",
-            "description": null,
-            "api_key_env": "",
-            "base_url": "https://example.com",
-            "models": [{"name": "some-model", "context_limit": 200000}],
-            "headers": null,
-            "timeout_seconds": null,
-            "supports_streaming": true,
-            "requires_auth": false,
-            "preserves_thinking": true
-        }"#;
-
-        let config = deserialize_provider_config(json).expect("json should parse");
-        assert!(config.preserves_thinking);
-        assert!(!config.emit_clear_thinking);
-    }
-
-    #[test]
-    fn test_emit_clear_thinking_honored_when_set() {
-        // A custom Z.AI-family provider opts in explicitly (P2 review): the
-        // create path persists emit_clear_thinking so GLM's #7363
-        // preservation switch is restored without hand-editing JSON.
-        let temp_dir = tempfile::tempdir().unwrap();
-        let temp_root = temp_dir.path().display().to_string();
-        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(temp_root.as_str()))]);
-
-        let config = create_custom_provider(CreateCustomProviderParams {
-            engine: "anthropic".to_string(),
-            display_name: "Custom Z.AI".to_string(),
-            api_url: "https://custom.z.ai.invalid".to_string(),
-            api_key: None,
-            models: vec!["glm-4.7".to_string()],
-            supports_streaming: Some(true),
-            headers: None,
-            requires_auth: false,
-            catalog_provider_id: None,
-            base_path: None,
-            preserves_thinking: Some(true),
-            emit_clear_thinking: Some(true),
-        })
-        .unwrap();
-
-        assert!(config.emit_clear_thinking);
-    }
-
-    #[test]
     fn test_custom_provider_explicit_preserves_thinking_false_is_kept() {
         let json = r#"{
             "name": "custom_strict",
@@ -846,7 +778,6 @@ mod tests {
             catalog_provider_id: None,
             base_path: None,
             preserves_thinking: None,
-            emit_clear_thinking: None,
         })
         .unwrap();
 

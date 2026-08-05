@@ -2233,7 +2233,6 @@ fn add_provider() -> anyhow::Result<()> {
         catalog_provider_id: None,
         base_path,
         preserves_thinking: None,
-        emit_clear_thinking: None,
     })?;
 
     if !provider_config.models.is_empty() {
