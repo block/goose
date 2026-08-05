@@ -74,6 +74,28 @@ impl OpenRouterProvider {
             configured_parameters,
         })
     }
+
+    async fn post_chat_completions(
+        &self,
+        model_config: &ModelConfig,
+        payload: &Value,
+    ) -> Result<reqwest::Response, ProviderError> {
+        self.with_retry(|| async {
+            let resp = self
+                .api_client
+                .request("api/v1/chat/completions")
+                .model_headers(model_config)?
+                .streaming(true)
+                .response_post(payload)
+                .await?;
+            handle_status(resp).await
+        })
+        .await
+    }
+}
+
+fn is_mandatory_reasoning_error(error: &ProviderError) -> bool {
+    matches!(error, ProviderError::RequestFailed(message) if message.contains("Reasoning is mandatory"))
 }
 
 /// Update the request when using anthropic model.
@@ -335,7 +357,8 @@ impl Provider for OpenRouterProvider {
         if is_gemini_model(&model_config.model_name) {
             openrouter_format::add_reasoning_details_to_request(&mut payload, messages);
         }
-        openrouter_format::apply_reasoning_config(&mut payload, model_config);
+        let sent_reasoning_disable =
+            openrouter_format::apply_reasoning_config(&mut payload, model_config);
 
         if let Some(obj) = payload.as_object_mut() {
             obj.insert("transforms".to_string(), json!(["middle-out"]));
@@ -344,21 +367,20 @@ impl Provider for OpenRouterProvider {
 
         let mut log = start_log(model_config, &payload)?;
 
-        let response = self
-            .with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .request("api/v1/chat/completions")
-                    .model_headers(model_config)?
-                    .streaming(true)
-                    .response_post(&payload)
-                    .await?;
-                handle_status(resp).await
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
+        let response = match self.post_chat_completions(model_config, &payload).await {
+            // Mandatory-reasoning endpoints reject the disable request, so
+            // downgrade to the lowest effort they all accept and retry once.
+            Err(error) if sent_reasoning_disable && is_mandatory_reasoning_error(&error) => {
+                let _ = log.error(&error);
+                payload["reasoning"] = json!({ "effort": "low" });
+                log = start_log(model_config, &payload)?;
+                self.post_chat_completions(model_config, &payload).await
+            }
+            result => result,
+        }
+        .inspect_err(|e| {
+            let _ = log.error(e);
+        })?;
 
         stream_openai_compat(response, log)
     }
@@ -447,5 +469,61 @@ mod tests {
         let request_params = model.request_params.as_ref().unwrap();
         assert_eq!(request_params["plugins"], json!([{ "id": "web" }]));
         assert_eq!(request_params["verbosity"], json!("xhigh"));
+    }
+
+    #[tokio::test]
+    async fn stream_downgrades_reasoning_disable_on_mandatory_endpoint() {
+        use wiremock::matchers::{body_partial_json, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/chat/completions"))
+            .and(body_partial_json(
+                json!({ "reasoning": { "enabled": false } }),
+            ))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!({
+                "error": { "message": "Reasoning is mandatory for this endpoint and cannot be disabled." }
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/chat/completions"))
+            .and(body_partial_json(
+                json!({ "reasoning": { "effort": "low" } }),
+            ))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-type", "text/event-stream")
+                    .set_body_string("data: [DONE]\n\n"),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let provider = OpenRouterProvider {
+            api_client: ApiClient::new_with_tls(
+                server.uri(),
+                AuthMethod::BearerToken("test-key".to_string()),
+                None,
+            )
+            .unwrap(),
+            supports_streaming: true,
+            name: OPENROUTER_PROVIDER_NAME.to_string(),
+            configured_parameters: None,
+        };
+
+        let mut config = model_config("google/gemini-3.5-flash");
+        config.reasoning = Some(true);
+        config.request_params = Some(HashMap::from([(
+            "thinking_effort".to_string(),
+            json!("off"),
+        )]));
+
+        let _stream = provider
+            .stream(&config, "system", &[Message::user().with_text("hi")], &[])
+            .await
+            .unwrap();
     }
 }
