@@ -496,11 +496,7 @@ mod tests {
     #[test]
     fn zai_provider_config_opts_into_clear_thinking() {
         let configs = crate::declarative::fixed_provider_configs().unwrap();
-        let zai = configs
-            .iter()
-            .find(|c| c.name == "zai")
-            .cloned()
-            .unwrap();
+        let zai = configs.iter().find(|c| c.name == "zai").cloned().unwrap();
         let builder = from_declarative_config(zai, None, StubKeyResolver).unwrap();
         assert!(builder.format_options.emit_clear_thinking);
     }
