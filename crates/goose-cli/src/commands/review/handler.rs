@@ -450,18 +450,34 @@ fn untracked_files(repo_root: &Path, files: &[String]) -> Result<Vec<String>> {
 
 /// Synthesize a unified `new file` diff for each untracked path so
 /// downstream parsers and the review prompt can treat them as
-/// additions. Binary or unreadable files are skipped (we cannot
-/// produce a meaningful textual diff for them).
+/// additions. Symlinks are represented by their link text, matching Git.
+/// Binary or unreadable files are skipped.
 fn synthesize_untracked_diff(repo_root: &Path, paths: &[String]) -> Result<String> {
     let mut out = String::new();
     for path in paths {
         let abs = repo_root.join(path);
-        let content = match fs::read_to_string(&abs) {
-            Ok(c) => c,
+        let metadata = match fs::symlink_metadata(&abs) {
+            Ok(metadata) => metadata,
             Err(_) => continue,
         };
+        let (mode, content) = if metadata.file_type().is_symlink() {
+            let target = match fs::read_link(&abs) {
+                Ok(target) => target,
+                Err(_) => continue,
+            };
+            let Some(target) = target.to_str() else {
+                continue;
+            };
+            ("120000", target.to_string())
+        } else {
+            let content = match fs::read_to_string(&abs) {
+                Ok(content) => content,
+                Err(_) => continue,
+            };
+            ("100644", content)
+        };
         out.push_str(&format!("diff --git a/{path} b/{path}\n"));
-        out.push_str("new file mode 100644\n");
+        out.push_str(&format!("new file mode {mode}\n"));
         out.push_str("--- /dev/null\n");
         out.push_str(&format!("+++ b/{path}\n"));
         let trailing_newline = content.ends_with('\n');
@@ -596,6 +612,34 @@ mod tests {
         assert!(diff.contains("@@ -0,0 +1,1 @@"));
         assert!(diff.contains("+no-newline\n"));
         assert!(diff.contains("\\ No newline at end of file"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn synthesize_untracked_diff_uses_symlink_text_without_following_target() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let secret = outside.path().join("secret.txt");
+        fs::write(&secret, "TOPSECRET-OUTSIDE-REPO").unwrap();
+        std::os::unix::fs::symlink(&secret, dir.path().join("link.txt")).unwrap();
+
+        let diff = synthesize_untracked_diff(dir.path(), &["link.txt".to_string()]).unwrap();
+
+        assert!(diff.contains("new file mode 120000"));
+        assert!(diff.contains(&format!("+{}", secret.display())));
+        assert!(!diff.contains("TOPSECRET-OUTSIDE-REPO"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn synthesize_untracked_diff_includes_broken_symlink_text() {
+        let dir = tempfile::tempdir().unwrap();
+        std::os::unix::fs::symlink("../missing-target", dir.path().join("broken")).unwrap();
+
+        let diff = synthesize_untracked_diff(dir.path(), &["broken".to_string()]).unwrap();
+
+        assert!(diff.contains("new file mode 120000"));
+        assert!(diff.contains("+../missing-target"));
     }
 
     #[test]
