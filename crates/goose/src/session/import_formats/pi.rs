@@ -128,11 +128,12 @@ pub fn convert(content: &str) -> Result<String> {
                 }
             }
             "toolResult" => {
-                let id = inner
-                    .get("toolCallId")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
+                let id = sanitize_unicode_tags(
+                    inner
+                        .get("toolCallId")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(""),
+                );
                 let is_error = inner
                     .get("isError")
                     .and_then(|v| v.as_bool())
@@ -145,11 +146,9 @@ pub fn convert(content: &str) -> Result<String> {
             }
             "bashExecution" => {
                 // Synthesize a bash tool round-trip so the export reads naturally.
-                let command = inner
-                    .get("command")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
+                let command = sanitize_unicode_tags(
+                    inner.get("command").and_then(|v| v.as_str()).unwrap_or(""),
+                );
                 let output = inner
                     .get("output")
                     .and_then(|v| v.as_str())
@@ -284,27 +283,45 @@ fn apply_assistant_content(mut msg: Message, content: Option<&Value>) -> Message
                 }
             }
             "toolCall" => {
-                let id = block
-                    .get("id")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                let name = block
-                    .get("name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown_tool");
+                let id =
+                    sanitize_unicode_tags(block.get("id").and_then(|v| v.as_str()).unwrap_or(""));
+                let name = sanitize_unicode_tags(
+                    block
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown_tool"),
+                );
                 let args = block
                     .get("arguments")
                     .and_then(|v| v.as_object())
                     .cloned()
-                    .unwrap_or_default();
-                let params = CallToolRequestParams::new(name.to_string()).with_arguments(args);
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|(key, value)| (sanitize_unicode_tags(&key), sanitize_json_strings(value)))
+                    .collect();
+                let params = CallToolRequestParams::new(name).with_arguments(args);
                 msg = msg.with_tool_request(id, Ok(params));
             }
             _ => {}
         }
     }
     msg
+}
+
+fn sanitize_json_strings(value: Value) -> Value {
+    match value {
+        Value::String(value) => Value::String(sanitize_unicode_tags(&value)),
+        Value::Array(values) => {
+            Value::Array(values.into_iter().map(sanitize_json_strings).collect())
+        }
+        Value::Object(values) => Value::Object(
+            values
+                .into_iter()
+                .map(|(key, value)| (sanitize_unicode_tags(&key), sanitize_json_strings(value)))
+                .collect(),
+        ),
+        value => value,
+    }
 }
 
 fn build_tool_result(content: Option<&Value>, is_error: bool) -> Result<CallToolResult, ErrorData> {
@@ -406,9 +423,25 @@ mod tests {
     }
 
     #[test]
+    fn sanitizes_tool_call_arguments() {
+        let jsonl = r#"{"type":"session","version":3,"id":"s","timestamp":"2024-12-03T14:00:00.000Z","cwd":"/w"}
+{"type":"message","id":"a","parentId":null,"timestamp":"2024-12-03T14:00:01.000Z","message":{"role":"assistant","content":[{"type":"toolCall","id":"t1","name":"bash","arguments":{"nested":{"command":["visible<TAG>hidden"]}}}]}}"#;
+
+        assert_conversion_strips_unicode_tags(jsonl);
+    }
+
+    #[test]
     fn sanitizes_bash_execution_output() {
         let jsonl = r#"{"type":"session","version":3,"id":"s","timestamp":"2024-12-03T14:00:00.000Z","cwd":"/w"}
 {"type":"message","id":"a","parentId":null,"timestamp":"2024-12-03T14:00:01.000Z","message":{"role":"bashExecution","command":"printf output","output":"visible<TAG>hidden","exitCode":0,"cancelled":false,"truncated":false}}"#;
+
+        assert_conversion_strips_unicode_tags(jsonl);
+    }
+
+    #[test]
+    fn sanitizes_bash_execution_command() {
+        let jsonl = r#"{"type":"session","version":3,"id":"s","timestamp":"2024-12-03T14:00:00.000Z","cwd":"/w"}
+{"type":"message","id":"a","parentId":null,"timestamp":"2024-12-03T14:00:01.000Z","message":{"role":"bashExecution","command":"printf visible<TAG>hidden","output":"ok","exitCode":0,"cancelled":false,"truncated":false}}"#;
 
         assert_conversion_strips_unicode_tags(jsonl);
     }
