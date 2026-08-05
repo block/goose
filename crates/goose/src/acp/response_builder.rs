@@ -15,7 +15,7 @@ use goose_providers::thinking::{ThinkingEffort, ThinkingEffortCapability, Thinki
 use serde::Serialize;
 use strum::{EnumMessage, VariantNames};
 
-use super::provider::{map_effort_value, THINKING_EFFORT_PARAM};
+use super::provider::resolve_effort_value;
 use super::server::{build_usage_updates, DEFAULT_PROVIDER_ID, DEFAULT_PROVIDER_LABEL};
 
 pub(super) fn session_provider_selection(session: &Session) -> &str {
@@ -370,21 +370,14 @@ fn build_thinking_effort_choices(
     }
 }
 
-/// The session's own pick wins, then the global default, then whatever the agent
-/// currently has. Both goose-side values are mapped into the agent's vocabulary
-/// so the selection matches an offered option.
+/// The goose-side value that will actually be sent wins — `resolve_effort_value`
+/// is shared with the provider's send path — then whatever the agent currently
+/// has, which is what it keeps when goose sends nothing.
 fn capability_thinking_effort_value(
     capability: &ThinkingEffortCapability,
     model_config: &ModelConfig,
 ) -> String {
-    model_config
-        .request_param::<String>(THINKING_EFFORT_PARAM)
-        .and_then(|value| map_effort_value(capability, &value))
-        .or_else(|| {
-            Config::global()
-                .get_goose_thinking_effort()
-                .and_then(|effort| map_effort_value(capability, &effort.to_string()))
-        })
+    resolve_effort_value(capability, model_config)
         .or_else(|| capability.current.clone())
         .or_else(|| capability.values.first().map(|option| option.value.clone()))
         .unwrap_or_default()
@@ -490,6 +483,7 @@ pub(super) fn send_session_setup_notifications(
 
 #[cfg(test)]
 mod tests {
+    use super::super::provider::THINKING_EFFORT_PARAM;
     use super::*;
     use agent_client_protocol::schema::v1::SessionConfigKind;
     use goose_providers::thinking::ThinkingEffortOption;

@@ -34,7 +34,7 @@ use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt 
 
 use crate::acp::handoff::{build_handoff_context_memo, memo_token_budget, prompt_token_cost};
 use crate::acp::{map_permission_response, PermissionDecision};
-use crate::config::{ExtensionConfig, GooseMode};
+use crate::config::{Config, ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
@@ -554,23 +554,17 @@ impl AcpProvider {
             .await
     }
 
-    /// Forward the session's persisted thinking effort to the agent when it
-    /// differs from the agent's mirrored current value. A recreated provider
-    /// (model switch, provider switch, session reload) starts from the agent's
-    /// own default, so the persisted value has to be re-applied rather than
-    /// assumed.
+    /// Forward the session's thinking effort to the agent when it differs from
+    /// the agent's mirrored current value. A recreated provider (model switch,
+    /// provider switch, session reload) starts from the agent's own default, so
+    /// the value has to be re-applied rather than assumed. It comes from
+    /// `resolve_effort_value`, the same resolver the config menu advertises
+    /// from, so the selection ACP clients see is the one that gets sent.
     async fn apply_effort_if_changed(&self, model_config: &ModelConfig) -> Result<()> {
-        let Some(value) = model_config.request_param::<String>(THINKING_EFFORT_PARAM) else {
-            return Ok(());
-        };
         let Some(capability) = self.effort_capability()? else {
             return Ok(());
         };
-        let Some(mapped) = map_effort_value(&capability, &value) else {
-            tracing::debug!(
-                value,
-                "agent offers no matching thinking effort; leaving its default"
-            );
+        let Some(mapped) = resolve_effort_value(&capability, model_config) else {
             return Ok(());
         };
 
@@ -2183,6 +2177,27 @@ pub(super) fn map_effort_value(
     })
 }
 
+/// Resolve the goose-side thinking effort to send to the agent: the session's
+/// persisted pick wins, then the global default, each mapped into the agent's
+/// vocabulary. `None` leaves the agent on its own current value. Shared with the
+/// config menu so the advertised selection is the applied one — a persisted pick
+/// the agent no longer offers (its selector was rebuilt by a model switch) falls
+/// back to the global on both sides. The unmappable pick is deliberately left
+/// persisted: it becomes honorable again if the user switches back.
+pub(super) fn resolve_effort_value(
+    capability: &ThinkingEffortCapability,
+    model_config: &ModelConfig,
+) -> Option<String> {
+    model_config
+        .request_param::<String>(THINKING_EFFORT_PARAM)
+        .and_then(|value| map_effort_value(capability, &value))
+        .or_else(|| {
+            Config::global()
+                .get_goose_thinking_effort()
+                .and_then(|effort| map_effort_value(capability, &effort.to_string()))
+        })
+}
+
 /// Separate a value the agent evaluated and refused from an operational failure.
 /// Only an agent that actually processed the request answers with the JSON-RPC
 /// `invalid_params` code; the client library synthesizes `internal_error` for a
@@ -3691,8 +3706,34 @@ mod tests {
         handle.await.unwrap();
     }
 
+    /// The menu advertises the global default once the persisted pick stops
+    /// being offered (a model switch rebuilt the agent's selector), so the send
+    /// path has to apply it too — otherwise the agent silently runs at its own
+    /// current while the client shows the global.
+    #[tokio::test]
+    async fn apply_effort_if_changed_falls_back_to_the_global_default() {
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("high"))]);
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider =
+            test_provider_with_effort(tx, Some(effort_capability(&["default", "high"], "default")));
+        let model = model_with_effort("medium");
+
+        let handle =
+            tokio::spawn(async move { provider.apply_effort_if_changed(&model).await.unwrap() });
+
+        assert_eq!(
+            expect_set_config_option(&mut rx).await,
+            ("effort".to_string(), "high".to_string())
+        );
+
+        handle.await.unwrap();
+    }
+
     #[tokio::test]
     async fn apply_effort_if_changed_skips_unmapped_value() {
+        // Unoffered by the capability below, so the global default never wins
+        // and the test doesn't depend on the machine's configured value.
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("medium"))]);
         let (tx, mut rx) = mpsc::channel(1);
         let provider =
             test_provider_with_effort(tx, Some(effort_capability(&["default", "high"], "default")));
@@ -3720,6 +3761,7 @@ mod tests {
 
     #[tokio::test]
     async fn apply_effort_if_changed_skips_session_without_a_persisted_value() {
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("medium"))]);
         let (tx, mut rx) = mpsc::channel(1);
         let provider =
             test_provider_with_effort(tx, Some(effort_capability(&["default", "high"], "default")));
