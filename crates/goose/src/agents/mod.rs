@@ -1,3 +1,4 @@
+mod active_provider_stream;
 mod agent;
 pub mod container;
 pub mod execute_commands;

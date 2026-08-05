@@ -9,6 +9,7 @@ use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use tracing_futures::Instrument;
 
+use super::active_provider_stream::{ActiveProviderStream, ProviderStreamEvent};
 use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
 use super::gen_ai_telemetry;
@@ -556,6 +557,22 @@ impl Agent {
 
     async fn drain_pending_steers(&self, session_id: &str) -> Vec<Message> {
         self.pending_steers.drain(session_id).await
+    }
+
+    async fn emit_user_prompt_submit_hook(&self, session_id: &str, message: String) {
+        if self
+            .hook_manager
+            .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
+        {
+            let ctx = crate::hooks::HookContext::new(
+                crate::hooks::HookEvent::UserPromptSubmit,
+                session_id,
+            )
+            .with_message(message);
+            self.hook_manager
+                .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
+                .await;
+        }
     }
 
     async fn emit_pre_tool_extended_hooks(
@@ -1724,19 +1741,8 @@ impl Agent {
                 .await;
         }
 
-        if self
-            .hook_manager
-            .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
-        {
-            let ctx = crate::hooks::HookContext::new(
-                crate::hooks::HookEvent::UserPromptSubmit,
-                &session_config.id,
-            )
-            .with_message(message_text.clone());
-            self.hook_manager
-                .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
-                .await;
-        }
+        self.emit_user_prompt_submit_hook(&session_config.id, message_text.clone())
+            .await;
 
         let command_result = self
             .execute_command(&message_text, &session_config.id)
@@ -2084,19 +2090,8 @@ impl Agent {
                 if can_drain_pending_steers {
                     for message in self.drain_pending_steers(&session_config.id).await {
                         let message_text = agent_visible_message_text(&message);
-                        if self
-                            .hook_manager
-                            .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
-                        {
-                            let ctx = crate::hooks::HookContext::new(
-                                crate::hooks::HookEvent::UserPromptSubmit,
-                                &session_config.id,
-                            )
-                            .with_message(message_text);
-                            self.hook_manager
-                                .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
-                                .await;
-                        }
+                        self.emit_user_prompt_submit_hook(&session_config.id, message_text)
+                            .await;
                         let message = persist_and_push_message_with_id(
                             &session_manager,
                             &session_config.id,
@@ -2180,8 +2175,9 @@ impl Agent {
                 )
                 .await;
 
-                let mut stream = Self::stream_response_from_provider(
-                    self.provider().await?,
+                let provider = self.provider().await?;
+                let stream = Self::stream_response_from_provider(
+                    provider.clone(),
                     model_config.clone(),
                     &session_config.id,
                     &system_prompt,
@@ -2189,6 +2185,13 @@ impl Agent {
                     &tools,
                     &toolshim_tools,
                 ).await?;
+                let mut active_provider_stream = ActiveProviderStream::new(
+                    stream,
+                    provider,
+                    &self.pending_steers,
+                    &session_config.id,
+                )
+                .await;
                 last_assistant_text.clear();
 
                 let current_turn_tool_count = conversation.messages().iter()
@@ -2226,10 +2229,45 @@ impl Agent {
                 // reasoning without hiding final-only non-streaming thoughts.
                 let mut surfaced_thinking_in_turn = false;
 
-                while let Some(next) = stream.next().await {
-                    if is_token_cancelled(&cancel_token) || exit_chat {
-                        break;
-                    }
+                while let Some(event) = active_provider_stream.next_event(&cancel_token).await {
+                    let next = match event {
+                        ProviderStreamEvent::ProviderOutput(next) => {
+                            if is_token_cancelled(&cancel_token) || exit_chat {
+                                break;
+                            }
+                            next
+                        }
+                        ProviderStreamEvent::NativeSteer { message, result } => {
+                            let message = message.with_steer();
+                            let message_text = agent_visible_message_text(&message);
+                            self.emit_user_prompt_submit_hook(
+                                &session_config.id,
+                                message_text,
+                            )
+                            .await;
+                            let message =
+                                push_message_with_id(&mut messages_to_add, message);
+                            yield AgentEvent::Message(message);
+
+                            if let Err(provider_err) = result {
+                                provider_errored = true;
+                                #[cfg(feature = "telemetry")]
+                                crate::posthog::emit_error(
+                                    provider_err.telemetry_type(),
+                                    &provider_err.to_string(),
+                                );
+                                error!("Error: {}", provider_err);
+                                yield AgentEvent::Message(
+                                    Message::assistant().with_text(
+                                        format!("Ran into this error: {provider_err}.\n\nPlease retry if you think this is a transient or recoverable error.")
+                                    )
+                                );
+                                break;
+                            }
+
+                            continue;
+                        }
+                    };
 
                     match next {
                         Ok((response, usage)) => {
@@ -2854,12 +2892,20 @@ impl Agent {
                 // conversation that contains an empty assistant turn. Drop it here
                 // regardless of what the match below decides to do about the turn
                 // (final-output nudge, steer, goal/grind, retry, or fallback).
-                let empty_response = no_tools_called
+                let otherwise_empty = no_tools_called
                     && !exit_chat
                     && !provider_errored
                     && !did_recovery_compact_this_iteration
                     && !provider_produced_content
                     && last_assistant_text.is_empty();
+                let has_natively_delivered_steer = messages_to_add
+                    .messages()
+                    .iter()
+                    .any(|message| message.metadata.steer);
+                let empty_response = otherwise_empty && !has_natively_delivered_steer;
+                let native_steer_only_completion = otherwise_empty
+                    && has_natively_delivered_steer
+                    && !self.has_pending_steers(&session_config.id).await;
 
                 if empty_response {
                     messages_to_add = Conversation::default();
@@ -2867,7 +2913,11 @@ impl Agent {
                     empty_turn_retries = 0;
                 }
 
-                if no_tools_called && !exit_chat {
+                if no_tools_called
+                    && !exit_chat
+                    && !native_steer_only_completion
+                    && !active_provider_stream.native_steer_errored()
+                {
                     // Lock, extract state, drop guard before branching — handle_retry_logic
                     // also locks final_output_tool and tokio::sync::Mutex is not reentrant.
                     let final_output = {
@@ -3065,6 +3115,16 @@ impl Agent {
                     session_manager.add_message(&session_config.id, msg).await?;
                 }
                 conversation.extend(messages_to_add);
+
+                if active_provider_stream.native_steer_errored() {
+                    break;
+                }
+
+                if native_steer_only_completion
+                    && !self.has_pending_steers(&session_config.id).await
+                {
+                    break;
+                }
 
                 if exit_chat && self.has_pending_steers(&session_config.id).await {
                     exit_chat = false;

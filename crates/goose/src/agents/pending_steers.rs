@@ -44,6 +44,24 @@ impl PendingSteers {
             .is_some_and(|state| !state.messages.is_empty())
     }
 
+    pub(super) async fn pop_front(&self, session_id: &str) -> Option<Message> {
+        self.by_session
+            .lock()
+            .await
+            .get_mut(session_id)
+            .and_then(|state| state.messages.pop_front())
+    }
+
+    pub(super) async fn restore_front(&self, session_id: &str, message: Message) {
+        self.by_session
+            .lock()
+            .await
+            .entry(session_id.to_string())
+            .or_default()
+            .messages
+            .push_front(message);
+    }
+
     pub(super) async fn drain(&self, session_id: &str) -> Vec<Message> {
         let messages = self
             .by_session
