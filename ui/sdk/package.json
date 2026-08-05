@@ -45,7 +45,7 @@
   "dependencies": {
     "@modelcontextprotocol/ext-apps": "^0.3.1",
     "@modelcontextprotocol/sdk": "^1.27.0",
-    "zod": "^3.25.76"
+    "zod": "^4.4.3"
   },
   "peerDependencies": {
     "@agentclientprotocol/sdk": "^0.19.0"
