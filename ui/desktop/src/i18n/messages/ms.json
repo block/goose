@@ -3770,6 +3770,12 @@
   "sessions.action.export": {
     "defaultMessage": "Eksport sesi"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "Buka dalam tetingkap baharu"
   },
@@ -3868,6 +3874,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "Sesi \"{name}\" berjaya diduplikasi"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "Gagal mengeksport sesi: {error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "Sesi berjaya dieksport"

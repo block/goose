@@ -350,6 +350,7 @@ impl Provider for OpenRouterProvider {
                     .api_client
                     .request("api/v1/chat/completions")
                     .model_headers(model_config)?
+                    .streaming(true)
                     .response_post(&payload)
                     .await?;
                 handle_status(resp).await

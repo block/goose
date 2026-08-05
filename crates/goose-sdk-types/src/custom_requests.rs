@@ -758,15 +758,26 @@ pub struct UnarchiveSessionRequest {
     pub session_id: String,
 }
 
-/// Export a session as a JSON string.
+/// Export a session as a JSON or markdown string.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/session/export", response = ExportSessionResponse)]
 #[serde(rename_all = "camelCase")]
 pub struct ExportSessionRequest {
     pub session_id: String,
+    #[serde(default)]
+    pub format: SessionExportFormat,
 }
 
-/// Export session response — raw JSON of the goose session with `conversation`.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionExportFormat {
+    #[default]
+    Json,
+    Markdown,
+}
+
+/// Export session response — raw JSON of the goose session with `conversation`,
+/// or a markdown transcript when `format` is `markdown`.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
 pub struct ExportSessionResponse {
     pub data: String,
@@ -2262,3 +2273,23 @@ pub struct SetToolPermissionsRequest {
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
 pub struct SetToolPermissionsResponse {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn export_session_request_defaults_to_json_without_format() {
+        let req: ExportSessionRequest = serde_json::from_str(r#"{"sessionId":"abc"}"#).unwrap();
+
+        assert_eq!(req.format, SessionExportFormat::Json);
+    }
+
+    #[test]
+    fn export_session_request_accepts_markdown_format() {
+        let req: ExportSessionRequest =
+            serde_json::from_str(r#"{"sessionId":"abc","format":"markdown"}"#).unwrap();
+
+        assert_eq!(req.format, SessionExportFormat::Markdown);
+    }
+}

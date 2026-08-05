@@ -115,11 +115,15 @@ impl GooseAcpAgent {
         &self,
         req: ExportSessionRequest,
     ) -> Result<ExportSessionResponse, agent_client_protocol::Error> {
-        let data = self
-            .session_manager
-            .export_session(&req.session_id)
-            .await
-            .internal_err()?;
+        let data = match req.format {
+            SessionExportFormat::Json => self.session_manager.export_session(&req.session_id).await,
+            SessionExportFormat::Markdown => {
+                self.session_manager
+                    .export_session_markdown(&req.session_id)
+                    .await
+            }
+        }
+        .internal_err()?;
         Ok(ExportSessionResponse { data })
     }
 

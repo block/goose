@@ -3770,6 +3770,12 @@
   "sessions.action.export": {
     "defaultMessage": "Oturumu dışa aktar"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "Yeni pencerede aç"
   },
@@ -3868,6 +3874,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "\"{name}\" oturumu başarıyla kopyalandı"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "Oturum dışa aktarılamadı: {error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "Oturum başarıyla dışa aktarıldı"
