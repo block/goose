@@ -29,7 +29,7 @@ fn default_tool_title(tool_name: &str, arguments: Option<&serde_json::Value>) ->
 
     let detail = arguments.and_then(|args| {
         let obj = args.as_object()?;
-        let keys = if tool_name == "developer__shell" {
+        let keys = if matches!(tool_name, "developer__shell" | "shell") {
             [
                 "command", "path", "file", "query", "url", "uri", "name", "pattern", "source",
             ]
@@ -378,6 +378,10 @@ mod tests {
             assert_eq!(
                 default_tool_title("developer__shell", Some(&args)),
                 "developer: shell · rm -rf /tmp/important"
+            );
+            assert_eq!(
+                default_tool_title("shell", Some(&args)),
+                "shell · rm -rf /tmp/important"
             );
         }
 
