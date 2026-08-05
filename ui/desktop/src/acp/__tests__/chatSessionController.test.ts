@@ -168,6 +168,23 @@ describe('acpChatSessionController.loadSession', () => {
       loadedSession()
     );
   });
+
+  it('restores a cached session from the server', async () => {
+    vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue({
+      ...snapshotWithActivePrompt(null),
+      session: loadedSession(),
+    });
+    vi.mocked(isAcpSessionLoadInFlight).mockReturnValue(false);
+
+    await acpChatSessionController.restoreSession(SESSION_ID);
+
+    expect(acpChatSessionActions.startSessionLoad).toHaveBeenCalledWith(SESSION_ID);
+    expect(acpLoadSession).toHaveBeenCalledWith(SESSION_ID);
+    expect(acpChatSessionActions.finishSessionLoad).toHaveBeenCalledWith(
+      SESSION_ID,
+      loadedSession()
+    );
+  });
 });
 
 describe('acpChatSessionController.stop', () => {
@@ -258,10 +275,17 @@ describe('acpChatSessionController.updateMessage', () => {
     };
 
     await expect(
-      acpChatSessionController.updateMessage(SESSION_ID, existingMessage.id, 'Updated', 'edit', {
-        getCurrentSnapshot: () => currentSnapshot,
-        onFinish: vi.fn(),
-      })
+      acpChatSessionController.updateMessage(
+        SESSION_ID,
+        existingMessage.id,
+        'Updated',
+        'edit',
+        [],
+        {
+          getCurrentSnapshot: () => currentSnapshot,
+          onFinish: vi.fn(),
+        }
+      )
     ).rejects.toThrow('Cannot submit while prompt cancellation is pending');
 
     expect(acpChatSessionActions.setChatState).not.toHaveBeenCalledWith(
@@ -284,10 +308,17 @@ describe('acpChatSessionController.updateMessage', () => {
     };
 
     await expect(
-      acpChatSessionController.updateMessage(SESSION_ID, existingMessage.id, 'Updated', 'edit', {
-        getCurrentSnapshot: () => currentSnapshot,
-        onFinish: vi.fn(),
-      })
+      acpChatSessionController.updateMessage(
+        SESSION_ID,
+        existingMessage.id,
+        'Updated',
+        'edit',
+        [],
+        {
+          getCurrentSnapshot: () => currentSnapshot,
+          onFinish: vi.fn(),
+        }
+      )
     ).resolves.toBeUndefined();
 
     expect(acpChatSessionActions.setChatState).not.toHaveBeenCalledWith(
@@ -329,6 +360,7 @@ describe('acpChatSessionController.updateMessage', () => {
       existingMessage.id,
       'Updated',
       'edit',
+      [],
       {
         getCurrentSnapshot: () => activeSnapshot,
         onFinish: vi.fn(),
@@ -353,7 +385,10 @@ describe('acpChatSessionController.updateMessage', () => {
     resolvePromptCancellation!();
     await updatePromise;
 
-    expect(acpTruncateSessionConversation).toHaveBeenCalledWith(SESSION_ID, existingMessage.created);
+    expect(acpTruncateSessionConversation).toHaveBeenCalledWith(
+      SESSION_ID,
+      existingMessage.created
+    );
     expect(acpPromptSession).toHaveBeenCalled();
     expect(acpChatSessionActions.clearPromptCancellation).not.toHaveBeenCalledWith(
       SESSION_ID,

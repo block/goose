@@ -4,6 +4,7 @@ use crate::providers::oauth_device_flow::{run_device_flow, DeviceFlowConfig, Req
 use crate::providers::openai_compatible::{
     handle_status, stream_openai_compat, stream_responses_compat,
 };
+use crate::providers::private_file::write_private_file;
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use axum::http;
@@ -41,8 +42,7 @@ use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::model::ModelConfig;
 use goose_providers::request_log::{start_log, LoggerHandleExt};
-use rmcp::model::{RawContent, Tool};
-use std::ops::Deref;
+use rmcp::model::{ContentBlock, Tool};
 
 const GITHUB_COPILOT_PROVIDER_NAME: &str = "github_copilot";
 pub const GITHUB_COPILOT_DEFAULT_MODEL: &str = "gpt-4.1";
@@ -170,11 +170,9 @@ impl DiskCache {
     }
 
     async fn save(&self, info: &CopilotState) -> Result<()> {
-        if let Some(parent) = self.cache_path.parent() {
-            tokio::fs::create_dir_all(parent).await?;
-        }
         let contents = serde_json::to_string(info)?;
-        tokio::fs::write(&self.cache_path, contents).await?;
+        let cache_path = self.cache_path.clone();
+        tokio::task::spawn_blocking(move || write_private_file(&cache_path, &contents)).await??;
         Ok(())
     }
 
@@ -223,7 +221,7 @@ impl GithubCopilotProvider {
                 MessageContent::ToolResponse(resp) => resp.tool_result.as_ref().is_ok_and(|r| {
                     r.content
                         .iter()
-                        .any(|item| matches!(item.deref(), RawContent::Image(_)))
+                        .any(|item| matches!(item, ContentBlock::Image(_)))
                 }),
                 _ => false,
             })
@@ -262,10 +260,12 @@ impl GithubCopilotProvider {
 
     async fn post(
         &self,
+        model_config: &ModelConfig,
         path: &str,
         is_user_initiated: bool,
         payload: &mut Value,
         has_images: bool,
+        streaming: bool,
     ) -> Result<Response, ProviderError> {
         let (endpoint, token) = self.get_api_info().await?;
         let auth = AuthMethod::BearerToken(token);
@@ -280,7 +280,10 @@ impl GithubCopilotProvider {
             .with_headers(headers)?;
 
         api_client
-            .response_post(path, payload)
+            .request(path)
+            .model_headers(model_config)?
+            .streaming(streaming)
+            .response_post(payload)
             .await
             .map_err(|e| e.into())
     }
@@ -414,10 +417,12 @@ impl GithubCopilotProvider {
                 let mut payload_clone = payload.clone();
                 let resp = self
                     .post(
+                        model_config,
                         "responses",
                         is_user_initiated,
                         &mut payload_clone,
                         has_images,
+                        true,
                     )
                     .await?;
                 handle_status(resp).await
@@ -460,10 +465,12 @@ impl GithubCopilotProvider {
                     let mut payload_clone = payload.clone();
                     let resp = self
                         .post(
+                            model_config,
                             "chat/completions",
                             is_user_initiated,
                             &mut payload_clone,
                             has_images,
+                            true,
                         )
                         .await?;
                     handle_status(resp).await
@@ -489,10 +496,12 @@ impl GithubCopilotProvider {
                 .with_retry(|| async {
                     let mut payload_clone = payload.clone();
                     self.post(
+                        model_config,
                         "chat/completions",
                         is_user_initiated,
                         &mut payload_clone,
                         has_images,
+                        false,
                     )
                     .await
                 })
@@ -712,6 +721,42 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn disk_cache_saves_owner_only_file() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+        let directory = tempfile::tempdir().unwrap();
+        let cache_path = directory.path().join("info.json");
+        std::fs::write(&cache_path, "old-secret").unwrap();
+        std::fs::set_permissions(&cache_path, std::fs::Permissions::from_mode(0o644)).unwrap();
+
+        let cache = DiskCache {
+            cache_path: cache_path.clone(),
+        };
+        let state = CopilotState {
+            expires_at: Utc::now(),
+            info: CopilotTokenInfo {
+                token: "copilot-secret".to_string(),
+                expires_at: 1,
+                refresh_in: 1,
+                endpoints: CopilotTokenEndpoints {
+                    api: "https://api.githubcopilot.com".to_string(),
+                    _extra: HashMap::new(),
+                },
+                _extra: HashMap::new(),
+            },
+        };
+
+        cache.save(&state).await.unwrap();
+
+        let metadata = std::fs::metadata(&cache_path).unwrap();
+        assert_eq!(metadata.mode() & 0o777, 0o600);
+        let saved: CopilotState =
+            serde_json::from_str(&std::fs::read_to_string(cache_path).unwrap()).unwrap();
+        assert_eq!(saved.info.token, "copilot-secret");
+    }
+
     #[test]
     fn responses_models_routed_correctly() {
         assert!(is_openai_responses_model("gpt-5.5"));
@@ -749,9 +794,10 @@ mod tests {
     #[test]
     fn detects_images_in_tool_responses() {
         use crate::conversation::message::{Message, MessageContent};
-        use rmcp::model::{CallToolResult, Content};
+        use rmcp::model::{CallToolResult, ContentBlock};
 
-        let image_content = Content::image("aW1hZ2VkYXRh".to_string(), "image/png".to_string());
+        let image_content =
+            ContentBlock::image("aW1hZ2VkYXRh".to_string(), "image/png".to_string());
         let tool_result = Ok(CallToolResult::success(vec![image_content]));
 
         let messages =
@@ -759,7 +805,9 @@ mod tests {
                 .with_content(MessageContent::tool_response("call_123", tool_result))];
         assert!(GithubCopilotProvider::messages_contain_image(&messages));
 
-        let text_result = Ok(CallToolResult::success(vec![Content::text("no images")]));
+        let text_result = Ok(CallToolResult::success(vec![ContentBlock::text(
+            "no images",
+        )]));
         let messages_text_only =
             vec![Message::user()
                 .with_content(MessageContent::tool_response("call_456", text_result))];

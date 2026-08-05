@@ -1,5 +1,6 @@
 mod chat_history_search;
 mod diagnostics;
+mod export_markdown;
 pub mod extension_data;
 pub mod import_formats;
 mod last_message_snippet;
@@ -15,9 +16,10 @@ pub use diagnostics::{
     DiagnosticsLevel, DiagnosticsLogs, DiagnosticsPrompt, DiagnosticsReport,
     DiagnosticsScheduledRecipe, DiagnosticsTextFile, SystemInfo,
 };
-pub use extension_data::{
-    EnabledExtensionsState, ExtensionData, ExtensionState, ExternalProviderSessionState, TodoState,
+pub use export_markdown::{
+    export_session_to_markdown, message_to_markdown, user_projected_message_to_markdown,
 };
+pub use extension_data::{EnabledExtensionsState, ExtensionData, ExtensionState, TodoState};
 pub use session_manager::{
     Session, SessionInsights, SessionManager, SessionNameUpdate, SessionType, SessionUpdateBuilder,
 };

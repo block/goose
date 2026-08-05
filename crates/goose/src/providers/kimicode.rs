@@ -19,7 +19,7 @@ use uuid::Uuid;
 use super::api_client::RequestBuilderDecorator;
 use super::base::{
     ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
-    DEFAULT_PROVIDER_TIMEOUT_SECS,
+    DEFAULT_CONNECT_TIMEOUT_SECS, DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
 use super::formats::anthropic::{create_request, response_to_streaming_message};
 use super::oauth_device_flow::{
@@ -38,9 +38,14 @@ const KIMI_CODE_PROVIDER_NAME: &str = "kimi_code";
 pub const KIMI_CODE_DEFAULT_MODEL: &str = "kimi-for-coding";
 /// Known models for the provider metadata registration. The live catalogue is
 /// fetched from `/v1/models` at request time; this constant is only used for
-/// `ProviderMetadata`. As of 2025-10 Kimi Code exposes a single model,
-/// `kimi-for-coding`, and silently routes any other model name to it.
-pub const KIMI_CODE_KNOWN_MODELS: &[&str] = &["kimi-for-coding"];
+/// `ProviderMetadata`, e.g. when the catalogue fetch fails. As of 2026-07 the
+/// platform serves these ids verbatim (`k3`, not `kimi-k3`).
+pub const KIMI_CODE_KNOWN_MODELS: &[&str] = &[
+    "kimi-for-coding",
+    "kimi-for-coding-highspeed",
+    "k3",
+    "k3-256k",
+];
 
 const KIMI_CODE_DOC_URL: &str = "https://www.kimi.com/code/docs/en/";
 const KIMI_CODE_CLIENT_ID: &str = "17e5f671-d194-4dfb-9706-5516cb48c098";
@@ -58,7 +63,7 @@ const DEFAULT_TOKEN_LIFETIME_SECS: i64 = 3600;
 /// Marker key written to the user config when OAuth completes successfully.
 /// `check_provider_configured` (server) keys off this when an OAuth-flow
 /// provider has no required secret env var.
-const KIMI_CONFIGURED_MARKER: &str = "kimi_code_configured";
+pub(crate) const KIMI_CONFIGURED_MARKER: &str = "kimi_code_configured";
 
 // ── Token persistence ────────────────────────────────────────────────────────
 
@@ -167,7 +172,8 @@ impl KimiCodeProvider {
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let client = Client::builder()
-            .timeout(StdDuration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
+            .connect_timeout(StdDuration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
+            .read_timeout(StdDuration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
             .build()?;
         let device_id = Self::get_or_create_device_id().await?;
         Ok(Self {
@@ -321,11 +327,13 @@ impl KimiCodeProvider {
             .headers(self.kimi_headers())
             .json(payload);
 
-        (self.request_builder)(builder)
-            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?
-            .send()
-            .await
-            .map_err(|e| ProviderError::RequestFailed(e.to_string()))
+        let request = (self.request_builder)(builder)
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
+        goose_providers::http_status::send_bounded(
+            request,
+            StdDuration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
+        )
+        .await
     }
 }
 
@@ -449,6 +457,7 @@ impl Provider for KimiCodeProvider {
         let resp = self
             .client
             .get(format!("{}/v1/models", self.api_base))
+            .timeout(StdDuration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
             .bearer_auth(access_token)
             .headers(self.kimi_headers())
             .send()

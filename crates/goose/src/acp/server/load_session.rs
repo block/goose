@@ -1,4 +1,14 @@
+use super::message_meta::{
+    content_chunk_for_message, merge_message_meta, populate_output_token_limit_content,
+};
+use super::tool_calls::conversion::{
+    build_initial_tool_call_with_message_meta, tool_call_update_fields_from_response,
+    trusted_update_meta,
+};
+use super::tool_calls::enrichment::tool_chain_summary;
 use super::*;
+use crate::conversation::Conversation;
+use agent_client_protocol::schema::v1::ToolCall;
 
 fn replay_audience_annotations(audience: &[Role]) -> Annotations {
     Annotations::new().audience(
@@ -12,13 +22,27 @@ fn replay_audience_annotations(audience: &[Role]) -> Annotations {
     )
 }
 
+fn messages_for_acp_replay(conversation: &Conversation) -> Vec<Message> {
+    conversation
+        .messages()
+        .iter()
+        .filter(|message| message.is_user_visible())
+        .map(Message::user_visible_content)
+        .map(|mut message| {
+            populate_output_token_limit_content(&mut message);
+            message
+        })
+        .filter(|message| !message.content.is_empty())
+        .collect()
+}
+
 fn send_replay_content_chunk(
     cx: &ConnectionTo<Client>,
     session_id: &SessionId,
     message: &Message,
     content: ContentBlock,
 ) -> std::result::Result<(), agent_client_protocol::Error> {
-    let chunk = ContentChunk::new(content).meta(replay_message_meta(message));
+    let chunk = content_chunk_for_message(message, content);
     let update = match message.role {
         Role::User => SessionUpdate::UserMessageChunk(chunk),
         Role::Assistant => SessionUpdate::AgentMessageChunk(chunk),
@@ -26,40 +50,65 @@ fn send_replay_content_chunk(
     cx.send_notification(SessionNotification::new(session_id.clone(), update))
 }
 
+fn build_replayed_tool_call(
+    tool_request: &ToolRequest,
+    message: &Message,
+    client_requests_tool_call_label_enrichment: bool,
+) -> ToolCall {
+    let mut tool_call = build_initial_tool_call_with_message_meta(
+        tool_request,
+        message,
+        client_requests_tool_call_label_enrichment,
+    );
+
+    if !client_requests_tool_call_label_enrichment {
+        return tool_call;
+    }
+
+    let Some(chain_summary) = tool_request.generated_chain_summary() else {
+        return tool_call;
+    };
+    let goose_meta = tool_call
+        .meta
+        .get_or_insert_default()
+        .entry("goose".to_string())
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+    if !goose_meta.is_object() {
+        *goose_meta = serde_json::Value::Object(serde_json::Map::new());
+    }
+    goose_meta
+        .as_object_mut()
+        .expect("goose metadata was initialized as an object")
+        .extend([tool_chain_summary(&chain_summary)]);
+
+    tool_call
+}
+
 fn replay_conversation_to_client(
     cx: &ConnectionTo<Client>,
     session: &Session,
     supports_goose_custom_notifications: bool,
-) -> Result<HashMap<String, crate::conversation::message::ToolRequest>, agent_client_protocol::Error>
-{
+    client_requests_tool_call_label_enrichment: bool,
+) -> Result<(), agent_client_protocol::Error> {
     let session_id = SessionId::new(session.id.clone());
-    let sid = sid_short(session_id.0.as_ref());
+    let tool_call_notifier = ToolCallNotifier::new(cx, &session_id);
 
     let messages = session
         .conversation
         .as_ref()
-        .map(|c| c.messages().to_vec())
+        .map(messages_for_acp_replay)
         .unwrap_or_default();
-    debug!(
-        target: "perf",
-        sid = %sid,
-        messages = messages.len(),
-            "perf: load_session messages loaded"
-    );
 
-    let mut replay_tool_requests =
-        HashMap::<String, crate::conversation::message::ToolRequest>::new();
+    let mut replay_tool_requests = HashMap::new();
 
     for message in &messages {
-        if !message.metadata.user_visible {
-            continue;
-        }
-
         for content_item in &message.content {
             match content_item {
                 MessageContent::Text(text) => {
                     let mut tc = TextContent::new(text.text.clone());
-                    if let Some(audience) = text.audience() {
+                    if let Some(audience) =
+                        text.annotations.as_ref().and_then(|a| a.audience.as_ref())
+                    {
                         tc = tc.annotations(replay_audience_annotations(audience));
                     }
                     send_replay_content_chunk(cx, &session_id, message, ContentBlock::Text(tc))?;
@@ -67,7 +116,9 @@ fn replay_conversation_to_client(
                 MessageContent::Image(image) => {
                     let mut image_content =
                         ImageContent::new(image.data.clone(), image.mime_type.clone());
-                    if let Some(audience) = image.audience() {
+                    if let Some(audience) =
+                        image.annotations.as_ref().and_then(|a| a.audience.as_ref())
+                    {
                         image_content =
                             image_content.annotations(replay_audience_annotations(audience));
                     }
@@ -81,78 +132,34 @@ fn replay_conversation_to_client(
                 MessageContent::ToolRequest(tool_request) => {
                     replay_tool_requests.insert(tool_request.id.clone(), tool_request.clone());
 
-                    let pending_tool_call = pending_tool_call_from_request(tool_request);
-                    let mut meta = pending_tool_call.identity_meta;
-                    if let Some(chain_summary) = tool_request.persisted_chain_summary() {
-                        meta = with_tool_chain_summary_meta(
-                            meta,
-                            &chain_summary.summary,
-                            chain_summary.count,
-                        );
-                    }
-                    let tool_call = pending_tool_call
-                        .tool_call
-                        .meta(merge_replay_message_meta(meta, message));
+                    let tool_call = build_replayed_tool_call(
+                        tool_request,
+                        message,
+                        client_requests_tool_call_label_enrichment,
+                    );
 
-                    cx.send_notification(SessionNotification::new(
-                        session_id.clone(),
-                        SessionUpdate::ToolCall(tool_call),
-                    ))?;
+                    tool_call_notifier.send_initial(tool_call)?;
                 }
                 MessageContent::ToolResponse(tool_response) => {
-                    let status = match &tool_response.tool_result {
-                        Ok(result) if result.is_error == Some(true) => ToolCallStatus::Failed,
-                        Ok(_) => ToolCallStatus::Completed,
-                        Err(_) => ToolCallStatus::Failed,
-                    };
-
-                    let mut fields = ToolCallUpdateFields::new().status(status);
-                    if let Some(raw_output) = extract_tool_raw_output(&tool_response.tool_result) {
-                        fields = fields.raw_output(raw_output);
-                    }
-                    if !tool_response
-                        .tool_result
-                        .as_ref()
-                        .is_ok_and(|r| r.is_acp_aware())
-                    {
-                        let content = build_tool_call_content(&tool_response.tool_result);
-                        fields = fields.content(content);
-
-                        let locations =
-                            extract_locations_from_meta(tool_response).unwrap_or_else(|| {
-                                if let Some(tool_request) =
-                                    replay_tool_requests.get(&tool_response.id)
-                                {
-                                    extract_tool_locations(tool_request, tool_response)
-                                } else {
-                                    Vec::new()
-                                }
-                            });
-                        if !locations.is_empty() {
-                            fields = fields.locations(locations);
-                        }
-                    }
+                    let fields = tool_call_update_fields_from_response(
+                        tool_response,
+                        replay_tool_requests.get(&tool_response.id),
+                        true,
+                    );
+                    let meta = trusted_update_meta(tool_response).unwrap_or_default();
 
                     let update =
                         ToolCallUpdate::new(ToolCallId::new(tool_response.id.clone()), fields)
-                            .meta(merge_replay_message_meta(
-                                extract_tool_call_update_meta(tool_response),
-                                message,
-                            ));
-                    cx.send_notification(SessionNotification::new(
-                        session_id.clone(),
-                        SessionUpdate::ToolCallUpdate(update),
-                    ))?;
+                            .meta(merge_message_meta(meta, message));
+                    tool_call_notifier.send_update(update)?;
                 }
                 MessageContent::Thinking(thinking) => {
                     cx.send_notification(SessionNotification::new(
                         session_id.clone(),
-                        SessionUpdate::AgentThoughtChunk(
-                            ContentChunk::new(ContentBlock::Text(TextContent::new(
-                                thinking.thinking.clone(),
-                            )))
-                            .meta(replay_message_meta(message)),
-                        ),
+                        SessionUpdate::AgentThoughtChunk(content_chunk_for_message(
+                            message,
+                            ContentBlock::Text(TextContent::new(thinking.thinking.clone())),
+                        )),
                     ))?;
                 }
                 MessageContent::SystemNotification(_) => {}
@@ -173,7 +180,7 @@ fn replay_conversation_to_client(
         }
     }
 
-    Ok(replay_tool_requests)
+    Ok(())
 }
 
 impl GooseAcpAgent {
@@ -186,8 +193,6 @@ impl GooseAcpAgent {
         validate_absolute_cwd(&args.cwd)?;
 
         let session_id_str = args.session_id.0.to_string();
-        let sid = sid_short(&session_id_str);
-        let t_start = std::time::Instant::now();
 
         let mut session = self
             .session_manager
@@ -202,19 +207,20 @@ impl GooseAcpAgent {
             .prepare_session_for_activation(session, args.cwd.clone(), args.mcp_servers, true)
             .await?;
 
-        let replay_tool_requests = replay_conversation_to_client(
+        replay_conversation_to_client(
             cx,
             &session,
             self.supports_goose_custom_notifications(),
+            self.requests_tool_call_label_enrichment(),
         )?;
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
         self.apply_session_recipe(&agent, &session).await?;
-        self.register_acp_session(session_id_str.clone(), agent.clone(), replay_tool_requests)
+        self.register_acp_session(session_id_str.clone(), agent.clone())
             .await;
 
         session = self
             .session_manager
-            .get_session(&session_id_str, true)
+            .get_session(&session_id_str, false)
             .await
             .internal_err_ctx("Failed to reload session")?;
 
@@ -235,13 +241,128 @@ impl GooseAcpAgent {
 
         response = response.meta(session_response_meta(&session, &extension_results));
 
-        debug!(
-            target: "perf",
-            sid = %sid,
-            ms = t_start.elapsed().as_millis() as u64,
-            "perf: load_session_refactor done"
-        );
         self.closed_session_ids.lock().await.remove(&session_id_str);
         Ok(response)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rmcp::model::CallToolRequestParams;
+
+    #[test]
+    fn acp_replay_populates_only_empty_marked_assistant_messages() {
+        let visible_message = Message::assistant()
+            .with_text("visible")
+            .with_id("msg_visible");
+        let empty_message = Message::assistant().with_id("msg_empty");
+
+        let mut marked_message = Message::assistant().with_id("msg_limited");
+        marked_message.metadata.output_token_limit_reached = true;
+
+        let mut marked_user_message = Message::user().with_id("msg_user");
+        marked_user_message.metadata.output_token_limit_reached = true;
+
+        let mut hidden_marked_message = Message::assistant()
+            .with_id("msg_hidden")
+            .with_visibility(false, false);
+        hidden_marked_message.metadata.output_token_limit_reached = true;
+
+        let conversation = Conversation::new_unvalidated([
+            visible_message,
+            empty_message,
+            marked_message,
+            marked_user_message,
+            hidden_marked_message,
+        ]);
+
+        let messages = messages_for_acp_replay(&conversation);
+
+        assert_eq!(
+            messages
+                .iter()
+                .filter_map(|message| message.id.as_deref())
+                .collect::<Vec<_>>(),
+            vec!["msg_visible", "msg_limited"]
+        );
+        assert_eq!(
+            messages[1].as_concat_text(),
+            "Response stopped because the model reached its output-token limit."
+        );
+        assert!(messages[1].metadata.output_token_limit_reached);
+        assert!(conversation.messages()[2].content.is_empty());
+    }
+
+    fn persisted_enriched_tool_request() -> ToolRequest {
+        ToolRequest {
+            id: "req_first".to_string(),
+            tool_call: Ok(CallToolRequestParams::new("developer__shell")),
+            metadata: None,
+            tool_meta: Some(serde_json::json!({
+                (crate::conversation::message::TOOL_META_TITLE_KEY): "applied dark mode polish",
+                (crate::conversation::message::TOOL_META_CHAIN_SUMMARY_KEY): {
+                    "summary": "applied dark mode polish",
+                    "count": 3,
+                },
+            })),
+        }
+    }
+
+    #[test]
+    fn replay_includes_persisted_enrichment_when_requested() {
+        let mut message =
+            Message::new(Role::Assistant, 1_700_000_000, vec![]).with_id("msg_replay");
+        message.metadata.output_token_limit_reached = true;
+        let tool_call =
+            build_replayed_tool_call(&persisted_enriched_tool_request(), &message, true);
+        let goose = tool_call
+            .meta
+            .as_ref()
+            .and_then(|meta| meta.get("goose"))
+            .expect("valid initial tool call should contain goose metadata");
+
+        assert_eq!(tool_call.title, "applied dark mode polish");
+        assert_eq!(
+            goose,
+            &serde_json::json!({
+                "created": 1_700_000_000,
+                "messageId": "msg_replay",
+                "outputTokenLimitReached": true,
+                "toolCall": {
+                    "toolName": "developer__shell",
+                    "extensionName": "developer",
+                },
+                "toolChainSummary": {
+                    "summary": "applied dark mode polish",
+                    "count": 3,
+                },
+            }),
+        );
+    }
+
+    #[test]
+    fn replay_omits_persisted_enrichment_when_not_requested() {
+        let message = Message::new(Role::Assistant, 1_700_000_000, vec![]).with_id("msg_replay");
+        let tool_call =
+            build_replayed_tool_call(&persisted_enriched_tool_request(), &message, false);
+        let goose = tool_call
+            .meta
+            .as_ref()
+            .and_then(|meta| meta.get("goose"))
+            .expect("valid initial tool call should contain goose metadata");
+
+        assert_eq!(tool_call.title, "developer: shell");
+        assert_eq!(
+            goose,
+            &serde_json::json!({
+                "created": 1_700_000_000,
+                "messageId": "msg_replay",
+                "toolCall": {
+                    "toolName": "developer__shell",
+                    "extensionName": "developer",
+                },
+            }),
+        );
     }
 }

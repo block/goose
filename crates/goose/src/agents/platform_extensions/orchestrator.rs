@@ -5,6 +5,7 @@ use crate::agents::{AgentEvent, SessionConfig};
 use crate::config::{Config, ExtensionConfig, GooseMode};
 use crate::context_mgmt::format_message_for_compacting;
 use crate::conversation::message::Message;
+use crate::conversation::Conversation;
 use crate::execution::manager::AgentManager;
 use crate::providers;
 use crate::providers::base::Provider;
@@ -14,7 +15,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use futures::StreamExt;
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    CallToolResult, ContentBlock, Implementation, InitializeResult, JsonObject, ListToolsResult,
     ServerCapabilities, Tool,
 };
 use schemars::{schema_for, JsonSchema};
@@ -202,7 +203,7 @@ impl OrchestratorClient {
         sessions.truncate(limit);
 
         if sessions.is_empty() {
-            return Ok(CallToolResult::success(vec![Content::text(
+            return Ok(CallToolResult::success(vec![ContentBlock::text(
                 "No sessions found.",
             )]));
         }
@@ -241,7 +242,7 @@ impl OrchestratorClient {
             ));
         }
 
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             lines.join("\n"),
         )]))
     }
@@ -282,7 +283,7 @@ impl OrchestratorClient {
         match mode {
             "first_last" => {
                 if let Some(conversation) = &session.conversation {
-                    let messages = conversation.messages();
+                    let messages = agent_visible_session_messages(conversation);
                     if messages.is_empty() {
                         output.push("No messages in this session.".to_string());
                     } else {
@@ -323,7 +324,7 @@ impl OrchestratorClient {
             }
         }
 
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             output.join("\n"),
         )]))
     }
@@ -335,9 +336,9 @@ impl OrchestratorClient {
     ) -> Result<String, String> {
         let provider = self.get_provider().await?;
 
-        let conversation_text = messages
+        let conversation_text = Conversation::new_unvalidated(messages.iter().cloned())
+            .agent_visible_messages()
             .iter()
-            .filter(|m| m.is_agent_visible())
             .map(format_message_for_compacting)
             .collect::<Vec<_>>()
             .join("\n");
@@ -437,7 +438,7 @@ impl OrchestratorClient {
             .await
             .map_err(|e| format!("Failed to set provider on new agent: {}", e))?;
 
-        Ok(CallToolResult::success(vec![Content::text(format!(
+        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
             "Started agent session '{}' with ID: {}\n\nUse send_message with this session_id to interact with it.",
             name, session.id
         ))]))
@@ -543,11 +544,11 @@ impl OrchestratorClient {
         }
 
         if response_parts.is_empty() {
-            Ok(CallToolResult::success(vec![Content::text(
+            Ok(CallToolResult::success(vec![ContentBlock::text(
                 "Agent completed without producing text output.",
             )]))
         } else {
-            Ok(CallToolResult::success(vec![Content::text(format!(
+            Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                 "## Response from session {}\n\n{}",
                 session_id,
                 response_parts.join("\n\n")
@@ -569,11 +570,15 @@ impl OrchestratorClient {
             .await
             .map_err(|e| format!("Failed to interrupt session '{}': {}", session_id, e))?;
 
-        Ok(CallToolResult::success(vec![Content::text(format!(
+        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
             "Interrupted agent session '{}'.",
             session_id
         ))]))
     }
+}
+
+fn agent_visible_session_messages(conversation: &Conversation) -> Vec<Message> {
+    conversation.agent_visible_messages()
 }
 
 #[async_trait]
@@ -621,6 +626,7 @@ impl McpClientTrait for OrchestratorClient {
             tools,
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 
@@ -645,7 +651,7 @@ impl McpClientTrait for OrchestratorClient {
 
         match result {
             Ok(result) => Ok(result),
-            Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+            Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Error: {}",
                 error
             ))])),
@@ -671,4 +677,35 @@ fn extract_string(args: &JsonObject, key: &str) -> Result<String, String> {
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
         .ok_or_else(|| format!("Missing or invalid '{}'", key))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::conversation::message::MessageContent;
+    use rmcp::model::{Annotations, Role, TextContent};
+
+    #[test]
+    fn first_last_projection_drops_hidden_endpoints_and_content() {
+        let user_only = |text: &str| {
+            MessageContent::Text(
+                TextContent::new(text)
+                    .with_annotations(Annotations::default().with_audience(vec![Role::User])),
+            )
+        };
+        let conversation = Conversation::new_unvalidated([
+            Message::assistant().with_content(user_only("hidden first")),
+            Message::user().with_text("visible first"),
+            Message::assistant()
+                .with_content(user_only("hidden block"))
+                .with_text("visible last"),
+            Message::assistant().with_content(user_only("hidden last")),
+        ]);
+
+        let messages = agent_visible_session_messages(&conversation);
+
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0].as_concat_text(), "visible first");
+        assert_eq!(messages[1].as_concat_text(), "visible last");
+    }
 }

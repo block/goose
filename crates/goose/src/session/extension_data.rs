@@ -9,11 +9,10 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use utoipa::ToSchema;
 
 /// Extension data containing all extension states
 /// Keys are in format "extension_name.version" (e.g., "todo.v0")
-#[derive(Debug, Clone, Serialize, Deserialize, Default, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ExtensionData {
     #[serde(flatten)]
     pub extension_states: HashMap<String, Value>,
@@ -37,12 +36,6 @@ impl ExtensionData {
     pub fn set_extension_state(&mut self, extension_name: &str, version: &str, state: Value) {
         let key = format!("{}.{}", extension_name, version);
         self.extension_states.insert(key, state);
-    }
-
-    /// Remove extension state for a specific extension and version.
-    pub fn remove_extension_state(&mut self, extension_name: &str, version: &str) {
-        let key = format!("{}.{}", extension_name, version);
-        self.extension_states.remove(&key);
     }
 }
 
@@ -85,18 +78,6 @@ pub trait ExtensionState: Sized + Serialize + for<'de> Deserialize<'de> {
         extension_data.set_extension_state(Self::EXTENSION_NAME, Self::VERSION, value);
         Ok(())
     }
-}
-
-/// Provider-native session identity used to resume stateful providers.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ExternalProviderSessionState {
-    pub provider_name: String,
-    pub session_id: String,
-}
-
-impl ExtensionState for ExternalProviderSessionState {
-    const EXTENSION_NAME: &'static str = "external_provider_session";
-    const VERSION: &'static str = "v0";
 }
 
 /// TODO extension state implementation
@@ -243,22 +224,6 @@ mod tests {
         assert!(extension_data.get_extension_state("todo", "v0").is_some());
         assert!(extension_data.get_extension_state("memory", "v1").is_some());
         assert!(extension_data.get_extension_state("config", "v2").is_some());
-    }
-
-    #[test]
-    fn test_external_provider_session_state_round_trip() {
-        let mut extension_data = ExtensionData::new();
-        let state = ExternalProviderSessionState {
-            provider_name: "codex-acp".to_string(),
-            session_id: "019f42fc-ce88-7562-ac0e-3d782b27f9e5".to_string(),
-        };
-
-        state.to_extension_data(&mut extension_data).unwrap();
-
-        assert_eq!(
-            ExternalProviderSessionState::from_extension_data(&extension_data),
-            Some(state)
-        );
     }
 
     #[test]

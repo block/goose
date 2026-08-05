@@ -9,6 +9,7 @@ pub mod api_client {
 }
 pub mod avian;
 pub mod azure;
+pub mod azure_foundry_def;
 pub mod azureauth;
 pub mod base;
 #[cfg(feature = "aws-providers")]
@@ -68,6 +69,7 @@ pub mod openai_compatible {
 }
 pub mod openrouter;
 pub mod pi_acp;
+mod private_file;
 pub mod provider_registry;
 pub mod provider_secrets;
 pub mod provider_test;
@@ -92,7 +94,7 @@ pub mod xai_oauth;
 
 pub use init::{
     cleanup_provider, create, create_with_default_model, create_with_named_model,
-    create_with_working_dir, create_with_working_dir_and_session_id, get_from_registry,
-    inventory_identity, providers, refresh_custom_providers,
+    create_with_working_dir, get_from_registry, inventory_identity, providers,
+    refresh_custom_providers,
 };
 pub use retry::{retry_operation, RetryConfig};

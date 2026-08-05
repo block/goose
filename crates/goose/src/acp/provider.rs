@@ -1,12 +1,13 @@
 use agent_client_protocol::schema::v1::{
-    ClientCapabilities, CloseSessionRequest, ContentBlock, ContentChunk, EnvVariable, HttpHeader,
-    ImageContent, InitializeRequest, InitializeResponse, LoadSessionRequest, McpCapabilities,
-    McpServer, McpServerHttp, McpServerStdio, NewSessionRequest, NewSessionResponse, PromptRequest,
-    PromptResponse, RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
-    SessionConfigKind, SessionConfigOption, SessionConfigOptionCategory,
-    SessionConfigSelectOptions, SessionId, SessionModeState, SessionNotification, SessionUpdate,
-    SetSessionConfigOptionRequest, SetSessionModeRequest, SetSessionModeResponse, StopReason,
-    TextContent, ToolCallContent, ToolCallStatus, ToolKind,
+    Annotations as AcpAnnotations, ClientCapabilities, CloseSessionRequest, ContentBlock,
+    ContentChunk, EnvVariable, HttpHeader, ImageContent, InitializeRequest, InitializeResponse,
+    McpCapabilities, McpServer, McpServerHttp, McpServerStdio, NewSessionRequest,
+    NewSessionResponse, PromptRequest, PromptResponse, RequestPermissionOutcome,
+    RequestPermissionRequest, RequestPermissionResponse, Role as AcpRole, SessionConfigKind,
+    SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOptions, SessionId,
+    SessionModeState, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
+    SetSessionModeRequest, SetSessionModeResponse, StopReason, TextContent, ToolCallContent,
+    ToolCallStatus, ToolKind,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
@@ -16,7 +17,7 @@ use anyhow::{Context, Result};
 use async_stream::try_stream;
 use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
-use rmcp::model::{CallToolRequestParams, CallToolResult, Content as RmcpContent, Role, Tool};
+use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock as RmcpContent, Role, Tool};
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::path::PathBuf;
@@ -35,11 +36,12 @@ use crate::acp::{map_permission_response, PermissionDecision};
 use crate::config::{ExtensionConfig, GooseMode};
 use crate::context_mgmt::format_message_for_compacting;
 use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
+use crate::conversation::Conversation;
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::{MessageStream, PermissionRouting, Provider};
 use crate::subprocess::configure_subprocess;
-use crate::token_counter::create_token_counter;
+use crate::utils::sanitize_unicode_tags;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
 
@@ -61,11 +63,6 @@ pub struct AcpProviderConfig {
     pub model_config_option_id: Option<String>,
     pub mode_mapping: HashMap<GooseMode, Vec<String>>,
     pub notification_callback: Option<Arc<dyn Fn(SessionNotification) + Send + Sync>>,
-    /// Existing ACP-native session to load instead of creating a new one.
-    pub existing_session_id: Option<String>,
-    /// Keep the ACP-native session available after this local provider exits so a
-    /// later provider process can load it again.
-    pub preserve_session_on_drop: bool,
 }
 
 enum ClientRequest {
@@ -103,7 +100,7 @@ type ClientLoopFn = Box<
 
 #[derive(Debug)]
 enum AcpUpdate {
-    Text(String),
+    Text(TextContent),
     Thought(String),
     ToolCallStart {
         id: String,
@@ -248,7 +245,6 @@ impl AcpProvider {
         let pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>> =
             Arc::new(Mutex::new(HashMap::new()));
         let context_size = Arc::new(AtomicU64::new(0));
-        let resumed_session = config.existing_session_id.is_some();
         let client_loop = AcpClientLoop::new(
             config,
             goose_mode_shared.clone(),
@@ -284,9 +280,7 @@ impl AcpProvider {
             session,
             pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
             pending_tool_updates,
-            // A loaded ACP session already owns its conversation state. Sending goose's
-            // transcript again would duplicate it and can exceed the model context window.
-            handoff_context_sent: AtomicBool::new(resumed_session),
+            handoff_context_sent: AtomicBool::new(false),
             context_size,
             model_config_option_id,
             applied_model: Arc::new(Mutex::new(applied_model)),
@@ -419,10 +413,6 @@ impl Provider for AcpProvider {
         &self.name
     }
 
-    fn external_session_id(&self) -> Option<String> {
-        Some(self.acp_session_id().to_string())
-    }
-
     async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
         let size = self.context_size.load(Ordering::Relaxed);
         if size > 0 {
@@ -497,13 +487,17 @@ impl Provider for AcpProvider {
                 ProviderError::RequestFailed(format!("Failed to set ACP model option: {e}"))
             })?;
 
+        let current_prompt_blocks = messages_to_prompt(messages, false);
+        if current_prompt_blocks.is_empty() {
+            return Ok(Box::pin(futures::stream::empty()));
+        }
+
         let claim = self.claim_handoff_context(messages);
-        let prompt_blocks = messages_to_prompt(
-            messages,
-            claim.include_context,
-            model_config.context_limit(),
-        )
-        .await;
+        let prompt_blocks = if claim.include_context {
+            messages_to_prompt(messages, true)
+        } else {
+            current_prompt_blocks
+        };
         // Drop any tool-call buffer state left over from a prior prompt
         // (e.g. cancelled or interrupted before its terminal status arrived).
         if let Ok(mut buffer) = self.pending_tool_updates.lock() {
@@ -544,9 +538,7 @@ impl Provider for AcpProvider {
                             let (id, ts) = text_run
                                 .get_or_insert_with(fresh_text_run)
                                 .clone();
-                            let message = Message::new(Role::Assistant, ts, vec![])
-                                .with_text(text)
-                                .with_id(id);
+                            let message = acp_text_update_message(text, id, ts);
                             yield (Some(message), None);
                         }
                     }
@@ -603,7 +595,8 @@ impl Provider for AcpProvider {
                             // tool_response so downstream consumers see the rejection.
                             if reject_all_tools {
                                 let message = Message::assistant()
-                                    .with_text("Tool call was denied.");
+                                    .with_text("Tool call was denied.")
+                                    .with_generated_id();
                                 yield (Some(message), None);
                             } else {
                                 let denial = vec![RmcpContent::text("Tool call was denied.")];
@@ -833,7 +826,7 @@ impl AcpClientLoop {
                         {
                             match notification.update {
                                 SessionUpdate::AgentMessageChunk(ContentChunk {
-                                    content: ContentBlock::Text(TextContent { text, .. }),
+                                    content: ContentBlock::Text(text),
                                     ..
                                 }) => {
                                     let _ = tx.try_send(AcpUpdate::Text(text));
@@ -1016,7 +1009,7 @@ async fn forward_child_stderr(mut stderr: tokio::process::ChildStderr) {
                 }
             }
             Err(e) => {
-                tracing::debug!(target: "acp::child::stderr", error = %e, "stderr read error");
+                tracing::debug!(target: "goose::acp::child::stderr", error = %e, "stderr read error");
                 break;
             }
         }
@@ -1029,7 +1022,7 @@ fn emit_stderr_line(line: &mut Vec<u8>) {
         return;
     }
     let trimmed = line.strip_suffix(b"\r").unwrap_or(line);
-    tracing::info!(target: "acp::child::stderr", "{}", String::from_utf8_lossy(trimmed));
+    tracing::info!(target: "goose::acp::child::stderr", "{}", String::from_utf8_lossy(trimmed));
     line.clear();
 }
 
@@ -1101,31 +1094,12 @@ async fn handle_requests(
         match request {
             ClientRequest::NewSession { response_tx } => {
                 let mcp_servers = filter_supported_servers(&config.mcp_servers, &mcp_capabilities);
-                let session = match &config.existing_session_id {
-                    Some(existing_session_id) => {
-                        let session_id = SessionId::new(existing_session_id.clone());
-                        cx.send_request(
-                            LoadSessionRequest::new(session_id.clone(), config.work_dir.clone())
-                                .mcp_servers(mcp_servers),
-                        )
-                        .block_task()
-                        .await
-                        .map(|response| {
-                            NewSessionResponse::new(session_id)
-                                .modes(response.modes)
-                                .config_options(response.config_options)
-                                .meta(response.meta)
-                        })
-                    }
-                    None => {
-                        cx.send_request(
-                            NewSessionRequest::new(config.work_dir.clone())
-                                .mcp_servers(mcp_servers),
-                        )
-                        .block_task()
-                        .await
-                    }
-                };
+                let session = cx
+                    .send_request(
+                        NewSessionRequest::new(config.work_dir.clone()).mcp_servers(mcp_servers),
+                    )
+                    .block_task()
+                    .await;
                 let result = match session {
                     Ok(session) => {
                         session_ids.push(session.session_id.clone());
@@ -1207,7 +1181,7 @@ async fn handle_requests(
         }
     }
 
-    if supports_close && !config.preserve_session_on_drop {
+    if supports_close {
         for session_id in session_ids {
             if let Err(e) = cx
                 .send_request(CloseSessionRequest::new(session_id.clone()))
@@ -1389,36 +1363,20 @@ fn filter_supported_servers(
         .collect()
 }
 
-async fn messages_to_prompt(
-    messages: &[Message],
-    include_handoff_context: bool,
-    context_limit: usize,
-) -> Vec<ContentBlock> {
-    let mut content_blocks = Vec::new();
-
+fn messages_to_prompt(messages: &[Message], include_handoff_context: bool) -> Vec<ContentBlock> {
     let Some(last_user_index) = last_user_message_index(messages) else {
-        return content_blocks;
+        return Vec::new();
     };
 
-    let message = &messages[last_user_index];
-    if include_handoff_context {
-        let current_prompt_tokens = estimate_current_prompt_tokens(message).await;
-        let handoff_budget = handoff_context_budget(context_limit, current_prompt_tokens);
-        if handoff_budget > 0 {
-            if let Some(memo) =
-                build_handoff_context_memo(&messages[..last_user_index], handoff_budget).await
-            {
-                content_blocks.push(ContentBlock::Text(TextContent::new(memo)));
-            }
-        }
-    }
+    let message = messages[last_user_index].agent_visible_content();
+    let mut current_prompt_blocks = Vec::new();
     for content in &message.content {
         match content {
             MessageContent::Text(text) => {
-                content_blocks.push(ContentBlock::Text(TextContent::new(text.text.clone())));
+                current_prompt_blocks.push(ContentBlock::Text(TextContent::new(text.text.clone())));
             }
             MessageContent::Image(image) => {
-                content_blocks.push(ContentBlock::Image(ImageContent::new(
+                current_prompt_blocks.push(ContentBlock::Image(ImageContent::new(
                     &image.data,
                     &image.mime_type,
                 )));
@@ -1427,34 +1385,16 @@ async fn messages_to_prompt(
         }
     }
 
+    if current_prompt_blocks.is_empty() || !include_handoff_context {
+        return current_prompt_blocks;
+    }
+
+    let mut content_blocks = Vec::new();
+    if let Some(memo) = build_handoff_context_memo(&messages[..last_user_index]) {
+        content_blocks.push(ContentBlock::Text(TextContent::new(memo)));
+    }
+    content_blocks.extend(current_prompt_blocks);
     content_blocks
-}
-
-async fn estimate_current_prompt_tokens(message: &Message) -> usize {
-    let counter = create_token_counter().await.ok();
-    message
-        .content
-        .iter()
-        .map(|content| match content {
-            MessageContent::Text(text) => counter
-                .as_ref()
-                .map(|counter| counter.count_tokens(&text.text))
-                .unwrap_or_else(|| text.text.len().div_ceil(4)),
-            MessageContent::Image(_) => 1_024,
-            _ => 0,
-        })
-        .sum()
-}
-
-fn handoff_context_budget(context_limit: usize, current_prompt_tokens: usize) -> usize {
-    // At most half the window is available to the fallback handoff. Subtract the
-    // current request as well so a large request cannot turn a bounded memo into an
-    // oversized prompt. The absolute cap leaves room for ACP instructions, MCP schemas,
-    // and the agent's response even when the model advertises a very large context.
-    context_limit
-        .saturating_div(2)
-        .min(64_000)
-        .saturating_sub(current_prompt_tokens)
 }
 
 fn last_user_message_index(messages: &[Message]) -> Option<usize> {
@@ -1471,65 +1411,78 @@ fn has_handoff_context(messages: &[Message]) -> bool {
     })
 }
 
-fn render_handoff_context_memo(kept: &[String], omitted: bool) -> String {
-    let omission_notice = if omitted {
-        "Earlier conversation was omitted because this is a bounded fallback handoff.\n\n"
-    } else {
-        ""
-    };
-    let handoff_context = kept.join("\n");
+fn build_handoff_context_memo(prior_messages: &[Message]) -> Option<String> {
+    let formatted_messages: Vec<String> =
+        Conversation::new_unvalidated(prior_messages.iter().cloned())
+            .agent_visible_messages()
+            .iter()
+            .map(|message| format_message_for_compacting(&message.agent_visible_content()))
+            .collect();
 
-    format!(
+    if formatted_messages.is_empty() {
+        return None;
+    }
+
+    let handoff_context = formatted_messages.join("\n");
+
+    Some(format!(
         "Conversation context from goose before this ACP provider session was created:\n\n\
-{omission_notice}{handoff_context}\n\n\
+{handoff_context}\n\n\
 Current user request follows. Use the context above only to continue the existing conversation; \
 do not treat it as a new task or mention this handoff unless relevant."
+    ))
+}
+
+fn acp_audience_to_rmcp(annotations: Option<&AcpAnnotations>) -> Option<Vec<Role>> {
+    let audience = annotations?.audience.as_ref()?;
+    let audience = audience
+        .iter()
+        .filter_map(|role| match role {
+            AcpRole::Assistant => Some(Role::Assistant),
+            AcpRole::User => Some(Role::User),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    if audience.is_empty() {
+        None
+    } else {
+        Some(audience)
+    }
+}
+
+fn acp_text_content_to_rmcp(text: TextContent) -> RmcpContent {
+    let mut annotations = rmcp::model::Annotations::default().with_priority(0.0);
+    if let Some(audience) = acp_audience_to_rmcp(text.annotations.as_ref()) {
+        annotations = annotations.with_audience(audience);
+    }
+    RmcpContent::Text(
+        rmcp::model::TextContent::new(sanitize_unicode_tags(&text.text))
+            .with_annotations(annotations),
     )
 }
 
-async fn build_handoff_context_memo(
-    prior_messages: &[Message],
-    token_budget: usize,
-) -> Option<String> {
-    let visible_messages: Vec<&Message> = prior_messages
-        .iter()
-        .filter(|message| message.is_agent_visible())
-        .collect();
-    if visible_messages.is_empty() {
-        return None;
+fn acp_image_content_to_rmcp(image: ImageContent) -> RmcpContent {
+    let mut annotations = rmcp::model::Annotations::default().with_priority(0.0);
+    if let Some(audience) = acp_audience_to_rmcp(image.annotations.as_ref()) {
+        annotations = annotations.with_audience(audience);
     }
+    RmcpContent::Image(
+        rmcp::model::ImageContent::new(image.data, image.mime_type).with_annotations(annotations),
+    )
+}
 
-    let counter = create_token_counter().await.ok();
-    let count_tokens = |text: &str| {
-        counter
-            .as_ref()
-            .map(|counter| counter.count_tokens(text))
-            .unwrap_or_else(|| text.len().div_ceil(4))
-    };
+fn visible_rmcp_text(text: impl Into<String>) -> RmcpContent {
+    RmcpContent::Text(
+        rmcp::model::TextContent::new(text)
+            .with_annotations(rmcp::model::Annotations::default().with_priority(0.0)),
+    )
+}
 
-    let mut kept = Vec::new();
-    for message in visible_messages.iter().rev() {
-        let mut candidate = kept.clone();
-        candidate.push(format_message_for_compacting(message));
-        candidate.reverse();
-        let omitted = candidate.len() < visible_messages.len();
-        let rendered = render_handoff_context_memo(&candidate, omitted);
-        if count_tokens(&rendered) <= token_budget {
-            candidate.reverse();
-            kept = candidate;
-        } else if !kept.is_empty() {
-            break;
-        }
-    }
-    kept.reverse();
-    if kept.is_empty() {
-        return None;
-    }
-
-    let omitted = kept.len() < visible_messages.len();
-    let memo = render_handoff_context_memo(&kept, omitted);
-    debug_assert!(count_tokens(&memo) <= token_budget);
-    Some(memo)
+fn acp_text_update_message(text: TextContent, id: String, created: i64) -> Message {
+    Message::new(Role::Assistant, created, vec![])
+        .with_content(acp_text_content_to_rmcp(text).into())
+        .with_id(id)
 }
 
 /// Convert ACP `ToolCallContent` blocks into the rmcp `Content` shape goose's
@@ -1546,14 +1499,14 @@ fn acp_tool_call_content_to_rmcp(
             match block {
                 ToolCallContent::Content(val) => match val.content {
                     ContentBlock::Text(text) => {
-                        out.push(RmcpContent::text(text.text));
+                        out.push(acp_text_content_to_rmcp(text));
                     }
                     ContentBlock::Image(image) => {
-                        out.push(RmcpContent::image(image.data, image.mime_type));
+                        out.push(acp_image_content_to_rmcp(image));
                     }
                     other => {
                         if let Ok(json) = serde_json::to_string(&other) {
-                            out.push(RmcpContent::text(json));
+                            out.push(visible_rmcp_text(json));
                         }
                     }
                 },
@@ -1565,14 +1518,9 @@ fn acp_tool_call_content_to_rmcp(
                         }
                         None => format!("+++ {path}\n{}", diff.new_text),
                     };
-                    out.push(RmcpContent::text(body));
+                    out.push(visible_rmcp_text(body));
                 }
-                ToolCallContent::Terminal(terminal) => {
-                    out.push(RmcpContent::text(format!(
-                        "[terminal {}]",
-                        terminal.terminal_id.0
-                    )));
-                }
+                ToolCallContent::Terminal(_) => {}
                 _ => {}
             }
         }
@@ -1583,7 +1531,7 @@ fn acp_tool_call_content_to_rmcp(
                 serde_json::Value::String(s) => s,
                 other => other.to_string(),
             };
-            out.push(RmcpContent::text(text));
+            out.push(visible_rmcp_text(text));
         }
     }
     out
@@ -1724,6 +1672,7 @@ mod tests {
     use agent_client_protocol::schema::v1::{
         SessionConfigSelectOption, SessionMode, SessionModeId,
     };
+
     use test_case::test_case;
 
     fn prompt_text(block: &ContentBlock) -> &str {
@@ -1762,18 +1711,18 @@ mod tests {
         )
     }
 
-    #[tokio::test]
-    async fn messages_to_prompt_without_prior_history_preserves_current_prompt() {
+    #[test]
+    fn messages_to_prompt_without_prior_history_preserves_current_prompt() {
         let messages = vec![Message::user().with_text("current request")];
 
-        let blocks = messages_to_prompt(&messages, true, 128_000).await;
+        let blocks = messages_to_prompt(&messages, true);
 
         assert_eq!(blocks.len(), 1);
         assert_eq!(prompt_text(&blocks[0]), "current request");
     }
 
-    #[tokio::test]
-    async fn messages_to_prompt_prepends_handoff_context_before_latest_user() {
+    #[test]
+    fn messages_to_prompt_prepends_handoff_context_before_latest_user() {
         let messages = vec![
             Message::user().with_text("inspect src/lib.rs"),
             Message::assistant()
@@ -1788,7 +1737,7 @@ mod tests {
             Message::user().with_text("continue from there"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true, 128_000).await;
+        let blocks = messages_to_prompt(&messages, true);
 
         assert_eq!(blocks.len(), 2);
         let memo = prompt_text(&blocks[0]);
@@ -1803,8 +1752,28 @@ mod tests {
         assert_eq!(prompt_text(&blocks[1]), "continue from there");
     }
 
-    #[tokio::test]
-    async fn messages_to_prompt_keeps_latest_user_images_after_handoff_memo() {
+    #[test]
+    fn messages_to_prompt_drops_user_only_acp_rows_from_handoff() {
+        let user_only = TextContent::new("SECRET_USER_ONLY")
+            .annotations(AcpAnnotations::new().audience(vec![AcpRole::User]));
+        let messages = vec![
+            Message::user().with_text("visible prior"),
+            acp_text_update_message(user_only, "acp-message".to_string(), 123),
+            Message::user().with_text("current request"),
+        ];
+
+        let blocks = messages_to_prompt(&messages, true);
+
+        assert_eq!(blocks.len(), 2);
+        let memo = prompt_text(&blocks[0]);
+        assert!(memo.contains("visible prior"));
+        assert!(!memo.contains("SECRET_USER_ONLY"));
+        assert!(!memo.contains("<empty message>"));
+        assert_eq!(prompt_text(&blocks[1]), "current request");
+    }
+
+    #[test]
+    fn messages_to_prompt_keeps_latest_user_images_after_handoff_memo() {
         let messages = vec![
             Message::assistant().with_text("prior answer"),
             Message::user()
@@ -1812,7 +1781,7 @@ mod tests {
                 .with_text("describe this"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true, 128_000).await;
+        let blocks = messages_to_prompt(&messages, true);
 
         assert_eq!(blocks.len(), 3);
         assert!(prompt_text(&blocks[0]).contains("[assistant]: prior answer"));
@@ -1827,18 +1796,164 @@ mod tests {
     }
 
     #[test]
-    fn resumed_session_does_not_claim_handoff_context() {
-        let (provider, _) = test_provider();
-        provider.handoff_context_sent.store(true, Ordering::Release);
+    fn messages_to_prompt_excludes_user_only_current_and_handoff_content() {
+        use rmcp::model::{Annotations, TextContent};
+
+        fn user_only_text(text: &str) -> MessageContent {
+            MessageContent::Text(
+                TextContent::new(text)
+                    .with_annotations(Annotations::default().with_audience(vec![Role::User])),
+            )
+        }
+
         let messages = vec![
-            Message::assistant().with_text("prior answer"),
-            Message::user().with_text("current request"),
+            Message::user()
+                .with_text("visible prior")
+                .with_content(user_only_text("SECRET_PRIOR")),
+            Message::user()
+                .with_text("visible current")
+                .with_content(user_only_text("SECRET_CURRENT")),
         ];
 
-        let claim = provider.claim_handoff_context(&messages);
+        let rendered = messages_to_prompt(&messages, true)
+            .iter()
+            .filter_map(|block| match block {
+                ContentBlock::Text(text) => Some(text.text.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
 
-        assert!(!claim.first_prompt);
-        assert!(!claim.include_context);
+        assert!(rendered.contains("visible prior"));
+        assert!(rendered.contains("visible current"));
+        assert!(!rendered.contains("SECRET_PRIOR"));
+        assert!(!rendered.contains("SECRET_CURRENT"));
+    }
+
+    #[test]
+    fn messages_to_prompt_drops_handoff_when_current_content_is_user_only() {
+        use rmcp::model::{Annotations, TextContent};
+
+        let current = MessageContent::Text(
+            TextContent::new("user-only")
+                .with_annotations(Annotations::default().with_audience(vec![Role::User])),
+        );
+        let messages = vec![
+            Message::assistant().with_text("prior context"),
+            Message::user().with_content(current),
+        ];
+
+        assert!(messages_to_prompt(&messages, true).is_empty());
+    }
+
+    #[tokio::test]
+    async fn stream_skips_user_only_prompt_without_claiming_handoff_context() {
+        use futures::StreamExt;
+        use rmcp::model::{Annotations, TextContent};
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let current = MessageContent::Text(
+            TextContent::new("user-only")
+                .with_annotations(Annotations::default().with_audience(vec![Role::User])),
+        );
+        let messages = vec![
+            Message::assistant().with_text("prior context"),
+            Message::user().with_content(current),
+        ];
+
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+
+        assert!(stream.next().await.is_none());
+        assert!(rx.try_recv().is_err());
+        assert!(!provider.handoff_context_sent.load(Ordering::Acquire));
+    }
+
+    #[tokio::test]
+    async fn chat_mode_denied_tool_messages_get_distinct_provider_ids() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        *provider.goose_mode.lock().unwrap() = GooseMode::Chat;
+
+        let messages = vec![Message::user().with_text("inspect src/lib.rs")];
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+
+        let response_tx = match rx.recv().await.expect("expected ACP prompt request") {
+            ClientRequest::Prompt { response_tx, .. } => response_tx,
+            _ => panic!("expected ACP prompt request"),
+        };
+
+        for id in ["call-1", "call-2"] {
+            response_tx
+                .send(AcpUpdate::ToolCallStart {
+                    id: id.to_string(),
+                    name: "read_file".to_string(),
+                    kind: ToolKind::Read,
+                    raw_input: None,
+                })
+                .await
+                .unwrap();
+            response_tx
+                .send(AcpUpdate::ToolCallComplete {
+                    id: id.to_string(),
+                    raw_output: None,
+                    content: None,
+                    is_error: false,
+                })
+                .await
+                .unwrap();
+        }
+        response_tx
+            .send(AcpUpdate::Complete(StopReason::EndTurn, None))
+            .await
+            .unwrap();
+
+        let mut messages = Vec::new();
+        while let Some(item) = stream.next().await {
+            let (message, usage) = item.unwrap();
+            assert!(usage.is_none());
+            if let Some(message) = message {
+                messages.push(message);
+            }
+        }
+
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0].as_concat_text(), "Tool call was denied.");
+        assert_eq!(messages[1].as_concat_text(), "Tool call was denied.");
+
+        let first_id = messages[0]
+            .id
+            .as_deref()
+            .expect("first denial should have a provider message ID");
+        let second_id = messages[1]
+            .id
+            .as_deref()
+            .expect("second denial should have a provider message ID");
+
+        assert!(first_id.starts_with("msg_"));
+        assert!(second_id.starts_with("msg_"));
+        assert_ne!(first_id, second_id);
+    }
+
+    #[test]
+    fn live_acp_text_update_preserves_assistant_only_audience() {
+        let text = TextContent::new("assistant-only")
+            .annotations(AcpAnnotations::new().audience(vec![AcpRole::Assistant]));
+
+        let message = acp_text_update_message(text, "message-id".to_string(), 123);
+
+        let MessageContent::Text(text) = &message.content[0] else {
+            panic!("expected text content");
+        };
+        let audience = text
+            .annotations
+            .as_ref()
+            .and_then(|a| a.audience.as_ref())
+            .expect("audience annotation should survive");
+        assert!(audience.contains(&Role::Assistant));
+        assert!(!audience.contains(&Role::User));
     }
 
     #[test]
@@ -1990,8 +2105,6 @@ mod tests {
             model_config_option_id: None,
             mode_mapping,
             notification_callback: None,
-            existing_session_id: None,
-            preserve_session_on_drop: false,
         }
     }
 
@@ -2165,52 +2278,8 @@ mod tests {
         assert_eq!(*provider.goose_mode.lock().unwrap(), GooseMode::Auto);
     }
 
-    #[tokio::test]
-    async fn messages_to_prompt_omits_handoff_when_current_request_uses_budget() {
-        let messages = vec![
-            Message::assistant().with_text("prior context"),
-            Message::user().with_text("current ".repeat(1_000)),
-        ];
-
-        let blocks = messages_to_prompt(&messages, true, 1_000).await;
-
-        assert_eq!(blocks.len(), 1);
-        assert!(prompt_text(&blocks[0]).starts_with("current current"));
-    }
-
-    #[tokio::test]
-    async fn handoff_context_budget_includes_framing_text() {
-        let prior_messages = vec![Message::assistant().with_text("recent context")];
-        let token_budget = 100;
-
-        let memo = build_handoff_context_memo(&prior_messages, token_budget)
-            .await
-            .expect("memo should fit");
-        let counter = create_token_counter().await.unwrap();
-
-        assert!(counter.count_tokens(&memo) <= token_budget);
-    }
-
-    #[tokio::test]
-    async fn messages_to_prompt_bounds_large_handoff_context() {
-        let messages = vec![
-            Message::user().with_text("old ".repeat(10_000)),
-            Message::assistant().with_text("recent context"),
-            Message::user().with_text("current request"),
-        ];
-
-        let blocks = messages_to_prompt(&messages, true, 1_000).await;
-
-        assert_eq!(blocks.len(), 2);
-        let memo = prompt_text(&blocks[0]);
-        assert!(memo.contains("Earlier conversation was omitted"));
-        assert!(!memo.contains("old old old"));
-        assert!(memo.contains("[assistant]: recent context"));
-        assert_eq!(prompt_text(&blocks[1]), "current request");
-    }
-
-    #[tokio::test]
-    async fn messages_to_prompt_includes_all_prior_handoff_context() {
+    #[test]
+    fn messages_to_prompt_includes_all_prior_handoff_context() {
         let messages = vec![
             Message::user().with_text("older context that should be retained"),
             Message::assistant().with_text("middle context"),
@@ -2218,7 +2287,7 @@ mod tests {
             Message::user().with_text("current request"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true, 128_000).await;
+        let blocks = messages_to_prompt(&messages, true);
 
         assert_eq!(blocks.len(), 2);
         let memo = prompt_text(&blocks[0]);
@@ -2498,7 +2567,7 @@ mod tests {
             None,
         );
 
-        assert_eq!(out.len(), 4, "all four block kinds should produce output");
+        assert_eq!(out.len(), 3, "terminal blocks produce no output");
         let serialized: Vec<String> = out
             .iter()
             .map(|c| serde_json::to_string(c).unwrap())
@@ -2516,12 +2585,75 @@ mod tests {
             "diff body lost: {serialized:?}"
         );
         assert!(
-            serialized[2].contains("term-7"),
-            "terminal id lost: {serialized:?}"
-        );
-        assert!(
-            serialized[3].contains("base64data"),
+            serialized[2].contains("base64data"),
             "image data lost: {serialized:?}"
+        );
+    }
+
+    #[test]
+    fn acp_tool_call_terminal_falls_back_to_raw_output() {
+        use agent_client_protocol::schema::v1::{Terminal, TerminalId};
+
+        let terminal_block = ToolCallContent::Terminal(Terminal::new(TerminalId::new("term-1")));
+        let raw_output = serde_json::Value::String("hello from shell".to_string());
+
+        let out = acp_tool_call_content_to_rmcp(Some(vec![terminal_block]), Some(raw_output));
+
+        assert_eq!(out.len(), 1);
+        let text = out[0].as_text().unwrap();
+        assert_eq!(text.text, "hello from shell");
+        assert_eq!(
+            text.annotations
+                .as_ref()
+                .and_then(|annotations| annotations.priority),
+            Some(0.0)
+        );
+    }
+
+    #[test]
+    fn acp_tool_call_content_preserves_audience_annotations() {
+        let text_block = ToolCallContent::Content(agent_client_protocol::schema::v1::Content::new(
+            ContentBlock::Text(
+                TextContent::new("user-only")
+                    .annotations(AcpAnnotations::new().audience(vec![AcpRole::User])),
+            ),
+        ));
+        let image_block = ToolCallContent::Content(
+            agent_client_protocol::schema::v1::Content::new(ContentBlock::Image(
+                ImageContent::new("base64data", "image/png")
+                    .annotations(AcpAnnotations::new().audience(vec![AcpRole::Assistant])),
+            )),
+        );
+
+        let out = acp_tool_call_content_to_rmcp(Some(vec![text_block, image_block]), None);
+
+        let text_audience = out[0]
+            .as_text()
+            .and_then(|t| t.annotations.as_ref())
+            .and_then(|a| a.audience.as_ref())
+            .expect("text audience annotation should survive");
+        assert!(text_audience.contains(&Role::User));
+        assert!(!text_audience.contains(&Role::Assistant));
+        assert_eq!(
+            out[0]
+                .as_text()
+                .and_then(|text| text.annotations.as_ref())
+                .and_then(|annotations| annotations.priority),
+            Some(0.0)
+        );
+        let image_audience = out[1]
+            .as_image()
+            .and_then(|i| i.annotations.as_ref())
+            .and_then(|a| a.audience.as_ref())
+            .expect("image audience annotation should survive");
+        assert!(image_audience.contains(&Role::Assistant));
+        assert!(!image_audience.contains(&Role::User));
+        assert_eq!(
+            out[1]
+                .as_image()
+                .and_then(|image| image.annotations.as_ref())
+                .and_then(|annotations| annotations.priority),
+            Some(0.0)
         );
     }
 

@@ -50,14 +50,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Aucune application disponible"
   },
-  "appsView.retry": {
-    "defaultMessage": "Réessayer"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Réessayer"
   },
   "appsView.title": {
     "defaultMessage": "Applications"
@@ -130,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "Aller à l'accueil"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Connexion perdue. Reconnexion…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extension mise à jour"
@@ -1194,7 +1197,7 @@
     "defaultMessage": "Clé secrète"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "La clé secrète configurée sur le serveur goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "La clé secrète configurée sur le serveur Goose (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Saisissez la clé secrète du serveur"
@@ -2357,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Discussions"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Créé"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Répertoire"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Modèle"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Statut"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Mis à jour"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "Aucune discussion récente"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Erreur"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Inactif"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Diffusion en continu"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Activité non lue"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Session sans titre"
@@ -2813,6 +2843,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "À partir d'un modèle ou d'une configuration manuelle"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Aucun fournisseur ne correspond à \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Rechercher des fournisseurs..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "Logo {providerName}"
   },
@@ -3016,12 +3052,6 @@
   },
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "Utiliser le fournisseur par défaut"
-  },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "Nom de la recette"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "Sera automatiquement mis en forme (minuscules, tirets à la place des espaces)"
   },
   "recipeWarningModal.cancel": {
     "defaultMessage": "Annuler"
@@ -3653,6 +3683,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "JSON de la session copié"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Texte copié"
   },
@@ -3683,6 +3716,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Chargement du JSON..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "Échec du renommage de la session : {error}"
   },
@@ -3707,6 +3746,9 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "Afficher le JSON de la session"
   },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
+  },
   "sessionIndicators.error": {
     "defaultMessage": "La session a rencontré une erreur"
   },
@@ -3715,24 +3757,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Diffusion en cours"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Cette session ne contient aucun message"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "Aucun message trouvé"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Erreur lors du chargement des détails de la session"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Réessayer"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "Vous"
   },
   "sessions.action.delete": {
     "defaultMessage": "Supprimer la session"
@@ -3745,6 +3769,12 @@
   },
   "sessions.action.export": {
     "defaultMessage": "Exporter la session"
+  },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
   },
   "sessions.action.openNewWindow": {
     "defaultMessage": "Ouvrir dans une nouvelle fenêtre"
@@ -3844,6 +3874,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "Session « {name} » dupliquée avec succès"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "Échec de l'exportation de la session : {error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "Session exportée avec succès"
@@ -4061,9 +4094,6 @@
   "settingsView.title": {
     "defaultMessage": "Paramètres"
   },
-  "sheet.close": {
-    "defaultMessage": "Fermer"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "Annuler"
   },
@@ -4129,15 +4159,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "Le fournisseur {name} est configuré"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Application Ollama"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "Pour l'utiliser, soit le"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "doit être installé sur votre machine et ouvert, soit vous devez saisir une valeur pour OLLAMA_HOST."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "Ajouter une existante"
@@ -4553,6 +4574,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Modifier"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Images jointes :"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "Modifier sur place"
   },
@@ -4585,5 +4609,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Créer une nouvelle session avec le message modifié"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Supprimer l'image du message"
   }
 }

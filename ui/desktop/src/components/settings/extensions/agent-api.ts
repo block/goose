@@ -82,7 +82,3 @@ export async function removeFromAgent(
     throw error;
   }
 }
-
-export function sanitizeName(name: string) {
-  return name.toLowerCase().replace(/-/g, '').replace(/_/g, '').replace(/\s/g, '');
-}

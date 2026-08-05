@@ -20,7 +20,7 @@ use goose::config::{GooseMode, PermissionManager};
 use goose::providers::api_client::{ApiClient, AuthMethod as ApiAuthMethod};
 use goose::providers::base::Provider;
 use goose::providers::openai::OpenAiProvider;
-use goose::scheduler::{ScheduledJob, SchedulerError};
+use goose::scheduler::{ScheduledJob, SchedulerError, ValidatedScheduleRecipe};
 use goose::scheduler_trait::SchedulerTrait;
 use goose::session::Session as GooseSession;
 use goose::session_context::SESSION_ID_HEADER;
@@ -76,6 +76,14 @@ impl SchedulerTrait for FixtureScheduler {
         }
         jobs.push(job);
         Ok(())
+    }
+
+    async fn add_scheduled_job_with_recipe(
+        &self,
+        job: ScheduledJob,
+        _validated_recipe: ValidatedScheduleRecipe,
+    ) -> Result<(), SchedulerError> {
+        self.add_scheduled_job(job, false).await
     }
 
     async fn schedule_recipe(
@@ -364,13 +372,16 @@ pub async fn spawn_acp_server_in_process(
 
     let agent = GooseAcpAgent::new(GooseAcpAgentOptions {
         provider_factory,
-        builtins: builtins.to_vec(),
+        builtin_selection: goose::acp::server::AcpBuiltinSelection {
+            explicit: builtins.to_vec(),
+            ..Default::default()
+        },
         data_dir: data_root.to_path_buf(),
         config_dir: data_root.to_path_buf(),
         disable_session_naming,
         goose_platform: GoosePlatform::GooseCli,
         additional_source_roots: Vec::new(),
-        scheduler: Arc::new(FixtureScheduler::new()),
+        scheduler: Some(Arc::new(FixtureScheduler::new())),
     })
     .await
     .unwrap();

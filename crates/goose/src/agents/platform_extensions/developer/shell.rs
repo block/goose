@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{Annotations, CallToolResult, ContentBlock, TextContent};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -20,7 +20,14 @@ use tokio::task::JoinHandle;
 use tokio_stream::{wrappers::SplitStream, StreamExt};
 use tokio_util::sync::CancellationToken;
 
+use crate::agents::tool_execution::ToolCallNotificationEmitter;
 use crate::subprocess::SubprocessExt;
+
+pub use super::shell_output_streaming::{
+    parse_shell_output_notification, ShellOutputNotificationChunk, ShellOutputNotificationParams,
+    ShellOutputStream, DEVELOPER_SHELL_OUTPUT_NOTIFICATION_METHOD,
+};
+use super::shell_output_streaming::{ShellOutputBatcher, SHELL_LIVE_OUTPUT_FLUSH_INTERVAL};
 
 /// Check if the current process is running inside a Flatpak sandbox.
 ///
@@ -84,13 +91,13 @@ fn unix_shell_command_args(command_line: &str) -> [&str; 2] {
     ["-c", command_line]
 }
 
-/// Resolve the preferred Unix shell for command execution, respecting GOOSE_SHELL.
+/// Resolve the shell used to run Developer extension commands on Windows,
+/// respecting `GOOSE_SHELL`.
 ///
-/// Auto-detected shells are returned as basenames (e.g. `"bash"`) so that
-/// `Command::new` resolves them on `PATH` at spawn time — this also keeps
-/// Flatpak happy, where absolute paths from inside the sandbox don't match
-/// the host filesystem. `GOOSE_SHELL` is passed through as-is.
-///
+/// Defaults to `cmd` when `GOOSE_SHELL` is unset. The invocation flags are
+/// chosen automatically from the executable name in `build_shell_command`,
+/// so callers only ever provide a bare executable path or name — see that
+/// function for the flag mapping.
 #[cfg(windows)]
 fn windows_shell() -> String {
     std::env::var("GOOSE_SHELL").unwrap_or_else(|_| "cmd".to_string())
@@ -171,6 +178,8 @@ struct TruncationInfo {
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ShellParams {
     pub command: String,
+    /// Maximum time in seconds to allow the command to run before it is killed.
+    /// If omitted, defaults to DEFAULT_EXTENSION_TIMEOUT.
     #[serde(default)]
     pub timeout_secs: Option<u64>,
 }
@@ -345,8 +354,14 @@ impl ShellTool {
         })
     }
 
+    fn visible_text(text: impl Into<String>) -> ContentBlock {
+        ContentBlock::Text(
+            TextContent::new(text).with_annotations(Annotations::default().with_priority(0.0)),
+        )
+    }
+
     pub async fn shell(&self, params: ShellParams) -> CallToolResult {
-        self.shell_with_cwd(params, None, CancellationToken::new())
+        self.shell_with_cwd(params, None, None, CancellationToken::new())
             .await
     }
 
@@ -354,6 +369,19 @@ impl ShellTool {
         &self,
         params: ShellParams,
         working_dir: Option<&std::path::Path>,
+        session_id: Option<&str>,
+        cancellation_token: CancellationToken,
+    ) -> CallToolResult {
+        self.shell_with_cwd_and_emitter(params, working_dir, session_id, None, cancellation_token)
+            .await
+    }
+
+    pub(crate) async fn shell_with_cwd_and_emitter(
+        &self,
+        params: ShellParams,
+        working_dir: Option<&std::path::Path>,
+        session_id: Option<&str>,
+        notification_emitter: Option<ToolCallNotificationEmitter>,
         cancellation_token: CancellationToken,
     ) -> CallToolResult {
         if params.command.trim().is_empty() {
@@ -372,6 +400,8 @@ impl ShellTool {
             params.timeout_secs,
             working_dir,
             login_path_ref,
+            session_id,
+            notification_emitter,
             cancellation_token,
         )
         .await
@@ -437,14 +467,10 @@ impl ShellTool {
         .collect();
 
         let is_error = if execution.timed_out {
-            if let Some(timeout_secs) = params.timeout_secs {
-                rendered.push_str(&format!(
-                    "\n\nCommand timed out after {} seconds",
-                    timeout_secs
-                ));
-            } else {
-                rendered.push_str("\n\nCommand timed out");
-            }
+            rendered.push_str(&format!(
+                "\n\nCommand timed out after {} seconds",
+                resolve_shell_timeout(params.timeout_secs)
+            ));
             true
         } else {
             execution.exit_code.unwrap_or(1) != 0
@@ -467,18 +493,18 @@ impl ShellTool {
             if let Some(code) = execution.exit_code.filter(|c| *c != 0) {
                 rendered.push_str(&format!("\n\nCommand exited with code {code}"));
             }
-            let mut error_blocks = vec![Content::text(rendered).with_priority(0.0)];
+            let mut error_blocks = vec![Self::visible_text(rendered)];
             if !truncation_notices.is_empty() {
-                error_blocks.push(Content::text(truncation_notices.join("\n")).with_priority(0.0));
+                error_blocks.push(Self::visible_text(truncation_notices.join("\n")));
             }
             let mut result = CallToolResult::error(error_blocks);
             result.structured_content = structured_content;
             return result;
         }
 
-        let mut content_blocks = vec![Content::text(rendered).with_priority(0.0)];
+        let mut content_blocks = vec![Self::visible_text(rendered)];
         if !truncation_notices.is_empty() {
-            content_blocks.push(Content::text(truncation_notices.join("\n")).with_priority(0.0));
+            content_blocks.push(Self::visible_text(truncation_notices.join("\n")));
         }
         let mut result = CallToolResult::success(content_blocks);
         result.structured_content = structured_content;
@@ -494,7 +520,7 @@ impl ShellTool {
             output_truncated: false,
             output_collection_error: None,
         };
-        let mut result = CallToolResult::error(vec![Content::text(message).with_priority(0.0)]);
+        let mut result = CallToolResult::error(vec![Self::visible_text(message)]);
         result.structured_content = serde_json::to_value(&shell_output).ok();
         result
     }
@@ -509,14 +535,26 @@ struct ExecutionOutput {
     output_collection_error: Option<String>,
 }
 
+fn resolve_shell_timeout(timeout_secs: Option<u64>) -> u64 {
+    timeout_secs.unwrap_or_else(|| {
+        crate::config::Config::global()
+            .get_goose_default_extension_timeout()
+            .unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)
+    })
+}
+
 async fn run_command(
     command_line: &str,
     timeout_secs: Option<u64>,
     working_dir: Option<&std::path::Path>,
     login_path: Option<&str>,
+    session_id: Option<&str>,
+    notification_emitter: Option<ToolCallNotificationEmitter>,
     cancellation_token: CancellationToken,
 ) -> Result<ExecutionOutput, String> {
-    let mut command = build_shell_command(command_line, working_dir, login_path);
+    let timeout_secs = Some(resolve_shell_timeout(timeout_secs));
+
+    let mut command = build_shell_command(command_line, working_dir, login_path, session_id);
 
     command.stdout(Stdio::piped());
     command.stderr(Stdio::piped());
@@ -536,7 +574,12 @@ async fn run_command(
         .ok_or_else(|| "Failed to capture stderr".to_string())?;
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-    let output_task = tokio::spawn(collect_tagged_lines(child_stdout, child_stderr, tx));
+    let output_task = tokio::spawn(collect_tagged_lines(
+        child_stdout,
+        child_stderr,
+        tx,
+        notification_emitter,
+    ));
     let abort_handle = output_task.abort_handle();
 
     let mut timed_out = false;
@@ -591,8 +634,8 @@ async fn run_command(
         }
         Err(_) => {
             tracing::debug!(
-                    "output drain timed out after {OUTPUT_DRAIN_TIMEOUT_MILLIS}ms (backgrounded process?)"
-                );
+                "output drain timed out after {OUTPUT_DRAIN_TIMEOUT_MILLIS}ms (backgrounded process?)"
+            );
             abort_handle.abort();
             true
         }
@@ -613,10 +656,23 @@ async fn run_command(
     })
 }
 
+/// Build the `Command` that executes a single command line via the configured shell.
+///
+/// The invocation flags are selected automatically from the shell executable
+/// name, so setting `GOOSE_SHELL` to a bare executable is enough — users never
+/// need to supply command-style flags themselves:
+///
+/// - PowerShell (`pwsh`, `powershell`) → `-NoProfile -NonInteractive -Command`
+/// - cmd (`cmd`) → `/C`
+/// - POSIX shells (bash, zsh, … via Cygwin/MSYS2) → `-c`
+///
+/// On Unix the default shell (`bash`, falling back to `sh`) is likewise invoked
+/// as `<shell> -c <line>`.
 fn build_shell_command(
     command_line: &str,
     working_dir: Option<&std::path::Path>,
     login_path: Option<&str>,
+    session_id: Option<&str>,
 ) -> tokio::process::Command {
     #[cfg(windows)]
     let mut command = {
@@ -656,6 +712,7 @@ fn build_shell_command(
             if let Some(path) = login_path {
                 command.arg(format!("--env=PATH={}", path));
             }
+            apply_flatpak_session_environment(&mut command, session_id);
             command
                 .arg(&shell)
                 .args(unix_shell_command_args(command_line));
@@ -669,12 +726,35 @@ fn build_shell_command(
             if let Some(path) = login_path {
                 command.env("PATH", path);
             }
+            apply_session_environment(&mut command, session_id);
             command
         }
     };
 
+    #[cfg(windows)]
+    apply_session_environment(&mut command, session_id);
     command.set_no_window();
     command
+}
+
+fn apply_session_environment(command: &mut tokio::process::Command, session_id: Option<&str>) {
+    if let Some(session_id) = session_id.filter(|id| !id.is_empty()) {
+        command.env("AGENT_SESSION_ID", session_id);
+    } else {
+        command.env_remove("AGENT_SESSION_ID");
+    }
+}
+
+#[cfg(not(windows))]
+fn apply_flatpak_session_environment(
+    command: &mut tokio::process::Command,
+    session_id: Option<&str>,
+) {
+    if let Some(session_id) = session_id.filter(|id| !id.is_empty()) {
+        command.arg(format!("--env=AGENT_SESSION_ID={session_id}"));
+    } else {
+        command.arg("--unset-env=AGENT_SESSION_ID");
+    }
 }
 
 /// Split tagged lines into (stdout, stderr, interleaved) strings.
@@ -708,14 +788,51 @@ async fn collect_tagged_lines(
     stdout: tokio::process::ChildStdout,
     stderr: tokio::process::ChildStderr,
     tx: tokio::sync::mpsc::UnboundedSender<(bool, String)>,
+    notification_emitter: Option<ToolCallNotificationEmitter>,
 ) -> Result<(), std::io::Error> {
     let stdout_lines = SplitStream::new(BufReader::new(stdout).split(b'\n')).map(|l| (false, l));
     let stderr_lines = SplitStream::new(BufReader::new(stderr).split(b'\n')).map(|l| (true, l));
     let mut merged = stdout_lines.merge(stderr_lines);
+    let mut output_batcher = notification_emitter.map(ShellOutputBatcher::new);
+    let mut flush_interval = tokio::time::interval_at(
+        tokio::time::Instant::now() + SHELL_LIVE_OUTPUT_FLUSH_INTERVAL,
+        SHELL_LIVE_OUTPUT_FLUSH_INTERVAL,
+    );
+    flush_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
-    while let Some((is_stderr, line)) = merged.next().await {
-        let line = line?;
-        let _ = tx.send((is_stderr, String::from_utf8_lossy(&line).into_owned()));
+    loop {
+        tokio::select! {
+            tagged_line = merged.next() => {
+                let Some((is_stderr, line)) = tagged_line else {
+                    break;
+                };
+                let line = match line {
+                    Ok(line) => String::from_utf8_lossy(&line).into_owned(),
+                    Err(error) => {
+                        if let Some(output_batcher) = output_batcher.as_mut() {
+                            output_batcher.flush();
+                        }
+                        return Err(error);
+                    }
+                };
+
+                if let Some(output_batcher) = output_batcher.as_mut() {
+                    if output_batcher.push_line(is_stderr, &line) {
+                        flush_interval.reset();
+                    }
+                }
+                let _ = tx.send((is_stderr, line));
+            }
+            _ = flush_interval.tick(), if output_batcher.is_some() => {
+                if let Some(output_batcher) = output_batcher.as_mut() {
+                    output_batcher.flush();
+                }
+            }
+        }
+    }
+
+    if let Some(output_batcher) = output_batcher.as_mut() {
+        output_batcher.flush();
     }
     Ok(())
 }
@@ -806,11 +923,11 @@ fn save_full_output(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rmcp::model::RawContent;
+    use rmcp::model::ContentBlock;
 
     fn extract_text(result: &CallToolResult) -> &str {
-        match &result.content[0].raw {
-            RawContent::Text(text) => &text.text,
+        match &result.content[0] {
+            ContentBlock::Text(text) => &text.text,
             _ => panic!("expected text"),
         }
     }
@@ -835,6 +952,31 @@ mod tests {
 
         assert_eq!(result.is_error, Some(false));
         assert!(extract_text(&result).contains("hello"));
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn full_live_notification_channel_does_not_change_final_output() {
+        let tool = ShellTool::new_for_test().unwrap();
+        let (sender, _receiver) = tokio::sync::mpsc::channel(1);
+        let result = tool
+            .shell_with_cwd_and_emitter(
+                ShellParams {
+                    command: "printf 'out-1\\nout-2\\n'; printf 'err-1\\nerr-2\\n' >&2".to_string(),
+                    timeout_secs: None,
+                },
+                None,
+                None,
+                Some(ToolCallNotificationEmitter::new(sender)),
+                CancellationToken::new(),
+            )
+            .await;
+
+        let shell_output = extract_shell_output(&result);
+        assert_eq!(result.is_error, Some(false));
+        assert_eq!(shell_output.stdout, "out-1\nout-2");
+        assert_eq!(shell_output.stderr, "err-1\nerr-2");
+        assert_eq!(shell_output.exit_code, Some(0));
     }
 
     #[cfg(not(windows))]
@@ -864,6 +1006,7 @@ mod tests {
                     timeout_secs: None,
                 },
                 Some(dir.path()),
+                None,
                 CancellationToken::new(),
             )
             .await;
@@ -872,6 +1015,52 @@ mod tests {
         let observed = std::fs::canonicalize(extract_text(&result)).unwrap();
         let expected = std::fs::canonicalize(dir.path()).unwrap();
         assert_eq!(observed, expected);
+    }
+
+    #[test]
+    fn session_environment_is_set_or_removed() {
+        for (session_id, expected) in [
+            (
+                Some("session-123"),
+                Some(Some(std::ffi::OsStr::new("session-123"))),
+            ),
+            (None, Some(None)),
+        ] {
+            let mut command = tokio::process::Command::new("ignored");
+            command.env("AGENT_SESSION_ID", "stale-session");
+
+            apply_session_environment(&mut command, session_id);
+
+            assert_eq!(
+                command
+                    .as_std()
+                    .get_envs()
+                    .find_map(|(key, value)| (key == "AGENT_SESSION_ID").then_some(value)),
+                expected
+            );
+        }
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn flatpak_session_environment_is_set_or_unset() {
+        for (session_id, expected) in [
+            (Some("session-123"), "--env=AGENT_SESSION_ID=session-123"),
+            (None, "--unset-env=AGENT_SESSION_ID"),
+        ] {
+            let mut command = tokio::process::Command::new("flatpak-spawn");
+
+            apply_flatpak_session_environment(&mut command, session_id);
+
+            assert_eq!(
+                command
+                    .as_std()
+                    .get_args()
+                    .map(|arg| arg.to_string_lossy().into_owned())
+                    .collect::<Vec<_>>(),
+                vec![expected]
+            );
+        }
     }
 
     #[cfg(not(windows))]
@@ -893,6 +1082,7 @@ mod tests {
                     command: "sleep 30".to_string(),
                     timeout_secs: None,
                 },
+                None,
                 None,
                 token,
             )
@@ -1103,5 +1293,43 @@ mod tests {
             text.contains("after"),
             "should capture output after background cmd"
         );
+    }
+
+    #[test]
+    fn resolve_shell_timeout_prefers_explicit_value() {
+        assert_eq!(resolve_shell_timeout(Some(42)), 42);
+    }
+
+    #[test]
+    fn resolve_shell_timeout_falls_back_to_a_bound_when_absent() {
+        // The key behavioral guarantee: an omitted timeout no longer means
+        // "run forever" — it resolves to the default extension timeout.
+        assert!(resolve_shell_timeout(None) > 0);
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn shell_kills_hanging_command_after_explicit_timeout() {
+        let tool = ShellTool::new_for_test().unwrap();
+        let start = std::time::Instant::now();
+        let result = tool
+            .shell(ShellParams {
+                command: "sleep 30".to_string(),
+                timeout_secs: Some(1),
+            })
+            .await;
+
+        assert!(
+            start.elapsed().as_secs() < 10,
+            "shell should return shortly after the timeout, not wait for the command"
+        );
+        assert_eq!(result.is_error, Some(true));
+        let shell_output = extract_shell_output(&result);
+        assert!(shell_output.timed_out, "command should be marked timed_out");
+        assert!(
+            shell_output.exit_code.is_none(),
+            "killed process should have no exit code"
+        );
+        assert!(extract_text(&result).contains("Command timed out after 1 seconds"));
     }
 }
