@@ -3182,6 +3182,29 @@ impl Agent {
         session_id: &str,
     ) -> Result<()> {
         let provider_name = provider.get_name().to_string();
+        let session_manager = self.config.session_manager.clone();
+        let session_name_update_tx = self.config.session_name_update_tx.clone();
+        let session_id_for_title = session_id.to_string();
+        let runtime = tokio::runtime::Handle::current();
+        provider.set_session_title_callback(Arc::new(move |title| {
+            let session_manager = session_manager.clone();
+            let session_name_update_tx = session_name_update_tx.clone();
+            let session_id = session_id_for_title.clone();
+            runtime.spawn(async move {
+                match session_manager
+                    .update_name_from_provider(&session_id, title)
+                    .await
+                {
+                    Ok(Some(update)) => {
+                        if let Some(tx) = session_name_update_tx {
+                            let _ = tx.send(update);
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(error) => warn!(%error, "Failed to apply provider session title"),
+                }
+            });
+        }));
 
         // Normalize against the provider entry so custom/declarative providers
         // backfill `context_limit` from their known models before the config is
