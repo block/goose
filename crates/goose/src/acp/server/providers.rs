@@ -474,14 +474,6 @@ impl GooseAcpAgent {
         &self,
         req: ProviderSupportedModelsListRequest,
     ) -> Result<ProviderSupportedModelsListResponse, agent_client_protocol::Error> {
-        if !Self::provider_config_status(req.provider_id.clone())
-            .await
-            .is_configured
-        {
-            return Err(agent_client_protocol::Error::invalid_params()
-                .data(format!("Provider is not configured: {}", req.provider_id)));
-        }
-
         let provider = self
             .create_provider(&req.provider_id, Vec::new(), None)
             .await
