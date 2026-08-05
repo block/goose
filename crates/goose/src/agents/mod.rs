@@ -9,6 +9,7 @@ mod gen_ai_telemetry;
 mod large_response_handler;
 pub mod mcp_client;
 pub mod moim;
+mod pending_steers;
 pub mod platform_extensions;
 pub mod platform_tools;
 pub mod prompt_manager;

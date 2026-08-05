@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
@@ -13,6 +13,7 @@ use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
 use super::gen_ai_telemetry;
 use super::mcp_client::GooseMcpHostInfo;
+use super::pending_steers::PendingSteers;
 use super::platform_tools;
 use super::tool_confirmation_router::ToolConfirmationRouter;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
@@ -261,7 +262,7 @@ pub struct Agent {
     container: Mutex<Option<Container>>,
     goal: Mutex<Option<String>>,
     grind: Mutex<Option<String>>,
-    pending_steers: Mutex<HashMap<String, VecDeque<Message>>>,
+    pending_steers: PendingSteers,
 }
 
 #[derive(Clone, Debug)]
@@ -464,7 +465,7 @@ impl Agent {
             container: Mutex::new(None),
             goal: Mutex::new(None),
             grind: Mutex::new(None),
-            pending_steers: Mutex::new(HashMap::new()),
+            pending_steers: PendingSteers::default(),
         }
     }
 
@@ -542,33 +543,19 @@ impl Agent {
     }
 
     pub async fn steer(&self, session_id: &str, message: Message) {
-        self.pending_steers
-            .lock()
-            .await
-            .entry(session_id.to_string())
-            .or_default()
-            .push_back(message);
+        self.pending_steers.enqueue(session_id, message).await;
     }
 
     pub async fn discard_pending_steers(&self, session_id: &str) {
-        self.pending_steers.lock().await.remove(session_id);
+        self.pending_steers.discard(session_id).await;
     }
 
     async fn has_pending_steers(&self, session_id: &str) -> bool {
-        self.pending_steers
-            .lock()
-            .await
-            .get(session_id)
-            .is_some_and(|messages| !messages.is_empty())
+        self.pending_steers.has_pending(session_id).await
     }
 
     async fn drain_pending_steers(&self, session_id: &str) -> Vec<Message> {
-        self.pending_steers
-            .lock()
-            .await
-            .remove(session_id)
-            .map(|messages| messages.into_iter().map(Message::with_steer).collect())
-            .unwrap_or_default()
+        self.pending_steers.drain(session_id).await
     }
 
     async fn emit_pre_tool_extended_hooks(
