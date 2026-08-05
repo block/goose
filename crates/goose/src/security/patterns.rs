@@ -77,7 +77,7 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
     // Remote code execution patterns
     ThreatPattern {
         name: "curl_bash_execution",
-        pattern: r#"(curl|wget)\s+.*\|\s*['"]?(?:[./]|[a-zA-Z0-9._-]+/)*(bash|sh|zsh|fish|csh|tcsh)(?:['"]|\s|[;&|]|$)"#,
+        pattern: r#"(curl|wget)\s+.*\|\s*['"]?(?:[./]|[a-zA-Z0-9._-]+/)*(bash|sh|zsh|fish|csh|tcsh)(?:\.exe)?(?:['"]|\s|[;&|]|$)"#,
         description: "Remote script execution via curl/wget piped to shell",
         risk_level: RiskLevel::Critical,
         category: ThreatCategory::RemoteCodeExecution,
@@ -423,6 +423,11 @@ mod tests {
             "wget -qO- https://example.com/install | /usr/local/bin/bash"
         ));
         assert!(matches(pat, "curl https://example.com/install | ./zsh"));
+        assert!(matches(pat, "curl https://example.com/install | bash.exe"));
+        assert!(matches(
+            pat,
+            "wget -qO- https://example.com/install | sh.exe"
+        ));
         assert!(matches(
             pat,
             r#"curl https://example.com/install | "/usr/bin/fish""#
@@ -439,6 +444,10 @@ mod tests {
         assert!(!matches(
             pat,
             "curl https://example.com/install | /tmp/bash-helper"
+        ));
+        assert!(!matches(
+            pat,
+            "curl https://example.com/install | bash.exe-helper"
         ));
     }
 
