@@ -938,17 +938,22 @@ impl SummonClient {
         serialize_error.map_or(Ok(()), Err)
     }
 
+    // `buffer` holds notifications for a later flush to subscribers (background
+    // tasks); pass None where no flush point exists so unsubscribed
+    // notifications are dropped instead of accumulating forever.
     fn spawn_notification_bridge(
         mut notif_rx: tokio::sync::mpsc::UnboundedReceiver<ServerNotification>,
         subscribers: Arc<Mutex<Vec<mpsc::Sender<ServerNotification>>>>,
-        buffer: Arc<Mutex<Vec<ServerNotification>>>,
+        buffer: Option<Arc<Mutex<Vec<ServerNotification>>>>,
     ) {
         tokio::spawn(async move {
             while let Some(notification) = notif_rx.recv().await {
                 let mut subs = subscribers.lock().await;
                 if subs.is_empty() {
                     drop(subs);
-                    buffer.lock().await.push(notification);
+                    if let Some(buffer) = &buffer {
+                        buffer.lock().await.push(notification);
+                    }
                 } else {
                     subs.retain(|tx| match tx.try_send(notification.clone()) {
                         Ok(()) => true,
@@ -1725,11 +1730,7 @@ impl SummonClient {
             .await?;
 
         let (notif_tx, notif_rx) = tokio::sync::mpsc::unbounded_channel::<ServerNotification>();
-        Self::spawn_notification_bridge(
-            notif_rx,
-            Arc::clone(&self.notification_subscribers),
-            Arc::new(Mutex::new(Vec::new())),
-        );
+        Self::spawn_notification_bridge(notif_rx, Arc::clone(&self.notification_subscribers), None);
 
         let subagent_session_id = subagent_session.id.clone();
 
@@ -2030,11 +2031,7 @@ impl SummonClient {
         .map_err(|e| format!("Failed to configure worker '{}': {}", worker_name, e))?;
 
         let (notif_tx, notif_rx) = tokio::sync::mpsc::unbounded_channel::<ServerNotification>();
-        Self::spawn_notification_bridge(
-            notif_rx,
-            Arc::clone(&self.notification_subscribers),
-            Arc::new(Mutex::new(Vec::new())),
-        );
+        Self::spawn_notification_bridge(notif_rx, Arc::clone(&self.notification_subscribers), None);
 
         let default_max_turns = match restore {
             Some(record) => record.default_max_turns,
@@ -2672,7 +2669,7 @@ impl SummonClient {
         Self::spawn_notification_bridge(
             notif_rx,
             Arc::clone(&self.notification_subscribers),
-            Arc::clone(&notification_buffer),
+            Some(Arc::clone(&notification_buffer)),
         );
 
         let handle = tokio::spawn(async move {
