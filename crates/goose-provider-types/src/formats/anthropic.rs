@@ -1630,7 +1630,6 @@ mod tests {
 
         assert_eq!(payload["thinking"]["type"], "enabled");
         assert!(payload["thinking"]["budget_tokens"].as_i64().unwrap() >= 1024);
-        // #7363 regression guard: the Z.AI opt-in emits the switch.
         assert_eq!(payload["thinking"]["clear_thinking"], false);
         assert_eq!(payload["max_tokens"], 64000);
         assert_eq!(payload["messages"][0]["content"][0]["type"], "thinking");
@@ -1644,12 +1643,6 @@ mod tests {
 
     #[test]
     fn test_enabled_thinking_without_optin_omits_clear_thinking() -> Result<()> {
-        let _guard = env_lock::lock_env([
-            ("CLAUDE_THINKING_ENABLED", None::<&str>),
-            ("ANTHROPIC_PRESERVE_THINKING_CONTEXT", None::<&str>),
-            ("ANTHROPIC_PRESERVE_UNSIGNED_THINKING", None::<&str>),
-        ]);
-
         let mut config = cfg("claude-sonnet-4-5-20250929");
         config.max_tokens = Some(64000);
         let messages = vec![
@@ -1711,12 +1704,6 @@ mod tests {
 
     #[test]
     fn test_adaptive_model_preserved_thinking_omits_clear_thinking() -> Result<()> {
-        let _guard = env_lock::lock_env([
-            ("GOOSE_THINKING_EFFORT", None::<&str>),
-            ("ANTHROPIC_PRESERVE_THINKING_CONTEXT", None::<&str>),
-            ("ANTHROPIC_PRESERVE_UNSIGNED_THINKING", None::<&str>),
-        ]);
-
         let mut config = cfg_with_effort("claude-opus-4-8", "high");
         config.max_tokens = Some(64000);
         let messages = vec![
