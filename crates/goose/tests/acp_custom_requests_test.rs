@@ -1249,6 +1249,46 @@ fn test_custom_provider_supported_models_maps_not_configured_error() {
         .await
         .expect_err("not configured should be returned to the client");
 
+        assert_eq!(error.code, agent_client_protocol::ErrorCode::InvalidParams);
         assert!(error.to_string().contains("Provider is not configured"));
+    });
+}
+
+#[test]
+#[serial]
+fn test_custom_provider_supported_models_maps_authentication_error() {
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+    run_test(async move {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let provider_factory: AcpProviderFactory = Arc::new(|provider_name, _, _| {
+            Box::pin(async move {
+                Ok(Arc::new(MockProvider {
+                    name: provider_name,
+                    recommended_models: Vec::new(),
+                    supported_models: Err(ProviderError::Authentication(
+                        "credentials rejected".to_string(),
+                    )),
+                }) as Arc<dyn Provider>)
+            })
+        });
+        let conn = AcpServerConnection::new(
+            TestConnectionConfig {
+                provider_factory: Some(provider_factory),
+                ..Default::default()
+            },
+            openai,
+        )
+        .await;
+
+        let error = send_custom(
+            conn.cx(),
+            "_goose/unstable/providers/supported-models/list",
+            serde_json::json!({ "providerId": "openai" }),
+        )
+        .await
+        .expect_err("authentication failure should be returned to the client");
+
+        assert_eq!(error.code, agent_client_protocol::ErrorCode::AuthRequired);
+        assert!(error.to_string().contains("credentials rejected"));
     });
 }
