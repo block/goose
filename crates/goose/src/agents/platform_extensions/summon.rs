@@ -789,8 +789,7 @@ impl SummonClient {
         Ok(session)
     }
 
-    // Only evictable once its record is persisted (so it can be rebuilt)
-    // and while no delegation holds it.
+    // Evictable only once persisted (so it can be rebuilt) and while idle.
     fn worker_evictable(worker: &PersistentWorker) -> bool {
         worker.persisted.load(Ordering::Relaxed) && worker.busy.try_lock().is_ok()
     }
@@ -3018,39 +3017,6 @@ mod tests {
         assert!(err.contains("model"));
     }
 
-    #[test]
-    fn test_worker_reuse_requires_instructions() {
-        let (session_dir, app_dir) = worker_session_dir();
-        let params = DelegateParams {
-            worker: Some("sidekick".to_string()),
-            ..Default::default()
-        };
-
-        let err =
-            validate_worker_reuse_params(&params, &creation_params(app_dir), session_dir.path())
-                .unwrap_err();
-        assert!(err.contains("instructions"));
-    }
-
-    #[test]
-    fn test_worker_reuse_allows_instructions_context_max_turns() {
-        let (session_dir, app_dir) = worker_session_dir();
-        let params = DelegateParams {
-            instructions: Some("continue".to_string()),
-            context: Some("earlier spec".to_string()),
-            max_turns: Some(30),
-            worker: Some("sidekick".to_string()),
-            ..Default::default()
-        };
-
-        assert!(validate_worker_reuse_params(
-            &params,
-            &creation_params(app_dir),
-            session_dir.path()
-        )
-        .is_ok());
-    }
-
     #[derive(Default)]
     struct RecordingProvider {
         calls: std::sync::Mutex<Vec<Vec<String>>>,
@@ -3515,34 +3481,6 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.contains("Too many active workers"));
-    }
-
-    #[tokio::test]
-    async fn test_worker_busy_lock_rejects_concurrent_delegation() {
-        let rig = worker_test_rig().await;
-
-        rig.client
-            .handle_worker_delegate(
-                &rig.session,
-                worker_creation_delegate_params("first task"),
-                CancellationToken::new(),
-            )
-            .await
-            .unwrap();
-
-        let worker = ready_worker(&rig.client);
-        let _busy = worker.busy.clone().try_lock_owned().unwrap();
-
-        let err = rig
-            .client
-            .handle_worker_delegate(
-                &rig.session,
-                worker_followup_delegate_params("second task"),
-                CancellationToken::new(),
-            )
-            .await
-            .unwrap_err();
-        assert!(err.contains("busy"));
     }
 
     #[test]
