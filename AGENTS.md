@@ -12,6 +12,7 @@ The issue is the source of truth for work intended for an upstream pull request.
 - Keep the implementation within the issue's agreed scope.
 - If implementation reveals a material design change, return to the issue before continuing.
 - Every external pull request must link the Ready issue it implements and explain how the verification plan was performed.
+- Structure new issues on the matching template in `.github/ISSUE_TEMPLATE/` and set the issue type (e.g. Bug, Feature). `gh issue create` does not apply templates automatically.
 
 Maintainer-directed work, urgent security fixes, release automation, and local or exploratory changes do not require a Ready issue.
 
