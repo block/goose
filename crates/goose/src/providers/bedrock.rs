@@ -873,6 +873,9 @@ impl Provider for BedrockProvider {
                     create_responses_request(&normalized_config, system, messages, tools)?;
                 payload["model"] = Value::String(entry.wire_model_id.to_string());
                 payload["stream"] = Value::Bool(true);
+                if entry.name.starts_with("google.gemma-4-") {
+                    payload["parallel_tool_calls"] = Value::Bool(false);
+                }
                 let mut log = start_log(model_config, &payload).map_err(anyhow::Error::from)?;
 
                 let response = self
@@ -1697,6 +1700,12 @@ mod tests {
         assert!(
             body.get("thinking_effort").is_none(),
             "Gemma model should not inject thinking_effort"
+        );
+        // Gemma does not support parallel tool calls per AWS docs
+        assert_eq!(
+            body["parallel_tool_calls"].as_bool(),
+            Some(false),
+            "Gemma model must set parallel_tool_calls=false"
         );
     }
 
