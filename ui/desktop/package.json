@@ -86,7 +86,7 @@
     "react-icons": "^5.5.0",
     "react-intl": "^10.1.0",
     "react-markdown": "^10.1.0",
-    "react-router": "^7.18.2",
+    "react-router": "^8.3.0",
     "react-select": "^5.10.2",
     "react-syntax-highlighter": "^16.1.0",
     "react-toastify": "^11.0.5",
