@@ -124,7 +124,8 @@ pub(crate) async fn generate_session_name(
     )?;
 
     use crate::providers::cli_common::{
-        SESSION_NAME_BEGIN_MARKER, SESSION_NAME_END_MARKER, SESSION_NAME_SUFFIX,
+        generate_simple_session_description, SESSION_NAME_BEGIN_MARKER, SESSION_NAME_END_MARKER,
+        SESSION_NAME_SUFFIX,
     };
 
     let preprompt_section = if preprompt_context.is_empty() {
@@ -145,15 +146,22 @@ pub(crate) async fn generate_session_name(
         SESSION_NAME_SUFFIX,
     );
     let message = Message::user().with_text(&user_text);
-    let result = crate::model_config::complete_fast(
-        provider,
-        model_config,
-        session_id,
-        &system,
-        &[message],
-        &[],
-    )
-    .await?;
+    let result = if provider.manages_own_context() {
+        generate_simple_session_description(
+            &model_config.model_name,
+            std::slice::from_ref(&message),
+        )?
+    } else {
+        crate::model_config::complete_fast(
+            provider,
+            model_config,
+            session_id,
+            &system,
+            &[message],
+            &[],
+        )
+        .await?
+    };
 
     let raw: String = result
         .0
@@ -172,6 +180,64 @@ pub(crate) async fn generate_session_name(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose_providers::{base::MessageStream, errors::ProviderError, model::ModelConfig};
+    use rmcp::model::Tool;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    struct SelfManagedNamingProvider {
+        stream_called: AtomicBool,
+    }
+
+    impl SelfManagedNamingProvider {
+        fn new() -> Self {
+            Self {
+                stream_called: AtomicBool::new(false),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl Provider for SelfManagedNamingProvider {
+        fn get_name(&self) -> &str {
+            "self-managed-test"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            self.stream_called.store(true, Ordering::SeqCst);
+            Err(ProviderError::RequestFailed(
+                "session naming should stay local".to_string(),
+            ))
+        }
+
+        fn manages_own_context(&self) -> bool {
+            true
+        }
+    }
+
+    #[tokio::test]
+    async fn generate_session_name_stays_local_for_self_managed_context_provider() {
+        let provider = SelfManagedNamingProvider::new();
+        let model_config = ModelConfig::new("test-model");
+        let conversation = Conversation::new_unvalidated([
+            Message::user().with_text("Investigate ACP title leak in session naming")
+        ]);
+
+        let title = generate_session_name(&provider, &model_config, "session-id", &conversation)
+            .await
+            .expect("self-managed providers should use local session naming");
+
+        assert_eq!(title, "Investigate ACP title leak");
+        assert!(
+            !provider.stream_called.load(Ordering::SeqCst),
+            "session naming should not call into self-managed providers"
+        );
+    }
 
     #[test]
     fn test_strip_xml_tags() {
