@@ -169,17 +169,17 @@ impl ToolInspector for PermissionInspector {
                                     InspectionAction::RequireApproval(None)
                                 }
                             }
-                        // 2. Check for a read-only annotation in SmartApprove mode
-                        } else if goose_mode == GooseMode::SmartApprove
-                            && self.is_readonly_annotated_tool(tool_name)
-                        {
-                            InspectionAction::Allow
-                        // 3. Special case for extension management
+                        // 2. Special case for extension management
                         } else if tool_name == MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE {
                             InspectionAction::RequireApproval(Some(
                                 "Extension management requires approval for security".to_string(),
                             ))
-                        // 4. Defer to LLM detection (SmartApprove, uncached or legacy cached allow)
+                        // 3. Defer to LLM detection (SmartApprove, uncached or legacy cached allow).
+                        // Server-declared readOnlyHint annotations do NOT short-circuit to Allow:
+                        // per the MCP spec annotations are untrusted hints, so an annotated tool is
+                        // judged by the LLM like any other — genuinely read-only calls are still
+                        // auto-approved there, but a server cannot self-certify a destructive tool
+                        // as read-only to bypass user approval.
                         } else if goose_mode == GooseMode::SmartApprove
                             && matches!(
                                 permission_manager.get_smart_approve_permission(tool_name),
@@ -188,7 +188,7 @@ impl ToolInspector for PermissionInspector {
                         {
                             llm_detect_candidates.push(request);
                             continue;
-                        // 5. Default: require approval for unknown tools
+                        // 4. Default: require approval for unknown tools
                         } else {
                             InspectionAction::RequireApproval(None)
                         }
@@ -317,7 +317,7 @@ mod tests {
     }
 
     #[test_case(GooseMode::Auto, false, None, InspectionAction::Allow; "auto_allows")]
-    #[test_case(GooseMode::SmartApprove, true, None, InspectionAction::Allow; "smart_approve_annotation_allows")]
+    #[test_case(GooseMode::SmartApprove, true, None, InspectionAction::RequireApproval(None); "smart_approve_annotation_defers_to_llm_judge")]
     #[test_case(GooseMode::SmartApprove, false, Some(PermissionLevel::AlwaysAllow), InspectionAction::RequireApproval(None); "smart_approve_ignores_legacy_cached_allow")]
     #[test_case(GooseMode::SmartApprove, false, Some(PermissionLevel::AskBefore), InspectionAction::RequireApproval(None); "smart_approve_cached_ask")]
     #[test_case(GooseMode::SmartApprove, false, None, InspectionAction::RequireApproval(None); "smart_approve_unknown_defers")]
