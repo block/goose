@@ -341,7 +341,7 @@ impl GithubCopilotProvider {
         &self,
         github_token: &str,
     ) -> Result<CopilotTokenInfo, ProviderError> {
-        let resp = self
+        let response = self
             .client
             .get(&self.urls.copilot_token_url)
             .headers(self.get_github_headers())
@@ -350,10 +350,17 @@ impl GithubCopilotProvider {
                 format!("bearer {github_token}"),
             )
             .send()
-            .await?
-            .error_for_status()?
-            .text()
             .await?;
+        if matches!(
+            response.status(),
+            reqwest::StatusCode::UNAUTHORIZED | reqwest::StatusCode::FORBIDDEN
+        ) {
+            return Err(ProviderError::Authentication(format!(
+                "GitHub Copilot token request failed ({})",
+                response.status()
+            )));
+        }
+        let resp = response.error_for_status()?.text().await?;
         tracing::trace!("copilot token response: {}", resp);
         let info: CopilotTokenInfo = serde_json::from_str(&resp)
             .map_err(|error| ProviderError::RequestFailed(error.to_string()))?;
@@ -724,6 +731,8 @@ fn promote_tool_choice(response: Value) -> Value {
 mod tests {
     use super::*;
     use serde_json::json;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[cfg(unix)]
     #[tokio::test]
@@ -795,6 +804,38 @@ mod tests {
 
         assert_eq!(endpoint, "https://api.githubcopilot.com");
         assert_eq!(token, "copilot-secret");
+    }
+
+    #[tokio::test]
+    async fn refresh_api_info_returns_authentication_for_rejected_token() {
+        for status in [401, 403] {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/copilot-token"))
+                .respond_with(ResponseTemplate::new(status))
+                .mount(&server)
+                .await;
+            let directory = tempfile::tempdir().unwrap();
+            let provider = GithubCopilotProvider {
+                client: Client::new(),
+                cache: DiskCache {
+                    cache_path: directory.path().join("info.json"),
+                },
+                mu: tokio::sync::Mutex::new(RefCell::new(None)),
+                urls: GithubCopilotUrls {
+                    device_code_url: String::new(),
+                    access_token_url: String::new(),
+                    copilot_token_url: format!("{}/copilot-token", server.uri()),
+                },
+                client_id: DEFAULT_GITHUB_COPILOT_CLIENT_ID.to_string(),
+                name: GITHUB_COPILOT_PROVIDER_NAME.to_string(),
+                tls_config: None,
+            };
+
+            let error = provider.refresh_api_info("rejected").await.unwrap_err();
+
+            assert!(matches!(error, ProviderError::Authentication(_)));
+        }
     }
 
     #[test]
