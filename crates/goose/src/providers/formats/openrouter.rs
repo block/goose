@@ -89,6 +89,31 @@ pub fn add_reasoning_details_to_request(payload: &mut Value, messages: &[Message
     }
 }
 
+// OpenRouter rejects disable requests for mandatory-reasoning endpoints
+// (e.g. gpt-5, grok-4.5), so off keeps the lowest supported effort where one
+// is known and sends enabled:false otherwise.
+fn reasoning_off_value(model_config: &ModelConfig, clamped_effort: Option<&str>) -> Value {
+    if let Some(clamped) = clamped_effort {
+        return json!({ "effort": clamped });
+    }
+    // The xAI helpers only match bare model names, so strip OpenRouter's
+    // provider prefix; grok endpoints with mandatory reasoning (e.g.
+    // x-ai/grok-4.5) reject a disable request but accept their lowest effort.
+    let bare_name = model_config
+        .model_name
+        .rsplit('/')
+        .next()
+        .unwrap_or(&model_config.model_name);
+    if openai::supports_xai_reasoning_effort(bare_name) {
+        if let Some(effort) =
+            openai::xai_reasoning_effort_for_thinking(bare_name, ThinkingEffort::Off)
+        {
+            return json!({ "effort": effort });
+        }
+    }
+    json!({ "enabled": false })
+}
+
 fn reasoning_effort_for_openrouter(effort: ThinkingEffort) -> Option<&'static str> {
     match effort {
         ThinkingEffort::Off => None,
@@ -114,6 +139,10 @@ pub fn apply_reasoning_config(payload: &mut Value, model_config: &ModelConfig) {
             .remove("reasoning_effort")
             .and_then(|value| value.as_str().map(str::to_owned));
         if effort == ThinkingEffort::Off {
+            if model_config.is_reasoning_model() {
+                let reasoning = reasoning_off_value(model_config, clamped_effort.as_deref());
+                obj.insert("reasoning".to_string(), reasoning);
+            }
             return;
         }
         if clamped_effort.is_none() && !model_config.is_reasoning_model() {
@@ -231,23 +260,6 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_reasoning_config_omits_off_reasoning_capable_model() {
-        let mut payload = json!({
-            "model": "google/gemini-2.5-flash",
-            "messages": []
-        });
-        let mut model_config = ModelConfig::new("google/gemini-2.5-flash");
-        model_config.reasoning = Some(true);
-        let mut params = HashMap::new();
-        params.insert("thinking_effort".to_string(), json!("off"));
-        model_config.request_params = Some(params);
-
-        apply_reasoning_config(&mut payload, &model_config);
-
-        assert!(payload.get("reasoning").is_none());
-    }
-
-    #[test]
     fn test_apply_reasoning_config_uses_reasoning_metadata() {
         let mut payload = json!({
             "model": "x-ai/grok-4",
@@ -298,7 +310,7 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_reasoning_config_off_omits_reasoning() {
+    fn test_apply_reasoning_config_off_disables_reasoning() {
         let mut payload = json!({
             "model": "x-ai/grok-4",
             "messages": []
@@ -311,11 +323,11 @@ mod tests {
 
         apply_reasoning_config(&mut payload, &model_config);
 
-        assert!(payload.get("reasoning").is_none());
+        assert_eq!(payload["reasoning"], json!({ "enabled": false }));
     }
 
     #[test]
-    fn test_apply_reasoning_config_off_ignores_clamped_effort() {
+    fn test_apply_reasoning_config_off_keeps_clamped_effort() {
         let mut payload = json!({
             "model": "openai/gpt-5",
             "messages": [],
@@ -329,7 +341,81 @@ mod tests {
 
         apply_reasoning_config(&mut payload, &model_config);
 
+        assert_eq!(payload["reasoning"], json!({ "effort": "low" }));
+        assert!(payload.get("reasoning_effort").is_none());
+    }
+
+    #[test]
+    fn test_apply_reasoning_config_off_clamps_prefixed_xai_model() {
+        let mut payload = json!({
+            "model": "x-ai/grok-4.5",
+            "messages": []
+        });
+        let mut model_config = ModelConfig::new("x-ai/grok-4.5");
+        let mut params = HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("off"));
+        model_config.request_params = Some(params);
+        model_config.reasoning = Some(true);
+
+        apply_reasoning_config(&mut payload, &model_config);
+
+        assert_eq!(payload["reasoning"], json!({ "effort": "low" }));
+    }
+
+    #[test]
+    fn test_apply_reasoning_config_kimi_k3_off_disables_reasoning() {
+        let mut payload = json!({
+            "model": "moonshotai/kimi-k3",
+            "messages": []
+        });
+        let mut model_config =
+            ModelConfig::new("moonshotai/kimi-k3").with_canonical_limits("openrouter");
+        let mut params = HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("off"));
+        model_config.request_params = Some(params);
+
+        apply_reasoning_config(&mut payload, &model_config);
+
+        assert_eq!(payload["reasoning"], json!({ "enabled": false }));
+    }
+
+    #[test]
+    fn test_apply_reasoning_config_off_skips_non_reasoning_model() {
+        // gpt-5.1-chat is OpenAI-shaped (the builder emits a clamped
+        // reasoning_effort) but canonically non-reasoning; off must not
+        // turn the clamp into a reasoning field.
+        let mut payload = json!({
+            "model": "openai/gpt-5.1-chat",
+            "messages": [],
+            "reasoning_effort": "low"
+        });
+        let mut model_config = ModelConfig::new("openai/gpt-5.1-chat");
+        let mut params = HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("off"));
+        model_config.request_params = Some(params);
+        model_config.reasoning = Some(false);
+
+        apply_reasoning_config(&mut payload, &model_config);
+
         assert!(payload.get("reasoning").is_none());
         assert!(payload.get("reasoning_effort").is_none());
+    }
+
+    #[test]
+    fn test_apply_reasoning_config_off_preserves_user_reasoning() {
+        let mut payload = json!({
+            "model": "x-ai/grok-4",
+            "messages": [],
+            "reasoning": { "max_tokens": 2000 }
+        });
+        let mut model_config = ModelConfig::new("x-ai/grok-4");
+        let mut params = HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("off"));
+        model_config.request_params = Some(params);
+        model_config.reasoning = Some(true);
+
+        apply_reasoning_config(&mut payload, &model_config);
+
+        assert_eq!(payload["reasoning"], json!({ "max_tokens": 2000 }));
     }
 }
