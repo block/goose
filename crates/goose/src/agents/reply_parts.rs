@@ -1841,8 +1841,6 @@ mod tests {
         assert!(stats.elapsed_ms.expect("elapsed_ms must be filled") >= 100);
     }
 
-    // --- first-item retry tests ---
-
     type StreamItem = Result<(Option<Message>, Option<ProviderUsage>), ProviderError>;
 
     fn ok_item() -> StreamItem {
@@ -1860,8 +1858,6 @@ mod tests {
         ProviderError::ContextLengthExceeded("too long".into())
     }
 
-    /// Provider whose `stream()` call returns a pre-configured sequence of streams.
-    /// Each call pops the next stream from the front of the list.
     struct SequencedProvider {
         streams: Arc<Mutex<Vec<Vec<StreamItem>>>>,
         manages_context: bool,
@@ -1907,8 +1903,8 @@ mod tests {
     async fn first_item_retry_recovers_on_transient_error() {
         std::env::set_var("GOOSE_PROVIDER_SKIP_BACKOFF", "true");
         let provider = Arc::new(SequencedProvider::new(vec![
-            vec![Err(rate_limit_error())], // first stream: transient error on first item
-            vec![ok_item()],               // replacement stream: succeeds
+            vec![Err(rate_limit_error())],
+            vec![ok_item()],
         ]));
 
         let messages = vec![Message::user().with_text("hi")];
@@ -2017,8 +2013,6 @@ mod tests {
     #[tokio::test]
     async fn first_item_retry_replacement_stream_creation_failure_stops_retrying() {
         std::env::set_var("GOOSE_PROVIDER_SKIP_BACKOFF", "true");
-        // First stream: transient error. Replacement stream creation itself fails (empty vec panics).
-        // We model stream-creation failure by returning Err from stream().
         struct FailOnSecondCallProvider {
             call: Arc<Mutex<u32>>,
         }
@@ -2039,12 +2033,10 @@ mod tests {
                 let mut call = self.call.lock().unwrap();
                 *call += 1;
                 if *call == 1 {
-                    // first call: return stream with transient first-item error
                     Ok(Box::pin(futures::stream::iter(vec![Err(
                         rate_limit_error(),
                     )])))
                 } else {
-                    // replacement stream creation fails
                     Err(ProviderError::ServerError("provider unavailable".into()))
                 }
             }
@@ -2075,8 +2067,6 @@ mod tests {
     #[tokio::test]
     async fn error_after_first_successful_item_propagates_without_retry() {
         std::env::set_var("GOOSE_PROVIDER_SKIP_BACKOFF", "true");
-        // Only one stream; first item succeeds, second item fails.
-        // If retry were triggered for the second item, it would panic (no more streams).
         let provider = Arc::new(SequencedProvider::new(vec![vec![
             ok_item(),
             Err(rate_limit_error()),
