@@ -318,6 +318,17 @@ fn agent_visible_message_text(message: &Message) -> String {
     message.agent_visible_content().as_concat_text()
 }
 
+fn latest_provider_session_id<'a>(messages: &'a [Message], provider: &str) -> Option<&'a str> {
+    let inference = messages
+        .iter()
+        .rev()
+        .find_map(|message| message.metadata.inference.as_ref())?;
+    if inference.provider != provider {
+        return None;
+    }
+    inference.provider_session_id.as_deref()
+}
+
 fn attach_turn_usage(
     messages: &mut Conversation,
     usage: &ProviderUsage,
@@ -1989,17 +2000,33 @@ impl Agent {
 
         let provider = self.provider().await?;
         let provider_name = provider.get_name().to_string();
+        let saved_provider_session_id =
+            latest_provider_session_id(&initial_messages, &provider_name);
+        if let Some(saved_provider_session_id) = saved_provider_session_id {
+            if let Err(error) = provider.resume(saved_provider_session_id).await {
+                warn!(
+                    provider = provider_name,
+                    %error,
+                    "Could not resume provider session; continuing with a handoff"
+                );
+            }
+        }
+
         let requested_model = model_config.model_name.clone();
-        let inference = provider
+        let resolved_model = provider
             .fetch_model_info(&requested_model)
             .await
             .ok()
-            .and_then(|model_info| model_info.resolved_model)
-            .map(|resolved_model| InferenceMetadata {
+            .and_then(|model_info| model_info.resolved_model);
+        let provider_session_id = provider.provider_session_id();
+        let inference = (resolved_model.is_some() || provider_session_id.is_some()).then(|| {
+            InferenceMetadata {
                 provider: provider_name.clone(),
                 requested_model,
-                resolved_model: Some(resolved_model),
-            });
+                resolved_model,
+                provider_session_id,
+            }
+        });
         let session_manager = self.config.session_manager.clone();
         let session_id = session_config.id.clone();
         if !self.config.disable_session_naming {
@@ -3722,6 +3749,30 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
+
+    #[test]
+    fn provider_session_id_comes_from_latest_inference() {
+        let messages = vec![
+            Message::assistant().with_inference(InferenceMetadata {
+                provider: "codex-acp".to_string(),
+                requested_model: "current".to_string(),
+                resolved_model: None,
+                provider_session_id: Some("codex-session".to_string()),
+            }),
+            Message::assistant().with_inference(InferenceMetadata {
+                provider: "claude-acp".to_string(),
+                requested_model: "current".to_string(),
+                resolved_model: None,
+                provider_session_id: Some("claude-session".to_string()),
+            }),
+        ];
+
+        assert_eq!(
+            latest_provider_session_id(&messages, "claude-acp"),
+            Some("claude-session")
+        );
+        assert_eq!(latest_provider_session_id(&messages, "codex-acp"), None);
+    }
 
     async fn tracing_test_agent_and_session() -> (Agent, Session, TempDir) {
         let data_dir = TempDir::new().unwrap();

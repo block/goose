@@ -610,6 +610,8 @@ pub struct InferenceMetadata {
     pub requested_model: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resolved_model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_session_id: Option<String>,
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Default)]
