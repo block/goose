@@ -158,6 +158,7 @@ fn unix_shell() -> String {
 const OUTPUT_LIMIT_LINES: usize = 2000;
 pub const OUTPUT_LIMIT_BYTES: usize = 50_000;
 const OUTPUT_PREVIEW_LINES: usize = 50;
+const OUTPUT_PREVIEW_BYTES: usize = 10_000;
 
 const OUTPUT_SLOTS: usize = 8;
 
@@ -890,7 +891,7 @@ fn truncate_output(
     let output_path = save_full_output(full_output, label, output_dir)?;
 
     let preview_start = total_lines.saturating_sub(OUTPUT_PREVIEW_LINES);
-    let preview = lines[preview_start..].join("\n");
+    let preview = truncate_preview_bytes(lines[preview_start..].join("\n"));
 
     let reason = if exceeded_lines {
         format!("Output exceeded {OUTPUT_LIMIT_LINES} line limit ({total_lines} lines total).")
@@ -908,6 +909,21 @@ fn truncate_output(
             reason,
         }),
     })
+}
+
+/// Keep the preview's tail within OUTPUT_PREVIEW_BYTES so lines without
+/// newlines (progress bars using `\r`, minified or base64 content) cannot
+/// smuggle an unbounded preview past the line-based truncation.
+#[allow(clippy::string_slice)] // The start index is snapped to a char boundary.
+fn truncate_preview_bytes(preview: String) -> String {
+    if preview.len() <= OUTPUT_PREVIEW_BYTES {
+        return preview;
+    }
+    let mut start = preview.len() - OUTPUT_PREVIEW_BYTES;
+    while !preview.is_char_boundary(start) {
+        start += 1;
+    }
+    preview[start..].to_string()
 }
 
 fn save_full_output(
@@ -1198,6 +1214,30 @@ mod tests {
 
         let notice = truncation_notice(info);
         assert!(notice.contains("Full output saved to"));
+    }
+
+    #[test]
+    fn render_output_preview_is_byte_bounded_for_giant_lines() {
+        let dir = tempfile::tempdir().unwrap();
+        let input = "x".repeat(200_000);
+
+        let result = render_output(&input, "test_giant_line", dir.path()).unwrap();
+
+        assert!(result.text.len() <= OUTPUT_PREVIEW_BYTES);
+        let info = result
+            .truncation
+            .as_ref()
+            .expect("expected truncation info");
+        assert!(info.reason.contains("byte limit"));
+        assert_eq!(std::fs::read_to_string(&info.path).unwrap().len(), 200_000);
+    }
+
+    #[test]
+    fn truncate_preview_bytes_respects_char_boundaries() {
+        let preview = "é".repeat(OUTPUT_PREVIEW_BYTES);
+        let truncated = truncate_preview_bytes(preview);
+        assert!(truncated.len() <= OUTPUT_PREVIEW_BYTES);
+        assert!(truncated.chars().all(|c| c == 'é'));
     }
 
     #[test]
