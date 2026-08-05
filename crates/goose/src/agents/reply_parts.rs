@@ -607,6 +607,8 @@ impl Agent {
 
         let mut filtered_message =
             Message::new(response.role.clone(), response.created, filtered_content);
+        filtered_message.metadata.output_token_limit_reached =
+            response.metadata.output_token_limit_reached;
 
         // Preserve the ID if it exists
         if let Some(id) = response.id.clone() {
@@ -1421,17 +1423,19 @@ mod tests {
     #[tokio::test]
     async fn categorize_tool_requests_keeps_thinking_when_not_previously_streamed() {
         let agent = crate::agents::Agent::new();
-        let response = Message::assistant()
+        let mut response = Message::assistant()
             .with_thinking("final-only reasoning", "")
             .with_tool_request(
                 "tool-1",
                 Ok(rmcp::model::CallToolRequestParams::new("test_tool")),
             );
+        response.metadata.output_token_limit_reached = true;
 
         let (_frontend_requests, other_requests, filtered_message) =
             agent.categorize_tool_requests(&response, &[], false).await;
 
         assert_eq!(other_requests.len(), 1);
+        assert!(filtered_message.metadata.output_token_limit_reached);
         assert_eq!(filtered_message.content.len(), 2);
         assert!(matches!(
             filtered_message.content[0],

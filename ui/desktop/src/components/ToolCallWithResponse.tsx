@@ -69,6 +69,9 @@ type UiMeta = {
   ui?: {
     resourceUri?: string;
   };
+  extensionName?: string;
+  toolName?: string;
+  toolNameIsActual?: boolean;
   subagent_session_id?: string;
 };
 
@@ -155,6 +158,27 @@ interface McpAppWrapperProps {
   append?: (value: string) => void;
 }
 
+export function resolveMcpAppMetadata(
+  responseMeta: UiMeta | undefined
+): { resourceUri: string; extensionName: string; toolName: string } | null {
+  const resourceUri = responseMeta?.ui?.resourceUri;
+  const extensionName = responseMeta?.extensionName;
+  const toolName = responseMeta?.toolName;
+  if (resourceUri && extensionName && toolName) {
+    const legacyPrefix = `${extensionName}__`;
+    const actualToolName = responseMeta.toolNameIsActual
+      ? toolName
+      : toolName.startsWith(legacyPrefix)
+        ? toolName.slice(legacyPrefix.length)
+        : toolName;
+    if (actualToolName) {
+      return { resourceUri, extensionName, toolName: actualToolName };
+    }
+  }
+
+  return null;
+}
+
 function McpAppWrapper({
   toolRequest,
   toolResponse,
@@ -162,25 +186,12 @@ function McpAppWrapper({
   append,
 }: McpAppWrapperProps): React.ReactNode {
   const requestWithMeta = toolRequest as ToolRequestWithMeta;
-  let resourceUri = requestWithMeta._meta?.ui?.resourceUri;
-
-  if (!resourceUri && toolResponse) {
-    const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
-    if (resultWithMeta?.status === 'success' && resultWithMeta.value) {
-      resourceUri = resultWithMeta.value._meta?.ui?.resourceUri;
-    }
-  }
-
-  // Tool names are formatted as "{extension_name}__{tool_name}".
-  // Extension names can contain underscores (special chars like parentheses are normalized to "_"),
-  // so we must use lastIndexOf to find the delimiter.
-  // e.g., "my_server(local)" -> "my_server_local_" -> "my_server_local___get_time"
-  const toolCallName =
-    requestWithMeta.toolCall.status === 'success' ? requestWithMeta.toolCall.value.name : '';
-  const delimiterIndex = toolCallName.lastIndexOf('__');
-  const extensionName = delimiterIndex === -1 ? '' : toolCallName.substring(0, delimiterIndex);
-  const toolName =
-    delimiterIndex === -1 ? toolCallName : toolCallName.substring(delimiterIndex + 2);
+  const resultWithMeta = toolResponse?.toolResult as ToolResultWithMeta | undefined;
+  const responseMeta =
+    resultWithMeta?.status === 'success' && resultWithMeta.value
+      ? resultWithMeta.value._meta
+      : undefined;
+  const appMetadata = resolveMcpAppMetadata(responseMeta);
 
   const toolArguments =
     requestWithMeta.toolCall.status === 'success'
@@ -189,14 +200,15 @@ function McpAppWrapper({
 
   const toolInput = { arguments: toolArguments || {} };
 
-  const resultWithMeta = toolResponse?.toolResult as ToolResultWithMeta | undefined;
   const toolResult =
     resultWithMeta?.status === 'success' && resultWithMeta.value
       ? (resultWithMeta.value as unknown as CallToolResult)
       : undefined;
 
-  if (!resourceUri) return null;
+  if (!appMetadata) return null;
   if (requestWithMeta.toolCall.status !== 'success') return null;
+
+  const { resourceUri, extensionName, toolName } = appMetadata;
 
   return (
     <div className="mt-3">
@@ -237,11 +249,8 @@ export default function ToolCallWithResponse({
     return null;
   }
 
-  const requestWithMeta = toolRequest as ToolRequestWithMeta;
   const resultWithMeta = toolResponse?.toolResult as ToolResultWithMeta;
-  const hasMcpAppResourceURI = Boolean(
-    requestWithMeta._meta?.ui?.resourceUri || resultWithMeta?.value?._meta?.ui?.resourceUri
-  );
+  const hasMcpAppResourceURI = Boolean(resultWithMeta?.value?._meta?.ui?.resourceUri);
 
   const shouldShowMcpContent = !isPendingApproval;
 

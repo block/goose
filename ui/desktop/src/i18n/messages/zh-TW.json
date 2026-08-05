@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "交談"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "建立時間"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "目錄"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "模型"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "狀態"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "更新時間"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "沒有最近的交談"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "錯誤"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "閒置"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "串流"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "未讀活動"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "未命名工作階段"
@@ -3743,6 +3770,12 @@
   "sessions.action.export": {
     "defaultMessage": "匯出工作階段"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "在新視窗中開啟"
   },
@@ -3841,6 +3874,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "已成功複製工作階段「{name}」"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "無法匯出工作階段：{error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "已成功匯出工作階段"

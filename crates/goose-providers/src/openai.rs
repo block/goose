@@ -311,6 +311,7 @@ impl OpenAiProvider {
                             OPEN_AI_DEFAULT_RESPONSES_PATH,
                         ))
                         .model_headers(model_config)?
+                        .streaming(self.supports_streaming)
                         .response_post(&payload)
                         .await?,
                 )
@@ -543,8 +544,16 @@ impl OpenAiProvider {
             return Err(ProviderError::EndpointNotFound(body));
         }
 
-        let json = handle_response_openai_compat(response).await?;
-        if let Some(err_obj) = json.get("error") {
+        let response = handle_status(response).await?;
+
+        let body = response.bytes().await.map_err(|e| {
+            ProviderError::NetworkError(format!("Failed to read response body: {}", e))
+        })?;
+        let json: serde_json::Value = serde_json::from_slice(&body).map_err(|e| {
+            ProviderError::EndpointNotFound(format!("Response body is not valid JSON: {}", e))
+        })?;
+
+        if let Some(err_obj) = json.get("error").filter(|error| !error.is_null()) {
             let msg = err_obj
                 .get("message")
                 .and_then(|v| v.as_str())
@@ -789,6 +798,7 @@ impl Provider for OpenAiProvider {
                         .api_client
                         .request(&self.base_path)
                         .model_headers(model_config)?
+                        .streaming(self.supports_streaming)
                         .response_post(&payload)
                         .await?;
                     handle_status(resp).await
@@ -1415,9 +1425,6 @@ mod tests {
 
     #[test]
     fn derive_base_path_preserves_non_v1_version_prefix() {
-        // Zhipu's default base_url is https://open.bigmodel.cn/api/paas/v4 and
-        // from_custom_config passes url.path() ("/api/paas/v4") here. The
-        // existing /api/paas/v4 version must not gain an extra /v1 segment.
         let r = derive_base_path("/api/paas/v4");
         assert_eq!(r, "api/paas/v4/chat/completions");
     }
@@ -1426,6 +1433,189 @@ mod tests {
     fn derive_base_path_does_not_treat_v_word_as_version() {
         let r = derive_base_path("/api/voice");
         assert_eq!(r, "api/voice/v1/chat/completions");
+    }
+
+    fn make_provider_with_custom_models(
+        host: &str,
+        base_path: &str,
+        custom_models: Vec<String>,
+    ) -> OpenAiProvider {
+        OpenAiProvider {
+            api_client: ApiClient::new_with_tls(host.to_string(), AuthMethod::NoAuth, None)
+                .unwrap(),
+            base_path: base_path.to_string(),
+            organization: None,
+            project: None,
+            custom_headers: None,
+            supports_streaming: true,
+            name: "test-provider".to_string(),
+            custom_models: Some(
+                custom_models
+                    .into_iter()
+                    .map(|model| ModelInfo::new(model, 4096))
+                    .collect(),
+            ),
+            dynamic_models: Some(true),
+            skip_canonical_filtering: false,
+            preserve_thinking_context: false,
+            n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    #[tokio::test]
+    async fn fetch_models_treats_invalid_json_as_endpoint_not_found() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_string("<html>not a models endpoint</html>"),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let provider = make_provider_with_custom_models(
+            &server.uri(),
+            "v1/chat/completions",
+            vec!["static-model".to_string()],
+        );
+
+        let err = provider.fetch_models_from_api().await.unwrap_err();
+        assert!(err.is_endpoint_not_found(), "got: {:?}", err);
+    }
+
+    #[tokio::test]
+    async fn fetch_models_returns_request_failed_for_missing_data_field() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"status": "ok"})))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let provider = make_provider_with_custom_models(
+            &server.uri(),
+            "v1/chat/completions",
+            vec!["static-model".to_string()],
+        );
+
+        let err = provider.fetch_models_from_api().await.unwrap_err();
+        assert!(
+            matches!(err, ProviderError::RequestFailed(_)),
+            "expected RequestFailed, got: {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_falls_back_on_invalid_payload() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("<html>error page</html>"))
+            .mount(&server)
+            .await;
+
+        let predefined = vec!["glm-4.5".to_string(), "glm-5".to_string()];
+        let provider = make_provider_with_custom_models(
+            &server.uri(),
+            "v1/chat/completions",
+            predefined.clone(),
+        );
+
+        let models = provider
+            .fetch_supported_models()
+            .await
+            .expect("should fall back");
+        assert_eq!(models, predefined);
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_propagates_auth_error() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "error": {"message": "invalid api key"}
+            })))
+            .mount(&server)
+            .await;
+
+        let provider = make_provider_with_custom_models(
+            &server.uri(),
+            "v1/chat/completions",
+            vec!["static-model".to_string()],
+        );
+
+        let err = provider.fetch_supported_models().await.unwrap_err();
+        assert!(
+            matches!(err, ProviderError::Authentication(_)),
+            "got: {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_does_not_reclassify_400_as_endpoint_not_found() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!({
+                "error": {"message": "request is not valid JSON"}
+            })))
+            .mount(&server)
+            .await;
+
+        let provider = make_provider_with_custom_models(
+            &server.uri(),
+            "v1/chat/completions",
+            vec!["static-model".to_string()],
+        );
+
+        let err = provider.fetch_supported_models().await.unwrap_err();
+        assert!(!err.is_endpoint_not_found(), "got: {:?}", err);
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_accepts_payload_with_extra_fields() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": [{"id": "model-a"}, {"id": "model-b"}],
+                "message": "ok",
+                "error": null
+            })))
+            .mount(&server)
+            .await;
+
+        let provider = make_provider_with_custom_models(
+            &server.uri(),
+            "v1/chat/completions",
+            vec!["static-model".to_string()],
+        );
+
+        let models = provider.fetch_supported_models().await.unwrap();
+        assert_eq!(models, vec!["model-a".to_string(), "model-b".to_string()]);
     }
 
     use crate::base::ThinkingPreservationFormat;

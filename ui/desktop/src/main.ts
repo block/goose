@@ -28,6 +28,7 @@ import { execFileSync, spawn, execFile } from 'child_process';
 import 'dotenv/config';
 import { checkBackendStatus } from './backendStatus';
 import { startGooseServe } from './gooseServe';
+import { getLoginShellPath } from './loginShellPath';
 import { GooseServeLeaseRegistry, type GooseServeLease } from './gooseServeLeaseRegistry';
 import { acpWebSocketUrlFromHttpBase, normalizeAcpHttpBaseUrl } from './acp/url';
 import { expandTilde, sanitizeGoosePathRoot } from './utils/pathUtils';
@@ -1155,6 +1156,8 @@ const createChat = async (
   } else {
     const localCertificateTrust = trustBackendCertificate('127.0.0.1', null);
 
+    const loginShellPath = await getLoginShellPath(log);
+
     let gooseServeResult: Awaited<ReturnType<typeof startGooseServe>>;
     try {
       gooseServeResult = await startGooseServe({
@@ -1164,6 +1167,7 @@ const createChat = async (
         env: {
           GOOSE_PATH_ROOT: appConfig.GOOSE_PATH_ROOT as string | undefined,
         },
+        loginShellPath,
         isPackaged: app.isPackaged,
         resourcesPath: app.isPackaged ? process.resourcesPath : undefined,
         logger: log,

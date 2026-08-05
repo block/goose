@@ -124,8 +124,7 @@ pub(crate) async fn generate_session_name(
     )?;
 
     use crate::providers::cli_common::{
-        generate_simple_session_description, SESSION_NAME_BEGIN_MARKER, SESSION_NAME_END_MARKER,
-        SESSION_NAME_SUFFIX,
+        SESSION_NAME_BEGIN_MARKER, SESSION_NAME_END_MARKER, SESSION_NAME_SUFFIX,
     };
 
     let preprompt_section = if preprompt_context.is_empty() {
@@ -147,9 +146,9 @@ pub(crate) async fn generate_session_name(
     );
     let message = Message::user().with_text(&user_text);
     let result = if provider.manages_own_context() {
-        generate_simple_session_description(
-            &model_config.model_name,
-            std::slice::from_ref(&message),
+        crate::providers::cli_common::generate_simple_session_description(
+            provider.get_name(),
+            &[message],
         )?
     } else {
         crate::model_config::complete_fast(

@@ -5,6 +5,7 @@ use crate::conversation::Conversation;
 use crate::providers::base::CostSource;
 use crate::providers::base::Provider;
 use crate::recipe::Recipe;
+use crate::session::export_markdown::export_session_to_markdown;
 use crate::session::extension_data::ExtensionData;
 use crate::session::session_naming::{
     generate_session_name, MSG_COUNT_FOR_SESSION_NAME_GENERATION,
@@ -489,6 +490,15 @@ impl SessionManager {
         self.storage.export_session(id).await
     }
 
+    pub async fn export_session_markdown(&self, id: &str) -> Result<String> {
+        let session = self.get_session(id, true).await?;
+        let messages = session
+            .conversation
+            .map(|conversation| conversation.user_visible_messages())
+            .unwrap_or_default();
+        Ok(export_session_to_markdown(messages, &session.name))
+    }
+
     pub async fn import_session(
         &self,
         json: &str,
@@ -537,6 +547,24 @@ impl SessionManager {
             message_count: session.message_count,
             user_set_name: session.user_set_name,
         })
+    }
+
+    pub async fn update_name_from_provider(
+        &self,
+        id: &str,
+        name: String,
+    ) -> Result<Option<SessionNameUpdate>> {
+        let name = name.trim().to_string();
+        if name.is_empty() {
+            return Ok(None);
+        }
+
+        let session = self.get_session(id, false).await?;
+        if session.user_set_name || session.name == name {
+            return Ok(None);
+        }
+
+        Ok(Some(self.system_generated_name_update(id, name).await?))
     }
 
     pub async fn maybe_update_name(
@@ -588,7 +616,13 @@ impl SessionManager {
             .filter(|m| matches!(m.role, Role::User))
             .count();
 
-        if user_message_count <= MSG_COUNT_FOR_SESSION_NAME_GENERATION {
+        let should_generate_name = if provider.manages_own_context() {
+            user_message_count == 1
+        } else {
+            user_message_count <= MSG_COUNT_FOR_SESSION_NAME_GENERATION
+        };
+
+        if should_generate_name {
             let name =
                 generate_session_name(provider.as_ref(), &model_config, id, &conversation).await?;
             return Ok(Some(self.system_generated_name_update(id, name).await?));
@@ -2668,6 +2702,8 @@ mod tests {
 
     struct NamingTestProvider;
 
+    struct StatefulNamingTestProvider;
+
     #[async_trait::async_trait]
     impl Provider for NamingTestProvider {
         fn get_name(&self) -> &str {
@@ -2695,6 +2731,27 @@ mod tests {
                 Message::assistant().with_text(GENERATED_SESSION_NAME),
                 ProviderUsage::new("test".to_string(), Default::default()),
             ))
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl Provider for StatefulNamingTestProvider {
+        fn get_name(&self) -> &str {
+            "stateful-naming-test"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            panic!("stateful session naming must not call the provider")
+        }
+
+        fn manages_own_context(&self) -> bool {
+            true
         }
     }
 
@@ -2964,6 +3021,95 @@ mod tests {
         let reloaded = sm.get_session(&session.id, false).await.unwrap();
         assert_eq!(reloaded.name, GENERATED_SESSION_NAME);
         assert!(!reloaded.user_set_name);
+    }
+
+    #[tokio::test]
+    async fn test_maybe_update_name_uses_local_name_for_stateful_provider() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "New Chat".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        sm.update(&session.id)
+            .model_config(ModelConfig::new("test-model"))
+            .apply()
+            .await
+            .unwrap();
+        sm.add_message(
+            &session.id,
+            &Message::user().with_text("investigate session naming with ACP providers"),
+        )
+        .await
+        .unwrap();
+
+        let update = sm
+            .maybe_update_name(&session.id, Arc::new(StatefulNamingTestProvider))
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(update.name, "investigate session naming with");
+    }
+
+    #[tokio::test]
+    async fn test_provider_name_replaces_generated_name_but_not_user_name() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "Local fallback".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let update = sm
+            .update_name_from_provider(&session.id, "  Better ACP title  ".to_string())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(update.name, "Better ACP title");
+
+        sm.update(&session.id)
+            .model_config(ModelConfig::new("test-model"))
+            .apply()
+            .await
+            .unwrap();
+        add_user_message(&sm, &session.id).await;
+        add_user_message(&sm, &session.id).await;
+        assert!(sm
+            .maybe_update_name(&session.id, Arc::new(StatefulNamingTestProvider))
+            .await
+            .unwrap()
+            .is_none());
+        assert_eq!(
+            sm.get_session(&session.id, false).await.unwrap().name,
+            "Better ACP title"
+        );
+
+        sm.update(&session.id)
+            .user_provided_name("Manual title")
+            .apply()
+            .await
+            .unwrap();
+        assert!(sm
+            .update_name_from_provider(&session.id, "Another ACP title".to_string())
+            .await
+            .unwrap()
+            .is_none());
+        assert_eq!(
+            sm.get_session(&session.id, false).await.unwrap().name,
+            "Manual title"
+        );
     }
 
     #[tokio::test]

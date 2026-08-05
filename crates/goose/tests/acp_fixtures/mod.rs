@@ -372,7 +372,10 @@ pub async fn spawn_acp_server_in_process(
 
     let agent = GooseAcpAgent::new(GooseAcpAgentOptions {
         provider_factory,
-        builtins: builtins.to_vec(),
+        builtin_selection: goose::acp::server::AcpBuiltinSelection {
+            explicit: builtins.to_vec(),
+            ..Default::default()
+        },
         data_dir: data_root.to_path_buf(),
         config_dir: data_root.to_path_buf(),
         disable_session_naming,
