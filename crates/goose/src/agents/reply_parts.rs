@@ -379,6 +379,76 @@ impl Agent {
             }
         };
 
+        // Retry transient failures that surface as the first stream item before any output
+        // has been yielded. Skipped for providers that manage their own context since
+        // discarding and replaying the stream could advance provider-owned state.
+        let mut stream: MessageStream = if !provider.manages_own_context() {
+            let retry_config = provider.retry_config().transient_only();
+            let mut attempts = 0;
+            loop {
+                match stream.next().await {
+                    None => {
+                        let empty: MessageStream = Box::pin(futures::stream::empty());
+                        break empty;
+                    }
+                    Some(Ok(item)) => {
+                        break Box::pin(
+                            futures::stream::once(std::future::ready(Ok(item))).chain(stream),
+                        );
+                    }
+                    Some(Err(e))
+                        if goose_providers::retry::should_retry(&e, &retry_config)
+                            && attempts < retry_config.max_retries =>
+                    {
+                        attempts += 1;
+                        let delay = match &e {
+                            ProviderError::RateLimitExceeded {
+                                retry_delay: Some(d),
+                                ..
+                            } => *d,
+                            _ => retry_config.delay_for_attempt(attempts),
+                        };
+                        warn!(
+                            "Transient error before first stream item, retrying ({}/{}): {:?}",
+                            attempts, retry_config.max_retries, e
+                        );
+                        let skip_backoff = std::env::var("GOOSE_PROVIDER_SKIP_BACKOFF")
+                            .unwrap_or_default()
+                            .parse::<bool>()
+                            .unwrap_or(false);
+                        if !skip_backoff {
+                            tokio::time::sleep(delay).await;
+                        }
+                        stream = match crate::session_context::with_session_id(
+                            Some(session_id.to_string()),
+                            provider.stream(
+                                &model_config,
+                                system_prompt.as_str(),
+                                messages_for_provider.messages(),
+                                &tools,
+                            ),
+                        )
+                        .await
+                        {
+                            Ok(s) => s,
+                            Err(e) => {
+                                let enhanced =
+                                    enhance_model_error(e, &provider, config.toolshim).await;
+                                break Box::pin(try_stream! {
+                                    yield Err(enhanced)?;
+                                });
+                            }
+                        };
+                    }
+                    Some(Err(e)) => {
+                        break Box::pin(futures::stream::once(std::future::ready(Err(e))));
+                    }
+                }
+            }
+        } else {
+            stream
+        };
+
         Ok(Box::pin(try_stream! {
             if config.toolshim {
                 // Toolshim mode: accumulate the full response before processing
@@ -1769,5 +1839,292 @@ mod tests {
             "no content chunk observed means no TTFT"
         );
         assert!(stats.elapsed_ms.expect("elapsed_ms must be filled") >= 100);
+    }
+
+    // --- first-item retry tests ---
+
+    type StreamItem = Result<(Option<Message>, Option<ProviderUsage>), ProviderError>;
+
+    fn ok_item() -> StreamItem {
+        Ok((Some(Message::assistant().with_text("ok")), None))
+    }
+
+    fn rate_limit_error() -> ProviderError {
+        ProviderError::RateLimitExceeded {
+            details: "upstream rate limited".into(),
+            retry_delay: None,
+        }
+    }
+
+    fn non_transient_error() -> ProviderError {
+        ProviderError::ContextLengthExceeded("too long".into())
+    }
+
+    /// Provider whose `stream()` call returns a pre-configured sequence of streams.
+    /// Each call pops the next stream from the front of the list.
+    struct SequencedProvider {
+        streams: Arc<Mutex<Vec<Vec<StreamItem>>>>,
+        manages_context: bool,
+    }
+
+    impl SequencedProvider {
+        fn new(streams: Vec<Vec<StreamItem>>) -> Self {
+            Self {
+                streams: Arc::new(Mutex::new(streams)),
+                manages_context: false,
+            }
+        }
+
+        fn with_context_managed(mut self) -> Self {
+            self.manages_context = true;
+            self
+        }
+    }
+
+    #[async_trait]
+    impl Provider for SequencedProvider {
+        fn get_name(&self) -> &str {
+            "sequenced"
+        }
+
+        fn manages_own_context(&self) -> bool {
+            self.manages_context
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            let items = self.streams.lock().unwrap().remove(0);
+            Ok(Box::pin(futures::stream::iter(items)))
+        }
+    }
+
+    #[tokio::test]
+    async fn first_item_retry_recovers_on_transient_error() {
+        std::env::set_var("GOOSE_PROVIDER_SKIP_BACKOFF", "true");
+        let provider = Arc::new(SequencedProvider::new(vec![
+            vec![Err(rate_limit_error())], // first stream: transient error on first item
+            vec![ok_item()],               // replacement stream: succeeds
+        ]));
+
+        let messages = vec![Message::user().with_text("hi")];
+        let mut stream = Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model"),
+            "session",
+            "system",
+            &messages,
+            &[],
+            &[],
+        )
+        .await
+        .unwrap();
+
+        let first = stream.next().await.unwrap();
+        assert!(first.is_ok(), "should recover and yield a successful item");
+    }
+
+    #[tokio::test]
+    async fn first_item_retry_does_not_retry_non_transient_error() {
+        std::env::set_var("GOOSE_PROVIDER_SKIP_BACKOFF", "true");
+        let provider = Arc::new(SequencedProvider::new(vec![vec![Err(
+            non_transient_error(),
+        )]]));
+
+        let messages = vec![Message::user().with_text("hi")];
+        let mut stream = Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model"),
+            "session",
+            "system",
+            &messages,
+            &[],
+            &[],
+        )
+        .await
+        .unwrap();
+
+        let first = stream.next().await.unwrap();
+        assert!(
+            matches!(first, Err(ProviderError::ContextLengthExceeded(_))),
+            "non-transient error must propagate immediately"
+        );
+    }
+
+    #[tokio::test]
+    async fn first_item_retry_exhausted_returns_final_error() {
+        std::env::set_var("GOOSE_PROVIDER_SKIP_BACKOFF", "true");
+        // Default retry_config has max_retries=3; supply 4 failing streams (initial + 3 retries).
+        let provider = Arc::new(SequencedProvider::new(vec![
+            vec![Err(rate_limit_error())],
+            vec![Err(rate_limit_error())],
+            vec![Err(rate_limit_error())],
+            vec![Err(rate_limit_error())],
+        ]));
+
+        let messages = vec![Message::user().with_text("hi")];
+        let mut stream = Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model"),
+            "session",
+            "system",
+            &messages,
+            &[],
+            &[],
+        )
+        .await
+        .unwrap();
+
+        let first = stream.next().await.unwrap();
+        assert!(
+            matches!(first, Err(ProviderError::RateLimitExceeded { .. })),
+            "exhausted retries must surface the last transient error"
+        );
+    }
+
+    #[tokio::test]
+    async fn first_item_retry_skipped_for_provider_managing_context() {
+        std::env::set_var("GOOSE_PROVIDER_SKIP_BACKOFF", "true");
+        // Only one stream provided; if retry were attempted it would panic on remove(0).
+        let provider = Arc::new(
+            SequencedProvider::new(vec![vec![Err(rate_limit_error())]]).with_context_managed(),
+        );
+
+        let messages = vec![Message::user().with_text("hi")];
+        let mut stream = Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model"),
+            "session",
+            "system",
+            &messages,
+            &[],
+            &[],
+        )
+        .await
+        .unwrap();
+
+        let first = stream.next().await.unwrap();
+        assert!(
+            matches!(first, Err(ProviderError::RateLimitExceeded { .. })),
+            "provider managing context must not retry — error propagated directly"
+        );
+    }
+
+    #[tokio::test]
+    async fn first_item_retry_replacement_stream_creation_failure_stops_retrying() {
+        std::env::set_var("GOOSE_PROVIDER_SKIP_BACKOFF", "true");
+        // First stream: transient error. Replacement stream creation itself fails (empty vec panics).
+        // We model stream-creation failure by returning Err from stream().
+        struct FailOnSecondCallProvider {
+            call: Arc<Mutex<u32>>,
+        }
+
+        #[async_trait]
+        impl Provider for FailOnSecondCallProvider {
+            fn get_name(&self) -> &str {
+                "fail-on-second"
+            }
+
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _system: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                let mut call = self.call.lock().unwrap();
+                *call += 1;
+                if *call == 1 {
+                    // first call: return stream with transient first-item error
+                    Ok(Box::pin(futures::stream::iter(vec![Err(
+                        rate_limit_error(),
+                    )])))
+                } else {
+                    // replacement stream creation fails
+                    Err(ProviderError::ServerError("provider unavailable".into()))
+                }
+            }
+        }
+
+        let messages = vec![Message::user().with_text("hi")];
+        let mut stream = Agent::stream_response_from_provider(
+            Arc::new(FailOnSecondCallProvider {
+                call: Arc::new(Mutex::new(0)),
+            }),
+            ModelConfig::new("test-model"),
+            "session",
+            "system",
+            &messages,
+            &[],
+            &[],
+        )
+        .await
+        .unwrap();
+
+        let first = stream.next().await.unwrap();
+        assert!(
+            matches!(first, Err(ProviderError::ServerError(_))),
+            "stream creation failure during retry must propagate as error"
+        );
+    }
+
+    #[tokio::test]
+    async fn error_after_first_successful_item_propagates_without_retry() {
+        std::env::set_var("GOOSE_PROVIDER_SKIP_BACKOFF", "true");
+        // Only one stream; first item succeeds, second item fails.
+        // If retry were triggered for the second item, it would panic (no more streams).
+        let provider = Arc::new(SequencedProvider::new(vec![vec![
+            ok_item(),
+            Err(rate_limit_error()),
+        ]]));
+
+        let messages = vec![Message::user().with_text("hi")];
+        let mut stream = Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model"),
+            "session",
+            "system",
+            &messages,
+            &[],
+            &[],
+        )
+        .await
+        .unwrap();
+
+        let first = stream.next().await.unwrap();
+        assert!(first.is_ok(), "first item should succeed");
+
+        let second = stream.next().await.unwrap();
+        assert!(
+            matches!(second, Err(ProviderError::RateLimitExceeded { .. })),
+            "errors after first item must propagate without retry"
+        );
+    }
+
+    #[tokio::test]
+    async fn empty_stream_handled_gracefully() {
+        let provider = Arc::new(SequencedProvider::new(vec![vec![]]));
+
+        let messages = vec![Message::user().with_text("hi")];
+        let mut stream = Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model"),
+            "session",
+            "system",
+            &messages,
+            &[],
+            &[],
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            stream.next().await.is_none(),
+            "empty provider stream must produce empty output stream"
+        );
     }
 }
