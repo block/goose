@@ -1,21 +1,40 @@
 import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import { fileURLToPath } from "node:url";
 
-// The wasm-bindgen web target ships a .wasm asset the JS loads via fetch().
-// Vite serves /src/wasm/*.wasm as-is in dev and copies it in build. No wasm
-// plugin needed for the `--target web` output (it fetches, doesn't import).
+// This app reuses goose's reference clients directly from the repo:
+//  - @aaif/goose-sdk (ui/sdk): GooseClient — protocol/transport layer
+//  - @desktop (ui/desktop/src): real desktop components (MarkdownContent,
+//    ToolCallStatusIndicator, …) imported as source; @vitejs/plugin-react
+//    compiles their JSX, tailwind scans them for classes (via theme.css),
+//    and a tiny window.electron shim covers the desktop-only APIs.
+const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url));
+const gooseSdk = fileURLToPath(
+  new URL("../../../../ui/sdk/dist/index.js", import.meta.url),
+);
+const desktopSrc = fileURLToPath(
+  new URL("../../../../ui/desktop/src", import.meta.url),
+);
+
 export default defineConfig({
   root: ".",
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      "@aaif/goose-sdk": gooseSdk,
+      "@desktop": desktopSrc,
+    },
+    // One shared copy across app + SDK + desktop sources.
+    dedupe: ["react", "react-dom", "@agentclientprotocol/sdk", "zod", "react-intl"],
+  },
   server: {
     port: 5178,
-    fs: {
-      // allow serving the generated wasm from src/wasm
-      allow: [".."],
-    },
+    fs: { allow: [repoRoot] },
   },
   build: {
     target: "esnext",
     outDir: "dist",
   },
-  // Ensure the .wasm is treated as an asset, not parsed as JS.
   assetsInclude: ["**/*.wasm"],
 });

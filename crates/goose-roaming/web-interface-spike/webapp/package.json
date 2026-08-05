@@ -3,17 +3,33 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Lean browser chat client that connects to a goose roam agent over iroh (relay-only, in-browser wasm). No Tauri, no local server.",
+  "description": "CDN-hostable, stateless browser client for a goose roam agent over iroh (in-browser wasm). Reuses goose desktop componentry (MarkdownContent, tool status) via React.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "0.19.0"
+    "@agentclientprotocol/sdk": "0.19.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-intl": "^10.1.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.2.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "@vitejs/plugin-react": "^5.2.0",
+    "playwright": "^1.62.1",
+    "tailwindcss": "^4.2.1",
     "typescript": "^5.6.0",
     "vite": "^5.4.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

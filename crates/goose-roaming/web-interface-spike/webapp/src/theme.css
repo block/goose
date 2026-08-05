@@ -1,0 +1,6 @@
+/* Reuse the desktop app's full Tailwind v4 theme (tokens, typography, dark
+   mode) so the reused components render with their real styles. Its @source
+   directives already scan ui/desktop/src; add ours so tailwind also sees the
+   classes used in this app's own tsx. */
+@import '../../../../../ui/desktop/src/styles/main.css';
+@source './**/*.{ts,tsx}';

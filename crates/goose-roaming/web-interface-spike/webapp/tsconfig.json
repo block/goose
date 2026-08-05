@@ -3,14 +3,19 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "jsx": "react-jsx",
     "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "types": [],
     "skipLibCheck": true,
+    "resolveJsonModule": true,
     "allowImportingTsExtensions": false,
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@aaif/goose-sdk": ["../../../../ui/sdk/dist/index.d.ts"],
+      "@desktop/*": ["../../../../ui/desktop/src/*"]
+    }
   },
   "include": ["src"]
 }

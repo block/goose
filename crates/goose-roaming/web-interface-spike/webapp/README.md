@@ -5,21 +5,28 @@ entirely in the browser** (iroh compiled to wasm, relay-only via
 WebSocket-to-relay). No Tauri, no Electron, no local bridge process — the
 browser tab itself is the roam peer.
 
-The UI is a real chat app, not a toy:
+The UI is a **React app that reuses goose's reference clients directly**:
 
-- **markdown agent messages** — headings, lists, fenced code blocks, inline
-  code, links (rendered XSS-safe via a dependency-free `textContent`-only
-  renderer — untrusted agent output is never treated as HTML).
-- **tool-call widgets** that update in place (icon by kind, status, collapsible
-  output).
-- **collapsible thinking blocks** and a **plan checklist**.
-- **inline, non-blocking permission cards** (not `window.confirm`, which would
-  freeze the JS thread and stall the ACP message pump mid-turn).
-- **session sidebar**: list past sessions, click to load (history replays via
-  ACP), and start new ones.
+- **`@aaif/goose-sdk`** (`ui/sdk`, via vite alias to its built dist) —
+  `GooseClient` is the protocol layer; our roam byte-duplex is exactly the
+  `Stream` it expects.
+- **`@desktop/*`** (`ui/desktop/src`, imported as source) — the desktop's real
+  `MarkdownContent` (react-markdown + remark-gfm + katex + syntax highlighting)
+  renders agent messages; `ToolCallStatusIndicator` provides tool status dots;
+  the desktop's full Tailwind v4 theme (`styles/main.css`) is imported so the
+  components carry their real styles. A ~10-line `window.electron` shim
+  (`shim.ts`) covers the Electron-only APIs `MarkdownContent` calls
+  (`openExternal` → `window.open`), and `IntlProvider` feeds it the desktop's
+  compiled English message catalog.
 
-Still deliberately lean: single main thread (no Web Worker yet), text prompts
-only, no reconnect. Hardening is tracked in `../README.md`.
+Plus app-local widgets: tool-call cards that update in place, collapsible
+thinking blocks, a plan checklist, inline non-blocking permission cards (never
+`window.confirm`, which would freeze the ACP message pump), and a session
+sidebar (list / load-with-history-replay / new).
+
+Still stateless + CDN-hostable: static files only, no backend, all traffic
+browser ⇄ relay ⇄ roam host. Still deliberately lean: main thread only, text
+prompts, no reconnect. Hardening is tracked in `../README.md`.
 
 ## The stack (all in the tab)
 
@@ -30,11 +37,12 @@ iroh (wasm, relay-only) ── roam handshake ──► authorized ACP byte dupl
 Web Streams <Uint8Array>
      ▼  ndJsonStream()                (@agentclientprotocol/sdk)
 Stream<AnyMessage>
-     ▼  new ClientSideConnection(client, stream)
+     ▼  new GooseClient(client, stream)        (@aaif/goose-sdk — ui/sdk)
 typed ACP: initialize / listSessions / newSession / loadSession / prompt
            / sessionUpdate / requestPermission
      ▼
-chat UI (markdown · tool widgets · thinking · plan · sessions)
+React chat UI reusing ui/desktop components
+(MarkdownContent · ToolCallStatusIndicator · desktop Tailwind theme)
 ```
 
 The wasm module (`../goose-roaming-web`) does **only** the transport: hold a
