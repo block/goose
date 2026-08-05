@@ -670,7 +670,12 @@ impl XaiOAuthAuthProvider {
                     self.cache.clear();
                     return Err(error);
                 }
-                Err(error) => return Err(error),
+                Err(error) => {
+                    if token_data.expires_at > Utc::now() {
+                        return Ok(token_data);
+                    }
+                    return Err(error);
+                }
             }
         }
 
