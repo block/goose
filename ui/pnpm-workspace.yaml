@@ -10,8 +10,8 @@ supportedArchitectures:
   os: [current, linux, darwin, win32]
   cpu: [current, x64, arm64]
 overrides:
-  react: ^19.2.4
-  react-dom: ^19.2.4
+  react: ^19.2.8
+  react-dom: ^19.2.8
 allowBuilds:
   '@modelcontextprotocol/ext-apps': true
   electron: true
