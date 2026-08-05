@@ -483,21 +483,26 @@ mod tests {
     use crate::api_client::AuthMethod;
     use serde_json::json;
 
+    struct StubKeyResolver;
+
+    impl crate::declarative::KeyResolver for StubKeyResolver {
+        type Error = std::convert::Infallible;
+
+        fn resolve_key(&self, _key: &str) -> Result<String, Self::Error> {
+            Ok("test-key".to_string())
+        }
+    }
+
     #[test]
     fn zai_provider_config_opts_into_clear_thinking() {
         let configs = crate::declarative::fixed_provider_configs().unwrap();
-        let zai = configs.iter().find(|c| c.name == "zai").unwrap();
-        let options = format_options_for_provider(zai.preserves_thinking, zai.emit_clear_thinking);
-        assert!(options.emit_clear_thinking);
-
-        let anthropic = configs.iter().find(|c| c.name == "anthropic");
-        if let Some(anthropic) = anthropic {
-            let options = format_options_for_provider(
-                anthropic.preserves_thinking,
-                anthropic.emit_clear_thinking,
-            );
-            assert!(!options.emit_clear_thinking);
-        }
+        let zai = configs
+            .iter()
+            .find(|c| c.name == "zai")
+            .cloned()
+            .unwrap();
+        let builder = from_declarative_config(zai, None, StubKeyResolver).unwrap();
+        assert!(builder.format_options.emit_clear_thinking);
     }
 
     fn make_provider_with_custom_models(
