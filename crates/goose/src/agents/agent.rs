@@ -1148,11 +1148,6 @@ impl Agent {
             );
         }
 
-        self.prompt_manager
-            .lock()
-            .await
-            .record_tool_arguments(&tool_call.arguments, &session.working_dir);
-
         if self
             .hook_manager
             .has_hooks(crate::hooks::HookEvent::PreToolUse)
@@ -1185,6 +1180,11 @@ impl Agent {
                 );
             }
         }
+
+        self.prompt_manager
+            .lock()
+            .await
+            .record_tool_arguments(&tool_call.arguments, &session.working_dir);
 
         let tool_input_for_extended = tool_call
             .arguments
@@ -3768,6 +3768,82 @@ mod tests {
             .await
             .unwrap();
         (agent, session, data_dir)
+    }
+
+    #[tokio::test]
+    async fn denied_tool_call_does_not_load_subdirectory_hints() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let workspace = temp_dir.path().join("workspace");
+        let protected = workspace.join("protected");
+        std::fs::create_dir_all(&protected)?;
+        std::fs::write(
+            protected.join(crate::hints::load_hints::GOOSE_HINTS_FILENAME),
+            "PROTECTED_CONTEXT_SECRET",
+        )?;
+
+        let plugin_dir = temp_dir.path().join("deny-reader");
+        std::fs::create_dir_all(plugin_dir.join("hooks"))?;
+        std::fs::write(
+            plugin_dir.join("hooks/hooks.json"),
+            r#"{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          { "type": "command", "command": "sh ${PLUGIN_ROOT}/deny.sh" }
+        ]
+      }
+    ]
+  }
+}
+"#,
+        )?;
+        std::fs::write(
+            plugin_dir.join("deny.sh"),
+            "printf '%s\\n' '{\"decision\":\"block\",\"reason\":\"protected path\"}'",
+        )?;
+
+        let data_dir = temp_dir.path().join("data");
+        let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
+        let mut agent = Agent::with_config(AgentConfig::new(
+            Arc::clone(&session_manager),
+            Arc::new(PermissionManager::new(data_dir)),
+            None,
+            GooseMode::Auto,
+            false,
+            GoosePlatform::GooseCli,
+        ));
+        agent.set_hook_manager_for_test(crate::hooks::HookManager::from_plugins_for_test(vec![
+            DiscoveredPlugin {
+                name: "deny-reader".into(),
+                root: plugin_dir,
+                scope: PluginScope::Project,
+            },
+        ]));
+        let session = session_manager
+            .create_session(
+                workspace.clone(),
+                "denied-hints".to_string(),
+                SessionType::Hidden,
+                GooseMode::Auto,
+            )
+            .await?;
+        let tool_call = CallToolRequestParams::new("filesystem__read")
+            .with_arguments(rmcp::object!({ "path": "protected/file.txt" }));
+
+        let (_, result) = agent
+            .dispatch_tool_call(tool_call, "denied-read".to_string(), None, &session)
+            .await;
+        assert!(result.is_err(), "the PreToolUse hook should deny the read");
+
+        let mut prompt_manager = agent.prompt_manager.lock().await;
+        prompt_manager.load_subdirectory_hints(&workspace);
+        let prompt = prompt_manager.builder().build();
+        assert!(
+            !prompt.contains("PROTECTED_CONTEXT_SECRET"),
+            "a denied tool call still caused protected hints to enter the model prompt"
+        );
+        Ok(())
     }
 
     #[tokio::test]
