@@ -67,6 +67,10 @@ pub fn is_reserved_request_param_key(key: &str) -> bool {
 pub struct OpenAiFormatOptions {
     pub preserve_thinking_context: bool,
     pub thinking_preservation_format: Option<ThinkingPreservationFormat>,
+    /// Keep the turn-context block on its source user message. The implicit
+    /// cache behind OpenAI's Responses-stack models only extends append-only
+    /// prompts, so the relocated tail would cap hits at the static prefix.
+    pub turn_context_in_place: bool,
 }
 
 fn merge_reasoning_text(prefix: &str, suffix: &str) -> String {
@@ -209,7 +213,11 @@ pub fn format_messages_with_options(
     image_format: &ImageFormat,
     options: OpenAiFormatOptions,
 ) -> Vec<Value> {
-    let extracted = extract_turn_context(messages);
+    let extracted = if options.turn_context_in_place {
+        None
+    } else {
+        extract_turn_context(messages)
+    };
     let (messages, turn_context) = match &extracted {
         Some((stripped, text)) => (stripped.as_slice(), Some(text.as_str())),
         None => (messages, None),
@@ -1620,6 +1628,8 @@ pub fn create_request_for_model_with_options(
         "content": system
     });
 
+    let mut format_options = format_options;
+    format_options.turn_context_in_place |= is_reasoning_model;
     let messages_spec = format_messages_with_options(messages, image_format, format_options);
     let mut tools_spec = format_tools(tools)?;
 
@@ -4839,6 +4849,7 @@ data: [DONE]"#;
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
                 thinking_preservation_format: Some(format),
+                ..Default::default()
             },
         )
     }
@@ -5082,6 +5093,70 @@ data: [DONE]"#;
                     "consecutive user messages reached the wire: {pair:?}"
                 );
             }
+        }
+
+        fn responses_stack_request(messages: &[Message]) -> Vec<Value> {
+            let request = create_request(
+                &test_model_config("openai/gpt-5.6-terra"),
+                "system",
+                messages,
+                &[],
+                &ImageFormat::OpenAi,
+                false,
+            )
+            .unwrap();
+            request["messages"].as_array().unwrap().clone()
+        }
+
+        #[test]
+        fn responses_stack_tool_loop_requests_are_append_only() {
+            let block = turn_context("2026-08-03 12:00:00", "14/40 used");
+            let earlier = tool_loop_conversation(&block);
+            let mut later = earlier.clone();
+            later.push(
+                Message::assistant().with_tool_request(
+                    "tool_2",
+                    Ok(CallToolRequestParams::new("read_file")
+                        .with_arguments(object!({"path": "src/lib.rs"}))),
+                ),
+            );
+            later.push(Message::user().with_tool_response(
+                "tool_2",
+                Ok(CallToolResult::success(vec![ContentBlock::text(
+                    "pub fn run() {}",
+                )])),
+            ));
+
+            let spec_earlier = responses_stack_request(&earlier);
+            let spec_later = responses_stack_request(&later);
+
+            assert!(spec_later.len() > spec_earlier.len());
+            for (i, earlier_msg) in spec_earlier.iter().enumerate() {
+                assert_eq!(
+                    json!(earlier_msg).to_string(),
+                    json!(spec_later[i]).to_string(),
+                    "request N must be a byte prefix of request N+1 at index {i}"
+                );
+            }
+        }
+
+        #[test]
+        fn chat_stack_models_still_relocate_turn_context_to_the_tail() {
+            let block = turn_context("2026-08-03 12:00:00", "14/40 used");
+            let request = create_request(
+                &test_model_config("openai/gpt-4.1-mini"),
+                "system",
+                &tool_loop_conversation(&block),
+                &[],
+                &ImageFormat::OpenAi,
+                false,
+            )
+            .unwrap();
+            let spec = request["messages"].as_array().unwrap();
+
+            let last = spec.last().unwrap();
+            assert_eq!(last["role"], "user");
+            assert_eq!(last["content"], json!(block));
         }
     }
 }
