@@ -374,12 +374,15 @@ mod tests {
                 release: Arc::clone(&steer_release),
             },
         });
-        let stream: MessageStream = Box::pin(futures::stream::iter((0..65).map(|index| {
-            Ok((
-                Some(Message::assistant().with_text(index.to_string())),
-                None,
-            ))
-        })));
+        let stream: MessageStream = Box::pin(
+            futures::stream::iter((0..65).map(|index| {
+                Ok((
+                    Some(Message::assistant().with_text(index.to_string())),
+                    None,
+                ))
+            }))
+            .chain(futures::stream::pending()),
+        );
         let session_id = "drain-during-native-steer";
         pending_steers
             .enqueue(session_id, Message::user().with_text("new steer"))
@@ -396,8 +399,11 @@ mod tests {
 
         steer_started.notified().await;
         steer_release.notify_one();
+        let event = timeout(TEST_TIMEOUT, active_stream.next_event(&None))
+            .await
+            .expect("native steer should complete after being released");
         assert!(matches!(
-            active_stream.next_event(&None).await,
+            event,
             Some(ActiveProviderStreamEvent::NativeSteerDelivered(_))
         ));
     }
@@ -476,6 +482,10 @@ mod tests {
                 event,
                 Some(ActiveProviderStreamEvent::ProviderOutput(_))
             ));
+            let terminal_event = timeout(TEST_TIMEOUT, active_stream.next_event(&None))
+                .await
+                .expect("provider stream should terminate after its output");
+            assert!(terminal_event.is_none());
             assert!(pending_steers.has_pending(session_id).await);
         }
     }
