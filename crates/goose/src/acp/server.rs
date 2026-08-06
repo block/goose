@@ -538,17 +538,30 @@ pub(super) struct UsageUpdates {
     pub(super) standard: UsageUpdate,
 }
 
+pub(super) async fn resolve_provider_context_limit(
+    agent: &Agent,
+    session: &Session,
+) -> Option<u64> {
+    let model_config = session.model_config.as_ref()?;
+    let provider = agent.provider().await.ok()?;
+    let limit = provider.get_context_limit(model_config).await.ok()?;
+    Some(limit as u64)
+}
+
 pub(super) fn build_usage_updates(
     session: &Session,
     totals: &SessionUsageTotals,
+    provider_context_limit: Option<u64>,
 ) -> Option<UsageUpdates> {
     let used = session.usage.total_tokens.unwrap_or(0).max(0) as u64;
     let model_config = session.model_config.as_ref()?;
-    let ctx_limit = model_config.context_limit() as u64;
-    let source = if model_config.context_limit.is_some() {
-        "session_model_config"
-    } else {
-        "default_fallback"
+    let (ctx_limit, source) = match provider_context_limit {
+        Some(limit) => (limit, "provider"),
+        None if model_config.context_limit.is_some() => (
+            model_config.context_limit() as u64,
+            "session_model_config_fallback",
+        ),
+        None => (model_config.context_limit() as u64, "default_fallback"),
     };
     tracing::info!(
         session_id = %session.id,
@@ -620,10 +633,19 @@ impl GooseAcpAgent {
             .get_session_usage_totals(&session.id)
             .await
             .unwrap_or_default();
+        let agent = {
+            let sessions = self.sessions.lock().await;
+            sessions.get(&session.id).map(|s| s.agent.clone())
+        };
+        let provider_context_limit = match &agent {
+            Some(agent) => resolve_provider_context_limit(agent, session).await,
+            None => None,
+        };
         send_session_setup_notifications(
             cx,
             session,
             &totals,
+            provider_context_limit,
             self.supports_goose_custom_notifications(),
         )
     }
@@ -1925,7 +1947,8 @@ impl GooseAcpAgent {
             .get_session_usage_totals(&session_id)
             .await
             .unwrap_or_default();
-        if let Some(updates) = build_usage_updates(&session, &totals) {
+        let provider_context_limit = resolve_provider_context_limit(&agent, &session).await;
+        if let Some(updates) = build_usage_updates(&session, &totals, provider_context_limit) {
             if self.supports_goose_custom_notifications() {
                 cx.send_notification(updates.custom)?;
             }
@@ -2696,7 +2719,7 @@ print(\"hello, world\")
             accumulated_cost: session.accumulated_cost,
         };
         let updates =
-            build_usage_updates(&session, &totals).expect("usage updates should be present");
+            build_usage_updates(&session, &totals, None).expect("usage updates should be present");
         assert_eq!(updates.custom.session_id, "session-1");
         let usage = match updates.custom.update {
             GooseSessionUpdate::UsageUpdate(usage) => usage,
@@ -2709,12 +2732,33 @@ print(\"hello, world\")
     }
 
     #[test]
+    fn test_build_usage_update_prefers_provider_context_limit() {
+        let mut session = make_session_with_usage(
+            TokenUsage::new(Some(80), Some(40), Some(120)),
+            TokenUsage::default(),
+        );
+        session.model_config = Some(goose_providers::model::ModelConfig::new("current"));
+        let totals = SessionUsageTotals {
+            accumulated_usage: session.accumulated_usage,
+            accumulated_cost: session.accumulated_cost,
+        };
+        let updates = build_usage_updates(&session, &totals, Some(258_400))
+            .expect("usage updates should be present");
+        let usage = match updates.custom.update {
+            GooseSessionUpdate::UsageUpdate(usage) => usage,
+            other => panic!("expected usage update, got {other:?}"),
+        };
+        assert_eq!(usage.context_limit, 258_400);
+        assert_eq!(updates.standard.size, 258_400);
+    }
+
+    #[test]
     fn test_build_usage_update_requires_model_config() {
         let session = make_session_with_usage(
             TokenUsage::new(Some(80), Some(40), Some(120)),
             TokenUsage::default(),
         );
-        assert!(build_usage_updates(&session, &SessionUsageTotals::default()).is_none());
+        assert!(build_usage_updates(&session, &SessionUsageTotals::default(), None).is_none());
     }
 
     #[test]

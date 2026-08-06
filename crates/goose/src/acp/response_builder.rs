@@ -403,10 +403,11 @@ pub(super) fn send_session_setup_notifications(
     cx: &ConnectionTo<Client>,
     session: &Session,
     totals: &SessionUsageTotals,
+    provider_context_limit: Option<u64>,
     supports_goose_custom_notifications: bool,
 ) -> Result<(), agent_client_protocol::Error> {
     let session_id = SessionId::new(session.id.clone());
-    if let Some(updates) = build_usage_updates(session, totals) {
+    if let Some(updates) = build_usage_updates(session, totals, provider_context_limit) {
         if supports_goose_custom_notifications {
             cx.send_notification(updates.custom)?;
         }
