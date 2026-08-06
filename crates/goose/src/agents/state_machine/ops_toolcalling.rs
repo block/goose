@@ -57,6 +57,17 @@ fn string_argument(input: &serde_json::Value, keys: &[&str]) -> Option<String> {
     })
 }
 
+fn platform_notification(result: &CallToolResult) -> Option<rmcp::model::ServerNotification> {
+    let notification = result.meta.as_ref()?.0.get("platform_notification")?;
+    let method = notification.get("method")?.as_str()?;
+    Some(rmcp::model::ServerNotification::CustomNotification(
+        rmcp::model::CustomNotification::new(
+            method.to_string(),
+            notification.get("params").cloned(),
+        ),
+    ))
+}
+
 pub(super) fn tool_span(tool_name: &str, tool_call_id: &str, session_id: &str) -> tracing::Span {
     tracing::info_span!(
         target: "goose::state_machine",
@@ -795,6 +806,15 @@ impl Operation for ToolExecutionOperation<'_> {
                             {
                                 extension_change_failed = true;
                             }
+                            if let Ok(result) = &output {
+                                if let Some(notification) = platform_notification(result) {
+                                    emit.emit(AgentEvent::McpNotification((
+                                        request_id.clone(),
+                                        notification,
+                                    )))
+                                    .await;
+                                }
+                            }
                             let metadata = requests
                                 .iter()
                                 .find(|r| r.id == request_id)
@@ -839,5 +859,34 @@ impl Operation for ToolExecutionOperation<'_> {
         let response = emit.message(response).await;
         effects.push(response.into());
         applied(effects)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_platform_notification_from_tool_result() {
+        let meta = serde_json::json!({
+            "platform_notification": {
+                "method": "platform_event",
+                "params": { "event_type": "app_updated" }
+            }
+        });
+        let result = CallToolResult::success(Vec::new()).with_meta(Some(rmcp::model::MetaObject(
+            meta.as_object().unwrap().clone(),
+        )));
+
+        let Some(rmcp::model::ServerNotification::CustomNotification(notification)) =
+            platform_notification(&result)
+        else {
+            panic!("expected a custom notification");
+        };
+        assert_eq!(notification.method, "platform_event");
+        assert_eq!(
+            notification.params,
+            Some(serde_json::json!({ "event_type": "app_updated" }))
+        );
     }
 }

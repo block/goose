@@ -56,8 +56,10 @@ impl<'a> StateMachine<'a> {
 
         let messages_before_kickoff =
             &conversation.messages()[..conversation.len() - messages.len()];
-        if messages_before_kickoff.iter().all(|message| {
-            !message.is_agent_visible() || message.agent_visible_content().content.is_empty()
+        if !messages_before_kickoff.iter().any(|message| {
+            message.role == rmcp::model::Role::User
+                && message.is_user_visible()
+                && !message.is_tool_response()
         }) {
             self.hook_manager
                 .emit(
@@ -99,6 +101,8 @@ impl<'a> StateMachine<'a> {
             .as_ref()
             .ok_or_else(|| anyhow!("state-machine session loaded without conversation"))?;
 
+        self.emit_entry_hooks(session, conversation).await?;
+
         for step in &self.steps {
             let name = step.operation().name();
             let result = if self.cancel.is_cancelled() {
@@ -107,9 +111,6 @@ impl<'a> StateMachine<'a> {
                 let step_fut: OperationFuture<'_, Result<OperationResult>> = match step {
                     Step::Operation(operation) => operation.run(session, conversation, emit),
                     Step::Inference(inference) => {
-                        if inference.applies(conversation) {
-                            self.emit_entry_hooks(session, conversation).await?;
-                        }
                         let mut input = InferenceInput::default();
                         for operation in self.steps.iter().map(|step| step.operation()) {
                             input

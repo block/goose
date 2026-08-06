@@ -35,7 +35,7 @@ pub use operation::{
     OperationResult, SlashCommand, StateEffect, StepResult,
 };
 
-pub(super) use ops_bang_shell::BangShellOperation;
+pub(super) use ops_bang_shell::{bang_shell_command, BangShellOperation};
 pub(super) use ops_compaction::CompactionOperation;
 pub(super) use ops_doctor::DoctorOperation;
 pub(super) use ops_exit_on_error::ExitOnErrorOperation;

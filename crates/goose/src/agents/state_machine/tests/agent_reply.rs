@@ -99,3 +99,40 @@ async fn reply_streams_the_turn_and_ends() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn bang_shell_uses_the_state_machine_when_the_flag_is_disabled() -> Result<()> {
+    let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", None::<&str>)]);
+    let (agent, api, session_id, _temp_dir) = agent_with_dummy_api().await?;
+    let session_config = SessionConfig {
+        id: session_id,
+        schedule_id: None,
+        max_turns: Some(2),
+        retry_config: None,
+    };
+    let stream = agent
+        .reply(
+            Message::user().with_text("!echo hello"),
+            session_config,
+            Some(CancellationToken::new()),
+        )
+        .await?;
+    tokio::pin!(stream);
+    let mut requested_shell = false;
+    while let Some(event) = stream.next().await {
+        if let AgentEvent::Message(message) = event? {
+            requested_shell |= message.content.iter().any(|content| {
+                matches!(
+                    content,
+                    crate::conversation::message::MessageContent::ToolRequest(request)
+                        if request.tool_call.as_ref().is_ok_and(|call| call.name == "shell")
+                )
+            });
+        }
+    }
+
+    assert!(requested_shell);
+    assert_eq!(api.call_count(), 0);
+
+    Ok(())
+}

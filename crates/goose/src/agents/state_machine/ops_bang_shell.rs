@@ -14,6 +14,14 @@ use crate::session::Session;
 
 const SHELL_TOOL_NAME: &str = "shell";
 
+pub(crate) fn bang_shell_command(message: &str) -> Option<&str> {
+    message
+        .trim_start()
+        .strip_prefix('!')
+        .map(str::trim_start)
+        .filter(|command| !command.is_empty())
+}
+
 pub struct BangShellOperation;
 
 impl BangShellOperation {
@@ -39,12 +47,7 @@ impl Operation for BangShellOperation {
             return not_applicable();
         };
         let kickoff_text = kickoff.as_concat_text();
-        let Some(command) = kickoff_text
-            .trim_start()
-            .strip_prefix('!')
-            .map(str::trim_start)
-            .filter(|command| !command.is_empty())
-        else {
+        let Some(command) = bang_shell_command(&kickoff_text) else {
             return not_applicable();
         };
 
