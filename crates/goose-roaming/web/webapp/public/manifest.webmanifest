@@ -1,0 +1,10 @@
+{
+  "name": "goose remote",
+  "short_name": "goose",
+  "description": "Remote client for a goose roam agent over iroh",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#101418",
+  "theme_color": "#101418",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

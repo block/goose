@@ -208,8 +208,20 @@ export function App({ roam }: { roam: RoamClient }) {
   const myCard = roam.myCard();
   const myId = roam.endpointId();
 
+  // Autoscroll only when the user is already near the bottom, so reading
+  // back through history isn't yanked away by streaming updates.
+  const atBottom = useRef(true);
   useEffect(() => {
-    logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
+    const el = logRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [connected]);
+  useEffect(() => {
+    if (atBottom.current) logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [items]);
 
   // Remember the last host across refreshes: prefill and reconnect once.
@@ -381,6 +393,8 @@ export function App({ roam }: { roam: RoamClient }) {
       setStatusKind("busy");
       try {
         setItems([]);
+        const info = sessions.find((x) => x.sessionId === id);
+        document.title = info?.title ? `${info.title} · goose remote` : "goose remote";
         lastSeenUpdate.current = null;
         localStorage.setItem(SESSION_KEY, id);
         sessionRef.current = id;
