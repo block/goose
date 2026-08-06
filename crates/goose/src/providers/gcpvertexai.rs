@@ -97,19 +97,25 @@ fn build_vertex_url(
         ModelProvider::Google | ModelProvider::MaaS(_) => "v1beta1",
     };
 
-    let path = format!(
-        "{}/projects/{}/locations/{}/publishers/{}/models/{}:{}",
-        api_version,
-        project_id,
-        target_location,
-        provider.as_str(),
-        model_name,
-        endpoint
-    );
-
-    let mut url = base_url
-        .join(&path)
-        .map_err(|e| GcpVertexAIError::InvalidUrl(e.to_string()))?;
+    let provider_name = provider.as_str();
+    let model_endpoint = format!("{model_name}:{endpoint}");
+    let mut url = base_url;
+    url.path_segments_mut()
+        .map_err(|_| {
+            GcpVertexAIError::InvalidUrl("Vertex AI host cannot be a base URL".to_string())
+        })?
+        .clear()
+        .extend([
+            api_version,
+            "projects",
+            project_id,
+            "locations",
+            target_location,
+            "publishers",
+            &provider_name,
+            "models",
+            &model_endpoint,
+        ]);
 
     if streaming && !matches!(provider, ModelProvider::Anthropic) {
         url.set_query(Some("alt=sse"));
@@ -729,7 +735,10 @@ mod tests {
             false,
         )
         .unwrap();
-        assert!(anthropic_url.as_str().contains(":rawPredict"));
+        assert_eq!(
+            anthropic_url.as_str(),
+            "https://us-east5-aiplatform.googleapis.com/v1/projects/test-project/locations/us-east5/publishers/anthropic/models/claude-sonnet-4@20250514:rawPredict"
+        );
 
         let anthropic_stream = build_vertex_url(
             "https://us-east5-aiplatform.googleapis.com",
@@ -741,8 +750,10 @@ mod tests {
             true,
         )
         .unwrap();
-        assert!(anthropic_stream.as_str().contains(":streamRawPredict"));
-        assert!(anthropic_stream.query().is_none());
+        assert_eq!(
+            anthropic_stream.as_str(),
+            "https://us-east5-aiplatform.googleapis.com/v1/projects/test-project/locations/us-east5/publishers/anthropic/models/claude-sonnet-4@20250514:streamRawPredict"
+        );
 
         let google_stream = build_vertex_url(
             "https://us-central1-aiplatform.googleapis.com",
@@ -754,8 +765,84 @@ mod tests {
             true,
         )
         .unwrap();
-        assert!(google_stream.as_str().contains(":streamGenerateContent"));
-        assert_eq!(google_stream.query(), Some("alt=sse"));
+        assert_eq!(
+            google_stream.as_str(),
+            "https://us-central1-aiplatform.googleapis.com/v1beta1/projects/test-project/locations/us-central1/publishers/google/models/gemini-2.5-flash:streamGenerateContent?alt=sse"
+        );
+
+        let maas_url = build_vertex_url(
+            "https://us-central1-aiplatform.googleapis.com",
+            "us-central1",
+            "test-project",
+            "qwen3-coder-480b-a35b-instruct-maas",
+            ModelProvider::MaaS("qwen".to_string()),
+            "us-central1",
+            false,
+        )
+        .unwrap();
+        assert_eq!(
+            maas_url.as_str(),
+            "https://us-central1-aiplatform.googleapis.com/v1beta1/projects/test-project/locations/us-central1/publishers/qwen/models/qwen3-coder-480b-a35b-instruct-maas:generateContent"
+        );
+    }
+
+    #[test]
+    fn test_build_vertex_url_encodes_model_path_segment() {
+        let model_names = [
+            "claude-x/../../../../../../../../projects/attacker/locations/us-east5/endpoints/123",
+            r"claude-x\..\endpoints\123",
+            "claude-x%2F..%2Fprojects%2Fattacker",
+            "claude-x?alt=sse",
+            "claude-x#fragment",
+        ];
+
+        for model_name in model_names {
+            let url = build_vertex_url(
+                "https://us-east5-aiplatform.googleapis.com",
+                "us-east5",
+                "test-project",
+                model_name,
+                ModelProvider::Anthropic,
+                "us-east5",
+                true,
+            )
+            .unwrap();
+
+            let model_path = url
+                .path()
+                .strip_prefix(
+                    "/v1/projects/test-project/locations/us-east5/publishers/anthropic/models/",
+                )
+                .unwrap();
+            assert!(
+                !model_path.contains('/'),
+                "model escaped its segment: {url}"
+            );
+            assert_eq!(url.host_str(), Some("us-east5-aiplatform.googleapis.com"));
+            assert_eq!(url.query(), None);
+            assert_eq!(url.fragment(), None);
+        }
+    }
+
+    #[test]
+    fn test_build_vertex_url_encodes_maas_publisher_segment() {
+        let model_name = "../qwen-maas";
+        let provider = RequestContext::new(model_name).unwrap().provider();
+        let url = build_vertex_url(
+            "https://us-central1-aiplatform.googleapis.com",
+            "us-central1",
+            "test-project",
+            model_name,
+            provider,
+            "us-central1",
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(
+            url.as_str(),
+            "https://us-central1-aiplatform.googleapis.com/v1beta1/projects/test-project/locations/us-central1/publishers/..%2Fqwen/models/..%2Fqwen-maas:generateContent"
+        );
     }
 
     #[test]
