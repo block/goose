@@ -51,7 +51,7 @@ fn kind_plural(kind: SourceType) -> &'static str {
     }
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct DelegateParams {
     pub instructions: Option<String>,
     pub source: Option<String>,
@@ -1045,7 +1045,7 @@ impl SummonClient {
                 },
                 "context": {
                     "type": "string",
-                    "description": "Reference context to inject into the delegate's system prompt. Use for background information, file contents, or constraints the delegate needs but that aren't part of the task instructions. On follow-up delegations to a persistent worker it is prepended to that delegation's message instead."
+                    "description": "Reference context for this delegation. Use for background information, file contents, or constraints the delegate needs but that aren't part of the task instructions. One-shot delegates inject it into the system prompt; persistent workers prepend it to that delegation's message, so it is call-scoped and not part of the worker's permanent state."
                 },
                 "working_dir": {
                     "type": "string",
@@ -1987,7 +1987,13 @@ impl SummonClient {
         let mut recipe = match restore {
             Some(record) => record.recipe.clone(),
             None => {
-                self.build_delegate_recipe(params, &session.id, &working_dir)
+                // `context` is call-scoped on every delegation; keep it out of
+                // the recipe so it does not become permanent worker state.
+                let recipe_params = DelegateParams {
+                    context: None,
+                    ..params.clone()
+                };
+                self.build_delegate_recipe(&recipe_params, &session.id, &working_dir)
                     .await?
             }
         };
@@ -2070,10 +2076,14 @@ impl SummonClient {
             .max_turns
             .expect("TaskConfig always sets max_turns");
 
-        let user_text = recipe
+        let prompt = recipe
             .prompt
             .clone()
             .unwrap_or_else(|| "Begin.".to_string());
+        let user_text = match &params.context {
+            Some(context) => format!("Context:\n{}\n\n{}", context, prompt),
+            None => prompt,
+        };
 
         let worker = Arc::new(PersistentWorker {
             configured: Arc::new(configured),
@@ -3426,6 +3436,25 @@ mod tests {
             "provider was not called for the second delegation"
         );
         assert!(calls[1].join("\n").contains("second task"));
+    }
+
+    #[tokio::test]
+    async fn test_worker_creation_context_is_call_scoped() {
+        let rig = persisted_worker_rig().await;
+
+        let mut params = worker_creation_delegate_params("first task");
+        params.context = Some("ephemeral context".to_string());
+        rig.client
+            .handle_worker_delegate(&rig.session, params, CancellationToken::new())
+            .await
+            .unwrap();
+
+        let calls = rig.provider.calls.lock().unwrap().clone();
+        assert!(calls[0].join("\n").contains("ephemeral context"));
+
+        let record = stored_worker_record(&rig).await.unwrap();
+        let instructions = record.recipe.instructions.clone().unwrap_or_default();
+        assert!(!instructions.contains("ephemeral context"));
     }
 
     #[tokio::test]
