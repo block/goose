@@ -312,18 +312,18 @@ export function App({ roam }: { roam: RoamClient }) {
 
   const statusColor =
     statusKind === "ok"
-      ? "text-green-400"
+      ? "text-text-success"
       : statusKind === "err"
-        ? "text-red-400"
+        ? "text-text-danger"
         : statusKind === "busy"
-          ? "text-blue-400"
-          : "text-neutral-400";
+          ? "text-text-info"
+          : "text-text-secondary";
 
   return (
     <div className="h-screen flex flex-col bg-background-primary text-text-primary">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-border-primary bg-background-secondary shrink-0">
         <div className="font-bold text-[15px]">
-          goose roam <span className="text-neutral-400 font-normal">· web</span>
+          goose roam <span className="text-text-secondary font-normal">· web</span>
         </div>
         <div className="flex items-center gap-2.5">
           {connected && (
@@ -350,22 +350,22 @@ export function App({ roam }: { roam: RoamClient }) {
                 <div className="flex gap-2 items-center my-2">
                   <code
                     id="my-card"
-                    className="flex-1 font-mono text-[11px] bg-neutral-950 border border-neutral-800 rounded-lg px-2.5 py-1.5 overflow-hidden text-ellipsis whitespace-nowrap"
+                    className="flex-1 font-mono text-[11px] bg-background-primary border border-border-primary rounded-lg px-2.5 py-1.5 overflow-hidden text-ellipsis whitespace-nowrap"
                   >
                     {myCard}
                   </code>
                   <button
                     id="copy-card"
-                    className="text-neutral-400 border border-neutral-700 rounded-lg px-2.5 py-1 text-xs hover:border-blue-400"
+                    className="text-text-secondary border border-border-secondary rounded-lg px-2.5 py-1 text-xs hover:border-border-info"
                     onClick={() => navigator.clipboard?.writeText(myCard)}
                   >
                     copy
                   </button>
                 </div>
-                <code className="block font-mono text-xs text-blue-300 bg-neutral-950 border border-neutral-800 rounded-lg px-2.5 py-2">
+                <code className="block font-mono text-xs text-text-info bg-background-primary border border-border-primary rounded-lg px-2.5 py-2">
                   goose roam peers accept '&lt;card&gt;'
                 </code>
-                <div className="text-xs text-neutral-500 mt-1.5">
+                <div className="text-xs text-text-tertiary mt-1.5">
                   key <code id="my-endpoint-id" className="font-mono text-[11px]">{myId}</code>
                 </div>
               </li>
@@ -375,7 +375,7 @@ export function App({ roam }: { roam: RoamClient }) {
                 <textarea
                   id="card-input"
                   rows={3}
-                  className="w-full mt-2 bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-blue-400 resize-none"
+                  className="w-full mt-2 bg-background-primary border border-border-primary rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-border-info resize-none"
                   placeholder="goose+roam://…  (the host's card)"
                   value={card}
                   onChange={(e) => setCard(e.target.value)}
@@ -387,7 +387,7 @@ export function App({ roam }: { roam: RoamClient }) {
                 id="connect-btn"
                 disabled={busy}
                 onClick={() => void connect()}
-                className="bg-blue-500 text-neutral-950 font-semibold rounded-lg px-4 py-1.5 hover:brightness-110 disabled:opacity-50"
+                className="bg-background-inverse text-text-inverse font-semibold rounded-lg px-4 py-1.5 hover:brightness-110 disabled:opacity-50"
               >
                 connect
               </button>
@@ -401,7 +401,7 @@ export function App({ roam }: { roam: RoamClient }) {
               id="new-session"
               disabled={busy}
               onClick={() => void newSession()}
-              className="w-full bg-blue-500 text-neutral-950 font-semibold rounded-lg px-3 py-1.5 hover:brightness-110 disabled:opacity-50"
+              className="w-full bg-background-inverse text-text-inverse font-semibold rounded-lg px-3 py-1.5 hover:brightness-110 disabled:opacity-50"
             >
               + New session
             </button>
@@ -411,15 +411,15 @@ export function App({ roam }: { roam: RoamClient }) {
                   key={s.sessionId}
                   className={`session-item text-left rounded-lg px-2.5 py-2 border ${
                     s.sessionId === sessionId
-                      ? "bg-neutral-800 border-blue-400"
-                      : "border-transparent hover:bg-neutral-800 hover:border-neutral-700"
+                      ? "bg-background-tertiary border-border-info"
+                      : "border-transparent hover:bg-background-tertiary hover:border-border-secondary"
                   }`}
                   onClick={() => void openSession(s.sessionId)}
                 >
                   <div className="text-[13px] whitespace-nowrap overflow-hidden text-ellipsis">
                     {s.title || "(untitled session)"}
                   </div>
-                  <div className="text-[11px] text-neutral-500 font-mono mt-0.5">
+                  <div className="text-[11px] text-text-tertiary font-mono mt-0.5">
                     {s.sessionId.slice(0, 8)}
                   </div>
                 </button>
@@ -433,7 +433,7 @@ export function App({ roam }: { roam: RoamClient }) {
                 switch (it.kind) {
                   case "system":
                     return (
-                      <div key={it.id} className="msg system self-center text-neutral-400 text-xs">
+                      <div key={it.id} className="msg system self-center text-text-secondary text-xs">
                         {it.text}
                       </div>
                     );
@@ -442,9 +442,9 @@ export function App({ roam }: { roam: RoamClient }) {
                       return (
                         <details
                           key={it.id}
-                          className="msg thought bg-neutral-900 border border-dashed border-neutral-700 rounded-xl px-3 py-1.5 text-[13px] text-neutral-400"
+                          className="msg thought bg-background-secondary border border-dashed border-border-secondary rounded-xl px-3 py-1.5 text-[13px] text-text-secondary"
                         >
-                          <summary className="cursor-pointer italic text-neutral-500">
+                          <summary className="cursor-pointer italic text-text-tertiary">
                             thinking
                           </summary>
                           <div className="body mt-1.5 whitespace-pre-wrap">{it.text}</div>
@@ -472,23 +472,23 @@ export function App({ roam }: { roam: RoamClient }) {
                     return (
                       <div
                         key={it.id}
-                        className="tool  border border-neutral-800 rounded-xl bg-neutral-900 overflow-hidden"
+                        className="tool  border border-border-primary rounded-xl bg-background-secondary overflow-hidden"
                       >
                         <div className="flex items-center gap-2 px-3 py-2">
                           <span className="relative inline-block w-2.5">
                             <ToolCallStatusIndicator status={it.status} className="static" />
                           </span>
-                          <span className="flex-1 font-mono text-[12.5px] text-amber-300 overflow-hidden text-ellipsis whitespace-nowrap">
+                          <span className="flex-1 font-mono text-[12.5px] text-text-warning overflow-hidden text-ellipsis whitespace-nowrap">
                             {it.title}
                           </span>
-                          <span className="text-[11px] text-neutral-400">{it.status}</span>
+                          <span className="text-[11px] text-text-secondary">{it.status}</span>
                         </div>
                         {it.output && (
-                          <details className="border-t border-neutral-800 px-3 py-2">
-                            <summary className="cursor-pointer text-xs text-neutral-400">
+                          <details className="border-t border-border-primary px-3 py-2">
+                            <summary className="cursor-pointer text-xs text-text-secondary">
                               output
                             </summary>
-                            <pre className="mt-2 bg-neutral-950 border border-neutral-800 rounded-lg p-2.5 overflow-x-auto max-h-80 overflow-y-auto font-mono text-xs">
+                            <pre className="mt-2 bg-background-primary border border-border-primary rounded-lg p-2.5 overflow-x-auto max-h-80 overflow-y-auto font-mono text-xs">
                               {it.output}
                             </pre>
                           </details>
@@ -499,21 +499,21 @@ export function App({ roam }: { roam: RoamClient }) {
                     return (
                       <div
                         key={it.id}
-                        className="plan  border border-neutral-700 rounded-xl bg-neutral-900 px-3.5 py-2.5"
+                        className="plan  border border-border-secondary rounded-xl bg-background-secondary px-3.5 py-2.5"
                       >
-                        <div className="text-xs text-neutral-400 uppercase tracking-wider mb-1.5">
+                        <div className="text-xs text-text-secondary uppercase tracking-wider mb-1.5">
                           Plan
                         </div>
                         {it.entries.map((e, i) => (
                           <div key={i} className="flex gap-2 py-0.5 text-[13px]">
-                            <span className="text-neutral-400">
+                            <span className="text-text-secondary">
                               {e.status === "completed" ? "☑" : e.status === "in_progress" ? "▸" : "☐"}
                             </span>
                             <span
                               className={
                                 e.status === "completed"
-                                  ? "text-neutral-500 line-through"
-                                  : "text-neutral-100"
+                                  ? "text-text-tertiary line-through"
+                                  : "text-text-primary"
                               }
                             >
                               {e.content}
@@ -526,13 +526,13 @@ export function App({ roam }: { roam: RoamClient }) {
                     return (
                       <div
                         key={it.id}
-                        className="perm  border border-amber-400 rounded-xl bg-amber-950/20 px-3.5 py-2.5"
+                        className="perm  border border-border-warning rounded-xl bg-background-warning px-3.5 py-2.5"
                       >
-                        <div className="text-[13px] text-amber-300 mb-2">
+                        <div className="text-[13px] text-text-warning mb-2">
                           🔐 {it.title} needs permission
                         </div>
                         {it.chosen ? (
-                          <span className="text-xs text-neutral-400">→ {it.chosen}</span>
+                          <span className="text-xs text-text-secondary">→ {it.chosen}</span>
                         ) : (
                           <div className="perm-actions flex gap-2 flex-wrap">
                             {it.options.map((o) => (
@@ -540,8 +540,8 @@ export function App({ roam }: { roam: RoamClient }) {
                                 key={o.optionId}
                                 className={
                                   o.kind.startsWith("allow")
-                                    ? "primary bg-blue-500 text-neutral-950 font-semibold rounded-lg px-3 py-1 text-[13px]"
-                                    : "border border-neutral-700 text-neutral-300 rounded-lg px-3 py-1 text-[13px]"
+                                    ? "primary bg-background-inverse text-text-inverse font-semibold rounded-lg px-3 py-1 text-[13px]"
+                                    : "border border-border-secondary text-text-secondary rounded-lg px-3 py-1 text-[13px]"
                                 }
                                 onClick={() => {
                                   it.resolve(o.optionId);
@@ -577,7 +577,7 @@ export function App({ roam }: { roam: RoamClient }) {
                 id="prompt-input"
                 rows={1}
                 disabled={busy}
-                className="flex-1 bg-background-primary border border-border-primary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 resize-none max-h-52"
+                className="flex-1 bg-background-primary border border-border-primary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-border-info resize-none max-h-52"
                 placeholder="Message the agent…  (Enter to send, Shift+Enter for newline)"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
@@ -590,7 +590,7 @@ export function App({ roam }: { roam: RoamClient }) {
                 id="send-btn"
                 type="submit"
                 disabled={busy}
-                className="bg-blue-500 text-neutral-950 font-semibold rounded-lg px-4 py-2 hover:brightness-110 disabled:opacity-50"
+                className="bg-background-inverse text-text-inverse font-semibold rounded-lg px-4 py-2 hover:brightness-110 disabled:opacity-50"
               >
                 send
               </button>
