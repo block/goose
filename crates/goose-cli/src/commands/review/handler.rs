@@ -72,6 +72,11 @@ pub struct ReviewOptions {
 /// Entry point for the `goose review` subcommand.
 pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
     let repo_root = find_repo_root().context("not inside a git repository")?;
+    let untracked_root = opts
+        .range
+        .is_none()
+        .then(|| open_untracked_root(&repo_root))
+        .transpose()?;
 
     // Validate `--severity` once, up front, so a bogus value fails fast
     // regardless of which orchestration path we end up taking.
@@ -91,10 +96,10 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
     // files entirely — brand-new files would silently miss the review.
     // Synthesize a `new file` diff for each so the main pass and the
     // checks see them.
-    if opts.range.is_none() {
+    if let Some(untracked_root) = untracked_root.as_ref() {
         let untracked = untracked_files(&repo_root, &opts.files)?;
         if !untracked.is_empty() {
-            let untracked_diff = synthesize_untracked_diff(&repo_root, &untracked)?;
+            let untracked_diff = synthesize_untracked_diff(untracked_root, &untracked)?;
             diff.push_str(&untracked_diff);
             for u in untracked {
                 if !touched.contains(&u) {
@@ -475,9 +480,60 @@ fn validated_relative_components(path: &Path) -> std::io::Result<Vec<&std::ffi::
     Ok(components)
 }
 
+#[cfg(any(unix, windows))]
+struct UntrackedRoot(fs::File);
+
+#[cfg(not(any(unix, windows)))]
+struct UntrackedRoot;
+
+#[cfg(unix)]
+fn open_untracked_root(repo_root: &Path) -> std::io::Result<UntrackedRoot> {
+    use std::io::{Error, ErrorKind};
+    use std::os::unix::fs::OpenOptionsExt;
+
+    let mut options = fs::OpenOptions::new();
+    options
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC);
+    let directory = options.open(repo_root)?;
+    if !directory.metadata()?.is_dir() {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "repository root is not a directory",
+        ));
+    }
+    Ok(UntrackedRoot(directory))
+}
+
+#[cfg(windows)]
+fn open_untracked_root(repo_root: &Path) -> std::io::Result<UntrackedRoot> {
+    use std::io::{Error, ErrorKind};
+    use std::os::windows::fs::OpenOptionsExt;
+    use winapi::um::winbase::{FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT};
+
+    let mut options = fs::OpenOptions::new();
+    options
+        .read(true)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT);
+    let directory = options.open(repo_root)?;
+    let metadata = directory.metadata()?;
+    if windows_metadata_is_reparse_point(&metadata) || !metadata.is_dir() {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "repository root is not a regular directory",
+        ));
+    }
+    Ok(UntrackedRoot(directory))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn open_untracked_root(_repo_root: &Path) -> std::io::Result<UntrackedRoot> {
+    Ok(UntrackedRoot)
+}
+
 #[cfg(unix)]
 fn read_untracked_content(
-    repo_root: &Path,
+    repo_root: &UntrackedRoot,
     path: &Path,
 ) -> std::io::Result<Option<(&'static str, String)>> {
     read_untracked_content_with_hook(repo_root, path, |_| {})
@@ -485,21 +541,16 @@ fn read_untracked_content(
 
 #[cfg(unix)]
 fn read_untracked_content_with_hook(
-    repo_root: &Path,
+    repo_root: &UntrackedRoot,
     path: &Path,
     mut after_opened_ancestor: impl FnMut(&Path),
 ) -> std::io::Result<Option<(&'static str, String)>> {
     use std::io::{Error, ErrorKind, Read};
     use std::os::unix::ffi::OsStringExt;
-    use std::os::unix::fs::OpenOptionsExt;
 
     let components = validated_relative_components(path)?;
     let (file_name, ancestors) = components.split_last().unwrap();
-    let mut options = fs::OpenOptions::new();
-    options
-        .read(true)
-        .custom_flags(libc::O_DIRECTORY | libc::O_CLOEXEC);
-    let mut directory = options.open(repo_root)?;
+    let mut directory = repo_root.0.try_clone()?;
     let mut opened_path = PathBuf::new();
 
     for ancestor in ancestors {
@@ -607,7 +658,7 @@ fn read_link_at(directory: &fs::File, name: &std::ffi::OsStr) -> std::io::Result
 
 #[cfg(windows)]
 fn read_untracked_content(
-    repo_root: &Path,
+    repo_root: &UntrackedRoot,
     path: &Path,
 ) -> std::io::Result<Option<(&'static str, String)>> {
     read_untracked_content_with_hook(repo_root, path, |_| {})
@@ -615,19 +666,15 @@ fn read_untracked_content(
 
 #[cfg(windows)]
 fn read_untracked_content_with_hook(
-    repo_root: &Path,
+    repo_root: &UntrackedRoot,
     path: &Path,
     mut after_opened_ancestor: impl FnMut(&Path),
 ) -> std::io::Result<Option<(&'static str, String)>> {
     use std::io::{Error, ErrorKind, Read};
-    use std::os::windows::fs::OpenOptionsExt;
-    use winapi::um::winbase::FILE_FLAG_BACKUP_SEMANTICS;
 
     let components = validated_relative_components(path)?;
     let (file_name, ancestors) = components.split_last().unwrap();
-    let mut options = fs::OpenOptions::new();
-    options.read(true).custom_flags(FILE_FLAG_BACKUP_SEMANTICS);
-    let mut directory = options.open(repo_root)?;
+    let mut directory = repo_root.0.try_clone()?;
     let mut opened_path = PathBuf::new();
 
     for ancestor in ancestors {
@@ -833,7 +880,7 @@ fn windows_nt_status_error(status: winapi::shared::ntdef::NTSTATUS) -> std::io::
 
 #[cfg(not(any(unix, windows)))]
 fn read_untracked_content(
-    _repo_root: &Path,
+    _repo_root: &UntrackedRoot,
     path: &Path,
 ) -> std::io::Result<Option<(&'static str, String)>> {
     validated_relative_components(path)?;
@@ -844,7 +891,7 @@ fn read_untracked_content(
 /// downstream parsers and the review prompt can treat them as
 /// additions. Symlinks are represented by their link text, matching Git.
 /// Binary or unreadable files are skipped.
-fn synthesize_untracked_diff(repo_root: &Path, paths: &[String]) -> Result<String> {
+fn synthesize_untracked_diff(repo_root: &UntrackedRoot, paths: &[String]) -> Result<String> {
     let mut out = String::new();
     for path in paths {
         let Some((mode, content)) = (match read_untracked_content(repo_root, Path::new(path)) {
@@ -970,7 +1017,8 @@ mod tests {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, "alpha\nbeta\ngamma\n").unwrap();
 
-        let diff = synthesize_untracked_diff(root, &["new/file.txt".to_string()]).unwrap();
+        let root = open_untracked_root(root).unwrap();
+        let diff = synthesize_untracked_diff(&root, &["new/file.txt".to_string()]).unwrap();
         assert!(diff.contains("diff --git a/new/file.txt b/new/file.txt"));
         assert!(diff.contains("new file mode 100644"));
         assert!(diff.contains("--- /dev/null"));
@@ -987,7 +1035,8 @@ mod tests {
         let root = dir.path();
         fs::write(root.join("a.txt"), "no-newline").unwrap();
 
-        let diff = synthesize_untracked_diff(root, &["a.txt".to_string()]).unwrap();
+        let root = open_untracked_root(root).unwrap();
+        let diff = synthesize_untracked_diff(&root, &["a.txt".to_string()]).unwrap();
         assert!(diff.contains("@@ -0,0 +1,1 @@"));
         assert!(diff.contains("+no-newline\n"));
         assert!(diff.contains("\\ No newline at end of file"));
@@ -1002,7 +1051,8 @@ mod tests {
         fs::write(&secret, "TOPSECRET-OUTSIDE-REPO").unwrap();
         std::os::unix::fs::symlink(&secret, dir.path().join("link.txt")).unwrap();
 
-        let diff = synthesize_untracked_diff(dir.path(), &["link.txt".to_string()]).unwrap();
+        let root = open_untracked_root(dir.path()).unwrap();
+        let diff = synthesize_untracked_diff(&root, &["link.txt".to_string()]).unwrap();
 
         assert!(diff.contains("new file mode 120000"));
         assert!(diff.contains(&format!("+{}", secret.display())));
@@ -1015,7 +1065,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::os::unix::fs::symlink("../missing-target", dir.path().join("broken")).unwrap();
 
-        let diff = synthesize_untracked_diff(dir.path(), &["broken".to_string()]).unwrap();
+        let root = open_untracked_root(dir.path()).unwrap();
+        let diff = synthesize_untracked_diff(&root, &["broken".to_string()]).unwrap();
 
         assert!(diff.contains("new file mode 120000"));
         assert!(diff.contains("+../missing-target"));
@@ -1035,7 +1086,8 @@ mod tests {
         fs::remove_file(&path).unwrap();
         std::os::unix::fs::symlink(&secret, &path).unwrap();
 
-        let (mode, content) = read_untracked_content(dir.path(), Path::new("untracked.txt"))
+        let root = open_untracked_root(dir.path()).unwrap();
+        let (mode, content) = read_untracked_content(&root, Path::new("untracked.txt"))
             .unwrap()
             .unwrap();
         assert_eq!(mode, "120000");
@@ -1054,19 +1106,40 @@ mod tests {
         fs::write(ancestor.join("file.txt"), "safe worktree content").unwrap();
         fs::write(outside.path().join("file.txt"), "TOPSECRET-OUTSIDE-REPO").unwrap();
 
-        let (mode, content) = read_untracked_content_with_hook(
-            dir.path(),
-            Path::new("nested/file.txt"),
-            |opened_path| {
+        let root = open_untracked_root(dir.path()).unwrap();
+        let (mode, content) =
+            read_untracked_content_with_hook(&root, Path::new("nested/file.txt"), |opened_path| {
                 if opened_path == Path::new("nested") {
                     fs::rename(&ancestor, &moved_ancestor).unwrap();
                     std::os::unix::fs::symlink(outside.path(), &ancestor).unwrap();
                 }
-            },
-        )
-        .unwrap()
-        .unwrap();
+            })
+            .unwrap()
+            .unwrap();
 
+        assert_eq!(mode, "100644");
+        assert_eq!(content, "safe worktree content");
+        assert!(!content.contains("TOPSECRET-OUTSIDE-REPO"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn untracked_file_reader_stays_in_opened_root_after_swap() {
+        let parent = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let root_path = parent.path().join("repo");
+        let moved_root = parent.path().join("moved-repo");
+        fs::create_dir(&root_path).unwrap();
+        fs::write(root_path.join("file.txt"), "safe worktree content").unwrap();
+        fs::write(outside.path().join("file.txt"), "TOPSECRET-OUTSIDE-REPO").unwrap();
+        let root = open_untracked_root(&root_path).unwrap();
+
+        fs::rename(&root_path, &moved_root).unwrap();
+        std::os::unix::fs::symlink(outside.path(), &root_path).unwrap();
+
+        let (mode, content) = read_untracked_content(&root, Path::new("file.txt"))
+            .unwrap()
+            .unwrap();
         assert_eq!(mode, "100644");
         assert_eq!(content, "safe worktree content");
         assert!(!content.contains("TOPSECRET-OUTSIDE-REPO"));
@@ -1081,20 +1154,40 @@ mod tests {
         fs::create_dir(&ancestor).unwrap();
         fs::write(ancestor.join("file.txt"), "safe worktree content").unwrap();
 
-        let (mode, content) = read_untracked_content_with_hook(
-            dir.path(),
-            Path::new("nested/file.txt"),
-            |opened_path| {
+        let root = open_untracked_root(dir.path()).unwrap();
+        let (mode, content) =
+            read_untracked_content_with_hook(&root, Path::new("nested/file.txt"), |opened_path| {
                 if opened_path == Path::new("nested") {
                     fs::rename(&ancestor, &moved_ancestor).unwrap();
                     fs::create_dir(&ancestor).unwrap();
                     fs::write(ancestor.join("file.txt"), "TOPSECRET-OUTSIDE-REPO").unwrap();
                 }
-            },
-        )
-        .unwrap()
-        .unwrap();
+            })
+            .unwrap()
+            .unwrap();
 
+        assert_eq!(mode, "100644");
+        assert_eq!(content, "safe worktree content");
+        assert!(!content.contains("TOPSECRET-OUTSIDE-REPO"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_untracked_file_reader_stays_in_opened_root_after_swap() {
+        let parent = tempfile::tempdir().unwrap();
+        let root_path = parent.path().join("repo");
+        let moved_root = parent.path().join("moved-repo");
+        fs::create_dir(&root_path).unwrap();
+        fs::write(root_path.join("file.txt"), "safe worktree content").unwrap();
+        let root = open_untracked_root(&root_path).unwrap();
+
+        fs::rename(&root_path, &moved_root).unwrap();
+        fs::create_dir(&root_path).unwrap();
+        fs::write(root_path.join("file.txt"), "TOPSECRET-OUTSIDE-REPO").unwrap();
+
+        let (mode, content) = read_untracked_content(&root, Path::new("file.txt"))
+            .unwrap()
+            .unwrap();
         assert_eq!(mode, "100644");
         assert_eq!(content, "safe worktree content");
         assert!(!content.contains("TOPSECRET-OUTSIDE-REPO"));
@@ -1110,7 +1203,8 @@ mod tests {
             return;
         }
 
-        let result = read_untracked_content(dir.path(), Path::new("nested/file.txt"));
+        let root = open_untracked_root(dir.path()).unwrap();
+        let result = read_untracked_content(&root, Path::new("nested/file.txt"));
 
         assert!(result.is_err());
     }
@@ -1124,7 +1218,8 @@ mod tests {
             return;
         }
 
-        let diff = synthesize_untracked_diff(dir.path(), &["link.txt".to_string()]).unwrap();
+        let root = open_untracked_root(dir.path()).unwrap();
+        let diff = synthesize_untracked_diff(&root, &["link.txt".to_string()]).unwrap();
 
         assert!(diff.contains("new file mode 120000"));
         assert!(diff.contains("+missing-target.txt"));
@@ -1163,7 +1258,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("ordinary.txt"), "ordinary content").unwrap();
 
-        let diff = synthesize_untracked_diff(dir.path(), &["ordinary.txt".to_string()]).unwrap();
+        let root = open_untracked_root(dir.path()).unwrap();
+        let diff = synthesize_untracked_diff(&root, &["ordinary.txt".to_string()]).unwrap();
 
         assert!(diff.is_empty());
     }
