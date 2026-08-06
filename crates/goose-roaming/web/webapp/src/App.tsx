@@ -146,6 +146,7 @@ export function App({ roam }: { roam: RoamClient }) {
   const [agentId, setAgentId] = useState("");
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [logWindow, setLogWindow] = useState(80);
   const [busy, setBusy] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [modelName, setModelName] = useState<string | null>(null);
@@ -422,6 +423,7 @@ export function App({ roam }: { roam: RoamClient }) {
       setStatusKind("busy");
       try {
         setItems([]);
+        setLogWindow(80);
         const info = sessions.find((x) => x.sessionId === id);
         document.title = info?.title ? `${info.title} · goose remote` : "goose remote";
         lastSeenUpdate.current = null;
@@ -869,10 +871,42 @@ export function App({ roam }: { roam: RoamClient }) {
               <span className="text-xs text-text-tertiary truncate">
                 {sessions.find((x) => x.sessionId === sessionId)?.title ?? ""}
               </span>
+              {(() => {
+                const cur = sessions.find((x) => x.sessionId === sessionId);
+                const hot =
+                  cur?.updatedAt &&
+                  Date.now() - new Date(cur.updatedAt).getTime() < 5 * 60 * 1000;
+                return hot ? (
+                  <span
+                    id="hot-chip"
+                    title="active in the last 5 min — checked every 6s"
+                    className="shrink-0 inline-flex items-center gap-1 text-[10px] text-text-info"
+                  >
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                    live
+                  </span>
+                ) : null;
+              })()}
             </div>
             <div ref={logRef} id="log" className="flex-1 overflow-y-auto px-3 md:px-6 py-4 md:py-5">
               <div className="max-w-3xl mx-auto w-full flex flex-col gap-4 pb-2">
-              {items.map((it) => {
+              {items.length > logWindow && (
+                <button
+                  id="show-earlier"
+                  className="self-center text-xs text-text-secondary border border-border-secondary rounded-lg px-3 py-1.5 hover:border-border-info"
+                  onClick={() => {
+                    const el = logRef.current;
+                    const prevH = el?.scrollHeight ?? 0;
+                    setLogWindow((w) => w + 200);
+                    requestAnimationFrame(() => {
+                      if (el) el.scrollTop += el.scrollHeight - prevH;
+                    });
+                  }}
+                >
+                  show earlier · {items.length - logWindow} more
+                </button>
+              )}
+              {items.slice(-logWindow).map((it) => {
                 switch (it.kind) {
                   case "system":
                     return (
