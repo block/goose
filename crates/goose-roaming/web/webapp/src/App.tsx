@@ -71,6 +71,7 @@ function modelFromConfigOptions(opts: any[] | null | undefined): string | null {
 }
 
 const HOST_CARD_KEY = "goose-roam-last-host-card";
+const SESSION_KEY = "goose-roam-last-session";
 
 declare const __BUILD_STAMP__: string;
 const BUILD = typeof __BUILD_STAMP__ !== "undefined" ? __BUILD_STAMP__ : "dev";
@@ -97,6 +98,7 @@ export function App({ roam }: { roam: RoamClient }) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const [scanning, setScanning] = useState(false);
+  const reconnectAttempt = useRef(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const scanStop = useRef<(() => void) | null>(null);
   // BarcodeDetector: Chrome/Android today; feature-detected so the button
@@ -220,6 +222,8 @@ export function App({ roam }: { roam: RoamClient }) {
           case "tool_call": {
             streamRole.current = null;
             const t = u;
+            setStatus(`tool: ${(t.title ?? "running").slice(0, 28)}`);
+            setStatusKind("busy");
             setItems((xs) => [
               ...xs,
               {
@@ -320,6 +324,7 @@ export function App({ roam }: { roam: RoamClient }) {
       const res = await agent.newSession({ cwd: "/", mcpServers: [] });
       const m = modelFromConfigOptions((res as { configOptions?: unknown[] }).configOptions);
       if (m) setModelName(m);
+      localStorage.setItem(SESSION_KEY, res.sessionId);
       sessionRef.current = res.sessionId;
       setSessionId(res.sessionId);
       setItems([{ kind: "system", id: nextId++, text: "New session — say hello 👋" }]);
@@ -340,6 +345,7 @@ export function App({ roam }: { roam: RoamClient }) {
       setStatusKind("busy");
       try {
         setItems([]);
+        localStorage.setItem(SESSION_KEY, id);
         sessionRef.current = id;
         setSessionId(id);
         await agent.loadSession({ sessionId: id, cwd: "/", mcpServers: [] });
@@ -381,26 +387,48 @@ export function App({ roam }: { roam: RoamClient }) {
       void agent.closed.then(() => {
         if (agentRef.current === agent) {
           agentRef.current = null;
+          sessionRef.current = null;
           setConnected(false);
           setBusy(false);
-          setStatus("connection lost — press connect");
-          setStatusKind("err");
+          const attempt = reconnectAttempt.current++;
+          if (attempt < 8) {
+            const delay = Math.min(20000, 1500 * 2 ** attempt);
+            setStatus("connection lost — reconnecting…");
+            setStatusKind("err");
+            setTimeout(() => void connect(text), delay);
+          } else {
+            setStatus("connection lost — press connect");
+            setStatusKind("err");
+          }
         }
       });
+      reconnectAttempt.current = 0;
       setAgentId(conn.agentId());
       setConnected(true);
       setStatus("connected");
       setStatusKind("ok");
       await refreshSessions();
-      await newSession();
+      const savedSession = localStorage.getItem(SESSION_KEY);
+      if (savedSession) {
+        await openSession(savedSession);
+      } else {
+        await newSession();
+      }
       inputRef.current?.focus();
     } catch (err) {
       console.error(err);
-      setStatus(`connect failed: ${err}`);
-      setStatusKind("err");
       setBusy(false);
+      if (reconnectAttempt.current > 0 && reconnectAttempt.current < 8) {
+        const delay = Math.min(20000, 1500 * 2 ** reconnectAttempt.current++);
+        setStatus("reconnecting…");
+        setStatusKind("err");
+        setTimeout(() => void connect(text), delay);
+      } else {
+        setStatus(`connect failed: ${err}`);
+        setStatusKind("err");
+      }
     }
-  }, [card, roam, makeClient, refreshSessions, newSession]);
+  }, [card, roam, makeClient, refreshSessions, newSession, openSession]);
 
   const send = useCallback(async () => {
     const agent = agentRef.current;
@@ -486,6 +514,7 @@ export function App({ roam }: { roam: RoamClient }) {
               title="disconnect and connect to a different host (keeps this browser's identity)"
               onClick={() => {
                 localStorage.removeItem(HOST_CARD_KEY);
+                localStorage.removeItem(SESSION_KEY);
                 location.reload();
               }}
             >
@@ -754,6 +783,12 @@ export function App({ roam }: { roam: RoamClient }) {
                     );
                 }
               })}
+              {busy && (
+                <div className="msg system self-center flex items-center gap-2 text-text-secondary text-xs">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                  goose is working…
+                </div>
+              )}
               </div>
             </div>
             <form
