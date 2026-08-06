@@ -117,7 +117,11 @@ pub enum RoamCommand {
     /// a peer so it can find and identify this node. Nothing in it is a secret;
     /// a peer must still be accepted (`roam peers accept`) before it can connect.
     #[command(visible_alias = "card")]
-    Id,
+    Id {
+        /// Also render the card as a QR code in the terminal (scan from a phone).
+        #[arg(long)]
+        qr: bool,
+    },
 
     /// Serve this node's agent to accepted peers over ACP.
     ///
@@ -134,6 +138,10 @@ pub enum RoamCommand {
         /// always ignored.
         #[arg(long)]
         cwd: Option<std::path::PathBuf>,
+
+        /// Also render the connection card as a QR code in the terminal.
+        #[arg(long)]
+        qr: bool,
     },
 
     /// Open a quick interactive REPL against a remote agent (debug/peek).
@@ -238,8 +246,8 @@ pub enum PeersCommand {
 
 pub async fn handle_roam_command(command: RoamCommand) -> Result<()> {
     match command {
-        RoamCommand::Id => handle_id().await,
-        RoamCommand::Share { builtins, cwd } => handle_share(builtins, cwd).await,
+        RoamCommand::Id { qr } => handle_id(qr).await,
+        RoamCommand::Share { builtins, cwd, qr } => handle_share(builtins, cwd, qr).await,
         RoamCommand::Connect { target, label } => handle_connect(target, label).await,
         RoamCommand::Delegate {
             target,
@@ -259,7 +267,22 @@ pub async fn handle_roam_command(command: RoamCommand) -> Result<()> {
 
 /// Bind a node briefly to read its live card (id + relay URLs), waiting for a
 /// relay so the card carries a reachable address.
-async fn handle_id() -> Result<()> {
+/// Render a card as a terminal QR code (unicode half-blocks) to stderr.
+fn print_qr(card: &str) {
+    match qrcode::QrCode::new(card.as_bytes()) {
+        Ok(code) => {
+            let art = code
+                .render::<qrcode::render::unicode::Dense1x2>()
+                .quiet_zone(true)
+                .build();
+            eprintln!("{art}");
+            eprintln!("scan with a phone camera, then paste the decoded text into the web client");
+        }
+        Err(err) => eprintln!("could not render QR: {err}"),
+    }
+}
+
+async fn handle_id(qr: bool) -> Result<()> {
     let identity = load_identity()?;
     let node = RoamingNode::bind(RoamingConfig {
         identity,
@@ -275,6 +298,10 @@ async fn handle_id() -> Result<()> {
     let card = node.card();
     eprintln!("your connection card (share this with a peer):");
     println!("{}", card.encode()?);
+    if qr {
+        eprintln!();
+        print_qr(&card.encode()?);
+    }
     eprintln!();
     eprintln!("  endpoint id : {}", card.endpoint_id);
     eprintln!("  fingerprint : {}", card.fingerprint());
@@ -439,7 +466,11 @@ fn load_identity() -> Result<RoamingIdentity> {
     RoamingIdentity::load_or_create(&path).context("failed to load roaming identity")
 }
 
-async fn handle_share(builtins: Vec<String>, cwd: Option<std::path::PathBuf>) -> Result<()> {
+async fn handle_share(
+    builtins: Vec<String>,
+    cwd: Option<std::path::PathBuf>,
+    qr: bool,
+) -> Result<()> {
     let identity = load_identity()?;
 
     // The hosted agent runs in `--cwd` or the directory `roam share` was started
@@ -505,6 +536,9 @@ async fn handle_share(builtins: Vec<String>, cwd: Option<std::path::PathBuf>) ->
     eprintln!();
     eprintln!("your connection card (share with a peer so it can reach you):");
     println!("{}", node.card().encode()?);
+    if qr {
+        print_qr(&node.card().encode()?);
+    }
     eprintln!();
     eprintln!("press Ctrl-C to stop sharing");
 
