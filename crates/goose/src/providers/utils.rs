@@ -238,14 +238,22 @@ impl RequestLog {
 
 #[cfg(unix)]
 fn restrict_existing_request_logs(logs_dir: &std::path::Path) -> Result<()> {
-    for entry in fs_err::read_dir(logs_dir)? {
-        let entry = entry?;
-        let file_name = entry.file_name();
-        let Some(file_name) = file_name.to_str() else {
-            continue;
-        };
-        if is_request_log_file_name(file_name) {
-            restrict_existing_request_log(&entry.path())?;
+    for _ in 0..3 {
+        let mut retry = false;
+        for entry in fs_err::read_dir(logs_dir)? {
+            let entry = entry?;
+            let file_name = entry.file_name();
+            let Some(file_name) = file_name.to_str() else {
+                continue;
+            };
+            if is_request_log_file_name(file_name)
+                && restrict_existing_request_log(&entry.path())? == RestrictionOutcome::Retry
+            {
+                retry = true;
+            }
+        }
+        if !retry {
+            break;
         }
     }
 
@@ -253,56 +261,73 @@ fn restrict_existing_request_logs(logs_dir: &std::path::Path) -> Result<()> {
 }
 
 #[cfg(unix)]
-fn restrict_existing_request_log(path: &std::path::Path) -> Result<()> {
+#[derive(PartialEq)]
+enum RestrictionOutcome {
+    Complete,
+    Retry,
+}
+
+#[cfg(unix)]
+fn restrict_existing_request_log(path: &std::path::Path) -> Result<RestrictionOutcome> {
     use std::io::ErrorKind;
-    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+    use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 
     let flags = libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC;
     let mut read_options = std::fs::OpenOptions::new();
     read_options.read(true).custom_flags(flags);
     let file = match read_options.open(path) {
         Ok(file) => file,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(RestrictionOutcome::Retry),
         Err(error)
-            if error.kind() == ErrorKind::NotFound
-                || error.raw_os_error() == Some(libc::ELOOP)
+            if error.raw_os_error() == Some(libc::ELOOP)
                 || error.raw_os_error() == Some(libc::ENXIO) =>
         {
-            return Ok(())
+            return Ok(RestrictionOutcome::Complete)
         }
         Err(error) if error.kind() == ErrorKind::PermissionDenied => {
             let mut write_options = std::fs::OpenOptions::new();
             write_options.write(true).custom_flags(flags);
             match write_options.open(path) {
                 Ok(file) => file,
+                Err(error) if error.kind() == ErrorKind::NotFound => {
+                    return Ok(RestrictionOutcome::Retry)
+                }
                 Err(error)
-                    if error.kind() == ErrorKind::NotFound
-                        || error.raw_os_error() == Some(libc::ELOOP)
+                    if error.raw_os_error() == Some(libc::ELOOP)
                         || error.raw_os_error() == Some(libc::ENXIO) =>
                 {
-                    return Ok(())
+                    return Ok(RestrictionOutcome::Complete)
                 }
                 Err(error)
                     if error.kind() == ErrorKind::PermissionDenied
                         || error.raw_os_error() == Some(libc::EISDIR)
                         || error.raw_os_error() == Some(libc::ENXIO) =>
                 {
-                    restrict_inaccessible_request_log(path)?;
-                    return Ok(());
+                    return restrict_inaccessible_request_log(path);
                 }
                 Err(error) => return Err(error.into()),
             }
         }
         Err(error) => return Err(error.into()),
     };
-    if file.metadata()?.is_file() {
+    let metadata = file.metadata()?;
+    if metadata.is_file() && metadata.uid() == current_effective_uid() {
         file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
     }
 
-    Ok(())
+    Ok(RestrictionOutcome::Complete)
 }
 
 #[cfg(unix)]
-fn restrict_inaccessible_request_log(path: &std::path::Path) -> Result<()> {
+fn restrict_inaccessible_request_log(path: &std::path::Path) -> Result<RestrictionOutcome> {
+    restrict_inaccessible_request_log_with_hook(path, || {})
+}
+
+#[cfg(unix)]
+fn restrict_inaccessible_request_log_with_hook(
+    path: &std::path::Path,
+    after_metadata: impl FnOnce(),
+) -> Result<RestrictionOutcome> {
     use std::ffi::CString;
     use std::io::{Error, ErrorKind};
     use std::os::fd::AsRawFd;
@@ -330,14 +355,20 @@ fn restrict_inaccessible_request_log(path: &std::path::Path) -> Result<()> {
     };
     if result < 0 {
         let error = Error::last_os_error();
-        if error.kind() == ErrorKind::NotFound || error.raw_os_error() == Some(libc::ELOOP) {
-            return Ok(());
+        if error.kind() == ErrorKind::NotFound {
+            return Ok(RestrictionOutcome::Retry);
+        }
+        if error.raw_os_error() == Some(libc::ELOOP) {
+            return Ok(RestrictionOutcome::Complete);
         }
         return Err(error.into());
     }
-    if metadata.st_mode & libc::S_IFMT != libc::S_IFREG {
-        return Ok(());
+    if metadata.st_mode & libc::S_IFMT != libc::S_IFREG
+        || metadata.st_uid != current_effective_uid()
+    {
+        return Ok(RestrictionOutcome::Complete);
     }
+    after_metadata();
     // SAFETY: fchmodat does not retain the name pointer and is anchored at the open directory.
     let result = unsafe {
         libc::fchmodat(
@@ -350,12 +381,39 @@ fn restrict_inaccessible_request_log(path: &std::path::Path) -> Result<()> {
     if result < 0 {
         let error = Error::last_os_error();
         if error.kind() == ErrorKind::NotFound || error.raw_os_error() == Some(libc::ELOOP) {
-            return Ok(());
+            return Ok(RestrictionOutcome::Retry);
         }
         return Err(error.into());
     }
 
-    Ok(())
+    // SAFETY: pointers remain valid for the synchronous call and the directory fd is open.
+    let mut updated: libc::stat = unsafe { std::mem::zeroed() };
+    let result = unsafe {
+        libc::fstatat(
+            directory.as_raw_fd(),
+            file_name.as_ptr(),
+            &mut updated,
+            libc::AT_SYMLINK_NOFOLLOW,
+        )
+    };
+    if result < 0 {
+        let error = Error::last_os_error();
+        if error.kind() == ErrorKind::NotFound {
+            return Ok(RestrictionOutcome::Retry);
+        }
+        return Err(error.into());
+    }
+    if metadata.st_dev != updated.st_dev || metadata.st_ino != updated.st_ino {
+        return Ok(RestrictionOutcome::Retry);
+    }
+
+    Ok(RestrictionOutcome::Complete)
+}
+
+#[cfg(unix)]
+fn current_effective_uid() -> libc::uid_t {
+    // SAFETY: geteuid has no preconditions.
+    unsafe { libc::geteuid() }
 }
 
 #[cfg(unix)]
@@ -558,6 +616,32 @@ mod tests {
         let vanished = root.path().join("llm_request.0.jsonl");
 
         restrict_existing_request_log(&vanished).unwrap();
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn request_log_permission_upgrade_retries_replaced_inaccessible_entry() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = tempfile::tempdir().unwrap();
+        let original = root.path().join("llm_request.0.jsonl");
+        let moved = root.path().join("llm_request.1.jsonl");
+        let replacement = root.path().join("replacement");
+        for path in [&original, &replacement] {
+            std::fs::write(path, "legacy sensitive request").unwrap();
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o066)).unwrap();
+        }
+
+        let outcome = restrict_inaccessible_request_log_with_hook(&original, || {
+            std::fs::rename(&original, &moved).unwrap();
+            std::fs::rename(&replacement, &original).unwrap();
+        })
+        .unwrap();
+        assert!(outcome == RestrictionOutcome::Retry);
+
+        restrict_existing_request_logs(root.path()).unwrap();
+        assert_owner_only(&original);
+        assert_owner_only(&moved);
     }
 
     #[test]
