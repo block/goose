@@ -108,6 +108,7 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
             }
         }
     }
+    drop(untracked_root);
 
     if diff.trim().is_empty() {
         eprintln!("goose review: no changes to review");
