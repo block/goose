@@ -19,7 +19,7 @@ import {
 import { GooseClient } from "@aaif/goose-sdk";
 import jsQR from "jsqr";
 import { Button } from "@desktop/components/ui/button";
-import { ChevronRight } from "lucide-react";
+import { Camera, ChevronRight, Menu } from "lucide-react";
 import MarkdownContent from "@desktop/components/MarkdownContent";
 import { Goose } from "@desktop/components/icons/Goose";
 import { ToolCallStatusIndicator, type ToolCallStatus } from "@desktop/components/ToolCallStatusIndicator";
@@ -375,7 +375,7 @@ export function App({ roam }: { roam: RoamClient }) {
       localStorage.setItem(SESSION_KEY, res.sessionId);
       sessionRef.current = res.sessionId;
       setSessionId(res.sessionId);
-      setItems([{ kind: "system", id: nextId++, text: "New session — say hello 👋" }]);
+      setItems([{ kind: "system", id: nextId++, text: "New session — say hello" }]);
       void refreshSessions();
     } catch (err) {
       push({ kind: "system", text: `could not start session: ${err}` } as Omit<Item, "id">);
@@ -551,7 +551,7 @@ export function App({ roam }: { roam: RoamClient }) {
   return (
     <div className="h-screen flex flex-col bg-background-primary text-text-primary">
       <div className="flex items-center justify-between gap-2 px-3 md:px-4 py-2.5 border-b border-border-primary bg-background-secondary shrink-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {connected && (
             <button
               id="sidebar-toggle"
@@ -559,18 +559,18 @@ export function App({ roam }: { roam: RoamClient }) {
               aria-label="toggle sessions"
               onClick={() => setSidebarOpen((v) => !v)}
             >
-              ☰
+              <Menu className="w-5 h-5" />
             </button>
           )}
           <Goose className="w-5 h-5" />
-          <span className="font-bold text-[15px]">goose remote</span>
-          <span id="build-stamp" className="text-[10px] text-text-tertiary font-mono self-end pb-0.5">{BUILD}</span>
+          <span className="font-bold text-[15px] whitespace-nowrap">goose remote</span>
+          <span id="build-stamp" className="hidden md:inline text-[10px] text-text-tertiary font-mono self-end pb-0.5">{BUILD}</span>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0 shrink">
           {connected && modelName && (
             <span
               id="model-badge"
-              className="text-[11px] text-text-secondary bg-background-secondary border border-border-primary rounded-full px-2.5 py-0.5 max-w-[110px] md:max-w-none overflow-hidden text-ellipsis whitespace-nowrap"
+              className="hidden md:inline text-[11px] text-text-secondary bg-background-secondary border border-border-primary rounded-full px-2.5 py-0.5"
             >
               {modelName}
             </span>
@@ -583,13 +583,14 @@ export function App({ roam }: { roam: RoamClient }) {
               agent {agentId.slice(0, 12)}…
             </span>
           )}
-          <span id="status" className={`text-xs whitespace-nowrap ${statusColor}`}>
-            {status}
+          <span id="status" className={`flex items-center gap-1.5 text-xs whitespace-nowrap ${statusColor}`}>
+            <span aria-hidden className="inline-block w-2 h-2 rounded-full bg-current shrink-0" />
+            <span className={connected ? "hidden md:inline" : "truncate max-w-[180px] md:max-w-none"}>{status}</span>
           </span>
           {connected && (
             <button
               id="switch-host"
-              className="text-[11px] text-text-secondary border border-border-secondary rounded-full px-2 py-0.5 hover:border-border-info"
+              className="shrink-0 text-xs text-text-secondary border border-border-secondary rounded-lg px-2.5 py-1 hover:border-border-info transition-colors"
               title="disconnect and connect to a different host (keeps this browser's identity)"
               onClick={() => {
                 localStorage.removeItem(HOST_CARD_KEY);
@@ -656,10 +657,10 @@ export function App({ roam }: { roam: RoamClient }) {
                   <button
                     id="scan-card"
                     type="button"
-                    className="mt-2 text-text-secondary border border-border-secondary rounded-lg px-3 py-1.5 text-xs hover:border-border-info"
+                    className="mt-2 inline-flex items-center gap-1.5 text-text-secondary border border-border-secondary rounded-lg px-3 py-1.5 text-xs hover:border-border-info"
                     onClick={() => void startScan()}
                   >
-                    📷 scan host QR
+                    <Camera className="w-3.5 h-3.5" /> scan host QR
                   </button>
                 )}
               </li>
@@ -723,6 +724,9 @@ export function App({ roam }: { roam: RoamClient }) {
                 </button>
               ))}
             </div>
+            <div className="mt-auto pt-2 border-t border-border-primary text-[10px] text-text-tertiary font-mono truncate">
+              {modelName ? `${modelName} · ` : ""}agent {agentId.slice(0, 8)}
+            </div>
           </aside>
 
           <main id="chat" className="flex flex-col min-h-0 flex-1 min-w-0">
@@ -755,7 +759,7 @@ export function App({ roam }: { roam: RoamClient }) {
                     if (it.role === "user")
                       return (
                         <div key={it.id} className="msg user flex justify-end w-full">
-                          <div className="body user-message-bubble max-w-[92%] md:max-w-[85%] w-fit bg-text-primary text-background-primary rounded-xl py-2.5 px-4 whitespace-pre-wrap leading-relaxed">
+                          <div className="body user-message-bubble max-w-[92%] md:max-w-[85%] w-fit min-w-0 bg-text-primary text-background-primary rounded-xl py-2.5 px-4 whitespace-pre-wrap leading-relaxed [overflow-wrap:anywhere]">
                             {it.text}
                           </div>
                         </div>

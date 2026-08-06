@@ -4,3 +4,43 @@
    classes used in this app's own tsx. */
 @import '../../../../../ui/desktop/src/styles/main.css';
 @source './**/*.{ts,tsx}';
+
+/* --- app containment rules (mobile: nothing may pan the page/transcript) --- */
+#log {
+  overflow-x: hidden;
+}
+#log .msg .body {
+  max-width: 100%;
+  min-width: 0;
+}
+/* wide markdown artifacts scroll inside themselves, never stretch the log */
+#log .msg .body pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+#log .msg .body table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+#log .msg .body img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* --- browser surfaces: theme what we didn't draw (selection, caret, focus) --- */
+::selection {
+  background: var(--color-background-inverse);
+  color: var(--color-text-inverse);
+}
+textarea, input {
+  caret-color: var(--color-text-primary);
+}
+button:focus-visible,
+textarea:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--color-border-info);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-sm, 4px);
+}
