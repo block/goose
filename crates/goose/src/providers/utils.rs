@@ -249,13 +249,14 @@ impl RequestLogger for RequestLog {
         let temp_name = format!("llm_request.{request_id}.jsonl");
         let temp_path = logs_dir.join(PathBuf::from(temp_name));
 
-        let writer = BufWriter::new(
-            File::options()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .open(&temp_path)?,
-        );
+        let mut options = File::options();
+        options.write(true).create(true).truncate(true);
+        #[cfg(unix)]
+        {
+            use fs_err::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let writer = BufWriter::new(options.open(&temp_path)?);
 
         Ok(Box::new(FileLogHandle {
             writer: Some(writer),
@@ -311,6 +312,81 @@ impl Drop for FileLogHandle {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[cfg(unix)]
+    const REQUEST_LOG_PERMISSIONS_CHILD: &str = "GOOSE_REQUEST_LOG_PERMISSIONS_CHILD";
+
+    #[cfg(unix)]
+    fn assert_owner_only(path: &std::path::Path) {
+        use std::os::unix::fs::PermissionsExt;
+
+        let mode = std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode & 0o077, 0, "{} has mode {mode:o}", path.display());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn request_log_files_are_owner_only() {
+        use std::os::unix::process::CommandExt;
+        use std::process::Command;
+
+        let root = tempfile::tempdir().unwrap();
+        let mut command = Command::new(std::env::current_exe().unwrap());
+        command
+            .arg("--exact")
+            .arg("providers::utils::tests::request_log_permissions_child")
+            .arg("--nocapture")
+            .env(REQUEST_LOG_PERMISSIONS_CHILD, "1")
+            .env("GOOSE_PATH_ROOT", root.path());
+        unsafe {
+            command.pre_exec(|| {
+                libc::umask(0o022);
+                Ok(())
+            });
+        }
+
+        let output = command.output().unwrap();
+        assert!(
+            output.status.success(),
+            "permission test subprocess failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn request_log_permissions_child() {
+        if std::env::var_os(REQUEST_LOG_PERMISSIONS_CHILD).is_none() {
+            return;
+        }
+
+        let log = RequestLog::new(1).unwrap();
+        let mut handle = log.start().unwrap();
+        let logs_dir = Paths::in_state_dir("logs");
+        let active_path = std::fs::read_dir(&logs_dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .find(|path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| {
+                        name.starts_with("llm_request.") && name != "llm_request.0.jsonl"
+                    })
+            })
+            .unwrap();
+
+        assert_owner_only(&active_path);
+        handle.write("sensitive request and response").unwrap();
+        drop(handle);
+
+        let rotated_path = logs_dir.join("llm_request.0.jsonl");
+        assert_owner_only(&rotated_path);
+        assert_eq!(
+            std::fs::read_to_string(rotated_path).unwrap(),
+            "sensitive request and response\n"
+        );
+    }
 
     #[test]
     fn unescape_json_values_with_object() {
