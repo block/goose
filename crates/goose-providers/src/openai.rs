@@ -782,7 +782,6 @@ impl Provider for OpenAiProvider {
                     preserve_thinking_context: self.preserve_thinking_context
                         || thinking_preservation_format.is_some(),
                     thinking_preservation_format,
-                    ..Default::default()
                 },
             )?;
 

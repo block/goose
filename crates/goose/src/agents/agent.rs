@@ -46,7 +46,9 @@ use crate::conversation::message::{
     ActionRequiredData, InferenceMetadata, Message, MessageContent, MessageUsage, ProviderMetadata,
     SystemNotificationType, ToolRequest,
 };
-use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
+use crate::conversation::{
+    debug_conversation_fix, fix_conversation, merge_consecutive_messages_for_request, Conversation,
+};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
@@ -150,7 +152,6 @@ pub struct ReplyContext {
     pub system_prompt: String,
     pub goose_mode: GooseMode,
     pub tool_call_cut_off: usize,
-    pub initial_messages: Vec<Message>,
     pub model_config: goose_providers::model::ModelConfig,
 }
 
@@ -787,8 +788,6 @@ impl Agent {
                 )
             );
         }
-        let initial_messages = conversation.messages().clone();
-
         let (tools, toolshim_tools, system_prompt, model_config) = self
             .prepare_tools_and_prompt(session_id, working_dir)
             .await?;
@@ -820,7 +819,6 @@ impl Agent {
             system_prompt,
             goose_mode,
             tool_call_cut_off,
-            initial_messages,
             model_config,
         })
     }
@@ -2154,7 +2152,6 @@ impl Agent {
             mut system_prompt,
             tool_call_cut_off,
             goose_mode,
-            initial_messages,
             model_config,
         } = context;
 
@@ -2264,7 +2261,28 @@ impl Agent {
             let turn_start_compaction_info =
                 super::moim::compute_compaction_info(&session_config.id, &self.extension_manager)
                     .await;
-            let turn_start_turns_taken = turns_taken;
+
+            if let Some(turn_context) = super::moim::turn_context_message(
+                &session_config.id,
+                &self.extension_manager,
+                turns_taken,
+                max_turns,
+                turn_start,
+                turn_start_compaction_info,
+            )
+            .await
+            {
+                persist_and_push_message_with_id(
+                    &session_manager,
+                    &session_config.id,
+                    &mut conversation,
+                    turn_context,
+                )
+                .await?;
+            }
+            // Recipe-retry snapshot; taken after the turn-context append so a
+            // retried attempt keeps the request prefix already sent.
+            let initial_messages = conversation.messages().clone();
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -2359,23 +2377,12 @@ impl Agent {
                     break;
                 }
 
-                let conversation_with_moim = super::moim::inject_moim(
-                    &session_config.id,
-                    conversation.clone(),
-                    &self.extension_manager,
-                    turn_start_turns_taken,
-                    max_turns,
-                    turn_start,
-                    turn_start_compaction_info.clone(),
-                )
-                .await;
-
                 let mut stream = crate::agents::reply_parts::stream_response_from_provider(
                     self.provider().await?,
                     model_config.clone(),
                     &session_config.id,
                     &system_prompt,
-                    conversation_with_moim.messages(),
+                    conversation.messages(),
                     &tools,
                     &toolshim_tools,
                 ).await?;
@@ -3743,6 +3750,9 @@ impl Agent {
                 .iter()
                 .for_each(|issue| tracing::warn!(recipe.conversation.issue = issue));
         }
+        let messages = Conversation::new_unvalidated(merge_consecutive_messages_for_request(
+            messages.messages().clone(),
+        ));
 
         tracing::debug!(
             "Added recipe prompt to messages, total messages: {}",

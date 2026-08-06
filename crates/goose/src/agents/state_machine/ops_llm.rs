@@ -434,18 +434,32 @@ impl Inference for InferenceRunner<'_> {
                 .get_context_limit(&self.model_config)
                 .await
                 .unwrap_or_else(|_| self.model_config.context_limit());
-            let turn_start = messages_since_kickoff(conversation)?
+            let turn = messages_since_kickoff(conversation)?;
+            let turn_start = turn
                 .first()
                 .and_then(|message| chrono::DateTime::from_timestamp(message.created, 0))
                 .map(|timestamp| timestamp.with_timezone(&chrono::Local))
                 .unwrap_or_else(chrono::Local::now);
-            let conversation_for_provider = crate::agents::moim::inject_moim_parts(
-                Conversation::new_unvalidated(messages_for_provider),
+            // Persist a fresh turn-context event only when its bytes changed
+            // (e.g. the turn budget ticked); earlier events stay in place.
+            let last_turn_context = turn
+                .iter()
+                .rev()
+                .find(|message| message.is_turn_context())
+                .map(Message::as_concat_text);
+            let turn_context = crate::agents::moim::turn_context_event(
                 &session.working_dir,
                 Some(context_limit),
                 input.moim_parts,
                 turn_start,
-            );
+            )
+            .filter(|event| Some(event.as_concat_text()) != last_turn_context);
+            if let Some(event) = &turn_context {
+                messages_for_provider.push(event.clone());
+            }
+            let conversation_for_provider = Conversation::new_unvalidated(messages_for_provider);
+            let mut usage_effects: Vec<StateEffect> =
+                turn_context.into_iter().map(StateEffect::from).collect();
 
             let stream = crate::agents::reply_parts::stream_response_from_provider(
                 self.provider.clone(),
@@ -460,7 +474,10 @@ impl Inference for InferenceRunner<'_> {
 
             let mut stream = match stream {
                 Ok(stream) => stream,
-                Err(err) => return applied(self.error_outcome(&err, emit).await),
+                Err(err) => {
+                    usage_effects.extend(self.error_outcome(&err, emit).await);
+                    return applied(usage_effects);
+                }
             };
 
             let requested_model = self.model_config.model_name.clone();
@@ -477,7 +494,6 @@ impl Inference for InferenceRunner<'_> {
                 });
 
             let mut accumulator = Conversation::empty();
-            let mut usage_effects = Vec::new();
             let mut tool_request_ids = std::collections::HashSet::new();
             loop {
                 tokio::select! {
@@ -540,7 +556,10 @@ impl Inference for InferenceRunner<'_> {
                 return yielded_with(usage_effects);
             }
 
-            if usage_effects.is_empty() {
+            let has_recorded_usage = usage_effects
+                .iter()
+                .any(|effect| matches!(effect, StateEffect::RecordUsage(_)));
+            if !has_recorded_usage {
                 let mut usage = ProviderUsage::new(
                     self.model_config.model_name.clone(),
                     goose_providers::conversation::token_usage::Usage::default(),

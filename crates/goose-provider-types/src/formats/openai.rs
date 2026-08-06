@@ -67,10 +67,6 @@ pub fn is_reserved_request_param_key(key: &str) -> bool {
 pub struct OpenAiFormatOptions {
     pub preserve_thinking_context: bool,
     pub thinking_preservation_format: Option<ThinkingPreservationFormat>,
-    /// Keep the turn-context block on its source user message. The implicit
-    /// cache behind OpenAI's Responses-stack models only extends append-only
-    /// prompts, so the relocated tail would cap hits at the static prefix.
-    pub turn_context_in_place: bool,
 }
 
 fn merge_reasoning_text(prefix: &str, suffix: &str) -> String {
@@ -213,15 +209,6 @@ pub fn format_messages_with_options(
     image_format: &ImageFormat,
     options: OpenAiFormatOptions,
 ) -> Vec<Value> {
-    let extracted = if options.turn_context_in_place {
-        None
-    } else {
-        extract_turn_context(messages)
-    };
-    let (messages, turn_context) = match &extracted {
-        Some((stripped, text)) => (stripped.as_slice(), Some(text.as_str())),
-        None => (messages, None),
-    };
     let mut messages_spec = Vec::new();
     let mut pending_assistant_reasoning = String::new();
     // Reasoning to propagate across consecutive tool-call messages in the same turn.
@@ -531,58 +518,7 @@ pub fn format_messages_with_options(
         inline_reasoning_content(&mut messages_spec, format);
     }
 
-    if let Some(text) = turn_context {
-        append_turn_context_tail(&mut messages_spec, text);
-    }
-
     messages_spec
-}
-
-/// The volatile turn-context block busts implicit prefix caching from
-/// mid-history; re-emitted at the request tail instead. Mirrors formats/anthropic.rs.
-fn extract_turn_context(messages: &[Message]) -> Option<(Vec<Message>, String)> {
-    let (mi, bi) = messages.iter().enumerate().rev().find_map(|(mi, m)| {
-        if m.role != Role::User {
-            return None;
-        }
-        m.content
-            .iter()
-            .position(|block| {
-                matches!(block, MessageContentBlock::Text(t)
-                    if crate::conversation::is_turn_context_text(&t.text))
-            })
-            .map(|bi| (mi, bi))
-    })?;
-    if mi + 1 != messages.len() && messages[mi].content.len() <= 1 {
-        return None;
-    }
-    let mut messages = messages.to_vec();
-    let MessageContentBlock::Text(text) = messages[mi].content.remove(bi) else {
-        return None;
-    };
-    Some((messages, text.text))
-}
-
-/// Merges into a trailing user message when one exists; strict chat templates
-/// reject consecutive user messages.
-fn append_turn_context_tail(messages_spec: &mut Vec<Value>, text: &str) {
-    if let Some(last) = messages_spec.last_mut() {
-        if last["role"] == json!("user") {
-            match last.get_mut("content") {
-                Some(Value::String(existing)) => {
-                    existing.push('\n');
-                    existing.push_str(text);
-                    return;
-                }
-                Some(Value::Array(blocks)) => {
-                    blocks.push(json!({"type": "text", "text": text}));
-                    return;
-                }
-                _ => {}
-            }
-        }
-    }
-    messages_spec.push(json!({"role": "user", "content": text}));
 }
 
 /// Rewrites `reasoning_content` into the message `content` for models that reject a
@@ -1628,8 +1564,6 @@ pub fn create_request_for_model_with_options(
         "content": system
     });
 
-    let mut format_options = format_options;
-    format_options.turn_context_in_place |= is_reasoning_model;
     let messages_spec = format_messages_with_options(messages, image_format, format_options);
     let mut tools_spec = format_tools(tools)?;
 
@@ -4849,7 +4783,6 @@ data: [DONE]"#;
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
                 thinking_preservation_format: Some(format),
-                ..Default::default()
             },
         )
     }
@@ -4965,8 +4898,8 @@ data: [DONE]"#;
                 Message::user().with_text("What does the main entrypoint do?"),
                 Message::assistant().with_text("Let me read it."),
                 Message::user()
-                    .with_text(turn_context_block)
-                    .with_text("Now add error handling to it."),
+                    .with_text("Now add error handling to it.")
+                    .with_text(turn_context_block),
                 Message::assistant().with_tool_request(
                     "tool_1",
                     Ok(CallToolRequestParams::new("read_file")
@@ -4981,182 +4914,26 @@ data: [DONE]"#;
             ]
         }
 
-        fn prefix(spec: &[Value]) -> String {
-            json!(spec[..spec.len() - 1]).to_string()
-        }
-
         #[test]
-        fn formatted_prefix_is_invariant_to_turn_context_changes() {
-            let spec_a = format_messages(
-                &tool_loop_conversation(&turn_context("2026-08-03 12:00:00", "14/40 used")),
-                &ImageFormat::OpenAi,
-            );
-            let spec_b = format_messages(
-                &tool_loop_conversation(&turn_context("2026-08-03 13:47:00", "31/40 used")),
-                &ImageFormat::OpenAi,
-            );
-
-            assert_ne!(
-                json!(spec_a).to_string(),
-                json!(spec_b).to_string(),
-                "test setup is vacuous: the turn-context never reached the request body"
-            );
-            assert_eq!(
-                prefix(&spec_a),
-                prefix(&spec_b),
-                "the formatted prefix changed when only the volatile turn-context changed; \
-                 implicit prefix caching will re-prefill the conversation tail every request"
-            );
-        }
-
-        #[test]
-        fn turn_context_is_relocated_to_a_trailing_user_message() {
+        fn turn_context_stays_on_its_source_message() {
             let block = turn_context("2026-08-03 12:00:00", "14/40 used");
             let spec = format_messages(&tool_loop_conversation(&block), &ImageFormat::OpenAi);
 
-            let last = spec.last().unwrap();
-            assert_eq!(last["role"], "user");
-            assert_eq!(last["content"], json!(block));
-
-            let occurrences = spec
+            let occurrences: Vec<usize> = spec
                 .iter()
-                .filter(|m| {
+                .enumerate()
+                .filter_map(|(i, m)| {
                     m["content"]
                         .as_str()
                         .is_some_and(|c| c.contains("<turn-context>"))
+                        .then_some(i)
                 })
-                .count();
-            assert_eq!(occurrences, 1, "turn-context must appear exactly once");
-
+                .collect();
             assert_eq!(
-                spec[2]["content"],
-                json!("Now add error handling to it."),
-                "the source user message must keep its genuine text untouched"
+                occurrences,
+                vec![2],
+                "turn-context must appear exactly once, on its source message"
             );
-        }
-
-        #[test]
-        fn first_request_of_a_turn_keeps_turn_context_inside_the_user_message() {
-            let block = turn_context("2026-08-03 12:00:00", "1/40 used");
-            let messages = vec![Message::user()
-                .with_text(&block)
-                .with_text("What does the main entrypoint do?")];
-            let spec = format_messages(&messages, &ImageFormat::OpenAi);
-
-            assert_eq!(spec.len(), 1);
-            assert_eq!(
-                spec[0]["content"],
-                json!(format!("What does the main entrypoint do?\n{block}"))
-            );
-        }
-
-        #[test]
-        fn mid_history_sole_turn_context_is_left_in_place() {
-            let block = turn_context("2026-08-03 12:00:00", "14/40 used");
-            let messages = vec![
-                Message::user().with_text(&block),
-                Message::assistant().with_text("Understood."),
-                Message::user().with_text("Please refactor the argument parser."),
-            ];
-            let spec = format_messages(&messages, &ImageFormat::OpenAi);
-
-            assert_eq!(spec.len(), 3);
-            assert_eq!(spec[0]["content"], json!(block));
-            assert_eq!(
-                spec[2]["content"],
-                json!("Please refactor the argument parser.")
-            );
-        }
-
-        #[test]
-        fn turn_context_merges_into_the_synthetic_image_message() {
-            let block = turn_context("2026-08-03 12:00:00", "14/40 used");
-            let mut messages = tool_loop_conversation(&block);
-            messages.pop();
-            messages.push(Message::user().with_tool_response(
-                "tool_1",
-                Ok(CallToolResult::success(vec![ContentBlock::image(
-                    "aGVsbG8=",
-                    "image/png",
-                )])),
-            ));
-            let spec = format_messages(&messages, &ImageFormat::OpenAi);
-
-            let last = spec.last().unwrap();
-            assert_eq!(last["role"], "user");
-            let blocks = last["content"].as_array().unwrap();
-            assert!(blocks.iter().any(|b| b["type"] == json!("image_url")));
-            assert_eq!(blocks.last().unwrap()["text"], json!(block));
-            for pair in spec.windows(2) {
-                assert!(
-                    !(pair[0]["role"] == json!("user") && pair[1]["role"] == json!("user")),
-                    "consecutive user messages reached the wire: {pair:?}"
-                );
-            }
-        }
-
-        fn responses_stack_request(messages: &[Message]) -> Vec<Value> {
-            let request = create_request(
-                &test_model_config("openai/gpt-5.6-terra"),
-                "system",
-                messages,
-                &[],
-                &ImageFormat::OpenAi,
-                false,
-            )
-            .unwrap();
-            request["messages"].as_array().unwrap().clone()
-        }
-
-        #[test]
-        fn responses_stack_tool_loop_requests_are_append_only() {
-            let block = turn_context("2026-08-03 12:00:00", "14/40 used");
-            let earlier = tool_loop_conversation(&block);
-            let mut later = earlier.clone();
-            later.push(
-                Message::assistant().with_tool_request(
-                    "tool_2",
-                    Ok(CallToolRequestParams::new("read_file")
-                        .with_arguments(object!({"path": "src/lib.rs"}))),
-                ),
-            );
-            later.push(Message::user().with_tool_response(
-                "tool_2",
-                Ok(CallToolResult::success(vec![ContentBlock::text(
-                    "pub fn run() {}",
-                )])),
-            ));
-
-            let spec_earlier = responses_stack_request(&earlier);
-            let spec_later = responses_stack_request(&later);
-
-            assert!(spec_later.len() > spec_earlier.len());
-            for (i, earlier_msg) in spec_earlier.iter().enumerate() {
-                assert_eq!(
-                    json!(earlier_msg).to_string(),
-                    json!(spec_later[i]).to_string(),
-                    "request N must be a byte prefix of request N+1 at index {i}"
-                );
-            }
-        }
-
-        #[test]
-        fn chat_stack_models_still_relocate_turn_context_to_the_tail() {
-            let block = turn_context("2026-08-03 12:00:00", "14/40 used");
-            let request = create_request(
-                &test_model_config("openai/gpt-4.1-mini"),
-                "system",
-                &tool_loop_conversation(&block),
-                &[],
-                &ImageFormat::OpenAi,
-                false,
-            )
-            .unwrap();
-            let spec = request["messages"].as_array().unwrap();
-
-            let last = spec.last().unwrap();
-            assert_eq!(last["role"], "user");
-            assert_eq!(last["content"], json!(block));
         }
     }
 }

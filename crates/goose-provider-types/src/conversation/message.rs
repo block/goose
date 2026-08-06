@@ -742,6 +742,9 @@ pub struct MessageMetadata {
     /// without matching user-visible text. Never sent to providers.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub steer: bool,
+    /// Whether this message is a per-turn context event appended by the agent.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub turn_context: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage: Option<Box<MessageUsage>>,
     /// What an operation did to this message, keyed by operation name. Read back
@@ -759,6 +762,7 @@ impl Default for MessageMetadata {
             inference: None,
             output_token_limit_reached: false,
             steer: false,
+            turn_context: false,
             usage: None,
             operations: None,
         }
@@ -844,6 +848,11 @@ impl MessageMetadata {
 
     pub fn with_steer(mut self) -> Self {
         self.steer = true;
+        self
+    }
+
+    pub fn with_turn_context(mut self) -> Self {
+        self.turn_context = true;
         self
     }
 }
@@ -1227,6 +1236,10 @@ impl Message {
 
     pub fn is_agent_visible(&self) -> bool {
         self.metadata.agent_visible
+    }
+
+    pub fn is_turn_context(&self) -> bool {
+        self.metadata.turn_context
     }
 }
 
