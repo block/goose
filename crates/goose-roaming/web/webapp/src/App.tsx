@@ -267,13 +267,26 @@ export function App({ roam }: { roam: RoamClient }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const push = useCallback((item: Omit<Item, "id">) => {
-    streamRole.current = null;
-    setItems((xs) => [...xs, { ...item, id: nextId++ } as Item]);
+  // During loadSession the server replays the entire history as individual
+  // notifications; applying each via setState re-renders hundreds of times
+  // (the "chonky open"). While replayBuf is set, handlers mutate it
+  // synchronously instead, and openSession flushes once.
+  const replayBuf = useRef<Item[] | null>(null);
+  const mutateItems = useCallback((fn: (xs: Item[]) => Item[]) => {
+    if (replayBuf.current) {
+      replayBuf.current = fn(replayBuf.current);
+    } else {
+      setItems(fn);
+    }
   }, []);
 
+  const push = useCallback((item: Omit<Item, "id">) => {
+    streamRole.current = null;
+    mutateItems((xs) => [...xs, { ...item, id: nextId++ } as Item]);
+  }, [mutateItems]);
+
   const chunk = useCallback((role: "user" | "agent" | "thought", text: string) => {
-    setItems((xs) => {
+    mutateItems((xs) => {
       const last = xs[xs.length - 1];
       if (streamRole.current === role && last?.kind === "msg" && last.role === role) {
         return [...xs.slice(0, -1), { ...last, text: last.text + text }];
@@ -281,7 +294,7 @@ export function App({ roam }: { roam: RoamClient }) {
       streamRole.current = role;
       return [...xs, { kind: "msg", id: nextId++, role, text }];
     });
-  }, []);
+  }, [mutateItems]);
 
   const makeClient = useCallback((): Client => {
     return {
@@ -302,7 +315,7 @@ export function App({ roam }: { roam: RoamClient }) {
             const t = u;
             setStatus(`tool: ${(t.title ?? "running").slice(0, 28)}`);
             setStatusKind("busy");
-            setItems((xs) => [
+            mutateItems((xs) => [
               ...xs,
               {
                 kind: "tool",
@@ -317,7 +330,7 @@ export function App({ roam }: { roam: RoamClient }) {
           }
           case "tool_call_update": {
             const t = u;
-            setItems((xs) =>
+            mutateItems((xs) =>
               xs.map((it) =>
                 it.kind === "tool" && it.toolCallId === t.toolCallId
                   ? {
@@ -343,7 +356,7 @@ export function App({ roam }: { roam: RoamClient }) {
           case "plan": {
             streamRole.current = null;
             const entries = u.entries;
-            setItems((xs) => {
+            mutateItems((xs) => {
               const i = xs.findIndex((it) => it.kind === "plan");
               if (i >= 0) {
                 const copy = [...xs];
@@ -381,7 +394,7 @@ export function App({ roam }: { roam: RoamClient }) {
         return { outcome: { outcome: "cancelled" } };
       },
     };
-  }, [chunk]);
+  }, [chunk, mutateItems]);
 
   const refreshSessions = useCallback(async () => {
     const agent = agentRef.current;
@@ -430,7 +443,11 @@ export function App({ roam }: { roam: RoamClient }) {
         localStorage.setItem(SESSION_KEY, id);
         sessionRef.current = id;
         setSessionId(id);
+        replayBuf.current = [];
         await agent.loadSession({ sessionId: id, cwd: "/", mcpServers: [] });
+        const buf = replayBuf.current ?? [];
+        replayBuf.current = null;
+        setItems(buf);
         streamRole.current = null;
         setStatus("connected");
         setStatusKind("ok");
@@ -439,6 +456,7 @@ export function App({ roam }: { roam: RoamClient }) {
         setStatus("connected");
         setStatusKind("ok");
       } finally {
+        replayBuf.current = null;
         setBusy(false);
         inputRef.current?.focus();
       }
