@@ -254,18 +254,33 @@ fn restrict_existing_request_logs(logs_dir: &std::path::Path) -> Result<()> {
 
 #[cfg(unix)]
 fn restrict_existing_request_log(path: &std::path::Path) -> Result<()> {
-    use fs_err::os::unix::fs::OpenOptionsExt;
     use std::io::ErrorKind;
-    use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 
-    let mut options = File::options();
-    options.read(true).custom_flags(libc::O_NOFOLLOW);
-    let file = match options.open(path) {
+    let flags = libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC;
+    let mut read_options = std::fs::OpenOptions::new();
+    read_options.read(true).custom_flags(flags);
+    let file = match read_options.open(path) {
         Ok(file) => file,
         Err(error)
             if error.kind() == ErrorKind::NotFound || error.raw_os_error() == Some(libc::ELOOP) =>
         {
             return Ok(())
+        }
+        Err(error) if error.kind() == ErrorKind::PermissionDenied => {
+            let mut write_options = std::fs::OpenOptions::new();
+            write_options.write(true).custom_flags(flags);
+            match write_options.open(path) {
+                Ok(file) => file,
+                Err(error)
+                    if error.kind() == ErrorKind::NotFound
+                        || error.raw_os_error() == Some(libc::ELOOP)
+                        || error.raw_os_error() == Some(libc::ENXIO) =>
+                {
+                    return Ok(())
+                }
+                Err(error) => return Err(error.into()),
+            }
         }
         Err(error) => return Err(error.into()),
     };
@@ -511,7 +526,8 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn request_log_upgrade_permissions_child() {
-        use std::os::unix::fs::{symlink, PermissionsExt};
+        use std::os::unix::ffi::OsStrExt;
+        use std::os::unix::fs::{symlink, FileTypeExt, PermissionsExt};
 
         if std::env::var_os(REQUEST_LOG_UPGRADE_PERMISSIONS_CHILD).is_none() {
             return;
@@ -525,20 +541,31 @@ mod tests {
         let matching_directory = logs_dir.join("llm_request.8.jsonl");
         let symlink_target = logs_dir.join("symlink-target.jsonl");
         let matching_symlink = logs_dir.join("llm_request.9.jsonl");
+        let owner_write_only_log = logs_dir.join("llm_request.10.jsonl");
+        let matching_fifo = logs_dir.join("llm_request.11.jsonl");
 
         for path in [&numbered_log, &uuid_log, &unrelated_file, &symlink_target] {
             std::fs::write(path, "sensitive request and response").unwrap();
             std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o644)).unwrap();
         }
+        std::fs::write(&owner_write_only_log, "legacy sensitive request").unwrap();
+        std::fs::set_permissions(
+            &owner_write_only_log,
+            std::fs::Permissions::from_mode(0o266),
+        )
+        .unwrap();
         std::fs::create_dir(&matching_directory).unwrap();
         std::fs::set_permissions(&matching_directory, std::fs::Permissions::from_mode(0o755))
             .unwrap();
         symlink(&symlink_target, &matching_symlink).unwrap();
+        let fifo_path = std::ffi::CString::new(matching_fifo.as_os_str().as_bytes()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(fifo_path.as_ptr(), 0o666) }, 0);
 
         RequestLog::new(1).unwrap();
 
         assert_owner_only(&numbered_log);
         assert_owner_only(&uuid_log);
+        assert_owner_only(&owner_write_only_log);
         assert_eq!(
             std::fs::metadata(&unrelated_file)
                 .unwrap()
@@ -560,6 +587,10 @@ mod tests {
             .unwrap()
             .file_type()
             .is_symlink());
+        assert!(std::fs::symlink_metadata(&matching_fifo)
+            .unwrap()
+            .file_type()
+            .is_fifo());
         assert_eq!(
             std::fs::metadata(&symlink_target)
                 .unwrap()
