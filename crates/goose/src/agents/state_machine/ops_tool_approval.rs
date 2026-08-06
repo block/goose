@@ -59,12 +59,12 @@ impl Operation for ToolApprovalOperation<'_> {
         let state = ApprovalState::from_messages(messages_since_kickoff(conversation)?);
         let mut effects = Vec::new();
 
-        for pending in state.pending_responses() {
+        for pending in state.responses() {
             let executable = permission_allows(&pending.permission);
-            effects.push(mark_executable(&pending.tool_call_id, executable));
 
             if let Some(tool_name) = pending.tool_name {
-                if pending.permission == Permission::AlwaysAllow {
+                if pending.permission == Permission::AlwaysAllow && pending.executable != Some(true)
+                {
                     self.tool_inspection_manager
                         .update_permission_manager(&tool_name, PermissionLevel::AlwaysAllow)
                         .await;
@@ -73,6 +73,10 @@ impl Operation for ToolApprovalOperation<'_> {
                         .update_permission_manager(&tool_name, PermissionLevel::NeverAllow)
                         .await;
                 }
+            }
+
+            if pending.executable != Some(executable) {
+                effects.push(mark_executable(&pending.tool_call_id, executable));
             }
         }
 
@@ -154,6 +158,7 @@ struct PendingResponse {
     tool_call_id: String,
     tool_name: Option<String>,
     permission: Permission,
+    executable: Option<bool>,
 }
 
 struct ApprovalState {
@@ -201,7 +206,7 @@ impl ApprovalState {
         }
     }
 
-    fn pending_responses(&self) -> Vec<PendingResponse> {
+    fn responses(&self) -> Vec<PendingResponse> {
         self.tool_requests
             .iter()
             .filter_map(|request| {
@@ -209,9 +214,6 @@ impl ApprovalState {
                     return None;
                 }
                 let permission = self.approval_responses.get(&request.id)?.clone();
-                if request_executable(request) == Some(permission_allows(&permission)) {
-                    return None;
-                }
                 let tool_name = request
                     .tool_call
                     .as_ref()
@@ -221,6 +223,7 @@ impl ApprovalState {
                     tool_call_id: request.id.clone(),
                     tool_name,
                     permission,
+                    executable: request_executable(request),
                 })
             })
             .collect()

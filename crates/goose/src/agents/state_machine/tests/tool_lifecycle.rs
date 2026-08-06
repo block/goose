@@ -189,8 +189,17 @@ async fn approvals_and_per_tool_permissions() -> Result<()> {
     result.assert_message(-1, Agent, "I will not retry it");
     assert_eq!(pipeline.calculator_total(), 3);
 
+    api.on("always deny division")
+        .calls([("always-denied", DIVIDE, value(2))]);
+    pipeline.run(["always deny division"]).await?;
+    pipeline
+        .confirm("always-denied", Permission::AlwaysDeny)
+        .await?;
+    api.on(DECLINED_RESPONSE).reply("division denied forever");
+    let result = pipeline.resume().await?;
+    result.assert_message(-1, Agent, "division denied forever");
+
     pipeline.set_permission(ADD, PermissionLevel::AlwaysAllow);
-    pipeline.set_permission(DIVIDE, PermissionLevel::NeverAllow);
     api.on("apply the saved permissions")
         .calls([("allowed", ADD, value(1)), ("blocked", DIVIDE, value(2))]);
     api.on("result: 4").reply("permissions applied");
