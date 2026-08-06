@@ -72,6 +72,9 @@ function modelFromConfigOptions(opts: any[] | null | undefined): string | null {
 
 const HOST_CARD_KEY = "goose-roam-last-host-card";
 
+declare const __BUILD_STAMP__: string;
+const BUILD = typeof __BUILD_STAMP__ !== "undefined" ? __BUILD_STAMP__ : "dev";
+
 let nextId = 1;
 
 export function App({ roam }: { roam: RoamClient }) {
@@ -454,6 +457,7 @@ export function App({ roam }: { roam: RoamClient }) {
           )}
           <Goose className="w-5 h-5" />
           <span className="font-bold text-[15px]">goose remote</span>
+          <span id="build-stamp" className="text-[10px] text-text-tertiary font-mono self-end pb-0.5">{BUILD}</span>
         </div>
         <div className="flex items-center gap-2.5">
           {connected && modelName && (

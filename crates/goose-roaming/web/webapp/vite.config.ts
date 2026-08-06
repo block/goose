@@ -17,8 +17,13 @@ const desktopSrc = fileURLToPath(
   new URL("../../../../ui/desktop/src", import.meta.url),
 );
 
+const buildStamp = `${new Date().toISOString().slice(0, 16).replace("T", " ")}Z`;
+
 export default defineConfig({
   root: ".",
+  define: {
+    __BUILD_STAMP__: JSON.stringify(buildStamp),
+  },
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
