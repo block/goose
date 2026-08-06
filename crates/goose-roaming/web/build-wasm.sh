@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Reproducible wasm build recipe for the roaming web client spike.
+# Reproducible wasm build recipe for the roaming web client.
 #
 # Proven working 2026-07-31: the full iroh 1.0.2 browser transport stack
 # (iroh + noq/noq-proto/noq-udp QUIC + tokio-websockets + web-sys + ring +

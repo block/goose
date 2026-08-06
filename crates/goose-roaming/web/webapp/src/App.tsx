@@ -320,8 +320,8 @@ export function App({ roam }: { roam: RoamClient }) {
           : "text-neutral-400";
 
   return (
-    <div className="h-screen flex flex-col bg-neutral-950 text-neutral-100">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-neutral-800 bg-neutral-900 shrink-0">
+    <div className="h-screen flex flex-col bg-background-primary text-text-primary">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border-primary bg-background-secondary shrink-0">
         <div className="font-bold text-[15px]">
           goose roam <span className="text-neutral-400 font-normal">· web</span>
         </div>
@@ -329,7 +329,7 @@ export function App({ roam }: { roam: RoamClient }) {
           {connected && (
             <span
               id="agent-badge"
-              className="font-mono text-[11px] text-neutral-400 bg-neutral-800 border border-neutral-700 rounded-full px-2.5 py-0.5"
+              className="font-mono text-[11px] text-text-secondary bg-background-secondary border border-border-primary rounded-full px-2.5 py-0.5"
             >
               agent {agentId.slice(0, 12)}…
             </span>
@@ -342,7 +342,7 @@ export function App({ roam }: { roam: RoamClient }) {
 
       {!connected ? (
         <section id="connect-panel" className="flex-1 grid place-items-center p-6 overflow-auto">
-          <div className="w-full max-w-[560px] bg-neutral-900 border border-neutral-800 rounded-2xl p-7">
+          <div className="w-full max-w-[560px] bg-background-secondary border border-border-primary rounded-2xl p-7">
             <h2 className="text-lg font-semibold mb-4">Connect to your roaming agent</h2>
             <ol className="list-decimal pl-5 flex flex-col gap-4 leading-relaxed text-sm">
               <li>
@@ -396,7 +396,7 @@ export function App({ roam }: { roam: RoamClient }) {
         </section>
       ) : (
         <section id="workspace" className="flex-1 grid grid-cols-[240px_1fr] min-h-0">
-          <aside className="border-r border-neutral-800 bg-neutral-900 p-3 flex flex-col gap-2.5 min-h-0">
+          <aside className="border-r border-border-primary bg-background-secondary p-3 flex flex-col gap-2.5 min-h-0">
             <button
               id="new-session"
               disabled={busy}
@@ -450,21 +450,21 @@ export function App({ roam }: { roam: RoamClient }) {
                           <div className="body mt-1.5 whitespace-pre-wrap">{it.text}</div>
                         </details>
                       );
-                    return (
-                      <div key={it.id} className={`msg ${it.role} flex gap-2.5`}>
-                        <div
-                          className={`w-11 shrink-0 text-[11px] pt-1 text-right ${
-                            it.role === "user" ? "text-green-400" : "text-neutral-400"
-                          }`}
-                        >
-                          {it.role === "user" ? "you" : "goose"}
+                    // Mirror the desktop's presentation (UserMessage /
+                    // GooseMessage): user prompts are right-aligned inverse
+                    // bubbles; goose replies are plain left-aligned content.
+                    if (it.role === "user")
+                      return (
+                        <div key={it.id} className="msg user flex justify-end w-full">
+                          <div className="body user-message-bubble max-w-[85%] w-fit bg-text-primary text-background-primary rounded-xl py-2.5 px-4 whitespace-pre-wrap leading-relaxed">
+                            {it.text}
+                          </div>
                         </div>
+                      );
+                    return (
+                      <div key={it.id} className="msg agent goose-message flex w-[90%] justify-start min-w-0">
                         <div className="body min-w-0 flex-1 leading-relaxed">
-                          {it.role === "agent" ? (
-                            <MarkdownContent content={it.text} />
-                          ) : (
-                            <span className="whitespace-pre-wrap">{it.text}</span>
-                          )}
+                          <MarkdownContent content={it.text} />
                         </div>
                       </div>
                     );
@@ -472,7 +472,7 @@ export function App({ roam }: { roam: RoamClient }) {
                     return (
                       <div
                         key={it.id}
-                        className="tool ml-[54px] border border-neutral-800 rounded-xl bg-neutral-900 overflow-hidden"
+                        className="tool  border border-neutral-800 rounded-xl bg-neutral-900 overflow-hidden"
                       >
                         <div className="flex items-center gap-2 px-3 py-2">
                           <span className="relative inline-block w-2.5">
@@ -499,7 +499,7 @@ export function App({ roam }: { roam: RoamClient }) {
                     return (
                       <div
                         key={it.id}
-                        className="plan ml-[54px] border border-neutral-700 rounded-xl bg-neutral-900 px-3.5 py-2.5"
+                        className="plan  border border-neutral-700 rounded-xl bg-neutral-900 px-3.5 py-2.5"
                       >
                         <div className="text-xs text-neutral-400 uppercase tracking-wider mb-1.5">
                           Plan
@@ -526,7 +526,7 @@ export function App({ roam }: { roam: RoamClient }) {
                     return (
                       <div
                         key={it.id}
-                        className="perm ml-[54px] border border-amber-400 rounded-xl bg-amber-950/20 px-3.5 py-2.5"
+                        className="perm  border border-amber-400 rounded-xl bg-amber-950/20 px-3.5 py-2.5"
                       >
                         <div className="text-[13px] text-amber-300 mb-2">
                           🔐 {it.title} needs permission
@@ -566,7 +566,7 @@ export function App({ roam }: { roam: RoamClient }) {
             </div>
             <form
               id="prompt-form"
-              className="flex gap-2.5 items-end px-4 py-3 border-t border-neutral-800 bg-neutral-900"
+              className="flex gap-2.5 items-end px-4 py-3 border-t border-border-primary bg-background-secondary"
               onSubmit={(e) => {
                 e.preventDefault();
                 void send();
@@ -577,7 +577,7 @@ export function App({ roam }: { roam: RoamClient }) {
                 id="prompt-input"
                 rows={1}
                 disabled={busy}
-                className="flex-1 bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 resize-none max-h-52"
+                className="flex-1 bg-background-primary border border-border-primary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 resize-none max-h-52"
                 placeholder="Message the agent…  (Enter to send, Shift+Enter for newline)"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {

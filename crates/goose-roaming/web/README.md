@@ -1,16 +1,25 @@
-# Roaming web client (spike)
+# Roaming web client
 
-A **pure-browser web app that connects to a roaming goose agent** — iroh
-compiled to wasm and run *inside the browser tab*, relay-only over
-WebSocket-to-relay, with a lean custom chat GUI. No Electron/desktop reuse, no
-Tauri, no local bridge process: the browser tab itself is the roam peer.
+The **official browser client for goose roam**: a pure-browser web app that
+connects to a roaming goose agent — iroh compiled to wasm and run *inside the
+browser tab*, relay-only over WebSocket-to-relay. No Tauri, no local bridge
+process: the browser tab itself is the roam peer.
 
-This lives under `web-interface-spike/` on purpose. **None of it is part of the goose build** —
-the two crates here (`goose-roaming-web`) have their own `[workspace]` table, so
-`cargo build` / `test` / `clippy` in the goose workspace never touch them. It's
-carried here as a working, reproducible exploration with instructions, not as
-shipped product code. Building the wasm needs an extra toolchain (below); nothing
-else in goose depends on it.
+The UI is a **React app that reuses goose's reference clients**: `GooseClient`
+from `ui/sdk` as the protocol layer, and the desktop app's real components
+(`MarkdownContent`, `ToolCallStatusIndicator`, the desktop Tailwind theme) for
+rendering — see `webapp/README.md` for the exact reuse surface.
+
+**This feature is optional.** None of it is part of the goose build — the wasm
+crate here (`goose-roaming-web`) has its own `[workspace]` table, so
+`cargo build` / `test` / `clippy` in the goose workspace never touch it, and
+consumers using goose as an SDK/library pay zero cost for it. Building the wasm
+needs an extra toolchain (below); nothing else in goose depends on it.
+
+The build output is a **static site**: build it once, host it on any static
+host/CDN over HTTPS, and any browser can reach any `goose roam share` host
+whose card it holds — all traffic goes browser ⇄ iroh relay ⇄ host,
+end-to-end encrypted, never through the site's origin.
 
 ## Status: proven end to end ✅
 
@@ -34,7 +43,7 @@ What's proven, in layers:
 ## What's here
 
 ```
-spike/
+web/
 ├── goose-roaming-web/   Rust cdylib: the wasm transport shim
 │                        (RoamClient / RoamConnection — identity, card decode,
 │                         relay-only dial, roam handshake, byte duplex)
@@ -121,7 +130,7 @@ types.
 
 **Recommended for production:** move the transport + ACP wiring into a **Web
 Worker** so QUIC/crypto/JSON don't compete with the UI thread. The seam is
-unchanged; only where it runs moves. This spike keeps it on the main thread to
+unchanged; only where it runs moves. This first version keeps it on the main thread to
 make the first end-to-end path small.
 
 ## Deployment shape (why this is interesting)
@@ -155,7 +164,7 @@ makes the pure-browser client viable. `GOOSE_ROAM_RELAYS` /
 `GOOSE_ROAM_RELAY_TOKEN` override. (These URLs are a personal n0 namespace today;
 a real deployment wants a goose/Block-owned relay namespace with an SLA.)
 
-## Open follow-ups (for productionizing, not spike-blocking)
+## Open follow-ups (hardening)
 
 - **The browser key is a remote-admin credential.** An accepted key grants the
   host's full ACP surface (tools/shell). It lives in `localStorage`, so a public

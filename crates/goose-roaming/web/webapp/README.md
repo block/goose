@@ -1,4 +1,4 @@
-# goose roam — web client (spike)
+# goose roam — web client
 
 A browser chat client that connects to a `goose roam share` agent **over iroh,
 entirely in the browser** (iroh compiled to wasm, relay-only via
@@ -55,10 +55,10 @@ TypeScript SDK. Nothing about the protocol is hand-rolled.
 ```bash
 # 1. build the wasm transport module + generate JS bindings
 cd ../..                       # repo root not required; script is self-locating
-./crates/goose-roaming/web-interface-spike/build-web.sh
+./crates/goose-roaming/web/build-web.sh
 
 # 2. run the app
-cd crates/goose-roaming/web-interface-spike/webapp
+cd crates/goose-roaming/web/webapp
 pnpm install
 pnpm dev                       # http://localhost:5178
 ```
@@ -94,7 +94,7 @@ relay/handshake path.
 
 ## Status
 
-Spike, but proven end to end. Build-time green (`tsc` clean vs ACP SDK 0.19.0,
+Proven end to end. Build-time green (`tsc` clean vs ACP SDK 0.19.0,
 Vite bundles), in-browser wasm runtime green (`tests/smoke.mjs`), and a **live
 round trip green** (`tests/e2e.mjs`: real Chrome → managed relay → running
 `goose roam share` → agent response). `tests/visual.mjs` captures the rendered

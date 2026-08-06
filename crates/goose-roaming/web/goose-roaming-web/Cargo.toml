@@ -1,4 +1,4 @@
-# Browser (wasm) roaming client — standalone spike crate, NOT in the goose
+# Browser (wasm) roaming client — standalone crate, NOT in the goose
 # workspace (the empty [workspace] table makes it its own root so it never
 # entangles the native build). Build with ../build-wasm.sh goose-roaming-web.
 [workspace]

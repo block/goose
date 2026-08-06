@@ -15,7 +15,7 @@ needed.
 Drives the whole flow in headless Chrome and prints each step.
 
 ```bash
-cd crates/goose-roaming/web-interface-spike/webapp
+cd crates/goose-roaming/web/webapp
 ln -sfn ../../../../ui/node_modules node_modules        # offline deps (registry down)
 ./serve.sh &                                            # serves on :5178
 GOOSE_BIN="$PWD/../../../../target/debug/goose" node tests/e2e.mjs
@@ -32,7 +32,7 @@ Two terminals.
 
 ### Terminal 1 — serve the web app
 ```bash
-cd crates/goose-roaming/web-interface-spike/webapp
+cd crates/goose-roaming/web/webapp
 ./serve.sh
 ```
 Open <http://localhost:5178>. The page shows **this browser's card**
@@ -69,4 +69,4 @@ Stop the host with Ctrl-C in Terminal 2.
 - If connect hangs: the managed relays must be reachable (they're
   `*.relay.michaelneale.mesh-llm.iroh.link`). The web client strips the card's
   trailing-dot relay host so the browser TLS/SNI is happy.
-- This is a spike: main-thread (no worker), no reconnect, key in localStorage.
+- Current limitations: main-thread (no worker), no reconnect, key in localStorage.
