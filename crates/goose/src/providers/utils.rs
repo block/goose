@@ -238,21 +238,39 @@ impl RequestLog {
 
 #[cfg(unix)]
 fn restrict_existing_request_logs(logs_dir: &std::path::Path) -> Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-
     for entry in fs_err::read_dir(logs_dir)? {
         let entry = entry?;
-        if !entry.file_type()?.is_file() {
-            continue;
-        }
-
         let file_name = entry.file_name();
         let Some(file_name) = file_name.to_str() else {
             continue;
         };
         if is_request_log_file_name(file_name) {
-            fs_err::set_permissions(entry.path(), std::fs::Permissions::from_mode(0o600))?;
+            restrict_existing_request_log(&entry.path())?;
         }
+    }
+
+    Ok(())
+}
+
+#[cfg(unix)]
+fn restrict_existing_request_log(path: &std::path::Path) -> Result<()> {
+    use fs_err::os::unix::fs::OpenOptionsExt;
+    use std::io::ErrorKind;
+    use std::os::unix::fs::PermissionsExt;
+
+    let mut options = File::options();
+    options.read(true).custom_flags(libc::O_NOFOLLOW);
+    let file = match options.open(path) {
+        Ok(file) => file,
+        Err(error)
+            if error.kind() == ErrorKind::NotFound || error.raw_os_error() == Some(libc::ELOOP) =>
+        {
+            return Ok(())
+        }
+        Err(error) => return Err(error.into()),
+    };
+    if file.metadata()?.is_file() {
+        file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
     }
 
     Ok(())
@@ -449,6 +467,15 @@ mod tests {
         ] {
             assert!(!is_request_log_file_name(file_name), "{file_name}");
         }
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn request_log_permission_upgrade_tolerates_vanished_entry() {
+        let root = tempfile::tempdir().unwrap();
+        let vanished = root.path().join("llm_request.0.jsonl");
+
+        restrict_existing_request_log(&vanished).unwrap();
     }
 
     #[test]
