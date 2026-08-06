@@ -1,0 +1,53 @@
+{
+  "name": "sambanova",
+  "engine": "openai",
+  "display_name": "SambaNova",
+  "description": "Fast AI inference with SambaNova's OpenAI-compatible API.",
+  "api_key_env": "SAMBANOVA_API_KEY",
+  "base_url": "https://api.sambanova.ai/v1",
+  "catalog_provider_id": "sambanova",
+  "dynamic_models": true,
+  "models": [
+    {
+      "name": "Meta-Llama-3.1-405B-Instruct",
+      "context_limit": 16384
+    },
+    {
+      "name": "Meta-Llama-3.1-8B-Instruct",
+      "context_limit": 16384
+    },
+    {
+      "name": "Meta-Llama-3.3-70B-Instruct",
+      "context_limit": 131072
+    },
+    {
+      "name": "Llama-4-Maverick-17B-128E-Instruct",
+      "context_limit": 131072
+    },
+    {
+      "name": "DeepSeek-R1",
+      "context_limit": 16384
+    },
+    {
+      "name": "DeepSeek-V3-0324",
+      "context_limit": 8192
+    },
+    {
+      "name": "Qwen3-32B",
+      "context_limit": 131072
+    },
+    {
+      "name": "gpt-oss-120b",
+      "context_limit": 16384
+    }
+  ],
+  "preserves_thinking": true,
+  "supports_streaming": true,
+  "model_doc_link": "https://docs.sambanova.ai/docs/en/models/sambacloud-models",
+  "setup_steps": [
+    "Sign in to https://cloud.sambanova.ai",
+    "Navigate to API Keys in your account settings",
+    "Create a new API key",
+    "Copy the key and set SAMBANOVA_API_KEY environment variable"
+  ]
+}

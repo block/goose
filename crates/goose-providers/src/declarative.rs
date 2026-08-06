@@ -43,6 +43,7 @@ pub(crate) mod declarative_providers {
         perplexity,
         routstr,
         sakana,
+        sambanova,
         saladcloud,
         scaleway,
         tanzu,
