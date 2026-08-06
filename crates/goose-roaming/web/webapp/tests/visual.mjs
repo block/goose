@@ -52,6 +52,8 @@ try {
 
   await page.locator("#card-input").fill(hostCard);
   await page.locator("#connect-btn").click();
+  // front page after connect is the session matrix — start a fresh session
+  await page.click("#matrix-new-session", { timeout: 90000 });
   await page.locator("#workspace").waitFor({ state: "visible", timeout: 45000 });
   // Wait until the new session is actually ready (sessionId set, not busy),
   // signalled by the "say hello" system line — otherwise a send is dropped.

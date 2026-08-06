@@ -109,6 +109,8 @@ try {
   console.log(`\n[4] connecting browser -> host through the relay`);
   await page.locator("#card-input").fill(hostCard);
   await page.locator("#connect-btn").click();
+  // front page after connect is the session matrix — start a fresh session
+  await page.click("#matrix-new-session", { timeout: 90000 });
 
   // #workspace unhides and a "say hello" system line appears once initialize +
   // newSession succeed over the roaming ACP stream.

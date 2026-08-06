@@ -35,6 +35,8 @@ const myCard = (await page.locator("#my-card").textContent()).trim();
 execFileSync(GOOSE, ["roam", "peers", "accept", myCard, "overflow-test"]);
 await page.fill("#card-input", hostCard);
 await page.click("#connect-btn");
+  // front page after connect is the session matrix — start a fresh session
+  await page.click("#matrix-new-session", { timeout: 90000 });
 await page.waitForSelector("#workspace", { state: "visible", timeout: 60000 });
 await page.waitForTimeout(2500);
 await page.fill("#prompt-input", "Run this exact shell command: echo 'a-very-long-unbroken-token-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'; ls -la /usr/lib | head -20. Then reply with: a markdown table with 4 columns (name, description, path, notes) and 3 rows, and a fenced bash code block containing one very long line: export SOME_VAR=abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789");
