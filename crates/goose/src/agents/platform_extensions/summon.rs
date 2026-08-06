@@ -1811,6 +1811,21 @@ impl SummonClient {
         let checked_out = {
             let mut workers = self.workers.lock().unwrap();
             self.evict_idle_workers(&mut workers);
+            // The stored record is authoritative: a worker whose session
+            // differs from it (session deleted, or another client recreated
+            // the worker) is dead, so drop it and fall back to the record or
+            // fresh creation instead of failing on the dead session forever.
+            // With no record, keep an unpersisted worker so its failed record
+            // write can be retried; drop a persisted one (record deleted).
+            if let Some(WorkerSlot::Ready(worker)) = workers.get(&worker_key) {
+                let stale = match stored.as_ref() {
+                    Some(record) => record.session_id != worker.session_id,
+                    None => worker.persisted.load(Ordering::Relaxed),
+                };
+                if stale {
+                    workers.remove(&worker_key);
+                }
+            }
             match workers.get(&worker_key) {
                 Some(WorkerSlot::Ready(worker)) => {
                     let busy = worker
@@ -3276,6 +3291,141 @@ mod tests {
 
         let new_record = stored_worker_record(&rig).await.unwrap();
         assert_eq!(new_record.recipe.prompt.as_deref(), Some("fresh task"));
+    }
+
+    #[tokio::test]
+    async fn test_worker_deleted_session_recreates_in_memory_worker() {
+        let rig = persisted_worker_rig().await;
+
+        rig.client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("first task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        let old_session_id = ready_worker(&rig.client).session_id.clone();
+        rig.client
+            .context
+            .session_manager
+            .delete_session(&old_session_id)
+            .await
+            .unwrap();
+
+        let second = rig
+            .client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("fresh task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(second.is_error, Some(true));
+
+        let calls = rig.provider.calls.lock().unwrap().clone();
+        assert_eq!(calls.len(), 2);
+        let fresh = calls[1].join("\n");
+        assert!(fresh.contains("fresh task"));
+        assert!(!fresh.contains("first task"));
+    }
+
+    #[tokio::test]
+    async fn test_worker_recreated_by_other_client_replaces_stale_in_memory_worker() {
+        let rig = persisted_worker_rig().await;
+
+        rig.client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("first task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        let old_session_id = ready_worker(&rig.client).session_id.clone();
+        rig.client
+            .context
+            .session_manager
+            .delete_session(&old_session_id)
+            .await
+            .unwrap();
+
+        let other_client = SummonClient::new(rig.client.context.clone()).unwrap();
+        other_client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("fresh task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        let third = rig
+            .client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_followup_delegate_params("follow up"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(third.is_error, Some(true));
+
+        let calls = rig.provider.calls.lock().unwrap().clone();
+        assert_eq!(calls.len(), 3);
+        let followed = calls[2].join("\n");
+        assert!(followed.contains("fresh task"));
+        assert!(followed.contains("follow up"));
+        assert!(!followed.contains("first task"));
+    }
+
+    #[tokio::test]
+    async fn test_worker_clears_stale_final_output_before_reply() {
+        let rig = worker_test_rig().await;
+
+        rig.client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("first task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        let worker = ready_worker(&rig.client);
+        worker
+            .configured
+            .agent
+            .add_final_output_tool(crate::recipe::Response {
+                json_schema: Some(serde_json::json!({"type": "object"})),
+            })
+            .await;
+        worker
+            .configured
+            .agent
+            .final_output_tool
+            .lock()
+            .await
+            .as_mut()
+            .unwrap()
+            .final_output = Some("stale output".to_string());
+
+        let mut params = worker_followup_delegate_params("second task");
+        params.max_turns = Some(1);
+        rig.client
+            .handle_worker_delegate(&rig.session, params, CancellationToken::new())
+            .await
+            .unwrap();
+
+        let calls = rig.provider.calls.lock().unwrap().clone();
+        assert!(
+            calls.len() >= 2,
+            "provider was not called for the second delegation"
+        );
+        assert!(calls[1].join("\n").contains("second task"));
     }
 
     #[tokio::test]
