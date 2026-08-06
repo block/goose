@@ -18,6 +18,7 @@ import {
 } from "@agentclientprotocol/sdk";
 import { GooseClient } from "@aaif/goose-sdk";
 import MarkdownContent from "@desktop/components/MarkdownContent";
+import { Goose } from "@desktop/components/icons/Goose";
 import { ToolCallStatusIndicator, type ToolCallStatus } from "@desktop/components/ToolCallStatusIndicator";
 import type { RoamClient, RoamConnection } from "./wasm/goose_roaming_web.js";
 import { roamByteStreams } from "./roam-stream.js";
@@ -58,6 +59,16 @@ function contentText(content: unknown): string {
   return c.type === "text" ? (c.text ?? "") : `[${c.type}]`;
 }
 
+// goose surfaces model selection via ACP's generic session config options.
+// Find the "model" select option and resolve its currentValue to a name.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function modelFromConfigOptions(opts: any[] | null | undefined): string | null {
+  const opt = opts?.find((o) => o.type === "select" && /model/i.test(o.id));
+  if (!opt) return null;
+  const flat = (opt.options ?? []).flatMap((x: any) => (x.options ? x.options : [x]));
+  return flat.find((x: any) => x.id === opt.currentValue)?.name ?? opt.currentValue ?? null;
+}
+
 let nextId = 1;
 
 export function App({ roam }: { roam: RoamClient }) {
@@ -69,6 +80,8 @@ export function App({ roam }: { roam: RoamClient }) {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [modelName, setModelName] = useState<string | null>(null);
   const [card, setCard] = useState("");
   const agentRef = useRef<GooseClient | null>(null);
   const connRef = useRef<RoamConnection | null>(null);
@@ -150,6 +163,11 @@ export function App({ roam }: { roam: RoamClient }) {
             );
             break;
           }
+          case "config_option_update": {
+            const m = modelFromConfigOptions((u as { configOptions?: unknown[] }).configOptions);
+            if (m) setModelName(m);
+            break;
+          }
           case "plan": {
             streamRole.current = null;
             const entries = u.entries;
@@ -210,6 +228,8 @@ export function App({ roam }: { roam: RoamClient }) {
     setBusy(true);
     try {
       const res = await agent.newSession({ cwd: "/", mcpServers: [] });
+      const m = modelFromConfigOptions((res as { configOptions?: unknown[] }).configOptions);
+      if (m) setModelName(m);
       sessionRef.current = res.sessionId;
       setSessionId(res.sessionId);
       setItems([{ kind: "system", id: nextId++, text: "New session — say hello 👋" }]);
@@ -322,10 +342,29 @@ export function App({ roam }: { roam: RoamClient }) {
   return (
     <div className="h-screen flex flex-col bg-background-primary text-text-primary">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-border-primary bg-background-secondary shrink-0">
-        <div className="font-bold text-[15px]">
-          goose roam <span className="text-text-secondary font-normal">· web</span>
+        <div className="flex items-center gap-2">
+          {connected && (
+            <button
+              id="sidebar-toggle"
+              className="md:hidden text-text-secondary px-1"
+              aria-label="toggle sessions"
+              onClick={() => setSidebarOpen((v) => !v)}
+            >
+              ☰
+            </button>
+          )}
+          <Goose className="w-5 h-5" />
+          <span className="font-bold text-[15px]">goose remote</span>
         </div>
         <div className="flex items-center gap-2.5">
+          {connected && modelName && (
+            <span
+              id="model-badge"
+              className="text-[11px] text-text-secondary bg-background-secondary border border-border-primary rounded-full px-2.5 py-0.5"
+            >
+              {modelName}
+            </span>
+          )}
           {connected && (
             <span
               id="agent-badge"
@@ -395,12 +434,14 @@ export function App({ roam }: { roam: RoamClient }) {
           </div>
         </section>
       ) : (
-        <section id="workspace" className="flex-1 grid grid-cols-[240px_1fr] min-h-0">
-          <aside className="border-r border-border-primary bg-background-secondary p-3 flex flex-col gap-2.5 min-h-0">
+        <section id="workspace" className="flex-1 relative md:grid md:grid-cols-[240px_1fr] flex min-h-0">
+          <aside
+            className={`${sidebarOpen ? "flex" : "hidden"} md:flex absolute md:static inset-y-0 left-0 z-20 w-[240px] shadow-lg md:shadow-none border-r border-border-primary bg-background-secondary p-3 flex-col gap-2.5 min-h-0`}
+          >
             <button
               id="new-session"
               disabled={busy}
-              onClick={() => void newSession()}
+              onClick={() => { setSidebarOpen(false); void newSession(); }}
               className="w-full bg-background-inverse text-text-inverse font-semibold rounded-lg px-3 py-1.5 hover:brightness-110 disabled:opacity-50"
             >
               + New session
@@ -414,7 +455,7 @@ export function App({ roam }: { roam: RoamClient }) {
                       ? "bg-background-tertiary"
                       : "hover:bg-background-secondary hover:shadow-default"
                   }`}
-                  onClick={() => void openSession(s.sessionId)}
+                  onClick={() => { setSidebarOpen(false); void openSession(s.sessionId); }}
                 >
                   <div className="text-[13px] whitespace-nowrap overflow-hidden text-ellipsis">
                     {s.title || "(untitled session)"}
@@ -427,7 +468,7 @@ export function App({ roam }: { roam: RoamClient }) {
             </div>
           </aside>
 
-          <main id="chat" className="flex flex-col min-h-0">
+          <main id="chat" className="flex flex-col min-h-0 flex-1 min-w-0">
             <div ref={logRef} id="log" className="flex-1 overflow-y-auto px-6 py-5">
               <div className="max-w-3xl mx-auto w-full flex flex-col gap-4">
               {items.map((it) => {
