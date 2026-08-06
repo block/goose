@@ -70,11 +70,12 @@ impl<'a> ActiveProviderStream<'a> {
                 return None;
             }
 
-            if matches!(
+            let native_steering_enabled = matches!(
                 self.pending_steer_delivery_strategy,
                 PendingSteerDeliveryStrategy::NativeSteering
-            ) && self.queue_scan_needed
-            {
+            );
+
+            if native_steering_enabled && self.queue_scan_needed {
                 let Some(message) = self.pending_steers.pop_front(self.session_id).await else {
                     self.queue_scan_needed = false;
                     continue;
@@ -111,21 +112,10 @@ impl<'a> ActiveProviderStream<'a> {
                 continue;
             }
 
-            if matches!(
-                self.pending_steer_delivery_strategy,
-                PendingSteerDeliveryStrategy::NextPrompt
-            ) {
-                return self
-                    .stream
-                    .next()
-                    .await
-                    .map(ActiveProviderStreamEvent::ProviderOutput);
-            }
-
             tokio::select! {
                 biased;
 
-                _ = self.steer_notification_waiter.as_mut() => {
+                _ = self.steer_notification_waiter.as_mut(), if native_steering_enabled => {
                     self.steer_notification_waiter
                         .as_mut()
                         .set(Arc::clone(&self.steer_notifier).notified_owned());
@@ -137,5 +127,85 @@ impl<'a> ActiveProviderStream<'a> {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::task::Poll;
+    use std::time::Duration;
+
+    use goose_providers::model::ModelConfig;
+    use rmcp::model::Tool;
+    use tokio::time::timeout;
+
+    use super::*;
+
+    const TEST_TIMEOUT: Duration = Duration::from_secs(1);
+
+    struct NativeSteeringProvider {
+        steer_calls: AtomicUsize,
+    }
+
+    #[async_trait::async_trait]
+    impl Provider for NativeSteeringProvider {
+        fn get_name(&self) -> &str {
+            "native-steering-test"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            unreachable!("the coordinator receives its provider stream directly")
+        }
+
+        async fn steer_natively(
+            &self,
+            _session_id: &str,
+            _message: &Message,
+        ) -> Result<bool, ProviderError> {
+            self.steer_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(true)
+        }
+    }
+
+    #[tokio::test]
+    async fn steer_notification_wakes_active_provider_stream() {
+        let pending_steers = PendingSteers::default();
+        let provider = Arc::new(NativeSteeringProvider {
+            steer_calls: AtomicUsize::new(0),
+        });
+        let stream_polled = Arc::new(Notify::new());
+        let stream_polled_by_stream = Arc::clone(&stream_polled);
+        let stream: MessageStream = Box::pin(futures::stream::poll_fn(move |_| {
+            stream_polled_by_stream.notify_one();
+            Poll::Pending
+        }));
+        let session_id = "notification-wakeup";
+        let mut active_stream =
+            ActiveProviderStream::new(stream, provider.clone(), &pending_steers, session_id).await;
+
+        let event = timeout(TEST_TIMEOUT, async {
+            let (event, ()) = tokio::join!(active_stream.next_event(&None), async {
+                stream_polled.notified().await;
+                pending_steers
+                    .enqueue(session_id, Message::user().with_text("new steer"))
+                    .await;
+            });
+            event
+        })
+        .await
+        .expect("steer notification should wake the active provider stream");
+
+        let Some(ActiveProviderStreamEvent::NativeSteerDelivered(message)) = event else {
+            panic!("expected confirmed native steer delivery");
+        };
+        assert_eq!(message.as_concat_text(), "new steer");
+        assert_eq!(provider.steer_calls.load(Ordering::SeqCst), 1);
     }
 }

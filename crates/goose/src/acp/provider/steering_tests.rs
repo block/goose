@@ -15,6 +15,94 @@ struct SteeringFixture {
     steer_requests: mpsc::UnboundedReceiver<serde_json::Value>,
 }
 
+fn boundary_test_provider() -> (Arc<AcpProvider>, mpsc::Receiver<ClientRequest>) {
+    let (tx, rx) = mpsc::channel(2);
+    let provider = AcpProvider {
+        name: CLAUDE_ACP_PROVIDER_NAME.to_string(),
+        supports_native_steering: true,
+        assistant_message_boundary_pending: Arc::new(AtomicBool::new(false)),
+        goose_mode: Arc::new(Mutex::new(GooseMode::Auto)),
+        mode_mapping: HashMap::new(),
+        session: AcpSession {
+            id: SessionId::new(ACP_SESSION_ID),
+            response: NewSessionResponse::new(ACP_SESSION_ID),
+        },
+        pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
+        pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
+        handoff_context_sent: AtomicBool::new(false),
+        context_size: Arc::new(AtomicU64::new(0)),
+        model_config_option_id: None,
+        applied_model: Arc::new(Mutex::new(None)),
+        tx: Some(tx),
+        loop_thread: None,
+    };
+    (Arc::new(provider), rx)
+}
+
+async fn send_update_and_message_id(
+    response_tx: &mpsc::Sender<AcpUpdate>,
+    stream: &mut MessageStream,
+    update: AcpUpdate,
+) -> String {
+    response_tx.send(update).await.unwrap();
+    timeout(TEST_TIMEOUT, stream.next())
+        .await
+        .expect("provider stream should produce a message")
+        .expect("provider stream should remain open")
+        .expect("provider update should succeed")
+        .0
+        .expect("provider update should contain a message")
+        .id
+        .expect("provider message should have an ID")
+}
+
+async fn start_boundary_test_stream() -> (
+    Arc<AcpProvider>,
+    mpsc::Receiver<ClientRequest>,
+    mpsc::Sender<AcpUpdate>,
+    MessageStream,
+) {
+    let (provider, mut requests) = boundary_test_provider();
+    let model = ModelConfig::new("test-model");
+    let prompt = Message::user().with_text("Start a long task");
+    let stream = provider.stream(&model, "", &[prompt], &[]).await.unwrap();
+    let response_tx = match timeout(TEST_TIMEOUT, requests.recv())
+        .await
+        .expect("prompt request should arrive")
+        .expect("request channel should remain open")
+    {
+        ClientRequest::Prompt { response_tx, .. } => response_tx,
+        _ => panic!("expected prompt request"),
+    };
+    (provider, requests, response_tx, stream)
+}
+
+async fn complete_native_steer_with(
+    provider: Arc<AcpProvider>,
+    requests: &mut mpsc::Receiver<ClientRequest>,
+    response: ClaudeSteeringResponse,
+) {
+    let steer = tokio::spawn(async move {
+        provider
+            .steer_natively(
+                "goose-session",
+                &Message::user().with_text("Focus on the tests"),
+            )
+            .await
+    });
+    match timeout(TEST_TIMEOUT, requests.recv())
+        .await
+        .expect("steering request should arrive")
+        .expect("request channel should remain open")
+    {
+        ClientRequest::ClaudeSteer { response_tx, .. } => {
+            response_tx.send(Ok(response)).unwrap();
+        }
+        _ => panic!("expected steering request"),
+    }
+    steer.await.unwrap().unwrap();
+}
+
 async fn steering_fixture(steer_response: ClaudeSteeringResponse) -> SteeringFixture {
     let (prompt_started_tx, prompt_started) = mpsc::unbounded_channel();
     let release_prompt = Arc::new(Notify::new());
@@ -181,4 +269,96 @@ async fn prompt_required_does_not_consume_or_start_prompt() {
         fixture.prompt_started.try_recv(),
         Err(mpsc::error::TryRecvError::Empty)
     ));
+}
+
+#[tokio::test]
+async fn injected_steer_starts_new_assistant_runs_once() {
+    let (provider, mut requests, response_tx, mut stream) = start_boundary_test_stream().await;
+
+    let text_before = send_update_and_message_id(
+        &response_tx,
+        &mut stream,
+        AcpUpdate::Text(TextContent::new("text before steer")),
+    )
+    .await;
+    let thought_before = send_update_and_message_id(
+        &response_tx,
+        &mut stream,
+        AcpUpdate::Thought("thought before steer".to_string()),
+    )
+    .await;
+
+    complete_native_steer_with(provider, &mut requests, ClaudeSteeringResponse::Injected).await;
+
+    let text_after = send_update_and_message_id(
+        &response_tx,
+        &mut stream,
+        AcpUpdate::Text(TextContent::new("text after steer")),
+    )
+    .await;
+    let text_continued = send_update_and_message_id(
+        &response_tx,
+        &mut stream,
+        AcpUpdate::Text(TextContent::new("continued text")),
+    )
+    .await;
+    let thought_after = send_update_and_message_id(
+        &response_tx,
+        &mut stream,
+        AcpUpdate::Thought("thought after steer".to_string()),
+    )
+    .await;
+    let thought_continued = send_update_and_message_id(
+        &response_tx,
+        &mut stream,
+        AcpUpdate::Thought("continued thought".to_string()),
+    )
+    .await;
+
+    assert_ne!(text_before, text_after);
+    assert_eq!(text_after, text_continued);
+    assert_ne!(thought_before, thought_after);
+    assert_eq!(thought_after, thought_continued);
+}
+
+#[tokio::test]
+async fn prompt_required_preserves_assistant_runs() {
+    let (provider, mut requests, response_tx, mut stream) = start_boundary_test_stream().await;
+    let text_before = send_update_and_message_id(
+        &response_tx,
+        &mut stream,
+        AcpUpdate::Text(TextContent::new("text before prompt required")),
+    )
+    .await;
+    let thought_before = send_update_and_message_id(
+        &response_tx,
+        &mut stream,
+        AcpUpdate::Thought("thought before prompt required".to_string()),
+    )
+    .await;
+
+    complete_native_steer_with(
+        provider,
+        &mut requests,
+        ClaudeSteeringResponse::PromptRequired {
+            reason: ClaudePromptRequiredReason::NoRunningTurn,
+        },
+    )
+    .await;
+
+    let text_after = send_update_and_message_id(
+        &response_tx,
+        &mut stream,
+        AcpUpdate::Text(TextContent::new("text after prompt required")),
+    )
+    .await;
+    let thought_after = send_update_and_message_id(
+        &response_tx,
+        &mut stream,
+        AcpUpdate::Thought("thought after prompt required".to_string()),
+    )
+    .await;
+
+    assert_eq!(text_before, text_after);
+    assert_eq!(thought_before, thought_after);
 }

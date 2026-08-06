@@ -158,6 +158,7 @@ struct HandoffContextClaim {
 pub struct AcpProvider {
     name: String,
     supports_native_steering: bool,
+    assistant_message_boundary_pending: Arc<AtomicBool>,
     goose_mode: Arc<Mutex<GooseMode>>,
     mode_mapping: HashMap<GooseMode, Vec<String>>,
 
@@ -294,6 +295,7 @@ impl AcpProvider {
         Ok(Self {
             name,
             supports_native_steering,
+            assistant_message_boundary_pending: Arc::new(AtomicBool::new(false)),
             goose_mode: goose_mode_shared,
             mode_mapping,
             session,
@@ -471,7 +473,11 @@ impl Provider for AcpProvider {
             .map_err(|error| ProviderError::RequestFailed(error.to_string()))?;
 
         Ok(match response {
-            ClaudeSteeringResponse::Injected => true,
+            ClaudeSteeringResponse::Injected => {
+                self.assistant_message_boundary_pending
+                    .store(true, Ordering::Release);
+                true
+            }
             ClaudeSteeringResponse::PromptRequired {
                 reason: ClaudePromptRequiredReason::NoRunningTurn,
             } => false,
@@ -588,6 +594,8 @@ impl Provider for AcpProvider {
 
         let reject_all_tools = goose_mode == GooseMode::Chat;
         let model_name = model_config.model_name.clone();
+        let assistant_message_boundary_pending =
+            Arc::clone(&self.assistant_message_boundary_pending);
 
         Ok(Box::pin(try_stream! {
             let mut suppress_text = false;
@@ -597,6 +605,11 @@ impl Provider for AcpProvider {
             let mut thought_run: Option<(String, i64)> = None;
 
             while let Some(update) = rx.recv().await {
+                if assistant_message_boundary_pending.swap(false, Ordering::AcqRel) {
+                    text_run = None;
+                    thought_run = None;
+                }
+
                 match update {
                     AcpUpdate::Text(text) => {
                         if !suppress_text {
@@ -1812,6 +1825,7 @@ mod tests {
             AcpProvider {
                 name: "acp-test".to_string(),
                 supports_native_steering: false,
+                assistant_message_boundary_pending: Arc::new(AtomicBool::new(false)),
                 goose_mode: Arc::new(Mutex::new(GooseMode::Auto)),
                 mode_mapping: HashMap::new(),
                 session: AcpSession {

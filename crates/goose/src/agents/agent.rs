@@ -2075,7 +2075,7 @@ impl Agent {
             let mut retrying_after_stop_hook_denial = false;
             let mut consecutive_stop_hook_blocks = 0u32;
             let stop_hook_block_cap = self.stop_hook_block_cap();
-            let mut has_completed_provider_response = false;
+            let mut provider_response_ended = false;
             let turn_start = chrono::Local::now();
             let turn_start_compaction_info =
                 super::moim::compute_compaction_info(&session_config.id, &self.extension_manager)
@@ -2089,7 +2089,7 @@ impl Agent {
 
                 // Wait for the active provider response to finish before turning
                 // restored steers into a new prompt.
-                if has_completed_provider_response {
+                if provider_response_ended {
                     for message in self.drain_pending_steers(&session_config.id).await {
                         let message_text = agent_visible_message_text(&message);
                         self.emit_user_prompt_submit_hook(&session_config.id, message_text)
@@ -2222,6 +2222,8 @@ impl Agent {
                 let mut exit_chat = false;
                 let mut provider_errored = false;
                 let mut provider_produced_content = false;
+                // A confirmed native steer must survive empty-response cleanup
+                // without being resent through the next provider prompt.
                 let mut native_steer_delivered = false;
                 let mut pending_final_output: Option<String> = None;
                 let mut pending_turn_usage: Option<ProviderUsage> = None;
@@ -2855,7 +2857,7 @@ impl Agent {
                         }
                     }
                 }
-                has_completed_provider_response = true;
+                provider_response_ended = true;
 
                 if tools_updated {
                     (tools, toolshim_tools, system_prompt, _) =
@@ -2880,24 +2882,25 @@ impl Agent {
                 // conversation that contains an empty assistant turn. Drop it here
                 // regardless of what the match below decides to do about the turn
                 // (final-output nudge, steer, goal/grind, retry, or fallback).
-                let otherwise_empty = no_tools_called
+                let provider_response_has_no_content = no_tools_called
                     && !exit_chat
                     && !provider_errored
                     && !did_recovery_compact_this_iteration
                     && !provider_produced_content
                     && last_assistant_text.is_empty();
-                let empty_response = otherwise_empty && !native_steer_delivered;
-                let native_steer_only_completion = otherwise_empty
+                let needs_empty_response_recovery =
+                    provider_response_has_no_content && !native_steer_delivered;
+                let should_finish_after_native_steer = provider_response_has_no_content
                     && native_steer_delivered
                     && !self.has_pending_steers(&session_config.id).await;
 
-                if empty_response {
+                if needs_empty_response_recovery {
                     messages_to_add = Conversation::default();
                 } else {
                     empty_turn_retries = 0;
                 }
 
-                if no_tools_called && !exit_chat && !native_steer_only_completion {
+                if no_tools_called && !exit_chat && !should_finish_after_native_steer {
                     // Lock, extract state, drop guard before branching — handle_retry_logic
                     // also locks final_output_tool and tokio::sync::Mutex is not reentrant.
                     let final_output = {
@@ -2974,7 +2977,7 @@ impl Agent {
                                     session_manager.replace_conversation(&session_config.id, &conversation).await?;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
                                 }
-                                Ok(RetryResult::Skipped) if empty_response => {
+                                Ok(RetryResult::Skipped) if needs_empty_response_recovery => {
                                     // No recipe retry configured, and this empty
                                     // turn would otherwise fall through to a
                                     // silent exit. Retry a bounded number of
@@ -3096,7 +3099,8 @@ impl Agent {
                 }
                 conversation.extend(messages_to_add);
 
-                if native_steer_only_completion
+                // A steer may arrive while the provider response is being finalized.
+                if should_finish_after_native_steer
                     && !self.has_pending_steers(&session_config.id).await
                 {
                     break;
