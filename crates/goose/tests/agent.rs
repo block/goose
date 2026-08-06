@@ -3093,7 +3093,7 @@ mod tests {
         use rmcp::object;
         use std::path::PathBuf;
         use std::sync::atomic::{AtomicUsize, Ordering};
-        use std::sync::Arc;
+        use std::sync::{Arc, Mutex};
 
         fn usage() -> ProviderUsage {
             ProviderUsage::new(
@@ -3102,12 +3102,27 @@ mod tests {
             )
         }
 
+        fn reply_calls(received_messages: &[Vec<Message>]) -> Vec<&[Message]> {
+            received_messages
+                .iter()
+                .filter(|messages| messages.iter().any(|message| message.id.is_some()))
+                .map(Vec::as_slice)
+                .collect()
+        }
+
         /// Yields empty responses (no text, no tool calls) for the first
         /// `empty_count` provider calls, then a normal text response.
         struct EmptyThenTextProvider {
             call_count: AtomicUsize,
+            received_messages: Mutex<Vec<Vec<Message>>>,
             empty_count: usize,
             wrap_empty_text: bool,
+        }
+
+        struct NativeSteeringProvider {
+            received_messages: Mutex<Vec<Vec<Message>>>,
+            native_steer_count: AtomicUsize,
+            native_steer_result: Result<bool, ProviderError>,
         }
 
         struct AssistantOnlyProvider;
@@ -3172,6 +3187,7 @@ mod tests {
             fn new(empty_count: usize) -> Self {
                 Self {
                     call_count: AtomicUsize::new(0),
+                    received_messages: Mutex::new(Vec::new()),
                     empty_count,
                     wrap_empty_text: false,
                 }
@@ -3180,8 +3196,27 @@ mod tests {
             fn with_wrapped_empty_text(empty_count: usize) -> Self {
                 Self {
                     call_count: AtomicUsize::new(0),
+                    received_messages: Mutex::new(Vec::new()),
                     empty_count,
                     wrap_empty_text: true,
+                }
+            }
+        }
+
+        impl NativeSteeringProvider {
+            fn new() -> Self {
+                Self {
+                    received_messages: Mutex::new(Vec::new()),
+                    native_steer_count: AtomicUsize::new(0),
+                    native_steer_result: Ok(true),
+                }
+            }
+
+            fn with_error(error: ProviderError) -> Self {
+                Self {
+                    received_messages: Mutex::new(Vec::new()),
+                    native_steer_count: AtomicUsize::new(0),
+                    native_steer_result: Err(error),
                 }
             }
         }
@@ -3228,9 +3263,13 @@ mod tests {
                 &self,
                 _model_config: &ModelConfig,
                 _system_prompt: &str,
-                _messages: &[Message],
+                messages: &[Message],
                 _tools: &[Tool],
             ) -> Result<MessageStream, ProviderError> {
+                self.received_messages
+                    .lock()
+                    .unwrap()
+                    .push(messages.to_vec());
                 let call = self.call_count.fetch_add(1, Ordering::SeqCst);
                 if call < self.empty_count {
                     // Empty assistant turn: no text, no tool calls.
@@ -3250,6 +3289,39 @@ mod tests {
 
             fn get_name(&self) -> &str {
                 "empty-then-text-mock"
+            }
+        }
+
+        #[async_trait]
+        impl Provider for NativeSteeringProvider {
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _system_prompt: &str,
+                messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                self.received_messages
+                    .lock()
+                    .unwrap()
+                    .push(messages.to_vec());
+                Ok(stream_from_single_message(
+                    Message::assistant().with_text("All done."),
+                    usage(),
+                ))
+            }
+
+            async fn steer_natively(
+                &self,
+                _session_id: &str,
+                _message: &Message,
+            ) -> Result<bool, ProviderError> {
+                self.native_steer_count.fetch_add(1, Ordering::SeqCst);
+                self.native_steer_result.clone()
+            }
+
+            fn get_name(&self) -> &str {
+                "native-steering-mock"
             }
         }
 
@@ -3471,9 +3543,10 @@ mod tests {
                     GooseMode::default(),
                 )
                 .await?;
+            let provider = Arc::new(EmptyThenTextProvider::new(1));
             agent
                 .update_provider(
-                    Arc::new(EmptyThenTextProvider::new(1)),
+                    provider.clone(),
                     ModelConfig::new("mock-model"),
                     &session.id,
                 )
@@ -3497,13 +3570,13 @@ mod tests {
                 .reply(Message::user().with_text("Hi"), session_config, None)
                 .await?;
             tokio::pin!(reply_stream);
-            let mut emitted_steer_id = None;
+            let mut emitted_steer_ids = Vec::new();
             while let Some(event) = reply_stream.next().await {
                 if let AgentEvent::Message(message) = event? {
                     if message.role == rmcp::model::Role::User
-                        && message.as_concat_text().contains("keep going")
+                        && message.as_concat_text() == "keep going"
                     {
-                        emitted_steer_id = message.id;
+                        emitted_steer_ids.push(message.id);
                     }
                 }
             }
@@ -3527,14 +3600,210 @@ mod tests {
                     .any(|m| m.as_concat_text().contains("keep going")),
                 "the queued steer should have been consumed: {persisted:?}"
             );
-            let emitted_steer_id =
-                emitted_steer_id.expect("queued steer should be emitted with ID");
+            assert_eq!(
+                emitted_steer_ids.len(),
+                1,
+                "queued steer should be emitted exactly once"
+            );
+            let emitted_steer_id = emitted_steer_ids
+                .into_iter()
+                .next()
+                .flatten()
+                .expect("queued steer should be emitted with ID");
             assert!(emitted_steer_id.starts_with("msg_"));
-            let stored_steer = persisted
+            let stored_steers: Vec<_> = persisted
                 .iter()
-                .find(|message| message.as_concat_text().contains("keep going"))
-                .expect("queued steer should be stored");
+                .filter(|message| message.as_concat_text() == "keep going")
+                .collect();
+            assert_eq!(
+                stored_steers.len(),
+                1,
+                "queued steer should be stored exactly once"
+            );
+            let stored_steer = stored_steers[0];
             assert_eq!(stored_steer.id.as_deref(), Some(emitted_steer_id.as_str()));
+
+            let received_messages = provider.received_messages.lock().unwrap();
+            let reply_calls = reply_calls(&received_messages);
+            assert_eq!(
+                reply_calls.len(),
+                2,
+                "expected the original prompt and one steer prompt: {reply_calls:?}"
+            );
+            assert!(reply_calls[0]
+                .iter()
+                .any(|message| message.as_concat_text().contains("Hi")));
+            assert!(reply_calls[1]
+                .iter()
+                .any(|message| message.as_concat_text().contains("keep going")));
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_native_steer_delivered_does_not_start_next_prompt() -> Result<()> {
+            let agent = Agent::new();
+            let session = agent
+                .config
+                .session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "native-steer-delivered".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+            let provider = Arc::new(NativeSteeringProvider::new());
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
+
+            agent
+                .steer(&session.id, Message::user().with_text("focus on the tests"))
+                .await;
+
+            let session_id = session.id.clone();
+            let session_config = SessionConfig {
+                id: session.id,
+                schedule_id: None,
+                max_turns: Some(50),
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(Message::user().with_text("Hi"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+            let mut emitted_steer_ids = Vec::new();
+            while let Some(event) = reply_stream.next().await {
+                if let AgentEvent::Message(message) = event? {
+                    if message.role == rmcp::model::Role::User
+                        && message.as_concat_text() == "focus on the tests"
+                    {
+                        emitted_steer_ids.push(message.id);
+                    }
+                }
+            }
+
+            assert_eq!(provider.native_steer_count.load(Ordering::SeqCst), 1);
+            assert_eq!(emitted_steer_ids.len(), 1);
+
+            {
+                let received_messages = provider.received_messages.lock().unwrap();
+                let reply_calls = reply_calls(&received_messages);
+                assert_eq!(
+                    reply_calls.len(),
+                    1,
+                    "delivered steer must not start another prompt: {reply_calls:?}"
+                );
+            }
+
+            let persisted = agent
+                .config
+                .session_manager
+                .get_session(&session_id, true)
+                .await?
+                .conversation
+                .map(|conversation| conversation.messages().to_vec())
+                .unwrap_or_default();
+            let stored_steers: Vec<_> = persisted
+                .iter()
+                .filter(|message| message.as_concat_text() == "focus on the tests")
+                .collect();
+            assert_eq!(stored_steers.len(), 1);
+            assert!(stored_steers[0].metadata.steer);
+            assert_eq!(
+                stored_steers[0].id.as_deref(),
+                emitted_steer_ids[0].as_deref()
+            );
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_native_steer_error_uses_next_prompt() -> Result<()> {
+            let agent = Agent::new();
+            let session = agent
+                .config
+                .session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "native-steer-error".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+            let provider = Arc::new(NativeSteeringProvider::with_error(
+                ProviderError::RequestFailed("mock native steer failure".to_string()),
+            ));
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
+
+            agent
+                .steer(&session.id, Message::user().with_text("focus on the tests"))
+                .await;
+
+            let session_id = session.id.clone();
+            let session_config = SessionConfig {
+                id: session.id,
+                schedule_id: None,
+                max_turns: Some(50),
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(Message::user().with_text("Hi"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+            let mut emitted_messages = Vec::new();
+            while let Some(event) = reply_stream.next().await {
+                if let AgentEvent::Message(message) = event? {
+                    emitted_messages.push(message);
+                }
+            }
+
+            assert_eq!(provider.native_steer_count.load(Ordering::SeqCst), 1);
+            assert!(
+                !concat_text(&emitted_messages).contains("mock native steer failure"),
+                "native steering errors should not be shown to the user"
+            );
+
+            {
+                let received_messages = provider.received_messages.lock().unwrap();
+                let reply_calls = reply_calls(&received_messages);
+                assert_eq!(
+                    reply_calls.len(),
+                    2,
+                    "native steering failure should start one next prompt: {reply_calls:?}"
+                );
+                assert!(reply_calls[1]
+                    .iter()
+                    .any(|message| { message.as_concat_text().contains("focus on the tests") }));
+            }
+
+            let persisted = agent
+                .config
+                .session_manager
+                .get_session(&session_id, true)
+                .await?
+                .conversation
+                .map(|conversation| conversation.messages().to_vec())
+                .unwrap_or_default();
+            assert_eq!(
+                persisted
+                    .iter()
+                    .filter(|message| message.as_concat_text() == "focus on the tests")
+                    .count(),
+                1,
+                "the restored steer should be persisted exactly once"
+            );
             Ok(())
         }
 

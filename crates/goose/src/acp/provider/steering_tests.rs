@@ -164,7 +164,7 @@ async fn prompt_required_does_not_consume_or_start_prompt() {
     .await;
 
     let steer = Message::user().with_text("Focus on the tests");
-    let consumed = timeout(
+    let outcome = timeout(
         TEST_TIMEOUT,
         fixture.provider.steer_natively("goose-session", &steer),
     )
@@ -176,7 +176,7 @@ async fn prompt_required_does_not_consume_or_start_prompt() {
         .expect("steering request should arrive")
         .expect("steering request channel should remain open");
 
-    assert!(!consumed);
+    assert!(!outcome);
     assert!(matches!(
         fixture.prompt_started.try_recv(),
         Err(mpsc::error::TryRecvError::Empty)

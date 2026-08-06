@@ -9,7 +9,7 @@ use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use tracing_futures::Instrument;
 
-use super::active_provider_stream::{ActiveProviderStream, ProviderStreamEvent};
+use super::active_provider_stream::{ActiveProviderStream, ActiveProviderStreamEvent};
 use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
 use super::gen_ai_telemetry;
@@ -2075,7 +2075,7 @@ impl Agent {
             let mut retrying_after_stop_hook_denial = false;
             let mut consecutive_stop_hook_blocks = 0u32;
             let stop_hook_block_cap = self.stop_hook_block_cap();
-            let mut can_drain_pending_steers = false;
+            let mut has_completed_provider_response = false;
             let turn_start = chrono::Local::now();
             let turn_start_compaction_info =
                 super::moim::compute_compaction_info(&session_config.id, &self.extension_manager)
@@ -2087,7 +2087,9 @@ impl Agent {
                     break;
                 }
 
-                if can_drain_pending_steers {
+                // Wait for the active provider response to finish before turning
+                // restored steers into a new prompt.
+                if has_completed_provider_response {
                     for message in self.drain_pending_steers(&session_config.id).await {
                         let message_text = agent_visible_message_text(&message);
                         self.emit_user_prompt_submit_hook(&session_config.id, message_text)
@@ -2220,6 +2222,7 @@ impl Agent {
                 let mut exit_chat = false;
                 let mut provider_errored = false;
                 let mut provider_produced_content = false;
+                let mut native_steer_delivered = false;
                 let mut pending_final_output: Option<String> = None;
                 let mut pending_turn_usage: Option<ProviderUsage> = None;
                 let mut preferred_turn_usage_message_id: Option<String> = None;
@@ -2231,13 +2234,14 @@ impl Agent {
 
                 while let Some(event) = active_provider_stream.next_event(&cancel_token).await {
                     let next = match event {
-                        ProviderStreamEvent::ProviderOutput(next) => {
+                        ActiveProviderStreamEvent::ProviderOutput(next) => {
                             if is_token_cancelled(&cancel_token) || exit_chat {
                                 break;
                             }
                             next
                         }
-                        ProviderStreamEvent::NativeSteer { message, result } => {
+                        ActiveProviderStreamEvent::NativeSteerDelivered(message) => {
+                            native_steer_delivered = true;
                             let message = message.with_steer();
                             let message_text = agent_visible_message_text(&message);
                             self.emit_user_prompt_submit_hook(
@@ -2248,22 +2252,6 @@ impl Agent {
                             let message =
                                 push_message_with_id(&mut messages_to_add, message);
                             yield AgentEvent::Message(message);
-
-                            if let Err(provider_err) = result {
-                                provider_errored = true;
-                                #[cfg(feature = "telemetry")]
-                                crate::posthog::emit_error(
-                                    provider_err.telemetry_type(),
-                                    &provider_err.to_string(),
-                                );
-                                error!("Error: {}", provider_err);
-                                yield AgentEvent::Message(
-                                    Message::assistant().with_text(
-                                        format!("Ran into this error: {provider_err}.\n\nPlease retry if you think this is a transient or recoverable error.")
-                                    )
-                                );
-                                break;
-                            }
 
                             continue;
                         }
@@ -2867,7 +2855,7 @@ impl Agent {
                         }
                     }
                 }
-                can_drain_pending_steers = true;
+                has_completed_provider_response = true;
 
                 if tools_updated {
                     (tools, toolshim_tools, system_prompt, _) =
@@ -2898,13 +2886,9 @@ impl Agent {
                     && !did_recovery_compact_this_iteration
                     && !provider_produced_content
                     && last_assistant_text.is_empty();
-                let has_natively_delivered_steer = messages_to_add
-                    .messages()
-                    .iter()
-                    .any(|message| message.metadata.steer);
-                let empty_response = otherwise_empty && !has_natively_delivered_steer;
+                let empty_response = otherwise_empty && !native_steer_delivered;
                 let native_steer_only_completion = otherwise_empty
-                    && has_natively_delivered_steer
+                    && native_steer_delivered
                     && !self.has_pending_steers(&session_config.id).await;
 
                 if empty_response {
@@ -2913,11 +2897,7 @@ impl Agent {
                     empty_turn_retries = 0;
                 }
 
-                if no_tools_called
-                    && !exit_chat
-                    && !native_steer_only_completion
-                    && !active_provider_stream.native_steer_errored()
-                {
+                if no_tools_called && !exit_chat && !native_steer_only_completion {
                     // Lock, extract state, drop guard before branching — handle_retry_logic
                     // also locks final_output_tool and tokio::sync::Mutex is not reentrant.
                     let final_output = {
@@ -3115,10 +3095,6 @@ impl Agent {
                     session_manager.add_message(&session_config.id, msg).await?;
                 }
                 conversation.extend(messages_to_add);
-
-                if active_provider_stream.native_steer_errored() {
-                    break;
-                }
 
                 if native_steer_only_completion
                     && !self.has_pending_steers(&session_config.id).await

@@ -438,8 +438,7 @@ pub trait Provider: Send + Sync {
     /// provider-specific steering mechanism.
     ///
     /// For example, Claude ACP can use `_session/steering` while its prompt is
-    /// running. Returns `true` when native steering delivered the message. Returns
-    /// `false` when native steering is unsupported or did not deliver the message.
+    /// running. Returns `true` only when the provider confirms delivery.
     async fn steer_natively(
         &self,
         _session_id: &str,

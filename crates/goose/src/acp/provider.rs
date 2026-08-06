@@ -91,7 +91,7 @@ enum ClientRequest {
     ClaudeSteer {
         session_id: SessionId,
         content: Vec<ContentBlock>,
-        response_tx: oneshot::Sender<Result<bool>>,
+        response_tx: oneshot::Sender<Result<ClaudeSteeringResponse>>,
     },
     Prompt {
         session_id: SessionId,
@@ -354,7 +354,7 @@ impl AcpProvider {
         &self,
         session_id: SessionId,
         content: Vec<ContentBlock>,
-    ) -> Result<bool> {
+    ) -> Result<ClaudeSteeringResponse> {
         let (response_tx, response_rx) = oneshot::channel();
         self.tx
             .as_ref()
@@ -465,9 +465,17 @@ impl Provider for AcpProvider {
             return Ok(false);
         }
 
-        self.send_claude_steer(self.acp_session_id(), content)
+        let response = self
+            .send_claude_steer(self.acp_session_id(), content)
             .await
-            .map_err(|error| ProviderError::RequestFailed(error.to_string()))
+            .map_err(|error| ProviderError::RequestFailed(error.to_string()))?;
+
+        Ok(match response {
+            ClaudeSteeringResponse::Injected => true,
+            ClaudeSteeringResponse::PromptRequired {
+                reason: ClaudePromptRequiredReason::NoRunningTurn,
+            } => false,
+        })
     }
 
     async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
@@ -1242,16 +1250,10 @@ async fn handle_requests(
                 content,
                 response_tx,
             } => {
-                let result: Result<bool> = cx
+                let result: Result<ClaudeSteeringResponse> = cx
                     .send_request(ClaudeSteeringRequest::new(session_id, content))
                     .block_task()
                     .await
-                    .map(|response| match response {
-                        ClaudeSteeringResponse::Injected => true,
-                        ClaudeSteeringResponse::PromptRequired {
-                            reason: ClaudePromptRequiredReason::NoRunningTurn,
-                        } => false,
-                    })
                     .map_err(anyhow::Error::from);
                 log_undelivered(response_tx.send(result), "_session/steering");
             }

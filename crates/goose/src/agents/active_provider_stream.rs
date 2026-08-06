@@ -5,6 +5,7 @@ use futures::StreamExt;
 use tokio::sync::futures::OwnedNotified;
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
+use tracing::warn;
 
 use super::pending_steers::PendingSteers;
 use crate::conversation::message::Message;
@@ -16,17 +17,14 @@ use goose_providers::errors::ProviderError;
 pub(super) type ProviderStreamItem =
     Result<(Option<Message>, Option<ProviderUsage>), ProviderError>;
 
-pub(super) enum ProviderStreamEvent {
+pub(super) enum ActiveProviderStreamEvent {
     ProviderOutput(ProviderStreamItem),
-    NativeSteer {
-        message: Message,
-        result: Result<(), ProviderError>,
-    },
+    NativeSteerDelivered(Message),
 }
 
-enum PendingSteerHandling {
-    TryNativeDelivery,
-    SendAsNextPrompt,
+enum PendingSteerDeliveryStrategy {
+    NativeSteering,
+    NextPrompt,
 }
 
 pub(super) struct ActiveProviderStream<'a> {
@@ -36,10 +34,9 @@ pub(super) struct ActiveProviderStream<'a> {
     session_id: &'a str,
     steer_notifier: Arc<Notify>,
     steer_notification_waiter: Pin<Box<OwnedNotified>>,
-    // One notification can represent multiple queued steers.
-    steers_may_remain_queued: bool,
-    pending_steer_handling: PendingSteerHandling,
-    native_steer_errored: bool,
+    // Notifications can coalesce, so scan until the queue is empty.
+    queue_scan_needed: bool,
+    pending_steer_delivery_strategy: PendingSteerDeliveryStrategy,
 }
 
 impl<'a> ActiveProviderStream<'a> {
@@ -59,28 +56,27 @@ impl<'a> ActiveProviderStream<'a> {
             session_id,
             steer_notifier,
             steer_notification_waiter,
-            steers_may_remain_queued: true,
-            pending_steer_handling: PendingSteerHandling::TryNativeDelivery,
-            native_steer_errored: false,
+            queue_scan_needed: true,
+            pending_steer_delivery_strategy: PendingSteerDeliveryStrategy::NativeSteering,
         }
     }
 
     pub(super) async fn next_event(
         &mut self,
         cancellation_token: &Option<CancellationToken>,
-    ) -> Option<ProviderStreamEvent> {
+    ) -> Option<ActiveProviderStreamEvent> {
         loop {
-            if self.native_steer_errored || is_token_cancelled(cancellation_token) {
+            if is_token_cancelled(cancellation_token) {
                 return None;
             }
 
             if matches!(
-                self.pending_steer_handling,
-                PendingSteerHandling::TryNativeDelivery
-            ) && self.steers_may_remain_queued
+                self.pending_steer_delivery_strategy,
+                PendingSteerDeliveryStrategy::NativeSteering
+            ) && self.queue_scan_needed
             {
                 let Some(message) = self.pending_steers.pop_front(self.session_id).await else {
-                    self.steers_may_remain_queued = false;
+                    self.queue_scan_needed = false;
                     continue;
                 };
 
@@ -97,38 +93,33 @@ impl<'a> ActiveProviderStream<'a> {
                     .await
                 {
                     Ok(true) => {
-                        return Some(ProviderStreamEvent::NativeSteer {
-                            message,
-                            result: Ok(()),
-                        });
+                        return Some(ActiveProviderStreamEvent::NativeSteerDelivered(message));
                     }
-                    Ok(false) => {
-                        self.pending_steers
-                            .restore_front(self.session_id, message)
-                            .await;
-                        self.pending_steer_handling = PendingSteerHandling::SendAsNextPrompt;
-                    }
+                    Ok(false) => {}
                     Err(error) => {
-                        self.native_steer_errored = true;
-                        return Some(ProviderStreamEvent::NativeSteer {
-                            message,
-                            result: Err(error),
-                        });
+                        warn!(
+                            "Native steering failed; sending the message with the next provider prompt: {error}"
+                        );
                     }
                 }
+
+                self.pending_steers
+                    .restore_front(self.session_id, message)
+                    .await;
+                self.pending_steer_delivery_strategy = PendingSteerDeliveryStrategy::NextPrompt;
 
                 continue;
             }
 
             if matches!(
-                self.pending_steer_handling,
-                PendingSteerHandling::SendAsNextPrompt
+                self.pending_steer_delivery_strategy,
+                PendingSteerDeliveryStrategy::NextPrompt
             ) {
                 return self
                     .stream
                     .next()
                     .await
-                    .map(ProviderStreamEvent::ProviderOutput);
+                    .map(ActiveProviderStreamEvent::ProviderOutput);
             }
 
             tokio::select! {
@@ -138,17 +129,13 @@ impl<'a> ActiveProviderStream<'a> {
                     self.steer_notification_waiter
                         .as_mut()
                         .set(Arc::clone(&self.steer_notifier).notified_owned());
-                    self.steers_may_remain_queued = true;
+                    self.queue_scan_needed = true;
                 }
 
                 next = self.stream.next() => {
-                    return next.map(ProviderStreamEvent::ProviderOutput);
+                    return next.map(ActiveProviderStreamEvent::ProviderOutput);
                 }
             }
         }
-    }
-
-    pub(super) fn native_steer_errored(&self) -> bool {
-        self.native_steer_errored
     }
 }
