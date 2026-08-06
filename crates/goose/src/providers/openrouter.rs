@@ -11,6 +11,7 @@ use super::openai_compatible::{handle_status, stream_openai_compat};
 use super::retry::ProviderRetry;
 use crate::conversation::message::Message;
 use crate::providers::formats::openrouter as openrouter_format;
+use goose_providers::cache_semantics::{apply_chat_payload_breakpoints, CacheSemantics};
 use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::create_request;
 use goose_providers::model::ModelConfig;
@@ -21,7 +22,6 @@ pub const OPENROUTER_PROVIDER_NAME: &str = "openrouter";
 const OPENROUTER_PARAMETERS_CONFIG_KEY: &str = "OPENROUTER_PARAMETERS";
 pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-sonnet-4";
 pub const OPENROUTER_DEFAULT_FAST_MODEL: &str = "google/gemini-2.5-flash";
-pub const OPENROUTER_MODEL_PREFIX_ANTHROPIC: &str = "anthropic";
 
 // OpenRouter can run many models, we suggest the default
 pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
@@ -96,79 +96,6 @@ impl OpenRouterProvider {
 
 fn is_mandatory_reasoning_error(error: &ProviderError) -> bool {
     matches!(error, ProviderError::RequestFailed(message) if message.contains("Reasoning is mandatory"))
-}
-
-/// Update the request when using anthropic model.
-/// For anthropic model, we can enable prompt caching to save cost. Since openrouter is the OpenAI compatible
-/// endpoint, we need to modify the open ai request to have anthropic cache control field.
-fn update_request_for_anthropic(original_payload: &Value) -> Value {
-    let mut payload = original_payload.clone();
-
-    if let Some(messages_spec) = payload
-        .as_object_mut()
-        .and_then(|obj| obj.get_mut("messages"))
-        .and_then(|messages| messages.as_array_mut())
-    {
-        // Add "cache_control" to the last and second-to-last "user" messages.
-        // During each turn, we mark the final message with cache_control so the conversation can be
-        // incrementally cached. The second-to-last user message is also marked for caching with the
-        // cache_control parameter, so that this checkpoint can read from the previous cache.
-        let mut user_count = 0;
-        for message in messages_spec.iter_mut().rev() {
-            if message.get("role") == Some(&json!("user")) {
-                if let Some(content) = message.get_mut("content") {
-                    if let Some(content_str) = content.as_str() {
-                        *content = json!([{
-                            "type": "text",
-                            "text": content_str,
-                            "cache_control": { "type": "ephemeral" }
-                        }]);
-                    }
-                }
-                user_count += 1;
-                if user_count >= 2 {
-                    break;
-                }
-            }
-        }
-
-        // Update the system message to have cache_control field.
-        if let Some(system_message) = messages_spec
-            .iter_mut()
-            .find(|msg| msg.get("role") == Some(&json!("system")))
-        {
-            if let Some(content) = system_message.get_mut("content") {
-                if let Some(content_str) = content.as_str() {
-                    *system_message = json!({
-                        "role": "system",
-                        "content": [{
-                            "type": "text",
-                            "text": content_str,
-                            "cache_control": { "type": "ephemeral" }
-                        }]
-                    });
-                }
-            }
-        }
-    }
-
-    if let Some(tools_spec) = payload
-        .as_object_mut()
-        .and_then(|obj| obj.get_mut("tools"))
-        .and_then(|tools| tools.as_array_mut())
-    {
-        // Add "cache_control" to the last tool spec, if any. This means that all tool definitions,
-        // will be cached as a single prefix.
-        if let Some(last_tool) = tools_spec.last_mut() {
-            if let Some(function) = last_tool.get_mut("function") {
-                function
-                    .as_object_mut()
-                    .unwrap()
-                    .insert("cache_control".to_string(), json!({ "type": "ephemeral" }));
-            }
-        }
-    }
-    payload
 }
 
 fn is_gemini_model(model_name: &str) -> bool {
@@ -350,8 +277,10 @@ impl Provider for OpenRouterProvider {
             }
         }
 
-        if supports_cache_control(model_config) {
-            payload = update_request_for_anthropic(&payload);
+        if CacheSemantics::for_model(OPENROUTER_PROVIDER_NAME, &model_config.model_name)
+            .uses_explicit_breakpoints()
+        {
+            apply_chat_payload_breakpoints(&mut payload);
         }
 
         if is_gemini_model(&model_config.model_name) {
@@ -384,12 +313,6 @@ impl Provider for OpenRouterProvider {
 
         stream_openai_compat(response, log)
     }
-}
-
-fn supports_cache_control(model: &ModelConfig) -> bool {
-    model
-        .model_name
-        .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
 }
 
 #[cfg(test)]
