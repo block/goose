@@ -13,6 +13,7 @@ activities:
   - Test extension discovery and management
   - Test load tool for knowledge injection and discovery
   - Test delegate tool for task delegation (sync and async)
+  - Test persistent workers (delegate with worker name, conversation reuse)
   - Test multi-turn thinking preservation for providers that reject replayed reasoning_content
   - Test error boundaries including nested delegation prevention
   - Generate comprehensive test report
@@ -86,6 +87,7 @@ instructions: |
   - Load tool for discovery and knowledge injection
   - Delegate tool for synchronous task delegation
   - Delegate tool for asynchronous background tasks
+  - Persistent workers keeping conversation state across delegations
   - Parallel delegate execution
   - Nested delegation prevention (critical security test)
 
@@ -217,6 +219,26 @@ prompt: |
   delegate(instructions: "Create a file called delegate_test.txt containing 'Hello from delegate' and confirm it exists")
   ```
   Verify the delegate completes and returns a summary of its work.
+
+  ### Persistent Worker Test
+  Workers are long-lived delegates that keep their conversation across delegations.
+
+  1. Create a worker and give it a fact:
+  ```
+  delegate(worker: "memory-test", instructions: "Remember the codeword MANGO-77. Reply only with 'stored'.")
+  ```
+
+  2. Delegate a follow-up to the same worker without repeating the fact:
+  ```
+  delegate(worker: "memory-test", instructions: "What codeword did I give you earlier? Reply with just the codeword.")
+  ```
+  **Expected**: The reply is MANGO-77, proving the follow-up resumed the first conversation.
+
+  3. Verify creation params are fixed by requesting a different model for the same worker:
+  ```
+  delegate(worker: "memory-test", instructions: "Say hi", model: "some-other-model")
+  ```
+  **Expected**: The call is rejected because a worker's creation parameters cannot change.
 
   ### Parallel Delegate Test
   {% if parallel_tests == "true" %}
