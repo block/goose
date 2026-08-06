@@ -193,6 +193,15 @@ async fn provider_lifecycle() -> Result<()> {
     let result = pipeline.run(["after empty reply"]).await?;
     result.assert_message(-1, Agent, "recovered from empty reply");
 
+    api.on("hit the output limit").output_limit();
+    let result = pipeline.run(["hit the output limit"]).await?;
+    let marker = result.conversation().last().expect("output-limit marker");
+    assert!(marker.metadata.output_token_limit_reached);
+    assert!(marker.content.is_empty());
+    assert!(result.events.iter().any(|event| {
+        matches!(event, AgentEvent::Message(message) if message.metadata.output_token_limit_reached)
+    }));
+
     api.on("return an empty server error").empty_server_error();
     let result = pipeline.run(["return an empty server error"]).await?;
     result.assert_message(-1, Error, "500");

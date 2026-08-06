@@ -21,6 +21,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::field::{Field, Visit};
 use tracing::span::{Attributes, Id, Record};
 use tracing::Subscriber;
+use tracing_futures::Instrument;
 use tracing_subscriber::layer::{Context, SubscriberExt};
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::Layer;
@@ -98,7 +99,7 @@ where
     fn on_new_span(&self, attributes: &Attributes<'_>, id: &Id, context: Context<'_, S>) {
         if context
             .span(id)
-            .is_some_and(|span| span.metadata().name() == "invoke_agent goose")
+            .is_some_and(|span| span.metadata().name() == "state_machine_test")
         {
             attributes.record(&mut FieldVisitor(self.0.clone()));
         }
@@ -107,7 +108,7 @@ where
     fn on_record(&self, id: &Id, values: &Record<'_>, context: Context<'_, S>) {
         if context
             .span(id)
-            .is_some_and(|span| span.metadata().name() == "invoke_agent goose")
+            .is_some_and(|span| span.metadata().name() == "state_machine_test")
         {
             values.record(&mut FieldVisitor(self.0.clone()));
         }
@@ -134,6 +135,10 @@ impl Visit for FieldVisitor {
 
 #[tokio::test]
 async fn custom_pipeline_supports_step_apply_run_tracing_and_usage() -> Result<()> {
+    let _env = goose_test_support::otel::clear_otel_env(&[(
+        "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
+        "true",
+    )]);
     let temp_dir = tempfile::tempdir()?;
     let session_manager = SessionManager::new(temp_dir.path().to_path_buf());
     let session = session_manager
@@ -189,7 +194,18 @@ async fn custom_pipeline_supports_step_apply_run_tracing_and_usage() -> Result<(
     let fields = TraceFields::default();
     let subscriber = tracing_subscriber::registry().with(fields.clone());
     let _guard = tracing::subscriber::set_default(subscriber);
-    let session = machine.run(&session_manager, &session.id, &emit).await?;
+    let span = tracing::info_span!(
+        "state_machine_test",
+        trace_input = tracing::field::Empty,
+        trace_output = tracing::field::Empty,
+        gen_ai.output.messages = tracing::field::Empty,
+        gen_ai.usage.input_tokens = tracing::field::Empty,
+        gen_ai.usage.output_tokens = tracing::field::Empty,
+    );
+    let session = machine
+        .run(&session_manager, &session.id, &emit)
+        .instrument(span)
+        .await?;
 
     assert_eq!(
         session
@@ -223,6 +239,23 @@ async fn custom_pipeline_supports_step_apply_run_tracing_and_usage() -> Result<(
     assert_eq!(
         fields.get("trace_output").map(String::as_str),
         Some("second turn answered")
+    );
+    assert_eq!(
+        fields.get("gen_ai.usage.input_tokens").map(String::as_str),
+        Some("5")
+    );
+    assert_eq!(
+        fields.get("gen_ai.usage.output_tokens").map(String::as_str),
+        Some("7")
+    );
+    let output: serde_json::Value = serde_json::from_str(&fields["gen_ai.output.messages"])?;
+    assert_eq!(
+        output,
+        serde_json::json!([{
+            "role": "assistant",
+            "content": "second turn answered",
+            "finish_reason": "stop",
+        }])
     );
 
     Ok(())

@@ -39,6 +39,7 @@ enum ApiResponse {
         call: Option<ApiToolCall>,
     },
     NoChoices,
+    OutputLimit,
     ContextLimitError(String),
     ServerError(String),
     EmptyServerError,
@@ -332,6 +333,10 @@ impl<'a> ApiRuleBuilder<'a> {
         self.configured(ApiResponse::NoChoices)
     }
 
+    pub(super) fn output_limit(self) -> ConfiguredResponse<'a> {
+        self.configured(ApiResponse::OutputLimit)
+    }
+
     pub(super) fn empty_server_error(self) -> ConfiguredResponse<'a> {
         self.configured(ApiResponse::EmptyServerError)
     }
@@ -508,6 +513,7 @@ impl DummyApiState {
                 ))
             }
             ApiResponse::NoChoices => sse_response(no_choices_events(&id, model)),
+            ApiResponse::OutputLimit => sse_response(output_limit_events(&meta(0))),
             ApiResponse::ContextLimitError(message) => ResponseTemplate::new(400).set_body_json(
                 context_limit_error(format!("context_length_exceeded: {message}")),
             ),
@@ -663,6 +669,28 @@ fn no_choices_events(id: &str, model: &str) -> String {
             "choices": []
         }),
     );
+    events.push_str("data: [DONE]\n\n");
+    events
+}
+
+fn output_limit_events(meta: &ResponseMeta) -> String {
+    let mut events = String::new();
+    push_event(
+        &mut events,
+        json!({
+            "id": meta.id,
+            "object": "chat.completion.chunk",
+            "model": meta.model,
+            "choices": [{
+                "index": 0,
+                "delta": {},
+                "finish_reason": "length"
+            }]
+        }),
+    );
+    if meta.include_usage {
+        push_event(&mut events, usage_event(meta));
+    }
     events.push_str("data: [DONE]\n\n");
     events
 }

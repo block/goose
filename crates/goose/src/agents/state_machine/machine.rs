@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use tokio_util::sync::CancellationToken;
-use tracing_futures::Instrument;
 
 use crate::agents::state_machine::operation::{
     messages_since_kickoff, Emitter, Inference, InferenceInput, Operation, OperationFuture,
@@ -263,66 +262,65 @@ impl<'a> StateMachine<'a> {
         session_id: &str,
         emit: &Emitter,
     ) -> Result<Session> {
-        let span = tracing::info_span!(
-            target: "goose::state_machine",
-            "invoke_agent goose",
-            "gen_ai.operation.name" = "invoke_agent",
-            "gen_ai.agent.name" = "goose",
-            "gen_ai.conversation.id" = %session_id,
-            trace_input = tracing::field::Empty,
-            trace_output = tracing::field::Empty,
-            session.id = %session_id,
-            session.user = %crate::session_context::session_user(),
-            session.host = %crate::session_context::session_host(),
-            session.agent_type = "goose",
-        );
+        let entry_session = session_manager.get_session(session_id, true).await?;
+        if let Some(input) = entry_session
+            .conversation
+            .as_ref()
+            .and_then(|conversation| messages_since_kickoff(conversation).ok())
+            .and_then(|messages| messages.first())
+            .map(Message::user_visible_content)
+            .map(|message| message.as_concat_text())
+            .filter(|text| !text.is_empty())
+        {
+            tracing::Span::current().record("trace_input", input.as_str());
+        }
 
-        async {
-            let entry_session = session_manager.get_session(session_id, true).await?;
-            if let Some(input) = entry_session
-                .conversation
-                .as_ref()
-                .and_then(|conversation| messages_since_kickoff(conversation).ok())
-                .and_then(|messages| messages.first())
-                .map(Message::user_visible_content)
-                .map(|message| message.as_concat_text())
-                .filter(|text| !text.is_empty())
-            {
-                tracing::Span::current().record("trace_input", input.as_str());
-            }
-
-            loop {
-                let session = session_manager.get_session(session_id, true).await?;
-                let Some(mut result) = self.step(&session, emit).await? else {
-                    break;
-                };
-                self.apply(session_manager, &session, &mut result, emit)
-                    .await?;
-                if result.yield_to_client {
-                    break;
+        let mut turn_usage = goose_providers::conversation::token_usage::Usage::default();
+        loop {
+            let session = session_manager.get_session(session_id, true).await?;
+            let Some(mut result) = self.step(&session, emit).await? else {
+                break;
+            };
+            for effect in &result.effects {
+                match effect {
+                    StateEffect::RecordUsage(usage)
+                    | StateEffect::ReplaceConversation {
+                        usage: Some(usage), ..
+                    } => turn_usage += usage.usage,
+                    _ => {}
                 }
             }
-
-            let session = session_manager.get_session(session_id, true).await?;
-            let last_assistant_text = session
-                .conversation
-                .as_ref()
-                .and_then(|conversation| messages_since_kickoff(conversation).ok())
-                .into_iter()
-                .flatten()
-                .rev()
-                .filter(|message| message.role == rmcp::model::Role::Assistant)
-                .map(Message::user_visible_content)
-                .map(|message| message.as_concat_text())
-                .find(|text| !text.is_empty())
-                .unwrap_or_default();
-            if !last_assistant_text.is_empty() {
-                tracing::Span::current().record("trace_output", last_assistant_text.as_str());
+            self.apply(session_manager, &session, &mut result, emit)
+                .await?;
+            if result.yield_to_client {
+                break;
             }
-
-            Ok(session)
         }
-        .instrument(span)
-        .await
+
+        let session = session_manager.get_session(session_id, true).await?;
+        let last_assistant_text = session
+            .conversation
+            .as_ref()
+            .and_then(|conversation| messages_since_kickoff(conversation).ok())
+            .into_iter()
+            .flatten()
+            .rev()
+            .filter(|message| message.role == rmcp::model::Role::Assistant)
+            .map(Message::user_visible_content)
+            .map(|message| message.as_concat_text())
+            .find(|text| !text.is_empty())
+            .unwrap_or_default();
+        if !last_assistant_text.is_empty() {
+            let span = tracing::Span::current();
+            span.record("trace_output", last_assistant_text.as_str());
+            if crate::agents::gen_ai_telemetry::capture_message_content() {
+                let output =
+                    crate::agents::gen_ai_telemetry::simple_output_json(&last_assistant_text);
+                span.record("gen_ai.output.messages", output.as_str());
+            }
+        }
+        crate::agents::gen_ai_telemetry::record_usage(&tracing::Span::current(), &turn_usage);
+
+        Ok(session)
     }
 }

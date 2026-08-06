@@ -438,6 +438,9 @@ impl Inference for InferenceRunner<'_> {
                                 _ => true,
                             });
                             if chunk.content.is_empty() {
+                                if chunk.metadata.output_token_limit_reached {
+                                    chunk = emit.message(chunk).await;
+                                }
                                 accumulator.push(chunk);
                                 continue;
                             }
@@ -448,13 +451,16 @@ impl Inference for InferenceRunner<'_> {
                 }
             }
 
-            let empty_response = accumulator.iter().all(|message| {
-                message.content.iter().all(|content| match content {
-                    MessageContent::Text(text) => text.text.trim().is_empty(),
-                    MessageContent::Thinking(thinking) => thinking.thinking.trim().is_empty(),
-                    _ => false,
-                })
-            });
+            let empty_response = !accumulator
+                .iter()
+                .any(|message| message.metadata.output_token_limit_reached)
+                && accumulator.iter().all(|message| {
+                    message.content.iter().all(|content| match content {
+                        MessageContent::Text(text) => text.text.trim().is_empty(),
+                        MessageContent::Thinking(thinking) => thinking.thinking.trim().is_empty(),
+                        _ => false,
+                    })
+                });
             if empty_response {
                 let message = Message::assistant().with_text(EMPTY_RESPONSE_MESSAGE);
                 let message = emit.message(message).await;

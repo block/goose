@@ -1755,28 +1755,32 @@ impl Agent {
             cancel.clone(),
             steer_queue,
         );
+        let reply_span = tracing::Span::current();
 
-        Ok(Box::pin(async_stream::try_stream! {
-            let (tx, mut rx) = mpsc::channel::<AgentEvent>(32);
-            let emit = Emitter::new(tx, cancel.clone());
-            let result = {
-                let run = machine.run(session_manager.as_ref(), &session_id, &emit);
-                tokio::pin!(run);
-                loop {
-                    tokio::select! {
-                        biased;
-                        Some(event) = rx.recv() => yield event,
-                        result = &mut run => break result,
+        Ok(Box::pin(
+            async_stream::try_stream! {
+                let (tx, mut rx) = mpsc::channel::<AgentEvent>(32);
+                let emit = Emitter::new(tx, cancel.clone());
+                let result = {
+                    let run = machine.run(session_manager.as_ref(), &session_id, &emit);
+                    tokio::pin!(run);
+                    loop {
+                        tokio::select! {
+                            biased;
+                            Some(event) = rx.recv() => yield event,
+                            result = &mut run => break result,
+                        }
                     }
+                };
+                result?;
+                // Without this the drain below never ends: `run` only borrows the emitter.
+                drop(emit);
+                while let Some(event) = rx.recv().await {
+                    yield event;
                 }
-            };
-            result?;
-            // Without this the drain below never ends: `run` only borrows the emitter.
-            drop(emit);
-            while let Some(event) = rx.recv().await {
-                yield event;
             }
-        }))
+            .instrument(reply_span),
+        ))
     }
 
     #[instrument(
@@ -1784,6 +1788,7 @@ impl Agent {
         fields(
             user_message,
             trace_input,
+            trace_output = tracing::field::Empty,
             session.id = %session_config.id,
             gen_ai.operation.name = "invoke_agent",
             gen_ai.input.messages = tracing::field::Empty,
