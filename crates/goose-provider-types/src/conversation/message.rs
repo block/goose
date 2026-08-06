@@ -665,6 +665,9 @@ pub struct MessageMetadata {
     pub agent_visible: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub inference: Option<InferenceMetadata>,
+    /// Whether the provider stopped generating because it reached its output token limit
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub output_token_limit_reached: bool,
     /// Whether this message is a steer injected into an active run. UI-only:
     /// surfaced as `_meta.goose.steer` so clients can mark the steer boundary
     /// without matching user-visible text. Never sent to providers.
@@ -680,6 +683,7 @@ impl Default for MessageMetadata {
             user_visible: true,
             agent_visible: true,
             inference: None,
+            output_token_limit_reached: false,
             steer: false,
             usage: None,
         }
@@ -1619,15 +1623,17 @@ mod tests {
 
     #[test]
     fn test_message_metadata_serialization() {
-        let message = Message::user()
+        let mut message = Message::user()
             .with_text("Test message")
             .with_visibility(false, true);
+        message.metadata.output_token_limit_reached = true;
 
         let json_str = serde_json::to_string(&message).unwrap();
         let value: Value = serde_json::from_str(&json_str).unwrap();
 
         assert_eq!(value["metadata"]["userVisible"], false);
         assert_eq!(value["metadata"]["agentVisible"], true);
+        assert_eq!(value["metadata"]["outputTokenLimitReached"], true);
     }
 
     #[test]
@@ -1649,6 +1655,7 @@ mod tests {
         let message: Message = serde_json::from_str(json_with_metadata).unwrap();
         assert!(!message.is_user_visible());
         assert!(message.is_agent_visible());
+        assert!(!message.metadata.output_token_limit_reached);
     }
 
     #[test]

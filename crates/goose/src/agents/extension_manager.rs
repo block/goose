@@ -17,7 +17,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use std::task::{Context, Poll};
 use std::time::Duration;
 use tempfile::{tempdir, TempDir};
@@ -172,6 +172,7 @@ pub struct ExtensionManagerCapabilities {
 #[serde(rename_all = "camelCase")]
 pub struct GooseMcpAppToolAttachment {
     pub tool_name: String,
+    pub tool_name_is_actual: bool,
     pub extension_name: String,
     pub resource_uri: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -396,7 +397,6 @@ pub fn is_hidden_extension(name: &str) -> bool {
 
 /// Result of resolving a tool call to its owning extension
 struct ResolvedTool {
-    tool_name: String,
     extension_name: String,
     actual_tool_name: String,
     client: McpClientBox,
@@ -404,6 +404,7 @@ struct ResolvedTool {
     resource_uri: Option<String>,
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn child_process_client(
     mut command: Command,
     timeout: &Option<u64>,
@@ -412,6 +413,7 @@ async fn child_process_client(
     docker_container: Option<String>,
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
+    extension_manager: Weak<ExtensionManager>,
 ) -> ExtensionResult<McpClient> {
     configure_subprocess(&mut command);
 
@@ -450,6 +452,7 @@ async fn child_process_client(
         client_name,
         capabilities,
         working_dir.clone(),
+        extension_manager,
     )
     .await;
 
@@ -620,6 +623,7 @@ async fn connect_with_auth(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    extension_manager: Weak<ExtensionManager>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     let mut auth_headers = HeaderMap::new();
     auth_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
@@ -654,6 +658,7 @@ async fn connect_with_auth(
             client_name,
             capabilities,
             roots_dir.to_path_buf(),
+            extension_manager,
         )
         .await?,
     ))
@@ -671,6 +676,7 @@ async fn create_streamable_http_client(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    extension_manager: Weak<ExtensionManager>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     #[cfg(unix)]
     if let Some(socket_path) = socket {
@@ -684,6 +690,7 @@ async fn create_streamable_http_client(
             client_name,
             capabilities,
             roots_dir,
+            extension_manager,
         )
         .await;
     }
@@ -739,6 +746,7 @@ async fn create_streamable_http_client(
                     client_name.clone(),
                     capabilities.clone(),
                     roots_dir,
+                    extension_manager.clone(),
                 )
                 .await;
 
@@ -777,6 +785,7 @@ async fn create_streamable_http_client(
         client_name.clone(),
         capabilities.clone(),
         roots_dir.to_path_buf(),
+        extension_manager.clone(),
     )
     .await;
 
@@ -792,10 +801,17 @@ async fn create_streamable_http_client(
                     client_name,
                     capabilities,
                     roots_dir,
+                    extension_manager,
                 )
                 .await
             }
-            Err(_) => Ok(Box::new(client_res?)),
+            Err(e) => {
+                warn!(
+                    "[OAuth:{}] Browser authorization flow failed: {:#}",
+                    name, e
+                );
+                Ok(Box::new(client_res?))
+            }
         }
     } else {
         Ok(Box::new(client_res?))
@@ -814,6 +830,7 @@ async fn create_unix_socket_http_client(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    extension_manager: Weak<ExtensionManager>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     use rmcp::transport::UnixSocketHttpClient;
 
@@ -851,6 +868,7 @@ async fn create_unix_socket_http_client(
         client_name.clone(),
         capabilities.clone(),
         roots_dir.to_path_buf(),
+        extension_manager,
     )
     .await;
 
@@ -995,6 +1013,7 @@ impl ExtensionManager {
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
                     &effective_working_dir,
+                    Arc::downgrade(self),
                 )
                 .await?
             }
@@ -1052,6 +1071,7 @@ impl ExtensionManager {
                             Some(container_id.to_string()),
                             self.client_name.clone(),
                             self.mcp_client_capabilities(),
+                            Arc::downgrade(self),
                         )
                         .await?;
                         Box::new(client)
@@ -1068,6 +1088,7 @@ impl ExtensionManager {
                                 self.client_name.clone(),
                                 self.mcp_client_capabilities(),
                                 effective_working_dir.clone(),
+                                Arc::downgrade(self),
                             )
                             .await?,
                         )
@@ -1129,6 +1150,7 @@ impl ExtensionManager {
                     container.map(|c| c.id().to_string()),
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
+                    Arc::downgrade(self),
                 )
                 .await?;
                 Box::new(client)
@@ -1161,6 +1183,7 @@ impl ExtensionManager {
                     container.map(|c| c.id().to_string()),
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
+                    Arc::downgrade(self),
                 )
                 .await?;
 
@@ -1362,7 +1385,8 @@ impl ExtensionManager {
         let resource_uri = resolved_tool.resource_uri.clone()?;
 
         let mut attachment = GooseMcpAppToolAttachment {
-            tool_name: resolved_tool.tool_name.clone(),
+            tool_name: resolved_tool.actual_tool_name.clone(),
+            tool_name_is_actual: true,
             extension_name: resolved_tool.extension_name.clone(),
             resource_uri: resource_uri.clone(),
             tool_meta: resolved_tool.tool_meta.clone(),
@@ -1385,7 +1409,7 @@ impl ExtensionManager {
         Some(attachment)
     }
 
-    async fn invalidate_tools_cache_and_bump_version(&self) {
+    pub(crate) async fn invalidate_tools_cache_and_bump_version(&self) {
         self.tools_cache_version.fetch_add(1, Ordering::SeqCst);
         *self.tools_cache.lock().await = None;
     }
@@ -1740,7 +1764,6 @@ impl ExtensionManager {
                 })?;
 
                 return Ok(ResolvedTool {
-                    tool_name: tool.name.to_string(),
                     extension_name: owner,
                     actual_tool_name,
                     client,
@@ -1753,7 +1776,6 @@ impl ExtensionManager {
                 let owner = name_to_key(prefix);
                 if let Some(client) = self.get_server_client(&owner).await {
                     return Ok(ResolvedTool {
-                        tool_name: name.to_string(),
                         extension_name: owner,
                         actual_tool_name: actual.to_string(),
                         client,
@@ -2982,7 +3004,8 @@ mod tests {
             .resolve_tool("test-session-id", "test_client.tool")
             .await
             .expect("mangled dotted name should resolve to the real tool");
-        assert_eq!(resolved.tool_name, "test_client__tool");
+        assert_eq!(resolved.extension_name, "test_client");
+        assert_eq!(resolved.actual_tool_name, "tool");
     }
 
     #[tokio::test]
@@ -2998,7 +3021,8 @@ mod tests {
             .resolve_tool("test-session-id", "functions.test_client__tool")
             .await
             .expect("functions-prefixed name should resolve to the real tool");
-        assert_eq!(resolved.tool_name, "test_client__tool");
+        assert_eq!(resolved.extension_name, "test_client");
+        assert_eq!(resolved.actual_tool_name, "tool");
     }
 
     #[tokio::test]
@@ -3014,7 +3038,7 @@ mod tests {
             .resolve_tool("test-session-id", "dotted__db.query")
             .await
             .expect("exact dotted tool name must resolve");
-        assert_eq!(resolved.tool_name, "dotted__db.query");
+        assert_eq!(resolved.extension_name, "dotted");
         assert_eq!(resolved.actual_tool_name, "db.query");
     }
 
@@ -3031,7 +3055,7 @@ mod tests {
             .resolve_tool("test-session-id", "dotted.db.query")
             .await
             .expect("mangled extension separator should resolve");
-        assert_eq!(resolved.tool_name, "dotted__db.query");
+        assert_eq!(resolved.extension_name, "dotted");
         assert_eq!(resolved.actual_tool_name, "db.query");
     }
 
@@ -3106,7 +3130,8 @@ mod tests {
     fn test_insert_trusted_tool_update_meta_stores_backend_payload() {
         let mut result = CallToolResult::success(vec![]);
         let attachment = GooseMcpAppToolAttachment {
-            tool_name: "weather__render".to_string(),
+            tool_name: "render__secret".to_string(),
+            tool_name_is_actual: true,
             extension_name: "weather".to_string(),
             resource_uri: "ui://weather/app".to_string(),
             tool_meta: None,
@@ -3129,7 +3154,8 @@ mod tests {
             meta.0.get(TRUSTED_TOOL_UPDATE_META_KEY),
             Some(&serde_json::json!({
                 "mcpApp": {
-                    "toolName": "weather__render",
+                    "toolName": "render__secret",
+                    "toolNameIsActual": true,
                     "extensionName": "weather",
                     "resourceUri": "ui://weather/app",
                     "resourceResult": {
@@ -3329,6 +3355,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            Weak::new(),
         )
         .await;
 
@@ -3364,6 +3391,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            Weak::new(),
         )
         .await;
 
@@ -3410,6 +3438,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            Weak::new(),
         )
         .await;
 
@@ -3491,6 +3520,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            Weak::new(),
         )
         .await;
 

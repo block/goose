@@ -3770,6 +3770,12 @@
   "sessions.action.export": {
     "defaultMessage": "セッションをエクスポート"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "新しいウィンドウで開く"
   },
@@ -3868,6 +3874,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "セッション「{name}」を複製しました"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "セッションをエクスポートできませんでした: {error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "セッションをエクスポートしました"

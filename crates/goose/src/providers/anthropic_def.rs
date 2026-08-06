@@ -39,14 +39,23 @@ async fn from_env(
         .get_param("ANTHROPIC_HOST")
         .unwrap_or_else(|_| "https://api.anthropic.com".to_string());
 
+    let timeout_secs: u64 = config
+        .get_param("ANTHROPIC_TIMEOUT")
+        .unwrap_or(crate::providers::base::DEFAULT_PROVIDER_TIMEOUT_SECS);
+
     let auth = AuthMethod::ApiKey {
         header_name: "x-api-key".to_string(),
         key: api_key,
     };
 
-    let api_client = ApiClient::new_with_tls(host, auth, tls_config)?
-        .with_request_builder(crate::session_context::session_id_request_builder())
-        .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
+    let api_client = ApiClient::with_timeout_and_tls(
+        host,
+        auth,
+        std::time::Duration::from_secs(timeout_secs),
+        tls_config,
+    )?
+    .with_request_builder(crate::session_context::session_id_request_builder())
+    .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
 
     Ok(AnthropicProviderBuilder::new(api_client).build())
 }

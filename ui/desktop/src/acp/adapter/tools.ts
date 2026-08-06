@@ -337,6 +337,7 @@ interface DesktopMcpAppMeta extends Record<string, unknown> {
   };
   extensionName?: string;
   toolName?: string;
+  toolNameIsActual?: boolean;
 }
 
 type ToolResultValue = {
@@ -368,5 +369,9 @@ function mcpAppMetadata(update: ToolCallUpdate): DesktopMcpAppMeta | undefined {
     extensionName:
       typeof goose.mcpApp.extensionName === 'string' ? goose.mcpApp.extensionName : undefined,
     toolName: typeof goose.mcpApp.toolName === 'string' ? goose.mcpApp.toolName : undefined,
+    toolNameIsActual:
+      typeof goose.mcpApp.toolNameIsActual === 'boolean'
+        ? goose.mcpApp.toolNameIsActual
+        : undefined,
   };
 }

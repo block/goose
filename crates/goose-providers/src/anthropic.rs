@@ -188,6 +188,7 @@ impl AnthropicProvider {
                     self.api_client
                         .request("v1/messages")
                         .model_headers(model_config)?
+                        .streaming(true)
                         .response_post(&payload)
                         .await?,
                 )

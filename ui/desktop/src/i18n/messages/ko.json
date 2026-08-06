@@ -3770,6 +3770,12 @@
   "sessions.action.export": {
     "defaultMessage": "세션 내보내기"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "새 창에서 열기"
   },
@@ -3868,6 +3874,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "세션 \"{name}\"이(가) 성공적으로 복제되었습니다."
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "세션 내보내기 실패: {error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "세션을 성공적으로 내보냈습니다."
