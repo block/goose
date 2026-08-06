@@ -27,10 +27,10 @@ use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::state_machine::{
     BangShellOperation, CompactionOperation, DoctorOperation, Emitter, ExitOnErrorOperation,
-    InferenceRunner, MaxTurnsOperation, Operation, RecipeOperation, RetryOperation, SkillOperation,
-    SlashCommandOperation, StateMachine, SteerOperation, SteerQueue, Step, StopHookOperation,
-    ToolApprovalOperation, ToolExecutionOperation, ToolPairCompactionOperation,
-    UnknownToolOperation, MAX_TURNS_MESSAGE,
+    InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation, RecipeOperation,
+    RetryOperation, SkillOperation, SlashCommandOperation, StateMachine, SteerOperation,
+    SteerQueue, Step, StopHookOperation, ToolApprovalOperation, ToolExecutionOperation,
+    ToolPairCompactionOperation, UnknownToolOperation, MAX_TURNS_MESSAGE,
 };
 use crate::agents::types::{
     FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver,
@@ -1579,6 +1579,7 @@ impl Agent {
         &self,
         provider: Arc<dyn Provider>,
         model_config: goose_providers::model::ModelConfig,
+        context_limit: usize,
         max_turns: Option<u32>,
         cancel: CancellationToken,
         steer_queue: SteerQueue,
@@ -1610,10 +1611,7 @@ impl Agent {
         let tool_call_cutoff = Config::global()
             .get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
             .unwrap_or_else(|_| {
-                crate::context_mgmt::compute_tool_call_cutoff(
-                    model_config.context_limit(),
-                    compaction_threshold,
-                )
+                crate::context_mgmt::compute_tool_call_cutoff(context_limit, compaction_threshold)
             });
         let tool_pair_compaction_enabled = crate::context_mgmt::tool_pair_summarization_enabled()
             && !provider.manages_own_context();
@@ -1625,6 +1623,7 @@ impl Agent {
             Arc::new(CompactionOperation::new(
                 provider.clone(),
                 model_config.clone(),
+                context_limit,
                 compaction_threshold,
             )),
             Arc::new(ToolPairCompactionOperation::new(
@@ -1638,6 +1637,7 @@ impl Agent {
                 &self.tool_inspection_manager,
             )),
             Arc::new(DoctorOperation),
+            Arc::new(ProjectOperation),
             Arc::new(SkillOperation),
             Arc::new(RecipeOperation),
             Arc::new(ToolExecutionOperation::new(
@@ -1747,10 +1747,15 @@ impl Agent {
             }
         };
 
+        let context_limit = provider
+            .get_context_limit(&model_config)
+            .await
+            .unwrap_or_else(|_| model_config.context_limit());
         let steer_queue = self.steer_queue(&session_id).await;
         let machine = self.create_state_machine(
             provider,
             model_config,
+            context_limit,
             session_config.max_turns,
             cancel.clone(),
             steer_queue,

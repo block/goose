@@ -52,8 +52,12 @@ pub struct CompactionOperation {
 }
 
 impl CompactionOperation {
-    pub fn new(provider: Arc<dyn Provider>, model_config: ModelConfig, threshold: f64) -> Self {
-        let context_limit = model_config.context_limit();
+    pub fn new(
+        provider: Arc<dyn Provider>,
+        model_config: ModelConfig,
+        context_limit: usize,
+        threshold: f64,
+    ) -> Self {
         let manages_own_context = provider.manages_own_context();
         Self {
             provider,

@@ -21,6 +21,7 @@ use crate::agents::AgentEvent;
 use crate::config::GooseMode;
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
+use crate::hints::load_hints::SubdirectoryHintTracker;
 use crate::hooks::{HookContext, HookDecision, HookEvent, HookManager};
 use crate::session::{EnabledExtensionsState, ExtensionState, Session};
 use std::sync::Arc;
@@ -603,10 +604,20 @@ impl Operation for ToolExecutionOperation<'_> {
     async fn prompt_parts(
         &self,
         session: &Session,
-        _conversation: &Conversation,
+        conversation: &Conversation,
     ) -> Result<Vec<(String, String)>> {
-        // TODO: Scan prior tool calls for accessed paths and contribute matching
-        // subdirectory AGENTS.md files here instead of tracking paths during dispatch.
+        let mut hints = SubdirectoryHintTracker::new();
+        for message in conversation.messages() {
+            for content in &message.content {
+                if let MessageContent::ToolRequest(request) = content {
+                    if let Ok(tool_call) = &request.tool_call {
+                        hints.record_tool_arguments(&tool_call.arguments, &session.working_dir);
+                    }
+                }
+            }
+        }
+        let mut prompt_parts = hints.load_new_hints(&session.working_dir);
+
         #[cfg(feature = "code-mode")]
         if self
             .extension_manager
@@ -615,7 +626,7 @@ impl Operation for ToolExecutionOperation<'_> {
             )
             .await
         {
-            return Ok(Vec::new());
+            return Ok(prompt_parts);
         }
 
         let mut extensions = self
@@ -624,7 +635,7 @@ impl Operation for ToolExecutionOperation<'_> {
             .await;
         extensions.retain(|extension| extension.name != crate::skills::EXTENSION_NAME);
         if extensions.is_empty() {
-            return Ok(Vec::new());
+            return Ok(prompt_parts);
         }
 
         let mut lines = vec![
@@ -643,7 +654,8 @@ impl Operation for ToolExecutionOperation<'_> {
                 lines.push(format!("### Instructions\n{}", extension.instructions));
             }
         }
-        Ok(vec![("extensions".to_string(), lines.join("\n\n"))])
+        prompt_parts.push(("extensions".to_string(), lines.join("\n\n")));
+        Ok(prompt_parts)
     }
 
     async fn run(

@@ -278,15 +278,11 @@ async fn usage_and_provider_errors_survive_persistence() -> Result<()> {
     assert!(result.events.iter().any(
         |event| matches!(event, AgentEvent::Usage(usage) if usage.usage.total_tokens == Some(stream_total))
     ));
-    assert!(!result
+    assert!(result
         .events
         .iter()
         .any(|event| matches!(event, AgentEvent::MessageUsage { .. })));
-    assert!(!result
-        .conversation()
-        .messages()
-        .iter()
-        .any(|message| message.as_concat_text() == "partial response"));
+    result.assert_message(-2, Agent, "partial response");
     let error = result
         .conversation()
         .messages()

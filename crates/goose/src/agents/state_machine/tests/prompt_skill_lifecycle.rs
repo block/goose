@@ -1,6 +1,7 @@
 use anyhow::Result;
 use serde_json::json;
 
+use super::calculator_extension::ADD;
 use super::pipeline::{
     test_pipeline, MessageKind::Agent, MessageKind::ToolResponse, MessageKind::User,
 };
@@ -17,6 +18,17 @@ async fn prompt_and_skill_lifecycle() -> Result<()> {
     pipeline.run(["first turn"]).await?;
     assert!(api.calls()[0].system_contains("ROOT_PROJECT_INSTRUCTION"));
     assert!(!api.calls()[0].system_contains("HOT_SKILL_INSTRUCTION"));
+
+    let nested_dir = pipeline.working_dir().join("nested");
+    std::fs::create_dir_all(&nested_dir)?;
+    std::fs::write(nested_dir.join("AGENTS.md"), "NESTED_PROJECT_INSTRUCTION")?;
+    api.on("work in nested")
+        .call(ADD, json!({ "value": 1, "path": "nested/file.rs" }));
+    api.on("result: 1").reply("nested work complete");
+    pipeline.run(["work in nested"]).await?;
+    let calls = api.calls();
+    assert!(!calls[calls.len() - 2].system_contains("NESTED_PROJECT_INSTRUCTION"));
+    assert!(calls[calls.len() - 1].system_contains("NESTED_PROJECT_INSTRUCTION"));
 
     let skill_dir = pipeline.working_dir().join(".agents/skills/review");
     std::fs::create_dir_all(&skill_dir)?;

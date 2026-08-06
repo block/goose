@@ -16,10 +16,10 @@ use crate::agents::mcp_client::McpClientTrait;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::state_machine::{
     BangShellOperation, CompactionOperation, DoctorOperation, Emitter, ExitOnErrorOperation,
-    InferenceRunner, MaxTurnsOperation, Operation, RecipeOperation, RetryOperation, SkillOperation,
-    SlashCommandOperation, StateMachine, SteerOperation, SteerQueue, Step, StopHookOperation,
-    ToolApprovalOperation, ToolExecutionOperation, ToolPairCompactionOperation,
-    UnknownToolOperation,
+    InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation, RecipeOperation,
+    RetryOperation, SkillOperation, SlashCommandOperation, StateMachine, SteerOperation,
+    SteerQueue, Step, StopHookOperation, ToolApprovalOperation, ToolExecutionOperation,
+    ToolPairCompactionOperation, UnknownToolOperation,
 };
 use crate::agents::AgentEvent;
 use crate::config::permission::{PermissionLevel, PermissionManager};
@@ -81,6 +81,7 @@ impl TestPipeline {
             Arc::new(CompactionOperation::new(
                 provider.clone(),
                 self.model_config.clone(),
+                self.model_config.context_limit(),
                 COMPACTION_THRESHOLD,
             )),
             Arc::new(ToolPairCompactionOperation::new(
@@ -94,6 +95,7 @@ impl TestPipeline {
                 &self.tool_inspection_manager,
             )),
             Arc::new(DoctorOperation),
+            Arc::new(ProjectOperation),
             Arc::new(SkillOperation),
             Arc::new(RecipeOperation),
             Arc::new(ToolExecutionOperation::new(

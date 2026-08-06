@@ -421,6 +421,7 @@ impl Inference for InferenceRunner<'_> {
                         let (msg_opt, usage_opt) = match result {
                             Ok(chunk) => chunk,
                             Err(err) => {
+                                usage_effects.extend(accumulator.into_iter().map(StateEffect::from));
                                 usage_effects.extend(self.error_outcome(&err, emit).await);
                                 return applied(usage_effects);
                             }
