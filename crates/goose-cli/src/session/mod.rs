@@ -69,7 +69,12 @@ const SHELL_STATUS_MAX_LINES: usize = 3;
 const SHELL_STATUS_RESERVED_WIDTH: usize = 2;
 
 fn planner_provider_messages(plan_messages: &Conversation) -> Conversation {
-    let projected_messages = plan_messages.agent_visible_messages();
+    // The planner prompt has no turn-context instructions; drop the blocks.
+    let projected_messages: Vec<Message> = plan_messages
+        .agent_visible_messages()
+        .into_iter()
+        .filter(|message| !message.is_turn_context())
+        .collect();
     let fixed = fix_conversation(Conversation::new_unvalidated(projected_messages)).0;
     Conversation::new_unvalidated(merge_consecutive_messages_for_request(
         fixed.messages().clone(),
@@ -2652,6 +2657,32 @@ mod tests {
         assert!(!provider_messages[0]
             .as_concat_text()
             .contains("hidden separator"));
+    }
+
+    #[test]
+    fn planner_history_excludes_turn_context_events() {
+        use goose::conversation::message::MessageMetadata;
+
+        let history = Conversation::new_unvalidated([
+            Message::user().with_text("plan the refactor"),
+            Message::user()
+                .with_text("<turn-context>cwd /repo, todo: ship v2</turn-context>")
+                .with_metadata(MessageMetadata::agent_only().with_turn_context()),
+            Message::assistant().with_text("on it"),
+        ]);
+
+        let provider_text = planner_provider_messages(&history)
+            .agent_visible_messages()
+            .iter()
+            .map(|message| message.as_concat_text())
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(provider_text.contains("plan the refactor"));
+        assert!(
+            !provider_text.contains("turn-context"),
+            "the planner prompt has no turn-context instructions, so blocks must not reach it"
+        );
     }
 
     #[test]

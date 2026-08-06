@@ -2280,8 +2280,7 @@ impl Agent {
                 )
                 .await?;
             }
-            // Recipe-retry snapshot; taken after the turn-context append so a
-            // retried attempt keeps the request prefix already sent.
+            // Snapshot after the turn-context append so a retry keeps the sent prefix.
             let initial_messages = conversation.messages().clone();
 
             loop {
@@ -3741,7 +3740,7 @@ impl Agent {
             .filter(super::reply_parts::is_tool_visible_to_model)
             .collect();
 
-        messages = Conversation::new_unvalidated(messages.agent_visible_messages());
+        messages = Conversation::new_unvalidated(recipe_conversation_history(&messages));
         messages.push(Message::user().with_text(recipe_prompt));
 
         let (messages, issues) = fix_conversation(messages);
@@ -3918,6 +3917,15 @@ impl Agent {
     }
 }
 
+fn recipe_conversation_history(messages: &Conversation) -> Vec<Message> {
+    // The recipe prompt has no turn-context instructions; drop the blocks.
+    messages
+        .agent_visible_messages()
+        .into_iter()
+        .filter(|message| !message.is_turn_context())
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3932,6 +3940,25 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
+
+    #[test]
+    fn recipe_history_excludes_turn_context_events() {
+        use crate::conversation::message::MessageMetadata;
+
+        let history = Conversation::new_unvalidated([
+            Message::user().with_text("build me a recipe"),
+            Message::user()
+                .with_text("<turn-context>cwd /repo</turn-context>")
+                .with_metadata(MessageMetadata::agent_only().with_turn_context()),
+            Message::assistant().with_text("on it"),
+        ]);
+
+        let texts: Vec<String> = recipe_conversation_history(&history)
+            .iter()
+            .map(|message| message.as_concat_text())
+            .collect();
+        assert_eq!(texts, ["build me a recipe", "on it"]);
+    }
 
     async fn tracing_test_agent_and_session() -> (Agent, Session, TempDir) {
         let data_dir = TempDir::new().unwrap();
