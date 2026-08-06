@@ -54,6 +54,7 @@ export function SessionMatrix({
   busy: boolean;
 }) {
   const [daysOffset, setDaysOffset] = useState(0);
+  const [preview, setPreview] = useState<MatrixSession | null>(null);
 
   const { label, daySessions } = useMemo(() => {
     const target = new Date();
@@ -90,7 +91,7 @@ export function SessionMatrix({
           aria-label="previous day"
           className="text-text-secondary hover:text-text-primary disabled:opacity-30 p-1"
           disabled={daysOffset >= 60}
-          onClick={() => setDaysOffset((d) => Math.min(60, d + 1))}
+          onClick={() => { setPreview(null); setDaysOffset((d) => Math.min(60, d + 1)); }}
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -102,13 +103,13 @@ export function SessionMatrix({
           aria-label="next day"
           className="text-text-secondary hover:text-text-primary disabled:opacity-30 p-1"
           disabled={daysOffset === 0}
-          onClick={() => setDaysOffset((d) => Math.max(0, d - 1))}
+          onClick={() => { setPreview(null); setDaysOffset((d) => Math.max(0, d - 1)); }}
         >
           <ChevronRight className="w-4 h-4" />
         </button>
       </div>
 
-      <div className="relative flex-1 min-h-0 mx-3 md:mx-8">
+      <div className="relative flex-1 min-h-0 mx-3 md:mx-8" onClick={(e) => { if (e.target === e.currentTarget) setPreview(null); }}>
         {points.length > 1 && (
           <svg
             className="absolute inset-0 w-full h-full pointer-events-none"
@@ -139,7 +140,9 @@ export function SessionMatrix({
               style={{ left: `${x}%`, top: `${y}%` }}
               title={s.title ?? s.sessionId}
               aria-label={s.title ?? s.sessionId}
-              onClick={() => onOpen(s.sessionId)}
+              onClick={() =>
+                preview?.sessionId === s.sessionId ? onOpen(s.sessionId) : setPreview(s)
+              }
             >
               {live && (
                 <span
@@ -149,7 +152,7 @@ export function SessionMatrix({
               )}
               <span
                 className={`rounded-full transition-transform group-hover:scale-125 ${
-                  selected
+                  selected || preview?.sessionId === s.sessionId
                     ? "bg-background-inverse ring-2 ring-border-info"
                     : live
                       ? "bg-text-info"
@@ -176,6 +179,32 @@ export function SessionMatrix({
         )}
       </div>
 
+      {preview && (
+        <div
+          id="matrix-preview"
+          className="shrink-0 mx-3 md:mx-auto md:w-[420px] mb-2 border border-border-primary rounded-xl bg-background-secondary px-3.5 py-2.5 flex items-center gap-3"
+        >
+          <span className="flex-1 min-w-0">
+            <span className="block text-sm font-medium truncate">
+              {preview.title || preview.sessionId.slice(0, 12)}
+            </span>
+            <span className="block text-[10px] text-text-tertiary">
+              {messageCount(preview)} messages
+              {preview.updatedAt
+                ? ` · ${new Date(preview.updatedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`
+                : ""}
+              {isLive(preview) ? " · live" : ""}
+            </span>
+          </span>
+          <button
+            id="matrix-open"
+            className="shrink-0 bg-background-inverse text-text-inverse text-xs font-medium rounded-lg px-3 py-1.5 hover:brightness-110"
+            onClick={() => onOpen(preview.sessionId)}
+          >
+            open
+          </button>
+        </div>
+      )}
       <div className="shrink-0 pb-4 pt-1 grid place-items-center">
         <button
           id="matrix-new-session"

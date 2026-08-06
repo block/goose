@@ -44,3 +44,24 @@ a:focus-visible {
   outline-offset: 2px;
   border-radius: var(--border-radius-sm, 4px);
 }
+
+/* --- app shell lock: the page never scrolls, only inner panes do --- */
+html, body, #root {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+body {
+  touch-action: manipulation; /* no double-tap zoom delay */
+  -webkit-user-select: none;
+  user-select: none;
+}
+#log, #session-list, textarea, input, pre, code, .msg {
+  -webkit-user-select: text;
+  user-select: text;
+}
+#log, #session-list {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}

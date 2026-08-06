@@ -112,6 +112,18 @@ const HOSTS_KEY = "goose-roam-hosts";
 
 type SavedHost = { name: string; card: string; endpointId: string; lastUsed: number };
 
+function relayRegion(cardText: string): string | null {
+  try {
+    const b64 = cardText.trim().replace(/^goose\+roam:\/\//, "");
+    const json = JSON.parse(atob(b64.replace(/-/g, "+").replace(/_/g, "/")));
+    const url: string | undefined = json.relay_urls?.[0];
+    const m = url?.match(/^https?:\/\/([a-z0-9-]+)\./i);
+    return m ? m[1] : null;
+  } catch {
+    return null;
+  }
+}
+
 function loadHosts(): SavedHost[] {
   try {
     return JSON.parse(localStorage.getItem(HOSTS_KEY) ?? "[]");
@@ -137,6 +149,7 @@ export function App({ roam }: { roam: RoamClient }) {
   const [busy, setBusy] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [modelName, setModelName] = useState<string | null>(null);
+  const [relay, setRelay] = useState<string | null>(null);
   const [card, setCard] = useState("");
   const agentRef = useRef<GooseClient | null>(null);
   const connRef = useRef<RoamConnection | null>(null);
@@ -500,6 +513,7 @@ export function App({ roam }: { roam: RoamClient }) {
         }
       });
       reconnectAttempt.current = 0;
+      setRelay(relayRegion(text));
       {
         const eid = conn.agentId();
         const next = loadHosts().filter((h) => h.endpointId !== eid);
@@ -584,7 +598,7 @@ export function App({ roam }: { roam: RoamClient }) {
           : "text-text-secondary";
 
   return (
-    <div className="h-screen flex flex-col bg-background-primary text-text-primary">
+    <div className="h-[100dvh] flex flex-col bg-background-primary text-text-primary pb-[env(safe-area-inset-bottom)]">
       <div className="flex items-center justify-between gap-2 px-3 md:px-4 py-2.5 border-b border-border-primary bg-background-secondary shrink-0">
         <div className="flex items-center gap-2 shrink-0">
           {connected && (
@@ -822,7 +836,7 @@ export function App({ roam }: { roam: RoamClient }) {
               ))}
             </div>
             <div className="mt-auto pt-2 border-t border-border-primary text-[10px] text-text-tertiary font-mono truncate">
-              {modelName ? `${modelName} · ` : ""}agent {agentId.slice(0, 8)}
+              {modelName ? `${modelName} · ` : ""}{relay ? `via relay ${relay} · ` : ""}agent {agentId.slice(0, 8)}
             </div>
           </aside>
 
