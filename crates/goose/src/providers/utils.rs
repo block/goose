@@ -235,10 +235,9 @@ impl RequestLog {
             .ok_or_else(|| anyhow!("request log state directory has no parent"))?;
         fs_err::create_dir_all(state_parent)?;
         #[cfg(unix)]
-        validate_request_log_parent(state_parent)?;
+        create_and_restrict_request_log_state_directory(&state_dir)?;
+        #[cfg(not(unix))]
         fs_err::create_dir_all(&state_dir)?;
-        #[cfg(unix)]
-        restrict_request_log_directory(&state_dir)?;
         fs_err::create_dir_all(&logs_dir)?;
         #[cfg(unix)]
         {
@@ -250,14 +249,25 @@ impl RequestLog {
 }
 
 #[cfg(unix)]
-fn validate_request_log_parent(parent: &std::path::Path) -> Result<()> {
+fn create_and_restrict_request_log_state_directory(state_dir: &std::path::Path) -> Result<()> {
+    use std::ffi::CString;
     use std::io::{Error, ErrorKind};
+    use std::os::fd::{AsRawFd, FromRawFd};
+    use std::os::unix::ffi::OsStrExt;
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
-    validate_request_log_directory_link_owner(parent, current_effective_uid())?;
+    let parent = state_dir
+        .parent()
+        .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "state directory has no parent"))?;
+    let file_name = state_dir
+        .file_name()
+        .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "state directory has no file name"))?;
+    let file_name = CString::new(file_name.as_bytes())
+        .map_err(|_| Error::new(ErrorKind::InvalidInput, "state directory name contains NUL"))?;
+
     let directory = open_search_only_directory(parent)?;
-    let metadata = directory.metadata()?;
-    if !metadata.is_dir() {
+    let parent_metadata = directory.metadata()?;
+    if !parent_metadata.is_dir() {
         return Err(Error::new(
             ErrorKind::InvalidInput,
             "request log state parent is not a directory",
@@ -265,20 +275,108 @@ fn validate_request_log_parent(parent: &std::path::Path) -> Result<()> {
         .into());
     }
 
-    let mode = metadata.permissions().mode();
-    if mode & 0o022 != 0 && mode & 0o1000 == 0 {
+    // SAFETY: the name pointer is valid for the synchronous call and the parent fd is retained.
+    if unsafe { libc::mkdirat(directory.as_raw_fd(), file_name.as_ptr(), 0o700) } < 0 {
+        let error = Error::last_os_error();
+        if error.kind() != ErrorKind::AlreadyExists {
+            return Err(error.into());
+        }
+    }
+
+    // SAFETY: libc::stat is initialized before fstatat writes it.
+    let mut entry: libc::stat = unsafe { std::mem::zeroed() };
+    // SAFETY: pointers remain valid for the call and the parent fd is retained.
+    if unsafe {
+        libc::fstatat(
+            directory.as_raw_fd(),
+            file_name.as_ptr(),
+            &mut entry,
+            libc::AT_SYMLINK_NOFOLLOW,
+        )
+    } < 0
+    {
+        return Err(Error::last_os_error().into());
+    }
+
+    let entry_type = entry.st_mode & libc::S_IFMT;
+    let entry_is_symlink = entry_type == libc::S_IFLNK;
+    if entry_is_symlink {
+        if !request_log_directory_link_owner_is_trusted(entry.st_uid, current_effective_uid()) {
+            return Err(Error::new(
+                ErrorKind::PermissionDenied,
+                "request log state directory symlink is owned by another user",
+            )
+            .into());
+        }
+        let parent_mode = parent_metadata.permissions().mode();
+        if parent_mode & 0o022 != 0 && parent_mode & 0o1000 == 0 {
+            return Err(Error::new(
+                ErrorKind::PermissionDenied,
+                "request log state directory symlink is replaceable by another user",
+            )
+            .into());
+        }
+    } else if entry_type != libc::S_IFDIR {
         return Err(Error::new(
-            ErrorKind::PermissionDenied,
-            "request log state parent is writable by other users without the sticky bit",
+            ErrorKind::InvalidInput,
+            "request log state path is not a directory",
         )
         .into());
     }
 
-    let current = open_search_only_directory(parent)?.metadata()?;
-    if metadata.dev() != current.dev() || metadata.ino() != current.ino() {
+    let flags = directory_search_flags()
+        | if entry_is_symlink {
+            0
+        } else {
+            libc::O_NOFOLLOW
+        };
+    // SAFETY: the name pointer is valid for the synchronous call and the parent fd is retained.
+    let state_fd = unsafe { libc::openat(directory.as_raw_fd(), file_name.as_ptr(), flags) };
+    if state_fd < 0 {
+        return Err(Error::last_os_error().into());
+    }
+    // SAFETY: openat returned a new owned descriptor.
+    let state_directory = unsafe { std::fs::File::from_raw_fd(state_fd) };
+    let metadata = state_directory.metadata()?;
+    if !metadata.is_dir() || metadata.uid() != current_effective_uid() {
         return Err(Error::new(
             ErrorKind::PermissionDenied,
-            "request log state parent changed while it was validated",
+            "request log state directory is not owned by the current user",
+        )
+        .into());
+    }
+
+    let current_directory = CString::new(".").unwrap();
+    // SAFETY: resolving `.` relative to the retained state descriptor binds chmod to it.
+    if unsafe {
+        libc::fchmodat(
+            state_directory.as_raw_fd(),
+            current_directory.as_ptr(),
+            0o700,
+            0,
+        )
+    } < 0
+    {
+        return Err(Error::last_os_error().into());
+    }
+
+    // SAFETY: libc::stat is initialized before fstatat writes it.
+    let mut current: libc::stat = unsafe { std::mem::zeroed() };
+    // SAFETY: pointers remain valid for the call and the parent fd is retained.
+    if unsafe { libc::fstatat(directory.as_raw_fd(), file_name.as_ptr(), &mut current, 0) } < 0 {
+        return Err(Error::last_os_error().into());
+    }
+    let updated = state_directory.metadata()?;
+    if metadata.dev() != updated.dev()
+        || metadata.ino() != updated.ino()
+        || metadata.dev() != current.st_dev as u64
+        || metadata.ino() != current.st_ino as u64
+        || !updated.is_dir()
+        || updated.uid() != current_effective_uid()
+    {
+        return Err(Error::new(
+            ErrorKind::PermissionDenied,
+            "request log state directory changed while permissions were restricted",
         )
         .into());
     }
@@ -1036,20 +1134,22 @@ mod tests {
 
     #[test]
     #[cfg(unix)]
-    fn request_log_state_parent_must_prevent_entry_replacement() {
+    fn request_log_state_directory_is_anchored_in_writable_parent() {
         use std::os::unix::fs::PermissionsExt;
 
         let root = tempfile::tempdir().unwrap();
         std::fs::set_permissions(root.path(), std::fs::Permissions::from_mode(0o777)).unwrap();
+        let state_dir = root.path().join("state");
 
-        let error = validate_request_log_parent(root.path()).unwrap_err();
+        create_and_restrict_request_log_state_directory(&state_dir).unwrap();
         assert_eq!(
             std::fs::metadata(root.path()).unwrap().permissions().mode() & 0o7777,
             0o777
         );
-        assert!(error
-            .to_string()
-            .contains("writable by other users without the sticky bit"));
+        assert_eq!(
+            std::fs::metadata(state_dir).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
     }
 
     #[test]
@@ -1195,7 +1295,7 @@ mod tests {
         std::fs::set_permissions(&state_dir, std::fs::Permissions::from_mode(0o377)).unwrap();
         std::fs::set_permissions(&logs_dir, std::fs::Permissions::from_mode(0o377)).unwrap();
         let state_parent = state_dir.parent().unwrap();
-        std::fs::set_permissions(state_parent, std::fs::Permissions::from_mode(0o1777)).unwrap();
+        std::fs::set_permissions(state_parent, std::fs::Permissions::from_mode(0o377)).unwrap();
 
         RequestLog::new(1).unwrap();
 
@@ -1204,8 +1304,8 @@ mod tests {
                 .unwrap()
                 .permissions()
                 .mode()
-                & 0o7777,
-            0o1777
+                & 0o777,
+            0o377
         );
         assert_eq!(
             std::fs::metadata(&state_dir).unwrap().permissions().mode() & 0o777,
