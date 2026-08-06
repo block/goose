@@ -399,25 +399,43 @@ fn available_commands_update(working_dir: &std::path::Path) -> AvailableCommands
     AvailableCommandsUpdate::new(available_commands_for_working_dir(working_dir))
 }
 
-pub(super) fn send_session_setup_notifications(
+pub(super) fn send_usage_update_notifications(
     cx: &ConnectionTo<Client>,
     session: &Session,
     totals: &SessionUsageTotals,
     provider_context_limit: Option<u64>,
     supports_goose_custom_notifications: bool,
 ) -> Result<(), agent_client_protocol::Error> {
-    let session_id = SessionId::new(session.id.clone());
-    if let Some(updates) = build_usage_updates(session, totals, provider_context_limit) {
-        if supports_goose_custom_notifications {
-            cx.send_notification(updates.custom)?;
-        }
-        cx.send_notification(SessionNotification::new(
-            session_id.clone(),
-            SessionUpdate::UsageUpdate(updates.standard),
-        ))?;
+    let Some(updates) = build_usage_updates(session, totals, provider_context_limit) else {
+        return Ok(());
+    };
+    if supports_goose_custom_notifications {
+        cx.send_notification(updates.custom)?;
     }
+    // Standard ACP notification — emitted alongside the custom one for
+    // backwards compatibility. Remove once all known clients have
+    // migrated to `_goose/unstable/session/update`.
     cx.send_notification(SessionNotification::new(
-        session_id,
+        SessionId::new(session.id.clone()),
+        SessionUpdate::UsageUpdate(updates.standard),
+    ))
+}
+
+pub(super) fn send_session_setup_notifications(
+    cx: &ConnectionTo<Client>,
+    session: &Session,
+    totals: &SessionUsageTotals,
+    supports_goose_custom_notifications: bool,
+) -> Result<(), agent_client_protocol::Error> {
+    send_usage_update_notifications(
+        cx,
+        session,
+        totals,
+        None,
+        supports_goose_custom_notifications,
+    )?;
+    cx.send_notification(SessionNotification::new(
+        SessionId::new(session.id.clone()),
         SessionUpdate::AvailableCommandsUpdate(available_commands_update(&session.working_dir)),
     ))
 }

@@ -3,8 +3,9 @@ use crate::acp::custom_requests::*;
 use crate::acp::fs::AcpTools;
 pub(super) use crate::acp::response_builder::{
     build_config_options, build_mode_state, build_model_state, build_provider_options,
-    build_session_info, build_session_setup_config, send_session_setup_notifications, session_meta,
-    session_provider_selection, session_response_meta, should_refresh_inventory_for_session_init,
+    build_session_info, build_session_setup_config, send_session_setup_notifications,
+    send_usage_update_notifications, session_meta, session_provider_selection,
+    session_response_meta, should_refresh_inventory_for_session_init,
 };
 use crate::acp::tool_call_notifier::ToolCallNotifier;
 use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
@@ -542,10 +543,20 @@ pub(super) async fn resolve_provider_context_limit(
     agent: &Agent,
     session: &Session,
 ) -> Option<u64> {
-    let model_config = session.model_config.as_ref()?;
+    resolve_model_context_limit(agent, session.model_config.as_ref()?).await
+}
+
+async fn resolve_model_context_limit(
+    agent: &Agent,
+    model_config: &goose_providers::model::ModelConfig,
+) -> Option<u64> {
     let provider = agent.provider().await.ok()?;
     let limit = provider.get_context_limit(model_config).await.ok()?;
     Some(limit as u64)
+}
+
+fn context_limit_correction(resolved: Option<u64>, fallback: u64) -> Option<u64> {
+    resolved.filter(|limit| *limit != fallback)
 }
 
 pub(super) fn build_usage_updates(
@@ -617,21 +628,74 @@ impl GooseAcpAgent {
             .get_session_usage_totals(&session.id)
             .await
             .unwrap_or_default();
-        let agent = {
-            let sessions = self.sessions.lock().await;
-            sessions.get(&session.id).map(|s| s.agent.clone())
-        };
-        let provider_context_limit = match &agent {
-            Some(agent) => resolve_provider_context_limit(agent, session).await,
-            None => None,
-        };
         send_session_setup_notifications(
             cx,
             session,
             &totals,
-            provider_context_limit,
             self.supports_goose_custom_notifications(),
-        )
+        )?;
+        self.spawn_context_limit_refresh(cx, session).await;
+        Ok(())
+    }
+
+    /// Resolving the context limit can hit the network (e.g. an OpenAI-compatible
+    /// `/v1/models` probe), so session setup answers with the model-config
+    /// fallback and this task pushes a corrected usage update if the provider
+    /// reports a different window.
+    async fn spawn_context_limit_refresh(&self, cx: &ConnectionTo<Client>, session: &Session) {
+        let Some(model_config) = session.model_config.clone() else {
+            return;
+        };
+        let agent = {
+            let sessions = self.sessions.lock().await;
+            sessions.get(&session.id).map(|s| s.agent.clone())
+        };
+        let Some(agent) = agent else {
+            return;
+        };
+
+        let fallback_context_limit = model_config.context_limit() as u64;
+        let cx = cx.clone();
+        let session_id = session.id.clone();
+        let session_manager = Arc::clone(&self.session_manager);
+        let supports_goose_custom_notifications = self.supports_goose_custom_notifications();
+        tokio::spawn(async move {
+            let resolved = resolve_model_context_limit(&agent, &model_config).await;
+            let Some(context_limit) = context_limit_correction(resolved, fallback_context_limit)
+            else {
+                return;
+            };
+
+            let session = match session_manager.get_session(&session_id, false).await {
+                Ok(session) => session,
+                Err(error) => {
+                    warn!(
+                        session_id = %session_id,
+                        error = %error,
+                        "Failed to reload session for context limit update"
+                    );
+                    return;
+                }
+            };
+            let totals = session_manager
+                .get_session_usage_totals(&session_id)
+                .await
+                .unwrap_or_default();
+
+            if let Err(error) = send_usage_update_notifications(
+                &cx,
+                &session,
+                &totals,
+                Some(context_limit),
+                supports_goose_custom_notifications,
+            ) {
+                warn!(
+                    session_id = %session_id,
+                    error = %error,
+                    "Failed to send context limit update"
+                );
+            }
+        });
     }
 
     pub(super) fn supports_recipe_param_requests(&self) -> bool {
@@ -1932,18 +1996,13 @@ impl GooseAcpAgent {
             .await
             .unwrap_or_default();
         let provider_context_limit = resolve_provider_context_limit(&agent, &session).await;
-        if let Some(updates) = build_usage_updates(&session, &totals, provider_context_limit) {
-            if self.supports_goose_custom_notifications() {
-                cx.send_notification(updates.custom)?;
-            }
-            // Standard ACP notification — emitted alongside the custom one for
-            // backwards compatibility. Remove once all known clients have
-            // migrated to `_goose/unstable/session/update`.
-            cx.send_notification(SessionNotification::new(
-                args.session_id.clone(),
-                SessionUpdate::UsageUpdate(updates.standard),
-            ))?;
-        }
+        send_usage_update_notifications(
+            cx,
+            &session,
+            &totals,
+            provider_context_limit,
+            self.supports_goose_custom_notifications(),
+        )?;
 
         let stop_reason = prompt_stop_reason(was_cancelled, output_token_limit_reached);
 
@@ -2734,6 +2793,13 @@ print(\"hello, world\")
         };
         assert_eq!(usage.context_limit, 258_400);
         assert_eq!(updates.standard.size, 258_400);
+    }
+
+    #[test_case(None, 128_000 => None ; "unresolved limit sends nothing")]
+    #[test_case(Some(128_000), 128_000 => None ; "limit matching the fallback sends nothing")]
+    #[test_case(Some(258_400), 128_000 => Some(258_400) ; "differing limit is sent")]
+    fn test_context_limit_correction(resolved: Option<u64>, fallback: u64) -> Option<u64> {
+        context_limit_correction(resolved, fallback)
     }
 
     #[test]
