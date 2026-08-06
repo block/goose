@@ -715,16 +715,7 @@ impl SummonClient {
     ) -> Result<Option<SourceEntry>, String> {
         let sources = self.get_sources(session_id, working_dir).await;
 
-        if let Some(mut source) = sources.iter().find(|s| s.name == name).cloned() {
-            if source.source_type == SourceType::Subrecipe && source.content.is_empty() {
-                source.content = self
-                    .load_subrecipe_content(session_id, &source.name)
-                    .await?;
-            }
-            return Ok(Some(source));
-        }
-
-        Ok(None)
+        Ok(sources.iter().find(|s| s.name == name).cloned())
     }
 
     async fn load_subrecipe_content(&self, session_id: &str, name: &str) -> Result<String, String> {
@@ -1203,7 +1194,12 @@ impl SummonClient {
         let source = self.resolve_source(session_id, name, working_dir).await?;
 
         match source {
-            Some(source) => {
+            Some(mut source) => {
+                if source.source_type == SourceType::Subrecipe && source.content.is_empty() {
+                    source.content = self
+                        .load_subrecipe_content(session_id, &source.name)
+                        .await?;
+                }
                 let content = source.to_load_text();
 
                 let output = format!(
