@@ -1376,7 +1376,7 @@ async fn handle_requests(
             ClientRequest::ClaudeSteer {
                 session_id,
                 content,
-                response_tx,
+                mut response_tx,
             } => {
                 let attempt_id = if enable_claude_lifecycle {
                     claude_steering_workaround
@@ -1385,25 +1385,31 @@ async fn handle_requests(
                 } else {
                     None
                 };
-                let result: Result<ClaudeSteeringResponse> = cx
-                    .send_request(ClaudeSteeringRequest::new(session_id, content))
-                    .block_task()
-                    .await
-                    .map_err(anyhow::Error::from);
+                // If the response and cancellation arrive together, preserve the actual steering outcome.
+                let steering_response = tokio::select! {
+                    biased;
+                    response = cx
+                        .send_request(ClaudeSteeringRequest::new(session_id, content))
+                        .block_task() => Some(response.map_err(anyhow::Error::from)),
+                    _ = response_tx.closed() => None,
+                };
                 if let (Some(workaround), Some(attempt_id)) =
                     (&claude_steering_workaround, attempt_id)
                 {
-                    let action = match &result {
-                        Ok(ClaudeSteeringResponse::Injected) => {
+                    let action = match &steering_response {
+                        Some(Ok(ClaudeSteeringResponse::Injected)) => {
                             workaround.steering_injected(attempt_id)
                         }
-                        Ok(ClaudeSteeringResponse::PromptRequired { .. }) | Err(_) => {
-                            workaround.steering_not_injected(attempt_id)
-                        }
+                        Some(Ok(ClaudeSteeringResponse::PromptRequired { .. }))
+                        | Some(Err(_))
+                        | None => workaround.steering_not_injected(attempt_id),
                     };
                     deliver_claude_completion_action(action, &prompt_response_tx);
                 }
-                log_undelivered(response_tx.send(result), "_session/steering");
+                let Some(response) = steering_response else {
+                    continue;
+                };
+                log_undelivered(response_tx.send(response), "_session/steering");
             }
             ClientRequest::Prompt {
                 session_id,

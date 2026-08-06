@@ -335,6 +335,111 @@ async fn sends_claude_steer_while_prompt_is_active() {
 }
 
 #[tokio::test]
+async fn cancelled_claude_steer_releases_client_request_loop() {
+    let (steer_responder_tx, mut steer_responders) = mpsc::unbounded_channel();
+    let (mode_received_tx, mut mode_received) = mpsc::unbounded_channel();
+
+    let agent = Agent
+        .builder()
+        .on_receive_request(
+            async |request: InitializeRequest, responder, _cx| {
+                let mut meta = serde_json::Map::new();
+                meta.insert(
+                    "steering".to_string(),
+                    serde_json::json!({ "supported": true }),
+                );
+                responder.respond(
+                    InitializeResponse::new(request.protocol_version)
+                        .agent_info(Implementation::new("claude-agent-acp", "0.64.0"))
+                        .meta(meta),
+                )
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
+        .on_receive_request(
+            async |_request: NewSessionRequest, responder, _cx| {
+                responder.respond(NewSessionResponse::new(ACP_SESSION_ID))
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
+        .on_receive_request(
+            async move |_request: ClaudeSteeringRequest, responder, _cx| {
+                steer_responder_tx.send(responder).unwrap();
+                Ok(())
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
+        .on_receive_request(
+            async move |_request: SetSessionModeRequest, responder, _cx| {
+                mode_received_tx.send(()).unwrap();
+                responder.respond(SetSessionModeResponse::new())
+            },
+            agent_client_protocol::on_receive_request!(),
+        );
+
+    let config = AcpProviderConfig {
+        command: "unused".into(),
+        args: vec![],
+        env: vec![],
+        env_remove: vec![],
+        work_dir: ".".into(),
+        mcp_servers: vec![],
+        session_mode_id: None,
+        session_config_options: vec![],
+        model_config_option_id: None,
+        mode_mapping: HashMap::new(),
+        notification_callback: None,
+    };
+    let provider = Arc::new(
+        AcpProvider::connect_with_transport(
+            CLAUDE_ACP_PROVIDER_NAME.to_string(),
+            GooseMode::Auto,
+            config,
+            agent,
+        )
+        .await
+        .unwrap(),
+    );
+    observe_sdk_message(
+        provider.claude_steering_workaround.as_ref().unwrap(),
+        serde_json::json!({
+            "type": "system",
+            "subtype": "init",
+            "capabilities": ["msg_lifecycle_v1"],
+        }),
+    );
+
+    let provider_for_steer = Arc::clone(&provider);
+    let steer = tokio::spawn(async move {
+        provider_for_steer
+            .steer_natively(
+                "goose-session",
+                &Message::user().with_text("Focus on the tests"),
+            )
+            .await
+    });
+    let _steer_responder = timeout(TEST_TIMEOUT, steer_responders.recv())
+        .await
+        .expect("steering request should start")
+        .expect("steering request channel should remain open");
+
+    steer.abort();
+    assert!(steer.await.unwrap_err().is_cancelled());
+
+    timeout(
+        TEST_TIMEOUT,
+        provider.send_set_mode("goose-session", "default".to_string()),
+    )
+    .await
+    .expect("the client loop should accept another request")
+    .unwrap();
+    timeout(TEST_TIMEOUT, mode_received.recv())
+        .await
+        .expect("mode request should arrive")
+        .expect("mode request channel should remain open");
+}
+
+#[tokio::test]
 async fn keeps_stream_open_until_injected_command_completes() {
     let release_prompt = Arc::new(Notify::new());
     let (prompt_started_tx, mut prompt_started) = mpsc::unbounded_channel();
