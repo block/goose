@@ -69,6 +69,8 @@ function modelFromConfigOptions(opts: any[] | null | undefined): string | null {
   return flat.find((x: any) => x.id === opt.currentValue)?.name ?? opt.currentValue ?? null;
 }
 
+const HOST_CARD_KEY = "goose-roam-last-host-card";
+
 let nextId = 1;
 
 export function App({ roam }: { roam: RoamClient }) {
@@ -155,6 +157,19 @@ export function App({ roam }: { roam: RoamClient }) {
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [items]);
+
+  // Remember the last host across refreshes: prefill and reconnect once.
+  const bootTried = useRef(false);
+  useEffect(() => {
+    if (bootTried.current) return;
+    bootTried.current = true;
+    const saved = localStorage.getItem(HOST_CARD_KEY);
+    if (saved) {
+      setCard(saved);
+      void connect(saved);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const push = useCallback((item: Omit<Item, "id">) => {
     streamRole.current = null;
@@ -327,8 +342,8 @@ export function App({ roam }: { roam: RoamClient }) {
     [push],
   );
 
-  const connect = useCallback(async () => {
-    const text = card.trim();
+  const connect = useCallback(async (cardText?: string) => {
+    const text = (cardText ?? card).trim();
     if (!text) return;
     setStatus("dialing host over relay…");
     setStatusKind("busy");
@@ -343,6 +358,18 @@ export function App({ roam }: { roam: RoamClient }) {
       await agent.initialize({
         protocolVersion: PROTOCOL_VERSION,
         clientCapabilities: { fs: { readTextFile: false, writeTextFile: false } },
+      });
+      localStorage.setItem(HOST_CARD_KEY, text);
+      // Surface unexpected drops (phone sleep, network switch): back to the
+      // connect panel with the card prefilled — one tap to reconnect.
+      void agent.closed.then(() => {
+        if (agentRef.current === agent) {
+          agentRef.current = null;
+          setConnected(false);
+          setBusy(false);
+          setStatus("connection lost — press connect");
+          setStatusKind("err");
+        }
       });
       setAgentId(conn.agentId());
       setConnected(true);
@@ -435,6 +462,19 @@ export function App({ roam }: { roam: RoamClient }) {
           <span id="status" className={`text-xs whitespace-nowrap ${statusColor}`}>
             {status}
           </span>
+          {connected && (
+            <button
+              id="switch-host"
+              className="text-[11px] text-text-secondary border border-border-secondary rounded-full px-2 py-0.5 hover:border-border-info"
+              title="disconnect and connect to a different host (keeps this browser's identity)"
+              onClick={() => {
+                localStorage.removeItem(HOST_CARD_KEY);
+                location.reload();
+              }}
+            >
+              switch
+            </button>
+          )}
         </div>
       </div>
 
