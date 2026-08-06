@@ -228,11 +228,14 @@ pub struct RequestLog {
 
 impl RequestLog {
     pub fn new(logs_to_keep: usize) -> Result<Self> {
+        let state_dir = Paths::state_dir();
         let logs_dir = Paths::in_state_dir("logs");
+        fs_err::create_dir_all(&state_dir)?;
+        #[cfg(unix)]
+        restrict_request_log_directory(&state_dir)?;
         fs_err::create_dir_all(&logs_dir)?;
         #[cfg(unix)]
         {
-            restrict_request_log_directory(&Paths::state_dir())?;
             restrict_request_log_directory(&logs_dir)?;
             restrict_existing_request_logs(&logs_dir)?;
         }
@@ -274,6 +277,24 @@ fn open_search_only_directory(path: &std::path::Path) -> std::io::Result<std::fs
 }
 
 #[cfg(unix)]
+fn validate_request_log_directory_link_owner(
+    path: &std::path::Path,
+    expected_uid: libc::uid_t,
+) -> std::io::Result<()> {
+    use std::io::{Error, ErrorKind};
+    use std::os::unix::fs::MetadataExt;
+
+    let metadata = std::fs::symlink_metadata(path)?;
+    if metadata.file_type().is_symlink() && metadata.uid() != expected_uid {
+        return Err(Error::new(
+            ErrorKind::PermissionDenied,
+            "request log directory symlink is owned by another user",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
 fn restrict_request_log_directory_with_hook(
     logs_dir: &std::path::Path,
     after_metadata: impl FnOnce(),
@@ -283,6 +304,7 @@ fn restrict_request_log_directory_with_hook(
     use std::os::fd::AsRawFd;
     use std::os::unix::fs::MetadataExt;
 
+    validate_request_log_directory_link_owner(logs_dir, current_effective_uid())?;
     let directory = open_search_only_directory(logs_dir)?;
     let metadata = directory.metadata()?;
 
@@ -786,6 +808,24 @@ mod tests {
             .unwrap()
             .file_type()
             .is_symlink());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn request_log_directory_symlink_requires_owner() {
+        use std::io::ErrorKind;
+        use std::os::unix::fs::symlink;
+
+        let root = tempfile::tempdir().unwrap();
+        let target = root.path().join("target");
+        let link = root.path().join("link");
+        std::fs::create_dir(&target).unwrap();
+        symlink(&target, &link).unwrap();
+
+        validate_request_log_directory_link_owner(&link, current_effective_uid()).unwrap();
+        let foreign_uid = if current_effective_uid() == 0 { 1 } else { 0 };
+        let error = validate_request_log_directory_link_owner(&link, foreign_uid).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::PermissionDenied);
     }
 
     #[test]
