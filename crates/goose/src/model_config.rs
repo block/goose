@@ -27,49 +27,17 @@ pub fn model_config_from_user_config_with_session_settings(
 ) -> Result<ModelConfig> {
     let config = Config::global();
     let model = base_model_config_from_user_config(provider_name, model_name.as_ref())?;
-    let model = materialize_model_config_inner(model, provider_name, false)?;
-    let config_limit = model.context_limit;
-    let model = model
+    let model = materialize_model_config_inner(model, provider_name, false)?
         .with_context_limit(context_limit)
         .with_inherited_session_settings_from(previous, request_params)
         .with_default_thinking_effort(config.get_goose_thinking_effort());
 
-    let model = apply_canonical_limits(provider_name, model);
-    log_context_limit_resolution(provider_name, &model, context_limit, config_limit);
-    Ok(model)
+    Ok(apply_canonical_limits(provider_name, model))
 }
 
 pub fn materialize_model_config(provider_name: &str, model: ModelConfig) -> Result<ModelConfig> {
-    let explicit_limit = model.context_limit;
     let model = materialize_model_config_inner(model, provider_name, true)?;
-    let config_limit = model.context_limit.filter(|_| explicit_limit.is_none());
-    let model = apply_canonical_limits(provider_name, model);
-    log_context_limit_resolution(provider_name, &model, explicit_limit, config_limit);
-    Ok(model)
-}
-
-fn log_context_limit_resolution(
-    provider_name: &str,
-    model: &ModelConfig,
-    explicit_limit: Option<usize>,
-    config_limit: Option<usize>,
-) {
-    let (limit, source) = match model.context_limit {
-        Some(limit) if explicit_limit.is_some() => (limit, "explicit_override"),
-        Some(limit) if config_limit.is_some() => (limit, "config_override"),
-        Some(limit) => (limit, "model_mapping"),
-        None => (
-            goose_providers::model::DEFAULT_CONTEXT_LIMIT,
-            "default_fallback",
-        ),
-    };
-    tracing::info!(
-        provider = provider_name,
-        model = %model.model_name,
-        limit,
-        source,
-        "context limit resolved"
-    );
+    Ok(apply_canonical_limits(provider_name, model))
 }
 
 fn apply_canonical_limits(provider_name: &str, model: ModelConfig) -> ModelConfig {

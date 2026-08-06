@@ -555,23 +555,7 @@ pub(super) fn build_usage_updates(
 ) -> Option<UsageUpdates> {
     let used = session.usage.total_tokens.unwrap_or(0).max(0) as u64;
     let model_config = session.model_config.as_ref()?;
-    let (ctx_limit, source) = match provider_context_limit {
-        Some(limit) => (limit, "provider"),
-        None if model_config.context_limit.is_some() => (
-            model_config.context_limit() as u64,
-            "session_model_config_fallback",
-        ),
-        None => (model_config.context_limit() as u64, "default_fallback"),
-    };
-    tracing::info!(
-        session_id = %session.id,
-        provider = session.provider_name.as_deref().unwrap_or("unknown"),
-        model = %model_config.model_name,
-        used,
-        context_limit = ctx_limit,
-        source,
-        "usage update sent to client"
-    );
+    let ctx_limit = provider_context_limit.unwrap_or(model_config.context_limit() as u64);
     let accumulated_input_tokens =
         to_nonnegative_u64(totals.accumulated_usage.input_tokens).unwrap_or(0);
     let accumulated_output_tokens =
