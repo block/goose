@@ -31,6 +31,7 @@ fn boundary_test_provider() -> (Arc<AcpProvider>, mpsc::Receiver<ClientRequest>)
         pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
         handoff_context_sent: AtomicBool::new(false),
         context_size: Arc::new(AtomicU64::new(0)),
+        session_title_publisher: SessionTitlePublisher::default(),
         model_config_option_id: None,
         applied_model: Arc::new(Mutex::new(None)),
         tx: Some(tx),
