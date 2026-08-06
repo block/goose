@@ -230,8 +230,46 @@ impl RequestLog {
     pub fn new(logs_to_keep: usize) -> Result<Self> {
         let logs_dir = Paths::in_state_dir("logs");
         fs_err::create_dir_all(&logs_dir)?;
+        #[cfg(unix)]
+        restrict_existing_request_logs(&logs_dir)?;
         Ok(Self { logs_to_keep })
     }
+}
+
+#[cfg(unix)]
+fn restrict_existing_request_logs(logs_dir: &std::path::Path) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    for entry in fs_err::read_dir(logs_dir)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_file() {
+            continue;
+        }
+
+        let file_name = entry.file_name();
+        let Some(file_name) = file_name.to_str() else {
+            continue;
+        };
+        if is_request_log_file_name(file_name) {
+            fs_err::set_permissions(entry.path(), std::fs::Permissions::from_mode(0o600))?;
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(unix)]
+fn is_request_log_file_name(file_name: &str) -> bool {
+    let Some(identifier) = file_name
+        .strip_prefix("llm_request.")
+        .and_then(|name| name.strip_suffix(".jsonl"))
+    else {
+        return false;
+    };
+
+    !identifier.is_empty()
+        && (identifier.bytes().all(|byte| byte.is_ascii_digit())
+            || (identifier.len() == 36 && Uuid::parse_str(identifier).is_ok()))
 }
 
 struct FileLogHandle {
@@ -317,6 +355,10 @@ mod tests {
     const REQUEST_LOG_PERMISSIONS_CHILD: &str = "GOOSE_REQUEST_LOG_PERMISSIONS_CHILD";
 
     #[cfg(unix)]
+    const REQUEST_LOG_UPGRADE_PERMISSIONS_CHILD: &str =
+        "GOOSE_REQUEST_LOG_UPGRADE_PERMISSIONS_CHILD";
+
+    #[cfg(unix)]
     fn assert_owner_only(path: &std::path::Path) {
         use std::os::unix::fs::PermissionsExt;
 
@@ -385,6 +427,119 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(rotated_path).unwrap(),
             "sensitive request and response\n"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn request_log_file_name_matching_is_exact() {
+        assert!(is_request_log_file_name("llm_request.0.jsonl"));
+        assert!(is_request_log_file_name("llm_request.123.jsonl"));
+        assert!(is_request_log_file_name(
+            "llm_request.550e8400-e29b-41d4-a716-446655440000.jsonl"
+        ));
+
+        for file_name in [
+            "llm_request.jsonl",
+            "llm_request..jsonl",
+            "llm_request.notes.jsonl",
+            "llm_request.-1.jsonl",
+            "llm_request.0.jsonl.bak",
+            "other.0.jsonl",
+        ] {
+            assert!(!is_request_log_file_name(file_name), "{file_name}");
+        }
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn existing_request_logs_are_restricted_on_upgrade() {
+        use std::os::unix::process::CommandExt;
+        use std::process::Command;
+
+        let root = tempfile::tempdir().unwrap();
+        let mut command = Command::new(std::env::current_exe().unwrap());
+        command
+            .arg("--exact")
+            .arg("providers::utils::tests::request_log_upgrade_permissions_child")
+            .arg("--nocapture")
+            .env(REQUEST_LOG_UPGRADE_PERMISSIONS_CHILD, "1")
+            .env("GOOSE_PATH_ROOT", root.path());
+        unsafe {
+            command.pre_exec(|| {
+                libc::umask(0o022);
+                Ok(())
+            });
+        }
+
+        let output = command.output().unwrap();
+        assert!(
+            output.status.success(),
+            "upgrade permission test subprocess failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn request_log_upgrade_permissions_child() {
+        use std::os::unix::fs::{symlink, PermissionsExt};
+
+        if std::env::var_os(REQUEST_LOG_UPGRADE_PERMISSIONS_CHILD).is_none() {
+            return;
+        }
+
+        let logs_dir = Paths::in_state_dir("logs");
+        std::fs::create_dir_all(&logs_dir).unwrap();
+        let numbered_log = logs_dir.join("llm_request.7.jsonl");
+        let uuid_log = logs_dir.join("llm_request.550e8400-e29b-41d4-a716-446655440000.jsonl");
+        let unrelated_file = logs_dir.join("llm_request.notes.jsonl");
+        let matching_directory = logs_dir.join("llm_request.8.jsonl");
+        let symlink_target = logs_dir.join("symlink-target.jsonl");
+        let matching_symlink = logs_dir.join("llm_request.9.jsonl");
+
+        for path in [&numbered_log, &uuid_log, &unrelated_file, &symlink_target] {
+            std::fs::write(path, "sensitive request and response").unwrap();
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        }
+        std::fs::create_dir(&matching_directory).unwrap();
+        std::fs::set_permissions(&matching_directory, std::fs::Permissions::from_mode(0o755))
+            .unwrap();
+        symlink(&symlink_target, &matching_symlink).unwrap();
+
+        RequestLog::new(1).unwrap();
+
+        assert_owner_only(&numbered_log);
+        assert_owner_only(&uuid_log);
+        assert_eq!(
+            std::fs::metadata(&unrelated_file)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o644
+        );
+        assert!(matching_directory.is_dir());
+        assert_eq!(
+            std::fs::metadata(&matching_directory)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o755
+        );
+        assert!(std::fs::symlink_metadata(&matching_symlink)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert_eq!(
+            std::fs::metadata(&symlink_target)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o644
         );
     }
 
