@@ -232,6 +232,7 @@ impl RequestLog {
         fs_err::create_dir_all(&logs_dir)?;
         #[cfg(unix)]
         {
+            restrict_request_log_directory(&Paths::state_dir())?;
             restrict_request_log_directory(&logs_dir)?;
             restrict_existing_request_logs(&logs_dir)?;
         }
@@ -241,83 +242,76 @@ impl RequestLog {
 
 #[cfg(unix)]
 fn restrict_request_log_directory(logs_dir: &std::path::Path) -> Result<()> {
+    restrict_request_log_directory_with_hook(logs_dir, || {})
+}
+
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn directory_search_flags() -> libc::c_int {
+    libc::O_PATH | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC
+}
+
+#[cfg(all(unix, target_vendor = "apple"))]
+fn directory_search_flags() -> libc::c_int {
+    libc::O_SEARCH | libc::O_NOFOLLOW | libc::O_CLOEXEC
+}
+
+#[cfg(all(
+    unix,
+    not(any(target_os = "linux", target_os = "android")),
+    not(target_vendor = "apple")
+))]
+fn directory_search_flags() -> libc::c_int {
+    libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC
+}
+
+#[cfg(unix)]
+fn open_search_only_directory(path: &std::path::Path) -> std::io::Result<std::fs::File> {
+    use std::os::unix::fs::OpenOptionsExt;
+
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true).custom_flags(directory_search_flags());
+    options.open(path)
+}
+
+#[cfg(unix)]
+fn restrict_request_log_directory_with_hook(
+    logs_dir: &std::path::Path,
+    after_metadata: impl FnOnce(),
+) -> Result<()> {
     use std::ffi::CString;
     use std::io::{Error, ErrorKind};
     use std::os::fd::AsRawFd;
-    use std::os::unix::ffi::OsStrExt;
+    use std::os::unix::fs::MetadataExt;
 
-    let (metadata, directory, file_name) = {
-        let parent = logs_dir
-            .parent()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "logs path has no parent"))?;
-        let file_name = logs_dir
-            .file_name()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "logs path has no file name"))?;
-        let file_name = CString::new(file_name.as_bytes())
-            .map_err(|_| Error::new(ErrorKind::InvalidInput, "logs path contains NUL"))?;
-        let directory = std::fs::File::open(parent)?;
-        // SAFETY: libc::stat is initialized before fstatat writes it.
-        let mut metadata: libc::stat = unsafe { std::mem::zeroed() };
-        // SAFETY: pointers remain valid for the synchronous call and the directory fd is open.
-        if unsafe {
-            libc::fstatat(
-                directory.as_raw_fd(),
-                file_name.as_ptr(),
-                &mut metadata,
-                libc::AT_SYMLINK_NOFOLLOW,
-            )
-        } < 0
-        {
-            return Err(Error::last_os_error().into());
-        }
-        (metadata, directory, file_name)
-    };
+    let directory = open_search_only_directory(logs_dir)?;
+    let metadata = directory.metadata()?;
 
-    if metadata.st_mode & libc::S_IFMT != libc::S_IFDIR {
+    if !metadata.is_dir() {
         return Err(Error::new(ErrorKind::InvalidInput, "logs path is not a directory").into());
     }
-    if metadata.st_uid != current_effective_uid() {
+    if metadata.uid() != current_effective_uid() {
         return Err(Error::new(
             ErrorKind::PermissionDenied,
             "logs directory is owned by another user",
         )
         .into());
     }
+    after_metadata();
 
-    #[cfg(target_os = "linux")]
-    let chmod_flags = 0;
-    #[cfg(not(target_os = "linux"))]
-    let chmod_flags = libc::AT_SYMLINK_NOFOLLOW;
-    // SAFETY: fchmodat does not retain the name pointer and is anchored at the open parent.
-    if unsafe {
-        libc::fchmodat(
-            directory.as_raw_fd(),
-            file_name.as_ptr(),
-            0o700,
-            chmod_flags,
-        )
-    } < 0
-    {
+    let current_directory = CString::new(".").unwrap();
+    // SAFETY: resolving `.` relative to the retained directory descriptor binds chmod to it.
+    if unsafe { libc::fchmodat(directory.as_raw_fd(), current_directory.as_ptr(), 0o700, 0) } < 0 {
         return Err(Error::last_os_error().into());
     }
 
-    // SAFETY: pointers remain valid for the synchronous call and the parent fd is open.
-    let mut updated: libc::stat = unsafe { std::mem::zeroed() };
-    if unsafe {
-        libc::fstatat(
-            directory.as_raw_fd(),
-            file_name.as_ptr(),
-            &mut updated,
-            libc::AT_SYMLINK_NOFOLLOW,
-        )
-    } < 0
-    {
-        return Err(Error::last_os_error().into());
-    }
-    if metadata.st_dev != updated.st_dev
-        || metadata.st_ino != updated.st_ino
-        || updated.st_mode & libc::S_IFMT != libc::S_IFDIR
-        || updated.st_uid != current_effective_uid()
+    let updated = directory.metadata()?;
+    let current = open_search_only_directory(logs_dir)?.metadata()?;
+    if metadata.dev() != updated.dev()
+        || metadata.ino() != updated.ino()
+        || metadata.dev() != current.dev()
+        || metadata.ino() != current.ino()
+        || !updated.is_dir()
+        || updated.uid() != current_effective_uid()
     {
         return Err(Error::new(
             ErrorKind::PermissionDenied,
@@ -758,6 +752,44 @@ mod tests {
 
     #[test]
     #[cfg(unix)]
+    fn request_log_directory_repair_is_bound_to_opened_directory() {
+        use std::os::unix::fs::{symlink, PermissionsExt};
+
+        let parent = tempfile::tempdir().unwrap();
+        let logs_dir = parent.path().join("logs");
+        let moved_logs_dir = parent.path().join("moved-logs");
+        let outside = parent.path().join("outside");
+        std::fs::create_dir(&logs_dir).unwrap();
+        std::fs::create_dir(&outside).unwrap();
+        std::fs::set_permissions(&logs_dir, std::fs::Permissions::from_mode(0o377)).unwrap();
+        std::fs::set_permissions(&outside, std::fs::Permissions::from_mode(0o777)).unwrap();
+
+        let result = restrict_request_log_directory_with_hook(&logs_dir, || {
+            std::fs::rename(&logs_dir, &moved_logs_dir).unwrap();
+            symlink(&outside, &logs_dir).unwrap();
+        });
+
+        assert!(result.is_err());
+        assert_eq!(
+            std::fs::metadata(&moved_logs_dir)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700
+        );
+        assert_eq!(
+            std::fs::metadata(&outside).unwrap().permissions().mode() & 0o777,
+            0o777
+        );
+        assert!(std::fs::symlink_metadata(&logs_dir)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+    }
+
+    #[test]
+    #[cfg(unix)]
     fn existing_request_logs_are_restricted_on_upgrade() {
         use std::os::unix::process::CommandExt;
         use std::process::Command;
@@ -798,6 +830,7 @@ mod tests {
         }
 
         let logs_dir = Paths::in_state_dir("logs");
+        let state_dir = Paths::state_dir();
         std::fs::create_dir_all(&logs_dir).unwrap();
         let numbered_log = logs_dir.join("llm_request.7.jsonl");
         let uuid_log = logs_dir.join("llm_request.550e8400-e29b-41d4-a716-446655440000.jsonl");
@@ -833,10 +866,15 @@ mod tests {
         let fifo_path = std::ffi::CString::new(matching_fifo.as_os_str().as_bytes()).unwrap();
         assert_eq!(unsafe { libc::mkfifo(fifo_path.as_ptr(), 0o666) }, 0);
         let _socket = UnixListener::bind(&matching_socket).unwrap();
+        std::fs::set_permissions(&state_dir, std::fs::Permissions::from_mode(0o377)).unwrap();
         std::fs::set_permissions(&logs_dir, std::fs::Permissions::from_mode(0o377)).unwrap();
 
         RequestLog::new(1).unwrap();
 
+        assert_eq!(
+            std::fs::metadata(&state_dir).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
         assert_eq!(
             std::fs::metadata(&logs_dir).unwrap().permissions().mode() & 0o777,
             0o700
