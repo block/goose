@@ -230,6 +230,12 @@ impl RequestLog {
     pub fn new(logs_to_keep: usize) -> Result<Self> {
         let state_dir = Paths::state_dir();
         let logs_dir = Paths::in_state_dir("logs");
+        let state_parent = state_dir
+            .parent()
+            .ok_or_else(|| anyhow!("request log state directory has no parent"))?;
+        fs_err::create_dir_all(state_parent)?;
+        #[cfg(unix)]
+        secure_request_log_parent(state_parent)?;
         fs_err::create_dir_all(&state_dir)?;
         #[cfg(unix)]
         restrict_request_log_directory(&state_dir)?;
@@ -241,6 +247,60 @@ impl RequestLog {
         }
         Ok(Self { logs_to_keep })
     }
+}
+
+#[cfg(unix)]
+fn secure_request_log_parent(parent: &std::path::Path) -> Result<()> {
+    use std::ffi::CString;
+    use std::io::{Error, ErrorKind};
+    use std::os::fd::AsRawFd;
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+    validate_request_log_directory_link_owner(parent, current_effective_uid())?;
+    let directory = open_search_only_directory(parent)?;
+    let metadata = directory.metadata()?;
+    if !metadata.is_dir() {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "request log state parent is not a directory",
+        )
+        .into());
+    }
+
+    if metadata.permissions().mode() & 0o022 != 0 {
+        if metadata.uid() != current_effective_uid() {
+            return Err(Error::new(
+                ErrorKind::PermissionDenied,
+                "writable request log state parent is owned by another user",
+            )
+            .into());
+        }
+        let current_directory = CString::new(".").unwrap();
+        // SAFETY: resolving `.` relative to the retained directory descriptor binds chmod to it.
+        if unsafe { libc::fchmodat(directory.as_raw_fd(), current_directory.as_ptr(), 0o700, 0) }
+            < 0
+        {
+            return Err(Error::last_os_error().into());
+        }
+    }
+
+    let updated = directory.metadata()?;
+    let current = open_search_only_directory(parent)?.metadata()?;
+    if metadata.dev() != updated.dev()
+        || metadata.ino() != updated.ino()
+        || metadata.dev() != current.dev()
+        || metadata.ino() != current.ino()
+        || !updated.is_dir()
+        || updated.permissions().mode() & 0o022 != 0
+    {
+        return Err(Error::new(
+            ErrorKind::PermissionDenied,
+            "request log state parent changed while permissions were restricted",
+        )
+        .into());
+    }
+
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -1092,9 +1152,19 @@ mod tests {
         let _socket = UnixListener::bind(&matching_socket).unwrap();
         std::fs::set_permissions(&state_dir, std::fs::Permissions::from_mode(0o377)).unwrap();
         std::fs::set_permissions(&logs_dir, std::fs::Permissions::from_mode(0o377)).unwrap();
+        let state_parent = state_dir.parent().unwrap();
+        std::fs::set_permissions(state_parent, std::fs::Permissions::from_mode(0o377)).unwrap();
 
         RequestLog::new(1).unwrap();
 
+        assert_eq!(
+            std::fs::metadata(state_parent)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700
+        );
         assert_eq!(
             std::fs::metadata(&state_dir).unwrap().permissions().mode() & 0o777,
             0o700
