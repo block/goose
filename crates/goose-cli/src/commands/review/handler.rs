@@ -448,6 +448,31 @@ fn untracked_files(repo_root: &Path, files: &[String]) -> Result<Vec<String>> {
         .collect())
 }
 
+#[cfg(unix)]
+fn read_untracked_regular_file(path: &Path) -> std::io::Result<String> {
+    use std::io::{Error, ErrorKind, Read};
+    use std::os::unix::fs::OpenOptionsExt;
+
+    let mut options = fs::OpenOptions::new();
+    options.read(true).custom_flags(libc::O_NOFOLLOW);
+    let mut file = options.open(path)?;
+    if !file.metadata()?.is_file() {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "untracked path is not a regular file",
+        ));
+    }
+
+    let mut content = String::new();
+    file.read_to_string(&mut content)?;
+    Ok(content)
+}
+
+#[cfg(not(unix))]
+fn read_untracked_regular_file(path: &Path) -> std::io::Result<String> {
+    fs::read_to_string(path)
+}
+
 /// Synthesize a unified `new file` diff for each untracked path so
 /// downstream parsers and the review prompt can treat them as
 /// additions. Symlinks are represented by their link text, matching Git.
@@ -470,7 +495,7 @@ fn synthesize_untracked_diff(repo_root: &Path, paths: &[String]) -> Result<Strin
             };
             ("120000", target.to_string())
         } else {
-            let content = match fs::read_to_string(&abs) {
+            let content = match read_untracked_regular_file(&abs) {
                 Ok(content) => content,
                 Err(_) => continue,
             };
@@ -640,6 +665,24 @@ mod tests {
 
         assert!(diff.contains("new file mode 120000"));
         assert!(diff.contains("+../missing-target"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn untracked_regular_file_reader_rejects_symlink_swap() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let path = dir.path().join("untracked.txt");
+        let secret = outside.path().join("secret.txt");
+        fs::write(&path, "safe worktree content").unwrap();
+        fs::write(&secret, "TOPSECRET-OUTSIDE-REPO").unwrap();
+
+        assert!(fs::symlink_metadata(&path).unwrap().is_file());
+        fs::remove_file(&path).unwrap();
+        std::os::unix::fs::symlink(&secret, &path).unwrap();
+
+        let error = read_untracked_regular_file(&path).unwrap_err();
+        assert_eq!(error.raw_os_error(), Some(libc::ELOOP));
     }
 
     #[test]

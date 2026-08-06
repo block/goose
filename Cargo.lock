@@ -5084,6 +5084,7 @@ dependencies = [
  "goose-mcp",
  "goose-providers",
  "indicatif",
+ "libc",
  "open",
  "rand 0.10.2",
  "regex",
