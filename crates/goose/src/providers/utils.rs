@@ -375,13 +375,23 @@ fn validate_request_log_directory_link_owner(
     use std::os::unix::fs::MetadataExt;
 
     let metadata = std::fs::symlink_metadata(path)?;
-    if metadata.file_type().is_symlink() && metadata.uid() != expected_uid {
+    if metadata.file_type().is_symlink()
+        && !request_log_directory_link_owner_is_trusted(metadata.uid(), expected_uid)
+    {
         return Err(Error::new(
             ErrorKind::PermissionDenied,
             "request log directory symlink is owned by another user",
         ));
     }
     Ok(())
+}
+
+#[cfg(unix)]
+fn request_log_directory_link_owner_is_trusted(
+    actual_uid: libc::uid_t,
+    expected_uid: libc::uid_t,
+) -> bool {
+    actual_uid == expected_uid || actual_uid == 0
 }
 
 #[cfg(any(
@@ -995,7 +1005,6 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn request_log_directory_symlink_requires_owner() {
-        use std::io::ErrorKind;
         use std::os::unix::fs::symlink;
 
         let root = tempfile::tempdir().unwrap();
@@ -1005,9 +1014,15 @@ mod tests {
         symlink(&target, &link).unwrap();
 
         validate_request_log_directory_link_owner(&link, current_effective_uid()).unwrap();
-        let foreign_uid = if current_effective_uid() == 0 { 1 } else { 0 };
-        let error = validate_request_log_directory_link_owner(&link, foreign_uid).unwrap_err();
-        assert_eq!(error.kind(), ErrorKind::PermissionDenied);
+        assert!(request_log_directory_link_owner_is_trusted(
+            0,
+            current_effective_uid()
+        ));
+        let foreign_uid = if current_effective_uid() == 1 { 2 } else { 1 };
+        assert!(!request_log_directory_link_owner_is_trusted(
+            foreign_uid,
+            current_effective_uid()
+        ));
     }
 
     #[test]
