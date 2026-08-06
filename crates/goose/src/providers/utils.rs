@@ -791,7 +791,7 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn request_log_directories_may_be_symlinked() {
-        use std::os::unix::fs::{PermissionsExt, symlink};
+        use std::os::unix::fs::{symlink, PermissionsExt};
 
         let root = tempfile::tempdir().unwrap();
         let state_target = root.path().join("state-target");
@@ -823,18 +823,14 @@ mod tests {
                 & 0o777,
             0o700
         );
-        assert!(
-            std::fs::symlink_metadata(&state_dir)
-                .unwrap()
-                .file_type()
-                .is_symlink()
-        );
-        assert!(
-            std::fs::symlink_metadata(state_target.join("logs"))
-                .unwrap()
-                .file_type()
-                .is_symlink()
-        );
+        assert!(std::fs::symlink_metadata(&state_dir)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert!(std::fs::symlink_metadata(state_target.join("logs"))
+            .unwrap()
+            .file_type()
+            .is_symlink());
     }
 
     #[test]
