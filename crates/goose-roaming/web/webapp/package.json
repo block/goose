@@ -12,6 +12,7 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "0.19.0",
     "jsqr": "^1.4.0",
+    "lucide-react": "^0.575.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-intl": "^10.1.0",

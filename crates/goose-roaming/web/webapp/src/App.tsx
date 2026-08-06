@@ -18,6 +18,8 @@ import {
 } from "@agentclientprotocol/sdk";
 import { GooseClient } from "@aaif/goose-sdk";
 import jsQR from "jsqr";
+import { Button } from "@desktop/components/ui/button";
+import { ChevronRight } from "lucide-react";
 import MarkdownContent from "@desktop/components/MarkdownContent";
 import { Goose } from "@desktop/components/icons/Goose";
 import { ToolCallStatusIndicator, type ToolCallStatus } from "@desktop/components/ToolCallStatusIndicator";
@@ -53,6 +55,40 @@ const ACP_TOOL_STATUS: Record<string, ToolCallStatus> = {
   completed: "success",
   failed: "error",
 };
+
+function ToolRow({ item }: { item: Extract<Item, { kind: "tool" }> }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="tool w-full">
+      <Button
+        onClick={() => setOpen((v) => !v)}
+        variant="ghost"
+        className="group w-full flex justify-between items-center pr-2 transition-colors rounded-none h-8 px-2"
+      >
+        <span className="flex items-center gap-2 font-sans text-sm truncate flex-1 min-w-0 text-text-secondary">
+          <span className="relative inline-block w-2.5 shrink-0">
+            <ToolCallStatusIndicator status={item.status} className="static" />
+          </span>
+          <span className="truncate">{item.title}</span>
+        </span>
+        <ChevronRight
+          className={`w-4 h-4 shrink-0 opacity-70 group-hover:opacity-100 transition-transform ${open ? "rotate-90" : ""}`}
+        />
+      </Button>
+      {open && (
+        <div className="border-t border-border-primary px-2 py-2">
+          {item.output ? (
+            <pre className="bg-background-secondary rounded-lg p-2.5 overflow-x-auto max-h-80 overflow-y-auto font-mono text-xs whitespace-pre-wrap break-words">
+              {item.output}
+            </pre>
+          ) : (
+            <div className="text-xs text-text-tertiary px-1">no output yet</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function contentText(content: unknown): string {
   const c = content as { type?: string; text?: string } | undefined;
@@ -689,32 +725,7 @@ export function App({ roam }: { roam: RoamClient }) {
                       </div>
                     );
                   case "tool":
-                    return (
-                      <div
-                        key={it.id}
-                        className="tool mt-1 rounded-lg hover:bg-background-secondary transition-colors"
-                      >
-                        <div className="flex items-center gap-2 px-2 py-1.5 text-sm text-text-secondary">
-                          <span className="relative inline-block w-2.5">
-                            <ToolCallStatusIndicator status={it.status} className="static" />
-                          </span>
-                          <span className="flex-1 font-mono text-[12.5px] text-text-warning overflow-hidden text-ellipsis whitespace-nowrap">
-                            {it.title}
-                          </span>
-                          <span className="text-[11px] text-text-secondary">{it.status}</span>
-                        </div>
-                        {it.output && (
-                          <details className="border-t border-border-primary px-2 py-1.5">
-                            <summary className="cursor-pointer text-xs text-text-secondary">
-                              output
-                            </summary>
-                            <pre className="mt-2 bg-background-secondary rounded-lg p-2.5 overflow-x-auto max-h-80 overflow-y-auto font-mono text-xs">
-                              {it.output}
-                            </pre>
-                          </details>
-                        )}
-                      </div>
-                    );
+                    return <ToolRow key={it.id} item={it} />;
                   case "plan":
                     return (
                       <div
