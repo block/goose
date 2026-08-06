@@ -281,7 +281,11 @@ fn restrict_existing_request_log(path: &std::path::Path) -> Result<()> {
                 {
                     return Ok(())
                 }
-                Err(error) if error.kind() == ErrorKind::PermissionDenied => {
+                Err(error)
+                    if error.kind() == ErrorKind::PermissionDenied
+                        || error.raw_os_error() == Some(libc::EISDIR)
+                        || error.raw_os_error() == Some(libc::ENXIO) =>
+                {
                     restrict_inaccessible_request_log(path)?;
                     return Ok(());
                 }
@@ -627,7 +631,7 @@ mod tests {
         )
         .unwrap();
         std::fs::create_dir(&matching_directory).unwrap();
-        std::fs::set_permissions(&matching_directory, std::fs::Permissions::from_mode(0o755))
+        std::fs::set_permissions(&matching_directory, std::fs::Permissions::from_mode(0o000))
             .unwrap();
         symlink(&symlink_target, &matching_symlink).unwrap();
         let fifo_path = std::ffi::CString::new(matching_fifo.as_os_str().as_bytes()).unwrap();
@@ -655,7 +659,7 @@ mod tests {
                 .permissions()
                 .mode()
                 & 0o777,
-            0o755
+            0o000
         );
         assert!(std::fs::symlink_metadata(&matching_symlink)
             .unwrap()
