@@ -235,7 +235,7 @@ impl RequestLog {
             .ok_or_else(|| anyhow!("request log state directory has no parent"))?;
         fs_err::create_dir_all(state_parent)?;
         #[cfg(unix)]
-        secure_request_log_parent(state_parent)?;
+        validate_request_log_parent(state_parent)?;
         fs_err::create_dir_all(&state_dir)?;
         #[cfg(unix)]
         restrict_request_log_directory(&state_dir)?;
@@ -250,10 +250,8 @@ impl RequestLog {
 }
 
 #[cfg(unix)]
-fn secure_request_log_parent(parent: &std::path::Path) -> Result<()> {
-    use std::ffi::CString;
+fn validate_request_log_parent(parent: &std::path::Path) -> Result<()> {
     use std::io::{Error, ErrorKind};
-    use std::os::fd::AsRawFd;
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
     validate_request_log_directory_link_owner(parent, current_effective_uid())?;
@@ -267,35 +265,20 @@ fn secure_request_log_parent(parent: &std::path::Path) -> Result<()> {
         .into());
     }
 
-    if metadata.permissions().mode() & 0o022 != 0 {
-        if metadata.uid() != current_effective_uid() {
-            return Err(Error::new(
-                ErrorKind::PermissionDenied,
-                "writable request log state parent is owned by another user",
-            )
-            .into());
-        }
-        let current_directory = CString::new(".").unwrap();
-        // SAFETY: resolving `.` relative to the retained directory descriptor binds chmod to it.
-        if unsafe { libc::fchmodat(directory.as_raw_fd(), current_directory.as_ptr(), 0o700, 0) }
-            < 0
-        {
-            return Err(Error::last_os_error().into());
-        }
-    }
-
-    let updated = directory.metadata()?;
-    let current = open_search_only_directory(parent)?.metadata()?;
-    if metadata.dev() != updated.dev()
-        || metadata.ino() != updated.ino()
-        || metadata.dev() != current.dev()
-        || metadata.ino() != current.ino()
-        || !updated.is_dir()
-        || updated.permissions().mode() & 0o022 != 0
-    {
+    let mode = metadata.permissions().mode();
+    if mode & 0o022 != 0 && mode & 0o1000 == 0 {
         return Err(Error::new(
             ErrorKind::PermissionDenied,
-            "request log state parent changed while permissions were restricted",
+            "request log state parent is writable by other users without the sticky bit",
+        )
+        .into());
+    }
+
+    let current = open_search_only_directory(parent)?.metadata()?;
+    if metadata.dev() != current.dev() || metadata.ino() != current.ino() {
+        return Err(Error::new(
+            ErrorKind::PermissionDenied,
+            "request log state parent changed while it was validated",
         )
         .into());
     }
@@ -539,6 +522,14 @@ fn restrict_request_log_directory_with_hook(
 
 #[cfg(unix)]
 fn restrict_existing_request_logs(logs_dir: &std::path::Path) -> Result<()> {
+    restrict_existing_request_logs_with(logs_dir, restrict_existing_request_log)
+}
+
+#[cfg(unix)]
+fn restrict_existing_request_logs_with(
+    logs_dir: &std::path::Path,
+    mut restrict: impl FnMut(&std::path::Path) -> Result<RestrictionOutcome>,
+) -> Result<()> {
     for _ in 0..3 {
         let mut retry = false;
         for entry in fs_err::read_dir(logs_dir)? {
@@ -548,17 +539,19 @@ fn restrict_existing_request_logs(logs_dir: &std::path::Path) -> Result<()> {
                 continue;
             };
             if is_request_log_file_name(file_name)
-                && restrict_existing_request_log(&entry.path())? == RestrictionOutcome::Retry
+                && restrict(&entry.path())? == RestrictionOutcome::Retry
             {
                 retry = true;
             }
         }
         if !retry {
-            break;
+            return Ok(());
         }
     }
 
-    Ok(())
+    Err(anyhow!(
+        "request logs kept changing during permission restriction"
+    ))
 }
 
 #[cfg(unix)]
@@ -581,7 +574,8 @@ fn restrict_existing_request_log(path: &std::path::Path) -> Result<RestrictionOu
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(RestrictionOutcome::Retry),
         Err(error)
             if error.raw_os_error() == Some(libc::ELOOP)
-                || error.raw_os_error() == Some(libc::ENXIO) =>
+                || error.raw_os_error() == Some(libc::ENXIO)
+                || error.raw_os_error() == Some(libc::EOPNOTSUPP) =>
         {
             return Ok(RestrictionOutcome::Complete)
         }
@@ -595,7 +589,8 @@ fn restrict_existing_request_log(path: &std::path::Path) -> Result<RestrictionOu
                 }
                 Err(error)
                     if error.raw_os_error() == Some(libc::ELOOP)
-                        || error.raw_os_error() == Some(libc::ENXIO) =>
+                        || error.raw_os_error() == Some(libc::ENXIO)
+                        || error.raw_os_error() == Some(libc::EOPNOTSUPP) =>
                 {
                     return Ok(RestrictionOutcome::Complete)
                 }
@@ -966,6 +961,20 @@ mod tests {
 
     #[test]
     #[cfg(unix)]
+    fn request_log_permission_upgrade_reports_retry_exhaustion() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("llm_request.0.jsonl"), "sensitive request").unwrap();
+
+        let error =
+            restrict_existing_request_logs_with(root.path(), |_| Ok(RestrictionOutcome::Retry))
+                .unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("request logs kept changing during permission restriction"));
+    }
+
+    #[test]
+    #[cfg(unix)]
     fn request_log_directory_repair_is_bound_to_opened_directory() {
         use std::os::unix::fs::{symlink, PermissionsExt};
 
@@ -1023,6 +1032,24 @@ mod tests {
             foreign_uid,
             current_effective_uid()
         ));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn request_log_state_parent_must_prevent_entry_replacement() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = tempfile::tempdir().unwrap();
+        std::fs::set_permissions(root.path(), std::fs::Permissions::from_mode(0o777)).unwrap();
+
+        let error = validate_request_log_parent(root.path()).unwrap_err();
+        assert_eq!(
+            std::fs::metadata(root.path()).unwrap().permissions().mode() & 0o7777,
+            0o777
+        );
+        assert!(error
+            .to_string()
+            .contains("writable by other users without the sticky bit"));
     }
 
     #[test]
@@ -1089,7 +1116,7 @@ mod tests {
 
     #[test]
     #[cfg(unix)]
-    fn existing_request_logs_are_restricted_on_upgrade() {
+    fn request_logs_existing_files_are_restricted_on_upgrade() {
         use std::os::unix::process::CommandExt;
         use std::process::Command;
 
@@ -1168,7 +1195,7 @@ mod tests {
         std::fs::set_permissions(&state_dir, std::fs::Permissions::from_mode(0o377)).unwrap();
         std::fs::set_permissions(&logs_dir, std::fs::Permissions::from_mode(0o377)).unwrap();
         let state_parent = state_dir.parent().unwrap();
-        std::fs::set_permissions(state_parent, std::fs::Permissions::from_mode(0o377)).unwrap();
+        std::fs::set_permissions(state_parent, std::fs::Permissions::from_mode(0o1777)).unwrap();
 
         RequestLog::new(1).unwrap();
 
@@ -1177,8 +1204,8 @@ mod tests {
                 .unwrap()
                 .permissions()
                 .mode()
-                & 0o777,
-            0o700
+                & 0o7777,
+            0o1777
         );
         assert_eq!(
             std::fs::metadata(&state_dir).unwrap().permissions().mode() & 0o777,
