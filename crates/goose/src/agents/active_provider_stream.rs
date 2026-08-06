@@ -20,7 +20,7 @@ pub(super) type ProviderStreamItem =
 type NativeSteerResult = (Message, Result<bool, ProviderError>);
 
 pub(super) enum ActiveProviderStreamEvent {
-    ProviderOutput(ProviderStreamItem),
+    ProviderOutput(Box<ProviderStreamItem>),
     NativeSteerDelivered(Message),
 }
 
@@ -165,7 +165,9 @@ impl<'a> ActiveProviderStream<'a> {
 
                 next = self.stream.next() => {
                     match next {
-                        Some(next) => return Some(ActiveProviderStreamEvent::ProviderOutput(next)),
+                        Some(next) => {
+                            return Some(ActiveProviderStreamEvent::ProviderOutput(Box::new(next)));
+                        }
                         None => {
                             if self.pending_native_steer.is_some() {
                                 return self.await_pending_native_steer().await;
@@ -326,9 +328,10 @@ mod tests {
         .await
         .expect("provider output should not wait for the steering response");
 
-        let Some(ActiveProviderStreamEvent::ProviderOutput(Ok((Some(message), None)))) =
-            first_event
-        else {
+        let Some(ActiveProviderStreamEvent::ProviderOutput(output)) = first_event else {
+            panic!("expected provider output before the steering response");
+        };
+        let Ok((Some(message), None)) = *output else {
             panic!("expected provider output before the steering response");
         };
         assert_eq!(message.as_concat_text(), "before steer");

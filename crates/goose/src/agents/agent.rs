@@ -2241,7 +2241,7 @@ impl Agent {
                             if is_token_cancelled(&cancel_token) || exit_chat {
                                 break;
                             }
-                            next
+                            *next
                         }
                         ActiveProviderStreamEvent::NativeSteerDelivered(message) => {
                             native_steer_delivered = true;
