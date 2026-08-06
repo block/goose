@@ -1,4 +1,5 @@
 use crate::action_required_manager::{ActionRequiredManager, ElicitationOutcome};
+use crate::agents::extension_manager::ExtensionManager;
 use crate::agents::tool_execution::ToolCallContext;
 use crate::agents::types::SharedProvider;
 use crate::session_context::{SESSION_ID_HEADER, TOOL_CALL_REQUEST_ID_HEADER, WORKING_DIR_HEADER};
@@ -31,7 +32,10 @@ use rmcp::{
 };
 use serde_json::Value;
 use std::{
-    collections::HashMap, path::PathBuf, sync::Arc, sync::Mutex as StdMutex, time::Duration,
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, Mutex as StdMutex, Weak},
+    time::Duration,
 };
 use tokio::sync::{
     mpsc::{self, Sender},
@@ -186,6 +190,7 @@ pub struct GooseClient {
     capabilities: GooseMcpClientCapabilities,
     working_dir: Arc<tokio::sync::RwLock<PathBuf>>,
     action_required: Arc<ActionRequiredManager>,
+    extension_manager: Weak<ExtensionManager>,
 }
 
 impl GooseClient {
@@ -196,6 +201,7 @@ impl GooseClient {
         capabilities: GooseMcpClientCapabilities,
         working_dir: PathBuf,
         action_required: Arc<ActionRequiredManager>,
+        extension_manager: Weak<ExtensionManager>,
     ) -> Self {
         GooseClient {
             notification_handlers: handlers,
@@ -206,6 +212,7 @@ impl GooseClient {
             capabilities,
             working_dir: Arc::new(tokio::sync::RwLock::new(working_dir)),
             action_required,
+            extension_manager,
         }
     }
 
@@ -220,6 +227,14 @@ impl GooseClient {
             "McpClient received requests from different sessions"
         );
         *slot = Some(session_id.to_string());
+    }
+
+    async fn handle_tool_list_changed(&self) {
+        if let Some(extension_manager) = self.extension_manager.upgrade() {
+            extension_manager
+                .invalidate_tools_cache_and_bump_version()
+                .await;
+        }
     }
 
     async fn current_session_id(&self) -> Option<String> {
@@ -363,6 +378,10 @@ impl ClientHandler for GooseClient {
                 not.extensions = context.extensions.clone();
                 let _ = handler.try_send(ServerNotification::ProgressNotification(not));
             });
+    }
+
+    async fn on_tool_list_changed(&self, _context: rmcp::service::NotificationContext<RoleClient>) {
+        self.handle_tool_list_changed().await;
     }
 
     #[expect(deprecated)]
@@ -566,6 +585,7 @@ pub struct McpClient {
 }
 
 impl McpClient {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn connect<T, E, A>(
         transport: T,
         timeout: std::time::Duration,
@@ -574,6 +594,7 @@ impl McpClient {
         capabilities: GooseMcpClientCapabilities,
         working_dir: PathBuf,
         action_required: Arc<ActionRequiredManager>,
+        extension_manager: Weak<ExtensionManager>,
     ) -> Result<Self, ClientInitializeError>
     where
         T: IntoTransport<RoleClient, E, A>,
@@ -588,6 +609,7 @@ impl McpClient {
             capabilities,
             working_dir,
             action_required,
+            extension_manager,
         )
         .await
     }
@@ -602,6 +624,7 @@ impl McpClient {
         capabilities: GooseMcpClientCapabilities,
         working_dir: PathBuf,
         action_required: Arc<ActionRequiredManager>,
+        extension_manager: Weak<ExtensionManager>,
     ) -> Result<Self, ClientInitializeError>
     where
         T: IntoTransport<RoleClient, E, A>,
@@ -617,6 +640,7 @@ impl McpClient {
             capabilities.clone(),
             working_dir,
             action_required,
+            extension_manager,
         );
         let client: rmcp::service::RunningService<rmcp::RoleClient, GooseClient> =
             client.serve(transport).await?;
@@ -1012,9 +1036,62 @@ fn inject_session_context_into_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents::extension::ExtensionConfig;
     use crate::agents::GoosePlatform;
+    use rmcp::model::Tool;
     use serde_json::json;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use test_case::test_case;
+    use tokio::sync::Semaphore;
+
+    struct BlockingToolsClient {
+        calls: AtomicUsize,
+        first_fetch_started: Semaphore,
+        release_first_fetch: Semaphore,
+    }
+
+    #[async_trait::async_trait]
+    impl McpClientTrait for BlockingToolsClient {
+        async fn list_tools(
+            &self,
+            _session_id: &str,
+            _next_cursor: Option<String>,
+            _cancel_token: CancellationToken,
+        ) -> Result<ListToolsResult, Error> {
+            let call = self.calls.fetch_add(1, Ordering::SeqCst);
+            let name = if call == 0 { "old" } else { "new" };
+
+            if call == 0 {
+                self.first_fetch_started.add_permits(1);
+                let _permit = self.release_first_fetch.acquire().await.unwrap();
+            }
+
+            Ok(ListToolsResult {
+                tools: vec![Tool::new(
+                    name,
+                    format!("{name} tool list"),
+                    Arc::new(JsonObject::new()),
+                )],
+                next_cursor: None,
+                meta: None,
+                ..Default::default()
+            })
+        }
+
+        async fn call_tool(
+            &self,
+            _ctx: &ToolCallContext,
+            _name: &str,
+            _arguments: Option<JsonObject>,
+            _cancel_token: CancellationToken,
+        ) -> Result<CallToolResult, Error> {
+            Ok(CallToolResult::success(vec![]))
+        }
+
+        fn get_info(&self) -> Option<&InitializeResult> {
+            None
+        }
+    }
 
     fn new_client(platform: GoosePlatform) -> GooseClient {
         let capabilities = match platform {
@@ -1035,7 +1112,73 @@ mod tests {
             capabilities,
             std::env::current_dir().unwrap_or_default(),
             Arc::new(ActionRequiredManager::new()),
+            Weak::new(),
         )
+    }
+
+    #[tokio::test]
+    async fn tool_list_changed_during_fetch_prevents_stale_cache() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let extension_manager = Arc::new(ExtensionManager::new_without_provider(
+            temp_dir.path().to_path_buf(),
+        ));
+        let tools_client = Arc::new(BlockingToolsClient {
+            calls: AtomicUsize::new(0),
+            first_fetch_started: Semaphore::new(0),
+            release_first_fetch: Semaphore::new(0),
+        });
+        let config = ExtensionConfig::Builtin {
+            name: "dynamic".to_string(),
+            display_name: Some("dynamic".to_string()),
+            description: "dynamic tools".to_string(),
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        };
+        extension_manager
+            .add_client(
+                "dynamic".to_string(),
+                config,
+                tools_client.clone(),
+                None,
+                None,
+            )
+            .await;
+
+        let goose_client = GooseClient::new(
+            Arc::new(Mutex::new(Vec::new())),
+            Arc::new(Mutex::new(None)),
+            "goose-test".to_string(),
+            GooseMcpClientCapabilities {
+                mcpui: false,
+                host_info: None,
+            },
+            temp_dir.path().to_path_buf(),
+            Arc::new(ActionRequiredManager::new()),
+            Arc::downgrade(&extension_manager),
+        );
+
+        let manager = extension_manager.clone();
+        let first_fetch = tokio::spawn(async move {
+            manager
+                .get_prefixed_tools("test-session", None)
+                .await
+                .unwrap()
+        });
+
+        let _started = tools_client.first_fetch_started.acquire().await.unwrap();
+        goose_client.handle_tool_list_changed().await;
+        tools_client.release_first_fetch.add_permits(1);
+
+        let stale_result = first_fetch.await.unwrap();
+        assert!(stale_result.iter().any(|tool| tool.name == "dynamic__old"));
+
+        let refreshed = extension_manager
+            .get_prefixed_tools("test-session", None)
+            .await
+            .unwrap();
+        assert!(refreshed.iter().any(|tool| tool.name == "dynamic__new"));
+        assert_eq!(tools_client.calls.load(Ordering::SeqCst), 2);
     }
 
     fn request_extensions(request: &ClientRequest) -> Option<&Extensions> {
@@ -1388,6 +1531,7 @@ mod tests {
             },
             std::env::current_dir().unwrap_or_default(),
             Arc::new(ActionRequiredManager::new()),
+            Weak::new(),
         );
 
         let info = ClientHandler::get_info(&client);
@@ -1420,6 +1564,7 @@ mod tests {
             },
             std::env::current_dir().unwrap_or_default(),
             Arc::new(ActionRequiredManager::new()),
+            Weak::new(),
         );
 
         let info = ClientHandler::get_info(&client);
@@ -1449,6 +1594,7 @@ mod tests {
             },
             std::env::current_dir().unwrap_or_default(),
             Arc::new(ActionRequiredManager::new()),
+            Weak::new(),
         );
 
         let info = ClientHandler::get_info(&client);

@@ -48,14 +48,26 @@ impl Conversation {
     }
 
     pub fn push(&mut self, message: Message) {
-        if message.content.is_empty() && message.metadata.inference.is_some() {
-            if let Some(existing) = self
-                .0
-                .iter_mut()
-                .rev()
-                .find(|m| m.role == message.role && m.is_user_visible())
-            {
-                existing.metadata.inference = message.metadata.inference;
+        let output_token_limit_reached = message.metadata.output_token_limit_reached;
+        if message.content.is_empty()
+            && (message.metadata.inference.is_some() || output_token_limit_reached)
+        {
+            if let Some(existing) = self.0.iter_mut().rev().find(|existing| {
+                existing.role == message.role
+                    && existing.is_user_visible()
+                    && (!output_token_limit_reached
+                        || (message.id.is_some()
+                            && existing.id.as_deref() == message.id.as_deref()))
+            }) {
+                if let Some(inference) = message.metadata.inference.clone() {
+                    existing.metadata.inference = Some(inference);
+                }
+                existing.metadata.output_token_limit_reached |= output_token_limit_reached;
+                return;
+            }
+
+            if output_token_limit_reached {
+                self.0.push(message.with_visibility(true, false));
             }
             return;
         }
@@ -68,6 +80,7 @@ impl Conversation {
             if message.metadata.inference.is_some() {
                 last.metadata.inference = message.metadata.inference.clone();
             }
+            last.metadata.output_token_limit_reached |= message.metadata.output_token_limit_reached;
             match (last.content.last_mut(), message.content.last()) {
                 (
                     Some(MessageContentBlock::Text(ref mut last)),
@@ -700,7 +713,7 @@ pub fn debug_conversation_fix(
 
 #[cfg(test)]
 mod tests {
-    use crate::conversation::message::{Message, MessageContentBlock};
+    use crate::conversation::message::{InferenceMetadata, Message, MessageContentBlock};
     use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
     use rmcp::model::{CallToolRequestParams, Role};
     use rmcp::object;
@@ -1761,6 +1774,44 @@ mod tests {
             }
             other => panic!("expected single Thinking block, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn test_push_merges_empty_output_token_limit_update_by_id() {
+        let mut conv = Conversation::empty();
+        conv.push(Message::assistant().with_text("first").with_id("turn-1"));
+
+        let inference = InferenceMetadata {
+            provider: "test-provider".to_string(),
+            requested_model: "test-model".to_string(),
+            resolved_model: None,
+        };
+        let mut limited = Message::assistant()
+            .with_id("turn-1")
+            .with_inference(inference.clone());
+        limited.metadata.output_token_limit_reached = true;
+        conv.push(limited);
+
+        assert_eq!(conv.messages().len(), 1);
+        assert!(conv.messages()[0].metadata.output_token_limit_reached);
+        assert_eq!(conv.messages()[0].metadata.inference, Some(inference));
+    }
+
+    #[test]
+    fn test_push_retains_unmatched_output_token_limit_update_for_user_only() {
+        let mut conv = Conversation::empty();
+        let mut limited = Message::assistant().with_id("turn-1");
+        limited.metadata.output_token_limit_reached = true;
+
+        conv.push(limited);
+
+        assert_eq!(conv.messages().len(), 1);
+        let persisted = &conv.messages()[0];
+        assert!(persisted.content.is_empty());
+        assert!(persisted.metadata.user_visible);
+        assert!(!persisted.metadata.agent_visible);
+        assert!(persisted.metadata.output_token_limit_reached);
+        assert!(conv.agent_visible_messages().is_empty());
     }
 
     #[test]

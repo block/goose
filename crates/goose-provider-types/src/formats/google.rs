@@ -1,10 +1,13 @@
 use crate::conversation::token_usage::{ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::formats::openai::{is_valid_function_name, sanitize_function_name};
+use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::thinking::ThinkingEffort;
 use anyhow::Result;
-use rmcp::model::{object, CallToolRequestParams, ContentBlock, ErrorCode, ErrorData, Role, Tool};
+use rmcp::model::{
+    object, CallToolRequestParams, ContentBlock, ErrorCode, ErrorData, ResourceContents, Role, Tool,
+};
 use serde::Serialize;
 use std::borrow::Cow;
 use uuid::Uuid;
@@ -169,36 +172,44 @@ pub fn format_messages(messages: &[Message], nested_function_response_media: boo
                             let mut tool_content = Vec::new();
                             let mut media = Vec::new();
                             for content in result.content.iter().cloned() {
-                                match content {
+                                let inline = match &content {
                                     ContentBlock::Image(image) => {
-                                        if nested_function_response_media {
-                                            media.push(json!({
-                                                "inlineData": {
-                                                    "mimeType": image.mime_type,
-                                                    "data": image.data,
-                                                }
-                                            }));
-                                        } else {
-                                            parts.push(json!({
-                                                "inline_data": {
-                                                    "mime_type": image.mime_type,
-                                                    "data": image.data,
-                                                }
-                                            }));
-                                        }
+                                        Some((image.mime_type.clone(), image.data.clone()))
                                     }
-                                    _ => {
-                                        tool_content.push(content);
+                                    ContentBlock::Resource(embedded) => match &embedded.resource {
+                                        ResourceContents::BlobResourceContents {
+                                            blob,
+                                            mime_type,
+                                            ..
+                                        } => mime_type
+                                            .clone()
+                                            .filter(|m| !m.is_empty())
+                                            .map(|mime| (mime, blob.clone())),
+                                        _ => None,
+                                    },
+                                    _ => None,
+                                };
+                                match inline {
+                                    Some((mime, data)) if nested_function_response_media => {
+                                        media.push(json!({
+                                            "inlineData": {"mimeType": mime, "data": data}
+                                        }));
                                     }
+                                    Some((mime, data)) => {
+                                        parts.push(json!({
+                                            "inline_data": {"mime_type": mime, "data": data}
+                                        }));
+                                    }
+                                    None => tool_content.push(content),
                                 }
                             }
                             let mut text = tool_content
                                 .iter()
                                 .filter_map(|c| match c {
                                     ContentBlock::Text(t) => Some(t.text.clone()),
-                                    ContentBlock::Resource(raw_embedded_resource) => {
-                                        Some(raw_embedded_resource.clone().get_text())
-                                    }
+                                    ContentBlock::Resource(raw_embedded_resource) => Some(
+                                        extract_text_from_resource(&raw_embedded_resource.resource),
+                                    ),
                                     _ => None,
                                 })
                                 .collect::<Vec<_>>()
@@ -907,6 +918,24 @@ mod tests {
     }
 
     #[test]
+    fn test_message_to_google_spec_sanitizes_resource_tool_response() {
+        let messages = vec![set_up_tool_response_message(
+            "response_id",
+            vec![ContentBlock::embedded_text(
+                "file:///result.txt",
+                "visible\u{E0041}text",
+            )],
+        )];
+
+        let payload = format_messages(&messages, false);
+
+        assert_eq!(
+            payload[0]["parts"][0]["functionResponse"]["response"]["content"]["text"],
+            "visibletext"
+        );
+    }
+
+    #[test]
     fn test_function_response_matches_function_call() {
         let messages = vec![
             set_up_tool_request_message("call_123", CallToolRequestParams::new("read_file")),
@@ -954,6 +983,27 @@ mod tests {
                     }
                 }]
             })
+        );
+    }
+
+    #[test]
+    fn test_blob_resource_tool_result_is_forwarded_as_media() {
+        let blob = ContentBlock::resource(ResourceContents::BlobResourceContents {
+            uri: "file:///shot.png".to_string(),
+            mime_type: Some("image/png".to_string()),
+            blob: "aGVsbG8=".to_string(),
+            meta: None,
+        });
+        let messages = vec![
+            set_up_tool_request_message("call_123", CallToolRequestParams::new("screenshot")),
+            set_up_tool_response_message("call_123", vec![blob]),
+        ];
+
+        let payload = format_messages(&messages, true);
+
+        assert_eq!(
+            payload[1]["parts"][0]["functionResponse"]["parts"],
+            json!([{"inlineData": {"mimeType": "image/png", "data": "aGVsbG8="}}])
         );
     }
 

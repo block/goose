@@ -14,7 +14,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-const DEFAULT_PROVIDER_TIMEOUT_SECS: u64 = 600;
+pub const DEFAULT_PROVIDER_TIMEOUT_SECS: u64 = 600;
+pub const DEFAULT_CONNECT_TIMEOUT_SECS: u64 = 30;
 
 pub type RequestBuilderDecorator =
     Arc<dyn Fn(reqwest::RequestBuilder) -> Result<reqwest::RequestBuilder> + Send + Sync>;
@@ -195,6 +196,10 @@ fn convert_key_to_pkcs8_pem(key_pem_str: &str) -> Result<String> {
 #[async_trait]
 pub trait AuthProvider: Send + Sync {
     async fn get_auth_header(&self) -> Result<(String, String)>;
+
+    async fn refresh_credentials(&self) -> Result<()> {
+        anyhow::bail!("credential refresh not supported")
+    }
 }
 
 pub struct ApiResponse {
@@ -229,6 +234,7 @@ pub struct ApiRequestBuilder<'a> {
     client: &'a ApiClient,
     path: &'a str,
     headers: HeaderMap,
+    streaming: bool,
 }
 
 impl ApiClient {
@@ -251,7 +257,7 @@ impl ApiClient {
         timeout: Duration,
         tls_config: Option<TlsConfig>,
     ) -> Result<Self> {
-        let mut client_builder = Client::builder().timeout(timeout);
+        let mut client_builder = Self::client_builder(timeout);
 
         if let Some(ref config) = tls_config {
             client_builder = Self::configure_tls(client_builder, config)?;
@@ -275,10 +281,19 @@ impl ApiClient {
         &self.host
     }
 
+    pub fn timeout(&self) -> Duration {
+        self.timeout
+    }
+
+    fn client_builder(timeout: Duration) -> reqwest::ClientBuilder {
+        Client::builder()
+            .connect_timeout(Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
+            .read_timeout(timeout)
+    }
+
     fn rebuild_client(&mut self) -> Result<()> {
-        let mut client_builder = Client::builder()
-            .timeout(self.timeout)
-            .default_headers(self.default_headers.clone());
+        let mut client_builder =
+            Self::client_builder(self.timeout).default_headers(self.default_headers.clone());
 
         // Configure TLS if needed
         if let Some(ref tls_config) = self.tls_config {
@@ -353,6 +368,14 @@ impl ApiClient {
             client: self,
             path,
             headers: HeaderMap::new(),
+            streaming: false,
+        }
+    }
+
+    pub async fn refresh_credentials(&self) -> Result<()> {
+        match &self.auth {
+            AuthMethod::Custom(provider) => provider.refresh_credentials().await,
+            _ => anyhow::bail!("credential refresh not supported"),
         }
     }
 
@@ -419,14 +442,27 @@ impl<'a> ApiRequestBuilder<'a> {
         }
     }
 
+    pub fn streaming(mut self, streaming: bool) -> Self {
+        self.streaming = streaming;
+        self
+    }
+
     pub async fn api_post(self, payload: &Value) -> Result<ApiResponse> {
         let response = self.response_post(payload).await?;
         ApiResponse::from_response(response).await
     }
 
+    async fn send_bounded(&self, request: reqwest::RequestBuilder) -> Result<Response> {
+        if self.streaming {
+            Ok(crate::http_status::send_bounded(request, self.client.timeout).await?)
+        } else {
+            Ok(request.send().await?)
+        }
+    }
+
     pub async fn response_post(self, payload: &Value) -> Result<Response> {
         let request = self.send_request(|url, client| client.post(url)).await?;
-        Ok(request.json(payload).send().await?)
+        self.send_bounded(request.json(payload)).await
     }
 
     pub async fn multipart_post(self, form: reqwest::multipart::Form) -> Result<Response> {
@@ -441,7 +477,7 @@ impl<'a> ApiRequestBuilder<'a> {
 
     pub async fn response_get(self) -> Result<Response> {
         let request = self.send_request(|url, client| client.get(url)).await?;
-        Ok(request.send().await?)
+        self.send_bounded(request).await
     }
 
     async fn send_request<F>(&self, request_builder: F) -> Result<reqwest::RequestBuilder>
@@ -452,6 +488,10 @@ impl<'a> ApiRequestBuilder<'a> {
         let headers = self.headers.clone();
         let mut request = request_builder(url, &self.client.client);
         request = request.headers(headers);
+
+        if !self.streaming {
+            request = request.timeout(self.client.timeout);
+        }
 
         if let Some(decorator) = &self.client.request_builder {
             request = decorator(request)?;
@@ -608,6 +648,198 @@ ShGoCNbfNS+COlPMRAujyDlATZcLs9p4tA==
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::SocketAddr;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+
+    async fn spawn_chunked_server(gap_ms: u64, chunks: usize) -> SocketAddr {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut sock, _)) = listener.accept().await else {
+                    break;
+                };
+                tokio::spawn(async move {
+                    let mut buf = [0u8; 8192];
+                    let _ = sock.read(&mut buf).await;
+                    if sock
+                        .write_all(
+                            b"HTTP/1.1 200 OK\r\n\
+                              content-type: text/event-stream\r\n\
+                              transfer-encoding: chunked\r\n\r\n",
+                        )
+                        .await
+                        .is_err()
+                    {
+                        return;
+                    }
+                    for i in 0..chunks {
+                        if i > 0 {
+                            tokio::time::sleep(Duration::from_millis(gap_ms)).await;
+                        }
+                        let data = format!("data: {}\n\n", i);
+                        let chunk = format!("{:x}\r\n{}\r\n", data.len(), data);
+                        if sock.write_all(chunk.as_bytes()).await.is_err() {
+                            return;
+                        }
+                        let _ = sock.flush().await;
+                    }
+                    let _ = sock.write_all(b"0\r\n\r\n").await;
+                });
+            }
+        });
+        addr
+    }
+
+    fn client_with_timeout(addr: SocketAddr, timeout_ms: u64) -> ApiClient {
+        let mut client = ApiClient::with_timeout_and_tls(
+            format!("http://{}", addr),
+            AuthMethod::NoAuth,
+            Duration::from_millis(timeout_ms),
+            None,
+        )
+        .unwrap();
+        client.client = Client::builder()
+            .no_proxy()
+            .connect_timeout(Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
+            .read_timeout(client.timeout)
+            .build()
+            .unwrap();
+        client
+    }
+
+    async fn drain_counting_data_lines(mut response: Response) -> Result<usize, reqwest::Error> {
+        let mut body = Vec::new();
+        while let Some(chunk) = response.chunk().await? {
+            body.extend_from_slice(&chunk);
+        }
+        Ok(String::from_utf8_lossy(&body).matches("data:").count())
+    }
+
+    #[tokio::test]
+    async fn streaming_request_survives_beyond_total_timeout() {
+        let addr = spawn_chunked_server(50, 12).await;
+        let client = client_with_timeout(addr, 400);
+
+        let response = client
+            .request("v1/messages")
+            .streaming(true)
+            .response_post(&serde_json::json!({}))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let count = drain_counting_data_lines(response).await.unwrap();
+        assert_eq!(count, 12);
+    }
+
+    #[tokio::test]
+    async fn streaming_request_fails_when_stream_stalls() {
+        let addr = spawn_chunked_server(5_000, 2).await;
+        let client = client_with_timeout(addr, 400);
+
+        let response = client
+            .request("v1/messages")
+            .streaming(true)
+            .response_post(&serde_json::json!({}))
+            .await
+            .unwrap();
+
+        let err = drain_counting_data_lines(response)
+            .await
+            .expect_err("stalled stream should time out, not complete");
+        assert!(err.is_timeout(), "expected a timeout error, got: {err}");
+    }
+
+    #[tokio::test]
+    async fn non_streaming_request_enforces_total_deadline() {
+        let addr = spawn_chunked_server(50, 12).await;
+        let client = client_with_timeout(addr, 400);
+
+        let response = client
+            .request("v1/messages")
+            .response_post(&serde_json::json!({}))
+            .await
+            .unwrap();
+
+        let err = drain_counting_data_lines(response)
+            .await
+            .expect_err("total deadline should cut off the response body");
+        assert!(err.is_timeout(), "expected a timeout error, got: {err}");
+    }
+
+    #[tokio::test]
+    async fn streaming_request_times_out_before_response_headers() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut sock, _)) = listener.accept().await else {
+                    break;
+                };
+                tokio::spawn(async move {
+                    let mut buf = [0u8; 8192];
+                    while sock.read(&mut buf).await.is_ok_and(|n| n > 0) {}
+                });
+            }
+        });
+        let client = client_with_timeout(addr, 400);
+
+        let started = std::time::Instant::now();
+        let err = client
+            .request("v1/messages")
+            .streaming(true)
+            .response_post(&serde_json::json!({}))
+            .await
+            .expect_err("the phase before the response body must stay bounded");
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "should fail near the configured timeout, took {:?}",
+            started.elapsed()
+        );
+        assert!(matches!(
+            crate::errors::ProviderError::from(err),
+            crate::errors::ProviderError::NetworkError(message)
+                if message.starts_with("Request timed out")
+        ));
+    }
+
+    #[tokio::test]
+    async fn streaming_error_body_shares_send_deadline() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = [0u8; 8192];
+            let _ = socket.read(&mut buf).await;
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            socket
+                .write_all(b"HTTP/1.1 500 Internal Server Error\r\ncontent-length: 1\r\n\r\n")
+                .await
+                .unwrap();
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            let _ = socket.write_all(b"x").await;
+        });
+
+        let client = client_with_timeout(addr, 400);
+        let started = std::time::Instant::now();
+        let response = client
+            .request("v1/messages")
+            .streaming(true)
+            .response_post(&serde_json::json!({}))
+            .await
+            .unwrap();
+        crate::http_status::handle_status(response)
+            .await
+            .unwrap_err();
+
+        assert!(
+            started.elapsed() < Duration::from_millis(550),
+            "send and error body used separate deadlines: {:?}",
+            started.elapsed()
+        );
+    }
 
     #[test]
     fn test_model_headers_applied_and_override_static_headers() {

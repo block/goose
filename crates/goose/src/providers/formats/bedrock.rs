@@ -20,6 +20,7 @@ use crate::providers::formats::anthropic::{
     adaptive_output_effort, model_supports_temperature, thinking_budget_tokens,
     thinking_type_for_provider, ThinkingType, ANTHROPIC_PROVIDER_NAME, MIN_ANSWER_TOKENS,
 };
+use crate::utils::sanitize_unicode_tags;
 use goose_providers::conversation::token_usage::Usage;
 use goose_providers::model::ModelConfig;
 use once_cell::sync::Lazy;
@@ -264,11 +265,10 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                         .collect::<Result<_>>()?,
                 ),
                 Err(error) => {
-                    // For errors, create a text content block with the error message
-                    Some(vec![bedrock::ToolResultContentBlock::Text(format!(
-                        "The tool call returned the following error:\n{}",
-                        error
-                    ))])
+                    let message = format!("The tool call returned the following error:\n{}", error);
+                    Some(vec![bedrock::ToolResultContentBlock::Text(
+                        crate::utils::sanitize_unicode_tags(&message),
+                    )])
                 }
             };
             bedrock::ContentBlock::ToolResult(
@@ -306,7 +306,9 @@ pub fn to_bedrock_tool_result_content_block(
             ResourceContents::TextResourceContents { text, .. } => {
                 match to_bedrock_document(tool_use_id, &resource.resource)? {
                     Some(doc) => bedrock::ToolResultContentBlock::Document(doc),
-                    None => bedrock::ToolResultContentBlock::Text(text.to_string()),
+                    None => {
+                        bedrock::ToolResultContentBlock::Text(sanitize_unicode_tags(text.as_str()))
+                    }
                 }
             }
             ResourceContents::BlobResourceContents { .. } => {
@@ -422,7 +424,9 @@ fn to_bedrock_document(
     content: &ResourceContents,
 ) -> Result<Option<bedrock::DocumentBlock>> {
     let (uri, text) = match content {
-        ResourceContents::TextResourceContents { uri, text, .. } => (uri, text),
+        ResourceContents::TextResourceContents { uri, text, .. } => {
+            (uri, sanitize_unicode_tags(text))
+        }
         ResourceContents::BlobResourceContents { .. } => {
             bail!("Blob resource content is not supported by Bedrock provider yet")
         }
@@ -820,6 +824,35 @@ mod tests {
 
         // Verify the wrapper correctly converts ContentBlock::Image to ToolResultContentBlock::Image
         assert!(matches!(result, bedrock::ToolResultContentBlock::Image(_)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_bedrock_tool_result_sanitizes_text_resource_fallback() -> Result<()> {
+        let content = ContentBlock::embedded_text("file:///result.bin", "visible\u{E0041}text");
+        let result = to_bedrock_tool_result_content_block("test_id", content)?;
+
+        let bedrock::ToolResultContentBlock::Text(text) = result else {
+            panic!("expected text fallback");
+        };
+        assert_eq!(text, "visibletext");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_bedrock_tool_result_sanitizes_document_resource() -> Result<()> {
+        let content = ContentBlock::embedded_text("file:///result.txt", "visible\u{E0041}text");
+        let result = to_bedrock_tool_result_content_block("test_id", content)?;
+
+        let bedrock::ToolResultContentBlock::Document(document) = result else {
+            panic!("expected document");
+        };
+        let Some(bedrock::DocumentSource::Bytes(bytes)) = document.source() else {
+            panic!("expected document bytes");
+        };
+        assert_eq!(bytes.as_ref(), b"visibletext");
 
         Ok(())
     }
@@ -1250,6 +1283,49 @@ mod tests {
             }
             other => panic!("expected ToolUse, got {other:?}"),
         }
+        Ok(())
+    }
+
+    #[test]
+    fn tool_response_error_sanitizes_unicode_tags() -> Result<()> {
+        let error = ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            "visible\u{E0041}\u{E0042} error".to_string(),
+            None,
+        );
+        let content = MessageContent::tool_response("call_hidden".to_string(), Err(error));
+
+        let bedrock::ContentBlock::ToolResult(result) = to_bedrock_message_content(&content)?
+        else {
+            panic!("expected ToolResult");
+        };
+        let bedrock::ToolResultContentBlock::Text(text) = &result.content[0] else {
+            panic!("expected text error content");
+        };
+
+        assert!(!crate::utils::contains_unicode_tags(text.as_str()));
+        assert!(text.contains("visible error"));
+        Ok(())
+    }
+
+    #[test]
+    fn tool_response_error_preserves_ordinary_text() -> Result<()> {
+        let error = ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            "ordinary tool failure".to_string(),
+            None,
+        );
+        let content = MessageContent::tool_response("call_error".to_string(), Err(error));
+
+        let bedrock::ContentBlock::ToolResult(result) = to_bedrock_message_content(&content)?
+        else {
+            panic!("expected ToolResult");
+        };
+        let bedrock::ToolResultContentBlock::Text(text) = &result.content[0] else {
+            panic!("expected text error content");
+        };
+
+        assert!(text.contains("ordinary tool failure"));
         Ok(())
     }
 

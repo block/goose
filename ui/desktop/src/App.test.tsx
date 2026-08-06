@@ -137,8 +137,8 @@ const mockNavigate = vi.fn();
 const mockSearchParams = new URLSearchParams();
 const mockSetSearchParams = vi.fn();
 
-// Mock react-router-dom to avoid HashRouter issues in tests
-vi.mock('react-router-dom', () => ({
+// Mock react-router to avoid HashRouter issues in tests
+vi.mock('react-router', () => ({
   HashRouter: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   Routes: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   Route: ({ element }: { element: React.ReactNode }) => element,

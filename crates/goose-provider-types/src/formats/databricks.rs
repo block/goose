@@ -10,10 +10,9 @@ use crate::formats::openai::{
     openai_reasoning_effort_for_thinking, sanitize_function_name, validate_tool_schemas,
 };
 use crate::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
+use crate::mcp_utils::extract_text_from_resource;
 use anyhow::{anyhow, Error};
-use rmcp::model::{
-    object, CallToolRequestParams, ContentBlock, ErrorCode, ErrorData, ResourceContents, Role, Tool,
-};
+use rmcp::model::{object, CallToolRequestParams, ContentBlock, ErrorCode, ErrorData, Role, Tool};
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::borrow::Cow;
@@ -70,10 +69,7 @@ fn format_tool_response(
                         });
                     }
                     ContentBlock::Resource(resource) => {
-                        let text = match &resource.resource {
-                            ResourceContents::TextResourceContents { text, .. } => text.clone(),
-                            _ => String::new(),
-                        };
+                        let text = extract_text_from_resource(&resource.resource);
                         tool_content.push(ContentBlock::text(text));
                     }
                     _ => tool_content.push(content),
@@ -719,6 +715,21 @@ mod tests {
         assert_eq!(spec[0].role, "user");
         assert_eq!(spec[0].content, "Hello");
         Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_sanitizes_resource_tool_response() {
+        let message = Message::user().with_tool_response(
+            "tool1",
+            Ok(CallToolResult::success(vec![ContentBlock::embedded_text(
+                "file:///result.txt",
+                "visible\u{E0041}text",
+            )])),
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec[0].content, "visibletext");
     }
 
     #[test]

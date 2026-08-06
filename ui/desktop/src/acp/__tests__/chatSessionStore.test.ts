@@ -539,10 +539,19 @@ describe('acpChatSessionStore', () => {
     const loadingSnapshot = acpChatSessionActions.startSessionLoad(currentSessionId);
     expect(loadingSnapshot.messages).toEqual([]);
 
+    // While a load replay is in flight, per-notification snapshots stay frozen
+    // at the load-start state (avoids O(n^2) cloning on large sessions); the
+    // replayed conversation materializes in the finishSessionLoad snapshot.
     const replayedSnapshot = acpChatSessionActions.applyAcpSessionNotification(replayedChunk);
+    expect(replayedSnapshot.messages).toEqual([]);
 
-    expect(replayedSnapshot.messages).toHaveLength(1);
-    expect(replayedSnapshot.messages[0].content).toEqual([{ type: 'text', text: 'Hello' }]);
+    const finishedSnapshot = acpChatSessionActions.finishSessionLoad(
+      currentSessionId,
+      session(currentSessionId)
+    );
+
+    expect(finishedSnapshot.messages).toHaveLength(1);
+    expect(finishedSnapshot.messages[0].content).toEqual([{ type: 'text', text: 'Hello' }]);
   });
 
   it('applies permission requests as waiting action-required messages', () => {

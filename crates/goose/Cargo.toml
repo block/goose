@@ -161,7 +161,7 @@ smithy-transport-reqwest = { version = "0.1", default-features = false, features
 aws-sdk-sagemakerruntime = { version = "1.104", default-features = false, features = ["rt-tokio"], optional = true }
 
 # For GCP Vertex AI provider auth
-jsonwebtoken = { version = "10.2", default-features = false, features = ["use_pem"] }
+jsonwebtoken = { version = "11.0", default-features = false, features = ["use_pem"] }
 
 blake3 = { version = "1", default-features = false, features = ["std"] }
 fs2 = { workspace = true }
@@ -208,14 +208,14 @@ goose-acp-macros = { path = "../goose-acp-macros", default-features = false }
 tower-http = { workspace = true, features = ["cors"] }
 tracing-appender = { workspace = true }
 process-wrap = { version = "9", default-features = false, features = ["std"] }
-nostr = { version = "0.44", default-features = false, features = ["nip44", "std"], optional = true }
+nostr = { version = "0.44.7", default-features = false, features = ["nip44", "std"], optional = true }
 nostr-sdk = { version = "0.44", default-features = false, features = ["nip44"], optional = true }
 rustls = { workspace = true, optional = true }
 rcgen = { version = "0.14", default-features = false, features = ["crypto", "pem"], optional = true }
 axum-server = { version = "0.8", default-features = false, optional = true }
 aws-lc-rs = { version = "1.17", default-features = false, optional = true }
 openssl = { version = "0.10.66", default-features = false, optional = true }
-pem = { version = "3.0.2", default-features = false, features = ["std"], optional = true }
+pem = { version = "4.0.0", default-features = false, features = ["std"], optional = true }
 
 pctx_code_mode = { version = "0.4.1", default-features = false, optional = true }
 

@@ -107,6 +107,7 @@ impl GoogleProvider {
             .api_client
             .request(&path)
             .model_headers(model_config)?
+            .streaming(true)
             .response_post(payload)
             .await?;
         handle_status(response).await

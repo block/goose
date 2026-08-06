@@ -31,10 +31,7 @@ impl GooseAcpAgent {
         validate_absolute_cwd(&args.cwd)?;
         let config = Config::global();
         let project_id = meta_string(args.meta.as_ref(), "projectId")?;
-        let session_type = match meta_string(args.meta.as_ref(), "client")? {
-            Some(_) => SessionType::User,
-            None => SessionType::Acp,
-        };
+        let session_type = session_type_from_meta(args.meta.as_ref())?;
         let current_mode: GooseMode = config.get_goose_mode().unwrap_or_default();
         let recipe = self.resolve_recipe_from_meta(args.meta.as_ref()).await?;
         let session_name = match recipe.as_ref() {
@@ -251,6 +248,30 @@ fn model_config_from_recipe_settings(
         .internal_err_ctx("Failed to build model config from recipe settings")
 }
 
+fn session_type_from_meta(
+    meta: Option<&Meta>,
+) -> Result<SessionType, agent_client_protocol::Error> {
+    if meta_bool(meta, "hidden")? {
+        return Ok(SessionType::Hidden);
+    }
+    Ok(match meta_string(meta, "client")? {
+        Some(_) => SessionType::User,
+        None => SessionType::Acp,
+    })
+}
+
+fn meta_bool(meta: Option<&Meta>, key: &str) -> Result<bool, agent_client_protocol::Error> {
+    let Some(value) = meta.and_then(|m| m.get(key)) else {
+        return Ok(false);
+    };
+    if value.is_null() {
+        return Ok(false);
+    }
+    value.as_bool().ok_or_else(|| {
+        agent_client_protocol::Error::invalid_params().data(format!("{key} must be a boolean"))
+    })
+}
+
 fn meta_goose_extensions(
     meta: Option<&Meta>,
 ) -> Result<Option<Vec<GooseExtension>>, agent_client_protocol::Error> {
@@ -265,4 +286,60 @@ fn meta_goose_extensions(
         .map_err(|e| {
             agent_client_protocol::Error::invalid_params().data(format!("enabledExtensions: {e}"))
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn meta(value: serde_json::Value) -> Meta {
+        match value {
+            serde_json::Value::Object(map) => map,
+            other => panic!("expected object, got {other}"),
+        }
+    }
+
+    #[test]
+    fn hidden_meta_yields_hidden_session() {
+        let meta = meta(json!({ "hidden": true }));
+        assert_eq!(
+            session_type_from_meta(Some(&meta)).unwrap(),
+            SessionType::Hidden
+        );
+    }
+
+    #[test]
+    fn hidden_overrides_client() {
+        let meta = meta(json!({ "hidden": true, "client": "desktop" }));
+        assert_eq!(
+            session_type_from_meta(Some(&meta)).unwrap(),
+            SessionType::Hidden
+        );
+    }
+
+    #[test]
+    fn absent_hidden_preserves_acp() {
+        assert_eq!(session_type_from_meta(None).unwrap(), SessionType::Acp);
+        let meta = meta(json!({ "hidden": false }));
+        assert_eq!(
+            session_type_from_meta(Some(&meta)).unwrap(),
+            SessionType::Acp
+        );
+    }
+
+    #[test]
+    fn non_bool_hidden_is_rejected() {
+        let meta = meta(json!({ "hidden": "yes", "client": "desktop" }));
+        assert!(session_type_from_meta(Some(&meta)).is_err());
+    }
+
+    #[test]
+    fn client_meta_yields_user_session() {
+        let meta = meta(json!({ "client": "desktop" }));
+        assert_eq!(
+            session_type_from_meta(Some(&meta)).unwrap(),
+            SessionType::User
+        );
+    }
 }

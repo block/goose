@@ -109,6 +109,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      setInternalValidationError(null);
       if (schedule) {
         setScheduleId(schedule.id);
         setCronExpression(schedule.cron);
@@ -119,7 +120,6 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         setDeepLinkInput('');
         setParsedRecipe(null);
         setCronExpression('0 0 14 * * *');
-        setInternalValidationError(null);
         if (initialDeepLink) {
           setSourceType('deeplink');
           handleDeepLinkChange(initialDeepLink);

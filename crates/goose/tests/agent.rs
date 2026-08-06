@@ -1665,6 +1665,7 @@ mod tests {
                 &ImageFormat::OpenAi,
                 OpenAiFormatOptions {
                     preserve_thinking_context: true,
+                    ..Default::default()
                 },
             );
             let has_reasoning_on_tool_call = spec.iter().any(|m| {
@@ -2057,6 +2058,7 @@ mod tests {
                 &ImageFormat::OpenAi,
                 OpenAiFormatOptions {
                     preserve_thinking_context: true,
+                    ..Default::default()
                 },
             );
 

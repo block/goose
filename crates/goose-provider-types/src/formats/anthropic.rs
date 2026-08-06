@@ -8,7 +8,10 @@ use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::thinking::ThinkingEffort;
 use anyhow::{anyhow, Result};
-use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, JsonObject, Role, Tool};
+use rmcp::model::{
+    object, CallToolRequestParams, ContentBlock, ErrorCode, ErrorData, JsonObject,
+    ResourceContents, Role, Tool,
+};
 use rmcp::object as json_object;
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -138,6 +141,16 @@ const TOOL_USE_ID_FIELD: &str = "tool_use_id";
 const IS_ERROR_FIELD: &str = "is_error";
 const SIGNATURE_FIELD: &str = "signature";
 const DATA_FIELD: &str = "data";
+const IMAGE_TYPE: &str = "image";
+const DOCUMENT_TYPE: &str = "document";
+const SOURCE_FIELD: &str = "source";
+const BASE64_TYPE: &str = "base64";
+const MEDIA_TYPE_FIELD: &str = "media_type";
+// Claude vision only accepts these image media types; other image/* blobs fall
+// through to the text/binary-marker path so an unsupported type (e.g.
+// image/svg+xml) doesn't turn the next request into a provider rejection.
+const ANTHROPIC_IMAGE_MEDIA_TYPES: [&str; 4] =
+    ["image/jpeg", "image/png", "image/gif", "image/webp"];
 const EVENT_MESSAGE_START: &str = "message_start";
 const EVENT_MESSAGE_DELTA: &str = "message_delta";
 const EVENT_MESSAGE_STOP: &str = "message_stop";
@@ -217,28 +230,97 @@ fn format_messages_with_options(
                 MessageContentBlock::ToolResponse(tool_response) => {
                     match &tool_response.tool_result {
                         Ok(result) => {
-                            let text = result
-                                .content
-                                .iter()
-                                .filter_map(|c| {
-                                    if let Some(t) = c.as_text() {
-                                        return Some(t.text.clone());
+                            let mut blocks: Vec<Value> = Vec::new();
+                            let mut text_parts: Vec<String> = Vec::new();
+                            let mut has_media = false;
+
+                            for c in result.content.iter() {
+                                if let Some(t) = c.as_text() {
+                                    text_parts.push(t.text.clone());
+                                    if !t.text.is_empty() {
+                                        blocks.push(json!({
+                                            TYPE_FIELD: TEXT_TYPE,
+                                            TEXT_TYPE: t.text.clone()
+                                        }));
                                     }
-                                    if let Some(r) = c.as_resource() {
-                                        let text = extract_text_from_resource(&r.resource);
-                                        if !text.is_empty() {
-                                            return Some(text);
+                                    continue;
+                                }
+                                if let Some(r) = c.as_resource() {
+                                    // Claude only accepts a fixed set of media types, so
+                                    // unsupported blobs fall back to text below rather than
+                                    // being rejected by the provider.
+                                    if let ResourceContents::BlobResourceContents {
+                                        blob,
+                                        mime_type,
+                                        ..
+                                    } = &r.resource
+                                    {
+                                        let mime = mime_type.as_deref().unwrap_or("");
+                                        if ANTHROPIC_IMAGE_MEDIA_TYPES.contains(&mime) {
+                                            has_media = true;
+                                            blocks.push(json!({
+                                                TYPE_FIELD: IMAGE_TYPE,
+                                                SOURCE_FIELD: {
+                                                    TYPE_FIELD: BASE64_TYPE,
+                                                    MEDIA_TYPE_FIELD: mime,
+                                                    DATA_FIELD: blob,
+                                                }
+                                            }));
+                                            continue;
+                                        }
+                                        if mime == "application/pdf" {
+                                            has_media = true;
+                                            blocks.push(json!({
+                                                TYPE_FIELD: DOCUMENT_TYPE,
+                                                SOURCE_FIELD: {
+                                                    TYPE_FIELD: BASE64_TYPE,
+                                                    MEDIA_TYPE_FIELD: mime,
+                                                    DATA_FIELD: blob,
+                                                }
+                                            }));
+                                            continue;
                                         }
                                     }
-                                    None
-                                })
-                                .collect::<Vec<_>>()
-                                .join("\n");
+                                    let text = extract_text_from_resource(&r.resource);
+                                    if !text.is_empty() {
+                                        text_parts.push(text.clone());
+                                        blocks.push(json!({
+                                            TYPE_FIELD: TEXT_TYPE,
+                                            TEXT_TYPE: text
+                                        }));
+                                    }
+                                    continue;
+                                }
+                                if let ContentBlock::Image(image) = c {
+                                    if ANTHROPIC_IMAGE_MEDIA_TYPES
+                                        .contains(&image.mime_type.as_str())
+                                    {
+                                        has_media = true;
+                                        blocks.push(convert_image(
+                                            &image.clone(),
+                                            &ImageFormat::Anthropic,
+                                        ));
+                                    } else {
+                                        let marker = format!("[Image: {}]", image.mime_type);
+                                        text_parts.push(marker.clone());
+                                        blocks.push(json!({
+                                            TYPE_FIELD: TEXT_TYPE,
+                                            TEXT_TYPE: marker
+                                        }));
+                                    }
+                                }
+                            }
+
+                            let content_value = if has_media {
+                                Value::Array(blocks)
+                            } else {
+                                Value::String(text_parts.join("\n"))
+                            };
 
                             content.push(json!({
                                 TYPE_FIELD: TOOL_RESULT_TYPE,
                                 TOOL_USE_ID_FIELD: tool_response.id,
-                                CONTENT_FIELD: text
+                                CONTENT_FIELD: content_value
                             }));
                         }
                         Err(tool_error) => {
@@ -695,6 +777,26 @@ pub fn create_request(
     tools: &[Tool],
     options: AnthropicFormatOptions,
 ) -> Result<Value> {
+    create_request_for_model(
+        provider_name,
+        model_config,
+        &model_config.model_name,
+        system,
+        messages,
+        tools,
+        options,
+    )
+}
+
+pub fn create_request_for_model(
+    provider_name: &str,
+    model_config: &ModelConfig,
+    wire_model_name: &str,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+    options: AnthropicFormatOptions,
+) -> Result<Value> {
     let options = options.for_model(model_config);
     let anthropic_messages = format_messages_with_options(messages, options);
     let tool_specs = format_tools(tools);
@@ -706,7 +808,7 @@ pub fn create_request(
 
     let max_tokens = model_config.max_output_tokens();
     let mut payload = json!({
-        "model": model_config.model_name,
+        "model": wire_model_name,
         "messages": anthropic_messages,
         "max_tokens": max_tokens,
     });
@@ -1057,6 +1159,13 @@ where
                     yield (Some(message), None);
                 }
             }
+        }
+
+        if stop_reason.as_deref() == Some("max_tokens") {
+            let mut message = Message::assistant();
+            message.id = message_id;
+            message.metadata.output_token_limit_reached = true;
+            yield (Some(message), None);
         }
 
         if let Some(usage) = final_usage {
@@ -1673,6 +1782,99 @@ mod tests {
     }
 
     #[test]
+    fn test_tool_response_forwards_image_resource_as_image_block() {
+        use rmcp::model::CallToolResult;
+
+        let image = ContentBlock::resource(ResourceContents::BlobResourceContents {
+            uri: "file:///shot.png".to_string(),
+            mime_type: Some("image/png".to_string()),
+            blob: "aGVsbG8=".to_string(),
+            meta: None,
+        });
+
+        let messages = vec![
+            Message::assistant()
+                .with_tool_request("tool_1", Ok(CallToolRequestParams::new("screenshot"))),
+            Message::user().with_tool_response("tool_1", Ok(CallToolResult::success(vec![image]))),
+        ];
+
+        let spec = format_messages(&messages);
+
+        let block = &spec[1]["content"][0]["content"][0];
+        assert_eq!(block["type"], "image");
+        assert_eq!(block["source"]["type"], "base64");
+        assert_eq!(block["source"]["media_type"], "image/png");
+        assert_eq!(block["source"]["data"], "aGVsbG8=");
+    }
+
+    #[test]
+    fn test_tool_response_unsupported_image_mime_falls_back_to_text() {
+        use rmcp::model::CallToolResult;
+
+        // image/svg+xml is not a Claude-supported image type, so it must fall
+        // through to text rather than an image block.
+        let svg = ContentBlock::resource(ResourceContents::BlobResourceContents {
+            uri: "file:///diagram.svg".to_string(),
+            mime_type: Some("image/svg+xml".to_string()),
+            blob: "aGVsbG8=".to_string(),
+            meta: None,
+        });
+
+        let messages = vec![
+            Message::assistant()
+                .with_tool_request("tool_1", Ok(CallToolRequestParams::new("render"))),
+            Message::user().with_tool_response("tool_1", Ok(CallToolResult::success(vec![svg]))),
+        ];
+
+        let spec = format_messages(&messages);
+
+        // Serializer contract: an unsupported image type is not emitted as an
+        // image block — the content collapses to a text string.
+        assert!(spec[1]["content"][0]["content"].is_string());
+    }
+
+    #[test]
+    fn test_tool_response_forwards_raw_image_as_image_block() {
+        use rmcp::model::CallToolResult;
+
+        let image = ContentBlock::image("aGVsbG8=", "image/png");
+
+        let messages = vec![
+            Message::assistant()
+                .with_tool_request("tool_1", Ok(CallToolRequestParams::new("screenshot"))),
+            Message::user().with_tool_response("tool_1", Ok(CallToolResult::success(vec![image]))),
+        ];
+
+        let spec = format_messages(&messages);
+
+        let block = &spec[1]["content"][0]["content"][0];
+        assert_eq!(block["type"], "image");
+        assert_eq!(block["source"]["type"], "base64");
+        assert_eq!(block["source"]["media_type"], "image/png");
+        assert_eq!(block["source"]["data"], "aGVsbG8=");
+    }
+
+    #[test]
+    fn test_tool_response_unsupported_raw_image_mime_falls_back_to_text() {
+        use rmcp::model::CallToolResult;
+
+        // image/svg+xml is not a Claude-supported image type, so a raw image with
+        // that mime must fall back to a text marker rather than an image block
+        // (which the provider would reject).
+        let image = ContentBlock::image("aGVsbG8=", "image/svg+xml");
+
+        let messages = vec![
+            Message::assistant()
+                .with_tool_request("tool_1", Ok(CallToolRequestParams::new("render"))),
+            Message::user().with_tool_response("tool_1", Ok(CallToolResult::success(vec![image]))),
+        ];
+
+        let spec = format_messages(&messages);
+
+        assert_eq!(spec[1]["content"][0]["content"], "[Image: image/svg+xml]");
+    }
+
+    #[test]
     fn test_args_to_input_value_returns_empty_object_for_none() {
         let value = args_to_input_value(None);
         assert!(value.is_object(), "expected JSON object, got {value:?}");
@@ -1870,6 +2072,7 @@ mod tests {
         text: Vec<String>,
         tool_calls: Vec<String>,
         tool_errors: Vec<String>,
+        output_token_limit_message_ids: Vec<Option<String>>,
     }
 
     async fn collect_stream(events: &str) -> StreamedParts {
@@ -1877,6 +2080,9 @@ mod tests {
 
         for result in collect_stream_results(events).await {
             if let Ok((Some(msg), _usage)) = result {
+                if msg.metadata.output_token_limit_reached {
+                    parts.output_token_limit_message_ids.push(msg.id.clone());
+                }
                 for c in &msg.content {
                     match c {
                         MessageContentBlock::Thinking(t) => {
@@ -1900,6 +2106,30 @@ mod tests {
             }
         }
         parts
+    }
+
+    #[tokio::test]
+    async fn test_streaming_marks_max_tokens() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_limit","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Partial answer"}}"#,
+            "\n",
+            r#"data: {"type":"content_block_stop","index":0}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"max_tokens"},"usage":{"output_tokens":25}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let parts = collect_stream(events).await;
+        assert_eq!(parts.text, vec!["Partial answer"]);
+        assert_eq!(
+            parts.output_token_limit_message_ids,
+            vec![Some("msg_limit".to_string())]
+        );
     }
 
     #[tokio::test]
@@ -2272,6 +2502,10 @@ mod tests {
         );
 
         let parts = collect_stream(events).await;
+        assert_eq!(
+            parts.output_token_limit_message_ids,
+            vec![Some("msg_t2".to_string())]
+        );
         assert_eq!(
             parts.tool_errors.len(),
             1,

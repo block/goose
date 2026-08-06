@@ -74,8 +74,8 @@ You can keep an eye on your progress all month long in our Hacktoberfest 2025 Le
 When in doubt, don't stress! The goose team is here to help you make the most of your contributions. Here's where to go when you have specific questions:
 
 1. 🆘 Maintainer Help: Connect with the maintainers by commenting on the issue or chat with them directly in the #🎃┃hacktoberfest channel on Discord.
-2. 🫶 Community Support: [Join us on Discord](https://discord.gg/goose-oss) to live chat with fellow contributors and get tips for success from participants!
-3. 🎙️ Office Hours: Join us every Tuesday at 1pm Eastern Time on [Discord](https://discord.gg/goose-oss) through the month of October to get live-over-voice help with open PRs, questions you may have, and general help. Keep an eye out on the [goose events calendar](https://goose-docs.ai/community/) for future events centered around Hacktoberfest!
+2. 🫶 Community Support: [Join us on Discord](https://discord.gg/n8R5VaWDAn) to live chat with fellow contributors and get tips for success from participants!
+3. 🎙️ Office Hours: Join us every Tuesday at 1pm Eastern Time on [Discord](https://discord.gg/n8R5VaWDAn) through the month of October to get live-over-voice help with open PRs, questions you may have, and general help. Keep an eye out on the [goose events calendar](https://goose-docs.ai/community/) for future events centered around Hacktoberfest!
 
 
 Happy hacking and cheers to goose x Hacktoberfest 2025! 🎉

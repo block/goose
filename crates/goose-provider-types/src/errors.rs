@@ -6,6 +6,9 @@ use crate::request_log::LogError;
 
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum ProviderError {
+    #[error("Provider is not configured")]
+    NotConfigured,
+
     #[error("Authentication error: {0}")]
     Authentication(String),
 
@@ -59,6 +62,7 @@ impl ProviderError {
 
     pub fn telemetry_type(&self) -> &'static str {
         match self {
+            ProviderError::NotConfigured => "not_configured",
             ProviderError::Authentication(_) => "auth",
             ProviderError::ContextLengthExceeded(_) => "context_length",
             ProviderError::RateLimitExceeded { .. } => "rate_limit",
@@ -131,8 +135,26 @@ fn provider_error_from_reqwest(error: &reqwest::Error) -> ProviderError {
 
 impl From<anyhow::Error> for ProviderError {
     fn from(error: anyhow::Error) -> Self {
-        if let Some(reqwest_err) = error.downcast_ref::<reqwest::Error>() {
+        if let Some(provider_error) = error
+            .chain()
+            .find_map(|cause| cause.downcast_ref::<ProviderError>())
+        {
+            return provider_error.clone();
+        }
+        if let Some(reqwest_err) = error
+            .chain()
+            .find_map(|cause| cause.downcast_ref::<reqwest::Error>())
+        {
             return provider_error_from_reqwest(reqwest_err);
+        }
+        if error.chain().any(|cause| {
+            cause
+                .downcast_ref::<tokio::time::error::Elapsed>()
+                .is_some()
+        }) {
+            return ProviderError::NetworkError(
+                "Request timed out — check your network connection and try again.".to_string(),
+            );
         }
         ProviderError::ExecutionError(error.to_string())
     }

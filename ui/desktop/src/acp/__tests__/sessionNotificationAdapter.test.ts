@@ -18,6 +18,8 @@ const DEFAULT_TOOL_CALL_UPDATE = {
   sessionUpdate: 'tool_call_update',
   toolCallId: 'tool-1',
 } as const;
+const OUTPUT_TOKEN_LIMIT_FALLBACK_TEXT =
+  'Response stopped because the model reached its output-token limit.';
 
 function acpUpdate(update: SessionNotification['update']): SessionNotification {
   return {
@@ -143,6 +145,42 @@ describe('createAcpSessionNotificationAdapter', () => {
 
         expect(messages).toHaveLength(1);
         expect(firstContent(messages[0])).toMatchObject({ type: 'text', text: 'Hell' });
+      });
+
+      it('keeps streamed content visible when an output-limit fallback chunk arrives later', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+
+        adapter.apply(
+          acpUpdate({
+            sessionUpdate: 'agent_message_chunk',
+            content: { type: 'text', text: 'Partial response' },
+            _meta: { goose: { messageId: 'msg-1' } },
+          } as SessionNotification['update'])
+        );
+
+        const messages = expectOnlyMessagesChange(
+          adapter.apply(
+            acpUpdate({
+              sessionUpdate: 'agent_message_chunk',
+              content: { type: 'text', text: OUTPUT_TOKEN_LIMIT_FALLBACK_TEXT },
+              _meta: {
+                goose: {
+                  messageId: 'msg-1',
+                  outputTokenLimitReached: true,
+                  fallbackContent: true,
+                },
+              },
+            } as SessionNotification['update'])
+          )
+        );
+
+        expect(messages).toHaveLength(1);
+        expect(firstContent(messages[0])).toMatchObject({
+          type: 'text',
+          text: 'Partial response',
+        });
+        expect(messages[0].metadata.outputTokenLimitReached).toBe(true);
+        expect(messages[0].metadata.fallbackContent).toBeUndefined();
       });
 
       it('reconciles locally rendered steer text with server chunks', () => {
@@ -296,6 +334,62 @@ describe('createAcpSessionNotificationAdapter', () => {
           signature: '',
         });
       });
+
+      it('preserves output-limit metadata when creating a thought message', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+
+        const messages = expectOnlyMessagesChange(
+          adapter.apply(
+            acpUpdate({
+              sessionUpdate: 'agent_thought_chunk',
+              content: { type: 'text', text: 'Truncated thinking' },
+              _meta: {
+                goose: {
+                  messageId: 'thought-1',
+                  outputTokenLimitReached: true,
+                },
+              },
+            } as SessionNotification['update'])
+          )
+        );
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0].metadata.outputTokenLimitReached).toBe(true);
+      });
+
+      it('preserves output-limit metadata when updating a thought message', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+
+        adapter.apply(
+          acpUpdate({
+            sessionUpdate: 'agent_thought_chunk',
+            content: { type: 'text', text: 'Truncated ' },
+            _meta: { goose: { messageId: 'thought-1' } },
+          } as SessionNotification['update'])
+        );
+
+        const messages = expectOnlyMessagesChange(
+          adapter.apply(
+            acpUpdate({
+              sessionUpdate: 'agent_thought_chunk',
+              content: { type: 'text', text: 'thinking' },
+              _meta: {
+                goose: {
+                  messageId: 'thought-1',
+                  outputTokenLimitReached: true,
+                },
+              },
+            } as SessionNotification['update'])
+          )
+        );
+
+        expect(messages).toHaveLength(1);
+        expect(firstContent(messages[0])).toMatchObject({
+          type: 'thinking',
+          thinking: 'Truncated thinking',
+        });
+        expect(messages[0].metadata.outputTokenLimitReached).toBe(true);
+      });
     });
 
     describe('tools', () => {
@@ -362,6 +456,7 @@ describe('createAcpSessionNotificationAdapter', () => {
                   resourceUri: 'ui://app/resource',
                   extensionName: 'developer',
                   toolName: 'read_file',
+                  toolNameIsActual: true,
                 },
               },
             },
@@ -383,6 +478,7 @@ describe('createAcpSessionNotificationAdapter', () => {
                 ui: { resourceUri: 'ui://app/resource' },
                 extensionName: 'developer',
                 toolName: 'read_file',
+                toolNameIsActual: true,
               },
             },
           },

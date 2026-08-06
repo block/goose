@@ -469,6 +469,8 @@ impl DatabricksProvider {
             currency: None,
             supports_cache_control: None,
             reasoning,
+            thinking_preservation_format: None,
+            request_params: None,
         }
     }
 
@@ -599,6 +601,7 @@ impl Provider for DatabricksProvider {
                         .api_client
                         .request(&path)
                         .model_headers(model_config)?
+                        .streaming(true)
                         .response_post(&payload_clone)
                         .await?;
                     handle_status(resp).await
@@ -664,12 +667,15 @@ impl Provider for DatabricksProvider {
                         .api_client
                         .request(&path)
                         .model_headers(model_config)?
+                        .streaming(true)
                         .response_post(&payload)
                         .await?;
                     if !resp.status().is_success() {
                         let status = resp.status();
                         let url = sanitize_url(resp.url().as_str());
-                        let error_text = resp.text().await.unwrap_or_default();
+                        let error_text = crate::http_status::read_error_body(resp)
+                            .await
+                            .unwrap_or_default();
 
                         let json_payload = serde_json::from_str::<Value>(&error_text).ok();
                         return Err(map_http_error_to_provider_error(status, json_payload, &url));
@@ -686,12 +692,15 @@ impl Provider for DatabricksProvider {
                             .api_client
                             .request(&path)
                             .model_headers(model_config)?
+                            .streaming(true)
                             .response_post(&payload)
                             .await?;
                         if !resp.status().is_success() {
                             let status = resp.status();
                             let url = sanitize_url(resp.url().as_str());
-                            let error_text = resp.text().await.unwrap_or_default();
+                            let error_text = crate::http_status::read_error_body(resp)
+                                .await
+                                .unwrap_or_default();
                             let json_payload = serde_json::from_str::<Value>(&error_text).ok();
                             return Err(map_http_error_to_provider_error(
                                 status,
