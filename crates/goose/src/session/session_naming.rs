@@ -145,6 +145,15 @@ pub(crate) async fn generate_session_name(
         SESSION_NAME_SUFFIX,
     );
     let message = Message::user().with_text(&user_text);
+    tracing::info!(
+        session_id,
+        provider = provider.get_name(),
+        model = %model_config.model_name,
+        manages_own_context = provider.manages_own_context(),
+        prompt_len = user_text.len(),
+        prompt_preview = ?safe_truncate(&user_text, 200),
+        "session_naming: generate_session_name dispatching naming request"
+    );
     let result = if provider.manages_own_context() {
         crate::providers::cli_common::generate_simple_session_description(
             provider.get_name(),
@@ -168,12 +177,25 @@ pub(crate) async fn generate_session_name(
         .iter()
         .filter_map(|c| c.as_text())
         .collect();
+    tracing::info!(
+        session_id,
+        raw_len = raw.len(),
+        raw_preview = ?safe_truncate(&raw, 200),
+        "session_naming: generate_session_name raw provider response"
+    );
     let description = strip_xml_tags(&raw)
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
 
-    Ok(safe_truncate(&extract_short_title(&description), 100))
+    let name = safe_truncate(&extract_short_title(&description), 100);
+    tracing::info!(
+        session_id,
+        name_len = name.len(),
+        name_preview = ?safe_truncate(&name, 200),
+        "session_naming: generate_session_name extracted final name"
+    );
+    Ok(name)
 }
 
 #[cfg(test)]

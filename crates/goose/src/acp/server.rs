@@ -262,6 +262,12 @@ fn spawn_session_name_update_notifier(
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<crate::session::SessionNameUpdate>();
     tokio::spawn(async move {
         while let Some(update) = rx.recv().await {
+            info!(
+                session_id = %update.session_id,
+                name_len = update.name.len(),
+                name_preview = ?crate::utils::safe_truncate(&update.name, 200),
+                "session_naming: acp server pushing SessionInfoUpdate title to client"
+            );
             let mut meta = serde_json::Map::new();
             meta.insert(
                 "messageCount".to_string(),

@@ -100,6 +100,12 @@ pub(super) fn session_response_meta(
 }
 
 pub(super) fn build_session_info(session: Session) -> SessionInfo {
+    tracing::info!(
+        session_id = %session.id,
+        name_len = session.name.len(),
+        name_preview = ?crate::utils::safe_truncate(&session.name, 200),
+        "session_naming: build_session_info returning session name to client"
+    );
     let meta = session_meta(&session);
     let mut info = SessionInfo::new(SessionId::new(session.id), session.working_dir)
         .updated_at(session.updated_at.to_rfc3339())

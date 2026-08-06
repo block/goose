@@ -534,6 +534,12 @@ impl SessionManager {
         id: &str,
         name: String,
     ) -> Result<SessionNameUpdate> {
+        info!(
+            session_id = id,
+            name_len = name.len(),
+            name_preview = ?crate::utils::safe_truncate(&name, 200),
+            "session_naming: system_generated_name_update persisting session name"
+        );
         self.update(id)
             .system_generated_name(name.clone())
             .apply()
@@ -555,12 +561,23 @@ impl SessionManager {
         name: String,
     ) -> Result<Option<SessionNameUpdate>> {
         let name = name.trim().to_string();
+        info!(
+            session_id = id,
+            name_len = name.len(),
+            name_preview = ?crate::utils::safe_truncate(&name, 200),
+            "session_naming: update_name_from_provider received provider title"
+        );
         if name.is_empty() {
             return Ok(None);
         }
 
         let session = self.get_session(id, false).await?;
         if session.user_set_name || session.name == name {
+            info!(
+                session_id = id,
+                user_set_name = session.user_set_name,
+                "session_naming: update_name_from_provider skipping title (user-set or unchanged)"
+            );
             return Ok(None);
         }
 
@@ -621,6 +638,15 @@ impl SessionManager {
         } else {
             user_message_count <= MSG_COUNT_FOR_SESSION_NAME_GENERATION
         };
+
+        info!(
+            session_id = id,
+            provider = provider.get_name(),
+            manages_own_context = provider.manages_own_context(),
+            user_message_count,
+            should_generate_name,
+            "session_naming: maybe_update_name evaluated naming trigger"
+        );
 
         if should_generate_name {
             let name =

@@ -87,9 +87,11 @@ pub(crate) fn generate_simple_session_description(
         })
         .unwrap_or_else(|| "Simple task".to_string());
 
-    tracing::debug!(
-        description = %description,
-        "Generated simple session description, skipped subprocess"
+    tracing::info!(
+        model = model_name,
+        description_len = description.len(),
+        description_preview = ?safe_truncate(&description, 200),
+        "session_naming: generate_simple_session_description produced local description, skipped subprocess"
     );
 
     let message = Message::new(

@@ -162,6 +162,12 @@ impl SessionTitlePublisher {
 
         if let Some(callback) = self.callback.lock().unwrap().clone() {
             callback(title.to_string());
+        } else {
+            tracing::info!(
+                title_len = title.len(),
+                title_preview = ?crate::utils::safe_truncate(title, 200),
+                "session_naming: SessionTitlePublisher dropped title, no callback registered"
+            );
         }
     }
 }
@@ -855,6 +861,12 @@ impl AcpClientLoop {
                             }
                             SessionUpdate::SessionInfoUpdate(update) => {
                                 if let Some(title) = update.title.value() {
+                                    tracing::info!(
+                                        acp_session_id = %notification.session_id.0,
+                                        title_len = title.len(),
+                                        title_preview = ?crate::utils::safe_truncate(title, 200),
+                                        "session_naming: AcpProvider received SessionInfoUpdate title from ACP agent"
+                                    );
                                     session_title_publisher.publish(title);
                                 }
                             }
