@@ -36,6 +36,17 @@ fn messages_for_acp_replay(conversation: &Conversation) -> Vec<Message> {
         .collect()
 }
 
+fn active_turn_messages(conversation: &Conversation) -> &[Message] {
+    let messages = conversation.messages();
+    messages
+        .iter()
+        .rposition(|message| {
+            message.role == Role::User && message.is_user_visible() && !message.is_tool_response()
+        })
+        .map(|start| &messages[start..])
+        .unwrap_or(messages)
+}
+
 fn send_replay_content_chunk(
     cx: &ConnectionTo<Client>,
     session_id: &SessionId,
@@ -162,6 +173,14 @@ fn replay_conversation_to_client(
                         )),
                     ))?;
                 }
+                MessageContent::Error(error) => {
+                    send_replay_content_chunk(
+                        cx,
+                        &session_id,
+                        message,
+                        ContentBlock::Text(TextContent::new(error.message.clone())),
+                    )?;
+                }
                 MessageContent::SystemNotification(_) => {}
                 _ => {}
             }
@@ -194,7 +213,7 @@ impl GooseAcpAgent {
         let messages = session
             .conversation
             .as_ref()
-            .map(|c| c.messages().as_slice())
+            .map(active_turn_messages)
             .unwrap_or(&[]);
 
         let mut answered = HashSet::new();
@@ -428,5 +447,40 @@ mod tests {
                 },
             }),
         );
+    }
+
+    #[test]
+    fn pending_permissions_are_limited_to_the_active_turn() {
+        let approval = |id: &str| {
+            Message::assistant().with_action_required(
+                id,
+                "tool".to_string(),
+                Default::default(),
+                None,
+            )
+        };
+        let conversation = Conversation::new_unvalidated([
+            Message::user().with_text("old turn"),
+            approval("old"),
+            Message::user().with_text("current turn"),
+            approval("current"),
+        ]);
+
+        let active = active_turn_messages(&conversation);
+        let approval_ids = active
+            .iter()
+            .flat_map(|message| &message.content)
+            .filter_map(|content| match content {
+                MessageContent::ActionRequired(action) => match &action.data {
+                    ActionRequiredData::ToolConfirmation { id, .. } => Some(id.as_str()),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(approval_ids, ["current"]);
+
+        let no_kickoff = Conversation::new_unvalidated([approval("orphan")]);
+        assert_eq!(active_turn_messages(&no_kickoff).len(), 1);
     }
 }
