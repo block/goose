@@ -253,15 +253,45 @@ fn directory_search_flags() -> libc::c_int {
     libc::O_PATH | libc::O_DIRECTORY | libc::O_CLOEXEC
 }
 
-#[cfg(all(unix, target_vendor = "apple"))]
+#[cfg(any(
+    all(unix, target_vendor = "apple"),
+    target_os = "aix",
+    target_os = "emscripten",
+    target_os = "freebsd",
+    target_os = "illumos",
+    target_os = "netbsd",
+    target_os = "solaris"
+))]
 fn directory_search_flags() -> libc::c_int {
-    libc::O_SEARCH | libc::O_CLOEXEC
+    libc::O_SEARCH | libc::O_DIRECTORY | libc::O_CLOEXEC
+}
+
+#[cfg(target_os = "redox")]
+fn directory_search_flags() -> libc::c_int {
+    libc::O_PATH | libc::O_DIRECTORY | libc::O_CLOEXEC
+}
+
+#[cfg(any(target_os = "hurd", target_os = "nto"))]
+fn directory_search_flags() -> libc::c_int {
+    libc::O_EXEC | libc::O_DIRECTORY | libc::O_CLOEXEC
 }
 
 #[cfg(all(
     unix,
-    not(any(target_os = "linux", target_os = "android")),
-    not(target_vendor = "apple")
+    not(any(
+        target_os = "aix",
+        target_os = "android",
+        target_os = "emscripten",
+        target_os = "freebsd",
+        target_os = "hurd",
+        target_os = "illumos",
+        target_os = "linux",
+        target_os = "netbsd",
+        target_os = "nto",
+        target_os = "redox",
+        target_os = "solaris",
+        target_vendor = "apple"
+    ))
 ))]
 fn directory_search_flags() -> libc::c_int {
     libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC
@@ -294,6 +324,97 @@ fn validate_request_log_directory_link_owner(
     Ok(())
 }
 
+#[cfg(any(
+    test,
+    all(
+        unix,
+        not(any(
+            target_os = "aix",
+            target_os = "android",
+            target_os = "emscripten",
+            target_os = "freebsd",
+            target_os = "hurd",
+            target_os = "illumos",
+            target_os = "linux",
+            target_os = "netbsd",
+            target_os = "nto",
+            target_os = "redox",
+            target_os = "solaris",
+            target_vendor = "apple"
+        ))
+    )
+))]
+fn repair_request_log_directory_for_read(path: &std::path::Path) -> std::io::Result<()> {
+    use std::io::{Error, ErrorKind};
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+    let metadata = std::fs::metadata(path)?;
+    if !metadata.is_dir() {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "logs path is not a directory",
+        ));
+    }
+    if metadata.uid() != current_effective_uid() {
+        return Err(Error::new(
+            ErrorKind::PermissionDenied,
+            "logs directory is owned by another user",
+        ));
+    }
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))?;
+    let updated = std::fs::metadata(path)?;
+    if metadata.dev() != updated.dev()
+        || metadata.ino() != updated.ino()
+        || !updated.is_dir()
+        || updated.uid() != current_effective_uid()
+    {
+        return Err(Error::new(
+            ErrorKind::PermissionDenied,
+            "logs directory changed while permissions were restricted",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(any(
+    target_os = "aix",
+    target_os = "android",
+    target_os = "emscripten",
+    target_os = "freebsd",
+    target_os = "hurd",
+    target_os = "illumos",
+    target_os = "linux",
+    target_os = "netbsd",
+    target_os = "nto",
+    target_os = "redox",
+    target_os = "solaris",
+    all(unix, target_vendor = "apple")
+))]
+fn prepare_request_log_directory_for_open(_path: &std::path::Path) -> std::io::Result<()> {
+    Ok(())
+}
+
+#[cfg(all(
+    unix,
+    not(any(
+        target_os = "aix",
+        target_os = "android",
+        target_os = "emscripten",
+        target_os = "freebsd",
+        target_os = "hurd",
+        target_os = "illumos",
+        target_os = "linux",
+        target_os = "netbsd",
+        target_os = "nto",
+        target_os = "redox",
+        target_os = "solaris",
+        target_vendor = "apple"
+    ))
+))]
+fn prepare_request_log_directory_for_open(path: &std::path::Path) -> std::io::Result<()> {
+    repair_request_log_directory_for_read(path)
+}
+
 #[cfg(unix)]
 fn restrict_request_log_directory_with_hook(
     logs_dir: &std::path::Path,
@@ -305,6 +426,7 @@ fn restrict_request_log_directory_with_hook(
     use std::os::unix::fs::MetadataExt;
 
     validate_request_log_directory_link_owner(logs_dir, current_effective_uid())?;
+    prepare_request_log_directory_for_open(logs_dir)?;
     let directory = open_search_only_directory(logs_dir)?;
     let metadata = directory.metadata()?;
 
@@ -826,6 +948,23 @@ mod tests {
         let foreign_uid = if current_effective_uid() == 0 { 1 } else { 0 };
         let error = validate_request_log_directory_link_owner(&link, foreign_uid).unwrap_err();
         assert_eq!(error.kind(), ErrorKind::PermissionDenied);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn request_log_directory_fallback_repairs_without_owner_read() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+        let root = tempfile::tempdir().unwrap();
+        let directory = root.path().join("logs");
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o377)).unwrap();
+
+        repair_request_log_directory_for_read(&directory).unwrap();
+
+        let metadata = std::fs::metadata(&directory).unwrap();
+        assert_eq!(metadata.uid(), current_effective_uid());
+        assert_eq!(metadata.permissions().mode() & 0o777, 0o700);
     }
 
     #[test]
