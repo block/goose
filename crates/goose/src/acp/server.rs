@@ -613,17 +613,21 @@ impl GooseAcpAgent {
         )
     }
 
-    pub(super) async fn notify_session_setup_by_id(
+    pub(super) async fn prepare_session_setup_by_id(
         &self,
-        cx: &ConnectionTo<Client>,
         session_id: &str,
-    ) -> Result<(), agent_client_protocol::Error> {
+    ) -> Result<(Session, SessionUsageTotals), agent_client_protocol::Error> {
         let session = self
             .session_manager
             .get_session(session_id, false)
             .await
             .internal_err_ctx("Failed to load session for setup notifications")?;
-        self.notify_session_setup(cx, &session).await
+        let totals = self
+            .session_manager
+            .get_session_usage_totals(session_id)
+            .await
+            .unwrap_or_default();
+        Ok((session, totals))
     }
 
     pub(super) fn supports_recipe_param_requests(&self) -> bool {

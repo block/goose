@@ -47,11 +47,17 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                             match agent.on_new_session(&cx_clone, req).await {
                                 Ok(response) => {
                                     let session_id = response.session_id.0.to_string();
+                                    let session_setup =
+                                        agent.prepare_session_setup_by_id(&session_id).await;
                                     responder.respond(response)?;
-                                    if let Err(error) = agent
-                                        .notify_session_setup_by_id(&cx_clone, &session_id)
-                                        .await
-                                    {
+                                    if let Err(error) = session_setup.and_then(|(session, totals)| {
+                                        send_session_setup_notifications(
+                                            &cx_clone,
+                                            &session,
+                                            &totals,
+                                            agent.supports_goose_custom_notifications(),
+                                        )
+                                    }) {
                                         tracing::warn!(
                                             session_id = %session_id,
                                             error = ?error,
@@ -398,11 +404,17 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                             match agent.on_fork_session(&cx_spawn, req).await {
                                 Ok(response) => {
                                     let session_id = response.session_id.0.to_string();
+                                    let session_setup =
+                                        agent.prepare_session_setup_by_id(&session_id).await;
                                     responder.respond(response)?;
-                                    if let Err(error) = agent
-                                        .notify_session_setup_by_id(&cx_spawn, &session_id)
-                                        .await
-                                    {
+                                    if let Err(error) = session_setup.and_then(|(session, totals)| {
+                                        send_session_setup_notifications(
+                                            &cx_spawn,
+                                            &session,
+                                            &totals,
+                                            agent.supports_goose_custom_notifications(),
+                                        )
+                                    }) {
                                         tracing::warn!(
                                             session_id = %session_id,
                                             error = ?error,
