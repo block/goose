@@ -44,6 +44,10 @@ export function showExtensionLoadResults(results: ExtensionLoadResult[] | null |
 
   const failedExtensions = results.filter((r) => !r.success);
 
+  if (failedExtensions.length === 0) {
+    return;
+  }
+
   if (results.length === 1 && failedExtensions.length === 1) {
     const failed = failedExtensions[0];
     const errorMsg = failed.error || 'Unknown error';
