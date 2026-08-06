@@ -606,7 +606,9 @@ fn open_untracked_root_with_hook(
     use std::io::{Error, ErrorKind};
     use std::os::windows::fs::OpenOptionsExt;
     use winapi::um::winbase::{FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT};
-    use winapi::um::winnt::{FILE_SHARE_READ, FILE_SHARE_WRITE};
+    use winapi::um::winnt::{
+        FILE_READ_ATTRIBUTES, FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_TRAVERSE, SYNCHRONIZE,
+    };
 
     let root_anchor = repo_root
         .ancestors()
@@ -632,7 +634,7 @@ fn open_untracked_root_with_hook(
 
     let mut options = fs::OpenOptions::new();
     options
-        .read(true)
+        .access_mode(FILE_TRAVERSE | FILE_READ_ATTRIBUTES | SYNCHRONIZE)
         .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
         .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT);
     let mut directory = options.open(root_anchor)?;
@@ -867,7 +869,8 @@ fn windows_open_at(
         HANDLE, NT_SUCCESS, OBJECT_ATTRIBUTES, OBJ_CASE_INSENSITIVE, UNICODE_STRING,
     };
     use winapi::um::winnt::{
-        FILE_GENERIC_READ, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
+        FILE_GENERIC_READ, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ,
+        FILE_SHARE_WRITE, FILE_TRAVERSE, SYNCHRONIZE,
     };
 
     let mut name: Vec<u16> = name.encode_wide().collect();
@@ -905,11 +908,16 @@ fn windows_open_at(
     if allow_delete {
         share_access |= FILE_SHARE_DELETE;
     }
+    let desired_access = if directory_only {
+        FILE_TRAVERSE | FILE_READ_ATTRIBUTES | SYNCHRONIZE
+    } else {
+        FILE_GENERIC_READ
+    };
     // SAFETY: all pointers reference initialized values for the duration of the synchronous call.
     let status = unsafe {
         NtCreateFile(
             &mut handle,
-            FILE_GENERIC_READ,
+            desired_access,
             &mut attributes,
             &mut io_status,
             std::ptr::null_mut(),
