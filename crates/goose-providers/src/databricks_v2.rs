@@ -207,6 +207,7 @@ impl DatabricksV2Provider {
                     .api_client
                     .request("ai-gateway/openai/v1/responses")
                     .model_headers(model_config)?
+                    .streaming(true)
                     .response_post(&payload)
                     .await?;
                 handle_status(resp).await
@@ -245,6 +246,7 @@ impl DatabricksV2Provider {
                     .api_client
                     .request("ai-gateway/mlflow/v1/chat/completions")
                     .model_headers(model_config)?
+                    .streaming(true)
                     .response_post(&payload)
                     .await?;
                 handle_status(resp).await
@@ -281,6 +283,7 @@ impl DatabricksV2Provider {
                     .api_client
                     .request("ai-gateway/anthropic/v1/messages")
                     .model_headers(model_config)?
+                    .streaming(true)
                     .response_post(&payload)
                     .await?;
                 handle_status(resp).await

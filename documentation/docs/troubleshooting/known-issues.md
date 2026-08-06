@@ -7,7 +7,7 @@ description: Comprehensive troubleshooting guide for common goose problems with 
 goose, like any system, may run into occasional issues. This guide provides solutions for common problems.
 
 :::tip Need help with an issue not listed here?
-Our [Discord community](https://discord.gg/goose-oss) is here to help! For the fastest support, consider generating a [diagnostic report](/docs/troubleshooting/diagnostics-and-reporting) - it helps us understand your setup quickly.
+Our [Discord community](https://discord.gg/n8R5VaWDAn) is here to help! For the fastest support, consider generating a [diagnostic report](/docs/troubleshooting/diagnostics-and-reporting) - it helps us understand your setup quickly.
 :::
 
 ### goose Edits Files
@@ -523,7 +523,7 @@ If you can share a [diagnostic report](/docs/troubleshooting/diagnostics-and-rep
 
 [handling-rate-limits]: /docs/guides/handling-llm-rate-limits-with-goose
 [installation]: /docs/getting-started/installation
-[discord]: https://discord.gg/goose-oss
+[discord]: https://discord.gg/n8R5VaWDAn
 [goosehints]: /docs/guides/context-engineering/using-goosehints
 [configure-llm-provider]: /docs/getting-started/providers
 [extensions-directory]: /extensions

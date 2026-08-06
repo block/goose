@@ -18,7 +18,8 @@ use super::retry::ProviderRetry;
 use crate::conversation::message::Message;
 use crate::errors::ProviderError;
 use crate::formats::openai::{
-    create_request, get_cost, get_usage, response_to_message, response_to_streaming_message,
+    create_request, create_request_for_model_with_options, get_cost, get_usage,
+    response_to_message, response_to_streaming_message, OpenAiFormatOptions,
 };
 use crate::formats::openai_responses::responses_api_to_streaming_message;
 use crate::model::ModelConfig;
@@ -49,6 +50,101 @@ impl OpenAiCompatibleProvider {
         self
     }
 
+    #[allow(clippy::too_many_arguments)]
+    fn build_request_for_model(
+        &self,
+        model_config: &ModelConfig,
+        wire_model: &str,
+        capability_model: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+        for_streaming: bool,
+    ) -> Result<Value, ProviderError> {
+        create_request_for_model_with_options(
+            model_config,
+            wire_model,
+            capability_model,
+            system,
+            messages,
+            tools,
+            &ImageFormat::OpenAi,
+            for_streaming,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+                ..Default::default()
+            },
+        )
+        .map_err(|e| ProviderError::RequestFailed(format!("Failed to create request: {}", e)))
+    }
+
+    pub async fn stream_for_model(
+        &self,
+        model_config: &ModelConfig,
+        wire_model: &str,
+        capability_model: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let payload = self.build_request_for_model(
+            model_config,
+            wire_model,
+            capability_model,
+            system,
+            messages,
+            tools,
+            self.supports_streaming,
+        )?;
+        self.stream_payload(model_config, payload).await
+    }
+
+    async fn stream_payload(
+        &self,
+        model_config: &ModelConfig,
+        payload: Value,
+    ) -> Result<MessageStream, ProviderError> {
+        let mut log = start_log(model_config, &payload)?;
+        let path = format!("{}chat/completions", self.completions_prefix);
+        let response = self
+            .with_retry(|| async {
+                handle_status(
+                    self.api_client
+                        .request(&path)
+                        .model_headers(model_config)?
+                        .streaming(self.supports_streaming)
+                        .response_post(&payload)
+                        .await?,
+                )
+                .await
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
+        if self.supports_streaming {
+            stream_openai_compat(response, log)
+        } else {
+            let json = response.json().await.map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
+            })?;
+            let message = response_to_message(&json).map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to parse message: {}", e))
+            })?;
+            let usage_json = json.get("usage").unwrap_or(&Value::Null);
+            let usage_data = get_usage(usage_json);
+            let mut usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
+            if let Some(cost) = get_cost(usage_json) {
+                usage = usage.with_cost(cost, CostSource::ProviderReported);
+            }
+            log.write(
+                &serde_json::to_value(&message).unwrap_or_default(),
+                Some(&usage.usage),
+            )?;
+            Ok(stream_from_single_message(message, usage))
+        }
+    }
+
     fn build_request(
         &self,
         model_config: &ModelConfig,
@@ -73,6 +169,13 @@ impl OpenAiCompatibleProvider {
 impl Provider for OpenAiCompatibleProvider {
     fn get_name(&self) -> &str {
         &self.name
+    }
+
+    async fn refresh_credentials(&self) -> Result<(), ProviderError> {
+        self.api_client
+            .refresh_credentials()
+            .await
+            .map_err(|error| ProviderError::Authentication(error.to_string()))
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -116,49 +219,7 @@ impl Provider for OpenAiCompatibleProvider {
             tools,
             self.supports_streaming,
         )?;
-        let mut log = start_log(model_config, &payload)?;
-
-        let completions_path = format!("{}chat/completions", self.completions_prefix);
-        let response = self
-            .with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .request(&completions_path)
-                    .model_headers(model_config)?
-                    .response_post(&payload)
-                    .await?;
-                handle_status(resp).await
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
-
-        if self.supports_streaming {
-            stream_openai_compat(response, log)
-        } else {
-            let json: serde_json::Value = response.json().await.map_err(|e| {
-                ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
-            })?;
-
-            let message = response_to_message(&json).map_err(|e| {
-                ProviderError::RequestFailed(format!("Failed to parse message: {}", e))
-            })?;
-
-            let usage_json = json.get("usage").unwrap_or(&serde_json::Value::Null);
-            let usage_data = get_usage(usage_json);
-            let mut usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
-            if let Some(cost) = get_cost(usage_json) {
-                usage = usage.with_cost(cost, CostSource::ProviderReported);
-            }
-
-            log.write(
-                &serde_json::to_value(&message).unwrap_or_default(),
-                Some(&usage.usage),
-            )?;
-
-            Ok(stream_from_single_message(message, usage))
-        }
+        self.stream_payload(model_config, payload).await
     }
 }
 

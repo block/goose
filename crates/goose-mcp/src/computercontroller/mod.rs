@@ -10,8 +10,9 @@ use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         CallToolResult, ContentBlock, ErrorCode, ErrorData, Implementation, InitializeResult,
-        ListResourcesResult, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult,
-        Resource, ResourceContents, ServerCapabilities, ServerInfo,
+        ListResourcesResult, PaginatedRequestParams, ReadResourceRequestParams,
+        ReadResourceResponse, ReadResourceResult, Resource, ResourceContents, ServerCapabilities,
+        ServerInfo,
     },
     schemars::JsonSchema,
     service::RequestContext,
@@ -1649,6 +1650,7 @@ impl ServerHandler for ComputerControllerServer {
             resources,
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 
@@ -1656,7 +1658,7 @@ impl ServerHandler for ComputerControllerServer {
         &self,
         params: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, ErrorData> {
+    ) -> Result<ReadResourceResponse, ErrorData> {
         let active_resources = self.active_resources.lock().unwrap();
         let resource = active_resources.get(&params.uri).ok_or_else(|| {
             ErrorData::new(
@@ -1667,6 +1669,6 @@ impl ServerHandler for ComputerControllerServer {
         })?;
 
         // Clone the resource to return
-        Ok(ReadResourceResult::new(vec![resource.clone()]))
+        Ok(ReadResourceResult::new(vec![resource.clone()]).into())
     }
 }

@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "聊天"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "创建时间"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "目录"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "模型"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "状态"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "更新时间"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "没有最近的聊天"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "错误"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "空闲"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "流式传输"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "未读活动"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "未命名会话"
@@ -3743,6 +3770,12 @@
   "sessions.action.export": {
     "defaultMessage": "导出会话"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "在新窗口中打开"
   },
@@ -3841,6 +3874,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "会话“{name}”复制成功"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "导出会话失败：{error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "会话导出成功"
@@ -4538,6 +4574,9 @@
   "userMessage.editButton": {
     "defaultMessage": "编辑"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "已附加的图片："
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "原地编辑"
   },
@@ -4570,5 +4609,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "用编辑过的消息创建新会话"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "从消息中移除图片"
   }
 }

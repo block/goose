@@ -15,10 +15,12 @@ pub(crate) mod declarative_providers {
     expose_declarative_providers!(
         alibaba,
         atomic_chat,
+        celeris,
         cerebras,
         deepseek,
         empiriolabs,
         fireworks,
+        friendli,
         futurmix,
         groq,
         iflytek,

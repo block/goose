@@ -408,6 +408,7 @@ impl McpClientTrait for ExtensionManagerClient {
             tools: self.get_tools().await,
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 

@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Cuộc trò chuyện"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Đã tạo"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Thư mục"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Mô hình"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Trạng thái"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Đã cập nhật"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "Không có cuộc trò chuyện gần đây"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Lỗi"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Nhàn rỗi"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Đang truyền"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Hoạt động chưa đọc"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Phiên chưa đặt tên"
@@ -3743,6 +3770,12 @@
   "sessions.action.export": {
     "defaultMessage": "Xuất phiên"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "Mở trong cửa sổ mới"
   },
@@ -3841,6 +3874,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "Đã nhân bản phiên làm việc \"{name}\" thành công"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "Không thể xuất phiên làm việc: {error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "Đã xuất phiên làm việc thành công"
@@ -4538,6 +4574,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Chỉnh sửa"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Hình ảnh đính kèm:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "Chỉnh sửa tại chỗ"
   },
@@ -4570,5 +4609,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Tạo một phiên làm việc mới với tin nhắn đã chỉnh sửa"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Xóa hình ảnh khỏi tin nhắn"
   }
 }

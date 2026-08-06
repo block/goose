@@ -1,7 +1,7 @@
 import { AppEvents } from '../constants/events';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { defineMessages, useIntl } from '../i18n';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
 import ProgressiveMessageList from './ProgressiveMessageList';
@@ -23,7 +23,12 @@ import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import { scanRecipe } from '../recipe';
 import type { Recipe } from '../recipe';
 import RecipeActivities from './recipes/RecipeActivities';
-import { getTextAndImageContent, type Message, type UserInput } from '../types/message';
+import {
+  getTextAndImageContent,
+  type ImageData,
+  type Message,
+  type UserInput,
+} from '../types/message';
 import { substituteParameters } from '../utils/parameterSubstitution';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
 import { Goose } from './icons';
@@ -304,11 +309,12 @@ export default function BaseChat({
     const handleSessionForked = (event: Event) => {
       const customEvent = event as CustomEvent<{
         newSessionId: string;
-        shouldStartAgent?: boolean;
-        editedMessage?: string;
+        shouldStartAgent: boolean;
+        editedMessage: string;
+        editedImages: ImageData[];
       }>;
       window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
-      const { newSessionId, shouldStartAgent, editedMessage } = customEvent.detail;
+      const { newSessionId, shouldStartAgent, editedMessage, editedImages } = customEvent.detail;
 
       const params = new URLSearchParams();
       params.set('resumeSessionId', newSessionId);
@@ -319,7 +325,7 @@ export default function BaseChat({
       navigate(`/pair?${params.toString()}`, {
         state: {
           disableAnimation: true,
-          initialMessage: editedMessage ? { msg: editedMessage, images: [] } : undefined,
+          initialMessage: { msg: editedMessage, images: editedImages },
         },
       });
     };

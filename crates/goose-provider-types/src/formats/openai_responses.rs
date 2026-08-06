@@ -107,6 +107,26 @@ pub struct ResponseReasoningInfo {
     pub summary: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ResponseIncompleteDetails {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+fn is_output_token_limit_incomplete_reason(reason: &str) -> bool {
+    matches!(reason, "max_output_tokens" | "max_tokens")
+}
+
+fn response_reached_output_token_limit(
+    status: &str,
+    incomplete_details: Option<&ResponseIncompleteDetails>,
+) -> bool {
+    status == "incomplete"
+        && incomplete_details
+            .and_then(|details| details.reason.as_deref())
+            .is_some_and(is_output_token_limit_incomplete_reason)
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ResponseUsage {
     pub input_tokens: i32,
@@ -207,6 +227,11 @@ pub enum ResponsesStreamEvent {
         sequence_number: i32,
         response: ResponseMetadata,
     },
+    #[serde(rename = "response.incomplete")]
+    ResponseIncomplete {
+        sequence_number: i32,
+        response: ResponseMetadata,
+    },
     #[serde(rename = "response.failed")]
     ResponseFailed { sequence_number: i32, error: Value },
     #[serde(rename = "response.function_call_arguments.delta")]
@@ -262,6 +287,7 @@ fn is_known_responses_stream_event_type(event_type: &str) -> bool {
             | "response.content_part.done"
             | "response.output_text.done"
             | "response.completed"
+            | "response.incomplete"
             | "response.failed"
             | "response.function_call_arguments.delta"
             | "response.function_call_arguments.done"
@@ -310,6 +336,8 @@ pub struct ResponseMetadata {
     pub usage: Option<ResponseUsage>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<ResponseReasoningInfo>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub incomplete_details: Option<ResponseIncompleteDetails>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -388,6 +416,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                 MessageContentBlock::ToolRequest(request) if message.role == Role::Assistant => {
                     if !text_items.is_empty() {
                         input_items.push(json!({
+                            "type": "message",
                             "role": role,
                             "content": text_items
                         }));
@@ -435,6 +464,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                 MessageContentBlock::ToolResponse(response) => {
                     if !text_items.is_empty() {
                         input_items.push(json!({
+                            "type": "message",
                             "role": role,
                             "content": text_items
                         }));
@@ -520,6 +550,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                 MessageContentBlock::FrontendToolRequest(request) => {
                     if !text_items.is_empty() {
                         input_items.push(json!({
+                            "type": "message",
                             "role": role,
                             "content": text_items
                         }));
@@ -559,6 +590,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
 
         if !text_items.is_empty() {
             input_items.push(json!({
+                "type": "message",
                 "role": role,
                 "content": text_items
             }));
@@ -580,10 +612,30 @@ pub fn create_responses_request(
     messages: &[Message],
     tools: &[Tool],
 ) -> anyhow::Result<Value, Error> {
+    let (wire_model_name, _) = extract_reasoning_effort(&model_config.model_name);
+    create_responses_request_for_model(
+        model_config,
+        &wire_model_name,
+        &model_config.model_name,
+        system,
+        messages,
+        tools,
+    )
+}
+
+pub fn create_responses_request_for_model(
+    model_config: &ModelConfig,
+    wire_model_name: &str,
+    capability_model_name: &str,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+) -> anyhow::Result<Value, Error> {
     let mut input_items = Vec::new();
 
     if !system.is_empty() {
         input_items.push(json!({
+            "type": "message",
             "role": "system",
             "content": [{
                 "type": "input_text",
@@ -594,7 +646,7 @@ pub fn create_responses_request(
 
     add_message_items(&mut input_items, messages);
 
-    let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
+    let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(capability_model_name);
     // All models routed here are responses-capable; temperature is rejected
     // by the API for reasoning models regardless of whether an explicit
     // effort suffix was provided.
@@ -639,7 +691,7 @@ pub fn create_responses_request(
         ));
     }
     let mut payload = json!({
-        "model": model_name,
+        "model": wire_model_name,
         "input": input_items,
         "store": store,
     });
@@ -842,6 +894,15 @@ fn process_streaming_output_items(
     Ok(content)
 }
 
+fn output_token_limit_marker(id: Option<String>) -> Message {
+    let mut message = Message::assistant();
+    if let Some(id) = id {
+        message = message.with_id(id);
+    }
+    message.metadata.output_token_limit_reached = true;
+    message
+}
+
 pub fn responses_api_to_streaming_message<S>(
     mut stream: S,
 ) -> impl Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
@@ -857,6 +918,7 @@ where
         let mut final_usage: Option<ProviderUsage> = None;
         let mut output_items: Vec<ResponseOutputItemInfo> = Vec::new();
         let mut is_text_response = false;
+        let mut output_token_limit_reached = false;
 
         'outer: while let Some(response) = stream.next().await {
             let response_str = response?;
@@ -944,6 +1006,35 @@ where
                     break 'outer;
                 }
 
+                ResponsesStreamEvent::ResponseIncomplete { response, .. } => {
+                    let model = model_name.as_ref().unwrap_or(&response.model);
+                    let usage = response.usage.as_ref().map_or_else(
+                        Usage::default,
+                        ResponseUsage::to_usage,
+                    );
+                    final_usage = Some(ProviderUsage::new(model.clone(), usage));
+                    response_id = Some(response.id.clone());
+                    output_token_limit_reached = response_reached_output_token_limit(
+                        &response.status,
+                        response.incomplete_details.as_ref(),
+                    );
+
+                    if !response.output.is_empty() {
+                        output_items = response
+                            .output
+                            .into_iter()
+                            .filter(|item| match item {
+                                ResponseOutputItemInfo::FunctionCall { status, .. } => {
+                                    status.as_deref() == Some("completed")
+                                }
+                                _ => true,
+                            })
+                            .collect();
+                    }
+
+                    break 'outer;
+                }
+
                 ResponsesStreamEvent::FunctionCallArgumentsDelta { .. } => {
                     // Function call arguments are being streamed, but we'll get the complete
                     // arguments in the OutputItemDone event, so we can ignore deltas for now
@@ -1004,7 +1095,10 @@ where
             if let Some(id) = response_id {
                 message = message.with_id(id);
             }
+            message.metadata.output_token_limit_reached = output_token_limit_reached;
             yield (Some(message), final_usage);
+        } else if output_token_limit_reached {
+            yield (Some(output_token_limit_marker(response_id)), final_usage);
         } else if let Some(usage) = final_usage {
             yield (None, Some(usage));
         }
@@ -1101,6 +1195,96 @@ mod tests {
         assert_eq!(usage.usage.input_tokens, Some(10));
         assert_eq!(usage.usage.output_tokens, Some(4));
         assert_eq!(usage.usage.total_tokens, Some(14));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_responses_stream_marks_output_token_limit_when_incomplete() -> anyhow::Result<()>
+    {
+        let lines = vec![
+            r#"data: {"type":"response.created","sequence_number":1,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"in_progress","model":"gpt-5.2-pro","output":[]}}"#.to_string(),
+            r#"data: {"type":"response.output_text.delta","sequence_number":2,"item_id":"msg_1","output_index":0,"content_index":0,"delta":"Partial response"}"#.to_string(),
+            r#"data: {"type":"response.incomplete","sequence_number":3,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"incomplete","model":"gpt-5.2-pro","output":[],"incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}}"#.to_string(),
+            "data: [DONE]".to_string(),
+        ];
+
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = responses_api_to_streaming_message(response_stream);
+        futures::pin_mut!(messages);
+
+        let mut text_parts = Vec::new();
+        let mut output_token_limit_markers = Vec::new();
+        let mut usage: Option<ProviderUsage> = None;
+
+        while let Some(item) = messages.next().await {
+            let (message, maybe_usage) = item?;
+            if let Some(msg) = message {
+                if msg.metadata.output_token_limit_reached {
+                    output_token_limit_markers.push((msg.id.clone(), msg.content.is_empty()));
+                }
+                for content in msg.content {
+                    if let MessageContentBlock::Text(text) = content {
+                        text_parts.push(text.text);
+                    }
+                }
+            }
+            if let Some(final_usage) = maybe_usage {
+                usage = Some(final_usage);
+            }
+        }
+
+        assert_eq!(text_parts.concat(), "Partial response");
+        assert_eq!(
+            output_token_limit_markers,
+            vec![(Some("resp_1".to_string()), true)]
+        );
+        let usage = usage.expect("usage should be present when the response is incomplete");
+        assert_eq!(usage.model, "gpt-5.2-pro");
+        assert_eq!(usage.usage.input_tokens, Some(10));
+        assert_eq!(usage.usage.output_tokens, Some(5));
+        assert_eq!(usage.usage.total_tokens, Some(15));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_responses_stream_drops_incomplete_function_calls() -> anyhow::Result<()> {
+        let lines = vec![
+            r#"data: {"type":"response.created","sequence_number":1,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"in_progress","model":"gpt-5.2-pro","output":[]}}"#.to_string(),
+            r#"data: {"type":"response.incomplete","sequence_number":2,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"incomplete","model":"gpt-5.2-pro","output":[{"type":"function_call","id":"fc_complete","status":"completed","call_id":"call_complete","name":"read_file","arguments":"{\"path\":\"README.md\"}"},{"type":"function_call","id":"fc_partial","status":"in_progress","call_id":"call_partial","name":"shell","arguments":"{\"command\":\"echo"}],"incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}}"#.to_string(),
+            "data: [DONE]".to_string(),
+        ];
+
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = responses_api_to_streaming_message(response_stream);
+        futures::pin_mut!(messages);
+
+        let mut tool_request_ids = Vec::new();
+        let mut output_token_limit_reached = false;
+        let mut usage: Option<ProviderUsage> = None;
+
+        while let Some(item) = messages.next().await {
+            let (message, maybe_usage) = item?;
+            if let Some(msg) = message {
+                output_token_limit_reached |= msg.metadata.output_token_limit_reached;
+                for content in msg.content {
+                    if let MessageContentBlock::ToolRequest(request) = content {
+                        tool_request_ids.push(request.id);
+                    }
+                }
+            }
+            if let Some(final_usage) = maybe_usage {
+                usage = Some(final_usage);
+            }
+        }
+
+        assert_eq!(tool_request_ids, vec!["call_complete"]);
+        assert!(output_token_limit_reached);
+        let usage = usage.expect("usage should be present when the response is incomplete");
+        assert_eq!(usage.usage.input_tokens, Some(10));
+        assert_eq!(usage.usage.output_tokens, Some(5));
+        assert_eq!(usage.usage.total_tokens, Some(15));
 
         Ok(())
     }
@@ -1358,16 +1542,12 @@ mod tests {
 
         let types: Vec<&str> = input
             .iter()
-            .map(|item| {
-                item.get("type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_else(|| item["role"].as_str().unwrap())
-            })
+            .map(|item| item["type"].as_str().unwrap())
             .collect();
 
         assert_eq!(
             types,
-            vec!["assistant", "function_call", "assistant", "function_call"]
+            vec!["message", "function_call", "message", "function_call"]
         );
     }
 

@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Conversas"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Criado"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Diretório"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Modelo"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Status"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Atualizado"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "Sem conversas recentes"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Erro"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Inativo"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Transmitindo"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Atividade não lida"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Sessão sem título"
@@ -3743,6 +3770,12 @@
   "sessions.action.export": {
     "defaultMessage": "Exportar sessão"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "Abrir numa nova janela"
   },
@@ -3841,6 +3874,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "Sessão \"{name}\" duplicada com êxito"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "Falha ao exportar a sessão: {error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "Sessão exportada com êxito"
@@ -4538,6 +4574,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Editar"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Imagens anexadas:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "Editar no Local"
   },
@@ -4570,5 +4609,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Criar uma nova sessão com a mensagem editada"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Remover imagem da mensagem"
   }
 }

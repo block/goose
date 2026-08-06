@@ -17,7 +17,6 @@ use crate::commands::configure::configure_telemetry_consent_dialog;
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::plugin::{handle_plugin_install, handle_plugin_update};
-use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
 use crate::commands::term::{
     handle_term_info, handle_term_init, handle_term_log, handle_term_run, Shell,
@@ -38,8 +37,6 @@ use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
 use std::io::Read;
 use std::path::PathBuf;
-use tracing::warn;
-
 const GOOSE_SERVER_SECRET_KEY_ENV: &str = "GOOSE_SERVER__SECRET_KEY";
 
 fn generate_serve_secret_key() -> String {
@@ -946,14 +943,6 @@ enum Command {
         extension_opts: ExtensionOptions,
     },
 
-    /// Open the last project directory
-    #[command(about = "Open the last project directory", visible_alias = "p")]
-    Project {},
-
-    /// List recent project directories
-    #[command(about = "List recent project directories", visible_alias = "ps")]
-    Projects,
-
     /// Execute commands from an instruction file
     #[command(about = "Execute commands from an instruction file or stdin")]
     Run {
@@ -1349,8 +1338,6 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Acp { .. }) => "acp",
         Some(Command::Serve { .. }) => "serve",
         Some(Command::Session { .. }) => "session",
-        Some(Command::Project {}) => "project",
-        Some(Command::Projects) => "projects",
         Some(Command::Run { .. }) => "run",
         Some(Command::Gateway { .. }) => "gateway",
         Some(Command::Schedule { .. }) => "schedule",
@@ -1399,6 +1386,7 @@ struct ServeCommandArgs {
 
 async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
     use axum::http::HeaderValue;
+    use goose::acp::server::AcpBuiltinSelection;
     use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
     use goose::acp::transport::create_router;
     use goose::config::paths::Paths;
@@ -1420,9 +1408,15 @@ async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
     } = args;
 
     let builtins = if builtins.is_empty() {
-        vec!["developer".to_string()]
+        AcpBuiltinSelection {
+            defaults: vec!["developer".to_string()],
+            explicit: Vec::new(),
+        }
     } else {
-        builtins
+        AcpBuiltinSelection {
+            defaults: Vec::new(),
+            explicit: builtins,
+        }
     };
 
     let additional_source_roots = Config::global()
@@ -1473,6 +1467,9 @@ async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
         })
         .collect::<Result<Vec<_>>>()?;
     let secret_key = env_secret.unwrap_or_else(generate_serve_secret_key);
+    if let Err(error) = server.start_scheduler().await {
+        warn!("Scheduler failed to start; scheduled jobs will not run until a client connects: {error}");
+    }
     let router = create_router(
         server,
         secret_key,
@@ -2218,10 +2215,6 @@ pub async fn cli() -> anyhow::Result<()> {
 
     let cli = Cli::parse();
 
-    if let Err(e) = crate::project_tracker::update_project_tracker(None, None) {
-        warn!("Warning: Failed to update project tracker: {}", e);
-    }
-
     let command_name = get_command_name(&cli.command);
     tracing::info!(
         monotonic_counter.goose.cli_commands = 1,
@@ -2292,14 +2285,6 @@ pub async fn cli() -> anyhow::Result<()> {
                 extension_opts,
             )
             .await
-        }
-        Some(Command::Project {}) => {
-            handle_project_default()?;
-            Ok(())
-        }
-        Some(Command::Projects) => {
-            handle_projects_interactive()?;
-            Ok(())
         }
         Some(Command::Run {
             input_opts,

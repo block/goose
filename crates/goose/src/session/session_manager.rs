@@ -5,6 +5,7 @@ use crate::conversation::Conversation;
 use crate::providers::base::CostSource;
 use crate::providers::base::Provider;
 use crate::recipe::Recipe;
+use crate::session::export_markdown::export_session_to_markdown;
 use crate::session::extension_data::ExtensionData;
 use crate::session::session_naming::{
     generate_session_name, MSG_COUNT_FOR_SESSION_NAME_GENERATION,
@@ -489,6 +490,15 @@ impl SessionManager {
         self.storage.export_session(id).await
     }
 
+    pub async fn export_session_markdown(&self, id: &str) -> Result<String> {
+        let session = self.get_session(id, true).await?;
+        let messages = session
+            .conversation
+            .map(|conversation| conversation.user_visible_messages())
+            .unwrap_or_default();
+        Ok(export_session_to_markdown(messages, &session.name))
+    }
+
     pub async fn import_session(
         &self,
         json: &str,
@@ -537,6 +547,24 @@ impl SessionManager {
             message_count: session.message_count,
             user_set_name: session.user_set_name,
         })
+    }
+
+    pub async fn update_name_from_provider(
+        &self,
+        id: &str,
+        name: String,
+    ) -> Result<Option<SessionNameUpdate>> {
+        let name = name.trim().to_string();
+        if name.is_empty() {
+            return Ok(None);
+        }
+
+        let session = self.get_session(id, false).await?;
+        if session.user_set_name || session.name == name {
+            return Ok(None);
+        }
+
+        Ok(Some(self.system_generated_name_update(id, name).await?))
     }
 
     pub async fn maybe_update_name(
@@ -588,7 +616,13 @@ impl SessionManager {
             .filter(|m| matches!(m.role, Role::User))
             .count();
 
-        if user_message_count <= MSG_COUNT_FOR_SESSION_NAME_GENERATION {
+        let should_generate_name = if provider.manages_own_context() {
+            user_message_count == 1
+        } else {
+            user_message_count <= MSG_COUNT_FOR_SESSION_NAME_GENERATION
+        };
+
+        if should_generate_name {
             let name =
                 generate_session_name(provider.as_ref(), &model_config, id, &conversation).await?;
             return Ok(Some(self.system_generated_name_update(id, name).await?));
@@ -715,6 +749,27 @@ impl Session {
     }
 }
 
+fn deserialize_session_model_config(
+    provider_name: Option<&str>,
+    json: &str,
+) -> Option<ModelConfig> {
+    let mut model_config: ModelConfig = serde_json::from_str(json).ok()?;
+    // TODO: Remove this workaround once ModelConfig guarantees deserialize(serialize(config)) == config.
+    if provider_name == Some(goose_providers::azure_foundry::AZURE_FOUNDRY_PROVIDER_NAME) {
+        #[derive(Deserialize)]
+        struct AzurePersistedFields {
+            model_name: String,
+            #[serde(default)]
+            request_params: Option<HashMap<String, serde_json::Value>>,
+        }
+
+        let persisted: AzurePersistedFields = serde_json::from_str(json).ok()?;
+        model_config.model_name = persisted.model_name;
+        model_config.request_params = persisted.request_params;
+    }
+    Some(model_config)
+}
+
 impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
     fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
@@ -726,8 +781,11 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
         let user_recipe_values =
             user_recipe_values_json.and_then(|json| serde_json::from_str(&json).ok());
 
+        let provider_name: Option<String> = row.try_get("provider_name").ok().flatten();
         let model_config_json: Option<String> = row.try_get("model_config_json").ok().flatten();
-        let model_config = model_config_json.and_then(|json| serde_json::from_str(&json).ok());
+        let model_config = model_config_json
+            .as_deref()
+            .and_then(|json| deserialize_session_model_config(provider_name.as_deref(), json));
 
         let name: String = {
             let name_val: String = row.try_get("name").unwrap_or_default();
@@ -788,7 +846,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             conversation: None,
             message_count: row.try_get("message_count").unwrap_or(0) as usize,
             last_message_at,
-            provider_name: row.try_get("provider_name").ok().flatten(),
+            provider_name,
             model_config,
             goose_mode: row
                 .try_get::<String, _>("goose_mode")
@@ -2587,7 +2645,64 @@ mod tests {
     const NUM_CONCURRENT_SESSIONS: i32 = 10;
     const GENERATED_SESSION_NAME: &str = "Generated session name";
 
+    #[test]
+    fn azure_session_model_config_preserves_suffixed_deployment_id() {
+        let json = serde_json::to_string(&ModelConfig {
+            model_name: "gpt-5-high".to_string(),
+            context_limit: None,
+            temperature: None,
+            max_tokens: None,
+            toolshim: false,
+            toolshim_model: None,
+            request_params: None,
+            reasoning: None,
+            request_headers: None,
+        })
+        .unwrap();
+
+        let config = deserialize_session_model_config(
+            Some(goose_providers::azure_foundry::AZURE_FOUNDRY_PROVIDER_NAME),
+            &json,
+        )
+        .unwrap();
+
+        assert_eq!(config.model_name, "gpt-5-high");
+        assert_eq!(config.thinking_effort(), None);
+    }
+
+    #[test]
+    fn azure_session_model_config_preserves_explicit_thinking_effort() {
+        let config = deserialize_session_model_config(
+            Some(goose_providers::azure_foundry::AZURE_FOUNDRY_PROVIDER_NAME),
+            r#"{"model_name":"gpt-5-high","context_limit":null,"temperature":null,"max_tokens":null,"toolshim":false,"toolshim_model":null,"request_params":{"thinking_effort":"low"}}"#,
+        )
+        .unwrap();
+
+        assert_eq!(config.model_name, "gpt-5-high");
+        assert_eq!(
+            config.thinking_effort(),
+            Some(goose_providers::thinking::ThinkingEffort::Low)
+        );
+    }
+
+    #[test]
+    fn non_azure_session_model_config_keeps_suffix_normalization() {
+        let config = deserialize_session_model_config(
+            Some(goose_providers::openai::OPEN_AI_PROVIDER_NAME),
+            r#"{"model_name":"gpt-5-high","context_limit":null,"temperature":null,"max_tokens":null,"toolshim":false,"toolshim_model":null}"#,
+        )
+        .unwrap();
+
+        assert_eq!(config.model_name, "gpt-5");
+        assert_eq!(
+            config.thinking_effort(),
+            Some(goose_providers::thinking::ThinkingEffort::High)
+        );
+    }
+
     struct NamingTestProvider;
+
+    struct StatefulNamingTestProvider;
 
     #[async_trait::async_trait]
     impl Provider for NamingTestProvider {
@@ -2616,6 +2731,27 @@ mod tests {
                 Message::assistant().with_text(GENERATED_SESSION_NAME),
                 ProviderUsage::new("test".to_string(), Default::default()),
             ))
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl Provider for StatefulNamingTestProvider {
+        fn get_name(&self) -> &str {
+            "stateful-naming-test"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            panic!("stateful session naming must not call the provider")
+        }
+
+        fn manages_own_context(&self) -> bool {
+            true
         }
     }
 
@@ -2885,6 +3021,95 @@ mod tests {
         let reloaded = sm.get_session(&session.id, false).await.unwrap();
         assert_eq!(reloaded.name, GENERATED_SESSION_NAME);
         assert!(!reloaded.user_set_name);
+    }
+
+    #[tokio::test]
+    async fn test_maybe_update_name_uses_local_name_for_stateful_provider() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "New Chat".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        sm.update(&session.id)
+            .model_config(ModelConfig::new("test-model"))
+            .apply()
+            .await
+            .unwrap();
+        sm.add_message(
+            &session.id,
+            &Message::user().with_text("investigate session naming with ACP providers"),
+        )
+        .await
+        .unwrap();
+
+        let update = sm
+            .maybe_update_name(&session.id, Arc::new(StatefulNamingTestProvider))
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(update.name, "investigate session naming with");
+    }
+
+    #[tokio::test]
+    async fn test_provider_name_replaces_generated_name_but_not_user_name() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "Local fallback".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let update = sm
+            .update_name_from_provider(&session.id, "  Better ACP title  ".to_string())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(update.name, "Better ACP title");
+
+        sm.update(&session.id)
+            .model_config(ModelConfig::new("test-model"))
+            .apply()
+            .await
+            .unwrap();
+        add_user_message(&sm, &session.id).await;
+        add_user_message(&sm, &session.id).await;
+        assert!(sm
+            .maybe_update_name(&session.id, Arc::new(StatefulNamingTestProvider))
+            .await
+            .unwrap()
+            .is_none());
+        assert_eq!(
+            sm.get_session(&session.id, false).await.unwrap().name,
+            "Better ACP title"
+        );
+
+        sm.update(&session.id)
+            .user_provided_name("Manual title")
+            .apply()
+            .await
+            .unwrap();
+        assert!(sm
+            .update_name_from_provider(&session.id, "Another ACP title".to_string())
+            .await
+            .unwrap()
+            .is_none());
+        assert_eq!(
+            sm.get_session(&session.id, false).await.unwrap().name,
+            "Manual title"
+        );
     }
 
     #[tokio::test]

@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Sembang"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Dicipta"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Direktori"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Model"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Status"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Dikemas kini"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "Tiada sembang terkini"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Ralat"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Terbiar"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Penstriman"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Aktiviti belum dibaca"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Sesi tanpa tajuk"
@@ -3743,6 +3770,12 @@
   "sessions.action.export": {
     "defaultMessage": "Eksport sesi"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "Buka dalam tetingkap baharu"
   },
@@ -3841,6 +3874,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "Sesi \"{name}\" berjaya diduplikasi"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "Gagal mengeksport sesi: {error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "Sesi berjaya dieksport"
@@ -4538,6 +4574,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Sunting"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Imej dilampirkan:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "Sunting di Tempat"
   },
@@ -4570,5 +4609,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Cipta sesi baharu dengan mesej yang disunting"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Alih keluar imej daripada mesej"
   }
 }

@@ -103,6 +103,7 @@ impl TestProvider {
                             ..
                         }) => {
                             result.is_error = None;
+                            result.result_type = None;
                         }
                         _ => {}
                     }

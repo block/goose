@@ -198,6 +198,7 @@ impl Provider for NanoGptProvider {
                     .api_client
                     .request("chat/completions")
                     .model_headers(model_config)?
+                    .streaming(true)
                     .response_post(&payload)
                     .await?;
                 handle_status(resp).await

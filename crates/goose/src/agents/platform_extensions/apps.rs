@@ -11,8 +11,8 @@ use crate::providers::base::Provider;
 use async_trait::async_trait;
 use rmcp::model::{
     CallToolResult, ContentBlock, Implementation, InitializeResult, JsonObject,
-    ListResourcesResult, ListToolsResult, Meta, ReadResourceResult, Resource, ResourceContents,
-    ServerCapabilities, Tool as McpTool,
+    ListResourcesResult, ListToolsResult, MetaObject, ReadResourceResult, Resource,
+    ResourceContents, ServerCapabilities, Tool as McpTool,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
@@ -544,6 +544,7 @@ impl McpClientTrait for AppsManagerClient {
             tools,
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 
@@ -587,7 +588,7 @@ impl McpClientTrait for AppsManagerClient {
         for name in app_names {
             if let Ok(app) = self.load_app(&name) {
                 let meta = if let Some(ref window_props) = app.window_props {
-                    let mut meta_obj = Meta::new();
+                    let mut meta_obj = MetaObject::new();
                     meta_obj.insert(
                         "window".to_string(),
                         json!({
@@ -616,6 +617,7 @@ impl McpClientTrait for AppsManagerClient {
             resources,
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 
