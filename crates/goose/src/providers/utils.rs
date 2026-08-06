@@ -263,7 +263,9 @@ fn restrict_existing_request_log(path: &std::path::Path) -> Result<()> {
     let file = match read_options.open(path) {
         Ok(file) => file,
         Err(error)
-            if error.kind() == ErrorKind::NotFound || error.raw_os_error() == Some(libc::ELOOP) =>
+            if error.kind() == ErrorKind::NotFound
+                || error.raw_os_error() == Some(libc::ELOOP)
+                || error.raw_os_error() == Some(libc::ENXIO) =>
         {
             return Ok(())
         }
@@ -279,6 +281,10 @@ fn restrict_existing_request_log(path: &std::path::Path) -> Result<()> {
                 {
                     return Ok(())
                 }
+                Err(error) if error.kind() == ErrorKind::PermissionDenied => {
+                    restrict_inaccessible_request_log(path)?;
+                    return Ok(());
+                }
                 Err(error) => return Err(error.into()),
             }
         }
@@ -286,6 +292,63 @@ fn restrict_existing_request_log(path: &std::path::Path) -> Result<()> {
     };
     if file.metadata()?.is_file() {
         file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+    }
+
+    Ok(())
+}
+
+#[cfg(unix)]
+fn restrict_inaccessible_request_log(path: &std::path::Path) -> Result<()> {
+    use std::ffi::CString;
+    use std::io::{Error, ErrorKind};
+    use std::os::fd::AsRawFd;
+    use std::os::unix::ffi::OsStrExt;
+
+    let parent = path
+        .parent()
+        .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "request log has no parent"))?;
+    let file_name = path
+        .file_name()
+        .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "request log has no file name"))?;
+    let file_name = CString::new(file_name.as_bytes())
+        .map_err(|_| Error::new(ErrorKind::InvalidInput, "request log name contains NUL"))?;
+    let directory = std::fs::File::open(parent)?;
+    // SAFETY: libc::stat is a plain C data structure initialized before fstatat writes it.
+    let mut metadata: libc::stat = unsafe { std::mem::zeroed() };
+    // SAFETY: pointers remain valid for the synchronous call and the directory fd is open.
+    let result = unsafe {
+        libc::fstatat(
+            directory.as_raw_fd(),
+            file_name.as_ptr(),
+            &mut metadata,
+            libc::AT_SYMLINK_NOFOLLOW,
+        )
+    };
+    if result < 0 {
+        let error = Error::last_os_error();
+        if error.kind() == ErrorKind::NotFound || error.raw_os_error() == Some(libc::ELOOP) {
+            return Ok(());
+        }
+        return Err(error.into());
+    }
+    if metadata.st_mode & libc::S_IFMT != libc::S_IFREG {
+        return Ok(());
+    }
+    // SAFETY: fchmodat does not retain the name pointer and is anchored at the open directory.
+    let result = unsafe {
+        libc::fchmodat(
+            directory.as_raw_fd(),
+            file_name.as_ptr(),
+            0o600,
+            libc::AT_SYMLINK_NOFOLLOW,
+        )
+    };
+    if result < 0 {
+        let error = Error::last_os_error();
+        if error.kind() == ErrorKind::NotFound || error.raw_os_error() == Some(libc::ELOOP) {
+            return Ok(());
+        }
+        return Err(error.into());
     }
 
     Ok(())
@@ -528,6 +591,7 @@ mod tests {
     fn request_log_upgrade_permissions_child() {
         use std::os::unix::ffi::OsStrExt;
         use std::os::unix::fs::{symlink, FileTypeExt, PermissionsExt};
+        use std::os::unix::net::UnixListener;
 
         if std::env::var_os(REQUEST_LOG_UPGRADE_PERMISSIONS_CHILD).is_none() {
             return;
@@ -543,6 +607,8 @@ mod tests {
         let matching_symlink = logs_dir.join("llm_request.9.jsonl");
         let owner_write_only_log = logs_dir.join("llm_request.10.jsonl");
         let matching_fifo = logs_dir.join("llm_request.11.jsonl");
+        let owner_without_access_log = logs_dir.join("llm_request.12.jsonl");
+        let matching_socket = logs_dir.join("llm_request.13.jsonl");
 
         for path in [&numbered_log, &uuid_log, &unrelated_file, &symlink_target] {
             std::fs::write(path, "sensitive request and response").unwrap();
@@ -554,18 +620,26 @@ mod tests {
             std::fs::Permissions::from_mode(0o266),
         )
         .unwrap();
+        std::fs::write(&owner_without_access_log, "legacy sensitive request").unwrap();
+        std::fs::set_permissions(
+            &owner_without_access_log,
+            std::fs::Permissions::from_mode(0o066),
+        )
+        .unwrap();
         std::fs::create_dir(&matching_directory).unwrap();
         std::fs::set_permissions(&matching_directory, std::fs::Permissions::from_mode(0o755))
             .unwrap();
         symlink(&symlink_target, &matching_symlink).unwrap();
         let fifo_path = std::ffi::CString::new(matching_fifo.as_os_str().as_bytes()).unwrap();
         assert_eq!(unsafe { libc::mkfifo(fifo_path.as_ptr(), 0o666) }, 0);
+        let _socket = UnixListener::bind(&matching_socket).unwrap();
 
         RequestLog::new(1).unwrap();
 
         assert_owner_only(&numbered_log);
         assert_owner_only(&uuid_log);
         assert_owner_only(&owner_write_only_log);
+        assert_owner_only(&owner_without_access_log);
         assert_eq!(
             std::fs::metadata(&unrelated_file)
                 .unwrap()
@@ -591,6 +665,10 @@ mod tests {
             .unwrap()
             .file_type()
             .is_fifo());
+        assert!(std::fs::symlink_metadata(&matching_socket)
+            .unwrap()
+            .file_type()
+            .is_socket());
         assert_eq!(
             std::fs::metadata(&symlink_target)
                 .unwrap()
