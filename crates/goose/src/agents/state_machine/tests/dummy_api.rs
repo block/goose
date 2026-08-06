@@ -9,6 +9,7 @@ use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 pub(super) struct ProviderFeatures {
     pub(super) reports_usage: bool,
     pub(super) preserves_thinking: bool,
+    pub(super) resolved_model: Option<&'static str>,
     pub(super) cache_read_tokens: Option<i32>,
     pub(super) cache_write_tokens: Option<i32>,
 }
@@ -18,6 +19,7 @@ impl Default for ProviderFeatures {
         Self {
             reports_usage: true,
             preserves_thinking: false,
+            resolved_model: None,
             cache_read_tokens: None,
             cache_write_tokens: None,
         }
@@ -712,7 +714,7 @@ fn tool_call_events(meta: &ResponseMeta, name: &str, arguments: &str) -> String 
 
 fn tool_calls_events(meta: &ResponseMeta, calls: &[ApiToolCall]) -> String {
     let mut events = String::new();
-    push_tool_call_events(&mut events, meta.id, meta.model, calls);
+    push_tool_call_events(&mut events, meta.id, meta.model, calls, None);
     if meta.include_usage {
         push_event(&mut events, usage_event(meta));
     }
@@ -720,34 +722,41 @@ fn tool_calls_events(meta: &ResponseMeta, calls: &[ApiToolCall]) -> String {
     events
 }
 
-fn push_tool_call_events(events: &mut String, id: &str, model: &str, calls: &[ApiToolCall]) {
+fn push_tool_call_events(
+    events: &mut String,
+    id: &str,
+    model: &str,
+    calls: &[ApiToolCall],
+    reasoning: Option<&str>,
+) {
     let argument_chunks = calls
         .iter()
         .map(|call| split_arguments(&call.arguments))
         .collect::<Vec<_>>();
-    push_event(
-        events,
-        json!({
-            "id": id,
-            "object": "chat.completion.chunk",
-            "model": model,
-            "choices": [{
-                "index": 0,
-                "delta": {
-                    "tool_calls": calls.iter().enumerate().map(|(index, call)| json!({
-                        "index": index,
-                        "id": call.id,
-                        "type": "function",
-                        "function": {
-                            "name": call.name,
-                            "arguments": argument_chunks[index].first().cloned().unwrap_or_default()
-                        }
-                    })).collect::<Vec<_>>()
-                },
-                "finish_reason": null
-            }]
-        }),
-    );
+    let mut event = json!({
+        "id": id,
+        "object": "chat.completion.chunk",
+        "model": model,
+        "choices": [{
+            "index": 0,
+            "delta": {
+                "tool_calls": calls.iter().enumerate().map(|(index, call)| json!({
+                    "index": index,
+                    "id": call.id,
+                    "type": "function",
+                    "function": {
+                        "name": call.name,
+                        "arguments": argument_chunks[index].first().cloned().unwrap_or_default()
+                    }
+                })).collect::<Vec<_>>()
+            },
+            "finish_reason": null
+        }]
+    });
+    if let Some(reasoning) = reasoning {
+        event["choices"][0]["delta"]["reasoning_content"] = reasoning.into();
+    }
+    push_event(events, event);
     let chunk_count = argument_chunks
         .iter()
         .map(Vec::len)
@@ -819,7 +828,13 @@ fn mixed_events(
         }
     }
     if let Some(call) = call {
-        push_tool_call_events(&mut events, id, model, std::slice::from_ref(call));
+        push_tool_call_events(
+            &mut events,
+            id,
+            model,
+            std::slice::from_ref(call),
+            Some(reasoning),
+        );
     } else {
         push_event(
             &mut events,

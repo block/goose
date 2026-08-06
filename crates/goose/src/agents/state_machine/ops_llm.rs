@@ -9,7 +9,7 @@ use crate::agents::state_machine::operation::{
 use crate::agents::state_machine::ops_unknown_tool::UNCLAIMED_TOOL_ERROR;
 use crate::agents::{ExtensionManager, PromptManager};
 use crate::config::GooseMode;
-use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::message::{InferenceMetadata, Message, MessageContent};
 use crate::conversation::{effective_role, Conversation, EffectiveRole};
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::session::Session;
@@ -25,6 +25,59 @@ use tracing_futures::Instrument;
 const EMPTY_RESPONSE_MESSAGE: &str =
     "The model returned an empty response. Please resend your message to continue.";
 const CANCELLED_TOOL_RESPONSE: &str = "Tool call was cancelled before execution";
+
+fn is_thinking(content: &MessageContent) -> bool {
+    matches!(
+        content,
+        MessageContent::Thinking(_) | MessageContent::RedactedThinking(_)
+    )
+}
+
+fn normalize_tool_call_thinking(accumulator: &mut Conversation, chunk: &mut Message) {
+    if !chunk
+        .content
+        .iter()
+        .any(|content| matches!(content, MessageContent::ToolRequest(_)))
+    {
+        return;
+    }
+
+    let has_direct_thinking = chunk.content.iter().any(is_thinking);
+    let mut prior_thinking = Vec::new();
+    for message in accumulator.messages_mut() {
+        if message.role != chunk.role
+            || message
+                .content
+                .iter()
+                .any(|content| matches!(content, MessageContent::ToolRequest(_)))
+        {
+            continue;
+        }
+        prior_thinking.extend(
+            message
+                .content
+                .iter()
+                .filter(|content| is_thinking(content))
+                .cloned(),
+        );
+        message.content.retain(|content| !is_thinking(content));
+    }
+    accumulator
+        .messages_mut()
+        .retain(|message| !message.content.is_empty());
+
+    if !has_direct_thinking && !prior_thinking.is_empty() {
+        if let Some(tool_request) = chunk
+            .content
+            .iter()
+            .position(|content| matches!(content, MessageContent::ToolRequest(_)))
+        {
+            chunk
+                .content
+                .splice(tool_request..tool_request, prior_thinking);
+        }
+    }
+}
 
 pub(super) fn chat_span(
     provider: &dyn Provider,
@@ -409,6 +462,19 @@ impl Inference for InferenceRunner<'_> {
                 Err(err) => return applied(self.error_outcome(&err, emit).await),
             };
 
+            let requested_model = self.model_config.model_name.clone();
+            let inference = self
+                .provider
+                .fetch_model_info(&requested_model)
+                .await
+                .ok()
+                .and_then(|model_info| model_info.resolved_model)
+                .map(|resolved_model| InferenceMetadata {
+                    provider: self.provider.get_name().to_string(),
+                    requested_model,
+                    resolved_model: Some(resolved_model),
+                });
+
             let mut accumulator = Conversation::empty();
             let mut usage_effects = Vec::new();
             let mut tool_request_ids = std::collections::HashSet::new();
@@ -432,12 +498,16 @@ impl Inference for InferenceRunner<'_> {
                             usage_effects.push(StateEffect::RecordUsage(usage));
                         }
                         if let Some(mut chunk) = msg_opt {
+                            if let Some(inference) = &inference {
+                                chunk = chunk.with_inference_if_assistant(inference.clone());
+                            }
                             chunk.content.retain(|content| match content {
                                 MessageContent::ToolRequest(request) => {
                                     tool_request_ids.insert(request.id.clone())
                                 }
                                 _ => true,
                             });
+                            normalize_tool_call_thinking(&mut accumulator, &mut chunk);
                             if chunk.content.is_empty() {
                                 if chunk.metadata.output_token_limit_reached {
                                     chunk = emit.message(chunk).await;

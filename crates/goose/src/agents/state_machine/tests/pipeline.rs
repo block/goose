@@ -36,6 +36,46 @@ use crate::session::{Session, SessionManager, SessionType};
 use crate::tool_inspection::ToolInspectionManager;
 use goose_providers::model::ModelConfig;
 
+struct ResolvedModelProvider {
+    inner: Arc<dyn Provider>,
+    resolved_model: &'static str,
+}
+
+#[async_trait::async_trait]
+impl Provider for ResolvedModelProvider {
+    fn get_name(&self) -> &str {
+        self.inner.get_name()
+    }
+
+    async fn stream(
+        &self,
+        model_config: &ModelConfig,
+        system: &str,
+        messages: &[Message],
+        tools: &[rmcp::model::Tool],
+    ) -> Result<crate::providers::base::MessageStream, goose_providers::errors::ProviderError> {
+        self.inner
+            .stream(model_config, system, messages, tools)
+            .await
+    }
+
+    async fn get_context_limit(
+        &self,
+        model_config: &ModelConfig,
+    ) -> Result<usize, goose_providers::errors::ProviderError> {
+        self.inner.get_context_limit(model_config).await
+    }
+
+    async fn fetch_model_info(
+        &self,
+        model_name: &str,
+    ) -> Result<goose_providers::base::ModelInfo, goose_providers::errors::ProviderError> {
+        let mut model_info = self.inner.fetch_model_info(model_name).await?;
+        model_info.resolved_model = Some(self.resolved_model.to_string());
+        Ok(model_info)
+    }
+}
+
 pub(super) const MAX_TURNS: u32 = 25;
 pub(super) const COMPACTION_THRESHOLD: f64 = 0.8;
 
@@ -695,6 +735,13 @@ async fn build_test_pipeline(
             .preserve_thinking_context(provider_features.preserves_thinking)
             .build(),
     );
+    let provider: Arc<dyn Provider> = match provider_features.resolved_model {
+        Some(resolved_model) => Arc::new(ResolvedModelProvider {
+            inner: provider,
+            resolved_model,
+        }),
+        None => provider,
+    };
     let shared_provider = Arc::new(TokioMutex::new(Some(provider.clone())));
     let extension_manager = Arc::new(ExtensionManager::new(
         shared_provider.clone(),

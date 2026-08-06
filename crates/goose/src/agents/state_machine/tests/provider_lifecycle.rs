@@ -14,6 +14,7 @@ async fn provider_lifecycle() -> Result<()> {
     let (mut pipeline, api) = test_pipeline_with(ProviderFeatures {
         reports_usage: false,
         preserves_thinking: true,
+        resolved_model: Some("resolved-test-model"),
         ..ProviderFeatures::default()
     })
     .await?;
@@ -35,15 +36,28 @@ async fn provider_lifecycle() -> Result<()> {
                 .with_image(image_data, "image/png"),
         )
         .await?;
+    result.assert_message(2, Agent, "The image is suitable. I will add one.");
     result.assert_message(
-        2,
+        3,
         Thinking,
         "I should inspect the image before calculating.",
     );
-    result.assert_message(3, Agent, "The image is suitable. I will add one.");
     result.assert_message(4, ToolCall, ADD);
     result.assert_message(5, ToolResponse, "result: 1");
     result.assert_message(-1, Agent, "The total is 1.");
+    assert!(result
+        .conversation()
+        .messages()
+        .iter()
+        .filter(|message| message.role == rmcp::model::Role::Assistant)
+        .all(|message| {
+            message
+                .metadata
+                .inference
+                .as_ref()
+                .and_then(|inference| inference.resolved_model.as_deref())
+                == Some("resolved-test-model")
+        }));
 
     let calls = api.calls();
     assert!(calls[0].input_has_image("image/png", image_data));
