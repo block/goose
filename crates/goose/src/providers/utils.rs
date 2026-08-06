@@ -247,12 +247,12 @@ fn restrict_request_log_directory(logs_dir: &std::path::Path) -> Result<()> {
 
 #[cfg(any(target_os = "linux", target_os = "android"))]
 fn directory_search_flags() -> libc::c_int {
-    libc::O_PATH | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC
+    libc::O_PATH | libc::O_DIRECTORY | libc::O_CLOEXEC
 }
 
 #[cfg(all(unix, target_vendor = "apple"))]
 fn directory_search_flags() -> libc::c_int {
-    libc::O_SEARCH | libc::O_NOFOLLOW | libc::O_CLOEXEC
+    libc::O_SEARCH | libc::O_CLOEXEC
 }
 
 #[cfg(all(
@@ -261,7 +261,7 @@ fn directory_search_flags() -> libc::c_int {
     not(target_vendor = "apple")
 ))]
 fn directory_search_flags() -> libc::c_int {
-    libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC
+    libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC
 }
 
 #[cfg(unix)]
@@ -786,6 +786,55 @@ mod tests {
             .unwrap()
             .file_type()
             .is_symlink());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn request_log_directories_may_be_symlinked() {
+        use std::os::unix::fs::{PermissionsExt, symlink};
+
+        let root = tempfile::tempdir().unwrap();
+        let state_target = root.path().join("state-target");
+        let state_dir = root.path().join("state");
+        let logs_target = root.path().join("logs-target");
+        std::fs::create_dir(&state_target).unwrap();
+        std::fs::create_dir(&logs_target).unwrap();
+        symlink(&state_target, &state_dir).unwrap();
+        symlink(&logs_target, state_target.join("logs")).unwrap();
+        std::fs::set_permissions(&state_target, std::fs::Permissions::from_mode(0o377)).unwrap();
+        std::fs::set_permissions(&logs_target, std::fs::Permissions::from_mode(0o377)).unwrap();
+
+        restrict_request_log_directory(&state_dir).unwrap();
+        restrict_request_log_directory(&state_dir.join("logs")).unwrap();
+
+        assert_eq!(
+            std::fs::metadata(&state_target)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700
+        );
+        assert_eq!(
+            std::fs::metadata(&logs_target)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700
+        );
+        assert!(
+            std::fs::symlink_metadata(&state_dir)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        assert!(
+            std::fs::symlink_metadata(state_target.join("logs"))
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
     }
 
     #[test]
