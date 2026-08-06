@@ -1,11 +1,13 @@
-use goose::agents::execute_commands::list_commands;
 use goose::config::{Config, GooseMode};
+use goose::slash_commands::slash_command::list_acp_commands;
+use goose::slash_commands::types::{SlashCommandEntry, SlashCommandSource};
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::highlight::{CmdKind, Highlighter};
 use rustyline::hint::Hinter;
 use rustyline::validate::Validator;
 use rustyline::{Context, Helper, Result};
 use std::borrow::Cow;
+use std::collections::HashSet;
 use std::sync::Arc;
 use strum::VariantNames;
 
@@ -124,22 +126,31 @@ impl GooseCompleter {
 
     /// Complete skill names for the /skills command
     fn complete_skill_names(&self, line: &str) -> Result<(usize, Vec<Pair>)> {
-        use goose::skills::list_installed_skills;
+        Self::complete_skill_names_from(line, &self.slash_command_entries())
+    }
 
-        let cwd = std::env::current_dir().unwrap_or_default();
-        let skills = list_installed_skills(Some(&cwd));
-        let skill_names: Vec<String> = skills.iter().map(|s| s.name.clone()).collect();
-
-        let last = line.rsplit_once(' ').map_or("", |(_, w)| w);
+    fn complete_skill_names_from(
+        line: &str,
+        entries: &[SlashCommandEntry],
+    ) -> Result<(usize, Vec<Pair>)> {
+        let last = line.rsplit_once(' ').map_or("", |(_, word)| word);
         let pos = line.len() - last.len();
-
         let partial = last.to_lowercase();
-        let candidates: Vec<Pair> = skill_names
+        let candidates = entries
             .iter()
-            .filter(|name| name.to_lowercase().starts_with(&partial))
-            .map(|name| Pair {
-                display: name.clone(),
-                replacement: format!("{} ", name),
+            .filter(|command| command.source == SlashCommandSource::Skill)
+            .filter(|command| command.name.starts_with(&partial))
+            .map(|command| Pair {
+                display: format!(
+                    "{}{} [skill]",
+                    command.name,
+                    command
+                        .input_hint
+                        .as_deref()
+                        .map(|hint| format!(" {hint}"))
+                        .unwrap_or_default(),
+                ),
+                replacement: format!("{} ", command.name),
             })
             .collect();
 
@@ -231,44 +242,83 @@ impl GooseCompleter {
         Ok((pos, candidates))
     }
 
-    /// Complete slash commands
-    fn complete_slash_commands(&self, line: &str) -> Result<(usize, Vec<Pair>)> {
-        let mut commands = vec![
-            "/exit".to_string(),
-            "/quit".to_string(),
-            "/help".to_string(),
-            "/?".to_string(),
-            "/t".to_string(),
-            "/extension".to_string(),
-            "/builtin".to_string(),
-            "/mode".to_string(),
-            "/model".to_string(),
-            "/recipe".to_string(),
-        ];
-        commands.extend(
-            list_commands()
-                .iter()
-                .map(|command| format!("/{}", command.name)),
-        );
-        commands.sort();
-        commands.dedup();
+    /// Build the command entries shown by slash completion.
+    fn slash_command_entries(&self) -> Vec<SlashCommandEntry> {
+        Self::slash_command_entries_for(list_acp_commands(std::env::current_dir().ok().as_deref()))
+    }
 
-        // Find commands that match the prefix
-        let matching_commands: Vec<Pair> = commands
+    fn slash_command_entries_for(mut commands: Vec<SlashCommandEntry>) -> Vec<SlashCommandEntry> {
+        let mut names: HashSet<String> = commands
             .iter()
-            .filter(|cmd| cmd.starts_with(line))
-            .map(|cmd| Pair {
-                display: cmd.to_string(),
-                replacement: format!("{} ", cmd), // Add a space after the command
+            .map(|command| command.name.clone())
+            .collect();
+
+        for (name, description) in [
+            ("exit", "Exit the session"),
+            ("quit", "Exit the session"),
+            ("help", "Display the help message"),
+            ("?", "Display the help message"),
+            ("t", "Toggle or set the terminal theme"),
+            ("r", "Toggle full tool output display"),
+            ("extension", "Add a stdio extension"),
+            ("builtin", "Add builtin extensions by name"),
+            ("mode", "Set the Goose mode"),
+            ("model", "Show or switch the session model"),
+            ("recipe", "Generate a recipe from the current conversation"),
+            ("summarize", "Deprecated alias for /compact"),
+            ("plan", "Enter plan mode"),
+            ("endplan", "Exit plan mode"),
+            ("edit", "Open the prompt editor"),
+        ] {
+            if names.insert(name.to_string()) {
+                commands.push(SlashCommandEntry {
+                    name: name.to_string(),
+                    description: description.to_string(),
+                    source: SlashCommandSource::Builtin,
+                    source_path: None,
+                    input_hint: None,
+                });
+            }
+        }
+
+        commands.sort_by(|left, right| left.name.cmp(&right.name));
+        commands
+    }
+
+    fn slash_command_display(entry: &SlashCommandEntry) -> String {
+        let source = match entry.source {
+            SlashCommandSource::Builtin => "builtin",
+            SlashCommandSource::Recipe => "recipe",
+            SlashCommandSource::Skill => "skill",
+        };
+        let hint = entry
+            .input_hint
+            .as_deref()
+            .map(|hint| format!(" {hint}"))
+            .unwrap_or_default();
+
+        format!("/{name}{hint} [{source}]", name = entry.name)
+    }
+
+    /// Complete slash commands from the core's unified builtin, recipe, and skill source.
+    fn complete_slash_commands(&self, line: &str) -> Result<(usize, Vec<Pair>)> {
+        Self::complete_slash_commands_from(line, &self.slash_command_entries())
+    }
+
+    fn complete_slash_commands_from(
+        line: &str,
+        entries: &[SlashCommandEntry],
+    ) -> Result<(usize, Vec<Pair>)> {
+        let matching_commands = entries
+            .iter()
+            .filter(|command| format!("/{}", command.name).starts_with(line))
+            .map(|command| Pair {
+                display: Self::slash_command_display(command),
+                replacement: format!("/{} ", command.name),
             })
             .collect();
 
-        if !matching_commands.is_empty() {
-            return Ok((0, matching_commands));
-        }
-
-        // No command completions available
-        Ok((line.len(), vec![]))
+        Ok((0, matching_commands))
     }
 
     /// Complete argument keys for a specific prompt
@@ -666,7 +716,7 @@ mod tests {
         let (pos, candidates) = completer.complete_slash_commands("/exit").unwrap();
         assert_eq!(pos, 0);
         assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].display, "/exit");
+        assert!(candidates[0].display.starts_with("/exit [builtin]"));
         assert_eq!(candidates[0].replacement, "/exit ");
 
         // Test partial match
@@ -679,19 +729,69 @@ mod tests {
         let (pos, candidates) = completer.complete_slash_commands("/").unwrap();
         assert_eq!(pos, 0);
         assert!(candidates.len() > 1);
-        for command in list_commands() {
+        for command in ["prompts", "prompt", "compact", "clear", "skills"] {
             assert!(
                 candidates
                     .iter()
-                    .any(|candidate| candidate.display == format!("/{}", command.name)),
+                    .any(|candidate| candidate.replacement == format!("/{} ", command)),
                 "slash completion should list /{}",
-                command.name
+                command
             );
         }
 
         // Test no match
         let (_pos, candidates) = completer.complete_slash_commands("/nonexistent").unwrap();
         assert_eq!(candidates.len(), 0);
+    }
+
+    #[test]
+    fn test_unified_slash_command_entries_include_metadata() {
+        let entries = GooseCompleter::slash_command_entries_for(vec![
+            SlashCommandEntry {
+                name: "review".to_string(),
+                description: "Review the current change".to_string(),
+                source: SlashCommandSource::Recipe,
+                source_path: Some("review.yaml".to_string()),
+                input_hint: Some("<target>".to_string()),
+            },
+            SlashCommandEntry {
+                name: "code-review".to_string(),
+                description: "Review changed code".to_string(),
+                source: SlashCommandSource::Skill,
+                source_path: None,
+                input_hint: Some("[task]".to_string()),
+            },
+        ]);
+
+        assert!(entries.iter().any(|entry| entry.name == "review"));
+        assert!(entries.iter().any(|entry| entry.name == "code-review"));
+
+        let (_pos, candidates) =
+            GooseCompleter::complete_slash_commands_from("/review", &entries).unwrap();
+        assert_eq!(candidates.len(), 1);
+        assert!(candidates[0].display.contains("/review <target> [recipe]"));
+        assert_eq!(candidates[0].replacement, "/review ");
+    }
+
+    #[test]
+    fn test_complete_skill_names_uses_unified_skill_metadata() {
+        let entries = GooseCompleter::slash_command_entries_for(vec![SlashCommandEntry {
+            name: "code-review".to_string(),
+            description: "Review changed code".to_string(),
+            source: SlashCommandSource::Skill,
+            source_path: None,
+            input_hint: Some("[task]".to_string()),
+        }]);
+
+        assert!(entries
+            .iter()
+            .any(|entry| entry.name == "code-review" && entry.source == SlashCommandSource::Skill));
+        let (pos, candidates) =
+            GooseCompleter::complete_skill_names_from("/skills code", &entries).unwrap();
+        assert_eq!(pos, "/skills ".len());
+        assert_eq!(candidates.len(), 1);
+        assert!(candidates[0].display.contains("code-review [task] [skill]"));
+        assert_eq!(candidates[0].replacement, "code-review ");
     }
 
     #[test]
