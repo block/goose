@@ -331,6 +331,8 @@ fn restrict_inaccessible_request_log_with_hook(
     use std::ffi::CString;
     use std::io::{Error, ErrorKind};
     use std::os::fd::AsRawFd;
+    #[cfg(target_os = "linux")]
+    use std::os::fd::FromRawFd;
     use std::os::unix::ffi::OsStrExt;
 
     let parent = path
@@ -342,48 +344,95 @@ fn restrict_inaccessible_request_log_with_hook(
     let file_name = CString::new(file_name.as_bytes())
         .map_err(|_| Error::new(ErrorKind::InvalidInput, "request log name contains NUL"))?;
     let directory = std::fs::File::open(parent)?;
-    // SAFETY: libc::stat is a plain C data structure initialized before fstatat writes it.
-    let mut metadata: libc::stat = unsafe { std::mem::zeroed() };
-    // SAFETY: pointers remain valid for the synchronous call and the directory fd is open.
-    let result = unsafe {
-        libc::fstatat(
-            directory.as_raw_fd(),
-            file_name.as_ptr(),
-            &mut metadata,
-            libc::AT_SYMLINK_NOFOLLOW,
-        )
+
+    #[cfg(target_os = "linux")]
+    let (metadata, descriptor) = {
+        let flags = libc::O_PATH | libc::O_NOFOLLOW | libc::O_CLOEXEC;
+        // SAFETY: openat does not retain the name pointer and no creation mode is required.
+        let raw_descriptor =
+            unsafe { libc::openat(directory.as_raw_fd(), file_name.as_ptr(), flags) };
+        if raw_descriptor < 0 {
+            let error = Error::last_os_error();
+            if error.kind() == ErrorKind::NotFound {
+                return Ok(RestrictionOutcome::Retry);
+            }
+            if error.raw_os_error() == Some(libc::ELOOP) {
+                return Ok(RestrictionOutcome::Complete);
+            }
+            return Err(error.into());
+        }
+        // SAFETY: openat returned a new owned descriptor.
+        let descriptor = unsafe { std::fs::File::from_raw_fd(raw_descriptor) };
+        // SAFETY: libc::stat is initialized before fstat writes it.
+        let mut metadata: libc::stat = unsafe { std::mem::zeroed() };
+        // SAFETY: the descriptor remains open for the synchronous call.
+        if unsafe { libc::fstat(descriptor.as_raw_fd(), &mut metadata) } < 0 {
+            return Err(Error::last_os_error().into());
+        }
+        (metadata, descriptor)
     };
-    if result < 0 {
-        let error = Error::last_os_error();
-        if error.kind() == ErrorKind::NotFound {
-            return Ok(RestrictionOutcome::Retry);
+
+    #[cfg(not(target_os = "linux"))]
+    let metadata = {
+        // SAFETY: libc::stat is a plain C data structure initialized before fstatat writes it.
+        let mut metadata: libc::stat = unsafe { std::mem::zeroed() };
+        // SAFETY: pointers remain valid for the synchronous call and the directory fd is open.
+        let result = unsafe {
+            libc::fstatat(
+                directory.as_raw_fd(),
+                file_name.as_ptr(),
+                &mut metadata,
+                libc::AT_SYMLINK_NOFOLLOW,
+            )
+        };
+        if result < 0 {
+            let error = Error::last_os_error();
+            if error.kind() == ErrorKind::NotFound {
+                return Ok(RestrictionOutcome::Retry);
+            }
+            if error.raw_os_error() == Some(libc::ELOOP) {
+                return Ok(RestrictionOutcome::Complete);
+            }
+            return Err(error.into());
         }
-        if error.raw_os_error() == Some(libc::ELOOP) {
-            return Ok(RestrictionOutcome::Complete);
-        }
-        return Err(error.into());
-    }
+        metadata
+    };
+
     if metadata.st_mode & libc::S_IFMT != libc::S_IFREG
         || metadata.st_uid != current_effective_uid()
     {
         return Ok(RestrictionOutcome::Complete);
     }
     after_metadata();
-    // SAFETY: fchmodat does not retain the name pointer and is anchored at the open directory.
-    let result = unsafe {
-        libc::fchmodat(
-            directory.as_raw_fd(),
-            file_name.as_ptr(),
-            0o600,
-            libc::AT_SYMLINK_NOFOLLOW,
-        )
-    };
-    if result < 0 {
-        let error = Error::last_os_error();
-        if error.kind() == ErrorKind::NotFound || error.raw_os_error() == Some(libc::ELOOP) {
-            return Ok(RestrictionOutcome::Retry);
+
+    #[cfg(target_os = "linux")]
+    {
+        let descriptor_path =
+            CString::new(format!("/proc/self/fd/{}", descriptor.as_raw_fd())).unwrap();
+        // SAFETY: chmod does not retain the path pointer, which names the retained descriptor.
+        if unsafe { libc::chmod(descriptor_path.as_ptr(), 0o600) } < 0 {
+            return Err(Error::last_os_error().into());
         }
-        return Err(error.into());
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        // SAFETY: fchmodat does not retain the name pointer and is anchored at the open directory.
+        let result = unsafe {
+            libc::fchmodat(
+                directory.as_raw_fd(),
+                file_name.as_ptr(),
+                0o600,
+                libc::AT_SYMLINK_NOFOLLOW,
+            )
+        };
+        if result < 0 {
+            let error = Error::last_os_error();
+            if error.kind() == ErrorKind::NotFound || error.raw_os_error() == Some(libc::ELOOP) {
+                return Ok(RestrictionOutcome::Retry);
+            }
+            return Err(error.into());
+        }
     }
 
     // SAFETY: pointers remain valid for the synchronous call and the directory fd is open.
