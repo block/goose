@@ -262,9 +262,9 @@ pub async fn run_configured_subagent_reply(
     configured: &ConfiguredSubagent,
     params: SubagentReplyParams<'_>,
 ) -> Result<String> {
-    // The agent is reused across worker delegations; a cancelled delegation
-    // can leave the previous final output behind, and Agent::reply would
-    // return it as this delegation's answer without calling the provider.
+    // A cancelled delegation can leave the reused agent's previous final
+    // output behind, and Agent::reply would return it as this delegation's
+    // answer without calling the provider.
     if let Some(tool) = configured.agent.final_output_tool.lock().await.as_mut() {
         tool.final_output = None;
     }

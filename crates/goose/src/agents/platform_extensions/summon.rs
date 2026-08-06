@@ -886,9 +886,6 @@ impl SummonClient {
                 // A copied or imported parent session carries records that
                 // still point at the original parent's worker sessions;
                 // resuming those would write into another session's history.
-                // The identity marker guards against session-id reuse: a
-                // deleted worker session's id can be handed to a later
-                // subagent session of the same parent.
                 worker_session.parent_session_id.as_deref() == Some(parent_session_id)
                     && WorkerIdentityState::from_extension_data(&worker_session.extension_data)
                         .is_some_and(|marker| marker.identity == record.identity)
@@ -982,8 +979,7 @@ impl SummonClient {
     }
 
     // `buffer` holds notifications for a later flush to subscribers (background
-    // tasks); pass None where no flush point exists so unsubscribed
-    // notifications are dropped instead of accumulating forever.
+    // tasks); pass None where no flush point exists.
     fn spawn_notification_bridge(
         mut notif_rx: tokio::sync::mpsc::UnboundedReceiver<ServerNotification>,
         subscribers: Arc<Mutex<Vec<mpsc::Sender<ServerNotification>>>>,
@@ -1854,12 +1850,9 @@ impl SummonClient {
         let checked_out = {
             let mut workers = self.workers.lock().unwrap();
             self.evict_idle_workers(&mut workers);
-            // The stored record is authoritative: a worker whose session
-            // differs from it (session deleted, or another client recreated
-            // the worker) is dead, so drop it and fall back to the record or
-            // fresh creation instead of failing on the dead session forever.
-            // With no record, keep an unpersisted worker so its failed record
-            // write can be retried; drop a persisted one (record deleted).
+            // The stored record is authoritative: drop a worker that no longer
+            // matches it (session deleted or recreated by another client). With
+            // no record, an unpersisted worker survives to retry its record write.
             if let Some(WorkerSlot::Ready(worker)) = workers.get(&worker_key) {
                 let stale = match stored.as_ref() {
                     Some(record) => {
@@ -2032,8 +2025,7 @@ impl SummonClient {
         let mut recipe = match restore {
             Some(record) => record.recipe.clone(),
             None => {
-                // `context` is call-scoped on every delegation; keep it out of
-                // the recipe so it does not become permanent worker state.
+                // `context` is call-scoped; keep it out of the persistent recipe.
                 let recipe_params = DelegateParams {
                     context: None,
                     ..params.clone()
@@ -3490,49 +3482,6 @@ mod tests {
         let current = ready_worker(&rig.client);
         assert_ne!(current.identity, old_identity);
         assert_eq!(current.identity, ready_worker(&other_client).identity);
-    }
-
-    #[tokio::test]
-    async fn test_worker_recreated_by_other_client_replaces_stale_in_memory_worker() {
-        let rig = persisted_worker_rig().await;
-
-        rig.client
-            .handle_worker_delegate(
-                &rig.session,
-                worker_creation_delegate_params("first task"),
-                CancellationToken::new(),
-            )
-            .await
-            .unwrap();
-
-        let old_session_id = ready_worker(&rig.client).session_id.clone();
-        rig.client
-            .context
-            .session_manager
-            .delete_session(&old_session_id)
-            .await
-            .unwrap();
-
-        let other_client = SummonClient::new(rig.client.context.clone()).unwrap();
-        other_client
-            .handle_worker_delegate(
-                &rig.session,
-                worker_creation_delegate_params("fresh task"),
-                CancellationToken::new(),
-            )
-            .await
-            .unwrap();
-
-        let third = rig
-            .client
-            .handle_worker_delegate(
-                &rig.session,
-                worker_followup_delegate_params("follow up"),
-                CancellationToken::new(),
-            )
-            .await
-            .unwrap();
-        assert_ne!(third.is_error, Some(true));
 
         let calls = rig.provider.calls.lock().unwrap().clone();
         assert_eq!(calls.len(), 3);
