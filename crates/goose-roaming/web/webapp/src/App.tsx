@@ -428,7 +428,8 @@ export function App({ roam }: { roam: RoamClient }) {
           </aside>
 
           <main id="chat" className="flex flex-col min-h-0">
-            <div ref={logRef} id="log" className="flex-1 overflow-y-auto p-5 flex flex-col gap-3.5">
+            <div ref={logRef} id="log" className="flex-1 overflow-y-auto px-6 py-5">
+              <div className="max-w-3xl mx-auto w-full flex flex-col gap-4">
               {items.map((it) => {
                 switch (it.kind) {
                   case "system":
@@ -563,15 +564,17 @@ export function App({ roam }: { roam: RoamClient }) {
                     );
                 }
               })}
+              </div>
             </div>
             <form
               id="prompt-form"
-              className="flex gap-2.5 items-end px-4 py-3 border-t border-border-primary bg-background-secondary"
+              className="border-t border-border-primary px-6 py-3"
               onSubmit={(e) => {
                 e.preventDefault();
                 void send();
               }}
             >
+              <div className="max-w-3xl mx-auto w-full flex gap-2.5 items-end">
               <textarea
                 ref={inputRef}
                 id="prompt-input"
@@ -594,6 +597,7 @@ export function App({ roam }: { roam: RoamClient }) {
               >
                 send
               </button>
+              </div>
             </form>
           </main>
         </section>
