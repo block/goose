@@ -71,6 +71,7 @@ pub struct DelegateParams {
 pub struct PersistentWorker {
     pub configured: Arc<crate::agents::subagent_handler::ConfiguredSubagent>,
     pub session_id: String,
+    pub identity: String,
     pub recipe: Recipe,
     pub task_config: TaskConfig,
     pub default_max_turns: usize,
@@ -186,6 +187,8 @@ impl Drop for CreationSlotGuard<'_> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkerRecord {
     pub session_id: String,
+    #[serde(default)]
+    pub identity: String,
     pub recipe: Recipe,
     pub default_max_turns: usize,
     pub extensions: Vec<crate::config::ExtensionConfig>,
@@ -197,6 +200,7 @@ impl WorkerRecord {
     fn from_worker(worker: &PersistentWorker) -> Self {
         Self {
             session_id: worker.session_id.clone(),
+            identity: worker.identity.clone(),
             recipe: worker.recipe.clone(),
             default_max_turns: worker.default_max_turns,
             extensions: worker.task_config.extensions.clone(),
@@ -230,6 +234,19 @@ pub struct WorkerRegistryState {
 
 impl ExtensionState for WorkerRegistryState {
     const EXTENSION_NAME: &'static str = "summon_workers";
+    const VERSION: &'static str = "v0";
+}
+
+// Stored in the worker session itself. Session ids are date-based and can be
+// reused after deletion, so a record's session_id alone cannot prove the
+// session is still the worker's; this marker ties them together.
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct WorkerIdentityState {
+    pub identity: String,
+}
+
+impl ExtensionState for WorkerIdentityState {
+    const EXTENSION_NAME: &'static str = "summon_worker_identity";
     const VERSION: &'static str = "v0";
 }
 
@@ -869,7 +886,12 @@ impl SummonClient {
                 // A copied or imported parent session carries records that
                 // still point at the original parent's worker sessions;
                 // resuming those would write into another session's history.
+                // The identity marker guards against session-id reuse: a
+                // deleted worker session's id can be handed to a later
+                // subagent session of the same parent.
                 worker_session.parent_session_id.as_deref() == Some(parent_session_id)
+                    && WorkerIdentityState::from_extension_data(&worker_session.extension_data)
+                        .is_some_and(|marker| marker.identity == record.identity)
             });
         if worker_session.is_none() {
             warn!(
@@ -915,6 +937,27 @@ impl SummonClient {
         if let Err(e) = result {
             warn!("Failed to remove stored worker '{}': {}", worker_name, e);
         }
+    }
+
+    async fn stamp_worker_identity(
+        &self,
+        worker_session_id: &str,
+        identity: &str,
+    ) -> Result<(), String> {
+        let mut serialize_error = None;
+        self.context
+            .session_manager
+            .update_extension_data(worker_session_id, |extension_data| {
+                let state = WorkerIdentityState {
+                    identity: identity.to_string(),
+                };
+                if let Err(e) = state.to_extension_data(extension_data) {
+                    serialize_error = Some(e.to_string());
+                }
+            })
+            .await
+            .map_err(|e| format!("Failed to mark worker session: {}", e))?;
+        serialize_error.map_or(Ok(()), Err)
     }
 
     async fn update_worker_registry(
@@ -1819,7 +1862,9 @@ impl SummonClient {
             // write can be retried; drop a persisted one (record deleted).
             if let Some(WorkerSlot::Ready(worker)) = workers.get(&worker_key) {
                 let stale = match stored.as_ref() {
-                    Some(record) => record.session_id != worker.session_id,
+                    Some(record) => {
+                        record.session_id != worker.session_id || record.identity != worker.identity
+                    }
                     None => worker.persisted.load(Ordering::Relaxed),
                 };
                 if stale {
@@ -2033,12 +2078,16 @@ impl SummonClient {
         )
         .with_use_login_shell_path(self.context.use_login_shell_path);
 
-        let worker_session_id = match restore {
-            Some(record) => record.session_id.clone(),
+        let (worker_session_id, identity) = match restore {
+            Some(record) => (record.session_id.clone(), record.identity.clone()),
             None => {
-                self.create_subagent_session(&task_config, format!("Worker '{}'", worker_name))
+                let session_id = self
+                    .create_subagent_session(&task_config, format!("Worker '{}'", worker_name))
                     .await?
-                    .id
+                    .id;
+                let identity = uuid::Uuid::new_v4().to_string();
+                self.stamp_worker_identity(&session_id, &identity).await?;
+                (session_id, identity)
             }
         };
 
@@ -2093,6 +2142,7 @@ impl SummonClient {
                 &worker_session_id,
             ),
             session_id: worker_session_id,
+            identity,
             default_max_turns,
             prompt_max_turns: AtomicUsize::new(prompt_max_turns),
             last_used: AtomicU64::new(current_epoch_millis()),
@@ -3340,6 +3390,106 @@ mod tests {
         let fresh = calls[1].join("\n");
         assert!(fresh.contains("fresh task"));
         assert!(!fresh.contains("first task"));
+    }
+
+    #[tokio::test]
+    async fn test_worker_record_rejects_recycled_session_id() {
+        let rig = persisted_worker_rig().await;
+
+        rig.client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("first task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        let old_session_id = ready_worker(&rig.client).session_id.clone();
+        let session_manager = &rig.client.context.session_manager;
+        session_manager
+            .delete_session(&old_session_id)
+            .await
+            .unwrap();
+
+        let impostor = session_manager
+            .create_session(
+                rig.session.working_dir.clone(),
+                "impostor".to_string(),
+                SessionType::SubAgent,
+                GooseMode::Auto,
+            )
+            .await
+            .unwrap();
+        session_manager
+            .update(&impostor.id)
+            .parent_session_id(Some(rig.session.id.clone()))
+            .apply()
+            .await
+            .unwrap();
+        assert_eq!(impostor.id, old_session_id, "test needs id recycling");
+
+        rig.client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("fresh task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(ready_worker(&rig.client).session_id, impostor.id);
+    }
+
+    #[tokio::test]
+    async fn test_worker_checkout_rejects_recycled_session_id_from_other_client() {
+        let rig = persisted_worker_rig().await;
+
+        rig.client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("first task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        let old_worker = ready_worker(&rig.client);
+        let old_session_id = old_worker.session_id.clone();
+        let old_identity = old_worker.identity.clone();
+        rig.client
+            .context
+            .session_manager
+            .delete_session(&old_session_id)
+            .await
+            .unwrap();
+
+        let other_client = SummonClient::new(rig.client.context.clone()).unwrap();
+        other_client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("fresh task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            ready_worker(&other_client).session_id,
+            old_session_id,
+            "test needs id recycling"
+        );
+
+        rig.client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_followup_delegate_params("follow up"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        let current = ready_worker(&rig.client);
+        assert_ne!(current.identity, old_identity);
+        assert_eq!(current.identity, ready_worker(&other_client).identity);
     }
 
     #[tokio::test]
