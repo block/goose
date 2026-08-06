@@ -295,6 +295,28 @@ impl AcpProvider {
             .await
             .context("ACP session creation cancelled")??;
 
+        let reported_model = response.config_options.as_ref().and_then(|opts| {
+            opts.iter()
+                .find(|o| o.category == Some(SessionConfigOptionCategory::Model))
+                .and_then(|o| match &o.kind {
+                    SessionConfigKind::Select(sel) => Some(sel.current_value.0.to_string()),
+                    _ => None,
+                })
+        });
+        match reported_model.as_deref() {
+            Some(model) => tracing::info!(
+                agent = %name,
+                acp_session_id = %response.session_id,
+                model,
+                "ACP session created: agent reported current model, no context length available at session setup"
+            ),
+            None => tracing::info!(
+                agent = %name,
+                acp_session_id = %response.session_id,
+                "ACP session created: agent reported no model info, context length unknown until a usage update arrives"
+            ),
+        }
+
         let session = AcpSession {
             id: response.session_id.clone(),
             response,
@@ -444,8 +466,27 @@ impl Provider for AcpProvider {
     async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
         let size = self.context_size.load(Ordering::Relaxed);
         if size > 0 {
+            tracing::info!(
+                provider = %self.name,
+                model = %model_config.model_name,
+                limit = size,
+                source = "acp_agent_usage_update",
+                "context limit resolved"
+            );
             return Ok(size as usize);
         }
+        let source = if model_config.context_limit.is_some() {
+            "model_config"
+        } else {
+            "default_fallback"
+        };
+        tracing::info!(
+            provider = %self.name,
+            model = %model_config.model_name,
+            limit = model_config.context_limit(),
+            source,
+            "context limit resolved"
+        );
         Ok(model_config.context_limit())
     }
 
@@ -851,7 +892,15 @@ impl AcpClientLoop {
                                 }
                             }
                             SessionUpdate::UsageUpdate(usage) => {
-                                context_size.store(usage.size, Ordering::Relaxed);
+                                let previous = context_size.swap(usage.size, Ordering::Relaxed);
+                                if previous != usage.size {
+                                    tracing::info!(
+                                        acp_session_id = %notification.session_id,
+                                        used = usage.used,
+                                        size = usage.size,
+                                        "ACP agent reported context window size"
+                                    );
+                                }
                             }
                             SessionUpdate::SessionInfoUpdate(update) => {
                                 if let Some(title) = update.title.value() {

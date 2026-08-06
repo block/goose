@@ -543,7 +543,22 @@ pub(super) fn build_usage_updates(
     totals: &SessionUsageTotals,
 ) -> Option<UsageUpdates> {
     let used = session.usage.total_tokens.unwrap_or(0).max(0) as u64;
-    let ctx_limit = session.model_config.as_ref()?.context_limit() as u64;
+    let model_config = session.model_config.as_ref()?;
+    let ctx_limit = model_config.context_limit() as u64;
+    let source = if model_config.context_limit.is_some() {
+        "session_model_config"
+    } else {
+        "default_fallback"
+    };
+    tracing::info!(
+        session_id = %session.id,
+        provider = session.provider_name.as_deref().unwrap_or("unknown"),
+        model = %model_config.model_name,
+        used,
+        context_limit = ctx_limit,
+        source,
+        "usage update sent to client"
+    );
     let accumulated_input_tokens =
         to_nonnegative_u64(totals.accumulated_usage.input_tokens).unwrap_or(0);
     let accumulated_output_tokens =
