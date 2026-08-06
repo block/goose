@@ -231,9 +231,103 @@ impl RequestLog {
         let logs_dir = Paths::in_state_dir("logs");
         fs_err::create_dir_all(&logs_dir)?;
         #[cfg(unix)]
-        restrict_existing_request_logs(&logs_dir)?;
+        {
+            restrict_request_log_directory(&logs_dir)?;
+            restrict_existing_request_logs(&logs_dir)?;
+        }
         Ok(Self { logs_to_keep })
     }
+}
+
+#[cfg(unix)]
+fn restrict_request_log_directory(logs_dir: &std::path::Path) -> Result<()> {
+    use std::ffi::CString;
+    use std::io::{Error, ErrorKind};
+    use std::os::fd::AsRawFd;
+    #[cfg(target_os = "linux")]
+    use std::os::fd::FromRawFd;
+    use std::os::unix::ffi::OsStrExt;
+
+    #[cfg(target_os = "linux")]
+    let (metadata, descriptor) = {
+        let path = CString::new(logs_dir.as_os_str().as_bytes())
+            .map_err(|_| Error::new(ErrorKind::InvalidInput, "logs path contains NUL"))?;
+        let flags = libc::O_PATH | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC;
+        // SAFETY: open does not retain the path pointer and no creation mode is required.
+        let raw_descriptor = unsafe { libc::open(path.as_ptr(), flags) };
+        if raw_descriptor < 0 {
+            return Err(Error::last_os_error().into());
+        }
+        // SAFETY: open returned a new owned descriptor.
+        let descriptor = unsafe { std::fs::File::from_raw_fd(raw_descriptor) };
+        // SAFETY: libc::stat is initialized before fstat writes it.
+        let mut metadata: libc::stat = unsafe { std::mem::zeroed() };
+        // SAFETY: the descriptor remains open for the synchronous call.
+        if unsafe { libc::fstat(descriptor.as_raw_fd(), &mut metadata) } < 0 {
+            return Err(Error::last_os_error().into());
+        }
+        (metadata, descriptor)
+    };
+
+    #[cfg(not(target_os = "linux"))]
+    let (metadata, directory, file_name) = {
+        let parent = logs_dir
+            .parent()
+            .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "logs path has no parent"))?;
+        let file_name = logs_dir
+            .file_name()
+            .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "logs path has no file name"))?;
+        let file_name = CString::new(file_name.as_bytes())
+            .map_err(|_| Error::new(ErrorKind::InvalidInput, "logs path contains NUL"))?;
+        let directory = std::fs::File::open(parent)?;
+        // SAFETY: libc::stat is initialized before fstatat writes it.
+        let mut metadata: libc::stat = unsafe { std::mem::zeroed() };
+        // SAFETY: pointers remain valid for the synchronous call and the directory fd is open.
+        if unsafe {
+            libc::fstatat(
+                directory.as_raw_fd(),
+                file_name.as_ptr(),
+                &mut metadata,
+                libc::AT_SYMLINK_NOFOLLOW,
+            )
+        } < 0
+        {
+            return Err(Error::last_os_error().into());
+        }
+        (metadata, directory, file_name)
+    };
+
+    if metadata.st_mode & libc::S_IFMT != libc::S_IFDIR {
+        return Err(Error::new(ErrorKind::InvalidInput, "logs path is not a directory").into());
+    }
+    if metadata.st_uid != current_effective_uid() {
+        return Err(Error::new(
+            ErrorKind::PermissionDenied,
+            "logs directory is owned by another user",
+        )
+        .into());
+    }
+
+    #[cfg(target_os = "linux")]
+    chmod_open_path_descriptor(&descriptor, 0o700)?;
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        // SAFETY: fchmodat does not retain the name pointer and is anchored at the open parent.
+        if unsafe {
+            libc::fchmodat(
+                directory.as_raw_fd(),
+                file_name.as_ptr(),
+                0o700,
+                libc::AT_SYMLINK_NOFOLLOW,
+            )
+        } < 0
+        {
+            return Err(Error::last_os_error().into());
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -406,14 +500,7 @@ fn restrict_inaccessible_request_log_with_hook(
     after_metadata();
 
     #[cfg(target_os = "linux")]
-    {
-        let descriptor_path =
-            CString::new(format!("/proc/self/fd/{}", descriptor.as_raw_fd())).unwrap();
-        // SAFETY: chmod does not retain the path pointer, which names the retained descriptor.
-        if unsafe { libc::chmod(descriptor_path.as_ptr(), 0o600) } < 0 {
-            return Err(Error::last_os_error().into());
-        }
-    }
+    chmod_open_path_descriptor(&descriptor, 0o600)?;
 
     #[cfg(not(target_os = "linux"))]
     {
@@ -457,6 +544,21 @@ fn restrict_inaccessible_request_log_with_hook(
     }
 
     Ok(RestrictionOutcome::Complete)
+}
+
+#[cfg(target_os = "linux")]
+fn chmod_open_path_descriptor(descriptor: &std::fs::File, mode: libc::mode_t) -> Result<()> {
+    use std::ffi::CString;
+    use std::io::Error;
+    use std::os::fd::AsRawFd;
+
+    let descriptor_path =
+        CString::new(format!("/proc/self/fd/{}", descriptor.as_raw_fd())).unwrap();
+    // SAFETY: chmod does not retain the path pointer, which names the retained descriptor.
+    if unsafe { libc::chmod(descriptor_path.as_ptr(), mode) } < 0 {
+        return Err(Error::last_os_error().into());
+    }
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -770,9 +872,14 @@ mod tests {
         let fifo_path = std::ffi::CString::new(matching_fifo.as_os_str().as_bytes()).unwrap();
         assert_eq!(unsafe { libc::mkfifo(fifo_path.as_ptr(), 0o666) }, 0);
         let _socket = UnixListener::bind(&matching_socket).unwrap();
+        std::fs::set_permissions(&logs_dir, std::fs::Permissions::from_mode(0o377)).unwrap();
 
         RequestLog::new(1).unwrap();
 
+        assert_eq!(
+            std::fs::metadata(&logs_dir).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
         assert_owner_only(&numbered_log);
         assert_owner_only(&uuid_log);
         assert_owner_only(&owner_write_only_log);
