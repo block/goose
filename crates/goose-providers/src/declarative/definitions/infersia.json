@@ -7,7 +7,7 @@
   "base_url": "https://api.infersia.com/v1",
   "model_doc_link": "https://infersia.com/models",
   "supports_streaming": true,
-  "dynamic_models": true,
+  "dynamic_models": false,
   "models": [
     {"name": "deepseek/deepseek-v4-flash-0731", "context_limit": 1048576},
     {"name": "qwen/qwen3.6-35b-a3b", "context_limit": 262144},
