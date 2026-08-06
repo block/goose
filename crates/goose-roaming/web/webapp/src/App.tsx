@@ -341,7 +341,7 @@ export function App({ roam }: { roam: RoamClient }) {
 
   return (
     <div className="h-screen flex flex-col bg-background-primary text-text-primary">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border-primary bg-background-secondary shrink-0">
+      <div className="flex items-center justify-between gap-2 px-3 md:px-4 py-2.5 border-b border-border-primary bg-background-secondary shrink-0">
         <div className="flex items-center gap-2">
           {connected && (
             <button
@@ -360,7 +360,7 @@ export function App({ roam }: { roam: RoamClient }) {
           {connected && modelName && (
             <span
               id="model-badge"
-              className="text-[11px] text-text-secondary bg-background-secondary border border-border-primary rounded-full px-2.5 py-0.5"
+              className="text-[11px] text-text-secondary bg-background-secondary border border-border-primary rounded-full px-2.5 py-0.5 max-w-[110px] md:max-w-none overflow-hidden text-ellipsis whitespace-nowrap"
             >
               {modelName}
             </span>
@@ -368,28 +368,28 @@ export function App({ roam }: { roam: RoamClient }) {
           {connected && (
             <span
               id="agent-badge"
-              className="font-mono text-[11px] text-text-secondary bg-background-secondary border border-border-primary rounded-full px-2.5 py-0.5"
+              className="hidden md:inline font-mono text-[11px] text-text-secondary bg-background-secondary border border-border-primary rounded-full px-2.5 py-0.5"
             >
               agent {agentId.slice(0, 12)}…
             </span>
           )}
-          <span id="status" className={`text-xs ${statusColor}`}>
+          <span id="status" className={`text-xs whitespace-nowrap ${statusColor}`}>
             {status}
           </span>
         </div>
       </div>
 
       {!connected ? (
-        <section id="connect-panel" className="flex-1 grid place-items-center p-6 overflow-auto">
-          <div className="w-full max-w-[560px] bg-background-primary border rounded-xl shadow-sm p-7">
+        <section id="connect-panel" className="flex-1 grid place-items-center p-3 md:p-6 overflow-auto">
+          <div className="w-full max-w-[560px] min-w-0 overflow-hidden bg-background-primary border rounded-xl shadow-sm p-4 md:p-7">
             <h2 className="text-lg font-semibold mb-4">Connect to your roaming agent</h2>
-            <ol className="list-decimal pl-5 flex flex-col gap-4 leading-relaxed text-sm">
+            <ol className="list-decimal pl-4 md:pl-5 flex flex-col gap-4 leading-relaxed text-sm">
               <li>
                 On the host, accept this browser once:
-                <div className="flex gap-2 items-center my-2">
+                <div className="flex gap-2 items-center my-2 min-w-0">
                   <code
                     id="my-card"
-                    className="flex-1 font-mono text-[11px] bg-background-primary border border-border-primary rounded-lg px-2.5 py-1.5 overflow-hidden text-ellipsis whitespace-nowrap"
+                    className="flex-1 min-w-0 font-mono text-[11px] bg-background-primary border border-border-primary rounded-lg px-2.5 py-1.5 overflow-hidden text-ellipsis whitespace-nowrap"
                   >
                     {myCard}
                   </code>
@@ -401,11 +401,11 @@ export function App({ roam }: { roam: RoamClient }) {
                     copy
                   </button>
                 </div>
-                <code className="block font-mono text-xs text-text-info bg-background-primary border border-border-primary rounded-lg px-2.5 py-2">
+                <code className="block font-mono text-xs text-text-info bg-background-primary border border-border-primary rounded-lg px-2.5 py-2 break-all">
                   goose roam peers accept '&lt;card&gt;'
                 </code>
                 <div className="text-xs text-text-tertiary mt-1.5">
-                  key <code id="my-endpoint-id" className="font-mono text-[11px]">{myId}</code>
+                  key <code id="my-endpoint-id" className="font-mono text-[11px] break-all">{myId}</code>
                 </div>
               </li>
               <li>
@@ -469,7 +469,7 @@ export function App({ roam }: { roam: RoamClient }) {
           </aside>
 
           <main id="chat" className="flex flex-col min-h-0 flex-1 min-w-0">
-            <div ref={logRef} id="log" className="flex-1 overflow-y-auto px-6 py-5">
+            <div ref={logRef} id="log" className="flex-1 overflow-y-auto px-3 md:px-6 py-4 md:py-5">
               <div className="max-w-3xl mx-auto w-full flex flex-col gap-4">
               {items.map((it) => {
                 switch (it.kind) {
@@ -498,13 +498,13 @@ export function App({ roam }: { roam: RoamClient }) {
                     if (it.role === "user")
                       return (
                         <div key={it.id} className="msg user flex justify-end w-full">
-                          <div className="body user-message-bubble max-w-[85%] w-fit bg-text-primary text-background-primary rounded-xl py-2.5 px-4 whitespace-pre-wrap leading-relaxed">
+                          <div className="body user-message-bubble max-w-[92%] md:max-w-[85%] w-fit bg-text-primary text-background-primary rounded-xl py-2.5 px-4 whitespace-pre-wrap leading-relaxed">
                             {it.text}
                           </div>
                         </div>
                       );
                     return (
-                      <div key={it.id} className="msg agent goose-message flex w-[90%] justify-start min-w-0">
+                      <div key={it.id} className="msg agent goose-message flex w-full md:w-[90%] justify-start min-w-0">
                         <div className="body min-w-0 flex-1 leading-relaxed">
                           <MarkdownContent content={it.text} />
                         </div>
@@ -609,7 +609,7 @@ export function App({ roam }: { roam: RoamClient }) {
             </div>
             <form
               id="prompt-form"
-              className="border-t border-border-primary px-6 py-3"
+              className="border-t border-border-primary px-3 md:px-6 py-2.5 md:py-3"
               onSubmit={(e) => {
                 e.preventDefault();
                 void send();
@@ -622,7 +622,7 @@ export function App({ roam }: { roam: RoamClient }) {
                 rows={1}
                 disabled={busy}
                 className="flex-1 bg-background-secondary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none max-h-52"
-                placeholder="Message the agent…  (Enter to send, Shift+Enter for newline)"
+                placeholder="Message goose…"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
