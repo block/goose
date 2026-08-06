@@ -402,6 +402,7 @@ impl Inference for InferenceRunner<'_> {
                 );
             let mut available_tools = tools
                 .iter()
+                .chain(toolshim_tools.iter())
                 .map(|tool| tool.name.as_ref())
                 .collect::<Vec<_>>();
             available_tools.sort_unstable();

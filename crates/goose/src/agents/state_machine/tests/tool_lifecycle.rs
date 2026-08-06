@@ -76,6 +76,20 @@ async fn recover_from_missing_tool() -> Result<()> {
     result.assert_message(-1, Agent, "recovered");
     assert_eq!(pipeline.calculator_total(), 2);
 
+    let (pipeline, api) = test_pipeline().await?;
+    let model_config =
+        goose_providers::model::ModelConfig::new(goose_providers::openai::OPEN_AI_DEFAULT_MODEL)
+            .with_canonical_limits("openai")
+            .with_toolshim(true);
+    let pipeline = pipeline.with_model_config(model_config).await;
+    api.on("try the missing tool in toolshim")
+        .unadvertised_call("missing__tool", json!({}));
+    api.on("Available tools").reply("recovered with toolshim");
+
+    let result = pipeline.run(["try the missing tool in toolshim"]).await?;
+    assert!(api.calls()[1].input_contains(ADD));
+    result.assert_message(-1, Agent, "recovered with toolshim");
+
     Ok(())
 }
 
