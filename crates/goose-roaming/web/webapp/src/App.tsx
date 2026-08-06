@@ -17,6 +17,7 @@ import {
   type PlanEntry,
 } from "@agentclientprotocol/sdk";
 import { GooseClient } from "@aaif/goose-sdk";
+import jsQR from "jsqr";
 import MarkdownContent from "@desktop/components/MarkdownContent";
 import { Goose } from "@desktop/components/icons/Goose";
 import { ToolCallStatusIndicator, type ToolCallStatus } from "@desktop/components/ToolCallStatusIndicator";
@@ -98,9 +99,7 @@ export function App({ roam }: { roam: RoamClient }) {
   // BarcodeDetector: Chrome/Android today; feature-detected so the button
   // simply doesn't render where unsupported (iOS Safari needs a lib later).
   const canScan =
-    typeof navigator !== "undefined" &&
-    !!navigator.mediaDevices?.getUserMedia &&
-    "BarcodeDetector" in window;
+    typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
 
   const startScan = useCallback(async () => {
     try {
@@ -115,8 +114,25 @@ export function App({ roam }: { roam: RoamClient }) {
           void video.play();
         }
       });
+      // BarcodeDetector on Chrome/Android; jsQR canvas fallback elsewhere (iOS Safari).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const detector = new (window as any).BarcodeDetector({ formats: ["qr_code"] });
+      const native = "BarcodeDetector" in window ? new (window as any).BarcodeDetector({ formats: ["qr_code"] }) : null;
+      const canvas = document.createElement("canvas");
+      const detect = async (video: HTMLVideoElement): Promise<string | null> => {
+        if (native) {
+          const codes = await native.detect(video);
+          return codes.find((c: { rawValue: string }) => c.rawValue.startsWith("goose+roam://"))?.rawValue ?? null;
+        }
+        const w = video.videoWidth, h = video.videoHeight;
+        if (!w || !h) return null;
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        if (!ctx) return null;
+        ctx.drawImage(video, 0, 0, w, h);
+        const img = ctx.getImageData(0, 0, w, h);
+        const hit = jsQR(img.data, w, h);
+        return hit?.data.startsWith("goose+roam://") ? hit.data : null;
+      };
       let active = true;
       scanStop.current = () => {
         active = false;
@@ -128,12 +144,9 @@ export function App({ roam }: { roam: RoamClient }) {
         const video = videoRef.current;
         if (video && video.readyState >= 2) {
           try {
-            const codes = await detector.detect(video);
-            const hit = codes.find((c: { rawValue: string }) =>
-              c.rawValue.startsWith("goose+roam://"),
-            );
+            const hit = await detect(video);
             if (hit) {
-              setCard(hit.rawValue);
+              setCard(hit);
               scanStop.current?.();
               return;
             }
