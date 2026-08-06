@@ -224,6 +224,8 @@ pub fn init_goose_request_log() -> Result<()> {
 
 pub struct RequestLog {
     logs_to_keep: usize,
+    #[cfg(unix)]
+    logs_directory: std::fs::File,
 }
 
 impl RequestLog {
@@ -235,21 +237,29 @@ impl RequestLog {
             .ok_or_else(|| anyhow!("request log state directory has no parent"))?;
         fs_err::create_dir_all(state_parent)?;
         #[cfg(unix)]
-        create_and_restrict_request_log_state_directory(&state_dir)?;
-        #[cfg(not(unix))]
-        fs_err::create_dir_all(&state_dir)?;
-        fs_err::create_dir_all(&logs_dir)?;
-        #[cfg(unix)]
-        {
-            restrict_request_log_directory(&logs_dir)?;
+        let logs_directory = {
+            let state_directory = create_and_restrict_request_log_state_directory(&state_dir)?;
+            let logs_directory = create_and_restrict_request_log_logs_directory(&state_directory)?;
             restrict_existing_request_logs(&logs_dir)?;
+            logs_directory
+        };
+        #[cfg(not(unix))]
+        {
+            fs_err::create_dir_all(&state_dir)?;
+            fs_err::create_dir_all(&logs_dir)?;
         }
-        Ok(Self { logs_to_keep })
+        Ok(Self {
+            logs_to_keep,
+            #[cfg(unix)]
+            logs_directory,
+        })
     }
 }
 
 #[cfg(unix)]
-fn create_and_restrict_request_log_state_directory(state_dir: &std::path::Path) -> Result<()> {
+fn create_and_restrict_request_log_state_directory(
+    state_dir: &std::path::Path,
+) -> Result<std::fs::File> {
     use std::ffi::CString;
     use std::io::{Error, ErrorKind};
     use std::os::fd::{AsRawFd, FromRawFd};
@@ -381,10 +391,129 @@ fn create_and_restrict_request_log_state_directory(state_dir: &std::path::Path) 
         .into());
     }
 
-    Ok(())
+    Ok(state_directory)
 }
 
 #[cfg(unix)]
+fn create_and_restrict_request_log_logs_directory(
+    state_directory: &std::fs::File,
+) -> Result<std::fs::File> {
+    use std::ffi::CString;
+    use std::io::{Error, ErrorKind};
+    use std::os::fd::{AsRawFd, FromRawFd};
+    use std::os::unix::fs::MetadataExt;
+
+    let file_name = CString::new("logs").unwrap();
+    // SAFETY: the name pointer is valid for the synchronous call and the state fd is retained.
+    if unsafe { libc::mkdirat(state_directory.as_raw_fd(), file_name.as_ptr(), 0o700) } < 0 {
+        let error = Error::last_os_error();
+        if error.kind() != ErrorKind::AlreadyExists {
+            return Err(error.into());
+        }
+    }
+
+    // SAFETY: libc::stat is initialized before fstatat writes it.
+    let mut entry: libc::stat = unsafe { std::mem::zeroed() };
+    // SAFETY: pointers remain valid for the call and the state fd is retained.
+    if unsafe {
+        libc::fstatat(
+            state_directory.as_raw_fd(),
+            file_name.as_ptr(),
+            &mut entry,
+            libc::AT_SYMLINK_NOFOLLOW,
+        )
+    } < 0
+    {
+        return Err(Error::last_os_error().into());
+    }
+
+    let entry_type = entry.st_mode & libc::S_IFMT;
+    let entry_is_symlink = entry_type == libc::S_IFLNK;
+    if entry_is_symlink {
+        if !request_log_directory_link_owner_is_trusted(entry.st_uid, current_effective_uid()) {
+            return Err(Error::new(
+                ErrorKind::PermissionDenied,
+                "request log directory symlink is owned by another user",
+            )
+            .into());
+        }
+    } else if entry_type != libc::S_IFDIR {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "request log path is not a directory",
+        )
+        .into());
+    }
+
+    let flags = directory_search_flags()
+        | if entry_is_symlink {
+            0
+        } else {
+            libc::O_NOFOLLOW
+        };
+    // SAFETY: the name pointer is valid for the synchronous call and the state fd is retained.
+    let logs_fd = unsafe { libc::openat(state_directory.as_raw_fd(), file_name.as_ptr(), flags) };
+    if logs_fd < 0 {
+        return Err(Error::last_os_error().into());
+    }
+    // SAFETY: openat returned a new owned descriptor.
+    let logs_directory = unsafe { std::fs::File::from_raw_fd(logs_fd) };
+    let metadata = logs_directory.metadata()?;
+    if !metadata.is_dir() || metadata.uid() != current_effective_uid() {
+        return Err(Error::new(
+            ErrorKind::PermissionDenied,
+            "request log directory is not owned by the current user",
+        )
+        .into());
+    }
+
+    let current_directory = CString::new(".").unwrap();
+    // SAFETY: resolving `.` relative to the retained logs descriptor binds chmod to it.
+    if unsafe {
+        libc::fchmodat(
+            logs_directory.as_raw_fd(),
+            current_directory.as_ptr(),
+            0o700,
+            0,
+        )
+    } < 0
+    {
+        return Err(Error::last_os_error().into());
+    }
+
+    // SAFETY: libc::stat is initialized before fstatat writes it.
+    let mut current: libc::stat = unsafe { std::mem::zeroed() };
+    // SAFETY: pointers remain valid for the call and the state fd is retained.
+    if unsafe {
+        libc::fstatat(
+            state_directory.as_raw_fd(),
+            file_name.as_ptr(),
+            &mut current,
+            0,
+        )
+    } < 0
+    {
+        return Err(Error::last_os_error().into());
+    }
+    let updated = logs_directory.metadata()?;
+    if metadata.dev() != updated.dev()
+        || metadata.ino() != updated.ino()
+        || metadata.dev() != current.st_dev as u64
+        || metadata.ino() != current.st_ino as u64
+        || !updated.is_dir()
+        || updated.uid() != current_effective_uid()
+    {
+        return Err(Error::new(
+            ErrorKind::PermissionDenied,
+            "request log directory changed while permissions were restricted",
+        )
+        .into());
+    }
+
+    Ok(logs_directory)
+}
+
+#[cfg(test)]
 fn restrict_request_log_directory(logs_dir: &std::path::Path) -> Result<()> {
     restrict_request_log_directory_with_hook(logs_dir, || {})
 }
@@ -447,7 +576,7 @@ fn open_search_only_directory(path: &std::path::Path) -> std::io::Result<std::fs
     options.open(path)
 }
 
-#[cfg(unix)]
+#[cfg(test)]
 fn validate_request_log_directory_link_owner(
     path: &std::path::Path,
     expected_uid: libc::uid_t,
@@ -475,26 +604,7 @@ fn request_log_directory_link_owner_is_trusted(
     actual_uid == expected_uid || actual_uid == 0
 }
 
-#[cfg(any(
-    test,
-    all(
-        unix,
-        not(any(
-            target_os = "aix",
-            target_os = "android",
-            target_os = "emscripten",
-            target_os = "freebsd",
-            target_os = "hurd",
-            target_os = "illumos",
-            target_os = "linux",
-            target_os = "netbsd",
-            target_os = "nto",
-            target_os = "redox",
-            target_os = "solaris",
-            target_vendor = "apple"
-        ))
-    )
-))]
+#[cfg(test)]
 fn repair_request_log_directory_for_read(path: &std::path::Path) -> std::io::Result<()> {
     use std::io::{Error, ErrorKind};
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -527,25 +637,29 @@ fn repair_request_log_directory_for_read(path: &std::path::Path) -> std::io::Res
     Ok(())
 }
 
-#[cfg(any(
-    target_os = "aix",
-    target_os = "android",
-    target_os = "emscripten",
-    target_os = "freebsd",
-    target_os = "hurd",
-    target_os = "illumos",
-    target_os = "linux",
-    target_os = "netbsd",
-    target_os = "nto",
-    target_os = "redox",
-    target_os = "solaris",
-    all(unix, target_vendor = "apple")
+#[cfg(all(
+    test,
+    any(
+        target_os = "aix",
+        target_os = "android",
+        target_os = "emscripten",
+        target_os = "freebsd",
+        target_os = "hurd",
+        target_os = "illumos",
+        target_os = "linux",
+        target_os = "netbsd",
+        target_os = "nto",
+        target_os = "redox",
+        target_os = "solaris",
+        target_vendor = "apple"
+    )
 ))]
 fn prepare_request_log_directory_for_open(_path: &std::path::Path) -> std::io::Result<()> {
     Ok(())
 }
 
 #[cfg(all(
+    test,
     unix,
     not(any(
         target_os = "aix",
@@ -566,7 +680,7 @@ fn prepare_request_log_directory_for_open(path: &std::path::Path) -> std::io::Re
     repair_request_log_directory_for_read(path)
 }
 
-#[cfg(unix)]
+#[cfg(test)]
 fn restrict_request_log_directory_with_hook(
     logs_dir: &std::path::Path,
     after_metadata: impl FnOnce(),
@@ -661,6 +775,14 @@ enum RestrictionOutcome {
 
 #[cfg(unix)]
 fn restrict_existing_request_log(path: &std::path::Path) -> Result<RestrictionOutcome> {
+    restrict_existing_request_log_with_hook(path, || {})
+}
+
+#[cfg(unix)]
+fn restrict_existing_request_log_with_hook(
+    path: &std::path::Path,
+    after_metadata: impl FnOnce(),
+) -> Result<RestrictionOutcome> {
     use std::io::ErrorKind;
     use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 
@@ -706,7 +828,18 @@ fn restrict_existing_request_log(path: &std::path::Path) -> Result<RestrictionOu
     };
     let metadata = file.metadata()?;
     if metadata.is_file() && metadata.uid() == current_effective_uid() {
+        after_metadata();
         file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+        let current = match std::fs::symlink_metadata(path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == ErrorKind::NotFound => {
+                return Ok(RestrictionOutcome::Retry)
+            }
+            Err(error) => return Err(error.into()),
+        };
+        if metadata.dev() != current.dev() || metadata.ino() != current.ino() {
+            return Ok(RestrictionOutcome::Retry);
+        }
     }
 
     Ok(RestrictionOutcome::Complete)
@@ -838,36 +971,70 @@ struct FileLogHandle {
     writer: Option<BufWriter<File>>,
     temp_path: PathBuf,
     logs_to_keep: usize,
+    #[cfg(unix)]
+    logs_directory: std::fs::File,
 }
 
 impl RequestLogger for RequestLog {
     fn start(&self) -> Result<Box<dyn RequestLogHandle>, Box<dyn Error + Send + Sync>> {
+        #[cfg(not(unix))]
         let logs_dir = Paths::in_state_dir("logs");
+        #[cfg(not(unix))]
         fs_err::create_dir_all(&logs_dir)?;
 
         let request_id = Uuid::new_v4();
         let temp_name = format!("llm_request.{request_id}.jsonl");
-        let temp_path = logs_dir.join(PathBuf::from(temp_name));
+        #[cfg(unix)]
+        let temp_path = PathBuf::from(&temp_name);
+        #[cfg(not(unix))]
+        let temp_path = logs_dir.join(PathBuf::from(&temp_name));
 
-        let mut options = File::options();
-        options.write(true).create(true).truncate(true);
         #[cfg(unix)]
-        {
-            use fs_err::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
-        }
-        let file = options.open(&temp_path)?;
-        #[cfg(unix)]
-        {
+        let file = {
+            use std::ffi::CString;
+            use std::io::{Error, ErrorKind};
+            use std::os::fd::{AsRawFd, FromRawFd};
             use std::os::unix::fs::PermissionsExt;
+
+            let temp_name = CString::new(temp_name).map_err(|_| {
+                Error::new(ErrorKind::InvalidInput, "request log name contains NUL")
+            })?;
+            // SAFETY: the name pointer is valid for the call and the retained logs fd is open.
+            let fd = unsafe {
+                libc::openat(
+                    self.logs_directory.as_raw_fd(),
+                    temp_name.as_ptr(),
+                    libc::O_WRONLY
+                        | libc::O_CREAT
+                        | libc::O_TRUNC
+                        | libc::O_CLOEXEC
+                        | libc::O_NOFOLLOW,
+                    0o600,
+                )
+            };
+            if fd < 0 {
+                return Err(Error::last_os_error().into());
+            }
+            // SAFETY: openat returned a new owned descriptor.
+            let raw_file = unsafe { std::fs::File::from_raw_fd(fd) };
+            let file = File::from_parts(raw_file, temp_path.clone());
             file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
-        }
+            file
+        };
+        #[cfg(not(unix))]
+        let file = {
+            let mut options = File::options();
+            options.write(true).create(true).truncate(true);
+            options.open(&temp_path)?
+        };
         let writer = BufWriter::new(file);
 
         Ok(Box::new(FileLogHandle {
             writer: Some(writer),
             temp_path,
             logs_to_keep: self.logs_to_keep,
+            #[cfg(unix)]
+            logs_directory: self.logs_directory.try_clone()?,
         }))
     }
 }
@@ -887,19 +1054,72 @@ impl FileLogHandle {
     fn finish(&mut self) -> Result<()> {
         if let Some(mut writer) = self.writer.take() {
             writer.flush()?;
-            let logs_dir = Paths::in_state_dir("logs");
-            let log_path = |i| logs_dir.join(format!("llm_request.{}.jsonl", i));
+            #[cfg(unix)]
+            {
+                use std::ffi::CString;
+                use std::io::{Error, ErrorKind};
+                use std::os::fd::AsRawFd;
+                use std::os::unix::ffi::OsStrExt;
 
-            if self.logs_to_keep == 0 {
-                fs_err::remove_file(&self.temp_path)?;
+                let temp_name =
+                    CString::new(self.temp_path.as_os_str().as_bytes()).map_err(|_| {
+                        Error::new(ErrorKind::InvalidInput, "request log name contains NUL")
+                    })?;
+                let directory_fd = self.logs_directory.as_raw_fd();
+                if self.logs_to_keep == 0 {
+                    // SAFETY: the name pointer is valid for the call and the logs fd is retained.
+                    if unsafe { libc::unlinkat(directory_fd, temp_name.as_ptr(), 0) } < 0 {
+                        return Err(Error::last_os_error().into());
+                    }
+                    return Ok(());
+                }
+
+                for i in (0..self.logs_to_keep.saturating_sub(1)).rev() {
+                    let source = CString::new(format!("llm_request.{i}.jsonl")).unwrap();
+                    let destination = CString::new(format!("llm_request.{}.jsonl", i + 1)).unwrap();
+                    // SAFETY: name pointers and the retained directory fd are valid for the call.
+                    let _ = unsafe {
+                        libc::renameat(
+                            directory_fd,
+                            source.as_ptr(),
+                            directory_fd,
+                            destination.as_ptr(),
+                        )
+                    };
+                }
+
+                let destination = CString::new("llm_request.0.jsonl").unwrap();
+                // SAFETY: name pointers and the retained directory fd are valid for the call.
+                if unsafe {
+                    libc::renameat(
+                        directory_fd,
+                        temp_name.as_ptr(),
+                        directory_fd,
+                        destination.as_ptr(),
+                    )
+                } < 0
+                {
+                    return Err(Error::last_os_error().into());
+                }
                 return Ok(());
             }
 
-            for i in (0..self.logs_to_keep.saturating_sub(1)).rev() {
-                let _ = fs_err::rename(log_path(i), log_path(i + 1));
-            }
+            #[cfg(not(unix))]
+            {
+                let logs_dir = Paths::in_state_dir("logs");
+                let log_path = |i| logs_dir.join(format!("llm_request.{}.jsonl", i));
 
-            fs_err::rename(&self.temp_path, log_path(0))?;
+                if self.logs_to_keep == 0 {
+                    fs_err::remove_file(&self.temp_path)?;
+                    return Ok(());
+                }
+
+                for i in (0..self.logs_to_keep.saturating_sub(1)).rev() {
+                    let _ = fs_err::rename(log_path(i), log_path(i + 1));
+                }
+
+                fs_err::rename(&self.temp_path, log_path(0))?;
+            }
         }
         Ok(())
     }
@@ -972,11 +1192,16 @@ mod tests {
         }
 
         let log = RequestLog::new(1).unwrap();
+        let state_dir = Paths::state_dir();
+        let moved_state_dir = state_dir.with_file_name("moved-state");
+        std::fs::rename(&state_dir, &moved_state_dir).unwrap();
+        let replacement_logs_dir = state_dir.join("logs");
+        std::fs::create_dir_all(&replacement_logs_dir).unwrap();
         unsafe {
             libc::umask(0o600);
         }
         let mut handle = log.start().unwrap();
-        let logs_dir = Paths::in_state_dir("logs");
+        let logs_dir = moved_state_dir.join("logs");
         let active_path = std::fs::read_dir(&logs_dir)
             .unwrap()
             .map(|entry| entry.unwrap().path())
@@ -999,6 +1224,10 @@ mod tests {
             std::fs::read_to_string(rotated_path).unwrap(),
             "sensitive request and response\n"
         );
+        assert!(std::fs::read_dir(replacement_logs_dir)
+            .unwrap()
+            .next()
+            .is_none());
     }
 
     #[test]
@@ -1046,6 +1275,32 @@ mod tests {
         }
 
         let outcome = restrict_inaccessible_request_log_with_hook(&original, || {
+            std::fs::rename(&original, &moved).unwrap();
+            std::fs::rename(&replacement, &original).unwrap();
+        })
+        .unwrap();
+        assert!(outcome == RestrictionOutcome::Retry);
+
+        restrict_existing_request_logs(root.path()).unwrap();
+        assert_owner_only(&original);
+        assert_owner_only(&moved);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn request_log_permission_upgrade_retries_replaced_accessible_entry() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = tempfile::tempdir().unwrap();
+        let original = root.path().join("llm_request.0.jsonl");
+        let moved = root.path().join("llm_request.1.jsonl");
+        let replacement = root.path().join("replacement");
+        for path in [&original, &replacement] {
+            std::fs::write(path, "legacy sensitive request").unwrap();
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        }
+
+        let outcome = restrict_existing_request_log_with_hook(&original, || {
             std::fs::rename(&original, &moved).unwrap();
             std::fs::rename(&replacement, &original).unwrap();
         })
