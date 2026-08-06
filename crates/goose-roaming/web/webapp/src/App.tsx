@@ -90,6 +90,65 @@ export function App({ roam }: { roam: RoamClient }) {
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  const [scanning, setScanning] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const scanStop = useRef<(() => void) | null>(null);
+  // BarcodeDetector: Chrome/Android today; feature-detected so the button
+  // simply doesn't render where unsupported (iOS Safari needs a lib later).
+  const canScan =
+    typeof navigator !== "undefined" &&
+    !!navigator.mediaDevices?.getUserMedia &&
+    "BarcodeDetector" in window;
+
+  const startScan = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
+      setScanning(true);
+      requestAnimationFrame(() => {
+        const video = videoRef.current;
+        if (video) {
+          video.srcObject = stream;
+          void video.play();
+        }
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const detector = new (window as any).BarcodeDetector({ formats: ["qr_code"] });
+      let active = true;
+      scanStop.current = () => {
+        active = false;
+        stream.getTracks().forEach((t) => t.stop());
+        setScanning(false);
+      };
+      const tick = async () => {
+        if (!active) return;
+        const video = videoRef.current;
+        if (video && video.readyState >= 2) {
+          try {
+            const codes = await detector.detect(video);
+            const hit = codes.find((c: { rawValue: string }) =>
+              c.rawValue.startsWith("goose+roam://"),
+            );
+            if (hit) {
+              setCard(hit.rawValue);
+              scanStop.current?.();
+              return;
+            }
+          } catch {
+            // keep scanning
+          }
+        }
+        setTimeout(() => void tick(), 250);
+      };
+      void tick();
+    } catch (err) {
+      setScanning(false);
+      setStatus(`camera unavailable: ${err}`);
+      setStatusKind("err");
+    }
+  }, []);
+
   const myCard = roam.myCard();
   const myId = roam.endpointId();
 
@@ -400,6 +459,15 @@ export function App({ roam }: { roam: RoamClient }) {
                   >
                     copy
                   </button>
+                  {"share" in navigator && (
+                    <button
+                      id="share-card"
+                      className="text-text-secondary border border-border-secondary rounded-lg px-2.5 py-1 text-xs hover:border-border-info"
+                      onClick={() => void navigator.share({ text: myCard }).catch(() => {})}
+                    >
+                      share
+                    </button>
+                  )}
                 </div>
                 <code className="block font-mono text-xs text-text-info bg-background-primary border border-border-primary rounded-lg px-2.5 py-2 break-all">
                   goose roam peers accept '&lt;card&gt;'
@@ -419,6 +487,16 @@ export function App({ roam }: { roam: RoamClient }) {
                   value={card}
                   onChange={(e) => setCard(e.target.value)}
                 />
+                {canScan && (
+                  <button
+                    id="scan-card"
+                    type="button"
+                    className="mt-2 text-text-secondary border border-border-secondary rounded-lg px-3 py-1.5 text-xs hover:border-border-info"
+                    onClick={() => void startScan()}
+                  >
+                    📷 scan host QR
+                  </button>
+                )}
               </li>
             </ol>
             <div className="mt-5 flex justify-end">
@@ -432,6 +510,20 @@ export function App({ roam }: { roam: RoamClient }) {
               </button>
             </div>
           </div>
+          {scanning && (
+            <div
+              className="fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center gap-3"
+              onClick={() => scanStop.current?.()}
+            >
+              <video
+                ref={videoRef}
+                className="w-[90vw] max-w-[480px] rounded-xl"
+                playsInline
+                muted
+              />
+              <div className="text-white text-sm">point at the host QR — tap to cancel</div>
+            </div>
+          )}
         </section>
       ) : (
         <section id="workspace" className="flex-1 relative md:grid md:grid-cols-[240px_1fr] flex min-h-0">
