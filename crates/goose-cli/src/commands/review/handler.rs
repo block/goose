@@ -448,29 +448,186 @@ fn untracked_files(repo_root: &Path, files: &[String]) -> Result<Vec<String>> {
         .collect())
 }
 
-#[cfg(unix)]
-fn read_untracked_regular_file(path: &Path) -> std::io::Result<String> {
-    use std::io::{Error, ErrorKind, Read};
-    use std::os::unix::fs::OpenOptionsExt;
+fn validated_relative_components(path: &Path) -> std::io::Result<Vec<&std::ffi::OsStr>> {
+    use std::io::{Error, ErrorKind};
+    use std::path::Component;
 
-    let mut options = fs::OpenOptions::new();
-    options.read(true).custom_flags(libc::O_NOFOLLOW);
-    let mut file = options.open(path)?;
-    if !file.metadata()?.is_file() {
+    let mut components = Vec::new();
+    for component in path.components() {
+        match component {
+            Component::Normal(component) => components.push(component),
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "untracked path must be relative to the repository",
+                ));
+            }
+        }
+    }
+    if components.is_empty() {
         return Err(Error::new(
             ErrorKind::InvalidInput,
-            "untracked path is not a regular file",
+            "untracked path must name a file",
         ));
     }
 
-    let mut content = String::new();
-    file.read_to_string(&mut content)?;
-    Ok(content)
+    Ok(components)
+}
+
+#[cfg(unix)]
+fn read_untracked_content(
+    repo_root: &Path,
+    path: &Path,
+) -> std::io::Result<Option<(&'static str, String)>> {
+    read_untracked_content_with_hook(repo_root, path, |_| {})
+}
+
+#[cfg(unix)]
+fn read_untracked_content_with_hook(
+    repo_root: &Path,
+    path: &Path,
+    mut after_opened_ancestor: impl FnMut(&Path),
+) -> std::io::Result<Option<(&'static str, String)>> {
+    use std::io::{Error, ErrorKind, Read};
+    use std::os::unix::ffi::OsStringExt;
+    use std::os::unix::fs::OpenOptionsExt;
+
+    let components = validated_relative_components(path)?;
+    let (file_name, ancestors) = components.split_last().unwrap();
+    let mut options = fs::OpenOptions::new();
+    options
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_CLOEXEC);
+    let mut directory = options.open(repo_root)?;
+    let mut opened_path = PathBuf::new();
+
+    for ancestor in ancestors {
+        directory = open_at(
+            &directory,
+            ancestor,
+            libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+        )?;
+        opened_path.push(ancestor);
+        after_opened_ancestor(&opened_path);
+    }
+
+    match open_at(
+        &directory,
+        file_name,
+        libc::O_RDONLY | libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+    ) {
+        Ok(mut file) => {
+            if !file.metadata()?.is_file() {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "untracked path is not a regular file",
+                ));
+            }
+            let mut content = String::new();
+            file.read_to_string(&mut content)?;
+            Ok(Some(("100644", content)))
+        }
+        Err(error) if error.raw_os_error() == Some(libc::ELOOP) => {
+            let target = read_link_at(&directory, file_name)?;
+            let target = std::ffi::OsString::from_vec(target);
+            let Some(target) = target.to_str() else {
+                return Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "untracked symlink target is not UTF-8",
+                ));
+            };
+            Ok(Some(("120000", target.to_string())))
+        }
+        Err(error) => Err(error),
+    }
+}
+
+#[cfg(unix)]
+fn open_at(
+    directory: &fs::File,
+    name: &std::ffi::OsStr,
+    flags: libc::c_int,
+) -> std::io::Result<fs::File> {
+    use std::ffi::CString;
+    use std::io::{Error, ErrorKind};
+    use std::os::fd::{AsRawFd, FromRawFd};
+    use std::os::unix::ffi::OsStrExt;
+
+    let name = CString::new(name.as_bytes()).map_err(|_| {
+        Error::new(
+            ErrorKind::InvalidInput,
+            "untracked path contains a NUL byte",
+        )
+    })?;
+    // SAFETY: openat does not retain the name pointer, and no creation flag requiring a mode is set.
+    let descriptor = unsafe { libc::openat(directory.as_raw_fd(), name.as_ptr(), flags) };
+    if descriptor < 0 {
+        return Err(Error::last_os_error());
+    }
+    // SAFETY: openat returned a new owned descriptor on success.
+    Ok(unsafe { fs::File::from_raw_fd(descriptor) })
+}
+
+#[cfg(unix)]
+fn read_link_at(directory: &fs::File, name: &std::ffi::OsStr) -> std::io::Result<Vec<u8>> {
+    use std::ffi::CString;
+    use std::io::{Error, ErrorKind};
+    use std::os::fd::AsRawFd;
+    use std::os::unix::ffi::OsStrExt;
+
+    let name = CString::new(name.as_bytes()).map_err(|_| {
+        Error::new(
+            ErrorKind::InvalidInput,
+            "untracked path contains a NUL byte",
+        )
+    })?;
+    let mut target = vec![0; 256];
+    loop {
+        // SAFETY: readlinkat does not retain either pointer and writes at most target.len() bytes.
+        let length = unsafe {
+            libc::readlinkat(
+                directory.as_raw_fd(),
+                name.as_ptr(),
+                target.as_mut_ptr().cast(),
+                target.len(),
+            )
+        };
+        if length < 0 {
+            return Err(Error::last_os_error());
+        }
+        let length = length as usize;
+        if length < target.len() {
+            target.truncate(length);
+            return Ok(target);
+        }
+        target.resize(target.len() * 2, 0);
+    }
 }
 
 #[cfg(not(unix))]
-fn read_untracked_regular_file(path: &Path) -> std::io::Result<String> {
-    fs::read_to_string(path)
+fn read_untracked_content(
+    repo_root: &Path,
+    path: &Path,
+) -> std::io::Result<Option<(&'static str, String)>> {
+    use std::io::{Error, ErrorKind};
+
+    validated_relative_components(path)?;
+    let absolute_path = repo_root.join(path);
+    let metadata = fs::symlink_metadata(&absolute_path)?;
+    if !metadata.file_type().is_symlink() {
+        // std does not expose a portable opened-handle no-follow walk. Omitting ordinary files
+        // avoids disclosing content through a link swap on supported non-Unix platforms.
+        return Ok(None);
+    }
+    let target = fs::read_link(absolute_path)?;
+    let Some(target) = target.to_str() else {
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            "untracked symlink target is not UTF-8",
+        ));
+    };
+    Ok(Some(("120000", target.to_string())))
 }
 
 /// Synthesize a unified `new file` diff for each untracked path so
@@ -480,26 +637,11 @@ fn read_untracked_regular_file(path: &Path) -> std::io::Result<String> {
 fn synthesize_untracked_diff(repo_root: &Path, paths: &[String]) -> Result<String> {
     let mut out = String::new();
     for path in paths {
-        let abs = repo_root.join(path);
-        let metadata = match fs::symlink_metadata(&abs) {
-            Ok(metadata) => metadata,
+        let Some((mode, content)) = (match read_untracked_content(repo_root, Path::new(path)) {
+            Ok(content) => content,
             Err(_) => continue,
-        };
-        let (mode, content) = if metadata.file_type().is_symlink() {
-            let target = match fs::read_link(&abs) {
-                Ok(target) => target,
-                Err(_) => continue,
-            };
-            let Some(target) = target.to_str() else {
-                continue;
-            };
-            ("120000", target.to_string())
-        } else {
-            let content = match read_untracked_regular_file(&abs) {
-                Ok(content) => content,
-                Err(_) => continue,
-            };
-            ("100644", content)
+        }) else {
+            continue;
         };
         out.push_str(&format!("diff --git a/{path} b/{path}\n"));
         out.push_str(&format!("new file mode {mode}\n"));
@@ -609,6 +751,7 @@ mod tests {
         assert!(out.ends_with("BASE"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn synthesize_untracked_diff_emits_new_file_chunk_with_added_lines() {
         let dir = tempfile::tempdir().unwrap();
@@ -627,6 +770,7 @@ mod tests {
         assert!(!diff.contains("\\ No newline at end of file"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn synthesize_untracked_diff_marks_missing_trailing_newline() {
         let dir = tempfile::tempdir().unwrap();
@@ -669,7 +813,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn untracked_regular_file_reader_rejects_symlink_swap() {
+    fn untracked_file_reader_preserves_link_text_after_leaf_swap() {
         let dir = tempfile::tempdir().unwrap();
         let outside = tempfile::tempdir().unwrap();
         let path = dir.path().join("untracked.txt");
@@ -681,8 +825,79 @@ mod tests {
         fs::remove_file(&path).unwrap();
         std::os::unix::fs::symlink(&secret, &path).unwrap();
 
-        let error = read_untracked_regular_file(&path).unwrap_err();
-        assert_eq!(error.raw_os_error(), Some(libc::ELOOP));
+        let (mode, content) = read_untracked_content(dir.path(), Path::new("untracked.txt"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(mode, "120000");
+        assert_eq!(content, secret.to_str().unwrap());
+        assert!(!content.contains("TOPSECRET-OUTSIDE-REPO"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn untracked_file_reader_stays_in_opened_ancestor_after_swap() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let ancestor = dir.path().join("nested");
+        let moved_ancestor = dir.path().join("moved-nested");
+        fs::create_dir(&ancestor).unwrap();
+        fs::write(ancestor.join("file.txt"), "safe worktree content").unwrap();
+        fs::write(outside.path().join("file.txt"), "TOPSECRET-OUTSIDE-REPO").unwrap();
+
+        let (mode, content) = read_untracked_content_with_hook(
+            dir.path(),
+            Path::new("nested/file.txt"),
+            |opened_path| {
+                if opened_path == Path::new("nested") {
+                    fs::rename(&ancestor, &moved_ancestor).unwrap();
+                    std::os::unix::fs::symlink(outside.path(), &ancestor).unwrap();
+                }
+            },
+        )
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(mode, "100644");
+        assert_eq!(content, "safe worktree content");
+        assert!(!content.contains("TOPSECRET-OUTSIDE-REPO"));
+    }
+
+    #[test]
+    fn untracked_paths_must_be_repo_relative() {
+        for path in [
+            Path::new("/outside"),
+            Path::new("../outside"),
+            Path::new("nested/../../outside"),
+        ] {
+            let error = validated_relative_components(path).unwrap_err();
+            assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput);
+        }
+        assert_eq!(
+            validated_relative_components(Path::new("nested/./file.txt")).unwrap(),
+            [
+                std::ffi::OsStr::new("nested"),
+                std::ffi::OsStr::new("file.txt")
+            ]
+        );
+
+        #[cfg(windows)]
+        assert_eq!(
+            validated_relative_components(Path::new(r"C:\outside"))
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::InvalidInput
+        );
+    }
+
+    #[cfg(not(unix))]
+    #[test]
+    fn synthesize_untracked_diff_omits_ordinary_files_without_safe_open() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("ordinary.txt"), "ordinary content").unwrap();
+
+        let diff = synthesize_untracked_diff(dir.path(), &["ordinary.txt".to_string()]).unwrap();
+
+        assert!(diff.is_empty());
     }
 
     #[test]
