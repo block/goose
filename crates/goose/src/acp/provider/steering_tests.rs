@@ -317,11 +317,9 @@ async fn sends_claude_steer_while_prompt_is_active() {
     .await
     .expect("prompt stream should finish");
 
-    assert!(
-        steer_result
-            .expect("steering should complete before prompt release")
-            .unwrap()
-    );
+    assert!(steer_result
+        .expect("steering should complete before prompt release")
+        .unwrap());
     assert_eq!(
         request,
         serde_json::json!({
@@ -463,15 +461,13 @@ async fn keeps_stream_open_until_injected_command_completes() {
     .expect("lifecycle capability should be observed");
     assert_eq!(next_text(&mut stream).await, "original assistant text");
 
-    assert!(
-        provider
-            .steer_natively(
-                "goose-session",
-                &Message::user().with_text("Focus on the tests"),
-            )
-            .await
-            .unwrap()
-    );
+    assert!(provider
+        .steer_natively(
+            "goose-session",
+            &Message::user().with_text("Focus on the tests"),
+        )
+        .await
+        .unwrap());
     let connection = timeout(TEST_TIMEOUT, agent_connection.recv())
         .await
         .expect("agent connection should arrive")
@@ -500,12 +496,10 @@ async fn keeps_stream_open_until_injected_command_completes() {
             "state": "completed",
         })))
         .unwrap();
-    assert!(
-        timeout(TEST_TIMEOUT, stream.next())
-            .await
-            .expect("provider stream should complete after lifecycle completion")
-            .is_none()
-    );
+    assert!(timeout(TEST_TIMEOUT, stream.next())
+        .await
+        .expect("provider stream should complete after lifecycle completion")
+        .is_none());
 }
 
 #[tokio::test]
