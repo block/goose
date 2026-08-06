@@ -1,12 +1,16 @@
+use super::claude_steering_completion_workaround::ClaudeSteeringCompletionWorkaround;
 use super::*;
-use agent_client_protocol::schema::v1::Implementation;
+use agent_client_protocol::schema::v1::{ExtNotification, Implementation};
 use futures::StreamExt;
+use serde_json::value::RawValue;
 use std::time::Duration;
 use tokio::sync::Notify;
 use tokio::time::timeout;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(5);
 const ACP_SESSION_ID: &str = "claude-test-session";
+const PROMPT_COMMAND_UUID: &str = "prompt-command";
+const STEERING_COMMAND_UUID: &str = "steering-command";
 
 struct SteeringFixture {
     provider: AcpProvider,
@@ -15,11 +19,56 @@ struct SteeringFixture {
     steer_requests: mpsc::UnboundedReceiver<serde_json::Value>,
 }
 
+fn supported_workaround() -> ClaudeSteeringCompletionWorkaround {
+    let workaround = ClaudeSteeringCompletionWorkaround::default();
+    observe_sdk_message(
+        &workaround,
+        serde_json::json!({
+            "type": "system",
+            "subtype": "init",
+            "capabilities": ["msg_lifecycle_v1"],
+        }),
+    );
+    workaround
+}
+
+fn sdk_ext_notification(message: serde_json::Value) -> ExtNotification {
+    let params = RawValue::from_string(
+        serde_json::json!({
+            "sessionId": ACP_SESSION_ID,
+            "message": message,
+        })
+        .to_string(),
+    )
+    .unwrap();
+    ExtNotification::new("_claude/sdkMessage", Arc::from(params))
+}
+
+fn sdk_message_notification(message: serde_json::Value) -> AgentNotification {
+    AgentNotification::ExtNotification(sdk_ext_notification(message))
+}
+
+fn observe_sdk_message(
+    workaround: &ClaudeSteeringCompletionWorkaround,
+    message: serde_json::Value,
+) {
+    let notification = sdk_ext_notification(message);
+    let normalized = ExtNotification::new("claude/sdkMessage", notification.params);
+    let _ = workaround.observe_notification(&normalized);
+}
+
 fn boundary_test_provider() -> (Arc<AcpProvider>, mpsc::Receiver<ClientRequest>) {
+    boundary_test_provider_with(supported_workaround())
+}
+
+fn boundary_test_provider_with(
+    workaround: ClaudeSteeringCompletionWorkaround,
+) -> (Arc<AcpProvider>, mpsc::Receiver<ClientRequest>) {
     let (tx, rx) = mpsc::channel(2);
     let provider = AcpProvider {
         name: CLAUDE_ACP_PROVIDER_NAME.to_string(),
         supports_native_steering: true,
+        claude_steering_workaround: Some(workaround),
         assistant_message_boundary_pending: Arc::new(AtomicBool::new(false)),
         goose_mode: Arc::new(Mutex::new(GooseMode::Auto)),
         mode_mapping: HashMap::new(),
@@ -55,6 +104,23 @@ async fn send_update_and_message_id(
         .expect("provider update should contain a message")
         .id
         .expect("provider message should have an ID")
+}
+
+async fn next_text(stream: &mut MessageStream) -> String {
+    let (message, _) = timeout(TEST_TIMEOUT, stream.next())
+        .await
+        .expect("provider stream should produce text")
+        .expect("provider stream should remain open")
+        .expect("provider update should succeed");
+    message
+        .expect("provider update should contain a message")
+        .content
+        .into_iter()
+        .find_map(|content| match content {
+            MessageContent::Text(text) => Some(text.text),
+            _ => None,
+        })
+        .expect("provider message should contain text")
 }
 
 async fn start_boundary_test_stream() -> (
@@ -138,6 +204,10 @@ async fn steering_fixture(steer_response: ClaudeSteeringResponse) -> SteeringFix
                 async move |_request: PromptRequest, responder, cx| {
                     let prompt_started_tx = prompt_started_tx.clone();
                     let release_prompt = release_prompt.clone();
+                    cx.send_notification(sdk_message_notification(serde_json::json!({
+                        "type": "user",
+                        "uuid": PROMPT_COMMAND_UUID,
+                    })))?;
                     prompt_started_tx.send(()).unwrap();
                     cx.spawn(async move {
                         release_prompt.notified().await;
@@ -149,12 +219,23 @@ async fn steering_fixture(steer_response: ClaudeSteeringResponse) -> SteeringFix
         )
         .on_receive_request(
             {
-                async move |request: ClaudeSteeringRequest, responder, _cx| {
+                async move |request: ClaudeSteeringRequest, responder, cx| {
                     let steer_request_tx = steer_request_tx.clone();
                     let steer_response = steer_response.clone();
                     steer_request_tx
                         .send(serde_json::to_value(request).unwrap())
                         .unwrap();
+                    if matches!(steer_response, ClaudeSteeringResponse::Injected) {
+                        cx.send_notification(sdk_message_notification(serde_json::json!({
+                            "type": "user",
+                            "uuid": STEERING_COMMAND_UUID,
+                        })))?;
+                        cx.send_notification(sdk_message_notification(serde_json::json!({
+                            "type": "command_lifecycle",
+                            "command_uuid": STEERING_COMMAND_UUID,
+                            "state": "completed",
+                        })))?;
+                    }
                     responder.respond(steer_response)
                 }
             },
@@ -182,6 +263,14 @@ async fn steering_fixture(steer_response: ClaudeSteeringResponse) -> SteeringFix
     )
     .await
     .unwrap();
+    observe_sdk_message(
+        provider.claude_steering_workaround.as_ref().unwrap(),
+        serde_json::json!({
+            "type": "system",
+            "subtype": "init",
+            "capabilities": ["msg_lifecycle_v1"],
+        }),
+    );
 
     SteeringFixture {
         provider,
@@ -228,9 +317,11 @@ async fn sends_claude_steer_while_prompt_is_active() {
     .await
     .expect("prompt stream should finish");
 
-    assert!(steer_result
-        .expect("steering should complete before prompt release")
-        .unwrap());
+    assert!(
+        steer_result
+            .expect("steering should complete before prompt release")
+            .unwrap()
+    );
     assert_eq!(
         request,
         serde_json::json!({
@@ -242,6 +333,178 @@ async fn sends_claude_steer_while_prompt_is_active() {
                 }
             }
         })
+    );
+}
+
+#[tokio::test]
+async fn keeps_stream_open_until_injected_command_completes() {
+    let release_prompt = Arc::new(Notify::new());
+    let (prompt_started_tx, mut prompt_started) = mpsc::unbounded_channel();
+    let (prompt_responded_tx, mut prompt_responded) = mpsc::unbounded_channel();
+    let (agent_connection_tx, mut agent_connection) = mpsc::unbounded_channel();
+
+    let agent = Agent
+        .builder()
+        .on_receive_request(
+            async |request: InitializeRequest, responder, _cx| {
+                let mut meta = serde_json::Map::new();
+                meta.insert(
+                    "steering".to_string(),
+                    serde_json::json!({ "supported": true }),
+                );
+                responder.respond(
+                    InitializeResponse::new(request.protocol_version)
+                        .agent_info(Implementation::new("claude-agent-acp", "0.64.0"))
+                        .meta(meta),
+                )
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
+        .on_receive_request(
+            async |request: NewSessionRequest, responder, _cx| {
+                assert_eq!(
+                    request
+                        .meta
+                        .as_ref()
+                        .and_then(|meta| meta.get("claudeCode"))
+                        .and_then(|value| value.get("emitRawSDKMessages"))
+                        .and_then(serde_json::Value::as_array)
+                        .map(Vec::len),
+                    Some(3)
+                );
+                responder.respond(NewSessionResponse::new(ACP_SESSION_ID))
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
+        .on_receive_request(
+            {
+                let release_prompt = release_prompt.clone();
+                async move |_request: PromptRequest, responder, cx| {
+                    let release_prompt = release_prompt.clone();
+                    let prompt_responded_tx = prompt_responded_tx.clone();
+                    cx.send_notification(sdk_message_notification(serde_json::json!({
+                        "type": "system",
+                        "subtype": "init",
+                        "capabilities": ["msg_lifecycle_v1"],
+                    })))?;
+                    cx.send_notification(sdk_message_notification(serde_json::json!({
+                        "type": "user",
+                        "uuid": PROMPT_COMMAND_UUID,
+                    })))?;
+                    cx.send_notification(SessionNotification::new(
+                        ACP_SESSION_ID,
+                        SessionUpdate::AgentMessageChunk(ContentChunk::new(ContentBlock::Text(
+                            TextContent::new("original assistant text"),
+                        ))),
+                    ))?;
+                    prompt_started_tx.send(()).unwrap();
+                    cx.spawn(async move {
+                        release_prompt.notified().await;
+                        let result = responder.respond(PromptResponse::new(StopReason::EndTurn));
+                        prompt_responded_tx.send(()).unwrap();
+                        result
+                    })
+                }
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
+        .on_receive_request(
+            async move |_request: ClaudeSteeringRequest, responder, cx| {
+                cx.send_notification(sdk_message_notification(serde_json::json!({
+                    "type": "user",
+                    "uuid": STEERING_COMMAND_UUID,
+                })))?;
+                agent_connection_tx.send(cx).unwrap();
+                responder.respond(ClaudeSteeringResponse::Injected)
+            },
+            agent_client_protocol::on_receive_request!(),
+        );
+
+    let config = AcpProviderConfig {
+        command: "unused".into(),
+        args: vec![],
+        env: vec![],
+        env_remove: vec![],
+        work_dir: ".".into(),
+        mcp_servers: vec![],
+        session_mode_id: None,
+        session_config_options: vec![],
+        model_config_option_id: None,
+        mode_mapping: HashMap::new(),
+        notification_callback: None,
+    };
+    let provider = AcpProvider::connect_with_transport(
+        CLAUDE_ACP_PROVIDER_NAME.to_string(),
+        GooseMode::Auto,
+        config,
+        agent,
+    )
+    .await
+    .unwrap();
+
+    let model = ModelConfig::new("test-model");
+    let prompt = Message::user().with_text("Start a long task");
+    let mut stream = provider.stream(&model, "", &[prompt], &[]).await.unwrap();
+    timeout(TEST_TIMEOUT, prompt_started.recv())
+        .await
+        .expect("prompt should start")
+        .expect("prompt channel should remain open");
+    timeout(TEST_TIMEOUT, async {
+        while !provider
+            .claude_steering_workaround
+            .as_ref()
+            .unwrap()
+            .native_steering_available()
+        {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("lifecycle capability should be observed");
+    assert_eq!(next_text(&mut stream).await, "original assistant text");
+
+    assert!(
+        provider
+            .steer_natively(
+                "goose-session",
+                &Message::user().with_text("Focus on the tests"),
+            )
+            .await
+            .unwrap()
+    );
+    let connection = timeout(TEST_TIMEOUT, agent_connection.recv())
+        .await
+        .expect("agent connection should arrive")
+        .expect("agent connection channel should remain open");
+
+    release_prompt.notify_one();
+    timeout(TEST_TIMEOUT, prompt_responded.recv())
+        .await
+        .expect("original prompt should respond")
+        .expect("prompt response channel should remain open");
+
+    connection
+        .send_notification(SessionNotification::new(
+            ACP_SESSION_ID,
+            SessionUpdate::AgentMessageChunk(ContentChunk::new(ContentBlock::Text(
+                TextContent::new("steered assistant text"),
+            ))),
+        ))
+        .unwrap();
+    assert_eq!(next_text(&mut stream).await, "steered assistant text");
+
+    connection
+        .send_notification(sdk_message_notification(serde_json::json!({
+            "type": "command_lifecycle",
+            "command_uuid": STEERING_COMMAND_UUID,
+            "state": "completed",
+        })))
+        .unwrap();
+    assert!(
+        timeout(TEST_TIMEOUT, stream.next())
+            .await
+            .expect("provider stream should complete after lifecycle completion")
+            .is_none()
     );
 }
 
@@ -268,6 +531,26 @@ async fn prompt_required_does_not_consume_or_start_prompt() {
     assert!(!outcome);
     assert!(matches!(
         fixture.prompt_started.try_recv(),
+        Err(mpsc::error::TryRecvError::Empty)
+    ));
+}
+
+#[tokio::test]
+async fn lifecycle_capability_absent_skips_native_steering_request() {
+    let (provider, mut requests) =
+        boundary_test_provider_with(ClaudeSteeringCompletionWorkaround::default());
+
+    let outcome = provider
+        .steer_natively(
+            "goose-session",
+            &Message::user().with_text("Focus on the tests"),
+        )
+        .await
+        .unwrap();
+
+    assert!(!outcome);
+    assert!(matches!(
+        requests.try_recv(),
         Err(mpsc::error::TryRecvError::Empty)
     ));
 }

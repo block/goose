@@ -1,25 +1,29 @@
 mod claude_steering;
+mod claude_steering_completion_workaround;
 #[cfg(test)]
 mod steering_tests;
 
 use self::claude_steering::{
     ClaudePromptRequiredReason, ClaudeSteeringRequest, ClaudeSteeringResponse,
 };
+use self::claude_steering_completion_workaround::{
+    ClaudeCompletionAction, ClaudeSteeringCompletionWorkaround,
+};
+use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
-    Annotations as AcpAnnotations, ClientCapabilities, CloseSessionRequest, ContentBlock,
-    ContentChunk, EnvVariable, HttpHeader, ImageContent, InitializeRequest, InitializeResponse,
-    McpCapabilities, McpServer, McpServerHttp, McpServerStdio, NewSessionRequest,
-    NewSessionResponse, PromptRequest, PromptResponse, RequestPermissionOutcome,
+    AgentNotification, Annotations as AcpAnnotations, ClientCapabilities, CloseSessionRequest,
+    ContentBlock, ContentChunk, EnvVariable, HttpHeader, ImageContent, InitializeRequest,
+    InitializeResponse, McpCapabilities, McpServer, McpServerHttp, McpServerStdio,
+    NewSessionRequest, NewSessionResponse, PromptRequest, PromptResponse, RequestPermissionOutcome,
     RequestPermissionRequest, RequestPermissionResponse, Role as AcpRole, SessionConfigKind,
     SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOptions, SessionId,
     SessionModeState, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
     SetSessionModeRequest, SetSessionModeResponse, StopReason, TextContent, ToolCallContent,
     ToolCallStatus, ToolKind,
 };
-use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
-use agent_client_protocol_schema::v1::Usage as AcpUsage;
 use agent_client_protocol_schema::v1::AGENT_METHOD_NAMES;
+use agent_client_protocol_schema::v1::Usage as AcpUsage;
 use anyhow::{Context, Result};
 use async_stream::try_stream;
 use futures::future::BoxFuture;
@@ -30,20 +34,20 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::{
-    atomic::{AtomicBool, AtomicU64, Ordering},
     Arc, Mutex,
+    atomic::{AtomicBool, AtomicU64, Ordering},
 };
 use std::thread::JoinHandle;
 use tokio::io::AsyncReadExt;
 use tokio::process::{Child, Command};
-use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex};
+use tokio::sync::{Mutex as TokioMutex, mpsc, oneshot};
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 
-use crate::acp::{map_permission_response, PermissionDecision};
+use crate::acp::{PermissionDecision, map_permission_response};
 use crate::config::{ExtensionConfig, GooseMode};
 use crate::context_mgmt::format_message_for_compacting;
-use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
 use crate::conversation::Conversation;
+use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::{MessageStream, PermissionRouting, Provider};
@@ -182,6 +186,7 @@ impl SessionTitlePublisher {
 pub struct AcpProvider {
     name: String,
     supports_native_steering: bool,
+    claude_steering_workaround: Option<ClaudeSteeringCompletionWorkaround>,
     assistant_message_boundary_pending: Arc<AtomicBool>,
     goose_mode: Arc<Mutex<GooseMode>>,
     mode_mapping: HashMap<GooseMode, Vec<String>>,
@@ -286,8 +291,11 @@ impl AcpProvider {
             Arc::new(Mutex::new(HashMap::new()));
         let context_size = Arc::new(AtomicU64::new(0));
         let session_title_publisher = SessionTitlePublisher::default();
+        let claude_steering_workaround =
+            (name == CLAUDE_ACP_PROVIDER_NAME).then(ClaudeSteeringCompletionWorkaround::default);
         let client_loop = AcpClientLoop::new(
             config,
+            claude_steering_workaround.clone(),
             goose_mode_shared.clone(),
             pending_tool_updates.clone(),
             context_size.clone(),
@@ -322,6 +330,7 @@ impl AcpProvider {
         Ok(Self {
             name,
             supports_native_steering,
+            claude_steering_workaround,
             assistant_message_boundary_pending: Arc::new(AtomicBool::new(false)),
             goose_mode: goose_mode_shared,
             mode_mapping,
@@ -487,6 +496,13 @@ impl Provider for AcpProvider {
         message: &Message,
     ) -> Result<bool, ProviderError> {
         if self.name != CLAUDE_ACP_PROVIDER_NAME || !self.supports_native_steering {
+            return Ok(false);
+        }
+        if !self
+            .claude_steering_workaround
+            .as_ref()
+            .is_some_and(ClaudeSteeringCompletionWorkaround::native_steering_available)
+        {
             return Ok(false);
         }
 
@@ -804,6 +820,7 @@ impl Drop for AcpProvider {
 
 struct AcpClientLoop {
     config: AcpProviderConfig,
+    claude_steering_workaround: Option<ClaudeSteeringCompletionWorkaround>,
     goose_mode: Arc<Mutex<GooseMode>>,
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
@@ -814,6 +831,7 @@ struct AcpClientLoop {
 impl AcpClientLoop {
     fn new(
         config: AcpProviderConfig,
+        claude_steering_workaround: Option<ClaudeSteeringCompletionWorkaround>,
         goose_mode: Arc<Mutex<GooseMode>>,
         pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
         context_size: Arc<AtomicU64>,
@@ -821,6 +839,7 @@ impl AcpClientLoop {
     ) -> Self {
         Self {
             config,
+            claude_steering_workaround,
             goose_mode,
             prompt_response_tx: Arc::new(Mutex::new(None)),
             pending_tool_updates,
@@ -876,6 +895,7 @@ impl AcpClientLoop {
     ) -> Result<()> {
         let AcpClientLoop {
             config,
+            claude_steering_workaround,
             goose_mode,
             prompt_response_tx,
             pending_tool_updates,
@@ -895,7 +915,19 @@ impl AcpClientLoop {
                     let pending_tool_updates = pending_tool_updates.clone();
                     let context_size = context_size.clone();
                     let session_title_publisher = session_title_publisher.clone();
-                    async move |notification: SessionNotification, _cx| {
+                    let claude_steering_workaround = claude_steering_workaround.clone();
+                    async move |notification: AgentNotification, _cx| {
+                        let notification = match notification {
+                            AgentNotification::SessionNotification(notification) => notification,
+                            AgentNotification::ExtNotification(notification) => {
+                                if let Some(workaround) = &claude_steering_workaround {
+                                    let action = workaround.observe_notification(&notification);
+                                    deliver_claude_completion_action(action, &prompt_response_tx);
+                                }
+                                return Ok(());
+                            }
+                            _ => return Ok(()),
+                        };
                         if let Some(ref cb) = notification_callback {
                             cb(notification.clone());
                         }
@@ -1094,7 +1126,16 @@ impl AcpClientLoop {
                 agent_client_protocol::on_receive_request!(),
             )
             .connect_with(transport, async move |cx: ConnectionTo<Agent>| {
-                handle_requests(config, goose_mode, cx, rx, prompt_response_tx, init_tx).await
+                handle_requests(
+                    config,
+                    claude_steering_workaround,
+                    goose_mode,
+                    cx,
+                    rx,
+                    prompt_response_tx,
+                    init_tx,
+                )
+                .await
             })
             .await?;
 
@@ -1172,12 +1213,32 @@ fn log_undelivered<E: std::fmt::Debug>(result: Result<(), E>, method: &str) {
     }
 }
 
+fn deliver_claude_completion_action(
+    action: ClaudeCompletionAction,
+    prompt_response_tx: &Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
+) {
+    let update = match action {
+        ClaudeCompletionAction::None => return,
+        ClaudeCompletionAction::Complete(response) => {
+            AcpUpdate::Complete(response.stop_reason, response.usage)
+        }
+        ClaudeCompletionAction::Fail(error) => AcpUpdate::Error(error),
+    };
+    if let Some(response_tx) = prompt_response_tx.lock().unwrap().take() {
+        log_undelivered(
+            response_tx.try_send(update),
+            AGENT_METHOD_NAMES.session_prompt,
+        );
+    }
+}
+
 async fn run_prompt_request(
     cx: ConnectionTo<Agent>,
     session_id: SessionId,
     content: Vec<ContentBlock>,
     response_tx: mpsc::Sender<AcpUpdate>,
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
+    claude_steering_workaround: Option<ClaudeSteeringCompletionWorkaround>,
 ) -> Result<(), agent_client_protocol::Error> {
     let response: Result<PromptResponse, _> = cx
         .send_request(PromptRequest::new(session_id, content))
@@ -1185,26 +1246,36 @@ async fn run_prompt_request(
         .await;
 
     match response {
-        Ok(r) => {
-            log_undelivered(
-                response_tx.try_send(AcpUpdate::Complete(r.stop_reason, r.usage)),
-                AGENT_METHOD_NAMES.session_prompt,
-            );
+        Ok(response) => {
+            if let Some(workaround) = claude_steering_workaround {
+                let action = workaround.prompt_response(response);
+                deliver_claude_completion_action(action, &prompt_response_tx);
+            } else {
+                log_undelivered(
+                    response_tx.try_send(AcpUpdate::Complete(response.stop_reason, response.usage)),
+                    AGENT_METHOD_NAMES.session_prompt,
+                );
+                *prompt_response_tx.lock().unwrap() = None;
+            }
         }
-        Err(e) => {
-            log_undelivered(
-                response_tx.try_send(AcpUpdate::Error(e.to_string())),
-                AGENT_METHOD_NAMES.session_prompt,
-            );
+        Err(error) => {
+            if let Some(workaround) = claude_steering_workaround {
+                workaround.prompt_finished();
+            }
+            if let Some(response_tx) = prompt_response_tx.lock().unwrap().take() {
+                log_undelivered(
+                    response_tx.try_send(AcpUpdate::Error(error.to_string())),
+                    AGENT_METHOD_NAMES.session_prompt,
+                );
+            }
         }
     }
-
-    *prompt_response_tx.lock().unwrap() = None;
     Ok(())
 }
 
 async fn handle_requests(
     config: AcpProviderConfig,
+    claude_steering_workaround: Option<ClaudeSteeringCompletionWorkaround>,
     goose_mode: Arc<Mutex<GooseMode>>,
     cx: ConnectionTo<Agent>,
     rx: &mut mpsc::Receiver<ClientRequest>,
@@ -1235,6 +1306,8 @@ async fn handle_requests(
         .close
         .is_some();
     let mcp_capabilities = init_response.agent_capabilities.mcp_capabilities.clone();
+    let enable_claude_lifecycle =
+        claude_steering_workaround.is_some() && claude_steering::is_supported(&init_response);
     if let Some(tx) = init_tx.take() {
         log_undelivered(tx.send(Ok(init_response)), AGENT_METHOD_NAMES.initialize);
     }
@@ -1245,12 +1318,12 @@ async fn handle_requests(
         match request {
             ClientRequest::NewSession { response_tx } => {
                 let mcp_servers = filter_supported_servers(&config.mcp_servers, &mcp_capabilities);
-                let session = cx
-                    .send_request(
-                        NewSessionRequest::new(config.work_dir.clone()).mcp_servers(mcp_servers),
-                    )
-                    .block_task()
-                    .await;
+                let mut request =
+                    NewSessionRequest::new(config.work_dir.clone()).mcp_servers(mcp_servers);
+                if enable_claude_lifecycle {
+                    request = request.meta(ClaudeSteeringCompletionWorkaround::session_meta());
+                }
+                let session = cx.send_request(request).block_task().await;
                 let result = match session {
                     Ok(session) => {
                         session_ids.push(session.session_id.clone());
@@ -1305,11 +1378,31 @@ async fn handle_requests(
                 content,
                 response_tx,
             } => {
+                let attempt_id = if enable_claude_lifecycle {
+                    claude_steering_workaround
+                        .as_ref()
+                        .map(ClaudeSteeringCompletionWorkaround::register_steering)
+                } else {
+                    None
+                };
                 let result: Result<ClaudeSteeringResponse> = cx
                     .send_request(ClaudeSteeringRequest::new(session_id, content))
                     .block_task()
                     .await
                     .map_err(anyhow::Error::from);
+                if let (Some(workaround), Some(attempt_id)) =
+                    (&claude_steering_workaround, attempt_id)
+                {
+                    let action = match &result {
+                        Ok(ClaudeSteeringResponse::Injected) => {
+                            workaround.steering_injected(attempt_id)
+                        }
+                        Ok(ClaudeSteeringResponse::PromptRequired { .. }) | Err(_) => {
+                            workaround.steering_not_injected(attempt_id)
+                        }
+                    };
+                    deliver_claude_completion_action(action, &prompt_response_tx);
+                }
                 log_undelivered(response_tx.send(result), "_session/steering");
             }
             ClientRequest::Prompt {
@@ -1336,15 +1429,26 @@ async fn handle_requests(
                     continue;
                 }
 
+                let active_claude_workaround = enable_claude_lifecycle
+                    .then_some(claude_steering_workaround.clone())
+                    .flatten();
+                if let Some(workaround) = &active_claude_workaround {
+                    workaround.register_prompt();
+                }
+
                 let prompt_task = run_prompt_request(
                     cx.clone(),
                     session_id,
                     content,
                     response_tx.clone(),
                     prompt_response_tx.clone(),
+                    active_claude_workaround,
                 );
                 if let Err(error) = cx.spawn(prompt_task) {
                     *prompt_response_tx.lock().unwrap() = None;
+                    if let Some(workaround) = &claude_steering_workaround {
+                        workaround.prompt_finished();
+                    }
                     log_undelivered(
                         response_tx.try_send(AcpUpdate::Error(error.to_string())),
                         AGENT_METHOD_NAMES.session_prompt,
@@ -1882,6 +1986,7 @@ mod tests {
             AcpProvider {
                 name: "acp-test".to_string(),
                 supports_native_steering: false,
+                claude_steering_workaround: None,
                 assistant_message_boundary_pending: Arc::new(AtomicBool::new(false)),
                 goose_mode: Arc::new(Mutex::new(GooseMode::Auto)),
                 mode_mapping: HashMap::new(),
