@@ -373,14 +373,15 @@ export function App({ roam }: { roam: RoamClient }) {
   }, [push, refreshSessions]);
 
   const openSession = useCallback(
-    async (id: string) => {
+    async (id: string, force = false) => {
       const agent = agentRef.current;
-      if (!agent || id === sessionRef.current) return;
+      if (!agent || (id === sessionRef.current && !force)) return;
       setBusy(true);
       setStatus("loading session…");
       setStatusKind("busy");
       try {
         setItems([]);
+        lastSeenUpdate.current = null;
         localStorage.setItem(SESSION_KEY, id);
         sessionRef.current = id;
         setSessionId(id);
@@ -399,6 +400,34 @@ export function App({ roam }: { roam: RoamClient }) {
     },
     [push],
   );
+
+  // Follow mode: the ACP server only streams updates to the connection that
+  // sent the prompt (no multi-viewer broadcast yet). If someone else drives
+  // this session (desktop, another device), poll updatedAt while idle and
+  // re-load to catch up. Coarse, but keeps a "joined" session scrolling.
+  const lastSeenUpdate = useRef<string | null>(null);
+  useEffect(() => {
+    if (!connected) return;
+    const t = setInterval(async () => {
+      const agent = agentRef.current;
+      const sid = sessionRef.current;
+      if (!agent || !sid || busy) return;
+      try {
+        const res = await agent.listSessions({});
+        const mine = (res.sessions ?? []).find((x) => x.sessionId === sid);
+        const stamp = (mine as { updatedAt?: string } | undefined)?.updatedAt ?? null;
+        if (stamp && lastSeenUpdate.current && stamp !== lastSeenUpdate.current) {
+          await openSession(sid, true);
+        }
+        if (stamp) lastSeenUpdate.current = stamp;
+        setSessions(res.sessions ?? []);
+      } catch {
+        // transient; next tick
+      }
+    }, 6000);
+    return () => clearInterval(t);
+  }, [connected, busy, openSession]);
+
 
   const connect = useCallback(async (cardText?: string) => {
     const text = (cardText ?? card).trim();
@@ -684,7 +713,7 @@ export function App({ roam }: { roam: RoamClient }) {
 
           <main id="chat" className="flex flex-col min-h-0 flex-1 min-w-0">
             <div ref={logRef} id="log" className="flex-1 overflow-y-auto px-3 md:px-6 py-4 md:py-5">
-              <div className="max-w-3xl mx-auto w-full flex flex-col gap-4">
+              <div className="max-w-3xl mx-auto w-full flex flex-col gap-4 pb-2">
               {items.map((it) => {
                 switch (it.kind) {
                   case "system":
@@ -804,19 +833,19 @@ export function App({ roam }: { roam: RoamClient }) {
             </div>
             <form
               id="prompt-form"
-              className="border-t border-border-primary px-3 md:px-6 py-2.5 md:py-3"
+              className="px-3 md:px-6 pb-3 pt-1"
               onSubmit={(e) => {
                 e.preventDefault();
                 void send();
               }}
             >
-              <div className="max-w-3xl mx-auto w-full flex gap-2.5 items-end">
+              <div className="max-w-3xl mx-auto w-full flex gap-2.5 items-end border border-border-primary hover:border-border-secondary focus-within:border-border-secondary rounded-xl bg-background-primary px-1.5 py-1 transition-colors">
               <textarea
                 ref={inputRef}
                 id="prompt-input"
                 rows={1}
                 disabled={busy}
-                className="flex-1 bg-background-secondary rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none max-h-52"
+                className="flex-1 outline-none border-none focus:ring-0 bg-transparent px-3 pt-2.5 pb-2 text-sm resize-none max-h-52 text-text-primary placeholder:text-text-secondary"
                 placeholder="Message goose…"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
@@ -829,7 +858,7 @@ export function App({ roam }: { roam: RoamClient }) {
                 id="send-btn"
                 type="submit"
                 disabled={busy}
-                className="bg-background-inverse text-text-inverse font-semibold rounded-lg px-4 py-2 hover:brightness-110 disabled:opacity-50"
+                className="bg-background-inverse text-text-inverse text-sm font-medium rounded-lg px-3.5 py-1.5 mb-0.5 mr-0.5 hover:brightness-110 disabled:opacity-50"
               >
                 send
               </button>
