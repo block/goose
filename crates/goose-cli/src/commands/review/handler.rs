@@ -545,20 +545,69 @@ fn open_untracked_root_with_hook(
 
 #[cfg(windows)]
 fn open_untracked_root(repo_root: &Path) -> std::io::Result<UntrackedRoot> {
+    open_untracked_root_with_hook(repo_root, |_| {})
+}
+
+#[cfg(windows)]
+fn open_untracked_root_with_hook(
+    repo_root: &Path,
+    mut after_opened_component: impl FnMut(&Path),
+) -> std::io::Result<UntrackedRoot> {
     use std::io::{Error, ErrorKind};
     use std::os::windows::fs::OpenOptionsExt;
     use winapi::um::winbase::{FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT};
+
+    let root_anchor = repo_root
+        .ancestors()
+        .last()
+        .filter(|path| path.has_root())
+        .ok_or_else(|| {
+            Error::new(
+                ErrorKind::InvalidInput,
+                "repository root must be an absolute normalized path",
+            )
+        })?;
+    let relative = repo_root.strip_prefix(root_anchor).map_err(|_| {
+        Error::new(
+            ErrorKind::InvalidInput,
+            "repository root must be an absolute normalized path",
+        )
+    })?;
+    let components = if relative.as_os_str().is_empty() {
+        Vec::new()
+    } else {
+        validated_relative_components(relative)?
+    };
 
     let mut options = fs::OpenOptions::new();
     options
         .read(true)
         .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT);
-    let directory = options.open(repo_root)?;
-    let metadata = directory.metadata()?;
-    if windows_metadata_is_reparse_point(&metadata) || !metadata.is_dir() {
+    let mut directory = options.open(root_anchor)?;
+    let root_metadata = directory.metadata()?;
+    if windows_metadata_is_reparse_point(&root_metadata) || !root_metadata.is_dir() {
         return Err(Error::new(
             ErrorKind::InvalidInput,
             "repository root is not a regular directory",
+        ));
+    }
+    let mut opened_path = root_anchor.to_path_buf();
+    for component in components {
+        directory = windows_open_at(&directory, component, true)?;
+        let metadata = directory.metadata()?;
+        if windows_metadata_is_reparse_point(&metadata) || !metadata.is_dir() {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "repository root ancestor is not a regular directory",
+            ));
+        }
+        opened_path.push(component);
+        after_opened_component(&opened_path);
+    }
+    if opened_path != repo_root {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "repository root must be an absolute normalized path",
         ));
     }
     Ok(UntrackedRoot(directory))
@@ -1290,6 +1339,42 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(mode, "100644");
+        assert_eq!(content, "safe worktree content");
+        assert!(!content.contains("TOPSECRET-OUTSIDE-REPO"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_untracked_root_stays_in_opened_ancestor_after_reparse_swap() {
+        let parent = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let ancestor = parent.path().join("ancestor");
+        let moved_ancestor = parent.path().join("moved-ancestor");
+        let replacement = parent.path().join("replacement");
+        let root_path = ancestor.join("repo");
+        fs::create_dir_all(&root_path).unwrap();
+        fs::write(root_path.join("file.txt"), "safe worktree content").unwrap();
+        fs::create_dir(outside.path().join("repo")).unwrap();
+        fs::write(
+            outside.path().join("repo/file.txt"),
+            "TOPSECRET-OUTSIDE-REPO",
+        )
+        .unwrap();
+        if std::os::windows::fs::symlink_dir(outside.path(), &replacement).is_err() {
+            return;
+        }
+
+        let root = open_untracked_root_with_hook(&root_path, |opened_path| {
+            if opened_path == ancestor {
+                fs::rename(&ancestor, &moved_ancestor).unwrap();
+                fs::rename(&replacement, &ancestor).unwrap();
+            }
+        })
+        .unwrap();
+        let (_, content) = read_untracked_content(&root, Path::new("file.txt"))
+            .unwrap()
+            .unwrap();
+
         assert_eq!(content, "safe worktree content");
         assert!(!content.contains("TOPSECRET-OUTSIDE-REPO"));
     }
