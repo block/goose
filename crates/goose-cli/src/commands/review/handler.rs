@@ -605,29 +605,239 @@ fn read_link_at(directory: &fs::File, name: &std::ffi::OsStr) -> std::io::Result
     }
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
 fn read_untracked_content(
     repo_root: &Path,
     path: &Path,
 ) -> std::io::Result<Option<(&'static str, String)>> {
-    use std::io::{Error, ErrorKind};
+    read_untracked_content_with_hook(repo_root, path, |_| {})
+}
 
-    validated_relative_components(path)?;
-    let absolute_path = repo_root.join(path);
-    let metadata = fs::symlink_metadata(&absolute_path)?;
-    if !metadata.file_type().is_symlink() {
-        // std does not expose a portable opened-handle no-follow walk. Omitting ordinary files
-        // avoids disclosing content through a link swap on supported non-Unix platforms.
-        return Ok(None);
+#[cfg(windows)]
+fn read_untracked_content_with_hook(
+    repo_root: &Path,
+    path: &Path,
+    mut after_opened_ancestor: impl FnMut(&Path),
+) -> std::io::Result<Option<(&'static str, String)>> {
+    use std::io::{Error, ErrorKind, Read};
+    use std::os::windows::fs::OpenOptionsExt;
+    use winapi::um::winbase::FILE_FLAG_BACKUP_SEMANTICS;
+
+    let components = validated_relative_components(path)?;
+    let (file_name, ancestors) = components.split_last().unwrap();
+    let mut options = fs::OpenOptions::new();
+    options.read(true).custom_flags(FILE_FLAG_BACKUP_SEMANTICS);
+    let mut directory = options.open(repo_root)?;
+    let mut opened_path = PathBuf::new();
+
+    for ancestor in ancestors {
+        directory = windows_open_at(&directory, ancestor, true)?;
+        let metadata = directory.metadata()?;
+        if windows_metadata_is_reparse_point(&metadata) || !metadata.is_dir() {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "untracked path ancestor is not a regular directory",
+            ));
+        }
+        opened_path.push(ancestor);
+        after_opened_ancestor(&opened_path);
     }
-    let target = fs::read_link(absolute_path)?;
-    let Some(target) = target.to_str() else {
+
+    let mut file = windows_open_at(&directory, file_name, false)?;
+    let metadata = file.metadata()?;
+    if windows_metadata_is_reparse_point(&metadata) {
+        return Ok(windows_read_symlink_target(&file)?.map(|target| ("120000", target)));
+    }
+    if !metadata.is_file() {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "untracked path is not a regular file",
+        ));
+    }
+
+    let mut content = String::new();
+    file.read_to_string(&mut content)?;
+    Ok(Some(("100644", content)))
+}
+
+#[cfg(windows)]
+fn windows_open_at(
+    directory: &fs::File,
+    name: &std::ffi::OsStr,
+    directory_only: bool,
+) -> std::io::Result<fs::File> {
+    use ntapi::ntioapi::{
+        NtCreateFile, FILE_DIRECTORY_FILE, FILE_OPEN, FILE_OPEN_REPARSE_POINT,
+        FILE_SYNCHRONOUS_IO_NONALERT, IO_STATUS_BLOCK,
+    };
+    use std::io::{Error, ErrorKind};
+    use std::os::windows::ffi::OsStrExt;
+    use std::os::windows::io::{AsRawHandle, FromRawHandle};
+    use winapi::shared::ntdef::{
+        HANDLE, NT_SUCCESS, OBJECT_ATTRIBUTES, OBJ_CASE_INSENSITIVE, UNICODE_STRING,
+    };
+    use winapi::um::winnt::{
+        FILE_GENERIC_READ, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
+    };
+
+    let mut name: Vec<u16> = name.encode_wide().collect();
+    let name_bytes = name
+        .len()
+        .checked_mul(std::mem::size_of::<u16>())
+        .and_then(|length| u16::try_from(length).ok())
+        .ok_or_else(|| {
+            Error::new(
+                ErrorKind::InvalidInput,
+                "untracked path component is too long",
+            )
+        })?;
+    let mut unicode_name = UNICODE_STRING {
+        Length: name_bytes,
+        MaximumLength: name_bytes,
+        Buffer: name.as_mut_ptr(),
+    };
+    let mut attributes = OBJECT_ATTRIBUTES {
+        Length: std::mem::size_of::<OBJECT_ATTRIBUTES>() as u32,
+        RootDirectory: directory.as_raw_handle() as HANDLE,
+        ObjectName: &mut unicode_name,
+        Attributes: OBJ_CASE_INSENSITIVE,
+        SecurityDescriptor: std::ptr::null_mut(),
+        SecurityQualityOfService: std::ptr::null_mut(),
+    };
+    let mut handle: HANDLE = std::ptr::null_mut();
+    // SAFETY: IO_STATUS_BLOCK is a plain C data structure initialized before the synchronous call.
+    let mut io_status: IO_STATUS_BLOCK = unsafe { std::mem::zeroed() };
+    let mut create_options = FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT;
+    if directory_only {
+        create_options |= FILE_DIRECTORY_FILE;
+    }
+    // SAFETY: all pointers reference initialized values for the duration of the synchronous call.
+    let status = unsafe {
+        NtCreateFile(
+            &mut handle,
+            FILE_GENERIC_READ,
+            &mut attributes,
+            &mut io_status,
+            std::ptr::null_mut(),
+            0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            FILE_OPEN,
+            create_options,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if !NT_SUCCESS(status) {
+        return Err(windows_nt_status_error(status));
+    }
+    // SAFETY: NtCreateFile returned a new owned handle on success.
+    Ok(unsafe { fs::File::from_raw_handle(handle.cast()) })
+}
+
+#[cfg(windows)]
+fn windows_metadata_is_reparse_point(metadata: &fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    use winapi::um::winnt::FILE_ATTRIBUTE_REPARSE_POINT;
+
+    metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+}
+
+#[cfg(windows)]
+fn windows_read_symlink_target(file: &fs::File) -> std::io::Result<Option<String>> {
+    use ntapi::ntioapi::{NtFsControlFile, IO_STATUS_BLOCK};
+    use std::io::{Error, ErrorKind};
+    use std::os::windows::io::AsRawHandle;
+    use winapi::shared::ntdef::NT_SUCCESS;
+    use winapi::um::winioctl::FSCTL_GET_REPARSE_POINT;
+    use winapi::um::winnt::{IO_REPARSE_TAG_SYMLINK, MAXIMUM_REPARSE_DATA_BUFFER_SIZE};
+
+    let mut buffer = vec![0u8; MAXIMUM_REPARSE_DATA_BUFFER_SIZE as usize];
+    // SAFETY: IO_STATUS_BLOCK is a plain C data structure initialized before the synchronous call.
+    let mut io_status: IO_STATUS_BLOCK = unsafe { std::mem::zeroed() };
+    // SAFETY: the synchronous call receives a valid handle and a writable output buffer.
+    let status = unsafe {
+        NtFsControlFile(
+            file.as_raw_handle().cast(),
+            std::ptr::null_mut(),
+            None,
+            std::ptr::null_mut(),
+            &mut io_status,
+            FSCTL_GET_REPARSE_POINT,
+            std::ptr::null_mut(),
+            0,
+            buffer.as_mut_ptr().cast(),
+            buffer.len() as u32,
+        )
+    };
+    if !NT_SUCCESS(status) {
+        return Err(windows_nt_status_error(status));
+    }
+    let returned = io_status.Information;
+    if returned < 20 || returned > buffer.len() {
         return Err(Error::new(
             ErrorKind::InvalidData,
-            "untracked symlink target is not UTF-8",
+            "invalid untracked reparse point data",
         ));
+    }
+    let buffer = &buffer[..returned];
+    let tag = u32::from_le_bytes(buffer[0..4].try_into().unwrap());
+    if tag != IO_REPARSE_TAG_SYMLINK {
+        return Ok(None);
+    }
+    let data_length = u16::from_le_bytes(buffer[4..6].try_into().unwrap()) as usize;
+    let total_length = 8usize
+        .checked_add(data_length)
+        .filter(|length| *length <= buffer.len())
+        .ok_or_else(|| Error::new(ErrorKind::InvalidData, "invalid untracked symlink data"))?;
+    let substitute_offset = u16::from_le_bytes(buffer[8..10].try_into().unwrap()) as usize;
+    let substitute_length = u16::from_le_bytes(buffer[10..12].try_into().unwrap()) as usize;
+    let print_offset = u16::from_le_bytes(buffer[12..14].try_into().unwrap()) as usize;
+    let print_length = u16::from_le_bytes(buffer[14..16].try_into().unwrap()) as usize;
+    let (offset, length) = if print_length == 0 {
+        (substitute_offset, substitute_length)
+    } else {
+        (print_offset, print_length)
     };
-    Ok(Some(("120000", target.to_string())))
+    if length % 2 != 0 {
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            "invalid untracked symlink target",
+        ));
+    }
+    let start = 20usize
+        .checked_add(offset)
+        .filter(|start| *start <= total_length)
+        .ok_or_else(|| Error::new(ErrorKind::InvalidData, "invalid untracked symlink target"))?;
+    let end = start
+        .checked_add(length)
+        .filter(|end| *end <= total_length)
+        .ok_or_else(|| Error::new(ErrorKind::InvalidData, "invalid untracked symlink target"))?;
+    let target: Vec<u16> = buffer[start..end]
+        .chunks_exact(2)
+        .map(|unit| u16::from_le_bytes([unit[0], unit[1]]))
+        .collect();
+    String::from_utf16(&target).map(Some).map_err(|_| {
+        Error::new(
+            ErrorKind::InvalidData,
+            "untracked symlink target is not UTF-16",
+        )
+    })
+}
+
+#[cfg(windows)]
+fn windows_nt_status_error(status: winapi::shared::ntdef::NTSTATUS) -> std::io::Error {
+    // SAFETY: RtlNtStatusToDosError accepts every NTSTATUS value.
+    let error = unsafe { ntapi::ntrtl::RtlNtStatusToDosError(status) };
+    std::io::Error::from_raw_os_error(error as i32)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn read_untracked_content(
+    _repo_root: &Path,
+    path: &Path,
+) -> std::io::Result<Option<(&'static str, String)>> {
+    validated_relative_components(path)?;
+    Ok(None)
 }
 
 /// Synthesize a unified `new file` diff for each untracked path so
@@ -751,7 +961,7 @@ mod tests {
         assert!(out.ends_with("BASE"));
     }
 
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     #[test]
     fn synthesize_untracked_diff_emits_new_file_chunk_with_added_lines() {
         let dir = tempfile::tempdir().unwrap();
@@ -770,7 +980,7 @@ mod tests {
         assert!(!diff.contains("\\ No newline at end of file"));
     }
 
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     #[test]
     fn synthesize_untracked_diff_marks_missing_trailing_newline() {
         let dir = tempfile::tempdir().unwrap();
@@ -862,6 +1072,64 @@ mod tests {
         assert!(!content.contains("TOPSECRET-OUTSIDE-REPO"));
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn windows_untracked_file_reader_stays_in_opened_ancestor_after_swap() {
+        let dir = tempfile::tempdir().unwrap();
+        let ancestor = dir.path().join("nested");
+        let moved_ancestor = dir.path().join("moved-nested");
+        fs::create_dir(&ancestor).unwrap();
+        fs::write(ancestor.join("file.txt"), "safe worktree content").unwrap();
+
+        let (mode, content) = read_untracked_content_with_hook(
+            dir.path(),
+            Path::new("nested/file.txt"),
+            |opened_path| {
+                if opened_path == Path::new("nested") {
+                    fs::rename(&ancestor, &moved_ancestor).unwrap();
+                    fs::create_dir(&ancestor).unwrap();
+                    fs::write(ancestor.join("file.txt"), "TOPSECRET-OUTSIDE-REPO").unwrap();
+                }
+            },
+        )
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(mode, "100644");
+        assert_eq!(content, "safe worktree content");
+        assert!(!content.contains("TOPSECRET-OUTSIDE-REPO"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_untracked_file_reader_rejects_reparse_ancestor() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("file.txt"), "TOPSECRET-OUTSIDE-REPO").unwrap();
+        if std::os::windows::fs::symlink_dir(outside.path(), dir.path().join("nested")).is_err() {
+            return;
+        }
+
+        let result = read_untracked_content(dir.path(), Path::new("nested/file.txt"));
+
+        assert!(result.is_err());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_synthesize_untracked_diff_preserves_symlink_text() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = Path::new("missing-target.txt");
+        if std::os::windows::fs::symlink_file(target, dir.path().join("link.txt")).is_err() {
+            return;
+        }
+
+        let diff = synthesize_untracked_diff(dir.path(), &["link.txt".to_string()]).unwrap();
+
+        assert!(diff.contains("new file mode 120000"));
+        assert!(diff.contains("+missing-target.txt"));
+    }
+
     #[test]
     fn untracked_paths_must_be_repo_relative() {
         for path in [
@@ -889,7 +1157,7 @@ mod tests {
         );
     }
 
-    #[cfg(not(unix))]
+    #[cfg(not(any(unix, windows)))]
     #[test]
     fn synthesize_untracked_diff_omits_ordinary_files_without_safe_open() {
         let dir = tempfile::tempdir().unwrap();
