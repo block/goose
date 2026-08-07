@@ -4950,6 +4950,7 @@ dependencies = [
  "futures",
  "gethostname",
  "goose-acp-macros",
+ "goose-compaction",
  "goose-download-manager",
  "goose-mcp",
  "goose-providers",
@@ -5113,6 +5114,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "goose-compaction"
+version = "0.1.0-alpha.5"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "goose-providers",
+ "include_dir",
+ "minijinja",
+ "rmcp 3.0.0",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "goose-download-manager"
 version = "0.1.0-alpha.5"
 dependencies = [
@@ -5260,6 +5277,7 @@ dependencies = [
  "anyhow",
  "base64 0.23.0",
  "futures",
+ "goose-compaction",
  "goose-providers",
  "goose-sdk-types",
  "rmcp 3.0.0",

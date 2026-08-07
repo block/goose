@@ -135,6 +135,7 @@ strum = { workspace = true }
 once_cell = { workspace = true }
 etcetera = { workspace = true }
 fs-err = { version = "3.1", default-features = false }
+goose-compaction = { path = "../goose-compaction" }
 goose-providers = { path = "../goose-providers", default-features = false }
 goose-download-manager = { path = "../goose-download-manager" }
 goose-sdk-types = { path = "../goose-sdk-types" }
