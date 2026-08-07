@@ -31,7 +31,7 @@ function nodePos(id: string): { x: number; y: number } {
 }
 
 function messageCount(s: MatrixSession): number {
-  const n = s._meta?.["message_count"];
+  const n = s._meta?.["messageCount"] ?? s._meta?.["message_count"];
   return typeof n === "number" ? n : 0;
 }
 

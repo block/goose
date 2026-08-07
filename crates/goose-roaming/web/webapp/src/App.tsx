@@ -133,6 +133,38 @@ function loadHosts(): SavedHost[] {
 }
 const SESSION_KEY = "goose-roam-last-session";
 
+function sessionProjectId(s: SessionInfo): string | null {
+  const meta = (s as { _meta?: Record<string, unknown> })._meta;
+  const pid = meta?.["projectId"] ?? meta?.["project_id"];
+  return typeof pid === "string" && pid ? pid : null;
+}
+
+// Bucket sessions under their project (server order preserved within each
+// bucket); projectless sessions lead, so the everyday case reads unchanged.
+function groupSessions(
+  sessions: SessionInfo[],
+  projects: Record<string, string>,
+): [string | null, SessionInfo[]][] {
+  const loose: SessionInfo[] = [];
+  const byProject = new Map<string, SessionInfo[]>();
+  for (const s of sessions) {
+    const pid = sessionProjectId(s);
+    if (!pid) {
+      loose.push(s);
+    } else {
+      const g = byProject.get(pid);
+      if (g) g.push(s);
+      else byProject.set(pid, [s]);
+    }
+  }
+  const out: [string | null, SessionInfo[]][] = [];
+  if (loose.length) out.push([null, loose]);
+  for (const [pid, group] of byProject) {
+    out.push([projects[pid] ?? pid, group]);
+  }
+  return out;
+}
+
 declare const __BUILD_STAMP__: string;
 const BUILD = typeof __BUILD_STAMP__ !== "undefined" ? __BUILD_STAMP__ : "dev";
 
@@ -151,6 +183,9 @@ export function App({ roam }: { roam: RoamClient }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [modelName, setModelName] = useState<string | null>(null);
   const [relay, setRelay] = useState<string | null>(null);
+  const [projects, setProjects] = useState<Record<string, string>>({});
+  const [activeRun, setActiveRun] = useState<string | null>(null);
+  const activeRunRef = useRef<string | null>(null);
   const [card, setCard] = useState("");
   const agentRef = useRef<GooseClient | null>(null);
   const connRef = useRef<RoamConnection | null>(null);
@@ -353,6 +388,18 @@ export function App({ roam }: { roam: RoamClient }) {
             if (m) setModelName(m);
             break;
           }
+          case "session_info_update": {
+            // The server advertises the active prompt run (or its end) via
+            // _meta.goose.activeRunId; this is the real "agent is running"
+            // signal, and it tells send() to steer instead of prompt.
+            const meta = (u as { _meta?: { goose?: { activeRunId?: string | null } } })._meta;
+            if (meta?.goose && "activeRunId" in meta.goose) {
+              const run = meta.goose.activeRunId ?? null;
+              activeRunRef.current = run;
+              setActiveRun(run);
+            }
+            break;
+          }
           case "plan": {
             streamRole.current = null;
             const entries = u.entries;
@@ -407,6 +454,26 @@ export function App({ roam }: { roam: RoamClient }) {
     }
   }, []);
 
+  // Projects are ordinary ACP: sources/list with type "project" returns
+  // slug + title; sessions carry projectId in _meta. Fetched once per connect.
+  const refreshProjects = useCallback(async () => {
+    const agent = agentRef.current;
+    if (!agent) return;
+    try {
+      const res = (await agent.extMethod("_goose/unstable/sources/list", {
+        type: "project",
+      })) as { sources?: { name: string; properties?: Record<string, unknown> }[] };
+      const map: Record<string, string> = {};
+      for (const s of res.sources ?? []) {
+        const title = s.properties?.["title"];
+        map[s.name] = typeof title === "string" && title ? title : s.name;
+      }
+      setProjects(map);
+    } catch (err) {
+      console.warn("sources/list unavailable:", err);
+    }
+  }, []);
+
   const newSession = useCallback(async () => {
     const agent = agentRef.current;
     if (!agent) return;
@@ -437,6 +504,8 @@ export function App({ roam }: { roam: RoamClient }) {
       try {
         setItems([]);
         setLogWindow(80);
+        activeRunRef.current = null;
+        setActiveRun(null);
         const info = sessions.find((x) => x.sessionId === id);
         document.title = info?.title ? `${info.title} · goose remote` : "goose remote";
         lastSeenUpdate.current = null;
@@ -554,6 +623,7 @@ export function App({ roam }: { roam: RoamClient }) {
       setStatus("connected");
       setStatusKind("ok");
       await refreshSessions();
+      void refreshProjects();
       const resume = resumeAfterDrop.current;
       resumeAfterDrop.current = null;
       if (resume) {
@@ -576,14 +646,44 @@ export function App({ roam }: { roam: RoamClient }) {
         setStatusKind("err");
       }
     }
-  }, [card, hostName, roam, makeClient, refreshSessions, newSession, openSession]);
+  }, [card, hostName, roam, makeClient, refreshSessions, refreshProjects, newSession, openSession]);
+
+  // A send during an active run is a steer: the message is queued into the
+  // running loop rather than starting a second one. Two ways to know a run is
+  // live: our own connection saw activeRunId (session_info_update), or a plain
+  // prompt bounces with "already has active run `<id>`" — e.g. a loop started
+  // by another device on this same share process.
+  const steer = useCallback(async (sid: string, text: string, runId: string) => {
+    const agent = agentRef.current;
+    if (!agent) return;
+    await agent.extMethod("_goose/unstable/session/steer", {
+      sessionId: sid,
+      prompt: [{ type: "text", text }],
+      expectedRunId: runId,
+    });
+  }, []);
 
   const send = useCallback(async () => {
     const agent = agentRef.current;
     const sid = sessionRef.current;
     const el = inputRef.current;
     const text = el?.value.trim();
-    if (!agent || !sid || !text || busy) return;
+    if (!agent || !sid || !text) return;
+    const runId = activeRunRef.current;
+    if (busy && !runId) return;
+
+    if (runId) {
+      if (el) el.value = "";
+      try {
+        await steer(sid, text, runId);
+        // pickup echoes back as a user_message_chunk; no local append needed
+      } catch (err) {
+        push({ kind: "system", text: `steer failed: ${err}` } as Omit<Item, "id">);
+      }
+      inputRef.current?.focus();
+      return;
+    }
+
     if (el) el.value = "";
     streamRole.current = null;
     setItems((xs) => [...xs, { kind: "msg", id: nextId++, role: "user", text }]);
@@ -599,14 +699,27 @@ export function App({ roam }: { roam: RoamClient }) {
       }
       void refreshSessions();
     } catch (err) {
-      push({ kind: "system", text: `error: ${err}` } as Omit<Item, "id">);
+      const bounce = String(err).match(/already has active run `([^`]+)`/);
+      if (bounce) {
+        // A loop driven elsewhere owns this session — queue into it instead.
+        try {
+          await steer(sid, text, bounce[1]);
+          push({ kind: "system", text: "queued into the running turn" } as Omit<Item, "id">);
+        } catch (err2) {
+          push({ kind: "system", text: `steer failed: ${err2}` } as Omit<Item, "id">);
+        }
+      } else {
+        push({ kind: "system", text: `error: ${err}` } as Omit<Item, "id">);
+      }
     } finally {
+      activeRunRef.current = null;
+      setActiveRun(null);
       setBusy(false);
       setStatus("connected");
       setStatusKind("ok");
       inputRef.current?.focus();
     }
-  }, [busy, push, refreshSessions]);
+  }, [busy, push, refreshSessions, steer]);
 
   const statusColor =
     statusKind === "ok"
@@ -836,23 +949,32 @@ export function App({ roam }: { roam: RoamClient }) {
               + New session
             </button>
             <div id="session-list" className="overflow-y-auto flex flex-col gap-1">
-              {sessions.map((s) => (
-                <button
-                  key={s.sessionId}
-                  className={`session-item text-left rounded-lg px-2.5 py-2 transition-all duration-150 ${
-                    s.sessionId === sessionId
-                      ? "bg-background-tertiary"
-                      : "hover:bg-background-secondary hover:shadow-default"
-                  }`}
-                  onClick={() => { setSidebarOpen(false); void openSession(s.sessionId); }}
-                >
-                  <div className="text-[13px] whitespace-nowrap overflow-hidden text-ellipsis">
-                    {s.title || "(untitled session)"}
-                  </div>
-                  <div className="text-[11px] text-text-tertiary font-mono mt-0.5">
-                    {s.sessionId.slice(0, 8)}
-                  </div>
-                </button>
+              {groupSessions(sessions, projects).map(([label, group]) => (
+                <div key={label ?? "~"} className="flex flex-col gap-1">
+                  {label !== null && (
+                    <div className="project-label text-[10px] uppercase tracking-wide text-text-tertiary px-2.5 pt-2">
+                      {label}
+                    </div>
+                  )}
+                  {group.map((s) => (
+                    <button
+                      key={s.sessionId}
+                      className={`session-item text-left rounded-lg px-2.5 py-2 transition-all duration-150 ${
+                        s.sessionId === sessionId
+                          ? "bg-background-tertiary"
+                          : "hover:bg-background-secondary hover:shadow-default"
+                      }`}
+                      onClick={() => { setSidebarOpen(false); void openSession(s.sessionId); }}
+                    >
+                      <div className="text-[13px] whitespace-nowrap overflow-hidden text-ellipsis">
+                        {s.title || "(untitled session)"}
+                      </div>
+                      <div className="text-[11px] text-text-tertiary font-mono mt-0.5">
+                        {s.sessionId.slice(0, 8)}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               ))}
             </div>
             <div className="mt-auto pt-2 border-t border-border-primary text-[10px] text-text-tertiary font-mono truncate">
@@ -1036,7 +1158,7 @@ export function App({ roam }: { roam: RoamClient }) {
               {busy && (
                 <div className="msg system self-center flex items-center gap-2 text-text-secondary text-xs">
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-                  goose is working…
+                  {activeRun ? "goose is working — you can steer" : "goose is working…"}
                 </div>
               )}
               </div>
@@ -1054,9 +1176,9 @@ export function App({ roam }: { roam: RoamClient }) {
                 ref={inputRef}
                 id="prompt-input"
                 rows={1}
-                disabled={busy}
+                disabled={busy && !activeRun}
                 className="flex-1 outline-none border-none focus:ring-0 bg-transparent px-3 pt-2.5 pb-2 text-sm resize-none max-h-52 text-text-primary placeholder:text-text-secondary"
-                placeholder="Message goose…"
+                placeholder={activeRun ? "Steer the running turn…" : "Message goose…"}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
@@ -1067,10 +1189,10 @@ export function App({ roam }: { roam: RoamClient }) {
               <button
                 id="send-btn"
                 type="submit"
-                disabled={busy}
+                disabled={busy && !activeRun}
                 className="bg-background-inverse text-text-inverse text-sm font-medium rounded-lg px-3.5 py-1.5 mb-0.5 mr-0.5 hover:brightness-110 disabled:opacity-50"
               >
-                send
+                {activeRun ? "steer" : "send"}
               </button>
               </div>
             </form>
