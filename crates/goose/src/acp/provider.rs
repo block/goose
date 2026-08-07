@@ -1,3 +1,8 @@
+mod claude_steering;
+#[cfg(test)]
+mod steering_tests;
+
+use self::claude_steering::{ClaudeSteeringRequest, ClaudeSteeringResponse};
 use agent_client_protocol::schema::v1::{
     Annotations as AcpAnnotations, ClientCapabilities, CloseSessionRequest, ContentBlock,
     ContentChunk, EnvVariable, HttpHeader, ImageContent, InitializeRequest, InitializeResponse,
@@ -40,6 +45,7 @@ use crate::conversation::Conversation;
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::{MessageStream, PermissionRouting, Provider};
+use crate::providers::claude_acp::CLAUDE_ACP_PROVIDER_NAME;
 use crate::subprocess::configure_subprocess;
 use crate::utils::sanitize_unicode_tags;
 use goose_providers::errors::ProviderError;
@@ -79,6 +85,11 @@ enum ClientRequest {
         config_id: String,
         value: String,
         response_tx: oneshot::Sender<Result<()>>,
+    },
+    ClaudeSteer {
+        session_id: SessionId,
+        content: Vec<ContentBlock>,
+        response_tx: oneshot::Sender<Result<ClaudeSteeringResponse>>,
     },
     Prompt {
         session_id: SessionId,
@@ -168,6 +179,7 @@ impl SessionTitlePublisher {
 
 pub struct AcpProvider {
     name: String,
+    supports_native_steering: bool,
     goose_mode: Arc<Mutex<GooseMode>>,
     mode_mapping: HashMap<GooseMode, Vec<String>>,
 
@@ -280,9 +292,11 @@ impl AcpProvider {
         );
         let loop_thread = spawn_client_loop(run(client_loop, rx, init_tx));
 
-        let _init_response = init_rx
+        let init_response = init_rx
             .await
             .context("ACP client initialization cancelled")??;
+        let supports_native_steering =
+            name == CLAUDE_ACP_PROVIDER_NAME && claude_steering::is_supported(&init_response);
 
         // Create the ACP session eagerly during connect.
         let (session_tx, session_rx) = oneshot::channel();
@@ -302,6 +316,7 @@ impl AcpProvider {
 
         Ok(Self {
             name,
+            supports_native_steering,
             goose_mode: goose_mode_shared,
             mode_mapping,
             session,
@@ -352,6 +367,25 @@ impl AcpProvider {
                 session_id,
                 config_id,
                 value,
+                response_tx,
+            })
+            .await
+            .context("ACP client is unavailable")?;
+        response_rx.await.context("ACP request cancelled")?
+    }
+
+    async fn send_claude_steer(
+        &self,
+        session_id: SessionId,
+        content: Vec<ContentBlock>,
+    ) -> Result<ClaudeSteeringResponse> {
+        let (response_tx, response_rx) = oneshot::channel();
+        self.tx
+            .as_ref()
+            .unwrap()
+            .send(ClientRequest::ClaudeSteer {
+                session_id,
+                content,
                 response_tx,
             })
             .await
@@ -439,6 +473,28 @@ fn fresh_text_run() -> (String, i64) {
 impl Provider for AcpProvider {
     fn get_name(&self) -> &str {
         &self.name
+    }
+
+    async fn steer_natively(
+        &self,
+        _session_id: &str,
+        message: &Message,
+    ) -> Result<bool, ProviderError> {
+        if !self.supports_native_steering {
+            return Ok(false);
+        }
+
+        let content = messages_to_prompt(std::slice::from_ref(message), false);
+        if content.is_empty() {
+            return Ok(false);
+        }
+
+        let response = self
+            .send_claude_steer(self.acp_session_id(), content)
+            .await
+            .map_err(|error| ProviderError::RequestFailed(error.to_string()))?;
+
+        Ok(claude_steering::delivery_confirmed(response))
     }
 
     async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
@@ -1191,6 +1247,18 @@ async fn handle_requests(
                     AGENT_METHOD_NAMES.session_set_config_option,
                 );
             }
+            ClientRequest::ClaudeSteer {
+                session_id,
+                content,
+                response_tx,
+            } => {
+                let result: Result<ClaudeSteeringResponse> = cx
+                    .send_request(ClaudeSteeringRequest::new(session_id, content))
+                    .block_task()
+                    .await
+                    .map_err(anyhow::Error::from);
+                log_undelivered(response_tx.send(result), "_session/steering");
+            }
             ClientRequest::Prompt {
                 session_id,
                 content,
@@ -1749,6 +1817,7 @@ mod tests {
         (
             AcpProvider {
                 name: "acp-test".to_string(),
+                supports_native_steering: false,
                 goose_mode: Arc::new(Mutex::new(GooseMode::Auto)),
                 mode_mapping: HashMap::new(),
                 session: AcpSession {

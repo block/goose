@@ -4996,6 +4996,7 @@ dependencies = [
  "rubato",
  "rustls",
  "schemars 1.2.1",
+ "semver",
  "serde",
  "serde_json",
  "serde_path_to_error",

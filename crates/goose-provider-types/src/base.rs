@@ -435,6 +435,19 @@ pub trait Provider: Send + Sync {
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError>;
 
+    /// Gives the provider an opportunity to deliver a steer through a
+    /// provider-specific steering mechanism.
+    ///
+    /// For example, Claude ACP can use `_session/steering` while its prompt is
+    /// running. Returns `true` only when the provider confirms delivery.
+    async fn steer_natively(
+        &self,
+        _session_id: &str,
+        _message: &Message,
+    ) -> Result<bool, ProviderError> {
+        Ok(false)
+    }
+
     async fn complete(
         &self,
         model_config: &ModelConfig,
@@ -653,6 +666,16 @@ mod tests {
         async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
             Ok(self.models.clone())
         }
+    }
+
+    #[tokio::test]
+    async fn native_steering_defaults_to_unsupported() {
+        let provider = ModelInventoryProvider { models: vec![] };
+
+        assert!(!provider
+            .steer_natively("session", &Message::user().with_text("steer"))
+            .await
+            .unwrap());
     }
 
     fn content_from_str(s: String) -> MessageContentBlock {
