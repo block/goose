@@ -1,19 +1,20 @@
 use crate::conversation::token_usage::{ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::formats::openai::{is_valid_function_name, sanitize_function_name};
+use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::thinking::ThinkingEffort;
 use anyhow::Result;
 use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParams, ErrorCode, ErrorData, RawContent, Role, Tool,
+    object, CallToolRequestParams, ContentBlock, ErrorCode, ErrorData, ResourceContents, Role, Tool,
 };
 use serde::Serialize;
 use std::borrow::Cow;
 use uuid::Uuid;
 
-use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
+use crate::conversation::message::{Message, MessageContentBlock, ProviderMetadata};
 use serde_json::{json, Map, Value};
-use std::ops::Deref;
+use std::collections::HashMap;
 
 pub const THOUGHT_SIGNATURE_KEY: &str = "thoughtSignature";
 const SYNTHETIC_THOUGHT_SIGNATURE: &str = "skip_thought_signature_validator";
@@ -37,7 +38,7 @@ fn is_user_loop_boundary(message: &Message) -> bool {
         && message
             .content
             .iter()
-            .any(|content| !matches!(content, MessageContent::ToolResponse(_)))
+            .any(|content| !matches!(content, MessageContentBlock::ToolResponse(_)))
 }
 
 fn insert_thought_signature(part: &mut Map<String, Value>, signature: &str) {
@@ -53,17 +54,26 @@ fn maybe_insert_signature_from_metadata(
     }
 }
 
-fn build_function_response_part(name: &str, text: String) -> Map<String, Value> {
+fn build_function_response_part(
+    id: &str,
+    name: &str,
+    text: String,
+    media: Vec<Value>,
+) -> Map<String, Value> {
     let mut part = Map::new();
     let mut function_response = Map::new();
+    function_response.insert("id".to_string(), json!(id));
     function_response.insert("name".to_string(), json!(name));
     function_response.insert("response".to_string(), json!({"content": {"text": text}}));
+    if !media.is_empty() {
+        function_response.insert("parts".to_string(), json!(media));
+    }
     part.insert("functionResponse".to_string(), json!(function_response));
     part
 }
 
 /// Convert internal Message format to Google's API message specification
-pub fn format_messages(messages: &[Message]) -> Vec<Value> {
+pub fn format_messages(messages: &[Message], nested_function_response_media: bool) -> Vec<Value> {
     let filtered: Vec<_> = messages
         .iter()
         .filter(|m| m.is_agent_visible())
@@ -71,9 +81,23 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
             message.content.iter().any(|content| {
                 !matches!(
                     content,
-                    MessageContent::ToolConfirmationRequest(_) | MessageContent::ActionRequired(_)
+                    MessageContentBlock::ToolConfirmationRequest(_)
+                        | MessageContentBlock::ActionRequired(_)
                 )
             })
+        })
+        .collect();
+
+    let tool_names: HashMap<_, _> = filtered
+        .iter()
+        .flat_map(|message| &message.content)
+        .filter_map(|content| match content {
+            MessageContentBlock::ToolRequest(request) => request
+                .tool_call
+                .as_ref()
+                .ok()
+                .map(|tool_call| (request.id.as_str(), sanitize_function_name(&tool_call.name))),
+            _ => None,
         })
         .collect();
 
@@ -101,14 +125,15 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
             let mut parts = Vec::new();
             for message_content in message.content.iter() {
                 match message_content {
-                    MessageContent::Text(text) => {
+                    MessageContentBlock::Text(text) => {
                         if !text.text.is_empty() {
                             parts.push(json!({"text": text.text}));
                         }
                     }
-                    MessageContent::ToolRequest(request) => match &request.tool_call {
+                    MessageContentBlock::ToolRequest(request) => match &request.tool_call {
                         Ok(tool_call) => {
                             let mut function_call_part = Map::new();
+                            function_call_part.insert("id".to_string(), json!(request.id));
                             function_call_part.insert(
                                 "name".to_string(),
                                 json!(sanitize_function_name(&tool_call.name)),
@@ -142,30 +167,48 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                             parts.push(json!({"text":format!("Error: {}", e)}));
                         }
                     },
-                    MessageContent::ToolResponse(response) => match &response.tool_result {
+                    MessageContentBlock::ToolResponse(response) => match &response.tool_result {
                         Ok(result) => {
                             let mut tool_content = Vec::new();
-                            for content in result.content.iter().map(|c| c.raw.clone()) {
-                                match content {
-                                    RawContent::Image(image) => {
-                                        parts.push(json!({
-                                            "inline_data": {
-                                                "mime_type": image.mime_type,
-                                                "data": image.data,
-                                            }
+                            let mut media = Vec::new();
+                            for content in result.content.iter().cloned() {
+                                let inline = match &content {
+                                    ContentBlock::Image(image) => {
+                                        Some((image.mime_type.clone(), image.data.clone()))
+                                    }
+                                    ContentBlock::Resource(embedded) => match &embedded.resource {
+                                        ResourceContents::BlobResourceContents {
+                                            blob,
+                                            mime_type,
+                                            ..
+                                        } => mime_type
+                                            .clone()
+                                            .filter(|m| !m.is_empty())
+                                            .map(|mime| (mime, blob.clone())),
+                                        _ => None,
+                                    },
+                                    _ => None,
+                                };
+                                match inline {
+                                    Some((mime, data)) if nested_function_response_media => {
+                                        media.push(json!({
+                                            "inlineData": {"mimeType": mime, "data": data}
                                         }));
                                     }
-                                    _ => {
-                                        tool_content.push(content.no_annotation());
+                                    Some((mime, data)) => {
+                                        parts.push(json!({
+                                            "inline_data": {"mime_type": mime, "data": data}
+                                        }));
                                     }
+                                    None => tool_content.push(content),
                                 }
                             }
                             let mut text = tool_content
                                 .iter()
-                                .filter_map(|c| match c.deref() {
-                                    RawContent::Text(t) => Some(t.text.clone()),
-                                    RawContent::Resource(raw_embedded_resource) => Some(
-                                        raw_embedded_resource.clone().no_annotation().get_text(),
+                                .filter_map(|c| match c {
+                                    ContentBlock::Text(t) => Some(t.text.clone()),
+                                    ContentBlock::Resource(raw_embedded_resource) => Some(
+                                        extract_text_from_resource(&raw_embedded_resource.resource),
                                     ),
                                     _ => None,
                                 })
@@ -175,23 +218,36 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                             if text.is_empty() {
                                 text = "Tool call is done.".to_string();
                             }
-                            let mut part = build_function_response_part(&response.id, text);
+                            let name = tool_names
+                                .get(response.id.as_str())
+                                .map(String::as_str)
+                                .unwrap_or(response.id.as_str());
+                            let mut part =
+                                build_function_response_part(&response.id, name, text, media);
                             if include_signature {
                                 maybe_insert_signature_from_metadata(&mut part, &response.metadata);
                             }
                             parts.push(json!(part));
                         }
                         Err(e) => {
-                            let mut part =
-                                build_function_response_part(&response.id, format!("Error: {}", e));
+                            let name = tool_names
+                                .get(response.id.as_str())
+                                .map(String::as_str)
+                                .unwrap_or(response.id.as_str());
+                            let mut part = build_function_response_part(
+                                &response.id,
+                                name,
+                                format!("Error: {}", e),
+                                Vec::new(),
+                            );
                             if include_signature {
                                 maybe_insert_signature_from_metadata(&mut part, &response.metadata);
                             }
                             parts.push(json!(part));
                         }
                     },
-                    MessageContent::Thinking(_) => {}
-                    MessageContent::Image(image) => {
+                    MessageContentBlock::Thinking(_) => {}
+                    MessageContentBlock::Image(image) => {
                         parts.push(json!({
                             "inline_data": {
                                 "mime_type": image.mime_type,
@@ -237,7 +293,7 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
 fn process_response_part_impl(
     part: &Value,
     last_signature: &mut Option<String>,
-) -> Option<MessageContent> {
+) -> Option<MessageContentBlock> {
     let signature = part.get(THOUGHT_SIGNATURE_KEY).and_then(|v| v.as_str());
     let is_thought = part
         .get("thought")
@@ -255,11 +311,14 @@ fn process_response_part_impl(
         }
         if is_thought {
             match signature {
-                Some(sig) => Some(MessageContent::thinking(text.to_string(), sig.to_string())),
-                None => Some(MessageContent::thinking(text.to_string(), "")),
+                Some(sig) => Some(MessageContentBlock::thinking(
+                    text.to_string(),
+                    sig.to_string(),
+                )),
+                None => Some(MessageContentBlock::thinking(text.to_string(), "")),
             }
         } else {
-            Some(MessageContent::text(text.to_string()))
+            Some(MessageContentBlock::text(text.to_string()))
         }
     } else if text_value.is_some() {
         tracing::warn!(
@@ -268,7 +327,11 @@ fn process_response_part_impl(
         );
         None
     } else if let Some(function_call) = part.get("functionCall") {
-        let id = Uuid::new_v4().to_string();
+        let id = function_call
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
         let name = function_call["name"].as_str().unwrap_or_default();
 
         if !is_valid_function_name(name) {
@@ -280,7 +343,7 @@ fn process_response_part_impl(
                 )),
                 data: None,
             };
-            Some(MessageContent::tool_request(id, Err(error)))
+            Some(MessageContentBlock::tool_request(id, Err(error)))
         } else {
             let arguments = function_call
                 .get("args")
@@ -288,7 +351,7 @@ fn process_response_part_impl(
             let effective_signature = signature.or(last_signature.as_deref());
             let metadata = effective_signature.map(metadata_with_signature);
 
-            Some(MessageContent::tool_request_with_metadata(
+            Some(MessageContentBlock::tool_request_with_metadata(
                 id,
                 Ok({
                     let mut params = CallToolRequestParams::new(name.to_string());
@@ -512,7 +575,9 @@ struct GenerationConfig {
 #[derive(Serialize)]
 #[serde(rename_all = "lowercase")]
 enum ThinkingLevel {
+    Minimal,
     Low,
+    Medium,
     High,
 }
 
@@ -544,6 +609,14 @@ fn get_thinking_config(
     if model_config.reasoning == Some(false)
         || model_config.thinking_effort() == Some(ThinkingEffort::Off)
     {
+        let model_name = model_config.model_name.to_lowercase();
+        if model_name.starts_with("gemini-3.5") || model_name.starts_with("gemini-3.6") {
+            return Some(ThinkingConfig {
+                thinking_level: Some(ThinkingLevel::Minimal),
+                thinking_budget: None,
+                include_thoughts: false,
+            });
+        }
         // Gemini 2.5 Flash defaults to dynamic thinking; only an explicit budget
         // of 0 turns it off. Other families can't be disabled, so leave them unset.
         if model_config
@@ -574,9 +647,9 @@ fn get_thinking_config(
             return None;
         }
         let thinking_level = match effort {
-            ThinkingEffort::Off | ThinkingEffort::Low | ThinkingEffort::Medium => {
-                ThinkingLevel::Low
-            }
+            ThinkingEffort::Off | ThinkingEffort::Low => ThinkingLevel::Low,
+            ThinkingEffort::Medium if model_name.starts_with("gemini-3-pro") => ThinkingLevel::Low,
+            ThinkingEffort::Medium => ThinkingLevel::Medium,
             ThinkingEffort::High | ThinkingEffort::Max => ThinkingLevel::High,
         };
 
@@ -645,9 +718,15 @@ fn create_request_impl(
     };
 
     let thinking_config = get_thinking_config(model_config, thinking_budget);
+    let temperature = (!model_config
+        .model_name
+        .to_lowercase()
+        .starts_with("gemini-3"))
+    .then(|| model_config.temperature.map(|t| t as f64))
+    .flatten();
 
     let generation_config = Some(GenerationConfig {
-        temperature: model_config.temperature.map(|t| t as f64),
+        temperature,
         max_output_tokens: Some(model_config.max_output_tokens()),
         thinking_config,
     });
@@ -656,7 +735,13 @@ fn create_request_impl(
         system_instruction: SystemInstruction {
             parts: [TextPart { text: system }],
         },
-        contents: format_messages(messages),
+        contents: format_messages(
+            messages,
+            model_config
+                .model_name
+                .to_lowercase()
+                .starts_with("gemini-3"),
+        ),
         tools: tools_wrapper,
         generation_config,
     };
@@ -669,19 +754,22 @@ mod tests {
     use super::*;
     use crate::conversation::message::Message;
     use rmcp::model::{CallToolRequestParams, CallToolResult};
-    use rmcp::{model::Content, object};
+    use rmcp::{model::ContentBlock, object};
     use serde_json::json;
     use std::collections::HashMap;
 
     fn set_up_text_message(text: &str, role: Role) -> Message {
-        Message::new(role, 0, vec![MessageContent::text(text.to_string())])
+        Message::new(role, 0, vec![MessageContentBlock::text(text.to_string())])
     }
 
     fn set_up_tool_request_message(id: &str, tool_call: CallToolRequestParams) -> Message {
         Message::new(
             Role::User,
             0,
-            vec![MessageContent::tool_request(id.to_string(), Ok(tool_call))],
+            vec![MessageContentBlock::tool_request(
+                id.to_string(),
+                Ok(tool_call),
+            )],
         )
     }
 
@@ -689,7 +777,7 @@ mod tests {
         Message::new(
             Role::User,
             0,
-            vec![MessageContent::action_required(
+            vec![MessageContentBlock::action_required(
                 id.to_string(),
                 tool_call.name.to_string().clone(),
                 tool_call.arguments.unwrap_or_default().clone(),
@@ -698,11 +786,11 @@ mod tests {
         )
     }
 
-    fn set_up_tool_response_message(id: &str, tool_response: Vec<Content>) -> Message {
+    fn set_up_tool_response_message(id: &str, tool_response: Vec<ContentBlock>) -> Message {
         Message::new(
             Role::Assistant,
             0,
-            vec![MessageContent::tool_response(
+            vec![MessageContentBlock::tool_response(
                 id.to_string(),
                 Ok(CallToolResult::success(tool_response)),
             )],
@@ -750,7 +838,7 @@ mod tests {
             set_up_text_message("Hello", Role::User),
             set_up_text_message("World", Role::Assistant),
         ];
-        let payload = format_messages(&messages);
+        let payload = format_messages(&messages, false);
         assert_eq!(payload.len(), 2);
         assert_eq!(payload[0]["role"], "user");
         assert_eq!(payload[0]["parts"][0]["text"], "Hello");
@@ -760,22 +848,18 @@ mod tests {
 
     #[test]
     fn test_message_to_google_spec_image_message() {
-        use rmcp::model::{AnnotateAble, RawImageContent};
+        use rmcp::model::ImageContent;
 
-        let image = RawImageContent {
-            mime_type: "image/png".to_string(),
-            data: "base64encodeddata".to_string(),
-            meta: None,
-        };
+        let image = ImageContent::new("base64encodeddata", "image/png");
         let messages = vec![Message::new(
             Role::User,
             0,
             vec![
-                MessageContent::text("What is in this image?".to_string()),
-                MessageContent::Image(image.no_annotation()),
+                MessageContentBlock::text("What is in this image?".to_string()),
+                MessageContentBlock::Image(image),
             ],
         )];
-        let payload = format_messages(&messages);
+        let payload = format_messages(&messages, false);
 
         assert_eq!(payload.len(), 1);
         assert_eq!(payload[0]["role"], "user");
@@ -805,21 +889,26 @@ mod tests {
                 CallToolRequestParams::new("tool_name_2").with_arguments(object(arguments.clone())),
             ),
         ];
-        let payload = format_messages(&messages);
+        let payload = format_messages(&messages, false);
         assert_eq!(payload.len(), 1);
         assert_eq!(payload[0]["role"], "user");
+        assert_eq!(payload[0]["parts"][0]["functionCall"]["id"], "id");
         assert_eq!(payload[0]["parts"][0]["functionCall"]["args"], arguments);
     }
 
     #[test]
     fn test_message_to_google_spec_tool_result_message() {
-        let tool_result: Vec<Content> = vec![Content::text("Hello")];
+        let tool_result: Vec<ContentBlock> = vec![ContentBlock::text("Hello")];
         let messages = vec![set_up_tool_response_message("response_id", tool_result)];
-        let payload = format_messages(&messages);
+        let payload = format_messages(&messages, false);
         assert_eq!(payload.len(), 1);
         assert_eq!(payload[0]["role"], "model");
         assert_eq!(
             payload[0]["parts"][0]["functionResponse"]["name"],
+            "response_id"
+        );
+        assert_eq!(
+            payload[0]["parts"][0]["functionResponse"]["id"],
             "response_id"
         );
         assert_eq!(
@@ -829,21 +918,112 @@ mod tests {
     }
 
     #[test]
+    fn test_message_to_google_spec_sanitizes_resource_tool_response() {
+        let messages = vec![set_up_tool_response_message(
+            "response_id",
+            vec![ContentBlock::embedded_text(
+                "file:///result.txt",
+                "visible\u{E0041}text",
+            )],
+        )];
+
+        let payload = format_messages(&messages, false);
+
+        assert_eq!(
+            payload[0]["parts"][0]["functionResponse"]["response"]["content"]["text"],
+            "visibletext"
+        );
+    }
+
+    #[test]
+    fn test_function_response_matches_function_call() {
+        let messages = vec![
+            set_up_tool_request_message("call_123", CallToolRequestParams::new("read_file")),
+            set_up_tool_response_message("call_123", vec![ContentBlock::text("contents")]),
+        ];
+
+        let payload = format_messages(&messages, false);
+
+        assert_eq!(
+            payload[1]["parts"][0]["functionResponse"],
+            json!({
+                "id": "call_123",
+                "name": "read_file",
+                "response": {"content": {"text": "contents"}}
+            })
+        );
+    }
+
+    #[test]
+    fn test_image_tool_result_is_nested_in_function_response() {
+        let messages = vec![
+            set_up_tool_request_message("call_123", CallToolRequestParams::new("screenshot")),
+            set_up_tool_response_message(
+                "call_123",
+                vec![
+                    ContentBlock::text("Screenshot captured"),
+                    ContentBlock::image("base64encodeddata", "image/png"),
+                ],
+            ),
+        ];
+
+        let payload = format_messages(&messages, true);
+
+        assert_eq!(payload[1]["parts"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            payload[1]["parts"][0]["functionResponse"],
+            json!({
+                "id": "call_123",
+                "name": "screenshot",
+                "response": {"content": {"text": "Screenshot captured"}},
+                "parts": [{
+                    "inlineData": {
+                        "mimeType": "image/png",
+                        "data": "base64encodeddata"
+                    }
+                }]
+            })
+        );
+    }
+
+    #[test]
+    fn test_blob_resource_tool_result_is_forwarded_as_media() {
+        let blob = ContentBlock::resource(ResourceContents::BlobResourceContents {
+            uri: "file:///shot.png".to_string(),
+            mime_type: Some("image/png".to_string()),
+            blob: "aGVsbG8=".to_string(),
+            meta: None,
+        });
+        let messages = vec![
+            set_up_tool_request_message("call_123", CallToolRequestParams::new("screenshot")),
+            set_up_tool_response_message("call_123", vec![blob]),
+        ];
+
+        let payload = format_messages(&messages, true);
+
+        assert_eq!(
+            payload[1]["parts"][0]["functionResponse"]["parts"],
+            json!([{"inlineData": {"mimeType": "image/png", "data": "aGVsbG8="}}])
+        );
+    }
+
+    #[test]
     fn test_message_to_google_spec_tool_result_multiple_texts() {
-        let tool_result: Vec<Content> = vec![
-            Content::text("Hello"),
-            Content::text("World"),
-            Content::embedded_text("test_uri", "This is a test."),
+        let tool_result: Vec<ContentBlock> = vec![
+            ContentBlock::text("Hello"),
+            ContentBlock::text("World"),
+            ContentBlock::embedded_text("test_uri", "This is a test."),
         ];
 
         let messages = vec![set_up_tool_response_message("response_id", tool_result)];
-        let payload = format_messages(&messages);
+        let payload = format_messages(&messages, false);
 
         let expected_payload = vec![json!({
             "role": "model",
             "parts": [
                 {
                     "functionResponse": {
+                        "id": "response_id",
                         "name": "response_id",
                         "response": {
                             "content": {
@@ -917,7 +1097,7 @@ mod tests {
         let message = response_to_message(response).unwrap();
         assert_eq!(message.role, Role::Assistant);
         assert_eq!(message.content.len(), 1);
-        if let MessageContent::Text(text) = &message.content[0] {
+        if let MessageContentBlock::Text(text) = &message.content[0] {
             assert_eq!(text.text, "Hello, world!");
         } else {
             panic!("Expected text content");
@@ -962,6 +1142,7 @@ mod tests {
                 "content": {
                     "parts": [{
                         "functionCall": {
+                            "id": "call_123",
                             "name": "valid_name",
                             "args": {
                                 "param": "value"
@@ -974,6 +1155,7 @@ mod tests {
         let message = response_to_message(response).unwrap();
         assert_eq!(message.role, Role::Assistant);
         assert_eq!(message.content.len(), 1);
+        assert_eq!(message.content[0].as_tool_request().unwrap().id, "call_123");
         if let Ok(tool_call) = &message.content[0].as_tool_request().unwrap().tool_call {
             assert_eq!(tool_call.name, "valid_name");
             assert_eq!(
@@ -991,16 +1173,17 @@ mod tests {
 
     #[test]
     fn test_response_to_message_with_empty_content() {
-        let tool_result: Vec<Content> = Vec::new();
+        let tool_result: Vec<ContentBlock> = Vec::new();
 
         let messages = vec![set_up_tool_response_message("response_id", tool_result)];
-        let payload = format_messages(&messages);
+        let payload = format_messages(&messages, false);
 
         let expected_payload = vec![json!({
             "role": "model",
             "parts": [
                 {
                     "functionResponse": {
+                        "id": "response_id",
                         "name": "response_id",
                         "response": {
                             "content": {
@@ -1039,7 +1222,7 @@ mod tests {
     }
 
     fn tool_result(text: &str) -> CallToolResult {
-        CallToolResult::success(vec![Content::text(text)])
+        CallToolResult::success(vec![ContentBlock::text(text)])
     }
 
     #[test]
@@ -1080,8 +1263,10 @@ mod tests {
             req1.metadata.as_ref(),
         );
         let user_prompt = set_up_text_message("List files", Role::User);
-        let google_out =
-            format_messages(&[user_prompt.clone(), native.clone(), tool_response.clone()]);
+        let google_out = format_messages(
+            &[user_prompt.clone(), native.clone(), tool_response.clone()],
+            false,
+        );
         assert_eq!(google_out[1]["parts"][0]["thoughtSignature"], SIG);
         assert_eq!(google_out[2]["parts"][0]["thoughtSignature"], SIG);
 
@@ -1090,7 +1275,10 @@ mod tests {
             "thoughtSignature": "sig_456"
         })]))
         .unwrap();
-        let google_multi = format_messages(&[user_prompt, native, tool_response, second_assistant]);
+        let google_multi = format_messages(
+            &[user_prompt, native, tool_response, second_assistant],
+            false,
+        );
         assert_eq!(google_multi[1]["parts"][0]["thoughtSignature"], SIG);
         assert_eq!(google_multi[2]["parts"][0]["thoughtSignature"], SIG);
         assert_eq!(google_multi[3]["parts"][0]["thoughtSignature"], "sig_456");
@@ -1133,7 +1321,7 @@ mod tests {
         })]))
         .unwrap();
 
-        let formatted = format_messages(&[user_prompt, thinking_only, reasoning_only]);
+        let formatted = format_messages(&[user_prompt, thinking_only, reasoning_only], false);
         assert_eq!(formatted.len(), 1);
         assert_eq!(formatted[0]["role"], "user");
         assert_eq!(formatted[0]["parts"][0]["text"], "hello");
@@ -1147,7 +1335,7 @@ mod tests {
         })]))
         .unwrap();
 
-        let formatted = format_messages(&[user_prompt, assistant_tool]);
+        let formatted = format_messages(&[user_prompt, assistant_tool], false);
         assert_eq!(
             formatted[1]["parts"][0][THOUGHT_SIGNATURE_KEY],
             SYNTHETIC_THOUGHT_SIGNATURE
@@ -1194,7 +1382,7 @@ mod tests {
             let (message, usage) = result.unwrap();
             if let Some(msg) = message {
                 message_ids.push(msg.id.clone());
-                if let Some(MessageContent::Text(text)) = msg.content.first() {
+                if let Some(MessageContentBlock::Text(text)) = msg.content.first() {
                     text_parts.push(text.text.clone());
                 }
             }
@@ -1235,7 +1423,7 @@ mod tests {
         while let Some(result) = message_stream.next().await {
             let (message, _usage) = result.unwrap();
             if let Some(msg) = message {
-                if let Some(MessageContent::ToolRequest(req)) = msg.content.first() {
+                if let Some(MessageContentBlock::ToolRequest(req)) = msg.content.first() {
                     if let Ok(tool_call) = &req.tool_call {
                         tool_calls.push(tool_call.name.to_string());
                     }
@@ -1261,8 +1449,8 @@ mod tests {
                 if let Some(msg) = message {
                     for c in &msg.content {
                         match c {
-                            MessageContent::Text(t) => text.push_str(&t.text),
-                            MessageContent::Thinking(_) => thinking += 1,
+                            MessageContentBlock::Text(t) => text.push_str(&t.text),
+                            MessageContentBlock::Thinking(_) => thinking += 1,
                             _ => {}
                         }
                     }
@@ -1365,7 +1553,7 @@ data: [DONE]"#;
         while let Some(result) = message_stream.next().await {
             let (message, _usage) = result.unwrap();
             if let Some(msg) = message {
-                if let Some(MessageContent::Text(text)) = msg.content.first() {
+                if let Some(MessageContentBlock::Text(text)) = msg.content.first() {
                     text_parts.push(text.text.clone());
                 }
             }
@@ -1398,7 +1586,7 @@ data: [DONE]"#;
         while let Some(result) = message_stream.next().await {
             let (message, _usage) = result.unwrap();
             if let Some(msg) = message {
-                if let Some(MessageContent::Text(text)) = msg.content.first() {
+                if let Some(MessageContentBlock::Text(text)) = msg.content.first() {
                     text_parts.push(text.text.clone());
                 }
             }
@@ -1446,6 +1634,15 @@ data: [DONE]"#;
 
         let config = ModelConfig::new("gemini-2.5-pro").with_thinking_effort(ThinkingEffort::Off);
         assert!(get_thinking_config(&config, None).is_none());
+
+        let config =
+            ModelConfig::new("gemini-3.5-flash-lite").with_thinking_effort(ThinkingEffort::Off);
+        let thinking_config = get_thinking_config(&config, None).unwrap();
+        assert!(matches!(
+            thinking_config.thinking_level,
+            Some(ThinkingLevel::Minimal)
+        ));
+        assert!(!thinking_config.include_thoughts);
     }
 
     #[test]
@@ -1463,6 +1660,22 @@ data: [DONE]"#;
         assert!(thinking_config.thinking_level.is_some());
         assert!(thinking_config.thinking_budget.is_none());
         assert!(thinking_config.include_thoughts);
+
+        let config =
+            ModelConfig::new("gemini-3.6-flash").with_thinking_effort(ThinkingEffort::Medium);
+        let thinking_config = get_thinking_config(&config, None).unwrap();
+        assert!(matches!(
+            thinking_config.thinking_level,
+            Some(ThinkingLevel::Medium)
+        ));
+
+        let config =
+            ModelConfig::new("gemini-3-pro-preview").with_thinking_effort(ThinkingEffort::Medium);
+        let thinking_config = get_thinking_config(&config, None).unwrap();
+        assert!(matches!(
+            thinking_config.thinking_level,
+            Some(ThinkingLevel::Low)
+        ));
 
         // Test 2: Gemini 3 model with high thinking effort
         let mut params = std::collections::HashMap::new();
@@ -1514,5 +1727,13 @@ data: [DONE]"#;
         let config = ModelConfig::new("gpt-4o");
         let result = get_thinking_config(&config, None);
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_gemini_3_request_omits_temperature() {
+        let config = ModelConfig::new("gemini-3.6-flash").with_temperature(Some(0.2));
+        let payload = create_request(&config, "system", &[], &[]).unwrap();
+
+        assert!(payload["generationConfig"].get("temperature").is_none());
     }
 }

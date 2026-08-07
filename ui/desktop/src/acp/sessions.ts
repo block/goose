@@ -5,9 +5,8 @@ import type {
   NewSessionRequest,
   SessionInfo,
 } from '@agentclientprotocol/sdk';
-import type { GooseExtension, SessionImportSource } from '@aaif/goose-sdk';
+import type { GooseExtension, SessionExportFormat, SessionImportSource } from '@aaif/goose-sdk';
 import { getAcpClient } from './acpConnection';
-import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
 import type { ExtensionLoadResult } from '../types/extensions';
 import type { Session } from '../types/session';
 import type { Recipe } from '../recipe';
@@ -93,7 +92,7 @@ export function sessionInfoToSession(s: SessionInfo, loadMeta: LoadSessionMeta =
 
   return {
     id: String(s.sessionId),
-    name: s.title ?? DEFAULT_CHAT_TITLE,
+    name: s.title ?? '',
     working_dir: loadMeta.workingDir ?? s.cwd,
     created_at: createdAt,
     updated_at: updatedAt,
@@ -116,7 +115,7 @@ function sessionInfoToListItem(s: SessionInfo): SessionListItem {
   const meta = sessionInfoMeta(s);
   return {
     id: String(s.sessionId),
-    name: s.title ?? DEFAULT_CHAT_TITLE,
+    name: s.title ?? '',
     workingDir: s.cwd,
     updatedAt: s.updatedAt ?? '',
     messageCount: meta.messageCount ?? 0,
@@ -296,16 +295,16 @@ export async function acpForkSession(
   return String(response.sessionId);
 }
 
-export async function acpExportSession(sessionId: string): Promise<string> {
+export async function acpExportSession(
+  sessionId: string,
+  format: SessionExportFormat = 'json'
+): Promise<string> {
   const client = await getAcpClient();
-  const response = await client.goose.sessionExport_unstable({ sessionId });
+  const response = await client.goose.sessionExport_unstable({ sessionId, format });
   return response.data;
 }
 
-export async function acpImportSession(
-  input: string,
-  source: SessionImportSource
-): Promise<void> {
+export async function acpImportSession(input: string, source: SessionImportSource): Promise<void> {
   const client = await getAcpClient();
   await client.goose.sessionImport_unstable({ input, source });
 }

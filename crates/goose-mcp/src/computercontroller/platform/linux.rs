@@ -180,13 +180,14 @@ impl LinuxAutomation {
         let mut script = String::from(
             r#"#!/usr/bin/env python3
 import subprocess
+import shlex
 import os
 import sys
 import time
 
 def run_command(cmd):
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        result = subprocess.run(shlex.split(cmd), shell=False, capture_output=True, text=True)
         return result.stdout
     except Exception as e:
         print(f"Error executing {cmd}: {e}", file=sys.stderr)
@@ -196,7 +197,8 @@ def run_command(cmd):
         );
 
         for cmd in commands {
-            script.push_str(&format!("run_command('{}')\n", cmd));
+            let escaped = cmd.replace('\\', "\\\\").replace('\'', "\\'");
+            script.push_str(&format!("run_command('{}')\n", escaped));
         }
 
         script

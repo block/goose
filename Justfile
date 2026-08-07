@@ -25,7 +25,7 @@ release-binary:
 # Build Windows executable on a Windows host
 [unix]
 release-windows:
-    @echo "just release-windows requires a Windows host because Goose Windows releases build the MSVC target. Use .github/workflows/bundle-desktop-windows.yml for CI builds."
+    @echo "just release-windows requires a Windows host because Goose Windows releases build the MSVC target. Use .github/workflows/bundle-windows.yml for CI builds."
     @exit 1
 
 [windows]
@@ -145,7 +145,7 @@ run-docs:
 # Run server
 run-server:
     @echo "Running external ACP backend..."
-    GOOSE_SERVER__SECRET_KEY="${GOOSE_SERVER__SECRET_KEY:-test}" cargo run -p goose-cli --bin goose -- serve --platform desktop --host 127.0.0.1 --port 3000
+    GOOSE_SERVER__SECRET_KEY="${GOOSE_SERVER__SECRET_KEY:-test}" cargo run -p goose-cli --bin goose -- serve --platform desktop --enable-scheduler --host 127.0.0.1 --port 3000
 
 # Check if generated ACP schema and TypeScript types are up-to-date
 check-acp-schema: generate-acp-types
@@ -197,7 +197,7 @@ make-ui:
 # make GUI with latest Windows binary on a Windows host
 [unix]
 make-ui-windows:
-    @echo "just make-ui-windows requires a Windows host because Goose Windows releases build the MSVC target. Use .github/workflows/bundle-desktop-windows.yml for CI builds."
+    @echo "just make-ui-windows requires a Windows host because Goose Windows releases build the MSVC target. Use .github/workflows/bundle-windows.yml for CI builds."
     @exit 1
 
 [windows]

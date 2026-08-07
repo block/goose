@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::Path;
 
 use anyhow::{anyhow, Result};
 
@@ -88,6 +89,20 @@ pub fn list_commands() -> &'static [CommandDef] {
     COMMANDS
 }
 
+pub fn is_known_slash_command(message_text: &str, working_dir: Option<&Path>) -> bool {
+    let Some(parsed) = parse_slash_command(message_text) else {
+        return false;
+    };
+
+    COMMANDS
+        .iter()
+        .any(|command| command.name == parsed.command)
+        || recipe_slash_command::get_recipe_for_command(parsed.command).is_some()
+        || skill_slash_command::list_commands(working_dir)
+            .into_iter()
+            .any(|command| command.name.eq_ignore_ascii_case(parsed.command))
+}
+
 fn is_clear_goal_param(params_str: &str) -> bool {
     matches!(params_str, "off" | "clear" | "none")
 }
@@ -157,7 +172,7 @@ impl Agent {
             .ok_or_else(|| anyhow!("Session has no conversation"))?;
 
         let model_config = self.model_config_for_session(session_id).await?;
-        let (compacted_conversation, usage) = compact_messages(
+        let compaction = compact_messages(
             self.provider().await?.as_ref(),
             &model_config,
             session_id,
@@ -167,11 +182,16 @@ impl Agent {
         .await?;
 
         manager
-            .replace_conversation(session_id, &compacted_conversation)
+            .replace_conversation(session_id, &compaction.conversation)
             .await?;
 
-        self.update_session_metrics(session_id, session.schedule_id, &usage, true)
-            .await?;
+        self.update_session_metrics(
+            session_id,
+            session.schedule_id,
+            &compaction.usage,
+            Some(compaction.retained_context_tokens),
+        )
+        .await?;
 
         Ok(Some(user_only_assistant_text("Compaction complete")))
     }
@@ -403,7 +423,6 @@ impl Agent {
                     .await?
                     .conversation
                     .ok_or_else(|| anyhow!("No conversation found"))?
-                    .messages()
                     .last()
                     .cloned()
                     .ok_or_else(|| anyhow!("No messages in conversation"))?;
@@ -420,12 +439,19 @@ impl Agent {
         &self,
         command: &str,
         params_str: &str,
-        _session_id: &str,
+        session_id: &str,
     ) -> Result<Option<Message>> {
         match recipe_slash_command::resolve_command(command, params_str) {
             Ok(None) => Ok(None),
-            Ok(Some((response, prompt))) => {
-                self.apply_recipe_components(response, true).await;
+            Ok(Some((recipe, prompt))) => {
+                self.apply_recipe_components(recipe.response.clone(), true)
+                    .await;
+                self.config
+                    .session_manager
+                    .update(session_id)
+                    .recipe(Some(recipe))
+                    .apply()
+                    .await?;
                 Ok(Some(Message::user().with_text(prompt)))
             }
             Err(text) => Ok(Some(Message::assistant().with_text(text))),

@@ -1,6 +1,6 @@
 use crate::canonical::maybe_get_canonical_model;
 use crate::canonical::ThinkingMode;
-use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContentBlock};
 use crate::conversation::token_usage::{CostSource, ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::images::{convert_image, ImageFormat};
@@ -8,7 +8,10 @@ use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::thinking::ThinkingEffort;
 use anyhow::{anyhow, Result};
-use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, JsonObject, Role, Tool};
+use rmcp::model::{
+    object, CallToolRequestParams, ContentBlock, ErrorCode, ErrorData, JsonObject,
+    ResourceContents, Role, Tool,
+};
 use rmcp::object as json_object;
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -138,6 +141,16 @@ const TOOL_USE_ID_FIELD: &str = "tool_use_id";
 const IS_ERROR_FIELD: &str = "is_error";
 const SIGNATURE_FIELD: &str = "signature";
 const DATA_FIELD: &str = "data";
+const IMAGE_TYPE: &str = "image";
+const DOCUMENT_TYPE: &str = "document";
+const SOURCE_FIELD: &str = "source";
+const BASE64_TYPE: &str = "base64";
+const MEDIA_TYPE_FIELD: &str = "media_type";
+// Claude vision only accepts these image media types; other image/* blobs fall
+// through to the text/binary-marker path so an unsupported type (e.g.
+// image/svg+xml) doesn't turn the next request into a provider rejection.
+const ANTHROPIC_IMAGE_MEDIA_TYPES: [&str; 4] =
+    ["image/jpeg", "image/png", "image/gif", "image/webp"];
 const EVENT_MESSAGE_START: &str = "message_start";
 const EVENT_MESSAGE_DELTA: &str = "message_delta";
 const EVENT_MESSAGE_STOP: &str = "message_stop";
@@ -182,7 +195,7 @@ fn format_messages_with_options(
         let mut content = Vec::new();
         for msg_content in &message.content {
             match msg_content {
-                MessageContent::Text(text) => {
+                MessageContentBlock::Text(text) => {
                     if !text.text.trim().is_empty() {
                         content.push(json!({
                             TYPE_FIELD: TEXT_TYPE,
@@ -190,7 +203,7 @@ fn format_messages_with_options(
                         }));
                     }
                 }
-                MessageContent::ToolRequest(tool_request) => {
+                MessageContentBlock::ToolRequest(tool_request) => {
                     match &tool_request.tool_call {
                         Ok(tool_call) => {
                             content.push(json!({
@@ -214,51 +227,122 @@ fn format_messages_with_options(
                         }
                     }
                 }
-                MessageContent::ToolResponse(tool_response) => match &tool_response.tool_result {
-                    Ok(result) => {
-                        let text = result
-                            .content
-                            .iter()
-                            .filter_map(|c| {
+                MessageContentBlock::ToolResponse(tool_response) => {
+                    match &tool_response.tool_result {
+                        Ok(result) => {
+                            let mut blocks: Vec<Value> = Vec::new();
+                            let mut text_parts: Vec<String> = Vec::new();
+                            let mut has_media = false;
+
+                            for c in result.content.iter() {
                                 if let Some(t) = c.as_text() {
-                                    return Some(t.text.clone());
+                                    text_parts.push(t.text.clone());
+                                    if !t.text.is_empty() {
+                                        blocks.push(json!({
+                                            TYPE_FIELD: TEXT_TYPE,
+                                            TEXT_TYPE: t.text.clone()
+                                        }));
+                                    }
+                                    continue;
                                 }
                                 if let Some(r) = c.as_resource() {
+                                    // Claude only accepts a fixed set of media types, so
+                                    // unsupported blobs fall back to text below rather than
+                                    // being rejected by the provider.
+                                    if let ResourceContents::BlobResourceContents {
+                                        blob,
+                                        mime_type,
+                                        ..
+                                    } = &r.resource
+                                    {
+                                        let mime = mime_type.as_deref().unwrap_or("");
+                                        if ANTHROPIC_IMAGE_MEDIA_TYPES.contains(&mime) {
+                                            has_media = true;
+                                            blocks.push(json!({
+                                                TYPE_FIELD: IMAGE_TYPE,
+                                                SOURCE_FIELD: {
+                                                    TYPE_FIELD: BASE64_TYPE,
+                                                    MEDIA_TYPE_FIELD: mime,
+                                                    DATA_FIELD: blob,
+                                                }
+                                            }));
+                                            continue;
+                                        }
+                                        if mime == "application/pdf" {
+                                            has_media = true;
+                                            blocks.push(json!({
+                                                TYPE_FIELD: DOCUMENT_TYPE,
+                                                SOURCE_FIELD: {
+                                                    TYPE_FIELD: BASE64_TYPE,
+                                                    MEDIA_TYPE_FIELD: mime,
+                                                    DATA_FIELD: blob,
+                                                }
+                                            }));
+                                            continue;
+                                        }
+                                    }
                                     let text = extract_text_from_resource(&r.resource);
                                     if !text.is_empty() {
-                                        return Some(text);
+                                        text_parts.push(text.clone());
+                                        blocks.push(json!({
+                                            TYPE_FIELD: TEXT_TYPE,
+                                            TEXT_TYPE: text
+                                        }));
+                                    }
+                                    continue;
+                                }
+                                if let ContentBlock::Image(image) = c {
+                                    if ANTHROPIC_IMAGE_MEDIA_TYPES
+                                        .contains(&image.mime_type.as_str())
+                                    {
+                                        has_media = true;
+                                        blocks.push(convert_image(
+                                            &image.clone(),
+                                            &ImageFormat::Anthropic,
+                                        ));
+                                    } else {
+                                        let marker = format!("[Image: {}]", image.mime_type);
+                                        text_parts.push(marker.clone());
+                                        blocks.push(json!({
+                                            TYPE_FIELD: TEXT_TYPE,
+                                            TEXT_TYPE: marker
+                                        }));
                                     }
                                 }
-                                None
-                            })
-                            .collect::<Vec<_>>()
-                            .join("\n");
+                            }
 
-                        content.push(json!({
-                            TYPE_FIELD: TOOL_RESULT_TYPE,
-                            TOOL_USE_ID_FIELD: tool_response.id,
-                            CONTENT_FIELD: text
-                        }));
+                            let content_value = if has_media {
+                                Value::Array(blocks)
+                            } else {
+                                Value::String(text_parts.join("\n"))
+                            };
+
+                            content.push(json!({
+                                TYPE_FIELD: TOOL_RESULT_TYPE,
+                                TOOL_USE_ID_FIELD: tool_response.id,
+                                CONTENT_FIELD: content_value
+                            }));
+                        }
+                        Err(tool_error) => {
+                            content.push(json!({
+                                TYPE_FIELD: TOOL_RESULT_TYPE,
+                                TOOL_USE_ID_FIELD: tool_response.id,
+                                CONTENT_FIELD: format!("Error: {}", tool_error),
+                                IS_ERROR_FIELD: true
+                            }));
+                        }
                     }
-                    Err(tool_error) => {
-                        content.push(json!({
-                            TYPE_FIELD: TOOL_RESULT_TYPE,
-                            TOOL_USE_ID_FIELD: tool_response.id,
-                            CONTENT_FIELD: format!("Error: {}", tool_error),
-                            IS_ERROR_FIELD: true
-                        }));
-                    }
-                },
-                MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
+                }
+                MessageContentBlock::ToolConfirmationRequest(_tool_confirmation_request) => {
                     // Skip tool confirmation requests
                 }
-                MessageContent::ActionRequired(_action_required) => {
+                MessageContentBlock::ActionRequired(_action_required) => {
                     // Skip action required messages - they're for UI only
                 }
-                MessageContent::SystemNotification(_) => {
+                MessageContentBlock::SystemNotification(_) | MessageContentBlock::Error(_) => {
                     // Skip
                 }
-                MessageContent::Thinking(thinking) => {
+                MessageContentBlock::Thinking(thinking) => {
                     // Anthropic rejects thinking blocks sent without a matching thinking config.
                     if !options.thinking_disabled {
                         if !thinking.signature.is_empty() {
@@ -277,7 +361,7 @@ fn format_messages_with_options(
                         }
                     }
                 }
-                MessageContent::RedactedThinking(redacted) => {
+                MessageContentBlock::RedactedThinking(redacted) => {
                     if !options.thinking_disabled {
                         content.push(json!({
                             TYPE_FIELD: REDACTED_THINKING_TYPE,
@@ -285,10 +369,10 @@ fn format_messages_with_options(
                         }));
                     }
                 }
-                MessageContent::Image(image) => {
+                MessageContentBlock::Image(image) => {
                     content.push(convert_image(image, &ImageFormat::Anthropic));
                 }
-                MessageContent::FrontendToolRequest(tool_request) => {
+                MessageContentBlock::FrontendToolRequest(tool_request) => {
                     if let Ok(tool_call) = &tool_request.tool_call {
                         content.push(json!({
                             TYPE_FIELD: TOOL_USE_TYPE,
@@ -320,27 +404,16 @@ fn format_messages_with_options(
         }));
     }
 
-    // The volatile turn-context must sit after every cache breakpoint, or it invalidates the
-    // message-level cached prefix (Anthropic hashes tools -> system -> messages). Move it to the
-    // tail and place cache_control on the last non-turn-context block.
-    relocate_turn_context_to_tail(&mut anthropic_messages);
-
+    // The last two user messages extend the cached prefix each turn.
     let mut user_count = 0;
     for message in anthropic_messages.iter_mut().rev() {
         if message.get(ROLE_FIELD) != Some(&json!(USER_ROLE)) {
             continue;
         }
-        let Some(content_array) = message
+        if let Some(block) = message
             .get_mut(CONTENT_FIELD)
             .and_then(|content| content.as_array_mut())
-        else {
-            continue;
-        };
-        let Some(target) = cache_control_target_index(content_array) else {
-            continue;
-        };
-        if let Some(block) = content_array
-            .get_mut(target)
+            .and_then(|content_array| content_array.last_mut())
             .and_then(|b| b.as_object_mut())
         {
             block.insert(
@@ -355,52 +428,6 @@ fn format_messages_with_options(
     }
 
     anthropic_messages
-}
-
-fn relocate_turn_context_to_tail(messages: &mut [Value]) {
-    let Some(last) = messages.len().checked_sub(1) else {
-        return;
-    };
-    let source = messages.iter().enumerate().rev().find_map(|(mi, m)| {
-        m.get(CONTENT_FIELD)
-            .and_then(|c| c.as_array())
-            .and_then(|a| a.iter().position(is_turn_context_block))
-            .map(|bi| (mi, bi))
-    });
-    let Some((mi, bi)) = source else {
-        return;
-    };
-    if mi != last
-        && messages[mi]
-            .get(CONTENT_FIELD)
-            .and_then(|c| c.as_array())
-            .map_or(0, |a| a.len())
-            <= 1
-    {
-        return;
-    }
-    let block = messages[mi][CONTENT_FIELD]
-        .as_array_mut()
-        .unwrap()
-        .remove(bi);
-    messages[last][CONTENT_FIELD]
-        .as_array_mut()
-        .unwrap()
-        .push(block);
-}
-
-fn cache_control_target_index(content_array: &[Value]) -> Option<usize> {
-    content_array
-        .iter()
-        .rposition(|block| !is_turn_context_block(block))
-}
-
-fn is_turn_context_block(block: &Value) -> bool {
-    block.get(TYPE_FIELD).and_then(Value::as_str) == Some(TEXT_TYPE)
-        && block
-            .get(TEXT_TYPE)
-            .and_then(Value::as_str)
-            .is_some_and(crate::conversation::is_turn_context_text)
 }
 
 fn anthropic_flavored_input_schema(input_schema: Arc<JsonObject>) -> Arc<JsonObject> {
@@ -693,6 +720,26 @@ pub fn create_request(
     tools: &[Tool],
     options: AnthropicFormatOptions,
 ) -> Result<Value> {
+    create_request_for_model(
+        provider_name,
+        model_config,
+        &model_config.model_name,
+        system,
+        messages,
+        tools,
+        options,
+    )
+}
+
+pub fn create_request_for_model(
+    provider_name: &str,
+    model_config: &ModelConfig,
+    wire_model_name: &str,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+    options: AnthropicFormatOptions,
+) -> Result<Value> {
     let options = options.for_model(model_config);
     let anthropic_messages = format_messages_with_options(messages, options);
     let tool_specs = format_tools(tools);
@@ -704,7 +751,7 @@ pub fn create_request(
 
     let max_tokens = model_config.max_output_tokens();
     let mut payload = json!({
-        "model": model_config.model_name,
+        "model": wire_model_name,
         "messages": anthropic_messages,
         "max_tokens": max_tokens,
     });
@@ -765,7 +812,7 @@ where
     #[derive(Deserialize, Debug)]
     #[serde(tag = "type", rename_all = "snake_case")]
     #[allow(clippy::enum_variant_names)]
-    enum ContentDelta {
+    enum ContentBlockDelta {
         TextDelta { text: String },
         InputJsonDelta { partial_json: String },
         ThinkingDelta { thinking: String },
@@ -870,25 +917,25 @@ where
                 }
                 EVENT_CONTENT_BLOCK_DELTA => {
                     if let Some(delta) = event.data.get("delta") {
-                        match serde_json::from_value::<ContentDelta>(delta.clone()) {
-                            Ok(ContentDelta::TextDelta { text }) => {
+                        match serde_json::from_value::<ContentBlockDelta>(delta.clone()) {
+                            Ok(ContentBlockDelta::TextDelta { text }) => {
                                 let mut message = Message::assistant().with_text(&text);
                                 message.id = message_id.clone();
                                 yield (Some(message), None);
                             }
-                            Ok(ContentDelta::InputJsonDelta { partial_json }) => {
+                            Ok(ContentBlockDelta::InputJsonDelta { partial_json }) => {
                                 if let Some(tool_id) = &current_tool_id {
                                     if let Some((_name, args)) = accumulated_tool_calls.get_mut(tool_id) {
                                         args.push_str(&partial_json);
                                     }
                                 }
                             }
-                            Ok(ContentDelta::ThinkingDelta { thinking: t }) => {
+                            Ok(ContentBlockDelta::ThinkingDelta { thinking: t }) => {
                                 if let Some(ref mut state) = thinking {
                                     state.text.push_str(&t);
                                 }
                             }
-                            Ok(ContentDelta::SignatureDelta { signature: s }) => {
+                            Ok(ContentBlockDelta::SignatureDelta { signature: s }) => {
                                 if let Some(ref mut state) = thinking {
                                     state.signature.push_str(&s);
                                 }
@@ -929,7 +976,7 @@ where
                                         let mut message = Message::new(
                                             Role::Assistant,
                                             chrono::Utc::now().timestamp(),
-                                            vec![MessageContent::tool_request(tool_id, Err(error))],
+                                            vec![MessageContentBlock::tool_request(tool_id, Err(error))],
                                         );
                                         message.id = message_id.clone();
                                         yield (Some(message), None);
@@ -943,7 +990,7 @@ where
                             let mut message = Message::new(
                                 rmcp::model::Role::Assistant,
                                 chrono::Utc::now().timestamp(),
-                                vec![MessageContent::tool_request(tool_id, Ok(tool_call))],
+                                vec![MessageContentBlock::tool_request(tool_id, Ok(tool_call))],
                             );
                             message.id = message_id.clone();
                             yield (Some(message), None);
@@ -1049,12 +1096,19 @@ where
                     let mut message = Message::new(
                         Role::Assistant,
                         chrono::Utc::now().timestamp(),
-                        vec![MessageContent::tool_request(id, Err(error))],
+                        vec![MessageContentBlock::tool_request(id, Err(error))],
                     );
                     message.id = message_id.clone();
                     yield (Some(message), None);
                 }
             }
+        }
+
+        if stop_reason.as_deref() == Some("max_tokens") {
+            let mut message = Message::assistant();
+            message.id = message_id;
+            message.metadata.output_token_limit_reached = true;
+            yield (Some(message), None);
         }
 
         if let Some(usage) = final_usage {
@@ -1128,7 +1182,7 @@ mod tests {
         let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
 
-        if let MessageContent::Text(text) = &message.content[0] {
+        if let MessageContentBlock::Text(text) = &message.content[0] {
             assert_eq!(text.text, "Hello! How can I assist you today?");
         } else {
             panic!("Expected Text content");
@@ -1171,7 +1225,7 @@ mod tests {
         let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
 
-        if let MessageContent::ToolRequest(tool_request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(tool_request) = &message.content[0] {
             let tool_call = tool_request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "calculator");
             assert_eq!(tool_call.arguments, Some(object!({"expression": "2 + 2"})));
@@ -1208,7 +1262,7 @@ mod tests {
 
         let message = response_to_message(&response)?;
 
-        if let MessageContent::Thinking(thinking) = &message.content[0] {
+        if let MessageContentBlock::Thinking(thinking) = &message.content[0] {
             assert_eq!(thinking.thinking, "internal reasoning");
             assert_eq!(thinking.signature, "");
         } else {
@@ -1241,7 +1295,7 @@ mod tests {
     #[test]
     fn test_message_to_anthropic_spec_skips_unsigned_thinking() {
         let messages = vec![
-            Message::assistant().with_content(MessageContent::thinking("internal", "")),
+            Message::assistant().with_content(MessageContentBlock::thinking("internal", "")),
             Message::assistant().with_text("Hi there"),
         ];
 
@@ -1256,7 +1310,7 @@ mod tests {
     #[test]
     fn test_message_to_anthropic_spec_preserves_unsigned_thinking_when_enabled() {
         let messages = vec![
-            Message::assistant().with_content(MessageContent::thinking("internal", "")),
+            Message::assistant().with_content(MessageContentBlock::thinking("internal", "")),
             Message::assistant().with_text("Hi there"),
         ];
 
@@ -1389,6 +1443,28 @@ mod tests {
     }
 
     #[test]
+    fn test_create_request_adaptive_thinking_for_opus_5() -> Result<()> {
+        // Claude 5 models reject the legacy thinking.type=enabled shape and
+        // require thinking.type=adaptive + output_config.effort.
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", None::<&str>)]);
+
+        let mut params = std::collections::HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("high"));
+
+        let mut config = cfg("claude-opus-5");
+        config.max_tokens = Some(4096);
+        config.request_params = Some(params);
+        let messages = vec![Message::user().with_text("Hello")];
+        let payload = create_request_with_default_options(&config, "system", &messages, &[])?;
+
+        assert_eq!(payload["thinking"]["type"], "adaptive");
+        assert_eq!(payload["output_config"]["effort"], "high");
+        assert!(payload["thinking"].get("budget_tokens").is_none());
+
+        Ok(())
+    }
+
+    #[test]
     fn test_create_request_enabled_thinking_with_budget() -> Result<()> {
         let _guard = env_lock::lock_env([
             ("GOOSE_THINKING_EFFORT", None::<&str>),
@@ -1465,7 +1541,7 @@ mod tests {
         let mut config = cfg("glm-4.7");
         config.max_tokens = Some(64000);
         let messages = vec![
-            Message::assistant().with_content(MessageContent::thinking("internal", "")),
+            Message::assistant().with_content(MessageContentBlock::thinking("internal", "")),
             Message::user().with_text("Continue"),
         ];
 
@@ -1509,7 +1585,7 @@ mod tests {
         config.request_params = Some(params);
         config.max_tokens = Some(64000);
         let messages = vec![
-            Message::assistant().with_content(MessageContent::thinking("internal", "")),
+            Message::assistant().with_content(MessageContentBlock::thinking("internal", "")),
             Message::user().with_text("Continue"),
         ];
 
@@ -1585,9 +1661,9 @@ mod tests {
 
     #[test]
     fn test_tool_response_with_resource_content() {
-        use rmcp::model::{CallToolResult, Content};
+        use rmcp::model::{CallToolResult, ContentBlock};
 
-        let resource_content = Content::embedded_text(
+        let resource_content = ContentBlock::embedded_text(
             "file:///test/file.txt",
             "This is the file content from a resource",
         );
@@ -1618,10 +1694,11 @@ mod tests {
 
     #[test]
     fn test_tool_response_with_mixed_content() {
-        use rmcp::model::{CallToolResult, Content};
+        use rmcp::model::{CallToolResult, ContentBlock};
 
-        let text_content = Content::text("Summary: file loaded");
-        let resource_content = Content::embedded_text("file:///test/file.txt", "File content here");
+        let text_content = ContentBlock::text("Summary: file loaded");
+        let resource_content =
+            ContentBlock::embedded_text("file:///test/file.txt", "File content here");
 
         let messages = vec![
             Message::assistant().with_tool_request(
@@ -1645,6 +1722,99 @@ mod tests {
             spec[1]["content"][0]["content"],
             "Summary: file loaded\nFile content here"
         );
+    }
+
+    #[test]
+    fn test_tool_response_forwards_image_resource_as_image_block() {
+        use rmcp::model::CallToolResult;
+
+        let image = ContentBlock::resource(ResourceContents::BlobResourceContents {
+            uri: "file:///shot.png".to_string(),
+            mime_type: Some("image/png".to_string()),
+            blob: "aGVsbG8=".to_string(),
+            meta: None,
+        });
+
+        let messages = vec![
+            Message::assistant()
+                .with_tool_request("tool_1", Ok(CallToolRequestParams::new("screenshot"))),
+            Message::user().with_tool_response("tool_1", Ok(CallToolResult::success(vec![image]))),
+        ];
+
+        let spec = format_messages(&messages);
+
+        let block = &spec[1]["content"][0]["content"][0];
+        assert_eq!(block["type"], "image");
+        assert_eq!(block["source"]["type"], "base64");
+        assert_eq!(block["source"]["media_type"], "image/png");
+        assert_eq!(block["source"]["data"], "aGVsbG8=");
+    }
+
+    #[test]
+    fn test_tool_response_unsupported_image_mime_falls_back_to_text() {
+        use rmcp::model::CallToolResult;
+
+        // image/svg+xml is not a Claude-supported image type, so it must fall
+        // through to text rather than an image block.
+        let svg = ContentBlock::resource(ResourceContents::BlobResourceContents {
+            uri: "file:///diagram.svg".to_string(),
+            mime_type: Some("image/svg+xml".to_string()),
+            blob: "aGVsbG8=".to_string(),
+            meta: None,
+        });
+
+        let messages = vec![
+            Message::assistant()
+                .with_tool_request("tool_1", Ok(CallToolRequestParams::new("render"))),
+            Message::user().with_tool_response("tool_1", Ok(CallToolResult::success(vec![svg]))),
+        ];
+
+        let spec = format_messages(&messages);
+
+        // Serializer contract: an unsupported image type is not emitted as an
+        // image block — the content collapses to a text string.
+        assert!(spec[1]["content"][0]["content"].is_string());
+    }
+
+    #[test]
+    fn test_tool_response_forwards_raw_image_as_image_block() {
+        use rmcp::model::CallToolResult;
+
+        let image = ContentBlock::image("aGVsbG8=", "image/png");
+
+        let messages = vec![
+            Message::assistant()
+                .with_tool_request("tool_1", Ok(CallToolRequestParams::new("screenshot"))),
+            Message::user().with_tool_response("tool_1", Ok(CallToolResult::success(vec![image]))),
+        ];
+
+        let spec = format_messages(&messages);
+
+        let block = &spec[1]["content"][0]["content"][0];
+        assert_eq!(block["type"], "image");
+        assert_eq!(block["source"]["type"], "base64");
+        assert_eq!(block["source"]["media_type"], "image/png");
+        assert_eq!(block["source"]["data"], "aGVsbG8=");
+    }
+
+    #[test]
+    fn test_tool_response_unsupported_raw_image_mime_falls_back_to_text() {
+        use rmcp::model::CallToolResult;
+
+        // image/svg+xml is not a Claude-supported image type, so a raw image with
+        // that mime must fall back to a text marker rather than an image block
+        // (which the provider would reject).
+        let image = ContentBlock::image("aGVsbG8=", "image/svg+xml");
+
+        let messages = vec![
+            Message::assistant()
+                .with_tool_request("tool_1", Ok(CallToolRequestParams::new("render"))),
+            Message::user().with_tool_response("tool_1", Ok(CallToolResult::success(vec![image]))),
+        ];
+
+        let spec = format_messages(&messages);
+
+        assert_eq!(spec[1]["content"][0]["content"], "[Image: image/svg+xml]");
     }
 
     #[test]
@@ -1845,6 +2015,7 @@ mod tests {
         text: Vec<String>,
         tool_calls: Vec<String>,
         tool_errors: Vec<String>,
+        output_token_limit_message_ids: Vec<Option<String>>,
     }
 
     async fn collect_stream(events: &str) -> StreamedParts {
@@ -1852,20 +2023,23 @@ mod tests {
 
         for result in collect_stream_results(events).await {
             if let Ok((Some(msg), _usage)) = result {
+                if msg.metadata.output_token_limit_reached {
+                    parts.output_token_limit_message_ids.push(msg.id.clone());
+                }
                 for c in &msg.content {
                     match c {
-                        MessageContent::Thinking(t) => {
+                        MessageContentBlock::Thinking(t) => {
                             parts
                                 .thinking
                                 .push((t.thinking.clone(), t.signature.clone()));
                         }
-                        MessageContent::RedactedThinking(r) => {
+                        MessageContentBlock::RedactedThinking(r) => {
                             parts.redacted_thinking.push(r.data.clone());
                         }
-                        MessageContent::Text(t) => {
+                        MessageContentBlock::Text(t) => {
                             parts.text.push(t.text.clone());
                         }
-                        MessageContent::ToolRequest(req) => match &req.tool_call {
+                        MessageContentBlock::ToolRequest(req) => match &req.tool_call {
                             Ok(call) => parts.tool_calls.push(call.name.to_string()),
                             Err(e) => parts.tool_errors.push(e.message.to_string()),
                         },
@@ -1875,6 +2049,30 @@ mod tests {
             }
         }
         parts
+    }
+
+    #[tokio::test]
+    async fn test_streaming_marks_max_tokens() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_limit","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Partial answer"}}"#,
+            "\n",
+            r#"data: {"type":"content_block_stop","index":0}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"max_tokens"},"usage":{"output_tokens":25}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let parts = collect_stream(events).await;
+        assert_eq!(parts.text, vec!["Partial answer"]);
+        assert_eq!(
+            parts.output_token_limit_message_ids,
+            vec![Some("msg_limit".to_string())]
+        );
     }
 
     #[tokio::test]
@@ -2248,6 +2446,10 @@ mod tests {
 
         let parts = collect_stream(events).await;
         assert_eq!(
+            parts.output_token_limit_message_ids,
+            vec![Some("msg_t2".to_string())]
+        );
+        assert_eq!(
             parts.tool_errors.len(),
             1,
             "expected one tool error for the dropped/truncated tool call, got: {:?}",
@@ -2284,28 +2486,11 @@ mod tests {
         assert!(parts.tool_errors.is_empty());
     }
 
-    /// Anthropic prefix caching only pays off when the bytes up to a cache
-    /// breakpoint are identical turn over turn. The per-turn turn-context block
-    /// (timestamp, turn budget, compaction state) changes on every call, so if
-    /// it ever lands inside a cached prefix every request becomes a cache write
-    /// instead of a read. These tests pin the property that keeps caching alive
-    /// so a future refactor of the formatter or the turn-context format can't
-    /// silently regress it.
-    mod cache_prefix_stability {
+    /// Placement shape only; cross-request prefix stability is covered by
+    /// `tests/prefix_invariance.rs`.
+    mod cache_breakpoint_placement {
         use super::*;
         use rmcp::model::CallToolResult;
-
-        /// A turn-context block whose shape matches what `is_turn_context_text`
-        /// recognizes, varying only the volatile fields.
-        fn turn_context(time: &str, turn_budget: &str) -> String {
-            format!(
-                "<turn-context>\n\
-                 <current-time>{time}</current-time>\n\
-                 <working-directory>/Users/me/code/goose</working-directory>\n\
-                 <turn-budget>{turn_budget}</turn-budget>\n\
-                 </turn-context>"
-            )
-        }
 
         fn sample_tools() -> Vec<Tool> {
             vec![
@@ -2328,101 +2513,22 @@ mod tests {
             ]
         }
 
-        /// A realistic multi-turn conversation. `inject_moim` prepends the
-        /// turn-context block to the latest genuine user message, so it sits as
-        /// the first text block of the final user message here.
-        fn conversation(turn_context_block: &str) -> Vec<Message> {
-            vec![
-                Message::user().with_text("What does the main entrypoint do?"),
-                Message::assistant().with_tool_request(
-                    "tool_1",
-                    Ok(CallToolRequestParams::new("read_file")
-                        .with_arguments(object!({"path": "src/main.rs"}))),
-                ),
-                Message::user().with_tool_response(
-                    "tool_1",
-                    Ok(CallToolResult::success(vec![rmcp::model::Content::text(
-                        "fn main() { run(); }",
-                    )])),
-                ),
-                Message::assistant().with_text("It calls `run()`."),
-                Message::user()
-                    .with_text(turn_context_block)
-                    .with_text("Now add error handling to it."),
-            ]
-        }
-
-        /// The (message index, block index) of the last block carrying a
-        /// `cache_control` marker, scanning in canonical order. This is the far
-        /// edge of the furthest cached prefix.
-        fn last_breakpoint(messages: &[Value]) -> Option<(usize, usize)> {
-            let mut found = None;
+        fn breakpoints(messages: &[Value]) -> Vec<(usize, usize)> {
+            let mut found = Vec::new();
             for (mi, message) in messages.iter().enumerate() {
                 for (bi, block) in message["content"].as_array().unwrap().iter().enumerate() {
                     if block.get(CACHE_CONTROL_FIELD).is_some() {
-                        found = Some((mi, bi));
+                        found.push((mi, bi));
                     }
                 }
             }
             found
         }
 
-        fn find_turn_context(messages: &[Value]) -> Option<(usize, usize)> {
-            messages.iter().enumerate().find_map(|(mi, message)| {
-                message["content"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .position(is_turn_context_block)
-                    .map(|bi| (mi, bi))
-            })
-        }
-
-        /// The exact bytes Anthropic hashes for its furthest cache breakpoint:
-        /// tools, then system, then messages truncated at the last
-        /// `cache_control` marker. Everything after that point is outside every
-        /// cached prefix and may change freely turn to turn.
-        fn cached_prefix(payload: &Value) -> String {
-            let messages = payload["messages"].as_array().unwrap();
-            let (last_mi, last_bi) = last_breakpoint(messages)
-                .expect("request must carry at least one cache_control breakpoint");
-
-            let prefix_messages: Vec<Value> = messages
-                .iter()
-                .take(last_mi + 1)
-                .enumerate()
-                .map(|(mi, message)| {
-                    let mut message = message.clone();
-                    if mi == last_mi {
-                        message["content"]
-                            .as_array_mut()
-                            .unwrap()
-                            .truncate(last_bi + 1);
-                    }
-                    message
-                })
-                .collect();
-
-            json!({
-                "tools": payload.get("tools"),
-                "system": payload.get("system"),
-                "messages": prefix_messages,
-            })
-            .to_string()
-        }
-
-        /// The production tool-loop case: `inject_moim` prepends turn-context to
-        /// the latest *genuine* user message, but the request then ends with a
-        /// later `tool_result` message. The block must be relocated *across*
-        /// messages to land after the trailing breakpoint, not merely reordered
-        /// within its own message.
-        fn tool_loop_conversation(turn_context_block: &str) -> Vec<Message> {
-            vec![
+        #[test]
+        fn breakpoints_cover_tools_system_and_last_two_user_messages() {
+            let messages = vec![
                 Message::user().with_text("What does the main entrypoint do?"),
-                Message::assistant().with_text("Let me read it."),
-                Message::user()
-                    .with_text(turn_context_block)
-                    .with_text("Now add error handling to it."),
                 Message::assistant().with_tool_request(
                     "tool_1",
                     Ok(CallToolRequestParams::new("read_file")
@@ -2430,116 +2536,50 @@ mod tests {
                 ),
                 Message::user().with_tool_response(
                     "tool_1",
-                    Ok(CallToolResult::success(vec![rmcp::model::Content::text(
-                        "fn main() { run(); }",
-                    )])),
+                    Ok(CallToolResult::success(vec![
+                        rmcp::model::ContentBlock::text("fn main() { run(); }"),
+                    ])),
                 ),
-            ]
-        }
-
-        fn request_with(messages: &[Message]) -> Value {
-            create_request_with_default_options(
+                Message::assistant().with_text("It calls `run()`."),
+                Message::user().with_text("Now add error handling to it."),
+            ];
+            let req = create_request_with_default_options(
                 &cfg("claude-sonnet-4-5"),
                 "You are a careful coding assistant.",
-                messages,
+                &messages,
                 &sample_tools(),
             )
-            .unwrap()
-        }
+            .unwrap();
 
-        fn request(turn_context_block: &str) -> Value {
-            request_with(&conversation(turn_context_block))
-        }
+            let tools = req["tools"].as_array().unwrap();
+            assert!(tools[0].get(CACHE_CONTROL_FIELD).is_none());
+            assert!(tools[1].get(CACHE_CONTROL_FIELD).is_some());
+            assert!(req["system"][0].get(CACHE_CONTROL_FIELD).is_some());
 
-        #[test]
-        fn cached_prefix_is_invariant_to_turn_context_changes() {
-            let req_a = request(&turn_context("2026-06-25 12:00:00", "14/40 used"));
-            let req_b = request(&turn_context("2026-06-25 13:47:00", "31/40 used"));
-
-            assert_ne!(
-                req_a.to_string(),
-                req_b.to_string(),
-                "test setup is vacuous: the two requests are byte-identical, so the \
-                 turn-context never reached the request body"
-            );
-
+            let request_messages = req["messages"].as_array().unwrap();
+            let marked = breakpoints(request_messages);
             assert_eq!(
-                cached_prefix(&req_a),
-                cached_prefix(&req_b),
-                "the cached prefix changed when only the volatile turn-context changed; \
-                 prefix caching will collapse into a per-turn cache write"
-            );
-
-            assert!(
-                !cached_prefix(&req_a).contains("12:00:00"),
-                "the volatile turn-context timestamp leaked into the cached prefix"
+                marked,
+                vec![(2, 0), (4, 0)],
+                "message breakpoints should sit on the last block of the last two user messages"
             );
         }
 
         #[test]
-        fn turn_context_sits_after_every_cache_breakpoint() {
-            let req = request(&turn_context("2026-06-25 12:00:00", "14/40 used"));
-            let messages = req["messages"].as_array().unwrap();
+        fn breakpoints_land_on_the_last_content_block() {
+            let messages = vec![Message::user()
+                .with_text("Here is the context.")
+                .with_text("And the question.")];
+            let req = create_request_with_default_options(
+                &cfg("claude-sonnet-4-5"),
+                "You are a careful coding assistant.",
+                &messages,
+                &sample_tools(),
+            )
+            .unwrap();
 
-            for message in messages {
-                for block in message["content"].as_array().unwrap() {
-                    if block.get(CACHE_CONTROL_FIELD).is_some() {
-                        assert!(
-                            !is_turn_context_block(block),
-                            "a cache_control breakpoint landed on the volatile turn-context block"
-                        );
-                    }
-                }
-            }
-
-            let breakpoint = last_breakpoint(messages).expect("a breakpoint should exist");
-            let turn_context = find_turn_context(messages)
-                .expect("the turn-context block should survive into the formatted request");
-            assert!(
-                turn_context > breakpoint,
-                "turn-context at {turn_context:?} is not after the last cache breakpoint at \
-                 {breakpoint:?}, so it sits inside a cached prefix"
-            );
-        }
-
-        /// Guards the tool-loop path: turn-context is injected onto an earlier
-        /// genuine user message while the request ends with a `tool_result`, so
-        /// keeping it out of the cached prefix requires relocating it across
-        /// messages. A regression that only reorders within a message would
-        /// pass the tests above but fail here.
-        #[test]
-        fn cached_prefix_is_invariant_in_tool_loop() {
-            let req_a = request_with(&tool_loop_conversation(&turn_context(
-                "2026-06-25 12:00:00",
-                "14/40",
-            )));
-            let req_b = request_with(&tool_loop_conversation(&turn_context(
-                "2026-06-25 13:47:00",
-                "31/40",
-            )));
-
-            assert_ne!(
-                req_a.to_string(),
-                req_b.to_string(),
-                "test setup is vacuous: turn-context never reached the request body"
-            );
-
-            assert_eq!(
-                cached_prefix(&req_a),
-                cached_prefix(&req_b),
-                "the cached prefix changed when only the volatile turn-context changed during a \
-                 tool loop; the block was not relocated past the trailing tool_result breakpoint"
-            );
-
-            let messages = req_a["messages"].as_array().unwrap();
-            let breakpoint = last_breakpoint(messages).expect("a breakpoint should exist");
-            let turn_context = find_turn_context(messages)
-                .expect("the turn-context block should survive into the formatted request");
-            assert!(
-                turn_context > breakpoint,
-                "turn-context at {turn_context:?} was not relocated across messages to after the \
-                 last breakpoint at {breakpoint:?}"
-            );
+            let request_messages = req["messages"].as_array().unwrap();
+            assert_eq!(breakpoints(request_messages), vec![(0, 1)]);
         }
     }
 }

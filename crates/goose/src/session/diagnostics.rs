@@ -7,14 +7,13 @@ use crate::session::SessionManager;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use utoipa::ToSchema;
 
 const LLM_LOG_MAX_BYTES: usize = 2 * 1024 * 1024;
 const CONFIG_MAX_BYTES: usize = 256 * 1024;
 const CLI_LOG_TAIL_LINES: usize = 400;
 const CLI_LOGS_TO_INCLUDE: usize = 3;
 
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, ToSchema, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum DiagnosticsLevel {
     #[default]
@@ -22,7 +21,7 @@ pub enum DiagnosticsLevel {
     Full,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct SystemInfo {
     pub app_version: String,
     pub os: String,
@@ -33,7 +32,7 @@ pub struct SystemInfo {
     pub enabled_extensions: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DiagnosticsConfig {
     pub config_path: String,
@@ -41,13 +40,13 @@ pub struct DiagnosticsConfig {
     pub truncated: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DiagnosticsExtensions {
     pub enabled: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DiagnosticsTextFile {
     pub path: String,
@@ -55,35 +54,35 @@ pub struct DiagnosticsTextFile {
     pub truncated: bool,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DiagnosticsLogs {
     pub cli: Vec<DiagnosticsTextFile>,
     pub llm: Vec<DiagnosticsTextFile>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DiagnosticsPrompt {
     pub name: String,
     pub content: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DiagnosticsScheduledRecipe {
     pub path: String,
     pub content: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DiagnosticsError {
     pub path: Option<String>,
     pub message: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DiagnosticsReport {
     pub schema_version: u32,

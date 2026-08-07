@@ -62,11 +62,11 @@ impl ProviderDef for AmpAcpProvider {
 
             let mode_mapping = HashMap::from([
                 // "bypass" skips confirmations, closest to autonomous mode.
-                (GooseMode::Auto, "bypass".to_string()),
+                (GooseMode::Auto, vec!["bypass".to_string()]),
                 // "default" prompts before risky actions.
-                (GooseMode::Approve, "default".to_string()),
-                (GooseMode::SmartApprove, "default".to_string()),
-                (GooseMode::Chat, "default".to_string()),
+                (GooseMode::Approve, vec!["default".to_string()]),
+                (GooseMode::SmartApprove, vec!["default".to_string()]),
+                (GooseMode::Chat, vec!["default".to_string()]),
             ]);
 
             let provider_config = AcpProviderConfig {
@@ -76,7 +76,7 @@ impl ProviderDef for AmpAcpProvider {
                 env_remove: vec![],
                 work_dir: working_dir,
                 mcp_servers: extension_configs_to_mcp_servers(&extensions),
-                session_mode_id: Some(mode_mapping[&goose_mode].clone()),
+                session_mode_id: mode_mapping[&goose_mode].first().cloned(),
                 session_config_options: vec![],
                 model_config_option_id: None,
                 mode_mapping,

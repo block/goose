@@ -1477,14 +1477,18 @@ export type OnboardingImportApplyResponse_unstable = {
 };
 
 /**
- * Export a session as a JSON string.
+ * Export a session as a JSON or markdown string.
  */
 export type ExportSessionRequest_unstable = {
     sessionId: string;
+    format?: SessionExportFormat;
 };
 
+export type SessionExportFormat = 'json' | 'markdown';
+
 /**
- * Export session response — raw JSON of the goose session with `conversation`.
+ * Export session response — raw JSON of the goose session with `conversation`,
+ * or a markdown transcript when `format` is `markdown`.
  */
 export type ExportSessionResponse_unstable = {
     data: string;

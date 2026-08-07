@@ -6,16 +6,17 @@ pub use goose_providers::conversation::token_usage::{
 };
 use serde::{Deserialize, Serialize};
 
-pub const DEFAULT_PROVIDER_TIMEOUT_SECS: u64 = 600;
+pub use goose_providers::api_client::{
+    DEFAULT_CONNECT_TIMEOUT_SECS, DEFAULT_PROVIDER_TIMEOUT_SECS,
+};
 
 use crate::config::ExtensionConfig;
-use utoipa::ToSchema;
 
 use std::path::PathBuf;
 
 pub use goose_providers::base::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProviderType {
     Preferred,
     Builtin,

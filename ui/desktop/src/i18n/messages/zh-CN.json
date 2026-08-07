@@ -131,6 +131,9 @@
   "baseChat.goHome": {
     "defaultMessage": "回到首页"
   },
+  "baseChat.reconnecting": {
+    "defaultMessage": "连接已断开。正在重新连接…"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "扩展已更新"
   },
@@ -1194,7 +1197,7 @@
     "defaultMessage": "密钥"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "在 goosed 服务器上配置的密钥（GOOSE_SERVER__SECRET_KEY）"
+    "defaultMessage": "在 Goose 服务器上配置的密钥（GOOSE_SERVER__SECRET_KEY）"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "输入服务器的密钥"
@@ -2357,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "聊天"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "创建时间"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "目录"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "模型"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "状态"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "更新时间"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "没有最近的聊天"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "错误"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "空闲"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "流式传输"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "未读活动"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "未命名会话"
@@ -2813,6 +2843,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "使用模板或手动设置"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "没有匹配 \"{query}\" 的提供商"
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "搜索提供商..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "{providerName} 徽标"
   },
@@ -3016,12 +3052,6 @@
   },
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "使用默认提供商"
-  },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "配方名称"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "将自动格式化（小写字母，空格转为短横线）"
   },
   "recipeWarningModal.cancel": {
     "defaultMessage": "取消"
@@ -3653,6 +3683,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "Session JSON copied"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Text copied"
   },
@@ -3683,6 +3716,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Loading JSON..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "Failed to rename session: {error}"
   },
@@ -3707,6 +3746,9 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "View session JSON"
   },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
+  },
   "sessionIndicators.error": {
     "defaultMessage": "会话发生错误"
   },
@@ -3715,24 +3757,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "流式传输中"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "此会话不包含任何消息"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "未找到消息"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "加载会话详情出错"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "重试"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "你"
   },
   "sessions.action.delete": {
     "defaultMessage": "删除会话"
@@ -3745,6 +3769,12 @@
   },
   "sessions.action.export": {
     "defaultMessage": "导出会话"
+  },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
   },
   "sessions.action.openNewWindow": {
     "defaultMessage": "在新窗口中打开"
@@ -3844,6 +3874,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "会话“{name}”复制成功"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "导出会话失败：{error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "会话导出成功"
@@ -4061,9 +4094,6 @@
   "settingsView.title": {
     "defaultMessage": "设置"
   },
-  "sheet.close": {
-    "defaultMessage": "关闭"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "取消"
   },
@@ -4129,15 +4159,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "{name} 提供商已配置"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Ollama 应用"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "要使用，必须"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "在你的机器上已安装并打开，或者你必须为 OLLAMA_HOST 设置一个值。"
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "添加已有"
@@ -4553,6 +4574,9 @@
   "userMessage.editButton": {
     "defaultMessage": "编辑"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "已附加的图片："
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "原地编辑"
   },
@@ -4585,5 +4609,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "用编辑过的消息创建新会话"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "从消息中移除图片"
   }
 }

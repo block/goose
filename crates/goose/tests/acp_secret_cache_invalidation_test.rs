@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 #[allow(dead_code)]
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
@@ -175,13 +176,8 @@ fn acp_secret_mutations_and_inventory_refresh_invalidate_global_secret_cache() {
         assert_eq!(
             save_provider_config.get("refresh"),
             Some(&serde_json::json!({
-                "started": [],
-                "skipped": [
-                    {
-                        "providerId": "xai",
-                        "reason": "does_not_support_refresh",
-                    },
-                ],
+                "started": ["xai"],
+                "skipped": [],
             })),
             "provider config save should return the inventory refresh acknowledgement"
         );

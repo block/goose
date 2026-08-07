@@ -22,8 +22,9 @@ use crate::tool_monitor::RepetitionInspector;
 pub enum RetryResult {
     /// No retry configuration or session available, retry logic skipped
     Skipped,
-    /// Maximum retry attempts reached, cannot retry further
-    MaxAttemptsReached,
+    /// Maximum retry attempts reached, cannot retry further. Carries the
+    /// user-facing failure message so the caller can yield and persist it.
+    MaxAttemptsReached(Message),
     /// Success checks passed, no retry needed
     SuccessChecksPassed,
     /// Retry is needed and will be performed
@@ -95,20 +96,9 @@ impl RetryManager {
         *self.attempts.lock().await
     }
 
-    /// Reset status for retry: clear message history and final output tool state
-    async fn reset_status_for_retry(
-        messages: &mut Conversation,
-        initial_messages: &[Message],
-        final_output_tool: &Arc<Mutex<Option<crate::agents::final_output_tool::FinalOutputTool>>>,
-    ) {
+    async fn reset_status_for_retry(messages: &mut Conversation, initial_messages: &[Message]) {
         *messages = Conversation::new_unvalidated(initial_messages.to_vec());
         info!("Reset message history to initial state for retry");
-
-        let mut guard = final_output_tool.lock().await;
-        if let Some(fot) = guard.as_mut() {
-            fot.final_output = None;
-            info!("Cleared final output tool state for retry");
-        }
     }
 
     pub async fn handle_retry_logic(
@@ -116,7 +106,6 @@ impl RetryManager {
         messages: &mut Conversation,
         session_config: &SessionConfig,
         initial_messages: &[Message],
-        final_output_tool: &Arc<Mutex<Option<crate::agents::final_output_tool::FinalOutputTool>>>,
     ) -> Result<RetryResult> {
         let Some(retry_config) = &session_config.retry_config else {
             return Ok(RetryResult::Skipped);
@@ -135,7 +124,6 @@ impl RetryManager {
                 "Maximum retry attempts ({}) exceeded. Unable to complete the task successfully.",
                 retry_config.max_retries
             ));
-            messages.push(error_msg);
             warn!(
                 "Maximum retry attempts ({}) exceeded",
                 retry_config.max_retries
@@ -145,7 +133,7 @@ impl RetryManager {
                 "retry_max_exceeded",
                 &format!("Max retries ({}) exceeded", retry_config.max_retries),
             );
-            return Ok(RetryResult::MaxAttemptsReached);
+            return Ok(RetryResult::MaxAttemptsReached(error_msg));
         }
 
         if let Some(on_failure_cmd) = &retry_config.on_failure {
@@ -153,7 +141,7 @@ impl RetryManager {
             execute_on_failure_command(on_failure_cmd, retry_config).await?;
         }
 
-        Self::reset_status_for_retry(messages, initial_messages, final_output_tool).await;
+        Self::reset_status_for_retry(messages, initial_messages).await;
 
         let new_attempts = self.increment_attempts().await;
         info!("Incrementing retry attempts to {}", new_attempts);
@@ -197,8 +185,13 @@ pub async fn execute_success_checks(
     checks: &[SuccessCheck],
     retry_config: &RetryConfig,
 ) -> Result<bool> {
-    let timeout = get_retry_timeout(retry_config);
+    execute_success_checks_with_timeout(checks, get_retry_timeout(retry_config)).await
+}
 
+pub async fn execute_success_checks_with_timeout(
+    checks: &[SuccessCheck],
+    timeout: Duration,
+) -> Result<bool> {
     for check in checks {
         match check {
             SuccessCheck::Shell { command } => {
@@ -279,7 +272,13 @@ pub async fn execute_shell_command(
 
 /// Execute an on_failure command and return an error if it fails
 pub async fn execute_on_failure_command(command: &str, retry_config: &RetryConfig) -> Result<()> {
-    let timeout = get_on_failure_timeout(retry_config);
+    execute_on_failure_command_with_timeout(command, get_on_failure_timeout(retry_config)).await
+}
+
+pub async fn execute_on_failure_command_with_timeout(
+    command: &str,
+    timeout: Duration,
+) -> Result<()> {
     info!(
         "Executing on_failure command with timeout {:?}: {}",
         timeout, command
@@ -335,21 +334,19 @@ mod tests {
 
     #[test]
     fn test_retry_result_enum() {
-        assert_ne!(RetryResult::Skipped, RetryResult::MaxAttemptsReached);
+        let max_attempts = RetryResult::MaxAttemptsReached(Message::assistant().with_text("done"));
+        assert_ne!(RetryResult::Skipped, max_attempts);
         assert_ne!(RetryResult::Skipped, RetryResult::SuccessChecksPassed);
         assert_ne!(RetryResult::Skipped, RetryResult::Retried);
-        assert_ne!(
-            RetryResult::MaxAttemptsReached,
-            RetryResult::SuccessChecksPassed
-        );
-        assert_ne!(RetryResult::MaxAttemptsReached, RetryResult::Retried);
+        assert_ne!(max_attempts, RetryResult::SuccessChecksPassed);
+        assert_ne!(max_attempts, RetryResult::Retried);
         assert_ne!(RetryResult::SuccessChecksPassed, RetryResult::Retried);
 
         let result = RetryResult::Retried;
         let cloned = result.clone();
         assert_eq!(result, cloned);
 
-        let debug_str = format!("{:?}", RetryResult::MaxAttemptsReached);
+        let debug_str = format!("{:?}", max_attempts);
         assert!(debug_str.contains("MaxAttemptsReached"));
     }
 

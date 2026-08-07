@@ -70,7 +70,7 @@ fn detect_format_from_npm(npm: &str) -> Option<ProviderFormat> {
     }
 }
 
-#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ProviderCatalogEntry {
     pub id: String,
     pub name: String,
@@ -81,7 +81,7 @@ pub struct ProviderCatalogEntry {
     pub env_var: String,
 }
 
-#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ProviderTemplate {
     pub id: String,
     pub name: String,
@@ -93,7 +93,7 @@ pub struct ProviderTemplate {
     pub doc_url: String,
 }
 
-#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ModelTemplate {
     pub id: String,
     pub name: String,
@@ -102,7 +102,7 @@ pub struct ModelTemplate {
     pub deprecated: bool,
 }
 
-#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ModelCapabilities {
     pub tool_call: bool,
     pub reasoning: bool,

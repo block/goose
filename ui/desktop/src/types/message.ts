@@ -186,7 +186,9 @@ export type MessageUsage = {
 
 export type MessageMetadata = {
   agentVisible: boolean;
+  fallbackContent?: boolean;
   inference?: InferenceMetadata | null;
+  outputTokenLimitReached?: boolean;
   steer?: boolean;
   usage?: MessageUsage | null;
   userVisible: boolean;
@@ -258,9 +260,35 @@ export type ToolConfirmationRequestContent = ToolConfirmationRequest & {
 };
 export type NotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
 
+export type LiveOutputNotificationParams = {
+  sequence: number;
+  chunks: LiveOutputNotificationChunk[];
+  truncated: boolean;
+};
+
+export type LiveOutputNotificationChunk = {
+  stream: 'stdout' | 'stderr';
+  output: string;
+};
+
+export type ImageMessageContent = Extract<Message['content'][number], { type: 'image' }>;
+
 export interface ImageData {
-  data: string; // base64 encoded image data
+  data: string;
   mimeType: string;
+  _meta?: ImageMessageContent['_meta'];
+  annotations?: ImageMessageContent['annotations'];
+}
+
+export function imageDataFromMessage(message: Message): ImageData[] {
+  return message.content
+    .filter((c): c is ImageMessageContent => c.type === 'image')
+    .map((c) => ({
+      data: c.data,
+      mimeType: c.mimeType,
+      ...(c._meta ? { _meta: c._meta } : {}),
+      ...(c.annotations ? { annotations: c.annotations } : {}),
+    }));
 }
 
 export interface UserInput {
@@ -281,6 +309,8 @@ export function createUserMessage(text: string, images?: ImageData[]): Message {
         type: 'image',
         data: img.data,
         mimeType: img.mimeType,
+        ...(img._meta ? { _meta: img._meta } : {}),
+        ...(img.annotations ? { annotations: img.annotations } : {}),
       });
     });
   }
@@ -404,15 +434,6 @@ export function getAnyToolConfirmationData(message: Message): ToolConfirmationDa
   return undefined;
 }
 
-export function getToolConfirmationId(
-  content: ActionRequired & { type: 'actionRequired' }
-): string | undefined {
-  if (content.data.actionType === 'toolConfirmation') {
-    return content.data.id;
-  }
-  return undefined;
-}
-
 export function getPendingToolConfirmationIds(messages: Message[]): Set<string> {
   const pendingIds = new Set<string>();
   const respondedIds = new Set<string>();
@@ -441,9 +462,4 @@ export function getElicitationContent(
     (content): content is ActionRequired & { type: 'actionRequired' } =>
       content.type === 'actionRequired' && content.data.actionType === 'elicitation'
   );
-}
-
-export function hasCompletedToolCalls(message: Message): boolean {
-  const toolRequests = getToolRequests(message);
-  return toolRequests.length > 0;
 }

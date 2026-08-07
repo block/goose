@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
+    DEFAULT_CONNECT_TIMEOUT_SECS, DEFAULT_PROVIDER_TIMEOUT_SECS,
+};
 use super::openai_compatible::{handle_status, stream_responses_compat};
 use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
@@ -177,7 +180,12 @@ impl BedrockProvider {
             name: BEDROCK_PROVIDER_NAME.to_string(),
             region: resolved_region,
             bearer_token,
-            http_client: reqwest::Client::new(),
+            http_client: reqwest::Client::builder()
+                .connect_timeout(std::time::Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
+                .read_timeout(std::time::Duration::from_secs(
+                    DEFAULT_PROVIDER_TIMEOUT_SECS,
+                ))
+                .build()?,
             mantle_base_url: None,
         })
     }
@@ -270,10 +278,11 @@ impl BedrockProvider {
             }
         }
 
-        let response = req
-            .send()
-            .await
-            .map_err(|e| ProviderError::RequestFailed(format!("Mantle request failed: {}", e)))?;
+        let response = goose_providers::http_status::send_bounded(
+            req,
+            std::time::Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
+        )
+        .await?;
 
         handle_status(response).await
     }
@@ -941,6 +950,7 @@ mod tests {
                 toolshim_model: None,
                 request_params: None,
                 reasoning: None,
+                request_headers: None,
             },
         )
     }

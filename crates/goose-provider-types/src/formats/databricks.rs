@@ -1,4 +1,5 @@
-use crate::conversation::message::{Message, MessageContent};
+use crate::cache_semantics::{apply_chat_payload_breakpoints, CacheSemantics};
+use crate::conversation::message::{Message, MessageContentBlock};
 use crate::formats::anthropic::{
     adaptive_output_effort, model_supports_temperature, thinking_budget_tokens,
     thinking_type_for_provider, ThinkingType,
@@ -7,14 +8,12 @@ use crate::model::ModelConfig;
 
 use crate::formats::openai::{
     extract_reasoning_effort, is_openai_responses_model, is_valid_function_name,
-    openai_reasoning_effort_for_thinking, sanitize_function_name,
+    openai_reasoning_effort_for_thinking, sanitize_function_name, validate_tool_schemas,
 };
 use crate::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
+use crate::mcp_utils::extract_text_from_resource;
 use anyhow::{anyhow, Error};
-use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent,
-    ResourceContents, Role, Tool,
-};
+use rmcp::model::{object, CallToolRequestParams, ContentBlock, ErrorCode, ErrorData, Role, Tool};
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::borrow::Cow;
@@ -52,32 +51,29 @@ fn format_tool_response(
 
     match &response.tool_result {
         Ok(call_result) => {
-            let abridged: Vec<_> = call_result.content.iter().map(|c| c.raw.clone()).collect();
+            let abridged: Vec<_> = call_result.content.to_vec();
 
             let mut tool_content = Vec::new();
             let mut image_messages = Vec::new();
 
             for content in abridged {
                 match content {
-                    RawContent::Image(image) => {
-                        tool_content.push(Content::text(
+                    ContentBlock::Image(image) => {
+                        tool_content.push(ContentBlock::text(
                             "This tool result included an image that is uploaded in the next message.",
                         ));
                         image_messages.push(DatabricksMessage {
                             role: "user".to_string(),
-                            content: [convert_image(&image.no_annotation(), image_format)].into(),
+                            content: [convert_image(&image, image_format)].into(),
                             tool_calls: None,
                             tool_call_id: None,
                         });
                     }
-                    RawContent::Resource(resource) => {
-                        let text = match &resource.resource {
-                            ResourceContents::TextResourceContents { text, .. } => text.clone(),
-                            _ => String::new(),
-                        };
-                        tool_content.push(Content::text(text));
+                    ContentBlock::Resource(resource) => {
+                        let text = extract_text_from_resource(&resource.resource);
+                        tool_content.push(ContentBlock::text(text));
                     }
-                    _ => tool_content.push(content.no_annotation()),
+                    _ => tool_content.push(content),
                 }
             }
 
@@ -133,14 +129,14 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
 
         for content in &message.content {
             match content {
-                MessageContent::Text(text) => {
+                MessageContentBlock::Text(text) => {
                     if !text.text.is_empty() {
                         let (items, multi) = format_text_content(&text.text, image_format);
                         content_array.extend(items);
                         has_multiple_content |= multi;
                     }
                 }
-                MessageContent::Thinking(content) => {
+                MessageContentBlock::Thinking(content) => {
                     has_multiple_content = true;
                     content_array.push(json!({
                         "type": "reasoning",
@@ -151,14 +147,14 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                         }]
                     }));
                 }
-                MessageContent::RedactedThinking(content) => {
+                MessageContentBlock::RedactedThinking(content) => {
                     has_multiple_content = true;
                     content_array.push(json!({
                         "type": "reasoning",
                         "summary": [{"type": "summary_encrypted_text", "data": content.data}]
                     }));
                 }
-                MessageContent::ToolRequest(request) => {
+                MessageContentBlock::ToolRequest(request) => {
                     has_tool_calls = true;
                     match &request.tool_call {
                         Ok(tool_call) => {
@@ -207,7 +203,7 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                         }
                     }
                 }
-                MessageContent::ToolResponse(response) => {
+                MessageContentBlock::ToolResponse(response) => {
                     for msg in format_tool_response(response, image_format) {
                         if msg.role == "user" {
                             pending_image_messages.push(msg);
@@ -216,10 +212,10 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                         }
                     }
                 }
-                MessageContent::Image(image) => {
+                MessageContentBlock::Image(image) => {
                     content_array.push(convert_image(image, image_format));
                 }
-                MessageContent::FrontendToolRequest(req) => {
+                MessageContentBlock::FrontendToolRequest(req) => {
                     let text = match &req.tool_call {
                         Ok(tool_call) => format!(
                             "Frontend tool request: {} ({})",
@@ -230,9 +226,10 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                     };
                     content_array.push(json!({"type": "text", "text": text}));
                 }
-                MessageContent::SystemNotification(_)
-                | MessageContent::ToolConfirmationRequest(_)
-                | MessageContent::ActionRequired(_) => {}
+                MessageContentBlock::SystemNotification(_)
+                | MessageContentBlock::Error(_)
+                | MessageContentBlock::ToolConfirmationRequest(_)
+                | MessageContentBlock::ActionRequired(_) => {}
             }
         }
 
@@ -351,7 +348,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
             match content_item.get("type").and_then(|t| t.as_str()) {
                 Some("text") => {
                     if let Some(text) = content_item.get("text").and_then(|t| t.as_str()) {
-                        content.push(MessageContent::text(text));
+                        content.push(MessageContentBlock::text(text));
                     }
                 }
                 Some("reasoning") => {
@@ -369,12 +366,12 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                                         .get("signature")
                                         .and_then(|s| s.as_str())
                                         .unwrap_or_default();
-                                    content.push(MessageContent::thinking(text, signature));
+                                    content.push(MessageContentBlock::thinking(text, signature));
                                 }
                                 Some("summary_encrypted_text") => {
                                     if let Some(data) = summary.get("data").and_then(|d| d.as_str())
                                     {
-                                        content.push(MessageContent::redacted_thinking(data));
+                                        content.push(MessageContentBlock::redacted_thinking(data));
                                     }
                                 }
                                 _ => continue,
@@ -387,7 +384,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
         }
     } else if let Some(text) = original.get("content").and_then(|t| t.as_str()) {
         // Handle legacy single string content
-        content.push(MessageContent::text(text));
+        content.push(MessageContentBlock::text(text));
     }
 
     // Handle tool calls
@@ -422,11 +419,11 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         )),
                         data: None,
                     };
-                    content.push(MessageContent::tool_request(id, Err(error)));
+                    content.push(MessageContentBlock::tool_request(id, Err(error)));
                 } else {
                     match crate::json::parse_tool_arguments(&arguments_str) {
                         Some(params) if params.is_object() => {
-                            content.push(MessageContent::tool_request(
+                            content.push(MessageContentBlock::tool_request(
                                 id,
                                 Ok(CallToolRequestParams::new(function_name)
                                     .with_arguments(object(params))),
@@ -444,7 +441,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                                 )),
                                 data: None,
                             };
-                            content.push(MessageContent::tool_request(id, Err(error)));
+                            content.push(MessageContentBlock::tool_request(id, Err(error)));
                         }
                         None => {
                             let message_text =
@@ -459,7 +456,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                                 message: Cow::from(message_text),
                                 data: None,
                             };
-                            content.push(MessageContent::tool_request(id, Err(error)));
+                            content.push(MessageContentBlock::tool_request(id, Err(error)));
                         }
                     }
                 }
@@ -477,133 +474,6 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
 /// Check if the model name indicates a Claude/Anthropic model that supports cache control.
 fn is_claude_model(model_name: &str) -> bool {
     model_name.contains("claude")
-}
-
-/// Add Anthropic-style cache_control fields to the request payload for Claude models.
-/// This enables prompt caching to reduce costs when using Claude via Databricks.
-///
-/// Cache control is added to:
-/// - The system message
-/// - The last two user messages (for incremental caching across turns)
-/// - The last tool definition (so all tools are cached as a single prefix)
-pub fn apply_cache_control_for_claude(payload: &mut Value) {
-    if let Some(messages_spec) = payload
-        .as_object_mut()
-        .and_then(|obj| obj.get_mut("messages"))
-        .and_then(|messages| messages.as_array_mut())
-    {
-        // Add cache_control to the last two user messages for incremental caching.
-        // The last message gets cached so future turns can read from it.
-        // The second-to-last user message is also cached to read from the previous cache.
-        let mut user_count = 0;
-        for message in messages_spec.iter_mut().rev() {
-            if message.get("role") == Some(&json!("user")) {
-                if let Some(content) = message.get_mut("content") {
-                    if let Some(content_str) = content.as_str() {
-                        *content = json!([{
-                            "type": "text",
-                            "text": content_str,
-                            "cache_control": { "type": "ephemeral" }
-                        }]);
-                    } else if let Some(content_array) = content.as_array_mut() {
-                        // Content is already an array, add cache_control to the last element
-                        if let Some(last_content) = content_array.last_mut() {
-                            if let Some(obj) = last_content.as_object_mut() {
-                                obj.insert(
-                                    "cache_control".to_string(),
-                                    json!({ "type": "ephemeral" }),
-                                );
-                            }
-                        }
-                    }
-                }
-                user_count += 1;
-                if user_count >= 2 {
-                    break;
-                }
-            }
-        }
-
-        // Add cache_control to the system message
-        if let Some(system_message) = messages_spec
-            .iter_mut()
-            .find(|msg| msg.get("role") == Some(&json!("system")))
-        {
-            if let Some(content) = system_message.get_mut("content") {
-                if let Some(content_str) = content.as_str() {
-                    *system_message = json!({
-                        "role": "system",
-                        "content": [{
-                            "type": "text",
-                            "text": content_str,
-                            "cache_control": { "type": "ephemeral" }
-                        }]
-                    });
-                }
-            }
-        }
-    }
-
-    // Add cache_control to the last tool definition
-    if let Some(tools_spec) = payload
-        .as_object_mut()
-        .and_then(|obj| obj.get_mut("tools"))
-        .and_then(|tools| tools.as_array_mut())
-    {
-        if let Some(last_tool) = tools_spec.last_mut() {
-            if let Some(function) = last_tool.get_mut("function") {
-                if let Some(obj) = function.as_object_mut() {
-                    obj.insert("cache_control".to_string(), json!({ "type": "ephemeral" }));
-                }
-            }
-        }
-    }
-}
-
-/// Validates and fixes tool schemas to ensure they have proper parameter structure.
-/// If parameters exist, ensures they have properties and required fields, or removes parameters entirely.
-pub fn validate_tool_schemas(tools: &mut [Value]) {
-    for tool in tools.iter_mut() {
-        if let Some(function) = tool.get_mut("function") {
-            if let Some(parameters) = function.get_mut("parameters") {
-                if parameters.is_object() {
-                    ensure_valid_json_schema(parameters);
-                }
-            }
-        }
-    }
-}
-
-/// Ensures that the given JSON value follows the expected JSON Schema structure.
-fn ensure_valid_json_schema(schema: &mut Value) {
-    if let Some(params_obj) = schema.as_object_mut() {
-        // Check if this is meant to be an object type schema
-        let is_object_type = params_obj
-            .get("type")
-            .and_then(|t| t.as_str())
-            .is_none_or(|t| t == "object"); // Default to true if no type is specified
-
-        // Only apply full schema validation to object types
-        if is_object_type {
-            // Ensure required fields exist with default values
-            params_obj.entry("properties").or_insert_with(|| json!({}));
-            params_obj.entry("required").or_insert_with(|| json!([]));
-            params_obj.entry("type").or_insert_with(|| json!("object"));
-
-            // Recursively validate properties if it exists
-            if let Some(properties) = params_obj.get_mut("properties") {
-                if let Some(properties_obj) = properties.as_object_mut() {
-                    for (_key, prop) in properties_obj.iter_mut() {
-                        if prop.is_object()
-                            && prop.get("type").and_then(|t| t.as_str()) == Some("object")
-                        {
-                            ensure_valid_json_schema(prop);
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 #[allow(clippy::too_many_lines)]
@@ -708,9 +578,9 @@ pub fn create_request_for_provider(
         );
     }
 
-    // Apply cache control for Claude models to enable prompt caching
-    if is_claude_model(&model_config.model_name) {
-        apply_cache_control_for_claude(&mut payload);
+    if CacheSemantics::for_model("databricks", &model_config.model_name).uses_explicit_breakpoints()
+    {
+        apply_chat_payload_breakpoints(&mut payload);
     }
 
     // Add request_params to the payload (e.g., anthropic_beta for extended context)
@@ -768,6 +638,21 @@ mod tests {
     }
 
     #[test]
+    fn test_format_messages_sanitizes_resource_tool_response() {
+        let message = Message::user().with_tool_response(
+            "tool1",
+            Ok(CallToolResult::success(vec![ContentBlock::embedded_text(
+                "file:///result.txt",
+                "visible\u{E0041}text",
+            )])),
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec[0].content, "visibletext");
+    }
+
+    #[test]
     fn test_format_tools() -> anyhow::Result<()> {
         let tool = Tool::new(
             "test_tool",
@@ -818,7 +703,7 @@ mod tests {
             ),
         ];
 
-        let tool_id = if let MessageContent::ToolRequest(request) = &messages[2].content[0] {
+        let tool_id = if let MessageContentBlock::ToolRequest(request) = &messages[2].content[0] {
             &request.id
         } else {
             panic!("should be tool request");
@@ -826,7 +711,7 @@ mod tests {
 
         messages.push(Message::user().with_tool_response(
             tool_id,
-            Ok(CallToolResult::success(vec![Content::text("Result")])),
+            Ok(CallToolResult::success(vec![ContentBlock::text("Result")])),
         ));
 
         let as_value =
@@ -854,7 +739,7 @@ mod tests {
             Ok(CallToolRequestParams::new("example").with_arguments(object!({"param1": "value1"}))),
         )];
 
-        let tool_id = if let MessageContent::ToolRequest(request) = &messages[0].content[0] {
+        let tool_id = if let MessageContentBlock::ToolRequest(request) = &messages[0].content[0] {
             &request.id
         } else {
             panic!("should be tool request");
@@ -862,7 +747,7 @@ mod tests {
 
         messages.push(Message::user().with_tool_response(
             tool_id,
-            Ok(CallToolResult::success(vec![Content::text("Result")])),
+            Ok(CallToolResult::success(vec![ContentBlock::text("Result")])),
         ));
 
         let as_value =
@@ -974,7 +859,7 @@ mod tests {
 
         let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 1);
-        if let MessageContent::Text(text) = &message.content[0] {
+        if let MessageContentBlock::Text(text) = &message.content[0] {
             assert_eq!(text.text, "Hello from John Cena!");
         } else {
             panic!("Expected Text content");
@@ -990,7 +875,7 @@ mod tests {
         let message = response_to_message(&response)?;
 
         assert_eq!(message.content.len(), 1);
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "example_fn");
             assert_eq!(tool_call.arguments, Some(object!({"param": "value"})));
@@ -1009,7 +894,7 @@ mod tests {
 
         let message = response_to_message(&response)?;
 
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
                 Err(ErrorData {
                     code: ErrorCode::INVALID_REQUEST,
@@ -1035,7 +920,7 @@ mod tests {
 
         let message = response_to_message(&response)?;
 
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
                 Err(ErrorData {
                     code: ErrorCode::INVALID_PARAMS,
@@ -1064,7 +949,7 @@ mod tests {
 
         let message = response_to_message(&response)?;
 
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
                 Err(ErrorData {
                     code: ErrorCode::INVALID_PARAMS,
@@ -1094,7 +979,7 @@ mod tests {
 
         let message = response_to_message(&response)?;
 
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "example_fn");
             assert_eq!(tool_call.arguments, Some(object!({})));
@@ -1117,6 +1002,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
@@ -1151,6 +1037,7 @@ mod tests {
             toolshim_model: None,
             request_params: Some(params),
             reasoning: None,
+            request_headers: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         assert_eq!(request["reasoning_effort"], "high");
@@ -1158,7 +1045,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_request_off_effort_preserves_none() -> anyhow::Result<()> {
+    fn test_create_request_off_effort_uses_low() -> anyhow::Result<()> {
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), serde_json::json!("off"));
         let model_config = ModelConfig {
@@ -1170,9 +1057,10 @@ mod tests {
             toolshim_model: None,
             request_params: Some(params),
             reasoning: None,
+            request_headers: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
-        assert_eq!(request["reasoning_effort"], "none");
+        assert_eq!(request["reasoning_effort"], "low");
         assert!(request.get("thinking_effort").is_none());
         Ok(())
     }
@@ -1190,6 +1078,7 @@ mod tests {
             toolshim_model: None,
             request_params: Some(params),
             reasoning: None,
+            request_headers: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         assert_eq!(request["reasoning_effort"], "high");
@@ -1208,6 +1097,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         assert_eq!(request["model"], "o3");
@@ -1226,6 +1116,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         assert_eq!(request["model"], "o3");
@@ -1244,6 +1135,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         assert_eq!(request["model"], "databricks-gpt-5.4");
@@ -1390,14 +1282,14 @@ mod tests {
         let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 2);
 
-        if let MessageContent::Thinking(thinking) = &message.content[0] {
+        if let MessageContentBlock::Thinking(thinking) = &message.content[0] {
             assert_eq!(thinking.thinking, "Test thinking content");
             assert_eq!(thinking.signature, "test-signature");
         } else {
             panic!("Expected Thinking content");
         }
 
-        if let MessageContent::Text(text) = &message.content[1] {
+        if let MessageContentBlock::Text(text) = &message.content[1] {
             assert_eq!(text.text, "Regular text content");
         } else {
             panic!("Expected Text content");
@@ -1437,13 +1329,13 @@ mod tests {
         let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 2);
 
-        if let MessageContent::RedactedThinking(redacted) = &message.content[0] {
+        if let MessageContentBlock::RedactedThinking(redacted) = &message.content[0] {
             assert_eq!(redacted.data, "E23sQFCkYIARgCKkATCHitsdf327Ber3v4NYUq2");
         } else {
             panic!("Expected RedactedThinking content");
         }
 
-        if let MessageContent::Text(text) = &message.content[1] {
+        if let MessageContentBlock::Text(text) = &message.content[1] {
             assert_eq!(text.text, "Regular text content");
         } else {
             panic!("Expected Text content");
@@ -1563,138 +1455,6 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_cache_control_for_claude_system_message() -> anyhow::Result<()> {
-        let mut payload = json!({
-            "model": "databricks-claude-sonnet-4",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are a helpful assistant."
-                },
-                {
-                    "role": "user",
-                    "content": "Hello"
-                }
-            ]
-        });
-
-        apply_cache_control_for_claude(&mut payload);
-
-        let messages = payload["messages"].as_array().unwrap();
-        let system_msg = &messages[0];
-
-        // System message content should be converted to array with cache_control
-        assert!(system_msg["content"].is_array());
-        let content = system_msg["content"].as_array().unwrap();
-        assert_eq!(content.len(), 1);
-        assert_eq!(content[0]["type"], "text");
-        assert_eq!(content[0]["text"], "You are a helpful assistant.");
-        assert_eq!(content[0]["cache_control"]["type"], "ephemeral");
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_apply_cache_control_for_claude_user_messages() -> anyhow::Result<()> {
-        let mut payload = json!({
-            "model": "databricks-claude-sonnet-4",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are helpful"
-                },
-                {
-                    "role": "user",
-                    "content": "First question"
-                },
-                {
-                    "role": "assistant",
-                    "content": "First answer"
-                },
-                {
-                    "role": "user",
-                    "content": "Second question"
-                },
-                {
-                    "role": "assistant",
-                    "content": "Second answer"
-                },
-                {
-                    "role": "user",
-                    "content": "Third question"
-                }
-            ]
-        });
-
-        apply_cache_control_for_claude(&mut payload);
-
-        let messages = payload["messages"].as_array().unwrap();
-
-        // First user message should NOT have cache_control (only last 2)
-        let first_user = &messages[1];
-        assert_eq!(first_user["content"], "First question");
-
-        // Second-to-last user message should have cache_control
-        let second_user = &messages[3];
-        assert!(second_user["content"].is_array());
-        assert_eq!(
-            second_user["content"][0]["cache_control"]["type"],
-            "ephemeral"
-        );
-
-        // Last user message should have cache_control
-        let last_user = &messages[5];
-        assert!(last_user["content"].is_array());
-        assert_eq!(
-            last_user["content"][0]["cache_control"]["type"],
-            "ephemeral"
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_apply_cache_control_for_claude_tools() -> anyhow::Result<()> {
-        let mut payload = json!({
-            "model": "databricks-claude-sonnet-4",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are helpful"
-                }
-            ],
-            "tools": [
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "tool1",
-                        "description": "First tool"
-                    }
-                },
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "tool2",
-                        "description": "Second tool"
-                    }
-                }
-            ]
-        });
-
-        apply_cache_control_for_claude(&mut payload);
-
-        let tools = payload["tools"].as_array().unwrap();
-
-        // First tool should NOT have cache_control
-        assert!(tools[0]["function"].get("cache_control").is_none());
-
-        // Last tool should have cache_control
-        assert_eq!(tools[1]["function"]["cache_control"]["type"], "ephemeral");
-
-        Ok(())
-    }
-
-    #[test]
     fn test_format_messages_with_thought_signature_metadata() -> anyhow::Result<()> {
         let mut metadata = serde_json::Map::new();
         metadata.insert(
@@ -1733,6 +1493,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let messages = vec![
@@ -1785,6 +1546,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let messages = vec![Message::user().with_text("Hello")];
@@ -1864,14 +1626,14 @@ mod tests {
             Message::user()
                 .with_tool_response(
                     "id1",
-                    Ok(CallToolResult::success(vec![Content::image(
+                    Ok(CallToolResult::success(vec![ContentBlock::image(
                         "base64data1".to_string(),
                         "image/png".to_string(),
                     )])),
                 )
                 .with_tool_response(
                     "id2",
-                    Ok(CallToolResult::success(vec![Content::image(
+                    Ok(CallToolResult::success(vec![ContentBlock::image(
                         "base64data2".to_string(),
                         "image/png".to_string(),
                     )])),
@@ -1899,11 +1661,13 @@ mod tests {
             Message::user()
                 .with_tool_response(
                     "id1",
-                    Ok(CallToolResult::success(vec![Content::text("text result")])),
+                    Ok(CallToolResult::success(vec![ContentBlock::text(
+                        "text result",
+                    )])),
                 )
                 .with_tool_response(
                     "id2",
-                    Ok(CallToolResult::success(vec![Content::image(
+                    Ok(CallToolResult::success(vec![ContentBlock::image(
                         "base64data".to_string(),
                         "image/png".to_string(),
                     )])),

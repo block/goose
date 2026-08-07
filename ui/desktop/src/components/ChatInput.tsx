@@ -655,7 +655,7 @@ export default function ChatInput({
           total: tokenLimit,
         },
         showCompactButton: true,
-        compactButtonDisabled: !totalTokens,
+        compactButtonDisabled: !totalTokens || isLoading,
         onCompact: () => {
           window.dispatchEvent(new CustomEvent(AppEvents.HIDE_ALERT_POPOVER));
           handleSubmit({ msg: MANUAL_COMPACT_TRIGGER, images: [] });
@@ -664,9 +664,8 @@ export default function ChatInput({
       });
     }
 
-    // Keep alert recalculation scoped to token state changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalTokens, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totalTokens, tokenLimit, isTokenLimitLoaded, isLoading, addAlert, clearAlerts]);
 
   // Cleanup effect for component unmount - prevent memory leaks
   useEffect(() => {

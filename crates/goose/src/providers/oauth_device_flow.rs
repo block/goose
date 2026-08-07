@@ -80,6 +80,14 @@ pub struct DeviceFlowTokens {
     pub expires_at: Option<DateTime<Utc>>,
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error("token refresh failed ({status}): {body}")]
+pub struct DeviceFlowTokenRefreshError {
+    pub status: reqwest::StatusCode,
+    pub error: Option<String>,
+    body: String,
+}
+
 // ── Public entry points ──────────────────────────────────────────────────────
 
 /// Request a device code from the authorization server.
@@ -202,14 +210,25 @@ pub async fn refresh_device_flow_token(
         refresh_token,
     };
 
-    let raw: TokenResponseBody = send_request(client, cfg, cfg.token_url, &req)
+    let response = send_request(client, cfg, cfg.token_url, &req)
         .await
-        .context("failed to refresh token")?
-        .error_for_status()
-        .context("token refresh failed")?
-        .json()
+        .context("failed to refresh token")?;
+    let status = response.status();
+    let bytes = response
+        .bytes()
         .await
-        .context("failed to parse token refresh response")?;
+        .context("failed to read token refresh response")?;
+    let raw = serde_json::from_slice::<TokenResponseBody>(&bytes);
+
+    if !status.is_success() {
+        return Err(anyhow::Error::new(DeviceFlowTokenRefreshError {
+            status,
+            error: raw.ok().and_then(|body| body.error),
+            body: String::from_utf8_lossy(&bytes).into_owned(),
+        }));
+    }
+
+    let raw = raw.context("failed to parse token refresh response")?;
 
     let access_token = raw
         .access_token
@@ -287,7 +306,12 @@ async fn send_request<T: Serialize + ?Sized>(
     url: &str,
     body: &T,
 ) -> reqwest::Result<reqwest::Response> {
-    let builder = client.post(url).headers(cfg.extra_headers.clone());
+    let builder = client
+        .post(url)
+        .timeout(std::time::Duration::from_secs(
+            super::base::DEFAULT_PROVIDER_TIMEOUT_SECS,
+        ))
+        .headers(cfg.extra_headers.clone());
     let builder = match cfg.encoding {
         RequestEncoding::Form => builder.form(body),
         RequestEncoding::Json => builder.json(body),

@@ -131,6 +131,9 @@
   "baseChat.goHome": {
     "defaultMessage": "ホームへ"
   },
+  "baseChat.reconnecting": {
+    "defaultMessage": "接続が失われました。再接続しています…"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "拡張機能を更新しました"
   },
@@ -1194,7 +1197,7 @@
     "defaultMessage": "シークレットキー"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "goosed サーバーに設定されたシークレットキー（GOOSE_SERVER__SECRET_KEY）"
+    "defaultMessage": "Goose サーバーに設定されたシークレットキー（GOOSE_SERVER__SECRET_KEY）"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "サーバーのシークレットキーを入力"
@@ -2357,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "チャット"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "作成"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "ディレクトリ"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "モデル"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "ステータス"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "更新"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "最近のチャットはありません"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "エラー"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "アイドル"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "ストリーミング"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "未読のアクティビティ"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "無題のセッション"
@@ -2813,6 +2843,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "テンプレートまたは手動設定から"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "「{query}」に一致するプロバイダーはありません"
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "プロバイダーを検索..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "{providerName}のロゴ"
   },
@@ -3016,12 +3052,6 @@
   },
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "デフォルトプロバイダーを使用"
-  },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "レシピ名"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "自動的に整形されます（小文字、スペースはダッシュ）"
   },
   "recipeWarningModal.cancel": {
     "defaultMessage": "キャンセル"
@@ -3653,6 +3683,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "セッションJSONをコピーしました"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "テキストをコピーしました"
   },
@@ -3683,6 +3716,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "JSONを読み込み中..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "セッションの名前を変更できませんでした: {error}"
   },
@@ -3707,6 +3746,9 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "セッションJSONを表示"
   },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
+  },
   "sessionIndicators.error": {
     "defaultMessage": "セッションでエラーが発生しました"
   },
@@ -3715,24 +3757,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "ストリーミング中"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "このセッションにはメッセージがありません"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "メッセージが見つかりません"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "セッション詳細の読み込みエラー"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "再試行"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "あなた"
   },
   "sessions.action.delete": {
     "defaultMessage": "セッションを削除"
@@ -3745,6 +3769,12 @@
   },
   "sessions.action.export": {
     "defaultMessage": "セッションをエクスポート"
+  },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
   },
   "sessions.action.openNewWindow": {
     "defaultMessage": "新しいウィンドウで開く"
@@ -3844,6 +3874,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "セッション「{name}」を複製しました"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "セッションをエクスポートできませんでした: {error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "セッションをエクスポートしました"
@@ -4061,9 +4094,6 @@
   "settingsView.title": {
     "defaultMessage": "設定"
   },
-  "sheet.close": {
-    "defaultMessage": "閉じる"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "キャンセル"
   },
@@ -4129,15 +4159,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "{name}プロバイダーが設定されています"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Ollamaアプリ"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "使用するには、"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "をマシンにインストールして開いておくか、OLLAMA_HOSTの値を入力する必要があります。"
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "既存を追加"
@@ -4553,6 +4574,9 @@
   "userMessage.editButton": {
     "defaultMessage": "編集"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "添付画像:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "その場で編集"
   },
@@ -4585,5 +4609,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "編集したメッセージで新しいセッションを作成"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "メッセージから画像を削除"
   }
 }

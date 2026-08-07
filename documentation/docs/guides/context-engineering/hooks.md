@@ -119,7 +119,7 @@ Place the plugin under a discovered plugin location, such as `~/.agents/plugins/
 
 | Field | Required | Description |
 |---|---:|---|
-| `matcher` | No | Regular expression used to decide whether the rule runs for the event. If omitted, the rule runs for every event of that type. |
+| `matcher` | No | Regular expression (not a glob) used to decide whether the rule runs for the event. If omitted, the rule runs for every event of that type. |
 | `hooks` | Yes | Actions to run when the event and matcher apply. |
 | `type` | No | Action type. goose currently supports `command`. If omitted, `command` is used. |
 | `command` | Yes for command hooks | Shell command to run. goose runs it with `sh -c`. |
@@ -143,7 +143,11 @@ Use `${PLUGIN_ROOT}` in a command to reference the plugin directory. goose also 
 | `BeforeShellExecution` | Before goose runs a shell command | Shell command |
 | `AfterShellExecution` | After goose successfully runs a shell command | Shell command |
 
-The matcher is a regular expression matched against the most relevant string for the event. For example, use `"\\.rs$"` to match Rust files on `AfterFileEdit`, or `"^(cargo test|pnpm test)"` to match test commands on `AfterShellExecution`.
+The matcher is a regular expression matched against the most relevant string for the event. For example, use `"\\.rs$"` to match Rust files on `AfterFileEdit`, or `"^(cargo test|pnpm test)"` to match test commands on `AfterShellExecution`. The match is unanchored, so `"developer__shell"` also matches `"developer__shell_foo"`; anchor with `^`/`$` when you need an exact match.
+
+:::warning Use `.*`, not `*`, to match everything
+The matcher is a regular expression, not a glob. A bare `"*"` is an invalid regex, so the whole rule is **silently skipped** (goose logs a warning and moves on). To run a rule for every event, either omit `matcher` entirely or use `".*"`.
+:::
 
 :::note
 `AfterFileEdit` and `AfterShellExecution` only run after successful tool calls. To react to failed edits, failed shell commands, or other failed tool calls, use `PostToolUseFailure`.
@@ -210,6 +214,77 @@ tool="$(printf '%s' "$payload" | jq -r '.tool_name // "none"')"
 
 echo "goose hook: event=$event tool=$tool" >> "${PLUGIN_ROOT}/hook.log"
 ```
+
+### Tool Input Keys
+
+`tool_name` uses the tool's namespaced name (for example `developer__shell`), and `tool_input` holds that tool's own arguments. The keys are the tool's schema, so they vary by tool—a hook that inspects a file path must read the right field for the tool it matched. The keys for goose's built-in `developer` tools are:
+
+| `tool_name` | `tool_input` keys |
+|---|---|
+| `developer__shell` | `command`, `timeout_secs` (optional) |
+| `developer__write` | `path`, `content` |
+| `developer__edit` | `path`, `before`, `after` |
+| `developer__tree` | `path`, `depth` |
+| `developer__read_image` | `source`, `crop` (optional) |
+
+For the shell and file tools, `matcher_context` already carries the shell command (on `BeforeShellExecution`/`AfterShellExecution`) or the file path (on `BeforeReadFile`/`AfterFileEdit`), so those hooks can match without parsing `tool_input`.
+
+## Blocking a Tool Call
+
+Most events are observation-only: goose runs the hook, logs the result, and continues regardless of what the hook returns. Two events are different—**`PreToolUse` and `Stop` can block**. A hook on any other event (including `UserPromptSubmit`, `PostToolUse`, and the `Before*`/`After*` events) cannot stop anything; a block decision from those events is ignored.
+
+A `PreToolUse` hook denies the tool call with either of two signals:
+
+- **Exit code `2`** — goose blocks and takes the reason from **stderr**.
+- **`{"decision":"block","reason":"..."}` on stdout** — goose blocks and takes the reason from the `reason` field. goose checks stdout whenever the exit code is not `2`, so this signal is honored regardless of whether the hook exits `0` or non-zero.
+
+For the stdout signal, stdout must start with `{` and `decision` must be exactly `"block"`; any other value allows the call. If the `reason` is empty, goose substitutes `denied by plugin hook`.
+
+When a `PreToolUse` hook blocks, goose does not run the tool and returns this message to the model:
+
+```text
+Tool call denied by policy hook `<plugin>`: <reason>. Do not retry; this is a policy denial, not a transient failure.
+```
+
+**A broken hook fails open.** goose blocks only on one of the two deny signals above. If the hook produces neither—it prints nothing or non-`{` stdout and does not exit `2`, or it fails to run at all (a spawn error or a timeout)—the call is logged and allowed. Because the stdout signal is checked independently of the exit code, a hook that prints `{"decision":"block"}` and *then* exits non-zero still blocks; do not rely on a non-zero exit to cancel a block you have already printed.
+
+A `Stop` hook that blocks forces the turn to keep going instead of ending. To prevent a misbehaving hook from looping forever, goose caps the number of consecutive `Stop` blocks; once the cap is hit, goose overrides the hook and ends the turn. Raise the cap with the `GOOSE_STOP_HOOK_BLOCK_CAP` environment variable.
+
+### Block a Dangerous Command
+
+This `PreToolUse` hook blocks any shell command that uses `sudo`:
+
+```json title="hooks/hooks.json"
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "developer__shell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PLUGIN_ROOT}/scripts/block-sudo.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+```bash title="scripts/block-sudo.sh"
+#!/usr/bin/env bash
+set -euo pipefail
+
+payload="$(cat)"
+command="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty')"
+
+if printf '%s' "$command" | grep -qE '(^|[[:space:]])sudo([[:space:]]|$)'; then
+  printf '{"decision":"block","reason":"sudo is not allowed in this session"}'
+fi
+```
+
+The hook prints nothing when the command is allowed, so goose runs it normally.
 
 ## Examples
 
@@ -354,7 +429,7 @@ Check the following:
 
 ### My Hook Timed Out or Failed
 
-Hook failures are logged but do not crash goose or the tool that triggered the hook. If a hook fails or exceeds its timeout, goose logs the failure and continues.
+Hook failures are logged but do not crash goose or the tool that triggered the hook. If a hook fails or exceeds its timeout, goose logs the failure and continues. This is the fail-open behavior described in [Blocking a Tool Call](#blocking-a-tool-call): to intentionally stop a tool call, a `PreToolUse` hook must emit a clean block signal, not just exit non-zero.
 
 Set a larger timeout for long-running hooks:
 

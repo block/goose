@@ -50,14 +50,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "沒有可用的應用程式"
   },
-  "appsView.retry": {
-    "defaultMessage": "重試"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "重試"
   },
   "appsView.title": {
     "defaultMessage": "應用程式"
@@ -130,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "回到首頁"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "連線已中斷。正在重新連線…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "擴充功能已更新"
@@ -1194,7 +1197,7 @@
     "defaultMessage": "密鑰"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "在 goosed 伺服器上設定的密鑰 (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "在 Goose 伺服器上設定的密鑰 (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "輸入伺服器的密鑰"
@@ -2357,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "交談"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "建立時間"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "目錄"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "模型"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "狀態"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "更新時間"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "沒有最近的交談"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "錯誤"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "閒置"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "串流"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "未讀活動"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "未命名工作階段"
@@ -2813,6 +2843,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "從範本或手動設定"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "沒有符合 \"{query}\" 的提供者"
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "搜尋提供者..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "{providerName} 標誌"
   },
@@ -3016,12 +3052,6 @@
   },
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "使用預設提供者"
-  },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "配方名稱"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "將自動格式化（小寫，空格以連字號取代）"
   },
   "recipeWarningModal.cancel": {
     "defaultMessage": "取消"
@@ -3653,6 +3683,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "工作階段 JSON 已複製"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "文字已複製"
   },
@@ -3683,6 +3716,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "正在載入 JSON…"
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "重新命名工作階段失敗：{error}"
   },
@@ -3707,6 +3746,9 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "檢視工作階段 JSON"
   },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
+  },
   "sessionIndicators.error": {
     "defaultMessage": "工作階段發生錯誤"
   },
@@ -3715,24 +3757,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "串流中"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "此工作階段不包含任何訊息"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "找不到訊息"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "載入工作階段詳細資料時發生錯誤"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "再試一次"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "您"
   },
   "sessions.action.delete": {
     "defaultMessage": "刪除工作階段"
@@ -3745,6 +3769,12 @@
   },
   "sessions.action.export": {
     "defaultMessage": "匯出工作階段"
+  },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
   },
   "sessions.action.openNewWindow": {
     "defaultMessage": "在新視窗中開啟"
@@ -3844,6 +3874,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "已成功複製工作階段「{name}」"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "無法匯出工作階段：{error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "已成功匯出工作階段"
@@ -4061,9 +4094,6 @@
   "settingsView.title": {
     "defaultMessage": "設定"
   },
-  "sheet.close": {
-    "defaultMessage": "關閉"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "取消"
   },
@@ -4129,15 +4159,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "已設定 {name} 提供者"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Ollama 應用程式"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "若要使用，請選擇"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "必須安裝在您的電腦上並開啟，或者您必須輸入 OLLAMA_HOST 的值。"
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "新增現有項目"
@@ -4553,6 +4574,9 @@
   "userMessage.editButton": {
     "defaultMessage": "編輯"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "附加圖片："
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "就地編輯"
   },
@@ -4585,5 +4609,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "以編輯後的訊息建立新的工作階段"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "從訊息中移除圖片"
   }
 }
