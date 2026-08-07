@@ -871,11 +871,35 @@ impl SummonClient {
         else {
             return Ok(None);
         };
-        let Some(record) = WorkerRegistryState::from_extension_data(&session.extension_data)
+        let Some(mut record) = WorkerRegistryState::from_extension_data(&session.extension_data)
             .and_then(|registry| registry.workers.get(worker_name).cloned())
         else {
             return Ok(None);
         };
+        // ModelConfig's deserializer rewrites effort-suffixed model names,
+        // which corrupts providers whose deployment ids look like suffixes;
+        // repair from the raw value like session model configs are.
+        if let Some(config) = session
+            .extension_data
+            .get_extension_state(
+                WorkerRegistryState::EXTENSION_NAME,
+                WorkerRegistryState::VERSION,
+            )
+            .and_then(|registry| {
+                registry
+                    .get("workers")?
+                    .get(worker_name)?
+                    .get("model_config")
+            })
+            .and_then(|raw_config| {
+                crate::session::session_manager::deserialize_session_model_config(
+                    Some(&record.creation.provider),
+                    &raw_config.to_string(),
+                )
+            })
+        {
+            record.model_config = config;
+        }
         let worker_session = self
             .context
             .session_manager
@@ -3274,6 +3298,52 @@ mod tests {
         assert!(resumed.contains("first task"));
         assert!(resumed.contains("reply-1"));
         assert!(resumed.contains("second task"));
+    }
+
+    #[tokio::test]
+    async fn test_worker_record_load_preserves_effort_suffixed_model_name() {
+        let rig = persisted_worker_rig().await;
+        rig.client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("first task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        rig.client
+            .context
+            .session_manager
+            .update_extension_data(&rig.session.id, |extension_data| {
+                let mut value = extension_data
+                    .get_extension_state(
+                        WorkerRegistryState::EXTENSION_NAME,
+                        WorkerRegistryState::VERSION,
+                    )
+                    .cloned()
+                    .unwrap();
+                let record = &mut value["workers"]["helper"];
+                record["creation"]["provider"] =
+                    serde_json::Value::String("azure_foundry".to_string());
+                record["model_config"]["model_name"] =
+                    serde_json::Value::String("gpt-5-high".to_string());
+                extension_data.set_extension_state(
+                    WorkerRegistryState::EXTENSION_NAME,
+                    WorkerRegistryState::VERSION,
+                    value,
+                );
+            })
+            .await
+            .unwrap();
+
+        let record = rig
+            .client
+            .load_worker_record(&rig.session.id, "helper")
+            .await
+            .unwrap()
+            .expect("record loads");
+        assert_eq!(record.model_config.model_name, "gpt-5-high");
     }
 
     #[tokio::test]

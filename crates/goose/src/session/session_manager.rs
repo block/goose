@@ -777,7 +777,7 @@ impl Session {
     }
 }
 
-fn deserialize_session_model_config(
+pub(crate) fn deserialize_session_model_config(
     provider_name: Option<&str>,
     json: &str,
 ) -> Option<ModelConfig> {
