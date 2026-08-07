@@ -112,6 +112,35 @@ const HOSTS_KEY = "goose-roam-hosts";
 
 type SavedHost = { name: string; card: string; endpointId: string; lastUsed: number };
 
+// One live roam connection. The tab holds several at once — each saved host
+// gets its own iroh duplex + GooseClient, and the session list is the merge.
+type HostConn = {
+  endpointId: string;
+  name: string;
+  card: string;
+  agent: GooseClient;
+  conn: RoamConnection;
+  relay: string | null;
+};
+
+// A session tagged with the host it lives on. Session ids are only unique
+// per host, so every lookup carries (_host, sessionId).
+type TaggedSession = SessionInfo & { _host: string };
+
+function groupByHost(sessions: TaggedSession[]): [string, TaggedSession[]][] {
+  const order: string[] = [];
+  const byHost = new Map<string, TaggedSession[]>();
+  for (const s of sessions) {
+    const g = byHost.get(s._host);
+    if (g) g.push(s);
+    else {
+      byHost.set(s._host, [s]);
+      order.push(s._host);
+    }
+  }
+  return order.map((h) => [h, byHost.get(h) ?? []]);
+}
+
 function relayRegion(cardText: string): string | null {
   try {
     const b64 = cardText.trim().replace(/^goose\+roam:\/\//, "");
@@ -131,6 +160,19 @@ function loadHosts(): SavedHost[] {
     return [];
   }
 }
+
+// Endpoint id straight out of the card JSON — for keying reconnect attempts
+// when the dial itself failed (no RoamConnection to ask).
+function cardEndpointHint(cardText: string): string | null {
+  try {
+    const b64 = cardText.trim().replace(/^goose\+roam:\/\//, "");
+    const json = JSON.parse(atob(b64.replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof json.endpoint_id === "string" ? json.endpoint_id : null;
+  } catch {
+    return null;
+  }
+}
+// Last-open session is remembered per host: "<endpointId>|<sessionId>".
 const SESSION_KEY = "goose-roam-last-session";
 
 function sessionProjectId(s: SessionInfo): string | null {
@@ -141,26 +183,28 @@ function sessionProjectId(s: SessionInfo): string | null {
 
 // Bucket sessions under their project (server order preserved within each
 // bucket); projectless sessions lead, so the everyday case reads unchanged.
+// Project titles are looked up per host — slugs are only unique per machine.
 function groupSessions(
-  sessions: SessionInfo[],
+  sessions: TaggedSession[],
   projects: Record<string, string>,
-): [string | null, SessionInfo[]][] {
-  const loose: SessionInfo[] = [];
-  const byProject = new Map<string, SessionInfo[]>();
+): [string | null, TaggedSession[]][] {
+  const loose: TaggedSession[] = [];
+  const byProject = new Map<string, TaggedSession[]>();
   for (const s of sessions) {
     const pid = sessionProjectId(s);
     if (!pid) {
       loose.push(s);
     } else {
-      const g = byProject.get(pid);
+      const key = `${s._host}:${pid}`;
+      const g = byProject.get(key);
       if (g) g.push(s);
-      else byProject.set(pid, [s]);
+      else byProject.set(key, [s]);
     }
   }
-  const out: [string | null, SessionInfo[]][] = [];
+  const out: [string | null, TaggedSession[]][] = [];
   if (loose.length) out.push([null, loose]);
-  for (const [pid, group] of byProject) {
-    out.push([projects[pid] ?? pid, group]);
+  for (const [key, group] of byProject) {
+    out.push([projects[key] ?? key.split(":").slice(1).join(":"), group]);
   }
   return out;
 }
@@ -176,8 +220,9 @@ export function App({ roam }: { roam: RoamClient }) {
   const [statusKind, setStatusKind] = useState<"idle" | "busy" | "ok" | "err">("idle");
   const [connected, setConnected] = useState(false);
   const [agentId, setAgentId] = useState("");
-  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [sessions, setSessions] = useState<TaggedSession[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [activeHostId, setActiveHostId] = useState<string | null>(null);
   const [logWindow, setLogWindow] = useState(80);
   const [busy, setBusy] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -187,8 +232,8 @@ export function App({ roam }: { roam: RoamClient }) {
   const [activeRun, setActiveRun] = useState<string | null>(null);
   const activeRunRef = useRef<string | null>(null);
   const [card, setCard] = useState("");
-  const agentRef = useRef<GooseClient | null>(null);
-  const connRef = useRef<RoamConnection | null>(null);
+  const hostsRef = useRef<Map<string, HostConn>>(new Map());
+  const activeHostRef = useRef<string | null>(null);
   const sessionRef = useRef<string | null>(null);
   const streamRole = useRef<"user" | "agent" | "thought" | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -197,6 +242,9 @@ export function App({ roam }: { roam: RoamClient }) {
   const [scanning, setScanning] = useState(false);
   const [hosts, setHosts] = useState<SavedHost[]>(loadHosts);
   const [addingHost, setAddingHost] = useState(false);
+  // Reopens the connect panel while connected, to dial additional hosts into
+  // the same consolidated workspace.
+  const [showHosts, setShowHosts] = useState(false);
   const [hostName, setHostName] = useState("");
   const reconnectAttempt = useRef(0);
   const resumeAfterDrop = useRef<string | null>(null);
@@ -443,46 +491,74 @@ export function App({ roam }: { roam: RoamClient }) {
     };
   }, [chunk, mutateItems]);
 
+  // The host whose session is open (or the only/last-connected one). Chat
+  // actions go here; list actions fan out over all hosts.
+  const activeAgent = useCallback((): GooseClient | null => {
+    const hid = activeHostRef.current;
+    if (hid) return hostsRef.current.get(hid)?.agent ?? null;
+    const first = hostsRef.current.values().next();
+    return first.done ? null : first.value.agent;
+  }, []);
+
+  // Consolidated list: every connected host contributes its sessions, tagged
+  // with the host they live on. One slow host can't hide the others.
   const refreshSessions = useCallback(async () => {
-    const agent = agentRef.current;
-    if (!agent) return;
-    try {
-      const res = await agent.listSessions({});
-      setSessions(res.sessions ?? []);
-    } catch (err) {
-      console.warn("listSessions unavailable:", err);
-    }
+    const conns = [...hostsRef.current.values()];
+    if (conns.length === 0) return;
+    const lists = await Promise.all(
+      conns.map(async (h) => {
+        try {
+          const res = await h.agent.listSessions({});
+          return (res.sessions ?? []).map((s) => ({ ...s, _host: h.endpointId }));
+        } catch (err) {
+          console.warn(`listSessions failed for ${h.name}:`, err);
+          return [] as TaggedSession[];
+        }
+      }),
+    );
+    setSessions(lists.flat());
   }, []);
 
   // Projects are ordinary ACP: sources/list with type "project" returns
-  // slug + title; sessions carry projectId in _meta. Fetched once per connect.
+  // slug + title; sessions carry projectId in _meta. Keyed "<host>:<slug>"
+  // because slugs are only unique per machine.
   const refreshProjects = useCallback(async () => {
-    const agent = agentRef.current;
-    if (!agent) return;
-    try {
-      const res = (await agent.extMethod("_goose/unstable/sources/list", {
-        type: "project",
-      })) as { sources?: { name: string; properties?: Record<string, unknown> }[] };
-      const map: Record<string, string> = {};
-      for (const s of res.sources ?? []) {
-        const title = s.properties?.["title"];
-        map[s.name] = typeof title === "string" && title ? title : s.name;
-      }
-      setProjects(map);
-    } catch (err) {
-      console.warn("sources/list unavailable:", err);
-    }
+    const conns = [...hostsRef.current.values()];
+    if (conns.length === 0) return;
+    const maps = await Promise.all(
+      conns.map(async (h) => {
+        try {
+          const res = (await h.agent.extMethod("_goose/unstable/sources/list", {
+            type: "project",
+          })) as { sources?: { name: string; properties?: Record<string, unknown> }[] };
+          const map: Record<string, string> = {};
+          for (const s of res.sources ?? []) {
+            const title = s.properties?.["title"];
+            map[`${h.endpointId}:${s.name}`] =
+              typeof title === "string" && title ? title : s.name;
+          }
+          return map;
+        } catch (err) {
+          console.warn(`sources/list failed for ${h.name}:`, err);
+          return {};
+        }
+      }),
+    );
+    setProjects(Object.assign({}, ...maps));
   }, []);
 
-  const newSession = useCallback(async () => {
-    const agent = agentRef.current;
-    if (!agent) return;
+  const newSession = useCallback(async (hostId?: string) => {
+    const hid = hostId ?? activeHostRef.current ?? hostsRef.current.keys().next().value ?? null;
+    const host = hid ? hostsRef.current.get(hid) : null;
+    if (!host) return;
     setBusy(true);
     try {
-      const res = await agent.newSession({ cwd: "/", mcpServers: [] });
+      const res = await host.agent.newSession({ cwd: "/", mcpServers: [] });
       const m = modelFromConfigOptions((res as { configOptions?: unknown[] }).configOptions);
       if (m) setModelName(m);
-      localStorage.setItem(SESSION_KEY, res.sessionId);
+      localStorage.setItem(SESSION_KEY, `${host.endpointId}|${res.sessionId}`);
+      activeHostRef.current = host.endpointId;
+      setActiveHostId(host.endpointId);
       sessionRef.current = res.sessionId;
       setSessionId(res.sessionId);
       setItems([{ kind: "system", id: nextId++, text: "New session — say hello" }]);
@@ -495,9 +571,10 @@ export function App({ roam }: { roam: RoamClient }) {
   }, [push, refreshSessions]);
 
   const openSession = useCallback(
-    async (id: string, force = false) => {
-      const agent = agentRef.current;
-      if (!agent || (id === sessionRef.current && !force)) return;
+    async (hostId: string, id: string, force = false) => {
+      const host = hostsRef.current.get(hostId);
+      if (!host) return;
+      if (id === sessionRef.current && hostId === activeHostRef.current && !force) return;
       setBusy(true);
       setStatus("loading session…");
       setStatusKind("busy");
@@ -506,14 +583,16 @@ export function App({ roam }: { roam: RoamClient }) {
         setLogWindow(80);
         activeRunRef.current = null;
         setActiveRun(null);
-        const info = sessions.find((x) => x.sessionId === id);
+        const info = sessions.find((x) => x._host === hostId && x.sessionId === id);
         document.title = info?.title ? `${info.title} · goose remote` : "goose remote";
         lastSeenUpdate.current = null;
-        localStorage.setItem(SESSION_KEY, id);
+        localStorage.setItem(SESSION_KEY, `${hostId}|${id}`);
+        activeHostRef.current = hostId;
+        setActiveHostId(hostId);
         sessionRef.current = id;
         setSessionId(id);
         replayBuf.current = [];
-        await agent.loadSession({ sessionId: id, cwd: "/", mcpServers: [] });
+        await host.agent.loadSession({ sessionId: id, cwd: "/", mcpServers: [] });
         const buf = replayBuf.current ?? [];
         replayBuf.current = null;
         setItems(buf);
@@ -541,17 +620,19 @@ export function App({ roam }: { roam: RoamClient }) {
   useEffect(() => {
     if (!connected) return;
     const t = setInterval(async () => {
-      const agent = agentRef.current;
-      if (!agent || busy) return;
+      if (hostsRef.current.size === 0 || busy) return;
       try {
-        const res = await agent.listSessions({});
-        setSessions(res.sessions ?? []);
+        await refreshSessions();
         const sid = sessionRef.current;
-        if (!sid) return;
+        const hid = activeHostRef.current;
+        if (!sid || !hid) return;
+        const host = hostsRef.current.get(hid);
+        if (!host) return;
+        const res = await host.agent.listSessions({});
         const mine = (res.sessions ?? []).find((x) => x.sessionId === sid);
         const stamp = (mine as { updatedAt?: string } | undefined)?.updatedAt ?? null;
         if (stamp && lastSeenUpdate.current && stamp !== lastSeenUpdate.current) {
-          await openSession(sid, true);
+          await openSession(hid, sid, true);
         }
         if (stamp) lastSeenUpdate.current = stamp;
       } catch {
@@ -559,9 +640,13 @@ export function App({ roam }: { roam: RoamClient }) {
       }
     }, 6000);
     return () => clearInterval(t);
-  }, [connected, busy, openSession]);
+  }, [connected, busy, openSession, refreshSessions]);
 
 
+  // Dial one host and add it to the live set. The tab holds a connection per
+  // saved host — the session list is the merge — so connecting a second host
+  // extends the workspace rather than replacing it.
+  const reconnectAttempts = useRef<Map<string, number>>(new Map());
   const connect = useCallback(async (cardText?: string) => {
     const text = (cardText ?? card).trim();
     if (!text) return;
@@ -570,55 +655,60 @@ export function App({ roam }: { roam: RoamClient }) {
     setBusy(true);
     try {
       const conn = await roam.connect(text, "web");
-      connRef.current = conn;
+      const eid = conn.agentId();
       const bytes = roamByteStreams(conn);
       const stream = ndJsonStream(bytes.writable, bytes.readable);
       const agent = new GooseClient(() => makeClient(), stream);
-      agentRef.current = agent;
       await agent.initialize({
         protocolVersion: PROTOCOL_VERSION,
         clientCapabilities: { fs: { readTextFile: false, writeTextFile: false } },
       });
       localStorage.setItem(HOST_CARD_KEY, text);
-      // Surface unexpected drops (phone sleep, network switch): back to the
-      // connect panel with the card prefilled — one tap to reconnect.
+      const prior = loadHosts().find((h) => h.endpointId === eid);
+      const name = hostName.trim() || prior?.name || `host ${eid.slice(0, 8)}`;
+      const entry: HostConn = { endpointId: eid, name, card: text, agent, conn, relay: relayRegion(text) };
+      hostsRef.current.set(eid, entry);
+      if (!activeHostRef.current) {
+        activeHostRef.current = eid;
+        setActiveHostId(eid);
+      }
+      // Per-host drop watch: reconnect this host with backoff. Other hosts'
+      // connections are untouched; if the open session lived here, resume it
+      // once the redial lands.
       void agent.closed.then(() => {
-        if (agentRef.current === agent) {
-          agentRef.current = null;
+        if (hostsRef.current.get(eid)?.agent !== agent) return;
+        hostsRef.current.delete(eid);
+        if (activeHostRef.current === eid) {
           resumeAfterDrop.current = sessionRef.current;
           sessionRef.current = null;
-          setConnected(false);
-          setBusy(false);
-          const attempt = reconnectAttempt.current++;
-          if (attempt < 8) {
-            const delay = Math.min(20000, 1500 * 2 ** attempt);
-            setStatus("connection lost — reconnecting…");
-            setStatusKind("err");
-            setTimeout(() => void connect(text), delay);
-          } else {
-            setStatus("connection lost — press connect");
-            setStatusKind("err");
-          }
+        }
+        if (hostsRef.current.size === 0) setConnected(false);
+        setBusy(false);
+        setSessions((xs) => xs.filter((s) => s._host !== eid));
+        const attempt = reconnectAttempts.current.get(eid) ?? 0;
+        reconnectAttempts.current.set(eid, attempt + 1);
+        if (attempt < 8) {
+          const delay = Math.min(20000, 1500 * 2 ** attempt);
+          setStatus(`${name}: connection lost — reconnecting…`);
+          setStatusKind("err");
+          setTimeout(() => void connect(text), delay);
+        } else {
+          setStatus(`${name}: connection lost — press connect`);
+          setStatusKind("err");
         }
       });
-      reconnectAttempt.current = 0;
-      setRelay(relayRegion(text));
+      reconnectAttempts.current.delete(eid);
+      setRelay(entry.relay);
       {
-        const eid = conn.agentId();
         const next = loadHosts().filter((h) => h.endpointId !== eid);
-        const prior = loadHosts().find((h) => h.endpointId === eid);
-        next.unshift({
-          name: hostName.trim() || prior?.name || `host ${eid.slice(0, 8)}`,
-          card: text,
-          endpointId: eid,
-          lastUsed: Date.now(),
-        });
+        next.unshift({ name, card: text, endpointId: eid, lastUsed: Date.now() });
         localStorage.setItem(HOSTS_KEY, JSON.stringify(next.slice(0, 12)));
         setHosts(next.slice(0, 12));
         setHostName("");
         setAddingHost(false);
+        setShowHosts(false);
       }
-      setAgentId(conn.agentId());
+      setAgentId(eid);
       setConnected(true);
       setStatus("connected");
       setStatusKind("ok");
@@ -626,9 +716,9 @@ export function App({ roam }: { roam: RoamClient }) {
       void refreshProjects();
       const resume = resumeAfterDrop.current;
       resumeAfterDrop.current = null;
-      if (resume) {
+      if (resume && activeHostRef.current === eid) {
         // recovering from a dropped connection mid-conversation: go back to it
-        await openSession(resume, true);
+        await openSession(eid, resume, true);
         inputRef.current?.focus();
       }
       // otherwise land on the session matrix (front page)
@@ -636,8 +726,11 @@ export function App({ roam }: { roam: RoamClient }) {
     } catch (err) {
       console.error(err);
       setBusy(false);
-      if (reconnectAttempt.current > 0 && reconnectAttempt.current < 8) {
-        const delay = Math.min(20000, 1500 * 2 ** reconnectAttempt.current++);
+      const eid = cardEndpointHint(text);
+      const attempt = eid ? (reconnectAttempts.current.get(eid) ?? 0) : 0;
+      if (eid && attempt > 0 && attempt < 8) {
+        const delay = Math.min(20000, 1500 * 2 ** attempt);
+        reconnectAttempts.current.set(eid, attempt + 1);
         setStatus("reconnecting…");
         setStatusKind("err");
         setTimeout(() => void connect(text), delay);
@@ -646,7 +739,7 @@ export function App({ roam }: { roam: RoamClient }) {
         setStatusKind("err");
       }
     }
-  }, [card, hostName, roam, makeClient, refreshSessions, refreshProjects, newSession, openSession]);
+  }, [card, hostName, roam, makeClient, refreshSessions, refreshProjects, openSession]);
 
   // A send during an active run is a steer: the message is queued into the
   // running loop rather than starting a second one. Two ways to know a run is
@@ -654,17 +747,17 @@ export function App({ roam }: { roam: RoamClient }) {
   // prompt bounces with "already has active run `<id>`" — e.g. a loop started
   // by another device on this same share process.
   const steer = useCallback(async (sid: string, text: string, runId: string) => {
-    const agent = agentRef.current;
+    const agent = activeAgent();
     if (!agent) return;
     await agent.extMethod("_goose/unstable/session/steer", {
       sessionId: sid,
       prompt: [{ type: "text", text }],
       expectedRunId: runId,
     });
-  }, []);
+  }, [activeAgent]);
 
   const send = useCallback(async () => {
-    const agent = agentRef.current;
+    const agent = activeAgent();
     const sid = sessionRef.current;
     const el = inputRef.current;
     const text = el?.value.trim();
@@ -719,7 +812,7 @@ export function App({ roam }: { roam: RoamClient }) {
       setStatusKind("ok");
       inputRef.current?.focus();
     }
-  }, [busy, push, refreshSessions, steer]);
+  }, [busy, push, refreshSessions, steer, activeAgent]);
 
   const statusColor =
     statusKind === "ok"
@@ -773,32 +866,45 @@ export function App({ roam }: { roam: RoamClient }) {
             <button
               id="switch-host"
               className="shrink-0 text-xs text-text-secondary border border-border-secondary rounded-lg px-2.5 py-1 hover:border-border-info transition-colors"
-              title="disconnect and connect to a different host (keeps this browser's identity)"
-              onClick={() => {
-                localStorage.removeItem(HOST_CARD_KEY);
-                localStorage.removeItem(SESSION_KEY);
-                location.reload();
-              }}
+              title="connect more hosts — sessions from every connected host share one list"
+              onClick={() => setShowHosts((v) => !v)}
             >
-              switch
+              hosts{hostsRef.current.size > 1 ? ` · ${hostsRef.current.size}` : ""}
             </button>
           )}
         </div>
       </div>
 
-      {!connected ? (
+      {!connected || showHosts ? (
         <section id="connect-panel" className="flex-1 grid place-items-center p-3 md:p-6 overflow-auto">
           <div className="w-full max-w-[480px] min-w-0 overflow-hidden bg-background-primary border rounded-xl shadow-sm p-5 md:p-7">
             {hosts.length > 0 && !addingHost ? (
               <>
-                <h2 className="text-lg font-semibold mb-1">Your hosts</h2>
-                <p className="text-xs text-text-tertiary mb-4">tap to connect</p>
+                <div className="flex items-center gap-2 mb-1">
+                  {connected && (
+                    <button
+                      aria-label="back to sessions"
+                      className="text-text-secondary hover:text-text-primary -ml-1 p-0.5"
+                      onClick={() => setShowHosts(false)}
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                  )}
+                  <h2 className="text-lg font-semibold">Your hosts</h2>
+                </div>
+                <p className="text-xs text-text-tertiary mb-4">
+                  {connected
+                    ? "connected hosts share one session list — tap to add another"
+                    : "tap to connect"}
+                </p>
                 <div className="flex flex-col gap-1.5">
-                  {hosts.map((h) => (
+                  {hosts.map((h) => {
+                    const live = hostsRef.current.has(h.endpointId);
+                    return (
                     <button
                       key={h.endpointId}
                       className="host-row w-full text-left rounded-lg px-3 py-2.5 hover:bg-background-secondary hover:shadow-default transition-all flex items-center gap-3 disabled:opacity-50"
-                      disabled={busy}
+                      disabled={busy || live}
                       onClick={() => {
                         setCard(h.card);
                         void connect(h.card);
@@ -811,9 +917,16 @@ export function App({ roam }: { roam: RoamClient }) {
                           {h.endpointId.slice(0, 16)}
                         </span>
                       </span>
-                      <ChevronRight className="w-4 h-4 shrink-0 text-text-tertiary" />
+                      {live ? (
+                        <span className="shrink-0 inline-flex items-center gap-1 text-[10px] text-text-success">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-current" />
+                          connected
+                        </span>
+                      ) : (
+                        <ChevronRight className="w-4 h-4 shrink-0 text-text-tertiary" />
+                      )}
                     </button>
-                  ))}
+                  );})}
                 </div>
                 <div className="mt-4 flex justify-center">
                   <button
@@ -958,19 +1071,22 @@ export function App({ roam }: { roam: RoamClient }) {
                   )}
                   {group.map((s) => (
                     <button
-                      key={s.sessionId}
+                      key={`${s._host}|${s.sessionId}`}
                       className={`session-item text-left rounded-lg px-2.5 py-2 transition-all duration-150 ${
-                        s.sessionId === sessionId
+                        s.sessionId === sessionId && s._host === activeHostId
                           ? "bg-background-tertiary"
                           : "hover:bg-background-secondary hover:shadow-default"
                       }`}
-                      onClick={() => { setSidebarOpen(false); void openSession(s.sessionId); }}
+                      onClick={() => { setSidebarOpen(false); void openSession(s._host, s.sessionId); }}
                     >
                       <div className="text-[13px] whitespace-nowrap overflow-hidden text-ellipsis">
                         {s.title || "(untitled session)"}
                       </div>
                       <div className="text-[11px] text-text-tertiary font-mono mt-0.5">
                         {s.sessionId.slice(0, 8)}
+                        {hostsRef.current.size > 1 && (
+                          <span className="text-text-info"> · {hostsRef.current.get(s._host)?.name ?? s._host.slice(0, 6)}</span>
+                        )}
                       </div>
                     </button>
                   ))}
@@ -987,7 +1103,7 @@ export function App({ roam }: { roam: RoamClient }) {
               <SessionMatrix
                 sessions={sessions}
                 selectedId={sessionId}
-                onOpen={(id) => void openSession(id)}
+                onOpen={(s) => { if (s._host) void openSession(s._host, s.sessionId); }}
                 onNew={() => void newSession()}
                 busy={busy}
               />
@@ -1009,10 +1125,13 @@ export function App({ roam }: { roam: RoamClient }) {
                 <ChevronLeft className="w-3.5 h-3.5" /> sessions
               </button>
               <span className="text-xs text-text-tertiary truncate">
-                {sessions.find((x) => x.sessionId === sessionId)?.title ?? ""}
+                {sessions.find((x) => x._host === activeHostId && x.sessionId === sessionId)?.title ?? ""}
+                {hostsRef.current.size > 1 && activeHostId && (
+                  <span className="text-text-info"> · {hostsRef.current.get(activeHostId)?.name ?? ""}</span>
+                )}
               </span>
               {(() => {
-                const cur = sessions.find((x) => x.sessionId === sessionId);
+                const cur = sessions.find((x) => x._host === activeHostId && x.sessionId === sessionId);
                 const hot =
                   cur?.updatedAt &&
                   Date.now() - new Date(cur.updatedAt).getTime() < 5 * 60 * 1000;

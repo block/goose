@@ -11,7 +11,15 @@ export type MatrixSession = {
   title?: string | null;
   updatedAt?: string | null;
   _meta?: Record<string, unknown> | null;
+  // Host the session lives on — ids are only unique per host, so open
+  // callbacks hand back the whole session, and dot positions seed from
+  // host+id to keep two hosts' sessions from stacking.
+  _host?: string;
 };
+
+function matrixKey(s: MatrixSession): string {
+  return `${s._host ?? ""}|${s.sessionId}`;
+}
 
 function hashId(str: string): number {
   let h = 0;
@@ -19,7 +27,7 @@ function hashId(str: string): number {
   return Math.abs(h);
 }
 
-// Mirrors NodeMatrix.swift: sin/cos of the hashed id, clamped into the field.
+// Mirrors NodeMatrix.swift: sin/cos of the hashed key, clamped into the field.
 function nodePos(id: string): { x: number; y: number } {
   const seed = hashId(id);
   const r1 = Math.sin(seed);
@@ -49,7 +57,7 @@ export function SessionMatrix({
 }: {
   sessions: MatrixSession[];
   selectedId: string | null;
-  onOpen: (id: string) => void;
+  onOpen: (s: MatrixSession) => void;
   onNew: () => void;
   busy: boolean;
 }) {
@@ -82,7 +90,7 @@ export function SessionMatrix({
     return { label: lbl, daySessions: filtered };
   }, [sessions, daysOffset]);
 
-  const points = daySessions.map((s) => ({ s, ...nodePos(s.sessionId) }));
+  const points = daySessions.map((s) => ({ s, ...nodePos(matrixKey(s)) }));
 
   return (
     <div id="session-matrix" className="flex-1 flex flex-col min-h-0">
@@ -132,17 +140,16 @@ export function SessionMatrix({
           const count = messageCount(s);
           const size = 10 + Math.min(1, count / 60) * 8;
           const selected = s.sessionId === selectedId;
+          const previewed = preview !== null && matrixKey(preview) === matrixKey(s);
           const live = isLive(s);
           return (
             <button
-              key={s.sessionId}
+              key={matrixKey(s)}
               className="matrix-node absolute w-9 h-9 -translate-x-1/2 -translate-y-1/2 grid place-items-center group"
               style={{ left: `${x}%`, top: `${y}%` }}
               title={s.title ?? s.sessionId}
               aria-label={s.title ?? s.sessionId}
-              onClick={() =>
-                preview?.sessionId === s.sessionId ? onOpen(s.sessionId) : setPreview(s)
-              }
+              onClick={() => (previewed ? onOpen(s) : setPreview(s))}
             >
               {live && (
                 <span
@@ -152,7 +159,7 @@ export function SessionMatrix({
               )}
               <span
                 className={`rounded-full transition-transform group-hover:scale-125 ${
-                  selected || preview?.sessionId === s.sessionId
+                  selected || previewed
                     ? "bg-background-inverse ring-2 ring-border-info"
                     : live
                       ? "bg-text-info"
@@ -199,7 +206,7 @@ export function SessionMatrix({
           <button
             id="matrix-open"
             className="shrink-0 bg-background-inverse text-text-inverse text-xs font-medium rounded-lg px-3 py-1.5 hover:brightness-110"
-            onClick={() => onOpen(preview.sessionId)}
+            onClick={() => onOpen(preview)}
           >
             open
           </button>
