@@ -231,6 +231,13 @@ export function App({ roam }: { roam: RoamClient }) {
   const [projects, setProjects] = useState<Record<string, string>>({});
   const [activeRun, setActiveRun] = useState<string | null>(null);
   const activeRunRef = useRef<string | null>(null);
+  // Loop-boundary guard (L0): the open session is advancing but our
+  // connection holds no activeRunId — a loop in another process (desktop,
+  // CLI, scheduler) is driving it. Watch, but warn before sending: a plain
+  // prompt would start a second loop against the same session. The composer
+  // stays usable only after an explicit "send anyway".
+  const [externalActive, setExternalActive] = useState(false);
+  const [externalOverride, setExternalOverride] = useState(false);
   const [card, setCard] = useState("");
   const hostsRef = useRef<Map<string, HostConn>>(new Map());
   const activeHostRef = useRef<string | null>(null);
@@ -583,6 +590,8 @@ export function App({ roam }: { roam: RoamClient }) {
         setLogWindow(80);
         activeRunRef.current = null;
         setActiveRun(null);
+        setExternalActive(false);
+        setExternalOverride(false);
         const info = sessions.find((x) => x._host === hostId && x.sessionId === id);
         document.title = info?.title ? `${info.title} · goose remote` : "goose remote";
         lastSeenUpdate.current = null;
@@ -616,6 +625,12 @@ export function App({ roam }: { roam: RoamClient }) {
   // sent the prompt (no multi-viewer broadcast yet). If someone else drives
   // this session (desktop, another device), poll updatedAt while idle and
   // re-load to catch up. Coarse, but keeps a "joined" session scrolling.
+  //
+  // The same signal powers the loop-boundary guard: a session advancing while
+  // our connection holds no activeRunId means a loop we cannot see is driving
+  // it (another process on the host — desktop, CLI, scheduler). We can watch
+  // but not steer that loop, and a plain prompt would start a second one, so
+  // the composer warns and asks for an explicit "send anyway".
   const lastSeenUpdate = useRef<string | null>(null);
   useEffect(() => {
     if (!connected) return;
@@ -631,7 +646,10 @@ export function App({ roam }: { roam: RoamClient }) {
         const res = await host.agent.listSessions({});
         const mine = (res.sessions ?? []).find((x) => x.sessionId === sid);
         const stamp = (mine as { updatedAt?: string } | undefined)?.updatedAt ?? null;
-        if (stamp && lastSeenUpdate.current && stamp !== lastSeenUpdate.current) {
+        const advanced =
+          stamp !== null && lastSeenUpdate.current !== null && stamp !== lastSeenUpdate.current;
+        setExternalActive(advanced && !activeRunRef.current);
+        if (advanced) {
           await openSession(hid, sid, true);
         }
         if (stamp) lastSeenUpdate.current = stamp;
@@ -762,6 +780,9 @@ export function App({ roam }: { roam: RoamClient }) {
     const el = inputRef.current;
     const text = el?.value.trim();
     if (!agent || !sid || !text) return;
+    // Loop-boundary guard: a foreign process is driving this session and the
+    // user hasn't explicitly overridden — don't start a second loop.
+    if (externalActive && !externalOverride) return;
     const runId = activeRunRef.current;
     if (busy && !runId) return;
 
@@ -812,7 +833,7 @@ export function App({ roam }: { roam: RoamClient }) {
       setStatusKind("ok");
       inputRef.current?.focus();
     }
-  }, [busy, push, refreshSessions, steer, activeAgent]);
+  }, [busy, push, refreshSessions, steer, activeAgent, externalActive, externalOverride]);
 
   const statusColor =
     statusKind === "ok"
@@ -1118,6 +1139,8 @@ export function App({ roam }: { roam: RoamClient }) {
                   lastSeenUpdate.current = null;
                   setSessionId(null);
                   setItems([]);
+                  setExternalActive(false);
+                  setExternalOverride(false);
                   document.title = "goose remote";
                 }}
                 className="inline-flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary disabled:opacity-40"
@@ -1290,14 +1313,39 @@ export function App({ roam }: { roam: RoamClient }) {
                 void send();
               }}
             >
+              {externalActive && !externalOverride && (
+                <div
+                  id="external-run-guard"
+                  className="max-w-3xl mx-auto w-full mb-1.5 flex items-center gap-2 text-[11px] text-text-warning border border-border-warning rounded-lg bg-background-secondary px-3 py-1.5"
+                >
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-current animate-pulse shrink-0" />
+                  <span className="flex-1 min-w-0">
+                    active in another goose (desktop or CLI) — sending from here may start a second loop
+                  </span>
+                  <button
+                    id="external-run-override"
+                    type="button"
+                    className="shrink-0 text-[11px] underline underline-offset-2 hover:text-text-primary"
+                    onClick={() => setExternalOverride(true)}
+                  >
+                    send anyway
+                  </button>
+                </div>
+              )}
               <div className="max-w-3xl mx-auto w-full flex gap-2.5 items-end border border-border-primary hover:border-border-secondary focus-within:border-border-secondary rounded-xl bg-background-primary px-1.5 py-1 transition-colors">
               <textarea
                 ref={inputRef}
                 id="prompt-input"
                 rows={1}
-                disabled={busy && !activeRun}
+                disabled={(busy && !activeRun) || (externalActive && !externalOverride)}
                 className="flex-1 outline-none border-none focus:ring-0 bg-transparent px-3 pt-2.5 pb-2 text-sm resize-none max-h-52 text-text-primary placeholder:text-text-secondary"
-                placeholder={activeRun ? "Steer the running turn…" : "Message goose…"}
+                placeholder={
+                  externalActive && !externalOverride
+                    ? "Running in another goose — watching…"
+                    : activeRun
+                      ? "Steer the running turn…"
+                      : "Message goose…"
+                }
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
@@ -1308,7 +1356,7 @@ export function App({ roam }: { roam: RoamClient }) {
               <button
                 id="send-btn"
                 type="submit"
-                disabled={busy && !activeRun}
+                disabled={(busy && !activeRun) || (externalActive && !externalOverride)}
                 className="bg-background-inverse text-text-inverse text-sm font-medium rounded-lg px-3.5 py-1.5 mb-0.5 mr-0.5 hover:brightness-110 disabled:opacity-50"
               >
                 {activeRun ? "steer" : "send"}
