@@ -507,10 +507,7 @@ impl OpenAiProvider {
                         } else {
                             Self::meta_reasoning_effort(effort)
                         };
-                        obj.insert(
-                            "reasoning_effort".to_string(),
-                            json!(effort_str),
-                        );
+                        obj.insert("reasoning_effort".to_string(), json!(effort_str));
                     }
                     None => {
                         obj.remove("reasoning_effort");
