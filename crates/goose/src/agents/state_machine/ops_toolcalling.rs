@@ -23,7 +23,7 @@ use crate::conversation::message::{ActionRequiredData, Message, MessageContent, 
 use crate::conversation::Conversation;
 use crate::hints::load_hints::SubdirectoryHintTracker;
 use crate::hooks::{HookContext, HookDecision, HookEvent, HookManager};
-use crate::session::{EnabledExtensionsState, ExtensionState, Session};
+use crate::session::{EnabledExtensionsState, Session};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
@@ -276,12 +276,9 @@ impl<'a> ToolExecutionOperation<'a> {
         .await
     }
 
-    async fn extension_state_effect(&self, session: &Session) -> Result<StateEffect> {
+    async fn extension_state_effect(&self) -> StateEffect {
         let extension_configs = self.extension_manager.get_extension_configs().await;
-        let extensions_state = EnabledExtensionsState::new(extension_configs);
-        let mut extension_data = session.extension_data.clone();
-        extensions_state.to_extension_data(&mut extension_data)?;
-        Ok(StateEffect::SetExtensionData(extension_data))
+        StateEffect::SetEnabledExtensions(EnabledExtensionsState::new(extension_configs))
     }
 
     async fn command_response(
@@ -853,7 +850,7 @@ impl Operation for ToolExecutionOperation<'_> {
         }
 
         if !manage_extensions_ids.is_empty() && !extension_change_failed {
-            effects.push(self.extension_state_effect(session).await?);
+            effects.push(self.extension_state_effect().await);
         }
 
         let response = emit.message(response).await;

@@ -10,7 +10,7 @@ use crate::conversation::message::{Message, MessageContent, MessageErrorKind};
 use crate::conversation::{effective_role, Conversation, EffectiveRole};
 use crate::providers::base::ProviderUsage;
 use crate::recipe::Recipe;
-use crate::session::{ExtensionData, Session};
+use crate::session::{EnabledExtensionsState, Session};
 use rmcp::model::Tool;
 
 pub type OperationFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -222,7 +222,7 @@ pub enum StateEffect {
         agent_visible: bool,
     },
     SetRecipe(Box<Option<Recipe>>),
-    SetExtensionData(ExtensionData),
+    SetEnabledExtensions(EnabledExtensionsState),
     RecordUsage(ProviderUsage),
 }
 

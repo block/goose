@@ -12,7 +12,7 @@ use crate::agents::AgentEvent;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::hooks::{HookContext, HookEvent, HookManager};
-use crate::session::{Session, SessionManager};
+use crate::session::{ExtensionState, Session, SessionManager};
 
 pub enum Step<'a> {
     Operation(Arc<dyn Operation + 'a>),
@@ -214,12 +214,17 @@ impl<'a> StateMachine<'a> {
                         .apply()
                         .await?;
                 }
-                StateEffect::SetExtensionData(extension_data) => {
+                StateEffect::SetEnabledExtensions(extensions_state) => {
+                    let mut serialize_error = None;
                     session_manager
-                        .update(&session.id)
-                        .extension_data(extension_data.clone())
-                        .apply()
+                        .update_extension_data(&session.id, |extension_data| {
+                            serialize_error =
+                                extensions_state.to_extension_data(extension_data).err();
+                        })
                         .await?;
+                    if let Some(e) = serialize_error {
+                        return Err(anyhow!("Failed to serialize extension state: {}", e));
+                    }
                 }
                 StateEffect::RecordUsage(usage) => {
                     usage::record(session_manager, session, usage, false).await?;
