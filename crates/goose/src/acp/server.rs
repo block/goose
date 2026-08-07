@@ -638,10 +638,9 @@ impl GooseAcpAgent {
         Ok(())
     }
 
-    /// Resolving the context limit can hit the network (e.g. an OpenAI-compatible
-    /// `/v1/models` probe), so session setup answers with the model-config
-    /// fallback and this task pushes a corrected usage update if the provider
-    /// reports a different window.
+    /// Resolving the context limit can hit the network (e.g. a `/v1/models` probe),
+    /// so session setup sends the model-config fallback and this task pushes a
+    /// corrected usage update if the provider reports a different window.
     async fn spawn_context_limit_refresh(&self, cx: &ConnectionTo<Client>, session: &Session) {
         let Some(model_config) = session.model_config.clone() else {
             return;

@@ -217,9 +217,8 @@ pub struct OpenAiFixture {
 
 const OPENAI_MODELS: &str = include_str!("../acp_test_data/openai_models.json");
 
-/// How long the `/v1/models` probe takes in [`OpenAiFixture::with_n_ctx`],
-/// standing in for a slow real endpoint. Long enough that a context limit
-/// resolved through it cannot land inside session setup.
+/// Long enough that a context limit resolved through the `/v1/models` probe
+/// cannot land inside session setup.
 const N_CTX_PROBE_DELAY: std::time::Duration = std::time::Duration::from_millis(200);
 
 impl OpenAiFixture {
@@ -240,8 +239,7 @@ impl OpenAiFixture {
     }
 
     /// Like [`OpenAiFixture::new`], but `/v1/models` advertises `n_ctx` for
-    /// `model` — how llama.cpp and Ollama report the window they actually
-    /// allocated, which the model config cannot know.
+    /// `model` the way llama.cpp and Ollama do, behind [`N_CTX_PROBE_DELAY`].
     #[allow(dead_code)]
     pub async fn with_n_ctx(
         exchanges: Vec<(String, &'static str)>,

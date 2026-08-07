@@ -23,8 +23,6 @@ use std::time::Duration;
 
 const SHELL_TEST_CONTENT: &str = "test-shell-content-98765";
 const TURN_CONTEXT_OPEN: &str = r#"\n<turn-context>"#;
-/// Context window TEST_MODEL resolves to. Pinned in every prompt expectation so
-/// a regression to the provider default cannot slip through unnoticed.
 const TEST_MODEL_CONTEXT_LIMIT: u64 = 1_047_576;
 const OPENAI_SESSION_NAME_RESPONSE: &str = r#"data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1766229303,"model":"gpt-5-nano","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
 
@@ -36,7 +34,6 @@ data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":176622930
 
 data: [DONE]"#;
 
-/// The usage update every turn ends with, carrying TEST_MODEL's context window.
 fn usage_update(used: u64) -> Notification {
     Notification::UsageUpdate {
         used,
@@ -174,16 +171,12 @@ pub async fn run_session_name_update_notification<C: Connection>() {
     assert_eq!(*update.3, Some(false));
 }
 
-/// Not in the canonical registry, so its model config carries no context limit
-/// and falls back to DEFAULT_CONTEXT_LIMIT — the 128K window clients were stuck
-/// showing even when the provider knew better.
+// Absent from the canonical model registry, so its config falls back to DEFAULT_CONTEXT_LIMIT.
 const UNKNOWN_MODEL: &str = "goose-test-local-model";
 const PROBED_CONTEXT_LIMIT: u64 = 258_400;
 
-/// Session setup answers with the model-config fallback rather than waiting on a
-/// provider probe that may be slow, then pushes the window the provider reports
-/// out of band. The fixture drops every notification sent before `new_session`
-/// returns, so only an out-of-band correction can satisfy this.
+// The fixture drops notifications sent before new_session returns, so only the
+// out-of-band correction pushed after setup can satisfy this.
 pub async fn run_context_limit_correction_notification<C: Connection>() {
     let openai = OpenAiFixture::with_n_ctx(
         vec![],
