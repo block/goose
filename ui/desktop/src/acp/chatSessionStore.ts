@@ -442,7 +442,11 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     entry.activeRunId = null;
     entry.pendingUserInputRequestIds.clear();
     discardPendingLocalSteerMessages(entry);
-    entry.chatState = ChatState.Idle;
+    // Preserve an in-flight session restore so a nested disconnect cannot mark the
+    // chat Idle while loadSessionFromServer is still replaying history.
+    if (entry.chatState !== ChatState.LoadingConversation) {
+      entry.chatState = ChatState.Idle;
+    }
     return notify(sessionId, entry);
   };
 
