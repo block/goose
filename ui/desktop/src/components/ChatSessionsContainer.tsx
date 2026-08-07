@@ -5,6 +5,9 @@ import { ChatType } from '../types/chat';
 import { UserInput } from '../types/message';
 import { subscribeToAcpRecovery } from '../acp/acpConnection';
 import { acpChatSessionController } from '../acp/chatSessionController';
+import { acpChatSessionActions } from '../acp/chatSessionStore';
+import { cancelAcpElicitationRequestsForSession } from '../acp/elicitationRequests';
+import { cancelAcpPermissionRequestsForSession } from '../acp/permissionRequests';
 
 interface ChatSessionsContainerProps {
   setChat: (chat: ChatType) => void;
@@ -41,6 +44,11 @@ export default function ChatSessionsContainer({
   useEffect(() => {
     return subscribeToAcpRecovery((recovering) => {
       if (recovering) {
+        for (const sessionId of sessionIdsRef.current) {
+          cancelAcpPermissionRequestsForSession(sessionId);
+          cancelAcpElicitationRequestsForSession(sessionId);
+          acpChatSessionActions.clearActivePromptAttempt(sessionId);
+        }
         return;
       }
       for (const sessionId of sessionIdsRef.current) {

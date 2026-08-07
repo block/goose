@@ -504,6 +504,24 @@ describe('acpChatSessionStore', () => {
     expect(snapshot.activeRunId).toBeNull();
   });
 
+  it('clears orphaned prompt attempts before replaying a session load', () => {
+    const currentSessionId = sessionId('session-1');
+
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
+    const snapshot = acpChatSessionActions.startSessionLoad(currentSessionId);
+
+    expect(snapshot.activePromptAttemptId).toBeNull();
+    expect(snapshot.chatState).toBe(ChatState.LoadingConversation);
+
+    const finished = acpChatSessionActions.finishSessionLoad(
+      currentSessionId,
+      session(currentSessionId)
+    );
+
+    expect(finished.activePromptAttemptId).toBeNull();
+    expect(finished.chatState).toBe(ChatState.Idle);
+  });
+
   it('stores ACP tool notifications and clears them for a new prompt attempt', () => {
     const currentSessionId = sessionId('session-1');
 

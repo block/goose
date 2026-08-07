@@ -233,6 +233,12 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     const entry = getOrCreateEntry(sessionId);
     entry.sessionLoadError = sessionLoadError;
     entry.progressMessage = undefined;
+    entry.activePromptAttemptId = null;
+    entry.activeRunId = null;
+    entry.pendingCancelPromptAttemptId = null;
+    entry.promptCancellationRestoreState = null;
+    entry.pendingUserInputRequestIds.clear();
+    discardPendingLocalSteerMessages(entry);
     entry.chatState = ChatState.Idle;
     return notify(sessionId, entry);
   };
@@ -674,6 +680,7 @@ function resetReplayState(entry: StoreEntry): void {
   entry.tokenState = { ...initialTokenState };
   entry.notifications = [];
   entry.progressMessage = undefined;
+  entry.activePromptAttemptId = null;
   entry.activeRunId = null;
   entry.pendingCancelPromptAttemptId = null;
   entry.promptCancellationRestoreState = null;
