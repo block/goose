@@ -311,6 +311,7 @@ impl OpenAiProvider {
                             OPEN_AI_DEFAULT_RESPONSES_PATH,
                         ))
                         .model_headers(model_config)?
+                        .streaming(self.supports_streaming)
                         .response_post(&payload)
                         .await?,
                 )
@@ -781,6 +782,7 @@ impl Provider for OpenAiProvider {
                     preserve_thinking_context: self.preserve_thinking_context
                         || thinking_preservation_format.is_some(),
                     thinking_preservation_format,
+                    ..Default::default()
                 },
             )?;
 
@@ -797,6 +799,7 @@ impl Provider for OpenAiProvider {
                         .api_client
                         .request(&self.base_path)
                         .model_headers(model_config)?
+                        .streaming(self.supports_streaming)
                         .response_post(&payload)
                         .await?;
                     handle_status(resp).await

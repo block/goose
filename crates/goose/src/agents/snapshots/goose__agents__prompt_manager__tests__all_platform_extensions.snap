@@ -1,6 +1,5 @@
 ---
 source: crates/goose/src/agents/prompt_manager.rs
-assertion_line: 458
 expression: system_prompt
 ---
 You are a general-purpose AI agent called goose, created by AAIF (Agentic AI Foundation).
@@ -118,6 +117,10 @@ When running Python scripts or commands, always use `python3` instead of `python
 
 ### Instructions
 Manage agent sessions: list, view, start, send messages, and interrupt agents.
+## scheduler
+
+### Instructions
+Create, list, update, pause, resume, and remove scheduled recipe runs, and inspect the sessions they produced.
 ## skills
 
 ### Instructions

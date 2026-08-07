@@ -3770,6 +3770,12 @@
   "sessions.action.export": {
     "defaultMessage": "निर्यात सत्र"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "नई विंडो में खोलें"
   },
@@ -3868,6 +3874,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "सत्र \"{name}\" सफलतापूर्वक दोहराया गया"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "सत्र निर्यात करने में विफल: {error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "सत्र सफलतापूर्वक निर्यात किया गया"

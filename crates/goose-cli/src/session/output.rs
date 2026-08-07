@@ -12,7 +12,7 @@ use goose::subprocess::SubprocessExt;
 use goose::utils::safe_truncate;
 use goose_providers::conversation::token_usage::Usage;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use rmcp::model::{CallToolRequestParams, JsonObject, PromptArgument};
+use rmcp::model::{CallToolRequestParams, JsonObject, PromptArgument, Role};
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
@@ -26,6 +26,8 @@ use super::streaming_buffer::MarkdownBuffer;
 pub const DEFAULT_MIN_PRIORITY: f32 = 0.0;
 pub const DEFAULT_CLI_LIGHT_THEME: &str = "GitHub";
 pub const DEFAULT_CLI_DARK_THEME: &str = "zenburn";
+const OUTPUT_TOKEN_LIMIT_WARNING: &str =
+    "Warning: Response reached the model's output-token limit and may be incomplete.";
 
 fn accent<T: Display>(value: T) -> StyledObject<T> {
     style(value).cyan()
@@ -255,6 +257,9 @@ pub fn render_message(message: &Message, debug: bool) {
                 ActionRequiredData::ElicitationResponse { id, .. } => {
                     println!("action_required(elicitation_response): {}", id)
                 }
+                ActionRequiredData::ToolConfirmationResponse { id, .. } => {
+                    println!("action_required(tool_confirmation_response): {}", id)
+                }
             },
             MessageContent::Text(text) => print_markdown(&text.text, theme),
             MessageContent::ToolRequest(req) => render_tool_request(req, theme, debug),
@@ -283,12 +288,19 @@ pub fn render_message(message: &Message, debug: bool) {
                     }
                 }
             }
+            MessageContent::Error(error) => {
+                hide_thinking();
+                println!("\n{} {}", danger("error:").bold(), &error.message);
+            }
             _ => {
                 eprintln!("WARNING: Message content type could not be rendered");
             }
         }
     }
 
+    if reached_output_token_limit(&message) {
+        render_output_token_limit_warning();
+    }
     let _ = std::io::stdout().flush();
 }
 
@@ -340,6 +352,9 @@ pub fn render_message_streaming(
                     ActionRequiredData::ElicitationResponse { id, .. } => {
                         println!("action_required(elicitation_response): {}", id)
                     }
+                    ActionRequiredData::ToolConfirmationResponse { id, .. } => {
+                        println!("action_required(tool_confirmation_response): {}", id)
+                    }
                 }
             }
             MessageContent::Image(image) => {
@@ -372,6 +387,11 @@ pub fn render_message_streaming(
                     }
                 }
             }
+            MessageContent::Error(error) => {
+                flush_markdown_buffer(buffer, theme);
+                hide_thinking();
+                println!("\n{} {}", danger("error:").bold(), &error.message);
+            }
             _ => {
                 flush_markdown_buffer(buffer, theme);
                 eprintln!("WARNING: Message content type could not be rendered");
@@ -379,7 +399,19 @@ pub fn render_message_streaming(
         }
     }
 
+    if reached_output_token_limit(&message) {
+        flush_markdown_buffer(buffer, theme);
+        render_output_token_limit_warning();
+    }
     let _ = std::io::stdout().flush();
+}
+
+fn reached_output_token_limit(message: &Message) -> bool {
+    message.role == Role::Assistant && message.metadata.output_token_limit_reached
+}
+
+fn render_output_token_limit_warning() {
+    println!("\n{}", warning(OUTPUT_TOKEN_LIMIT_WARNING));
 }
 
 fn render_credits_exhausted_notification(notification: &SystemNotificationContent) {

@@ -160,6 +160,14 @@ pub async fn configure_subagent_agent(
         build_subagent_prompt(&agent, task_config, session_id, system_instructions).await?;
     agent.override_system_prompt(subagent_prompt).await;
 
+    agent
+        .config
+        .session_manager
+        .update(session_id)
+        .recipe(Some(recipe.clone()))
+        .apply()
+        .await?;
+
     Ok(ConfiguredSubagent {
         agent,
         has_response_schema,

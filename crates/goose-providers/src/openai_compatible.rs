@@ -112,6 +112,7 @@ impl OpenAiCompatibleProvider {
                     self.api_client
                         .request(&path)
                         .model_headers(model_config)?
+                        .streaming(self.supports_streaming)
                         .response_post(&payload)
                         .await?,
                 )
