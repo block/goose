@@ -560,15 +560,19 @@ fn context_limit_correction(resolved: Option<u64>, fallback: u64) -> Option<u64>
 }
 
 /// `ModelConfig` has no `PartialEq`, and fields unrelated to the window
-/// shouldn't suppress a still-valid correction.
+/// shouldn't suppress a still-valid correction. It carries no provider
+/// identity either, so the provider is compared alongside it.
 fn context_limit_refresh_applies(
     current: Option<&goose_providers::model::ModelConfig>,
+    current_provider: Option<&str>,
     captured: &goose_providers::model::ModelConfig,
+    captured_provider: Option<&str>,
 ) -> bool {
-    current.is_some_and(|current| {
-        current.model_name == captured.model_name
-            && current.context_limit() == captured.context_limit()
-    })
+    current_provider == captured_provider
+        && current.is_some_and(|current| {
+            current.model_name == captured.model_name
+                && current.context_limit() == captured.context_limit()
+        })
 }
 
 pub(super) fn build_usage_updates(
@@ -657,6 +661,7 @@ impl GooseAcpAgent {
         let Some(model_config) = session.model_config.clone() else {
             return;
         };
+        let provider_name = session.provider_name.clone();
         let agent = {
             let sessions = self.sessions.lock().await;
             sessions.get(&session.id).map(|s| s.agent.clone())
@@ -688,7 +693,12 @@ impl GooseAcpAgent {
                     return;
                 }
             };
-            if !context_limit_refresh_applies(session.model_config.as_ref(), &model_config) {
+            if !context_limit_refresh_applies(
+                session.model_config.as_ref(),
+                session.provider_name.as_deref(),
+                &model_config,
+                provider_name.as_deref(),
+            ) {
                 return;
             }
             let totals = session_manager
@@ -2816,13 +2826,17 @@ print(\"hello, world\")
         context_limit_correction(resolved, fallback)
     }
 
-    #[test_case(Some("captured"), None => true ; "unchanged config applies")]
-    #[test_case(Some("switched"), None => false ; "different model skips")]
-    #[test_case(Some("captured"), Some(258_400) => false ; "changed context limit override skips")]
-    #[test_case(None, None => false ; "missing config skips")]
+    #[test_case(Some("captured"), None, Some("captured-provider"), Some("captured-provider") => true ; "unchanged config applies")]
+    #[test_case(Some("switched"), None, Some("captured-provider"), Some("captured-provider") => false ; "different model skips")]
+    #[test_case(Some("captured"), Some(258_400), Some("captured-provider"), Some("captured-provider") => false ; "changed context limit override skips")]
+    #[test_case(Some("captured"), None, Some("switched-provider"), Some("captured-provider") => false ; "different provider skips")]
+    #[test_case(Some("captured"), None, None, None => true ; "unrecorded provider applies")]
+    #[test_case(None, None, Some("captured-provider"), Some("captured-provider") => false ; "missing config skips")]
     fn test_context_limit_refresh_applies(
         current_model: Option<&str>,
         current_context_limit: Option<usize>,
+        current_provider: Option<&str>,
+        captured_provider: Option<&str>,
     ) -> bool {
         let captured = goose_providers::model::ModelConfig::new("captured");
         let current = current_model.map(|model_name| {
@@ -2830,7 +2844,12 @@ print(\"hello, world\")
             current.context_limit = current_context_limit;
             current
         });
-        context_limit_refresh_applies(current.as_ref(), &captured)
+        context_limit_refresh_applies(
+            current.as_ref(),
+            current_provider,
+            &captured,
+            captured_provider,
+        )
     }
 
     #[test]
