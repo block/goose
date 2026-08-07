@@ -23,6 +23,9 @@ use std::time::Duration;
 
 const SHELL_TEST_CONTENT: &str = "test-shell-content-98765";
 const TURN_CONTEXT_OPEN: &str = r#"\n<turn-context>"#;
+/// Context window TEST_MODEL resolves to. Pinned in every prompt expectation so
+/// a regression to the provider default cannot slip through unnoticed.
+const TEST_MODEL_CONTEXT_LIMIT: u64 = 1_047_576;
 const OPENAI_SESSION_NAME_RESPONSE: &str = r#"data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1766229303,"model":"gpt-5-nano","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
 
 data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1766229303,"model":"gpt-5-nano","choices":[{"index":0,"delta":{"content":"Generated Test Title"},"finish_reason":null}]}
@@ -32,6 +35,14 @@ data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":176622930
 data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1766229303,"model":"gpt-5-nano","choices":[],"usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110}}
 
 data: [DONE]"#;
+
+/// The usage update every turn ends with, carrying TEST_MODEL's context window.
+fn usage_update(used: u64) -> Notification {
+    Notification::UsageUpdate {
+        used,
+        context_limit: TEST_MODEL_CONTEXT_LIMIT,
+    }
+}
 
 struct BasicSession<C: Connection> {
     conn: C,
@@ -163,6 +174,47 @@ pub async fn run_session_name_update_notification<C: Connection>() {
     assert_eq!(*update.3, Some(false));
 }
 
+/// Not in the canonical registry, so its model config carries no context limit
+/// and falls back to DEFAULT_CONTEXT_LIMIT — the 128K window clients were stuck
+/// showing even when the provider knew better.
+const UNKNOWN_MODEL: &str = "goose-test-local-model";
+const PROBED_CONTEXT_LIMIT: u64 = 258_400;
+
+/// Session setup answers with the model-config fallback rather than waiting on a
+/// provider probe that may be slow, then pushes the window the provider reports
+/// out of band. The fixture drops every notification sent before `new_session`
+/// returns, so only an out-of-band correction can satisfy this.
+pub async fn run_context_limit_correction_notification<C: Connection>() {
+    let openai = OpenAiFixture::with_n_ctx(
+        vec![],
+        C::expected_session_id(),
+        UNKNOWN_MODEL,
+        PROBED_CONTEXT_LIMIT,
+    )
+    .await;
+    let config = TestConnectionConfig {
+        current_model: UNKNOWN_MODEL.to_string(),
+        ..Default::default()
+    };
+    let mut conn = C::new(config, openai).await;
+    let SessionData { session, .. } = conn.new_session().await.unwrap();
+
+    let corrected = Notification::UsageUpdate {
+        used: 0,
+        context_limit: PROBED_CONTEXT_LIMIT,
+    };
+    let mut notifications = session.notifications();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    while !notifications.contains(&corrected) && tokio::time::Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        notifications.extend(session.notifications());
+    }
+    assert!(
+        notifications.contains(&corrected),
+        "expected a corrected usage update, got {notifications:?}"
+    );
+}
+
 pub async fn run_close_session<C: Connection>() {
     let BasicSession { conn, session } =
         new_basic_session::<C>(TestConnectionConfig::default()).await;
@@ -271,6 +323,7 @@ pub async fn run_config_mcp<C: Connection>() {
             Notification::ToolCallContent("content".into()),
             Notification::ToolCallStatus(ToolCallStatus::Completed),
             Notification::AgentMessage,
+            usage_update(2631),
         ],
     );
     expected_session_id.assert_matches(&session.session_id().0);
@@ -323,6 +376,7 @@ pub async fn run_fs_read_text_file_true<C: Connection>() {
             Notification::ToolCallKind(ToolKind::Read),
             Notification::ToolCallStatus(ToolCallStatus::Completed),
             Notification::AgentMessage,
+            usage_update(7204),
         ],
     );
     fs.assert_called();
@@ -374,6 +428,7 @@ pub async fn run_fs_write_text_file_false<C: Connection>() {
             Notification::ToolCallContent("content".into()),
             Notification::ToolCallStatus(ToolCallStatus::Completed),
             Notification::AgentMessage,
+            usage_update(7099),
         ],
     );
     expected_session_id.assert_matches(&session.session_id().0);
@@ -437,6 +492,7 @@ pub async fn run_fs_write_text_file_true<C: Connection>() {
             Notification::ToolCallContent("diff".into()),
             Notification::ToolCallStatus(ToolCallStatus::Completed),
             Notification::AgentMessage,
+            usage_update(7246),
         ],
     );
     fs.assert_called();
@@ -523,6 +579,7 @@ pub async fn run_load_mode<C: Connection>() {
             Notification::ToolCallContent("content".into()),
             Notification::ToolCallStatus(ToolCallStatus::Failed),
             Notification::AgentMessage,
+            usage_update(2469),
         ],
     );
 }
@@ -822,6 +879,7 @@ async fn run_mode_set_impl<C: Connection>(via: SetModeVia) {
             Notification::ToolCallContent("content".into()),
             Notification::ToolCallStatus(ToolCallStatus::Failed),
             Notification::AgentMessage,
+            usage_update(2469),
         ],
     );
 
@@ -840,6 +898,7 @@ async fn run_mode_set_impl<C: Connection>(via: SetModeVia) {
             Notification::ToolCallContent("content".into()),
             Notification::ToolCallStatus(ToolCallStatus::Completed),
             Notification::AgentMessage,
+            usage_update(2631),
         ],
     );
 }
@@ -1016,8 +1075,13 @@ async fn run_model_set_impl<C: Connection>() {
     let mut all = set_model_notifs;
     all.extend(prompt_notifs);
     assert!(
-        all == vec![Notification::AgentMessage]
-            || all == vec![Notification::ConfigOption, Notification::AgentMessage],
+        all == vec![Notification::AgentMessage, usage_update(110)]
+            || all
+                == vec![
+                    Notification::ConfigOption,
+                    Notification::AgentMessage,
+                    usage_update(110)
+                ],
         "unexpected notifications after model change: {all:?}"
     );
 
@@ -1028,7 +1092,10 @@ async fn run_model_set_impl<C: Connection>() {
         .await
         .unwrap();
     assert_eq!(output.text, "2");
-    assert_notifications(&session_a.notifications(), &[Notification::AgentMessage]);
+    assert_notifications(
+        &session_a.notifications(),
+        &[Notification::AgentMessage, usage_update(110)],
+    );
 }
 
 pub async fn run_model_set_error_session_not_found<C: Connection>() {
@@ -1185,7 +1252,7 @@ pub async fn run_prompt_basic<C: Connection>() {
     assert_eq!(standard_message_id, goose_message_id);
     assert_notifications(
         &fixtures::to_notifications(&updates),
-        &[Notification::AgentMessage],
+        &[Notification::AgentMessage, usage_update(110)],
     );
     expected_session_id.assert_matches(&session.session_id().0);
 }
@@ -1282,6 +1349,7 @@ pub async fn run_prompt_image<C: Connection>() {
             Notification::ToolCallContent("content".into()),
             Notification::ToolCallStatus(ToolCallStatus::Completed),
             Notification::AgentMessage,
+            usage_update(5914),
         ],
     );
     expected_session_id.assert_matches(&session.session_id().0);
@@ -1312,7 +1380,10 @@ pub async fn run_prompt_image_attachment<C: Connection>() {
         .await
         .unwrap();
     assert!(output.text.contains("Hello Goose!"));
-    assert_notifications(&session.notifications(), &[Notification::AgentMessage]);
+    assert_notifications(
+        &session.notifications(),
+        &[Notification::AgentMessage, usage_update(3340)],
+    );
     expected_session_id.assert_matches(&session.session_id().0);
 }
 
@@ -1357,6 +1428,7 @@ pub async fn run_prompt_mcp<C: Connection>() {
             Notification::ToolCallContent("content".into()),
             Notification::ToolCallStatus(ToolCallStatus::Completed),
             Notification::AgentMessage,
+            usage_update(2631),
         ],
     );
     expected_session_id.assert_matches(&session.session_id().0);
@@ -1461,6 +1533,7 @@ pub async fn run_shell_terminal_false<C: Connection>() {
             Notification::ToolCallContent("content".into()),
             Notification::ToolCallStatus(ToolCallStatus::Completed),
             Notification::AgentMessage,
+            usage_update(3452),
         ],
     );
     expected_session_id.assert_matches(&session.session_id().0);
@@ -1515,6 +1588,7 @@ pub async fn run_shell_terminal_true<C: Connection>() {
             Notification::ToolCallContent("terminal".into()),
             Notification::ToolCallStatus(ToolCallStatus::Completed),
             Notification::AgentMessage,
+            usage_update(3452),
         ],
     );
     terminal.assert_called();

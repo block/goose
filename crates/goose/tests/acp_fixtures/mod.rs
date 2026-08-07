@@ -215,6 +215,13 @@ pub struct OpenAiFixture {
     queue: Arc<Mutex<VecDeque<(String, &'static str)>>>,
 }
 
+const OPENAI_MODELS: &str = include_str!("../acp_test_data/openai_models.json");
+
+/// How long the `/v1/models` probe takes in [`OpenAiFixture::with_n_ctx`],
+/// standing in for a slow real endpoint. Long enough that a context limit
+/// resolved through it cannot land inside session setup.
+const N_CTX_PROBE_DELAY: std::time::Duration = std::time::Duration::from_millis(200);
+
 impl OpenAiFixture {
     /// Mock OpenAI streaming endpoint. Exchanges are (pattern, response) pairs.
     /// On mismatch, returns 417 of the diff in OpenAI error format.
@@ -222,17 +229,59 @@ impl OpenAiFixture {
         exchanges: Vec<(String, &'static str)>,
         expected_session_id: Arc<dyn ExpectedSessionId>,
     ) -> Self {
+        Self::build(
+            exchanges,
+            expected_session_id,
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "application/json")
+                .set_body_string(OPENAI_MODELS),
+        )
+        .await
+    }
+
+    /// Like [`OpenAiFixture::new`], but `/v1/models` advertises `n_ctx` for
+    /// `model` — how llama.cpp and Ollama report the window they actually
+    /// allocated, which the model config cannot know.
+    #[allow(dead_code)]
+    pub async fn with_n_ctx(
+        exchanges: Vec<(String, &'static str)>,
+        expected_session_id: Arc<dyn ExpectedSessionId>,
+        model: &str,
+        n_ctx: u64,
+    ) -> Self {
+        let mut models: serde_json::Value = serde_json::from_str(OPENAI_MODELS).unwrap();
+        models["data"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({
+                "id": model,
+                "object": "model",
+                "owned_by": "test",
+                "meta": { "n_ctx": n_ctx },
+            }));
+        Self::build(
+            exchanges,
+            expected_session_id,
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "application/json")
+                .set_body_json(models)
+                .set_delay(N_CTX_PROBE_DELAY),
+        )
+        .await
+    }
+
+    async fn build(
+        exchanges: Vec<(String, &'static str)>,
+        expected_session_id: Arc<dyn ExpectedSessionId>,
+        models_response: ResponseTemplate,
+    ) -> Self {
         let mock_server = MockServer::start().await;
         let queue = Arc::new(Mutex::new(VecDeque::from(exchanges.clone())));
 
         // Always return the models when asked, as there is no POST data to validate
         Mock::given(method("GET"))
             .and(path("/v1/models"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .insert_header("content-type", "application/json")
-                    .set_body_string(include_str!("../acp_test_data/openai_models.json")),
-            )
+            .respond_with(models_response)
             .mount(&mock_server)
             .await;
 
@@ -411,6 +460,10 @@ pub enum Notification {
     AvailableCommands,
     CurrentMode,
     ConfigOption,
+    UsageUpdate {
+        used: u64,
+        context_limit: u64,
+    },
     SessionInfoUpdate {
         title: Option<String>,
         updated_at: Option<String>,
@@ -462,6 +515,10 @@ pub fn to_notifications(updates: &[SessionUpdate]) -> Vec<Notification> {
             SessionUpdate::AvailableCommandsUpdate(_) => out.push(Notification::AvailableCommands),
             SessionUpdate::CurrentModeUpdate(_) => out.push(Notification::CurrentMode),
             SessionUpdate::ConfigOptionUpdate(_) => out.push(Notification::ConfigOption),
+            SessionUpdate::UsageUpdate(usage) => out.push(Notification::UsageUpdate {
+                used: usage.used,
+                context_limit: usage.size,
+            }),
             SessionUpdate::SessionInfoUpdate(update) => {
                 let meta = update.meta.as_ref();
                 let is_active_run_update = meta
