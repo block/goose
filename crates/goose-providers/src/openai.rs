@@ -432,7 +432,7 @@ impl OpenAiProvider {
     /// matched by [`is_openai_responses_model`] (which only recognises
     /// OpenAI's own `o*`/`gpt-5*` model names). These need the unified
     /// [`ThinkingEffort`] mapped onto the request explicitly.
-    const PROVIDERS_NEEDING_REASONING_EFFORT_MAPPING: &[&str] = &["meta"];
+    const PROVIDERS_NEEDING_REASONING_EFFORT_MAPPING: &[&str] = &["meta", "sambanova"];
 
     /// Maps the unified thinking effort onto Meta's Muse Spark
     /// `reasoning_effort` levels: `low`, `medium`, `high`, `xhigh`.
@@ -446,6 +446,18 @@ impl OpenAiProvider {
             ThinkingEffort::Medium => "medium",
             ThinkingEffort::High => "high",
             ThinkingEffort::Max => "xhigh",
+        }
+    }
+
+    /// Maps the unified thinking effort onto SambaNova's
+    /// `reasoning_effort` levels: `low`, `medium`, `high`.
+    ///
+    /// SambaNova does not support `xhigh`, so `Max` is clamped to `high`.
+    fn sambanova_reasoning_effort(effort: ThinkingEffort) -> &'static str {
+        match effort {
+            ThinkingEffort::Off | ThinkingEffort::Low => "low",
+            ThinkingEffort::Medium => "medium",
+            ThinkingEffort::High | ThinkingEffort::Max => "high",
         }
     }
 
@@ -490,9 +502,14 @@ impl OpenAiProvider {
             if Self::PROVIDERS_NEEDING_REASONING_EFFORT_MAPPING.contains(&self.name.as_str()) {
                 match model_config.thinking_effort() {
                     Some(effort) => {
+                        let effort_str = if self.name == "sambanova" {
+                            Self::sambanova_reasoning_effort(effort)
+                        } else {
+                            Self::meta_reasoning_effort(effort)
+                        };
                         obj.insert(
                             "reasoning_effort".to_string(),
-                            json!(Self::meta_reasoning_effort(effort)),
+                            json!(effort_str),
                         );
                     }
                     None => {
