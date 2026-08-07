@@ -18,7 +18,7 @@
     },
     {
       "name": "DeepSeek-V3.2",
-      "context_limit": 131072
+      "context_limit": 32768
     },
     {
       "name": "gpt-oss-120b",
@@ -26,7 +26,7 @@
     },
     {
       "name": "MiniMax-M2.7",
-      "context_limit": 131072
+      "context_limit": 196608
     },
     {
       "name": "gemma-4-31B-it",
