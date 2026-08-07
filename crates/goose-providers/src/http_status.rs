@@ -116,6 +116,10 @@ pub fn is_context_length_exceeded_message(text: &str) -> bool {
         "context window",
         "context_window_exceeded",
         "context limit",
+        // ds4 / llama.cpp style: "configured context size is N tokens"
+        "context size",
+        "configured context",
+        "n_ctx",
         "maximum context",
         "max context",
         "maximum prompt length",
@@ -124,6 +128,17 @@ pub fn is_context_length_exceeded_message(text: &str) -> bool {
     if direct_context_phrases
         .iter()
         .any(|phrase| text_lower.contains(phrase))
+    {
+        return true;
+    }
+
+    // ds4: "Prompt has 49777 tokens, but the configured context size is 49152 tokens."
+    // (also matched above via "context size"; keep explicit prompt-has+tokens as belt-and-suspenders)
+    if text_lower.contains("prompt has")
+        && text_lower.contains("token")
+        && (text_lower.contains("context")
+            || text_lower.contains("limit")
+            || text_lower.contains("n_ctx"))
     {
         return true;
     }
@@ -153,6 +168,7 @@ pub fn is_context_length_exceeded_message(text: &str) -> bool {
         "input length",
         "prompt token",
         "prompt length",
+        "prompt has",
         "message token",
         "messages token",
         "request token",
@@ -168,12 +184,20 @@ pub fn is_context_length_exceeded_message(text: &str) -> bool {
         "maximum number of tokens",
         "token limit",
         "tokens limit",
+        "context size",
+        "configured context",
     ]
     .iter()
     .any(|phrase| text_lower.contains(phrase));
-    let mentions_overflow = ["exceed", "too long", "too large", "over the limit"]
-        .iter()
-        .any(|phrase| text_lower.contains(phrase));
+    let mentions_overflow = [
+        "exceed",
+        "too long",
+        "too large",
+        "over the limit",
+        "but the",
+    ]
+    .iter()
+    .any(|phrase| text_lower.contains(phrase));
 
     mentions_prompt_input_tokens && mentions_limit && mentions_overflow
 }
@@ -214,7 +238,22 @@ pub fn map_http_error_to_provider_error(
         StatusCode::PAYLOAD_TOO_LARGE => ProviderError::ContextLengthExceeded(extract_message()),
         StatusCode::BAD_REQUEST => {
             let payload_str = extract_message();
-            if is_context_length_exceeded_message(&payload_str) {
+            // Prefer structured OpenAI-style error.code when present (ds4 sets
+            // context_length_exceeded even when the message wording is nonstandard).
+            let code = payload.as_ref().and_then(|p| {
+                p.get("error")
+                    .and_then(|e| e.get("code"))
+                    .or_else(|| p.get("code"))
+                    .and_then(|c| c.as_str())
+                    .map(|s| s.to_ascii_lowercase())
+            });
+            let code_is_context = code.as_deref().is_some_and(|c| {
+                c == "context_length_exceeded"
+                    || c == "context_window_exceeded"
+                    || c.contains("context_length")
+                    || c.contains("context_window")
+            });
+            if code_is_context || is_context_length_exceeded_message(&payload_str) {
                 ProviderError::ContextLengthExceeded(payload_str)
             } else {
                 ProviderError::RequestFailed(format!("Bad request (400): {}", payload_str))
@@ -435,6 +474,9 @@ mod tests {
             "Input token count exceeds the maximum number of tokens allowed",
             "Please reduce the length of the messages",
             "prompt is too long for this model",
+            // ds4 / llama.cpp (message field only — no "context length" substring)
+            "Prompt has 49777 tokens, but the configured context size is 49152 tokens.",
+            "Prompt has 49201 tokens, but the configured context size is 49152 tokens",
         ];
 
         for message in messages {
@@ -443,6 +485,44 @@ mod tests {
                 "expected context-length match for: {message}"
             );
         }
+    }
+
+    #[test]
+    fn bad_request_maps_ds4_context_size_message_to_context_length_exceeded() {
+        let payload = json!({
+            "error": {
+                "message": "Prompt has 49777 tokens, but the configured context size is 49152 tokens.",
+                "code": "context_length_exceeded",
+                "n_ctx": 49152
+            }
+        });
+        let err = map_http_error_to_provider_error(
+            StatusCode::BAD_REQUEST,
+            Some(payload),
+            "http://spark/v1",
+        );
+        assert!(
+            matches!(err, ProviderError::ContextLengthExceeded(_)),
+            "expected ContextLengthExceeded, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn bad_request_maps_ds4_message_without_code_field() {
+        let payload = json!({
+            "error": {
+                "message": "Prompt has 49694 tokens, but the configured context size is 49152 tokens."
+            }
+        });
+        let err = map_http_error_to_provider_error(
+            StatusCode::BAD_REQUEST,
+            Some(payload),
+            "http://spark/v1",
+        );
+        assert!(
+            matches!(err, ProviderError::ContextLengthExceeded(_)),
+            "expected ContextLengthExceeded from message alone, got: {err:?}"
+        );
     }
 
     #[test]
