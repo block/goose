@@ -259,6 +259,14 @@ pub fn pi_acp_inventory() -> InventoryRegistration {
     acp_inventory(PI_ACP_PROVIDER_NAME, PI_ACP_BINARY, false)
 }
 
+pub fn cursor_acp_inventory() -> InventoryRegistration {
+    acp_inventory(
+        crate::providers::cursor_acp::CURSOR_ACP_PROVIDER_NAME,
+        crate::providers::cursor_acp::CURSOR_ACP_BINARY,
+        true,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
