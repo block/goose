@@ -169,6 +169,114 @@ async fn revoked_key_is_rejected() {
     host.shutdown().await.unwrap();
 }
 
+/// Revocation reaches into the open data plane: revoking a key while its
+/// connection is live force-closes that connection — the peer cannot keep
+/// using a capability it no longer holds. (The allowlist gating only new
+/// dials is not enough; see #10906.)
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn revocation_closes_live_connection() {
+    let host = bind_node().await;
+    host.share(Arc::new(EchoServer)).await.expect("share");
+
+    let client = bind_node().await;
+    host_accepts(&host, &client).await;
+
+    let mut stream = connect_direct(&client, &host)
+        .await
+        .expect("client connects while accepted");
+
+    // Prove the duplex is live mid-"prompt".
+    stream.send.write_all(b"hello").await.unwrap();
+    let mut out = [0u8; 5];
+    stream.recv.read_exact(&mut out).await.unwrap();
+    assert_eq!(&out, b"HELLO");
+
+    // Revoke while the connection is open, then enforce.
+    let trust = host.trust();
+    let book = {
+        let mut trust = trust.lock().await;
+        trust.revoke_key(&client.endpoint_id());
+        trust.clone()
+    };
+    let closed = host.enforce_trust(&book).await;
+    assert_eq!(closed, 1, "the live connection should be force-closed");
+
+    // The tab-side stream dies: the next read fails rather than hanging.
+    let mut more = [0u8; 1];
+    let read = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        stream.recv.read_exact(&mut more),
+    )
+    .await;
+    assert!(
+        matches!(read, Ok(Err(_))),
+        "read after revocation should fail, got {read:?}"
+    );
+
+    // And the next dial is refused.
+    assert!(
+        connect_direct(&client, &host).await.is_err(),
+        "revoked client must not reconnect"
+    );
+
+    host.shutdown().await.unwrap();
+}
+
+/// The end-to-end shape of `roam peers revoke` against a running share: the
+/// trust *file* changes out of band, the watcher notices, and the live
+/// connection is closed without a restart.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn revocation_watcher_closes_live_connection_from_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let trust_file = dir.path().join("trust.json");
+
+    let client = bind_node().await;
+
+    let mut book = TrustBook::new();
+    book.accept(&client.endpoint_id());
+    book.save(&trust_file).unwrap();
+
+    let host = RoamingNode::bind(RoamingConfig {
+        identity: RoamingIdentity::generate(),
+        relay: RelaySettings::Disabled,
+        trust: TrustBook::new(),
+        trust_path: Some(trust_file.clone()),
+        directory: Directory::new(),
+        bind_addr: Some(loopback()),
+    })
+    .await
+    .expect("bind host");
+    host.share(Arc::new(EchoServer)).await.expect("share");
+    host.watch_revocations(std::time::Duration::from_millis(100))
+        .await;
+
+    let mut stream = connect_direct(&client, &host)
+        .await
+        .expect("client connects while accepted");
+    stream.send.write_all(b"hello").await.unwrap();
+    let mut out = [0u8; 5];
+    stream.recv.read_exact(&mut out).await.unwrap();
+
+    // Revoke out of band by rewriting the trust file (as the CLI does).
+    let mut book = TrustBook::load(&trust_file).unwrap();
+    book.revoke_key(&client.endpoint_id());
+    book.save(&trust_file).unwrap();
+
+    // The watcher should notice and kill the live connection.
+    let mut more = [0u8; 1];
+    let read = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        stream.recv.read_exact(&mut more),
+    )
+    .await;
+    assert!(
+        matches!(read, Ok(Err(_))),
+        "watcher should force-close the live connection, got {read:?}"
+    );
+
+    host.shutdown().await.unwrap();
+}
+
 /// Dial the host on its live endpoint address (bypassing relay-based discovery,
 /// since the test runs relay-disabled on localhost). Authorization is by the
 /// client's authenticated key, which the host has accepted.

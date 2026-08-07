@@ -135,6 +135,11 @@ pub struct RoamingNode {
     trust_path: Option<std::path::PathBuf>,
     directory: Directory,
     relay: RelaySettings,
+    /// Live authorized inbound connections, by peer key. Lets revocation reach
+    /// into the open data plane: a key that leaves the allowlist gets its
+    /// connections force-closed, not just refused on the next dial.
+    live: Mutex<std::collections::HashMap<EndpointId, Vec<Connection>>>,
+    revocation_watcher: Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
 impl RoamingNode {
@@ -167,6 +172,8 @@ impl RoamingNode {
             trust_path: config.trust_path,
             directory: config.directory,
             relay,
+            live: Mutex::new(std::collections::HashMap::new()),
+            revocation_watcher: Mutex::new(None),
         }))
     }
 
@@ -252,6 +259,9 @@ impl RoamingNode {
 
     /// Cleanly shut the router and endpoint down.
     pub async fn shutdown(&self) -> Result<(), RoamingError> {
+        if let Some(watcher) = self.revocation_watcher.lock().await.take() {
+            watcher.abort();
+        }
         if let Some(router) = self.router.lock().await.take() {
             router
                 .shutdown()
@@ -260,6 +270,88 @@ impl RoamingNode {
         }
         self.endpoint.close().await;
         Ok(())
+    }
+
+    async fn register_live(&self, client: EndpointId, connection: Connection) {
+        self.live
+            .lock()
+            .await
+            .entry(client)
+            .or_default()
+            .push(connection);
+    }
+
+    async fn unregister_live(&self, client: EndpointId, connection: &Connection) {
+        let mut live = self.live.lock().await;
+        if let Some(conns) = live.get_mut(&client) {
+            conns.retain(|c| c.stable_id() != connection.stable_id());
+            if conns.is_empty() {
+                live.remove(&client);
+            }
+        }
+    }
+
+    /// Force-close any live connections whose peer key is no longer allowed by
+    /// `trust`. Revocation reaches into the open data plane: the allowlist is
+    /// not just a gate on new dials, it is authority over connections that
+    /// already exist. Returns the number of connections closed.
+    pub async fn enforce_trust(&self, trust: &TrustBook) -> usize {
+        let to_close: Vec<(EndpointId, Vec<Connection>)> = {
+            let mut live = self.live.lock().await;
+            let revoked: Vec<EndpointId> = live
+                .keys()
+                .filter(|key| !trust.is_allowed(key))
+                .copied()
+                .collect();
+            revoked
+                .into_iter()
+                .filter_map(|key| live.remove(&key).map(|conns| (key, conns)))
+                .collect()
+        };
+        let mut closed = 0;
+        for (client, conns) in to_close {
+            for conn in conns {
+                conn.close(0u32.into(), b"revoked");
+                closed += 1;
+            }
+            tracing::info!(%client, "roaming: force-closed live connection(s) for revoked key");
+            self.directory.record_disconnect(client, now_ms()).await;
+        }
+        closed
+    }
+
+    /// Watch the persisted trust allowlist and force-close live connections
+    /// for any key that leaves it. Complements the per-connection re-read in
+    /// the accept path: that gates *new* dials, this revokes *existing* ones.
+    /// No-op unless a `trust_path` is configured.
+    pub async fn watch_revocations(self: &Arc<Self>, poll: std::time::Duration) {
+        let Some(path) = self.trust_path.clone() else {
+            return;
+        };
+        let node = Arc::downgrade(self);
+        let handle = tokio::spawn(async move {
+            let mut last_modified: Option<std::time::SystemTime> = None;
+            loop {
+                tokio::time::sleep(poll).await;
+                let Some(node) = node.upgrade() else { break };
+                let modified = std::fs::metadata(&path).and_then(|m| m.modified()).ok();
+                if modified == last_modified {
+                    continue;
+                }
+                last_modified = modified;
+                match TrustBook::load(&path) {
+                    Ok(book) => {
+                        node.enforce_trust(&book).await;
+                    }
+                    Err(e) => {
+                        tracing::warn!("roaming: trust reload failed in revocation watcher: {e}");
+                    }
+                }
+            }
+        });
+        if let Some(old) = self.revocation_watcher.lock().await.replace(handle) {
+            old.abort();
+        }
     }
 
     /// Dial a remote node using its [`ConnectionCard`], returning the authorized
@@ -406,6 +498,7 @@ impl ProtocolHandler for RoamingAcpHandler {
                     tracing::warn!("roaming: failed to send accept ack: {e}");
                     return Ok(());
                 }
+                self.node.register_live(client, connection.clone()).await;
                 self.node
                     .directory
                     .record_connect(client, label, Direction::Inbound, Some(agent_id), now_ms())
@@ -415,6 +508,7 @@ impl ProtocolHandler for RoamingAcpHandler {
                 if let Err(e) = self.server.serve_stream(client, recv_box, send_box).await {
                     tracing::warn!("roaming: ACP session ended with error: {e}");
                 }
+                self.node.unregister_live(client, &connection).await;
                 self.node
                     .directory
                     .record_disconnect(client, now_ms())

@@ -364,7 +364,7 @@ async fn handle_peers(command: PeersCommand) -> Result<()> {
             trust.revoke_key(&key);
             trust.save(&path)?;
             eprintln!("revoked {key}; it can no longer connect");
-            eprintln!("note: an already-open session is unaffected until it disconnects");
+            eprintln!("a running share also force-closes its live connections within seconds");
             Ok(())
         }
         PeersCommand::Remove { name } => {
@@ -523,6 +523,8 @@ async fn handle_share(
     let agent_id = node.endpoint_id().to_string();
     let bridge = Arc::new(FullAcpBridge::new(acp_server, agent_id));
     node.share(bridge).await?;
+    node.watch_revocations(std::time::Duration::from_secs(2))
+        .await;
 
     eprintln!("contacting relay...");
     if !node.wait_online(std::time::Duration::from_secs(15)).await {

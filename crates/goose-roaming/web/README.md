@@ -170,9 +170,12 @@ a real deployment wants a goose/Block-owned relay namespace with an SLA.)
   host's full ACP surface (tools/shell). It lives in `localStorage`, so a public
   CDN URL wants a dedicated origin + strict CSP (no third-party scripts) and
   short host-side leases. Design before any public deploy.
-- **Revocation doesn't close live connections** (`node.rs`): revoke only blocks
-  the *next* inbound auth check; an already-open ACP session stays up. Fix
-  before shipping remote access.
+- ~~**Revocation doesn't close live connections**~~ Fixed: `RoamingNode` keeps
+  a live-connection registry and a trust-file watcher (`watch_revocations`);
+  revoking a key force-closes its open connections within seconds. Covered by
+  `revocation_closes_live_connection` and
+  `revocation_watcher_closes_live_connection_from_file` in
+  `tests/end_to_end.rs`.
 - **Card fingerprint is 48-bit** (`card.rs`): bump toward 128-bit before relying
   on it for out-of-band QR verification.
 - **Version skew**: a CDN can serve an old client against an updated host — the
