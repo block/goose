@@ -281,6 +281,8 @@ Required parameters:
 - `name`: Display name for the extension
 - `description`: Brief description of the extension's functionality
 
+Pass a deeplink to the CLI with [`--with-linked-extension`](#extensions-from-deeplinks) to use it for one session without installing it to your profile.
+
 A command like `npx -y @modelcontextprotocol/server-github` would be represented as:
 
 ```
@@ -301,6 +303,8 @@ Parameters:
 - `id`: Unique identifier for the extension
 - `name`: Display name for the extension
 - `description`: Brief description of the extension's functionality
+
+Pass a deeplink to the CLI with [`--with-linked-extension`](#extensions-from-deeplinks) to use it for one session without installing it to your profile.
 
 For example, a deeplink for a URL like `https://example.com/streamable` would look like this when URL-encoded:
 
@@ -669,6 +673,24 @@ For example, to start a session with a Streamable HTTP extension, you'd run:
 ```bash
 goose session --with-streamable-http-extension "https://example.com/streamable"
 ```
+
+### Extensions from Deeplinks
+
+Use `--with-linked-extension` to run an extension described by a `goose://extension` deeplink for the current session. This preserves the deeplink's display name, description, transport settings, and command or URL, so the model receives a meaningful extension name. It does not install or modify the extension in your goose profile.
+
+```bash
+goose session --with-linked-extension "goose://extension?cmd=uvx&arg=mcp-server-fetch&id=fetch&name=Fetch&description=Fetch%20web%20content"
+```
+
+The flag accepts both StandardIO and Streamable HTTP deeplinks and can be repeated:
+
+```bash
+goose session \
+  --with-linked-extension "goose://extension?cmd=uvx&arg=mcp-server-fetch&id=fetch&name=Fetch&description=Fetch%20web%20content" \
+  --with-linked-extension "goose://extension?type=streamable_http&url=https%3A%2F%2Fexample.com%2Fmcp&id=example&name=Example&description=Example%20remote%20tools"
+```
+
+Use shell quoting around the entire deeplink so `&` is not interpreted by your shell. Deeplinks that declare `env` parameters use the corresponding goose configuration keys; configure those values before starting the session.
 
 ### Extensions in Containers
 

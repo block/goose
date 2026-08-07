@@ -1,4 +1,4 @@
-use crate::cli::StreamableHttpOptions;
+use crate::cli::{LinkedExtension, StreamableHttpOptions};
 
 use super::output;
 use super::CliSession;
@@ -31,6 +31,7 @@ fn truncate_with_ellipsis(s: &str, max_len: usize) -> String {
 fn parse_cli_flag_extensions(
     extensions: &[String],
     streamable_http_extensions: &[StreamableHttpOptions],
+    linked_extensions: &[LinkedExtension],
     builtins: &[String],
 ) -> Vec<(String, ExtensionConfig)> {
     let mut extensions_to_load = Vec::new();
@@ -62,6 +63,10 @@ fn parse_cli_flag_extensions(
         extensions_to_load.push((label, config));
     }
 
+    for extension in linked_extensions {
+        extensions_to_load.push((extension.name.clone(), extension.config.clone()));
+    }
+
     for builtin_str in builtins {
         let configs = CliSession::parse_builtin_extensions(builtin_str);
         for config in configs {
@@ -90,6 +95,8 @@ pub struct SessionBuilderConfig {
     pub extensions: Vec<String>,
     /// List of streamable HTTP extension commands to add
     pub streamable_http_extensions: Vec<StreamableHttpOptions>,
+    /// List of extension configs parsed from goose deeplinks to add
+    pub linked_extensions: Vec<LinkedExtension>,
     /// List of builtin extension commands to add
     pub builtins: Vec<String>,
     pub no_profile: bool,
@@ -132,6 +139,7 @@ impl Default for SessionBuilderConfig {
             no_session: false,
             extensions: Vec::new(),
             streamable_http_extensions: Vec::new(),
+            linked_extensions: Vec::new(),
             builtins: Vec::new(),
             no_profile: false,
             recipe: None,
@@ -434,6 +442,7 @@ async fn collect_extension_configs(
     let cli_flag_extensions = parse_cli_flag_extensions(
         &session_config.extensions,
         &session_config.streamable_http_extensions,
+        &session_config.linked_extensions,
         &session_config.builtins,
     );
 
@@ -713,6 +722,7 @@ mod tests {
                 url: "http://localhost:8080/mcp".to_string(),
                 timeout: goose::config::DEFAULT_EXTENSION_TIMEOUT,
             }],
+            linked_extensions: Vec::new(),
             builtins: vec!["developer".to_string()],
             no_profile: false,
             recipe: None,
@@ -732,6 +742,7 @@ mod tests {
 
         assert_eq!(config.extensions.len(), 1);
         assert_eq!(config.streamable_http_extensions.len(), 1);
+        assert!(config.linked_extensions.is_empty());
         assert_eq!(config.builtins.len(), 1);
         assert!(config.debug);
         assert_eq!(config.max_tool_repetitions, Some(5));
@@ -750,6 +761,7 @@ mod tests {
         assert!(!config.no_session);
         assert!(config.extensions.is_empty());
         assert!(config.streamable_http_extensions.is_empty());
+        assert!(config.linked_extensions.is_empty());
         assert!(config.builtins.is_empty());
         assert!(!config.no_profile);
         assert!(config.recipe.is_none());

@@ -217,6 +217,7 @@ Start or resume interactive chat sessions.
 **Extension Options:**
 - **`--with-extension <command>`**: Add stdio extensions
 - **`--with-streamable-http-extension <url>`**: Add remote extensions over Streamable HTTP
+- **`--with-linked-extension <deeplink>`**: Add an extension from a `goose://extension` deeplink, preserving its name and configuration for the current session
 - **`--with-builtin <id>`**: Enable built-in extensions (e.g., 'developer', 'computercontroller')
 
 **Usage:**
@@ -246,6 +247,7 @@ goose session --resume --session-id 20251108_2 --fork --edit --history
 goose session --with-extension "npx -y @modelcontextprotocol/server-memory"
 goose session --with-builtin developer
 goose session --with-streamable-http-extension "http://localhost:8080/mcp"
+goose session --with-linked-extension "goose://extension?cmd=uvx&arg=mcp-server-fetch&id=fetch&name=Fetch&description=Fetch%20web%20content"
 
 # Advanced: Mix multiple extension types
 goose session \
@@ -421,6 +423,7 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 **Extension Options:**
 - **`--with-extension <COMMAND>`**: Add stdio extensions (can be used multiple times)
 - **`--with-streamable-http-extension <URL>`**: Add remote extensions over Streamable HTTP (can be used multiple times)
+- **`--with-linked-extension <DEEPLINK>`**: Add an extension from a `goose://extension` deeplink without installing it to your profile (can be used multiple times)
 - **`--with-builtin <name>`**: Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')
 
 **Control Options:**

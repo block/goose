@@ -35,6 +35,7 @@ use crate::session::{build_session, SessionBuilderConfig};
 use goose::agents::Container;
 use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
+use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::PathBuf;
 const GOOSE_SERVER_SECRET_KEY_ENV: &str = "GOOSE_SERVER__SECRET_KEY";
@@ -169,6 +170,122 @@ fn parse_streamable_http_extension(input: &str) -> Result<StreamableHttpOptions,
     Ok(StreamableHttpOptions { url, timeout })
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct LinkedExtension {
+    pub name: String,
+    pub config: goose::config::ExtensionConfig,
+}
+
+fn required_deeplink_parameter(url: &url::Url, parameter: &str) -> Result<String, String> {
+    url.query_pairs()
+        .find(|(key, _)| key == parameter)
+        .map(|(_, value)| value.into_owned())
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| format!("missing required '{parameter}' parameter"))
+}
+
+fn parse_deeplink_key_values(
+    url: &url::Url,
+    parameter: &str,
+) -> Result<BTreeMap<String, String>, String> {
+    url.query_pairs()
+        .filter(|(key, _)| key == parameter)
+        .map(|(_, value)| {
+            let (key, value) = value
+                .split_once('=')
+                .ok_or_else(|| format!("'{parameter}' must use KEY=VALUE format"))?;
+            if key.trim().is_empty() {
+                return Err(format!("'{parameter}' must have a non-empty key"));
+            }
+            Ok((key.to_string(), value.to_string()))
+        })
+        .collect()
+}
+
+fn parse_deeplink_env_keys(url: &url::Url) -> Result<Vec<String>, String> {
+    let env_keys = parse_deeplink_key_values(url, "env")?;
+    let env_parameter_count = url.query_pairs().filter(|(key, _)| key == "env").count();
+    if env_keys.len() != env_parameter_count {
+        return Err("'env' parameters must not have duplicate keys".to_string());
+    }
+    Ok(env_keys.into_keys().collect())
+}
+
+fn parse_linked_extension(input: &str) -> Result<LinkedExtension, String> {
+    let url = url::Url::parse(input)
+        .map_err(|error| format!("invalid goose extension deeplink: {error}"))?;
+    if url.scheme() != "goose" || url.host_str() != Some("extension") {
+        return Err("expected a goose://extension deeplink".to_string());
+    }
+
+    let name = required_deeplink_parameter(&url, "name")?;
+    let description = url
+        .query_pairs()
+        .find(|(key, _)| key == "description")
+        .map(|(_, value)| value.into_owned())
+        .unwrap_or_default();
+    let timeout = url
+        .query_pairs()
+        .find(|(key, _)| key == "timeout")
+        .map(|(_, value)| {
+            value
+                .parse::<u64>()
+                .map_err(|_| "'timeout' must be an unsigned integer".to_string())
+        })
+        .transpose()?
+        .unwrap_or(goose::config::DEFAULT_EXTENSION_TIMEOUT);
+    let env_keys = parse_deeplink_env_keys(&url)?;
+
+    let extension_type = url
+        .query_pairs()
+        .find(|(key, _)| key == "type")
+        .map(|(_, value)| value.into_owned());
+    let config = match extension_type.as_deref() {
+        Some("streamable_http") => goose::config::ExtensionConfig::StreamableHttp {
+            name: name.clone(),
+            description,
+            uri: required_deeplink_parameter(&url, "url")?,
+            envs: goose::agents::extension::Envs::default(),
+            env_keys,
+            headers: parse_deeplink_key_values(&url, "header")?
+                .into_iter()
+                .collect(),
+            timeout: Some(timeout),
+            socket: None,
+            bundled: None,
+            available_tools: Vec::new(),
+        },
+        None | Some("stdio") => {
+            if url.query_pairs().any(|(key, _)| key == "url") {
+                return Err("'url' requires type=streamable_http".to_string());
+            }
+            let cmd = required_deeplink_parameter(&url, "cmd")?;
+            let args = url
+                .query_pairs()
+                .filter(|(key, _)| key == "arg")
+                .map(|(_, value)| value.into_owned())
+                .collect();
+            goose::config::ExtensionConfig::Stdio {
+                name: name.clone(),
+                description,
+                cmd,
+                args,
+                envs: goose::agents::extension::Envs::default(),
+                env_keys,
+                timeout: Some(timeout),
+                cwd: None,
+                bundled: None,
+                available_tools: Vec::new(),
+            }
+        }
+        Some(extension_type) => {
+            return Err(format!("unsupported extension type '{extension_type}'"));
+        }
+    };
+
+    Ok(LinkedExtension { name, config })
+}
+
 /// Extension configuration options shared between Session and Run commands
 #[derive(Args, Debug, Clone, Default)]
 pub struct ExtensionOptions {
@@ -190,6 +307,16 @@ pub struct ExtensionOptions {
         value_parser = parse_streamable_http_extension
     )]
     pub streamable_http_extensions: Vec<StreamableHttpOptions>,
+
+    #[arg(
+        long = "with-linked-extension",
+        value_name = "DEEPLINK",
+        help = "Add an extension from a goose deeplink (can be specified multiple times)",
+        long_help = "Add an extension for this session from a goose://extension deeplink. The deeplink name, description, command or URL, arguments, timeout, headers, and environment-variable names are preserved without installing it to your profile.",
+        action = clap::ArgAction::Append,
+        value_parser = parse_linked_extension
+    )]
+    pub linked_extensions: Vec<LinkedExtension>,
 
     #[arg(
         long = "with-builtin",
@@ -1685,6 +1812,7 @@ async fn handle_interactive_session(
         no_session: false,
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
+        linked_extensions: extension_opts.linked_extensions,
         builtins: extension_opts.builtins,
         no_profile: extension_opts.no_profile,
         recipe: None,
@@ -1900,6 +2028,7 @@ async fn handle_run_command(
         no_session: run_behavior.no_session,
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
+        linked_extensions: extension_opts.linked_extensions,
         builtins: extension_opts.builtins,
         no_profile: extension_opts.no_profile,
         recipe: recipe.clone(),
@@ -2190,6 +2319,7 @@ async fn handle_default_session() -> Result<()> {
         no_session: false,
         extensions: Vec::new(),
         streamable_http_extensions: Vec::new(),
+        linked_extensions: Vec::new(),
         builtins: Vec::new(),
         no_profile: false,
         recipe: None,
@@ -2383,6 +2513,106 @@ pub async fn cli() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_stdio_linked_extension_with_display_name() {
+        let extension = parse_linked_extension(
+            "goose://extension?cmd=uvx&arg=mcp-server-fetch&id=fetch&name=Fetch%20Files&description=Fetch%20web%20content&timeout=42",
+        )
+        .unwrap();
+
+        assert_eq!(extension.name, "Fetch Files");
+        assert_eq!(
+            extension.config,
+            goose::config::ExtensionConfig::Stdio {
+                name: "Fetch Files".to_string(),
+                description: "Fetch web content".to_string(),
+                cmd: "uvx".to_string(),
+                args: vec!["mcp-server-fetch".to_string()],
+                envs: goose::agents::extension::Envs::default(),
+                env_keys: Vec::new(),
+                timeout: Some(42),
+                cwd: None,
+                bundled: None,
+                available_tools: Vec::new(),
+            }
+        );
+    }
+
+    #[test]
+    fn parses_streamable_http_linked_extension_with_headers_and_env_keys() {
+        let extension = parse_linked_extension(
+            "goose://extension?type=streamable_http&url=https%3A%2F%2Fmcp.example.com%2Fmcp&id=example&name=Example&description=Example%20server&timeout=120&header=Authorization%3DBearer%20token&env=API_TOKEN%3DAPI%20token",
+        )
+        .unwrap();
+
+        assert_eq!(extension.name, "Example");
+        assert_eq!(
+            extension.config,
+            goose::config::ExtensionConfig::StreamableHttp {
+                name: "Example".to_string(),
+                description: "Example server".to_string(),
+                uri: "https://mcp.example.com/mcp".to_string(),
+                envs: goose::agents::extension::Envs::default(),
+                env_keys: vec!["API_TOKEN".to_string()],
+                headers: [("Authorization".to_string(), "Bearer token".to_string())].into(),
+                timeout: Some(120),
+                socket: None,
+                bundled: None,
+                available_tools: Vec::new(),
+            }
+        );
+    }
+
+    #[test]
+    fn linked_extension_flag_is_repeatable_for_session_and_run() {
+        for args in [
+            vec![
+                "goose",
+                "session",
+                "--with-linked-extension",
+                "goose://extension?cmd=uvx&name=First",
+                "--with-linked-extension",
+                "goose://extension?type=streamable_http&url=https%3A%2F%2Fexample.com&name=Second",
+            ],
+            vec![
+                "goose",
+                "run",
+                "--with-linked-extension",
+                "goose://extension?cmd=uvx&name=First",
+                "--with-linked-extension",
+                "goose://extension?type=streamable_http&url=https%3A%2F%2Fexample.com&name=Second",
+                "--text",
+                "hello",
+            ],
+        ] {
+            let cli = Cli::try_parse_from(args).expect("parse failed");
+            let extension_opts = match cli.command.unwrap() {
+                Command::Session { extension_opts, .. } | Command::Run { extension_opts, .. } => {
+                    extension_opts
+                }
+                _ => unreachable!(),
+            };
+            assert_eq!(extension_opts.linked_extensions.len(), 2);
+        }
+    }
+
+    #[test]
+    fn rejects_invalid_linked_extension_deeplinks() {
+        for link in [
+            "https://extension?cmd=uvx&name=Fetch",
+            "goose://recipe?cmd=uvx&name=Fetch",
+            "goose://extension?cmd=uvx",
+            "goose://extension?type=sse&url=https%3A%2F%2Fexample.com&name=Example",
+            "goose://extension?url=https%3A%2F%2Fexample.com&name=Example",
+            "goose://extension?type=streamable_http&url=https%3A%2F%2Fexample.com&name=Example&timeout=fast",
+            "goose://extension?cmd=uvx&name=Fetch&env==missing-key",
+            "goose://extension?cmd=uvx&name=Fetch&env=TOKEN%3Done&env=TOKEN%3Dtwo",
+            "goose://extension?type=streamable_http&url=https%3A%2F%2Fexample.com&name=Example&header==missing-key",
+        ] {
+            assert!(parse_linked_extension(link).is_err(), "expected {link} to fail");
+        }
+    }
 
     #[test]
     fn completion_command_accepts_nushell_alias() {
