@@ -1108,7 +1108,7 @@ impl SummonClient {
                 },
                 "context": {
                     "type": "string",
-                    "description": "Reference context for this delegation. Use for background information, file contents, or constraints the delegate needs but that aren't part of the task instructions. One-shot delegates inject it into the system prompt; persistent workers prepend it to that delegation's message, so it is call-scoped and not part of the worker's permanent state."
+                    "description": "Reference context for this delegation. Use for background information, file contents, or constraints the delegate needs but that aren't part of the task instructions. One-shot delegates inject it into the system prompt; persistent workers prepend it to that delegation's message, so it stays part of the conversation history like any other message rather than becoming standing configuration for future delegations."
                 },
                 "working_dir": {
                     "type": "string",
