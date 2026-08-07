@@ -208,8 +208,8 @@ pub async fn run_context_limit_correction_notification<C: Connection>() {
     );
 }
 
-// on_set_model persists the new config before the slower inventory step of the
-// same request, so awaiting the switch still lands it inside the probe delay.
+// on_set_model persists before the same request's slower inventory step, so
+// awaiting the switch still lands it inside the probe delay.
 pub async fn run_context_limit_refresh_skipped_after_model_switch<C: Connection>() {
     let openai = OpenAiFixture::with_n_ctx(
         vec![],

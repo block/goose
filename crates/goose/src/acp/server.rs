@@ -559,9 +559,8 @@ fn context_limit_correction(resolved: Option<u64>, fallback: u64) -> Option<u64>
     resolved.filter(|limit| *limit != fallback)
 }
 
-/// A correction resolved for one model config must not be sent once the session
-/// has moved to another; `ModelConfig` has no `PartialEq`, and only the name and
-/// the computed window bear on the value being corrected.
+/// `ModelConfig` has no `PartialEq`, and fields unrelated to the window
+/// shouldn't suppress a still-valid correction.
 fn context_limit_refresh_applies(
     current: Option<&goose_providers::model::ModelConfig>,
     captured: &goose_providers::model::ModelConfig,
