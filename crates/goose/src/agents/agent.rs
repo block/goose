@@ -28,10 +28,11 @@ use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::state_machine::{
     BangShellOperation, CompactionOperation, DoctorOperation, Emitter, ExitOnErrorOperation,
     InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation, RecipeOperation,
-    RetryOperation, SkillOperation, SlashCommandOperation, StateMachine, SteerOperation,
-    SteerQueue, Step, StopHookOperation, ToolApprovalOperation, ToolExecutionOperation,
-    ToolPairCompactionOperation, UnknownToolOperation, MAX_TURNS_MESSAGE,
+    RetryOperation, SkillOperation, SlashCommandOperation, StateMachine, SteerOperation, Step,
+    StopHookOperation, ToolApprovalOperation, ToolExecutionOperation, ToolPairCompactionOperation,
+    UnknownToolOperation, MAX_TURNS_MESSAGE,
 };
+use crate::agents::steering::SteeringQueue;
 use crate::agents::types::{
     FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver,
     DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
@@ -269,7 +270,7 @@ pub struct Agent {
     container: Mutex<Option<Container>>,
     pub(super) goal: Mutex<Option<String>>,
     pub(super) grind: Mutex<Option<String>>,
-    steer_queues: Mutex<HashMap<String, SteerQueue>>,
+    steering_queues: Mutex<HashMap<String, Arc<SteeringQueue>>>,
 }
 
 #[derive(Clone, Debug)]
@@ -433,7 +434,7 @@ impl Agent {
             container: Mutex::new(None),
             goal: Mutex::new(None),
             grind: Mutex::new(None),
-            steer_queues: Mutex::new(HashMap::new()),
+            steering_queues: Mutex::new(HashMap::new()),
         }
     }
 
@@ -511,44 +512,66 @@ impl Agent {
     }
 
     pub async fn steer(&self, session_id: &str, message: Message) {
-        self.steer_queue(session_id)
-            .await
-            .lock()
-            .await
-            .push_back(message);
+        let queue = self.steering_queue(session_id).await;
+        let message_text = agent_visible_message_text(&message);
+        let entry_id = queue.enqueue(message).await;
+        if !self
+            .hook_manager
+            .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
+        {
+            queue.mark_hook_complete(entry_id).await;
+            return;
+        }
+
+        let hook_manager = self.hook_manager.clone();
+        let hook_session_id = session_id.to_string();
+        let activation_queue = Arc::clone(&queue);
+        let activation = tokio::spawn(async move {
+            let context = crate::hooks::HookContext::new(
+                crate::hooks::HookEvent::UserPromptSubmit,
+                hook_session_id,
+            )
+            .with_message(message_text);
+            hook_manager
+                .emit(crate::hooks::HookEvent::UserPromptSubmit, context)
+                .await;
+            activation_queue.mark_hook_complete(entry_id).await;
+        });
+
+        if let Err(error) = activation.await {
+            warn!(%error, "Steering hook task failed");
+            queue.mark_hook_complete(entry_id).await;
+        }
     }
 
     pub async fn discard_pending_steers(&self, session_id: &str) {
-        self.steer_queues.lock().await.remove(session_id);
+        self.steering_queues.lock().await.remove(session_id);
     }
 
+    #[cfg(test)]
     pub(crate) async fn has_pending_steers(&self, session_id: &str) -> bool {
-        let queue = self.steer_queues.lock().await.get(session_id).cloned();
+        let queue = self.steering_queues.lock().await.get(session_id).cloned();
         match queue {
-            Some(queue) => !queue.lock().await.is_empty(),
+            Some(queue) => queue.has_pending().await,
             None => false,
         }
     }
 
+    #[cfg(test)]
     pub(crate) async fn drain_pending_steers(&self, session_id: &str) -> Vec<Message> {
-        let queue = self.steer_queues.lock().await.get(session_id).cloned();
+        let queue = self.steering_queues.lock().await.get(session_id).cloned();
         match queue {
-            Some(queue) => queue
-                .lock()
-                .await
-                .drain(..)
-                .map(Message::with_steer)
-                .collect(),
+            Some(queue) => queue.drain_available().await,
             None => Vec::new(),
         }
     }
 
-    async fn steer_queue(&self, session_id: &str) -> SteerQueue {
-        self.steer_queues
+    async fn steering_queue(&self, session_id: &str) -> Arc<SteeringQueue> {
+        self.steering_queues
             .lock()
             .await
             .entry(session_id.to_string())
-            .or_default()
+            .or_insert_with(|| Arc::new(SteeringQueue::default()))
             .clone()
     }
 
@@ -1582,7 +1605,7 @@ impl Agent {
         context_limit: usize,
         max_turns: Option<u32>,
         cancel: CancellationToken,
-        steer_queue: SteerQueue,
+        steering_queue: Arc<SteeringQueue>,
     ) -> StateMachine<'_> {
         let max_turns = max_turns.unwrap_or_else(|| {
             Config::global()
@@ -1617,7 +1640,7 @@ impl Agent {
             && !provider.manages_own_context();
 
         let operations: Vec<Arc<dyn Operation + '_>> = vec![
-            Arc::new(SteerOperation::new(steer_queue, self.hook_manager.clone())),
+            Arc::new(SteerOperation::new(steering_queue)),
             Arc::new(MaxTurnsOperation::new(max_turns)),
             Arc::new(BangShellOperation::new()),
             Arc::new(CompactionOperation::new(
@@ -1751,14 +1774,14 @@ impl Agent {
             .get_context_limit(&model_config)
             .await
             .unwrap_or_else(|_| model_config.context_limit());
-        let steer_queue = self.steer_queue(&session_id).await;
+        let steering_queue = self.steering_queue(&session_id).await;
         let machine = self.create_state_machine(
             provider,
             model_config,
             context_limit,
             session_config.max_turns,
             cancel.clone(),
-            steer_queue,
+            steering_queue,
         );
         let reply_span = tracing::Span::current();
 
@@ -2178,6 +2201,8 @@ impl Agent {
                 resolved_model: Some(resolved_model),
             });
         let session_manager = self.config.session_manager.clone();
+        let steering_queue = self.steering_queue(&session_config.id).await;
+        let steering_wait_cancel = cancel_token.clone().unwrap_or_default();
         let session_id = session_config.id.clone();
         if !self.config.disable_session_naming {
             let provider = provider.clone();
@@ -2272,21 +2297,7 @@ impl Agent {
                 }
 
                 if can_drain_pending_steers {
-                    for message in self.drain_pending_steers(&session_config.id).await {
-                        let message_text = agent_visible_message_text(&message);
-                        if self
-                            .hook_manager
-                            .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
-                        {
-                            let ctx = crate::hooks::HookContext::new(
-                                crate::hooks::HookEvent::UserPromptSubmit,
-                                &session_config.id,
-                            )
-                            .with_message(message_text);
-                            self.hook_manager
-                                .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
-                                .await;
-                        }
+                    for message in steering_queue.drain_available().await {
                         let message = persist_and_push_message_with_id(
                             &session_manager,
                             &session_config.id,
@@ -3025,6 +3036,9 @@ impl Agent {
                     }
                 }
                 can_drain_pending_steers = true;
+                steering_queue
+                    .wait_until_steer_can_be_used(&steering_wait_cancel)
+                    .await;
 
                 if tools_updated {
                     (tools, toolshim_tools, system_prompt, _) =
@@ -3087,7 +3101,7 @@ impl Agent {
                         None if did_recovery_compact_this_iteration => {
                             // continue from last user message after recovery compact
                         }
-                        None if self.has_pending_steers(&session_config.id).await => {}
+                        None if steering_queue.has_pending().await => {}
                         None if self.goal.lock().await.is_some() && !goal_check_pending => {
                             goal_check_pending = true;
                             let goal = self.goal.lock().await.clone().unwrap();
@@ -3262,7 +3276,7 @@ impl Agent {
                 }
                 conversation.extend(messages_to_add);
 
-                if exit_chat && self.has_pending_steers(&session_config.id).await {
+                if exit_chat && steering_queue.has_pending().await {
                     exit_chat = false;
                 }
 
@@ -5008,6 +5022,77 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             "discarding must drop steers orphaned by a cancelled run so they cannot leak into a later prompt"
         );
         assert!(agent.drain_pending_steers(session_id).await.is_empty());
+
+        let detached_queue = agent.steering_queue(session_id).await;
+        let entry_id = detached_queue
+            .enqueue(Message::user().with_text("hook still running"))
+            .await;
+        agent.discard_pending_steers(session_id).await;
+        assert!(detached_queue.mark_hook_complete(entry_id).await);
+        assert!(!agent.has_pending_steers(session_id).await);
+    }
+
+    #[tokio::test]
+    async fn steering_hook_failure_still_readies_the_message_once() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let plugin_dir = temp_dir.path().join("steering-hook");
+        std::fs::create_dir_all(plugin_dir.join("hooks"))?;
+        std::fs::write(
+            plugin_dir.join("hooks/hooks.json"),
+            r#"{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "sh ${PLUGIN_ROOT}/hook.sh" }
+        ]
+      }
+    ]
+  }
+}
+"#,
+        )?;
+        std::fs::write(
+            plugin_dir.join("hook.sh"),
+            r#"#!/bin/sh
+echo ran >> "$PLUGIN_ROOT/hook.log"
+exit 1
+"#,
+        )?;
+
+        let mut agent = Agent::new();
+        agent.set_hook_manager_for_test(crate::hooks::HookManager::from_plugins_for_test(vec![
+            DiscoveredPlugin {
+                name: "steering-hook".into(),
+                root: plugin_dir.clone(),
+                scope: PluginScope::Project,
+            },
+        ]));
+
+        agent
+            .steer(
+                "steering-hook-session",
+                Message::user().with_text("redirect"),
+            )
+            .await;
+        assert_eq!(
+            std::fs::read_to_string(plugin_dir.join("hook.log"))?
+                .lines()
+                .count(),
+            1
+        );
+
+        let messages = agent.drain_pending_steers("steering-hook-session").await;
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].as_concat_text(), "redirect");
+        assert!(messages[0].metadata.steer);
+        assert_eq!(
+            std::fs::read_to_string(plugin_dir.join("hook.log"))?
+                .lines()
+                .count(),
+            1
+        );
+        Ok(())
     }
 
     #[test]

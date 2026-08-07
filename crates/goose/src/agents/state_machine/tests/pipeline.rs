@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -17,16 +16,17 @@ use crate::agents::prompt_manager::PromptManager;
 use crate::agents::state_machine::{
     BangShellOperation, CompactionOperation, DoctorOperation, Emitter, ExitOnErrorOperation,
     InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation, RecipeOperation,
-    RetryOperation, SkillOperation, SlashCommandOperation, StateMachine, SteerOperation,
-    SteerQueue, Step, StopHookOperation, ToolApprovalOperation, ToolExecutionOperation,
-    ToolPairCompactionOperation, UnknownToolOperation,
+    RetryOperation, SkillOperation, SlashCommandOperation, StateMachine, SteerOperation, Step,
+    StopHookOperation, ToolApprovalOperation, ToolExecutionOperation, ToolPairCompactionOperation,
+    UnknownToolOperation,
 };
+use crate::agents::steering::SteeringQueue;
 use crate::agents::AgentEvent;
 use crate::config::permission::{PermissionLevel, PermissionManager};
 use crate::config::GooseMode;
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent};
 use crate::conversation::Conversation;
-use crate::hooks::HookManager;
+use crate::hooks::{HookContext, HookEvent, HookManager};
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::Permission;
 use crate::providers::base::Provider;
@@ -98,7 +98,7 @@ pub(super) struct TestPipeline {
     calculator: Arc<CalculatorExtension>,
     pub(super) session_id: String,
     working_dir: std::path::PathBuf,
-    steer_queue: SteerQueue,
+    steering_queue: Arc<SteeringQueue>,
     max_turns: u32,
     scheduler: Option<Arc<crate::scheduler::Scheduler>>,
     _temp_dir: Arc<tempfile::TempDir>,
@@ -112,10 +112,7 @@ impl TestPipeline {
             COMPACTION_THRESHOLD,
         );
         let operations: Vec<Arc<dyn Operation + '_>> = vec![
-            Arc::new(SteerOperation::new(
-                self.steer_queue.clone(),
-                self.hook_manager.clone(),
-            )),
+            Arc::new(SteerOperation::new(self.steering_queue.clone())),
             Arc::new(MaxTurnsOperation::new(self.max_turns)),
             Arc::new(BangShellOperation::new()),
             Arc::new(CompactionOperation::new(
@@ -295,11 +292,22 @@ impl TestPipeline {
     }
 
     pub(super) async fn steer(&self, message: Message) {
-        self.steer_queue.lock().await.push_back(message);
+        let message_text = message.agent_visible_content().as_concat_text();
+        let entry_id = self.steering_queue.enqueue(message).await;
+        if self.hook_manager.has_hooks(HookEvent::UserPromptSubmit) {
+            self.hook_manager
+                .emit(
+                    HookEvent::UserPromptSubmit,
+                    HookContext::new(HookEvent::UserPromptSubmit, &self.session_id)
+                        .with_message(message_text),
+                )
+                .await;
+        }
+        self.steering_queue.mark_hook_complete(entry_id).await;
     }
 
     pub(super) async fn has_pending_steers(&self) -> bool {
-        !self.steer_queue.lock().await.is_empty()
+        self.steering_queue.has_pending().await
     }
 
     pub(super) fn calculator_total(&self) -> i64 {
@@ -788,7 +796,7 @@ async fn build_test_pipeline(
         calculator: calculator.clone(),
         session_id: session.id.clone(),
         working_dir: session.working_dir.clone(),
-        steer_queue: Arc::new(tokio::sync::Mutex::new(VecDeque::new())),
+        steering_queue: Arc::new(SteeringQueue::default()),
         max_turns: MAX_TURNS,
         scheduler,
         _temp_dir: temp_dir,

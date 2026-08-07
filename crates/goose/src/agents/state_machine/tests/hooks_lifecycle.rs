@@ -1,9 +1,12 @@
 use anyhow::Result;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::Notify;
 
 use super::calculator_extension::{value, ADD};
 use super::pipeline::{test_pipeline, MessageKind::Agent, MessageKind::ToolResponse, MAX_TURNS};
 use crate::agents::state_machine::ops_stop_hook::DENIED;
-use crate::conversation::message::{MessageContent, SystemNotificationType};
+use crate::conversation::message::{Message, MessageContent, SystemNotificationType};
 
 struct HookTestEnv {
     _temp_dir: tempfile::TempDir,
@@ -147,6 +150,25 @@ async fn session_prompt_and_tool_hooks_fire_at_their_boundaries() -> Result<()> 
     assert_eq!(api.call_count(), 2);
     assert_eq!(prompt_submit.invocations(), 2);
 
+    let prompt_submit = HookTestEnv::new("UserPromptSubmit", LOG_AND_ALLOW_SCRIPT);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(prompt_submit.hook_manager());
+    let first_response = api.on("start work").hold_reply("first response");
+    api.on("change direction").reply("steer applied");
+
+    let run = pipeline.run(["start work"]);
+    let steer = async {
+        first_response.entered().await;
+        pipeline
+            .steer(Message::user().with_text("change direction"))
+            .await;
+        assert_eq!(prompt_submit.invocations(), 2);
+        first_response.release();
+    };
+    let (result, ()) = tokio::join!(run, steer);
+    result?.assert_message(-1, Agent, "steer applied");
+    assert_eq!(prompt_submit.invocations(), 2);
+
     let pre_tool = HookTestEnv::new("PreToolUse", LOG_AND_BLOCK_SCRIPT);
     let (pipeline, api) = test_pipeline().await?;
     let pipeline = pipeline.with_hook_manager(pre_tool.hook_manager());
@@ -159,5 +181,67 @@ async fn session_prompt_and_tool_hooks_fire_at_their_boundaries() -> Result<()> 
     assert_eq!(pre_tool.invocations(), 1);
     assert_eq!(pipeline.calculator_total(), 0);
 
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn blocked_steering_hook_does_not_block_provider_output() -> Result<()> {
+    let hook_started = Arc::new(Notify::new());
+    let hook_release = Arc::new(Notify::new());
+    let hook_manager = crate::hooks::HookManager::waiting_for_test(
+        crate::hooks::HookEvent::UserPromptSubmit,
+        "change direction",
+        Arc::clone(&hook_started),
+        Arc::clone(&hook_release),
+    );
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(hook_manager);
+    let first_response = api.on("start work").hold_reply("provider output");
+    api.on("change direction").reply("steer applied");
+
+    let run = pipeline.run(["start work"]);
+    let steer = async {
+        first_response.entered().await;
+        let submit = pipeline.steer(Message::user().with_text("change direction"));
+        tokio::pin!(submit);
+
+        tokio::select! {
+            () = &mut submit => panic!("steering hook completed before it was released"),
+            () = hook_started.notified() => {}
+        }
+
+        first_response.release();
+        let provider_output_consumed = tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                let has_provider_output = pipeline
+                    .session()
+                    .await
+                    .expect("session should load")
+                    .conversation
+                    .is_some_and(|conversation| {
+                        conversation
+                            .messages()
+                            .iter()
+                            .any(|message| message.as_concat_text() == "provider output")
+                    });
+                if has_provider_output {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .is_ok();
+
+        hook_release.notify_one();
+        submit.await;
+        assert!(
+            provider_output_consumed,
+            "provider output should be consumed while the steering hook is blocked"
+        );
+    };
+
+    let (result, ()) = tokio::join!(run, steer);
+    result?.assert_message(-1, Agent, "steer applied");
     Ok(())
 }

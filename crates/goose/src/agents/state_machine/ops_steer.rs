@@ -1,34 +1,25 @@
 //! Adds queued user guidance when the agent is between model and tool turns.
 
-use std::collections::VecDeque;
 use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use tokio::sync::Mutex;
 
 use crate::agents::state_machine::operation::{
     applied, ends_turn, last_effective_role, messages_since_kickoff, not_applicable, Emitter,
     Operation, OperationResult,
 };
-use crate::conversation::message::Message;
+use crate::agents::steering::SteeringQueue;
 use crate::conversation::{Conversation, EffectiveRole};
-use crate::hooks::{HookContext, HookEvent, HookManager};
 use crate::session::Session;
 
-pub(crate) type SteerQueue = Arc<Mutex<VecDeque<Message>>>;
-
 pub struct SteerOperation {
-    queue: SteerQueue,
-    hook_manager: HookManager,
+    queue: Arc<SteeringQueue>,
 }
 
 impl SteerOperation {
-    pub(crate) fn new(queue: SteerQueue, hook_manager: HookManager) -> Self {
-        Self {
-            queue,
-            hook_manager,
-        }
+    pub(crate) fn new(queue: Arc<SteeringQueue>) -> Self {
+        Self { queue }
     }
 }
 
@@ -40,7 +31,7 @@ impl Operation for SteerOperation {
 
     async fn run(
         &self,
-        session: &Session,
+        _session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
     ) -> Result<OperationResult> {
@@ -51,24 +42,16 @@ impl Operation for SteerOperation {
             return not_applicable();
         }
 
-        let pending: Vec<_> = self
-            .queue
-            .lock()
-            .await
-            .drain(..)
-            .map(Message::with_steer)
-            .collect();
+        self.queue
+            .wait_until_steer_can_be_used(emit.cancel_token())
+            .await;
+        let pending = self.queue.drain_available().await;
         if pending.is_empty() {
             return not_applicable();
         }
 
         let mut effects = Vec::with_capacity(pending.len());
         for message in pending {
-            let context = HookContext::new(HookEvent::UserPromptSubmit, &session.id)
-                .with_message(message.as_concat_text());
-            self.hook_manager
-                .emit(HookEvent::UserPromptSubmit, context)
-                .await;
             let message = emit.message(message).await;
             effects.push(message.into());
         }

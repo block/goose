@@ -46,7 +46,7 @@ pub(super) use ops_recipe::RecipeOperation;
 pub(super) use ops_retry::RetryOperation;
 pub(super) use ops_skills::SkillOperation;
 pub(super) use ops_slash_command::SlashCommandOperation;
-pub(super) use ops_steer::{SteerOperation, SteerQueue};
+pub(super) use ops_steer::SteerOperation;
 pub(super) use ops_stop_hook::StopHookOperation;
 pub(super) use ops_tool_approval::ToolApprovalOperation;
 pub(super) use ops_tool_pair_compaction::ToolPairCompactionOperation;

@@ -16,6 +16,7 @@ pub mod reply_parts;
 pub mod retry;
 mod schedule_tool;
 pub mod state_machine;
+mod steering;
 pub mod subagent_execution_tool;
 pub(crate) mod subagent_handler;
 pub(crate) mod subagent_task_config;
