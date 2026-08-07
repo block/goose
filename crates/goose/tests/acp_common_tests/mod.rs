@@ -10,7 +10,7 @@ use agent_client_protocol::schema::v1::{
 };
 use fixtures::{
     assert_notifications, Connection, FsFixture, Notification, OpenAiFixture, PermissionDecision,
-    Session, SessionData, TerminalCall, TerminalFixture, TestConnectionConfig,
+    Session, SessionData, TerminalCall, TerminalFixture, TestConnectionConfig, N_CTX_PROBE_DELAY,
 };
 use fs_err as fs;
 use goose::acp::server::AcpProviderFactory;
@@ -205,6 +205,38 @@ pub async fn run_context_limit_correction_notification<C: Connection>() {
     assert!(
         notifications.contains(&corrected),
         "expected a corrected usage update, got {notifications:?}"
+    );
+}
+
+// on_set_model persists the new config before the slower inventory step of the
+// same request, so awaiting the switch still lands it inside the probe delay.
+pub async fn run_context_limit_refresh_skipped_after_model_switch<C: Connection>() {
+    let openai = OpenAiFixture::with_n_ctx(
+        vec![],
+        C::expected_session_id(),
+        UNKNOWN_MODEL,
+        PROBED_CONTEXT_LIMIT,
+    )
+    .await;
+    let config = TestConnectionConfig {
+        current_model: UNKNOWN_MODEL.to_string(),
+        ..Default::default()
+    };
+    let mut conn = C::new(config, openai).await;
+    let SessionData { session, .. } = conn.new_session().await.unwrap();
+
+    conn.set_config_option(&session.session_id().0, "model", "gpt-4.1")
+        .await
+        .unwrap();
+
+    tokio::time::sleep(N_CTX_PROBE_DELAY * 10).await;
+    let notifications = session.notifications();
+    assert!(
+        !notifications.iter().any(|notification| matches!(
+            notification,
+            Notification::UsageUpdate { context_limit, .. } if *context_limit == PROBED_CONTEXT_LIMIT
+        )),
+        "expected no usage update for the pre-switch model, got {notifications:?}"
     );
 }
 

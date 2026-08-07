@@ -559,6 +559,19 @@ fn context_limit_correction(resolved: Option<u64>, fallback: u64) -> Option<u64>
     resolved.filter(|limit| *limit != fallback)
 }
 
+/// A correction resolved for one model config must not be sent once the session
+/// has moved to another; `ModelConfig` has no `PartialEq`, and only the name and
+/// the computed window bear on the value being corrected.
+fn context_limit_refresh_applies(
+    current: Option<&goose_providers::model::ModelConfig>,
+    captured: &goose_providers::model::ModelConfig,
+) -> bool {
+    current.is_some_and(|current| {
+        current.model_name == captured.model_name
+            && current.context_limit() == captured.context_limit()
+    })
+}
+
 pub(super) fn build_usage_updates(
     session: &Session,
     totals: &SessionUsageTotals,
@@ -676,6 +689,9 @@ impl GooseAcpAgent {
                     return;
                 }
             };
+            if !context_limit_refresh_applies(session.model_config.as_ref(), &model_config) {
+                return;
+            }
             let totals = session_manager
                 .get_session_usage_totals(&session_id)
                 .await
@@ -2799,6 +2815,23 @@ print(\"hello, world\")
     #[test_case(Some(258_400), 128_000 => Some(258_400) ; "differing limit is sent")]
     fn test_context_limit_correction(resolved: Option<u64>, fallback: u64) -> Option<u64> {
         context_limit_correction(resolved, fallback)
+    }
+
+    #[test_case(Some("captured"), None => true ; "unchanged config applies")]
+    #[test_case(Some("switched"), None => false ; "different model skips")]
+    #[test_case(Some("captured"), Some(258_400) => false ; "changed context limit override skips")]
+    #[test_case(None, None => false ; "missing config skips")]
+    fn test_context_limit_refresh_applies(
+        current_model: Option<&str>,
+        current_context_limit: Option<usize>,
+    ) -> bool {
+        let captured = goose_providers::model::ModelConfig::new("captured");
+        let current = current_model.map(|model_name| {
+            let mut current = goose_providers::model::ModelConfig::new(model_name);
+            current.context_limit = current_context_limit;
+            current
+        });
+        context_limit_refresh_applies(current.as_ref(), &captured)
     }
 
     #[test]

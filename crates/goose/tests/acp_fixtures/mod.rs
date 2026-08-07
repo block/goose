@@ -219,7 +219,7 @@ const OPENAI_MODELS: &str = include_str!("../acp_test_data/openai_models.json");
 
 /// Long enough that a context limit resolved through the `/v1/models` probe
 /// cannot land inside session setup.
-const N_CTX_PROBE_DELAY: std::time::Duration = std::time::Duration::from_millis(200);
+pub const N_CTX_PROBE_DELAY: std::time::Duration = std::time::Duration::from_millis(200);
 
 impl OpenAiFixture {
     /// Mock OpenAI streaming endpoint. Exchanges are (pattern, response) pairs.
