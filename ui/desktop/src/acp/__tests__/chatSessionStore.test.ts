@@ -522,6 +522,16 @@ describe('acpChatSessionStore', () => {
     expect(finished.chatState).toBe(ChatState.Idle);
   });
 
+  it('preserves LoadingConversation when clearing orphaned prompt attempts', () => {
+    const currentSessionId = sessionId('session-1');
+
+    acpChatSessionActions.startSessionLoad(currentSessionId);
+    const snapshot = acpChatSessionActions.clearActivePromptAttempt(currentSessionId);
+
+    expect(snapshot?.activePromptAttemptId).toBeNull();
+    expect(snapshot?.chatState).toBe(ChatState.LoadingConversation);
+  });
+
   it('stores ACP tool notifications and clears them for a new prompt attempt', () => {
     const currentSessionId = sessionId('session-1');
 
