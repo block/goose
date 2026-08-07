@@ -9,36 +9,28 @@
   "dynamic_models": true,
   "models": [
     {
-      "name": "Meta-Llama-3.1-405B-Instruct",
-      "context_limit": 16384
-    },
-    {
-      "name": "Meta-Llama-3.1-8B-Instruct",
-      "context_limit": 16384
-    },
-    {
       "name": "Meta-Llama-3.3-70B-Instruct",
       "context_limit": 131072
     },
     {
-      "name": "Llama-4-Maverick-17B-128E-Instruct",
+      "name": "DeepSeek-V3.1",
       "context_limit": 131072
     },
     {
-      "name": "DeepSeek-R1",
-      "context_limit": 16384
-    },
-    {
-      "name": "DeepSeek-V3-0324",
-      "context_limit": 8192
-    },
-    {
-      "name": "Qwen3-32B",
+      "name": "DeepSeek-V3.2",
       "context_limit": 131072
     },
     {
       "name": "gpt-oss-120b",
-      "context_limit": 16384
+      "context_limit": 131072
+    },
+    {
+      "name": "MiniMax-M2.7",
+      "context_limit": 131072
+    },
+    {
+      "name": "gemma-4-31B-it",
+      "context_limit": 131072
     }
   ],
   "preserves_thinking": true,
