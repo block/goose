@@ -24,7 +24,16 @@ make dev-ui
 ```
 
 Use `make help` for the complete local workflow. Provider credentials can be
-synced with `make pull-secrets` after configuring `INFISICAL_PROJECT_ID`.
+synced after an Infisical organization administrator creates the `avcd-agent`
+project:
+
+```bash
+export INFISICAL_PROJECT_ID="<project-uuid>"
+make pull-secrets
+```
+
+The same project ID is used by `make upload-secrets`. Project creation is an
+account-level action; no project ID or credential is committed to this fork.
 
 ## Keeping the fork current
 
