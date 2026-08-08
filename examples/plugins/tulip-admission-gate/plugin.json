@@ -1,0 +1,5 @@
+{
+  "name": "tulip-admission-gate",
+  "version": "0.1.0",
+  "description": "Gates Goose tool calls through a Tulip-style admission decision (allow/deny) backed by any tulip-compatible model, over the Open Plugins PreToolUse hook."
+}

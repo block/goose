@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PLUGIN_ROOT}/scripts/tulip_gate.py",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}
