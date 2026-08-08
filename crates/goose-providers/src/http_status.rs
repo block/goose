@@ -242,12 +242,9 @@ pub fn map_http_error_to_provider_error(
                     .and_then(|c| c.as_str())
                     .map(|s| s.to_ascii_lowercase())
             });
-            let code_is_context = code.as_deref().is_some_and(|c| {
-                c == "context_length_exceeded"
-                    || c == "context_window_exceeded"
-                    || c.contains("context_length")
-                    || c.contains("context_window")
-            });
+            let code_is_context = code
+                .as_deref()
+                .is_some_and(|c| c == "context_length_exceeded" || c == "context_window_exceeded");
             if code_is_context || is_context_length_exceeded_message(&payload_str) {
                 ProviderError::ContextLengthExceeded(payload_str)
             } else {
