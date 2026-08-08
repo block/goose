@@ -64,6 +64,9 @@ do_not_version/
 /.env
 
 /working_dir
+/workspace/
+/.env.local
+/.env.infisical
 
 # Local build scripts and generated snapshot artifacts
 /build.bat

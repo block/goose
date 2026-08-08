@@ -1,0 +1,43 @@
+services:
+  server:
+    image: avcd-agent-dev
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command:
+      - serve
+      - --platform
+      - desktop
+      - --enable-scheduler
+      - --host
+      - 0.0.0.0
+      - --port
+      - "3000"
+    environment:
+      GOOSE_SERVER__SECRET_KEY: ${GOOSE_SERVER__SECRET_KEY:-avcd-agent-local-development-key}
+      GOOSE_TELEMETRY_OFF: "true"
+    ports:
+      - "${SERVER_PORT:-3000}:3000"
+    volumes:
+      - avcd-agent-config:/home/goose/.config/goose
+      - ./workspace:/workspace
+    restart: unless-stopped
+
+  cli:
+    profiles:
+      - cli
+    image: avcd-agent-dev
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    environment:
+      GOOSE_SERVER__SECRET_KEY: ${GOOSE_SERVER__SECRET_KEY:-avcd-agent-local-development-key}
+      GOOSE_TELEMETRY_OFF: "true"
+    stdin_open: true
+    tty: true
+    volumes:
+      - avcd-agent-config:/home/goose/.config/goose
+      - ./workspace:/workspace
+
+volumes:
+  avcd-agent-config:

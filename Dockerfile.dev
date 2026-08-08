@@ -1,0 +1,55 @@
+# syntax=docker/dockerfile:1.7
+
+FROM rust:1.94.1-bookworm AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    cmake \
+    libclang-dev \
+    libdbus-1-dev \
+    libprotobuf-dev \
+    libssl-dev \
+    pkg-config \
+    protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+COPY . .
+
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/build/target \
+    cargo build --package goose-cli --no-default-features \
+      --features rustls-tls,tui,disable-update \
+    && cp /build/target/debug/goose /tmp/goose
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    git \
+    libdbus-1-3 \
+    libgomp1 \
+    libssl3 \
+    libxcb1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /tmp/goose /usr/local/bin/goose
+
+RUN useradd -m -u 1000 -s /bin/bash goose \
+    && mkdir -p /home/goose/.config/goose /workspace \
+    && chown -R goose:goose /home/goose /workspace
+
+ENV HOME=/home/goose
+USER goose
+WORKDIR /workspace
+
+ENTRYPOINT ["/usr/local/bin/goose"]
+CMD ["--help"]
+
+LABEL org.opencontainers.image.title="avcd-agent"
+LABEL org.opencontainers.image.description="AVCD Agent local development CLI and ACP server"
+LABEL org.opencontainers.image.vendor="Avocado Technology"
+LABEL org.opencontainers.image.source="https://github.com/Avocado-Technology/avcd-agent"
