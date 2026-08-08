@@ -99,7 +99,8 @@ package-ui: build-desktop-binary
 				--platform=darwin --arch=arm64 --out=out --overwrite --asar \
 				--executable-name=avcd-agent --icon=src/images/icon.icns \
 				--extra-resource=src/bin --extra-resource=src/images \
-				--extra-resource=src/app-update.yml)
+				--extra-resource=src/app-update.yml) && \
+		test -d "out/AVCD Agent-darwin-arm64/AVCD Agent.app"
 
 test-smoke:
 	SERVER_PORT="$(SERVER_PORT)" ./scripts/smoke-test.sh

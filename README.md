@@ -10,6 +10,10 @@ server, with support for multiple model providers and Model Context Protocol
 Requirements: Docker Desktop, Make, Node.js 24.10 or newer, and pnpm 10.30 or
 newer.
 
+On macOS, the current upstream Electron Forge stack exits before writing the
+bundle under Node 24. Use `nvm use 22.18.0` for `make package-ui`; development,
+linting, and tests continue to use the declared Node 24 runtime.
+
 ```bash
 cp .env.local.example .env.local
 make dev
