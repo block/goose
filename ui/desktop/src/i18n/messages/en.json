@@ -168,10 +168,10 @@
     "defaultMessage": "Launch"
   },
   "chat.notification.taskComplete.body": {
-    "defaultMessage": "Click here to bring Goose back into focus."
+    "defaultMessage": "Click here to bring AVCD Agent back into focus."
   },
   "chat.notification.taskComplete.title": {
-    "defaultMessage": "Goose finished the task."
+    "defaultMessage": "AVCD Agent finished the task."
   },
   "chatInput.contextWindow": {
     "defaultMessage": "Context window"
@@ -222,13 +222,13 @@
     "defaultMessage": "Waiting for images to save..."
   },
   "chatSettings.modeDescription": {
-    "defaultMessage": "Choose the default mode Goose uses for new sessions. Existing sessions keep their current mode."
+    "defaultMessage": "Choose the default mode AVCD Agent uses for new sessions. Existing sessions keep their current mode."
   },
   "chatSettings.modeTitle": {
     "defaultMessage": "Default Mode"
   },
   "chatSettings.responseStylesDescription": {
-    "defaultMessage": "Choose how Goose should format and style its responses"
+    "defaultMessage": "Choose how AVCD Agent should format and style its responses"
   },
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "Response Styles"
@@ -324,7 +324,7 @@
     "defaultMessage": "Max Turns"
   },
   "conversationLimitsDropdown.maxTurnsDescription": {
-    "defaultMessage": "Maximum agent turns before Goose asks for user input"
+    "defaultMessage": "Maximum agent turns before AVCD Agent asks for user input"
   },
   "costTracker.costUnavailable": {
     "defaultMessage": "Cost data not available for {model} ({inputTokens} input, {outputTokens} output tokens)"
@@ -936,7 +936,7 @@
     "defaultMessage": "Information request was cancelled."
   },
   "elicitationRequest.defaultMessage": {
-    "defaultMessage": "Goose needs some information from you."
+    "defaultMessage": "AVCD Agent needs some information from you."
   },
   "elicitationRequest.expired": {
     "defaultMessage": "This request has expired. The extension will need to ask again."
@@ -981,7 +981,7 @@
     "defaultMessage": "An error occurred."
   },
   "errorBoundary.errorWithVersion": {
-    "defaultMessage": "An error occurred in Goose v{version}."
+    "defaultMessage": "An error occurred in AVCD Agent v{version}."
   },
   "errorBoundary.heading": {
     "defaultMessage": "Honk!"
@@ -1167,7 +1167,7 @@
     "defaultMessage": "Extensions enabled here are used as the default for new chats. You can also toggle active extensions during chat."
   },
   "extensionsView.description": {
-    "defaultMessage": "These extensions use the Model Context Protocol (MCP). They can expand Goose's capabilities using three main components: Prompts, Resources, and Tools. {searchShortcut} to search."
+    "defaultMessage": "These extensions use the Model Context Protocol (MCP). They can expand AVCD Agent's capabilities using three main components: Prompts, Resources, and Tools. {searchShortcut} to search."
   },
   "extensionsView.heading": {
     "defaultMessage": "Extensions"
@@ -1185,13 +1185,13 @@
     "defaultMessage": "AA:BB:CC:... or sha256/base64"
   },
   "externalBackendSection.description": {
-    "defaultMessage": "By default Goose starts a local backend. Use this to connect to an external ACP-compatible backend."
+    "defaultMessage": "By default AVCD Agent starts a local backend. Use this to connect to an external ACP-compatible backend."
   },
   "externalBackendSection.fingerprintRequiresHttps": {
     "defaultMessage": "Certificate fingerprint requires an https URL"
   },
   "externalBackendSection.restartNote": {
-    "defaultMessage": "Changes apply to new chat windows. Restart Goose to update existing windows."
+    "defaultMessage": "Changes apply to new chat windows. Restart AVCD Agent to update existing windows."
   },
   "externalBackendSection.secretKey": {
     "defaultMessage": "Secret Key"
@@ -1206,7 +1206,7 @@
     "defaultMessage": "Backend Base URL"
   },
   "externalBackendSection.serverUrlHelp": {
-    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+    "defaultMessage": "Enter the HTTP(S) base URL. AVCD Agent checks /status and connects to /acp under this base."
   },
   "externalBackendSection.title": {
     "defaultMessage": "External Backend (ACP)"
@@ -1233,7 +1233,7 @@
     "defaultMessage": "Developer"
   },
   "goosehintsModal.dialogDescription": {
-    "defaultMessage": "Provide additional context about your project to improve communication with Goose"
+    "defaultMessage": "Provide additional context about your project to improve communication with AVCD Agent"
   },
   "goosehintsModal.dialogTitle": {
     "defaultMessage": "Configure Project Hints (.goosehints)"
@@ -1254,7 +1254,7 @@
     "defaultMessage": ".goosehints file found at: {filePath}"
   },
   "goosehintsModal.helpText1": {
-    "defaultMessage": ".goosehints is a text file used to provide additional context about your project and improve the communication with Goose."
+    "defaultMessage": ".goosehints is a text file used to provide additional context about your project and improve communication with AVCD Agent."
   },
   "goosehintsModal.helpText2": {
     "defaultMessage": "Please make sure {bold} extension is enabled in the extensions page. This extension is required to use .goosehints. You'll need to restart your session for .goosehints updates to take effect."
@@ -1281,7 +1281,7 @@
     "defaultMessage": "Configure"
   },
   "goosehintsSection.description": {
-    "defaultMessage": "Configure your project's .goosehints file to provide additional context to Goose"
+    "defaultMessage": "Configure your project's .goosehints file to provide additional context to AVCD Agent"
   },
   "goosehintsSection.title": {
     "defaultMessage": "Project Hints (.goosehints)"
@@ -1566,13 +1566,13 @@
     "defaultMessage": "Application Shortcuts"
   },
   "keyboardShortcuts.categoryApplicationDescription": {
-    "defaultMessage": "These shortcuts work when Goose is the active application"
+    "defaultMessage": "These shortcuts work when AVCD Agent is the active application"
   },
   "keyboardShortcuts.categoryGlobal": {
     "defaultMessage": "Global Shortcuts"
   },
   "keyboardShortcuts.categoryGlobalDescription": {
-    "defaultMessage": "These shortcuts work system-wide, even when Goose is not focused"
+    "defaultMessage": "These shortcuts work system-wide, even when AVCD Agent is not focused"
   },
   "keyboardShortcuts.categorySearch": {
     "defaultMessage": "Search Shortcuts"
@@ -1614,10 +1614,10 @@
     "defaultMessage": "Find Previous"
   },
   "keyboardShortcuts.focusWindowDescription": {
-    "defaultMessage": "Bring Goose window to front from anywhere"
+    "defaultMessage": "Bring AVCD Agent window to front from anywhere"
   },
   "keyboardShortcuts.focusWindowLabel": {
-    "defaultMessage": "Focus Goose Window"
+    "defaultMessage": "Focus AVCD Agent Window"
   },
   "keyboardShortcuts.loading": {
     "defaultMessage": "Loading..."
@@ -1629,7 +1629,7 @@
     "defaultMessage": "New Chat"
   },
   "keyboardShortcuts.newChatWindowDescription": {
-    "defaultMessage": "Open a new Goose window"
+    "defaultMessage": "Open a new AVCD Agent window"
   },
   "keyboardShortcuts.newChatWindowLabel": {
     "defaultMessage": "New Chat Window"
@@ -1668,7 +1668,7 @@
     "defaultMessage": "Reset to Defaults"
   },
   "keyboardShortcuts.restartDescription": {
-    "defaultMessage": "Changes to application shortcuts (like New Chat, Settings, etc.) require restarting Goose to take effect. Global shortcuts (Focus Window, Quick Launcher) work immediately."
+    "defaultMessage": "Changes to application shortcuts (like New Chat and Settings) require restarting AVCD Agent to take effect. Global shortcuts (Focus Window and Quick Launcher) work immediately."
   },
   "keyboardShortcuts.restartRequired": {
     "defaultMessage": "Restart Required"
@@ -2397,7 +2397,7 @@
     "defaultMessage": "The server may be starting up or temporarily unavailable."
   },
   "onboardingGuard.checkProviderErrorTitle": {
-    "defaultMessage": "Unable to connect to Goose server"
+    "defaultMessage": "Unable to connect to AVCD Agent server"
   },
   "onboardingGuard.retry": {
     "defaultMessage": "Retry"
@@ -3789,7 +3789,7 @@
     "defaultMessage": "Chat history"
   },
   "sessions.chatHistoryDesc": {
-    "defaultMessage": "View and search your past conversations with Goose. {shortcut} to search."
+    "defaultMessage": "View and search your past conversations with AVCD Agent. {shortcut} to search."
   },
   "sessions.close": {
     "defaultMessage": "Close"
@@ -3825,7 +3825,7 @@
     "defaultMessage": "Import Link"
   },
   "sessions.importNostr.description": {
-    "defaultMessage": "Paste a Goose Nostr share link to fetch, decrypt, and import the session."
+    "defaultMessage": "Paste an AVCD Agent Nostr share link to fetch, decrypt, and import the session."
   },
   "sessions.importNostr.placeholder": {
     "defaultMessage": "goose://sessions/nostr?nevent=...&key=..."
@@ -4038,7 +4038,7 @@
     "defaultMessage": "Open Settings"
   },
   "settings.notifications.task.description": {
-    "defaultMessage": "Notify when Goose finishes a task while the window is in the background"
+    "defaultMessage": "Notify when AVCD Agent finishes a task while the window is in the background"
   },
   "settings.notifications.task.title": {
     "defaultMessage": "Task completion notifications"
@@ -4134,7 +4134,7 @@
     "defaultMessage": "Search skills..."
   },
   "skillsView.skillsDescription": {
-    "defaultMessage": "View installed skills that extend Goose capabilities. {shortcut} to search."
+    "defaultMessage": "View installed skills that extend AVCD Agent capabilities. {shortcut} to search."
   },
   "skillsView.skillsTitle": {
     "defaultMessage": "Skills"
@@ -4485,10 +4485,10 @@
     "defaultMessage": "Allow {toolName}?"
   },
   "toolConfirmation.gooseWouldLikeToCallWithName": {
-    "defaultMessage": "Goose would like to call {toolName}. Allow?"
+    "defaultMessage": "AVCD Agent would like to call {toolName}. Allow?"
   },
   "updateSection.autoDownload": {
-    "defaultMessage": "Goose will download the update in the background and install it the next time you quit or restart."
+    "defaultMessage": "AVCD Agent will download the update in the background and install it the next time you quit or restart."
   },
   "updateSection.autoDownloadDisabledByEnv": {
     "defaultMessage": "Automatic downloads are disabled via the GOOSE_DISABLE_AUTO_DOWNLOAD environment variable."
@@ -4512,7 +4512,7 @@
     "defaultMessage": "Disable automatic update downloads"
   },
   "updateSection.disableAutoDownloadDesc": {
-    "defaultMessage": "When enabled, Goose will notify you of new versions but will not download them automatically."
+    "defaultMessage": "When enabled, AVCD Agent will notify you of new versions but will not download them automatically."
   },
   "updateSection.downloadNow": {
     "defaultMessage": "Download Now"
@@ -4545,7 +4545,7 @@
     "defaultMessage": "Manual installation required for this update method."
   },
   "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ Update is ready. Restart Goose to finish installing it, or quit when you're done."
+    "defaultMessage": "Update is ready. Restart AVCD Agent to finish installing it, or quit when you're done."
   },
   "updateSection.readyInstallManual": {
     "defaultMessage": "✓ Update is ready! Click \"Install & Restart\" for installation instructions."

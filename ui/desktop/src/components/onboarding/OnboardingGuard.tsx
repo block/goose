@@ -27,7 +27,7 @@ const i18n = defineMessages({
   },
   checkProviderErrorTitle: {
     id: 'onboardingGuard.checkProviderErrorTitle',
-    defaultMessage: 'Unable to connect to Goose server',
+    defaultMessage: 'Unable to connect to AVCD Agent server',
   },
   checkProviderErrorDescription: {
     id: 'onboardingGuard.checkProviderErrorDescription',

@@ -1,6 +1,6 @@
 .PHONY: help dev dev-down dev-logs \
 	infisical-check pull-secrets upload-secrets \
-	cli dev-ui package-ui test-smoke check-core
+	cli dev-ui build-desktop-binary package-ui test-smoke check-core sync-i18n check-ui
 
 .DEFAULT_GOAL := help
 
@@ -27,6 +27,8 @@ help:
 	@echo "  make package-ui      Build a local desktop package"
 	@echo "  make test-smoke      Verify backend, CLI, branding, and package"
 	@echo "  make check-core      Type-check the Rust core and CLI"
+	@echo "  make sync-i18n       Refresh desktop English messages"
+	@echo "  make check-ui        Type-check, lint, and test the desktop"
 	@echo "  make pull-secrets    Export Infisical dev secrets to .env.local"
 	@echo "  make upload-secrets  Upload .env.local to Infisical"
 
@@ -84,8 +86,19 @@ dev-ui:
 		GOOSE_SERVER__SECRET_KEY="$(GOOSE_SERVER__SECRET_KEY)" \
 		pnpm install --frozen-lockfile && pnpm run start-gui
 
-package-ui:
-	cd ui/desktop && pnpm install --frozen-lockfile && pnpm run package
+build-desktop-binary:
+	cargo build -p goose-cli --bin goose --no-default-features \
+		--features rustls-tls,tui,disable-update
+	cp target/debug/goose ui/desktop/src/bin/goose
+
+package-ui: build-desktop-binary
+	cd ui/desktop && pnpm install --frozen-lockfile && pnpm run package && \
+		(test -d "out/AVCD Agent-darwin-arm64/AVCD Agent.app" || \
+			pnpm exec electron-packager . "AVCD Agent" \
+				--platform=darwin --arch=arm64 --out=out --overwrite --asar \
+				--executable-name=avcd-agent --icon=src/images/icon.icns \
+				--extra-resource=src/bin --extra-resource=src/images \
+				--extra-resource=src/app-update.yml)
 
 test-smoke:
 	SERVER_PORT="$(SERVER_PORT)" ./scripts/smoke-test.sh
@@ -93,3 +106,10 @@ test-smoke:
 check-core:
 	cargo check -p goose -p goose-cli --no-default-features \
 		--features rustls-tls,tui,disable-update
+
+sync-i18n:
+	cd ui/desktop && pnpm install --frozen-lockfile && pnpm run i18n:extract
+
+check-ui:
+	cd ui/desktop && pnpm install --frozen-lockfile && \
+		pnpm run lint:check && pnpm run test:run

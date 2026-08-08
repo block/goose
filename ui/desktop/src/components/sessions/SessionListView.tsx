@@ -79,7 +79,7 @@ const i18n = defineMessages({
   importNostrTitle: { id: 'sessions.importNostr.title', defaultMessage: 'Import Nostr Session' },
   importNostrDesc: {
     id: 'sessions.importNostr.description',
-    defaultMessage: 'Paste a Goose Nostr share link to fetch, decrypt, and import the session.',
+    defaultMessage: 'Paste an AVCD Agent Nostr share link to fetch, decrypt, and import the session.',
   },
   importNostrPlaceholder: {
     id: 'sessions.importNostr.placeholder',
@@ -88,7 +88,7 @@ const i18n = defineMessages({
   importing: { id: 'sessions.importing', defaultMessage: 'Importing...' },
   chatHistoryDesc: {
     id: 'sessions.chatHistoryDesc',
-    defaultMessage: 'View and search your past conversations with Goose. {shortcut} to search.',
+    defaultMessage: 'View and search your past conversations with AVCD Agent. {shortcut} to search.',
   },
   searchPlaceholder: { id: 'sessions.searchPlaceholder', defaultMessage: 'Search history...' },
   errorLoading: { id: 'sessions.error.loading', defaultMessage: 'Error Loading Sessions' },

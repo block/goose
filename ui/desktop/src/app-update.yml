@@ -1,4 +1,4 @@
 provider: github
-owner: aaif-goose
-repo: goose
-updaterCacheDirName: goose-updater
+owner: Avocado-Technology
+repo: avcd-agent
+updaterCacheDirName: avcd-agent-updater

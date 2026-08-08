@@ -1,8 +1,8 @@
 [Desktop Entry]
-Name=Goose
-Exec=/usr/lib/Goose/Goose %U
-Icon=/usr/share/pixmaps/Goose.png
+Name=AVCD Agent
+Exec=/usr/lib/avcd-agent/avcd-agent %U
+Icon=/usr/share/pixmaps/avcd-agent.png
 Terminal=false
 Type=Application
 Categories=Development;
-MimeType=x-scheme-handler/goose;
+MimeType=x-scheme-handler/avcd-agent;

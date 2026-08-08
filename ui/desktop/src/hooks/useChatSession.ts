@@ -45,11 +45,11 @@ function isSlashCommand(message: string): boolean {
 const i18n = defineMessages({
   notificationTitle: {
     id: 'chat.notification.taskComplete.title',
-    defaultMessage: 'Goose finished the task.',
+    defaultMessage: 'AVCD Agent finished the task.',
   },
   notificationBody: {
     id: 'chat.notification.taskComplete.body',
-    defaultMessage: 'Click here to bring Goose back into focus.',
+    defaultMessage: 'Click here to bring AVCD Agent back into focus.',
   },
 });
 

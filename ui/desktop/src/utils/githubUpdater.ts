@@ -29,7 +29,7 @@ interface UpdateCheckResult {
 export class GitHubUpdater {
   private readonly owner = process.env.GITHUB_OWNER || 'aaif-goose';
   private readonly repo = process.env.GITHUB_REPO || 'goose';
-  private readonly bundleName = process.env.GOOSE_BUNDLE_NAME || 'Goose';
+  private readonly bundleName = process.env.GOOSE_BUNDLE_NAME || 'AVCD Agent';
   private readonly apiUrl = `https://api.github.com/repos/${this.owner}/${this.repo}/releases/latest`;
 
   async checkForUpdates(): Promise<UpdateCheckResult> {
@@ -50,7 +50,7 @@ export class GitHubUpdater {
       const response = await fetch(this.apiUrl, {
         headers: {
           Accept: 'application/vnd.github.v3+json',
-          'User-Agent': `Goose-Desktop/${app.getVersion()}`,
+          'User-Agent': `AVCD-Agent-Desktop/${app.getVersion()}`,
         },
         signal: controller.signal,
       });
@@ -119,7 +119,7 @@ export class GitHubUpdater {
       log.info(`GitHubUpdater: Looking for asset named: ${assetName}`);
       log.info(`GitHubUpdater: Available assets: ${release.assets.map((a) => a.name).join(', ')}`);
 
-      const asset = release.assets.find((a) => a.name.toLowerCase() === assetName.toLowerCase()); // keeping comparison to lowercase because Goose vs goose
+      const asset = release.assets.find((a) => a.name.toLowerCase() === assetName.toLowerCase());
       if (asset) {
         downloadUrl = asset.browser_download_url;
         log.info(`GitHubUpdater: Found matching asset: ${asset.name} (${asset.size} bytes)`);

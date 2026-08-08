@@ -6,6 +6,8 @@ const isLinuxVulkanBuild = process.env.GOOSE_DESKTOP_LINUX_VARIANT === 'vulkan';
 
 let cfg = {
   asar: true,
+  name: 'AVCD Agent',
+  executableName: 'avcd-agent',
   extraResource: ['src/bin', 'src/images', 'src/app-update.yml'],
   icon: 'src/images/icon',
   // Windows specific configuration
@@ -19,8 +21,8 @@ let cfg = {
   // Protocol registration
   protocols: [
     {
-      name: 'GooseProtocol',
-      schemes: ['goose'],
+      name: 'AvcdAgentProtocol',
+      schemes: ['avcd-agent'],
     },
   ],
   // macOS Info.plist extensions for drag-and-drop support
@@ -36,9 +38,9 @@ let cfg = {
     ],
     // Usage descriptions for macOS TCC (Transparency, Consent, and Control)
     NSMicrophoneUsageDescription:
-      'Goose needs access to your microphone for voice dictation.',
+      'AVCD Agent needs access to your microphone for voice dictation.',
     NSAppleEventsUsageDescription:
-      'Goose needs access to send Apple Events to control other apps on your behalf.',
+      'AVCD Agent needs access to send Apple Events to control other apps on your behalf.',
   },
 };
 
@@ -65,8 +67,8 @@ module.exports = {
       name: '@electron-forge/publisher-github',
       config: {
         repository: {
-          owner: process.env.GITHUB_OWNER || 'aaif-goose',
-          name: process.env.GITHUB_REPO || 'goose',
+          owner: process.env.GITHUB_OWNER || 'Avocado-Technology',
+          name: process.env.GITHUB_REPO || 'avcd-agent',
         },
         prerelease: false,
         draft: true,
@@ -87,10 +89,10 @@ module.exports = {
     {
       name: '@electron-forge/maker-deb',
       config: {
-        name: 'Goose',
-        bin: 'Goose',
-        maintainer: 'AAIF (Agentic AI Foundation)',
-        homepage: 'https://goose-docs.ai/',
+        name: 'avcd-agent',
+        bin: 'avcd-agent',
+        maintainer: 'Avocado Technology',
+        homepage: 'https://avcd.ai/',
         categories: ['Development'],
         desktopTemplate: './forge.deb.desktop',
         options: {
@@ -103,10 +105,10 @@ module.exports = {
     {
       name: '@electron-forge/maker-rpm',
       config: {
-        name: 'Goose',
-        bin: 'Goose',
-        maintainer: 'AAIF (Agentic AI Foundation)',
-        homepage: 'https://goose-docs.ai/',
+        name: 'avcd-agent',
+        bin: 'avcd-agent',
+        maintainer: 'Avocado Technology',
+        homepage: 'https://avcd.ai/',
         categories: ['Development'],
         desktopTemplate: './forge.rpm.desktop',
         options: {
@@ -120,17 +122,17 @@ module.exports = {
       name: '@electron-forge/maker-flatpak',
       config: {
         options: {
-          id: 'io.github.block.Goose', // NOTE: kept for backwards compat with existing installs
+          id: 'ai.avcd.Agent',
           categories: ['Development'],
-          mimeType: ['x-scheme-handler/goose'],
+          mimeType: ['x-scheme-handler/avcd-agent'],
           icon: {
             scalable: 'src/images/icon.svg',
             '512x512': 'src/images/icon-512.png',
           },
-          homepage: 'https://goose-docs.ai/',
+          homepage: 'https://avcd.ai/',
           runtimeVersion: '25.08',
           baseVersion: '25.08',
-          bin: 'Goose',
+          bin: 'avcd-agent',
           modules: [
             {
               name: 'libbz2-shim',
