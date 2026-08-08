@@ -1,8 +1,9 @@
 # tulip-admission-gate
 
 A real [Open Plugins](https://open-plugins.com) plugin that gates every tool
-call through an admission decision, backed by any [tulip-agents](https://tulipagents.ai)
--compatible model, over goose's `PreToolUse` hook.
+call through an admission decision over goose's `PreToolUse` hook. Works out
+of the box with an OpenAI key, or point it at any self-hosted/local
+[tulip-agents](https://tulipagents.ai)-compatible model instead.
 
 ## What this demonstrates
 
@@ -58,15 +59,32 @@ mkdir -p ~/.agents/plugins
 cp -R examples/plugins/tulip-admission-gate ~/.agents/plugins/tulip-admission-gate
 chmod +x ~/.agents/plugins/tulip-admission-gate/scripts/tulip_gate.py
 
-# Point at your own tulip-compatible admission model (default assumes a
-# private local endpoint reachable over SSH -- swap for anything OpenAI-
-# chat-completions-compatible that answers with one of allow/require_human/deny):
-export TULIP_GATE_SSH_HOST=your-model-host
+# Zero setup -- works with just an OpenAI key, no private infrastructure:
+export OPENAI_API_KEY=sk-...
+
+goose session
+```
+
+### Using your own model instead
+
+`TULIP_GATE_URL` (optionally with `TULIP_GATE_SSH_HOST` if the model is
+reachable only over SSH, and `TULIP_GATE_MODEL` for the served model name)
+points the gate at any self-hosted or local admission model — anything
+that answers an OpenAI-chat-completions-shaped request with one of
+`allow`/`require_human`/`deny`. Takes priority over `OPENAI_API_KEY` if both
+are set:
+
+```bash
 export TULIP_GATE_URL=http://127.0.0.1:PORT/v1/chat/completions
+export TULIP_GATE_SSH_HOST=your-model-host   # only if not directly reachable
 export TULIP_GATE_MODEL=your-model-name
 
 goose session
 ```
+
+With neither configured, the gate fails closed on every call with a clear
+reason telling you which environment variable to set — not a silent or
+cryptic failure.
 
 To turn the plugin off, add it to `disabledPlugins` in
 `~/.config/goose/settings.json`.
