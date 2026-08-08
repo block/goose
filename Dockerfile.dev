@@ -24,6 +24,12 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
       --features rustls-tls,tui,disable-update \
     && cp /build/target/debug/goose /tmp/goose
 
+FROM builder AS lint
+
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/build/target \
+    cargo clippy --workspace --all-targets -- -D warnings
+
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

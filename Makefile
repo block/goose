@@ -1,6 +1,6 @@
 .PHONY: help dev dev-down dev-logs \
 	infisical-check pull-secrets upload-secrets \
-	cli dev-ui build-desktop-binary package-ui test-smoke check-core sync-i18n check-ui
+	cli dev-ui build-desktop-binary package-ui test-smoke check-core clippy sync-i18n check-ui
 
 .DEFAULT_GOAL := help
 
@@ -27,6 +27,7 @@ help:
 	@echo "  make package-ui      Build a local desktop package"
 	@echo "  make test-smoke      Verify backend, CLI, branding, and package"
 	@echo "  make check-core      Type-check the Rust core and CLI"
+	@echo "  make clippy          Run strict Rust workspace linting"
 	@echo "  make sync-i18n       Refresh desktop English messages"
 	@echo "  make check-ui        Type-check, lint, and test the desktop"
 	@echo "  make pull-secrets    Export Infisical dev secrets to .env.local"
@@ -106,6 +107,9 @@ test-smoke:
 check-core:
 	cargo check -p goose -p goose-cli --no-default-features \
 		--features rustls-tls,tui,disable-update
+
+clippy:
+	docker build --file Dockerfile.dev --target lint .
 
 sync-i18n:
 	cd ui/desktop && pnpm install --frozen-lockfile && pnpm run i18n:extract
