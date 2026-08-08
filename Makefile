@@ -1,6 +1,6 @@
 .PHONY: help dev dev-down dev-logs \
 	infisical-check pull-secrets upload-secrets \
-	cli dev-ui package-ui test-smoke
+	cli dev-ui package-ui test-smoke check-core
 
 .DEFAULT_GOAL := help
 
@@ -26,6 +26,7 @@ help:
 	@echo "  make dev-ui          Run Electron on the host against Docker"
 	@echo "  make package-ui      Build a local desktop package"
 	@echo "  make test-smoke      Verify backend, CLI, branding, and package"
+	@echo "  make check-core      Type-check the Rust core and CLI"
 	@echo "  make pull-secrets    Export Infisical dev secrets to .env.local"
 	@echo "  make upload-secrets  Upload .env.local to Infisical"
 
@@ -88,3 +89,7 @@ package-ui:
 
 test-smoke:
 	SERVER_PORT="$(SERVER_PORT)" ./scripts/smoke-test.sh
+
+check-core:
+	cargo check -p goose -p goose-cli --no-default-features \
+		--features rustls-tls,tui,disable-update
