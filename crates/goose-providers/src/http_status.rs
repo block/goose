@@ -107,6 +107,25 @@ fn parse_http_date(value: &str) -> Option<SystemTime> {
     None
 }
 
+/// Detect context overflow from a 400 body's structured fields rather than its
+/// prose. `error.code == "context_length_exceeded"` is the value OpenAI
+/// specifies, and llama.cpp-derived servers additionally attach the
+/// `n_prompt_tokens`/`n_ctx` pair. Message matching cannot separate a context
+/// overflow from any other 400 without risking false positives across every
+/// provider that shares this mapping, so structured fields are checked first.
+fn is_context_length_exceeded_payload(payload: Option<&Value>) -> bool {
+    let Some(error) = payload.and_then(|p| p.get("error")) else {
+        return false;
+    };
+
+    let code_matches = error
+        .get("code")
+        .and_then(|code| code.as_str())
+        .is_some_and(|code| code.eq_ignore_ascii_case("context_length_exceeded"));
+
+    code_matches || (error.get("n_prompt_tokens").is_some() && error.get("n_ctx").is_some())
+}
+
 pub fn is_context_length_exceeded_message(text: &str) -> bool {
     let text_lower = text.to_lowercase();
 
@@ -214,7 +233,9 @@ pub fn map_http_error_to_provider_error(
         StatusCode::PAYLOAD_TOO_LARGE => ProviderError::ContextLengthExceeded(extract_message()),
         StatusCode::BAD_REQUEST => {
             let payload_str = extract_message();
-            if is_context_length_exceeded_message(&payload_str) {
+            if is_context_length_exceeded_payload(payload.as_ref())
+                || is_context_length_exceeded_message(&payload_str)
+            {
                 ProviderError::ContextLengthExceeded(payload_str)
             } else {
                 ProviderError::RequestFailed(format!("Bad request (400): {}", payload_str))
@@ -462,5 +483,53 @@ mod tests {
                 "expected generic bad request for: {message}"
             );
         }
+    }
+
+    fn map_bad_request(payload: Value) -> ProviderError {
+        map_http_error_to_provider_error(StatusCode::BAD_REQUEST, Some(payload), "http://localhost")
+    }
+
+    #[test]
+    fn bad_request_with_structured_context_code_maps_to_context_length_exceeded() {
+        let error = map_bad_request(json!({
+            "error": {
+                "message": "Prompt has 49202 tokens, but the configured context size is 49152 tokens",
+                "type": "invalid_request_error",
+                "param": "messages",
+                "code": "context_length_exceeded",
+                "n_prompt_tokens": 49202,
+                "n_ctx": 49152
+            }
+        }));
+
+        assert!(matches!(error, ProviderError::ContextLengthExceeded(_)));
+    }
+
+    #[test]
+    fn bad_request_with_token_counts_maps_to_context_length_exceeded() {
+        let error = map_bad_request(json!({
+            "error": {
+                "message": "request exceeds the available context size, try increasing it",
+                "type": "exceed_context_size_error",
+                "code": 400,
+                "n_prompt_tokens": 370770,
+                "n_ctx": 65536
+            }
+        }));
+
+        assert!(matches!(error, ProviderError::ContextLengthExceeded(_)));
+    }
+
+    #[test]
+    fn bad_request_without_context_signals_stays_request_failed() {
+        let error = map_bad_request(json!({
+            "error": {
+                "message": "max_tokens must be less than or equal to 4096",
+                "type": "invalid_request_error",
+                "code": "invalid_value"
+            }
+        }));
+
+        assert!(matches!(error, ProviderError::RequestFailed(_)));
     }
 }
