@@ -116,10 +116,6 @@ pub fn is_context_length_exceeded_message(text: &str) -> bool {
         "context window",
         "context_window_exceeded",
         "context limit",
-        // ds4 / llama.cpp style: "configured context size is N tokens"
-        "context size",
-        "configured context",
-        "n_ctx",
         "maximum context",
         "max context",
         "maximum prompt length",
@@ -133,7 +129,6 @@ pub fn is_context_length_exceeded_message(text: &str) -> bool {
     }
 
     // ds4: "Prompt has 49777 tokens, but the configured context size is 49152 tokens."
-    // (also matched above via "context size"; keep explicit prompt-has+tokens as belt-and-suspenders)
     if text_lower.contains("prompt has")
         && text_lower.contains("token")
         && (text_lower.contains("context")
