@@ -258,13 +258,14 @@ async fn resolve_provider_and_model(
         .recipe
         .as_ref()
         .and_then(|r| r.settings.as_ref());
+    let configured_provider = config.get_goose_provider().ok();
 
     let provider_name = session_config
         .provider
         .clone()
         .or_else(|| saved_provider.clone())
         .or_else(|| recipe_settings.and_then(|s| s.goose_provider.clone()))
-        .or_else(|| config.get_goose_provider().ok())
+        .or_else(|| configured_provider.clone())
         .unwrap_or_else(|| {
             output::render_error("No provider configured. Run 'goose configure' first.");
             process::exit(1);
@@ -272,6 +273,12 @@ async fn resolve_provider_and_model(
 
     let saved_provider_matches = saved_provider.as_deref() == Some(provider_name.as_str());
     let provider_overridden = session_config.provider.is_some();
+    let matching_config_model =
+        if provider_overridden && configured_provider.as_deref() == Some(provider_name.as_str()) {
+            config.get_goose_model().ok()
+        } else {
+            None
+        };
     let configured_provider_model = session_config.provider.as_ref().and_then(|_| {
         goose::config::get_provider_entry(config, &provider_name)
             .map(|entry| entry.model)
@@ -307,6 +314,7 @@ async fn resolve_provider_and_model(
                 None
             }
         })
+        .or(matching_config_model)
         .or(configured_provider_model)
         .or(target_provider_default)
         .or_else(|| {
@@ -890,9 +898,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn matching_provider_override_preserves_configured_model() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = test_config(&temp_dir);
+        config.set_param("GOOSE_PROVIDER", "openai").unwrap();
+        config.set_param("GOOSE_MODEL", "my-custom-model").unwrap();
+
+        let resolved = resolve_provider_and_model(
+            &SessionBuilderConfig {
+                provider: Some("openai".to_string()),
+                ..SessionBuilderConfig::default()
+            },
+            &config,
+            None,
+            None,
+        )
+        .await;
+
+        assert_eq!(resolved.provider_name, "openai");
+        assert_eq!(resolved.model_name, "my-custom-model");
+        assert_eq!(resolved.model_config.model_name, "my-custom-model");
+    }
+
+    #[tokio::test]
     async fn resume_provider_override_uses_target_provider_default_instead_of_active_model() {
         let temp_dir = TempDir::new().unwrap();
         let config = test_config(&temp_dir);
+        config.set_param("GOOSE_PROVIDER", "anthropic").unwrap();
         config
             .set_param("GOOSE_MODEL", "claude-sonnet-4-6")
             .unwrap();
