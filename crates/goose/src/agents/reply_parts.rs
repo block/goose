@@ -205,8 +205,6 @@ impl Agent {
             .extension_manager
             .get_extensions_info(working_dir)
             .await;
-        let (extension_count, tool_count) = self.total_extension_and_tool_counts(session_id).await;
-
         let model_config = self.model_config_for_session(session_id).await?;
 
         let goose_mode = *self.current_goose_mode.lock().await;
@@ -220,7 +218,6 @@ impl Agent {
             .builder()
             .with_extensions(extensions_info.into_iter())
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
-            .with_extension_and_tool_counts(extension_count, tool_count)
             .with_code_execution_mode(code_execution_active)
             .with_hints(working_dir)
             .with_goose_mode(goose_mode)

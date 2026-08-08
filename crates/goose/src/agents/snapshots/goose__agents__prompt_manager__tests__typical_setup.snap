@@ -1,5 +1,6 @@
 ---
 source: crates/goose/src/agents/prompt_manager.rs
+assertion_line: 494
 expression: system_prompt
 ---
 You are a general-purpose AI agent called goose, created by AAIF (Agentic AI Foundation).
@@ -43,11 +44,6 @@ extension_A supports resources.
 
 ### Instructions
 <instructions on how to use extension B (no resources)>
-
-# Suggestion
-
-The user has 6 extensions with 51 tools enabled, exceeding recommended limits (5 extensions or 50 tools).
-Consider asking if they'd like to disable some extensions to improve tool selection accuracy.
 
 # Response Guidelines
 

@@ -1057,18 +1057,6 @@ impl Agent {
         extension_configs
     }
 
-    pub(crate) async fn total_extension_and_tool_counts(&self, session_id: &str) -> (usize, usize) {
-        let (extension_count, tool_count) = self
-            .extension_manager
-            .get_extension_and_tool_counts(session_id)
-            .await;
-
-        (
-            extension_count + self.frontend_extensions.lock().await.len(),
-            tool_count + self.frontend_tools.lock().await.len(),
-        )
-    }
-
     pub async fn add_final_output_tool(&self, response: Response) {
         let mut final_output_tool = self.final_output_tool.lock().await;
         let created_final_output_tool = FinalOutputTool::new(response);
@@ -3711,7 +3699,6 @@ impl Agent {
             .get_extensions_info(&session.working_dir)
             .await;
         tracing::debug!("Retrieved {} extensions info", extensions_info.len());
-        let (extension_count, tool_count) = self.total_extension_and_tool_counts(session_id).await;
 
         let model_config = self.model_config_for_session(session_id).await?;
         let model_name = &model_config.model_name;
@@ -3723,7 +3710,6 @@ impl Agent {
             .builder()
             .with_extensions(extensions_info.into_iter())
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
-            .with_extension_and_tool_counts(extension_count, tool_count)
             .with_goose_mode(goose_mode)
             .build();
 
