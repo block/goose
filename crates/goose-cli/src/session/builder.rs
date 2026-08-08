@@ -233,6 +233,21 @@ struct ResolvedProviderConfig {
     model_config: goose_providers::model::ModelConfig,
 }
 
+fn validate_provider_override_context(
+    session_config: &SessionBuilderConfig,
+    provider_name: &str,
+    provider_manages_own_context: bool,
+) -> anyhow::Result<()> {
+    if session_config.resume && session_config.provider.is_some() && provider_manages_own_context {
+        anyhow::bail!(
+            "Cannot resume with provider '{}' because it manages its own conversation context. Start a new session to use this provider.",
+            provider_name
+        );
+    }
+
+    Ok(())
+}
+
 async fn resolve_provider_and_model(
     session_config: &SessionBuilderConfig,
     config: &Config,
@@ -667,6 +682,16 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         };
     tracing::info!("🤖 Using model: {}", effective_model_name);
 
+    validate_provider_override_context(
+        &session_config,
+        &effective_provider_name,
+        new_provider.manages_own_context(),
+    )
+    .unwrap_or_else(|e| {
+        output::render_error(&e.to_string());
+        process::exit(1);
+    });
+
     agent
         .update_provider(new_provider, effective_model_config, &session_id)
         .await
@@ -945,6 +970,53 @@ mod tests {
             .request_params
             .as_ref()
             .is_some_and(|params| params.contains_key("anthropic_beta")));
+    }
+
+    #[test]
+    fn resumed_provider_override_rejects_context_owning_provider() {
+        let error = validate_provider_override_context(
+            &SessionBuilderConfig {
+                resume: true,
+                provider: Some("claude-code".to_string()),
+                ..SessionBuilderConfig::default()
+            },
+            "claude-code",
+            true,
+        )
+        .expect_err("context-owning replacement provider should be rejected");
+
+        assert_eq!(
+            error.to_string(),
+            "Cannot resume with provider 'claude-code' because it manages its own conversation context. Start a new session to use this provider."
+        );
+    }
+
+    #[test]
+    fn new_session_provider_override_allows_context_owning_provider() {
+        let result = validate_provider_override_context(
+            &SessionBuilderConfig {
+                provider: Some("claude-code".to_string()),
+                ..SessionBuilderConfig::default()
+            },
+            "claude-code",
+            true,
+        );
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn resumed_session_without_provider_override_allows_context_owning_provider() {
+        let result = validate_provider_override_context(
+            &SessionBuilderConfig {
+                resume: true,
+                ..SessionBuilderConfig::default()
+            },
+            "claude-code",
+            true,
+        );
+
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
