@@ -246,14 +246,38 @@ impl Operation for SkillOperation {
         emit: &Emitter,
     ) -> Result<OperationResult> {
         if command.command == "skills" {
-            return Self::command_response(
-                conversation,
-                crate::slash_commands::skill_slash_command::format_installed_skills(Some(
-                    &session.working_dir,
-                )),
-                emit,
-            )
-            .await;
+            if command.params_str.is_empty() {
+                return Self::command_response(
+                    conversation,
+                    crate::slash_commands::skill_slash_command::format_installed_skills(Some(
+                        &session.working_dir,
+                    )),
+                    emit,
+                )
+                .await;
+            }
+
+            let names: Vec<&str> = command.params_str.split_whitespace().collect();
+            let nudge =
+                crate::slash_commands::skill_slash_command::format_load_skills_nudge(&names);
+            let command_message = messages_since_kickoff(conversation)?
+                .first()
+                .ok_or_else(|| anyhow!("skill command conversation has no kickoff message"))?;
+            let message_id = command_message
+                .id
+                .clone()
+                .ok_or_else(|| anyhow!("Persisted slash command message has no id"))?;
+            return applied([
+                StateEffect::SetMessageVisibility {
+                    message_id,
+                    user_visible: true,
+                    agent_visible: false,
+                },
+                Message::user()
+                    .with_text(nudge)
+                    .with_visibility(false, true)
+                    .into(),
+            ]);
         }
 
         let prompt = match crate::slash_commands::skill_slash_command::resolve_command(

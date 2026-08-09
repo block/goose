@@ -25,12 +25,7 @@ import { selectPhantomSessionsForPurge } from './utils/phantomSessions';
 import { ChatType } from './types/chat';
 import Hub from './components/Hub';
 import { UserInput } from './types/message';
-
-interface PairRouteState {
-  resumeSessionId?: string;
-  initialMessage?: UserInput;
-  noAutoSubmit?: boolean;
-}
+import type { ChatSkillDraft } from './components/skills/lib/skillChatPrompt';
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
 import SchedulesView from './components/schedule/SchedulesView';
@@ -45,14 +40,12 @@ import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { FeaturesProvider } from './contexts/FeaturesContext';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
-
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
 import SkillsView from './components/skills/SkillsView';
 import AppsView from './components/apps/AppsView';
 import StandaloneAppView from './components/apps/StandaloneAppView';
 import { View, ViewOptions } from './utils/navigationUtils';
-
 import { useNavigation } from './hooks/useNavigation';
 import { errorMessage } from './utils/conversionUtils';
 import { getInitialWorkingDir } from './utils/workingDir';
@@ -67,6 +60,13 @@ import {
   EXTENSIONS_UI_ENABLED,
   PROVIDER_MANAGEMENT_ENABLED,
 } from './updates';
+
+interface PairRouteState {
+  resumeSessionId?: string;
+  initialMessage?: UserInput;
+  initialSkillDrafts?: ChatSkillDraft[];
+  noAutoSubmit?: boolean;
+}
 
 function PageViewTracker() {
   usePageViewTracking();
@@ -95,10 +95,16 @@ const PairRouteWrapper = ({
   activeSessions: Array<{
     sessionId: string;
     initialMessage?: UserInput;
+    initialSkillDrafts?: ChatSkillDraft[];
     noAutoSubmit?: boolean;
   }>;
   setActiveSessions: (
-    sessions: Array<{ sessionId: string; initialMessage?: UserInput; noAutoSubmit?: boolean }>
+    sessions: Array<{
+      sessionId: string;
+      initialMessage?: UserInput;
+      initialSkillDrafts?: ChatSkillDraft[];
+      noAutoSubmit?: boolean;
+    }>
   ) => void;
 }) => {
   const { extensionsList } = useConfig();
@@ -113,6 +119,7 @@ const PairRouteWrapper = ({
   const recipeDeeplinkFromConfig = window.appConfig?.get('recipeDeeplink') as string | undefined;
   const recipeIdFromConfig = window.appConfig?.get('recipeId') as string | undefined;
   const initialMessage = routeState.initialMessage;
+  const initialSkillDrafts = routeState.initialSkillDrafts;
   const noAutoSubmit = routeState.noAutoSubmit;
 
   // Create session if we have an initialMessage, recipeDeeplink, or recipeId but no sessionId
@@ -138,6 +145,7 @@ const PairRouteWrapper = ({
               detail: {
                 sessionId: newSession.id,
                 initialMessage: sessionInitialMessage,
+                initialSkillDrafts,
                 noAutoSubmit,
               },
             })
@@ -181,12 +189,13 @@ const PairRouteWrapper = ({
           detail: {
             sessionId: resumeSessionId,
             initialMessage: initialMessage,
+            initialSkillDrafts,
             noAutoSubmit,
           },
         })
       );
     }
-  }, [resumeSessionId, activeSessions, initialMessage, noAutoSubmit]);
+  }, [resumeSessionId, activeSessions, initialMessage, initialSkillDrafts, noAutoSubmit]);
 
   return null;
 };
@@ -331,17 +340,23 @@ export function AppInner() {
   const MAX_ACTIVE_SESSIONS = 10;
 
   const [activeSessions, setActiveSessions] = useState<
-    Array<{ sessionId: string; initialMessage?: UserInput; noAutoSubmit?: boolean }>
+    Array<{
+      sessionId: string;
+      initialMessage?: UserInput;
+      initialSkillDrafts?: ChatSkillDraft[];
+      noAutoSubmit?: boolean;
+    }>
   >([]);
   // Protect Hub-created sessions from the mount-time phantom purge race.
   const protectedSessionIdsRef = useRef(new Set<string>());
 
   useEffect(() => {
     const handleAddActiveSession = (event: Event) => {
-      const { sessionId, initialMessage, noAutoSubmit } = (
+      const { sessionId, initialMessage, initialSkillDrafts, noAutoSubmit } = (
         event as CustomEvent<{
           sessionId: string;
           initialMessage?: UserInput;
+          initialSkillDrafts?: ChatSkillDraft[];
           noAutoSubmit?: boolean;
         }>
       ).detail;
@@ -358,13 +373,14 @@ export function AppInner() {
           const merged = {
             ...existing,
             initialMessage: initialMessage ?? existing.initialMessage,
+            ...(initialSkillDrafts ? { initialSkillDrafts } : {}),
             noAutoSubmit: noAutoSubmit ?? existing.noAutoSubmit,
           };
           return [...prev.slice(0, existingIndex), ...prev.slice(existingIndex + 1), merged];
         }
 
         // New session - add to end with LRU eviction if needed
-        const newSession = { sessionId, initialMessage, noAutoSubmit };
+        const newSession = { sessionId, initialMessage, initialSkillDrafts, noAutoSubmit };
         const updated = [...prev, newSession];
         if (updated.length > MAX_ACTIVE_SESSIONS) {
           return updated.slice(updated.length - MAX_ACTIVE_SESSIONS);

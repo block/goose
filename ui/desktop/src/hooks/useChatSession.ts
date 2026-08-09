@@ -156,7 +156,7 @@ export function useChatSession({
         return false;
       }
 
-      const { msg: userMessage, images } = input;
+      const { msg: userMessage, images, sendOptions } = input;
       const currentSnapshot = getCurrentSnapshot();
 
       if (
@@ -172,7 +172,9 @@ export function useChatSession({
 
       const currentMessages = currentSnapshot.messages;
       const hasExistingMessages = currentMessages.length > 0;
-      const hasNewMessage = userMessage.trim().length > 0 || images.length > 0;
+      const hasSkillChips = (sendOptions?.chips?.length ?? 0) > 0;
+      const hasNewMessage =
+        userMessage.trim().length > 0 || images.length > 0 || hasSkillChips;
       const clearsConversation = hasNewMessage && isClearCommand(userMessage);
 
       if (!hasNewMessage && !hasExistingMessages) {
@@ -185,7 +187,7 @@ export function useChatSession({
       }
 
       const newMessage = hasNewMessage
-        ? createUserMessage(userMessage, images)
+        ? createUserMessage(userMessage, images, input.sendOptions)
         : currentMessages[currentMessages.length - 1];
       const messagesForStore = clearsConversation
         ? []

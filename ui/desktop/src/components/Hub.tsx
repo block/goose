@@ -93,8 +93,9 @@ export default function Hub({
   }, []);
 
   const handleSubmit = async (input: UserInput): Promise<boolean> => {
-    const { msg: userMessage, images } = input;
-    if (!(images.length > 0 || userMessage.trim()) || isCreatingSession) return false;
+    const { msg: userMessage, images, sendOptions } = input;
+    const hasSkillChips = (sendOptions?.chips?.length ?? 0) > 0;
+    if (!(images.length > 0 || userMessage.trim() || hasSkillChips) || isCreatingSession) return false;
 
     setIsCreatingSession(true);
 
@@ -119,6 +120,7 @@ export default function Hub({
 
       const session = await createSession(sessionWorkingDir, sessionOptions);
       setNextChatExtensionDraft(null);
+      const initialMessage: UserInput = { msg: userMessage, images, sendOptions };
 
       const firstMessage = createUserMessage(userMessage, images);
       acpChatSessionActions.setMessages(session.id, [firstMessage]);
@@ -130,13 +132,14 @@ export default function Hub({
       window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
       window.dispatchEvent(
         new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
-          detail: { sessionId: session.id },
+          detail: { sessionId: session.id, initialMessage },
         })
       );
 
       setView('pair', {
         disableAnimation: true,
         resumeSessionId: session.id,
+        initialMessage,
       });
       return true;
     } catch (error) {

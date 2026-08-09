@@ -65,6 +65,7 @@ interface MentionPopoverProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (filePath: string) => void;
+  onSelectSkill?: (skill: DisplayItem) => void;
   position: { x: number; y: number };
   query: string;
   isSlashCommand: boolean;
@@ -147,6 +148,7 @@ const MentionPopover = forwardRef<
       isOpen,
       onClose,
       onSelect,
+      onSelectSkill,
       position,
       query,
       isSlashCommand,
@@ -468,6 +470,15 @@ const MentionPopover = forwardRef<
       return item.extra;
     };
 
+    const selectDisplayItem = (item: DisplayItem) => {
+      if (item.itemType === 'Skill' && onSelectSkill) {
+        onSelectSkill(item);
+      } else {
+        onSelect(getSelectionText(item));
+      }
+      onClose();
+    };
+
     // Expose methods to parent component
     useImperativeHandle(
       ref,
@@ -475,12 +486,11 @@ const MentionPopover = forwardRef<
         getDisplayFiles: () => displayItems,
         selectFile: (index: number) => {
           if (displayItems[index]) {
-            onSelect(getSelectionText(displayItems[index]));
-            onClose();
+            selectDisplayItem(displayItems[index]);
           }
         },
       }),
-      [displayItems, onSelect, onClose]
+      [displayItems, onSelect, onSelectSkill, onClose]
     );
 
     useEffect(() => {
@@ -556,8 +566,7 @@ const MentionPopover = forwardRef<
     const handleItemClick = (index: number) => {
       if (index >= 0 && index < displayItems.length) {
         onSelectedIndexChange(index);
-        onSelect(getSelectionText(displayItems[index]));
-        onClose();
+        selectDisplayItem(displayItems[index]);
       }
     };
 

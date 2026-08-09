@@ -22,6 +22,7 @@ import { RecipeHeader } from './RecipeHeader';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import { scanRecipe } from '../recipe';
 import type { Recipe } from '../recipe';
+import type { ChatSkillDraft } from './skills/lib/skillChatPrompt';
 import RecipeActivities from './recipes/RecipeActivities';
 import {
   getTextAndImageContent,
@@ -63,6 +64,7 @@ interface BaseChatProps {
   sessionId: string;
   isActiveSession: boolean;
   initialMessage?: UserInput;
+  initialSkillDrafts?: ChatSkillDraft[];
   noAutoSubmit?: boolean;
 }
 
@@ -73,6 +75,7 @@ export default function BaseChat({
   customMainLayoutProps = {},
   sessionId,
   initialMessage,
+  initialSkillDrafts,
   noAutoSubmit,
   isActiveSession,
 }: BaseChatProps) {
@@ -501,6 +504,7 @@ export default function BaseChat({
             queueProcessingBlocked={queueProcessingBlocked || acpRecovering}
             commandHistory={commandHistory}
             initialValue={initialPrompt}
+            initialSkillDrafts={initialSkillDrafts}
             setView={setView}
             totalTokens={tokenState?.totalTokens ?? session?.usage?.total_tokens ?? undefined}
             accumulatedInputTokens={

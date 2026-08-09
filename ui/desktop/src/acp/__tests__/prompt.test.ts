@@ -33,6 +33,36 @@ describe('messageToAcpPromptContent', () => {
     ]);
   });
 
+  it('forwards text annotations for assistant-only skill instructions', () => {
+    const message: Message = {
+      id: 'message-skills',
+      role: 'user',
+      created: 123,
+      content: [
+        {
+          type: 'text',
+          text: 'Use the load_skill tool to load the following skills: "review".',
+          annotations: { audience: ['assistant'] },
+        },
+        { type: 'text', text: 'Review this PR' },
+      ],
+      metadata: {
+        userVisible: true,
+        agentVisible: true,
+        chips: [{ label: 'review', type: 'skill' }],
+      },
+    };
+
+    expect(messageToAcpPromptContent(message)).toEqual([
+      {
+        type: 'text',
+        text: 'Use the load_skill tool to load the following skills: "review".',
+        annotations: { audience: ['assistant'] },
+      },
+      { type: 'text', text: 'Review this PR' },
+    ]);
+  });
+
   it('omits empty text content and unsupported content blocks', () => {
     const message: Message = {
       id: 'message-1',

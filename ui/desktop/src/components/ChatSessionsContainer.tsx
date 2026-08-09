@@ -6,11 +6,14 @@ import { UserInput } from '../types/message';
 import { subscribeToAcpRecovery } from '../acp/acpConnection';
 import { acpChatSessionController } from '../acp/chatSessionController';
 
+import type { ChatSkillDraft } from './skills/lib/skillChatPrompt';
+
 interface ChatSessionsContainerProps {
   setChat: (chat: ChatType) => void;
   activeSessions: Array<{
     sessionId: string;
     initialMessage?: UserInput;
+    initialSkillDrafts?: ChatSkillDraft[];
     noAutoSubmit?: boolean;
   }>;
 }
@@ -69,6 +72,7 @@ export default function ChatSessionsContainer({
               setChat={setChat}
               sessionId={session.sessionId}
               initialMessage={session.initialMessage}
+              initialSkillDrafts={session.initialSkillDrafts}
               noAutoSubmit={session.noAutoSubmit}
               suppressEmptyState={false}
               isActiveSession={isVisible}
