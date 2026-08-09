@@ -273,6 +273,18 @@ async fn resolve_provider_and_model(
 
     let saved_provider_matches = saved_provider.as_deref() == Some(provider_name.as_str());
     let provider_overridden = session_config.provider.is_some();
+    let matching_recipe_model = recipe_settings.and_then(|settings| {
+        let recipe_provider_matches = settings
+            .goose_provider
+            .as_deref()
+            .map_or(true, |provider| provider == provider_name);
+
+        if provider_overridden && recipe_provider_matches {
+            settings.goose_model.clone()
+        } else {
+            None
+        }
+    });
     let matching_config_model =
         if provider_overridden && configured_provider.as_deref() == Some(provider_name.as_str()) {
             config.get_goose_model().ok()
@@ -286,6 +298,8 @@ async fn resolve_provider_and_model(
     });
     let target_provider_default = if provider_overridden
         && session_config.model.is_none()
+        && matching_recipe_model.is_none()
+        && matching_config_model.is_none()
         && configured_provider_model.is_none()
     {
         Some(
@@ -308,12 +322,20 @@ async fn resolve_provider_and_model(
         .model
         .clone()
         .or_else(|| {
+            if session_config.resume {
+                matching_config_model.clone()
+            } else {
+                None
+            }
+        })
+        .or_else(|| {
             if saved_provider_matches {
                 saved_model_config.as_ref().map(|mc| mc.model_name.clone())
             } else {
                 None
             }
         })
+        .or(matching_recipe_model)
         .or(matching_config_model)
         .or(configured_provider_model)
         .or(target_provider_default)
@@ -918,6 +940,109 @@ mod tests {
         assert_eq!(resolved.provider_name, "openai");
         assert_eq!(resolved.model_name, "my-custom-model");
         assert_eq!(resolved.model_config.model_name, "my-custom-model");
+    }
+
+    #[tokio::test]
+    async fn matching_environment_model_overrides_saved_model() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = test_config(&temp_dir);
+        config.set_param("GOOSE_PROVIDER", "openai").unwrap();
+        config
+            .set_param("GOOSE_MODEL", "environment-model")
+            .unwrap();
+
+        let resolved = resolve_provider_and_model(
+            &SessionBuilderConfig {
+                resume: true,
+                provider: Some("openai".to_string()),
+                ..SessionBuilderConfig::default()
+            },
+            &config,
+            Some("openai".to_string()),
+            Some(goose_providers::model::ModelConfig::new("saved-model")),
+        )
+        .await;
+
+        assert_eq!(resolved.provider_name, "openai");
+        assert_eq!(resolved.model_name, "environment-model");
+        assert_eq!(resolved.model_config.model_name, "environment-model");
+    }
+
+    #[tokio::test]
+    async fn matching_provider_override_preserves_recipe_model() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = test_config(&temp_dir);
+        config.set_param("GOOSE_PROVIDER", "openai").unwrap();
+        config.set_param("GOOSE_MODEL", "configured-model").unwrap();
+        let recipe = serde_json::from_value(serde_json::json!({
+            "version": "1.0.0",
+            "title": "test recipe",
+            "description": "test recipe",
+            "instructions": "test",
+            "settings": {
+                "goose_provider": "openai",
+                "goose_model": "recipe-model"
+            }
+        }))
+        .unwrap();
+
+        let resolved = resolve_provider_and_model(
+            &SessionBuilderConfig {
+                provider: Some("openai".to_string()),
+                recipe: Some(recipe),
+                ..SessionBuilderConfig::default()
+            },
+            &config,
+            None,
+            None,
+        )
+        .await;
+
+        assert_eq!(resolved.provider_name, "openai");
+        assert_eq!(resolved.model_name, "recipe-model");
+        assert_eq!(resolved.model_config.model_name, "recipe-model");
+    }
+
+    #[tokio::test]
+    async fn conflicting_recipe_model_is_ignored_for_provider_override() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = test_config(&temp_dir);
+        set_provider_entry(
+            &config,
+            "openai",
+            &ProviderEntry {
+                enabled: true,
+                model: "openai-model".to_string(),
+                configured: true,
+            },
+        )
+        .unwrap();
+        let recipe = serde_json::from_value(serde_json::json!({
+            "version": "1.0.0",
+            "title": "test recipe",
+            "description": "test recipe",
+            "instructions": "test",
+            "settings": {
+                "goose_provider": "anthropic",
+                "goose_model": "claude-model"
+            }
+        }))
+        .unwrap();
+
+        let resolved = resolve_provider_and_model(
+            &SessionBuilderConfig {
+                provider: Some("openai".to_string()),
+                recipe: Some(recipe),
+                ..SessionBuilderConfig::default()
+            },
+            &config,
+            None,
+            None,
+        )
+        .await;
+
+        assert_eq!(resolved.provider_name, "openai");
+        assert_eq!(resolved.model_name, "openai-model");
     }
 
     #[tokio::test]
