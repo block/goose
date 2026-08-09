@@ -154,6 +154,10 @@ pub enum ActionRequiredData {
         #[serde(default = "default_elicitation_action")]
         action: ElicitationAction,
     },
+    ToolConfirmationResponse {
+        id: String,
+        permission: crate::permission::Permission,
+    },
 }
 
 fn default_elicitation_action() -> ElicitationAction {
@@ -203,6 +207,33 @@ pub struct SystemNotificationContent {
     pub data: Option<serde_json::Value>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum MessageErrorKind {
+    ContextLengthExceeded,
+    CreditsExhausted,
+    #[serde(other)]
+    Other,
+}
+
+impl From<&crate::errors::ProviderError> for MessageErrorKind {
+    fn from(err: &crate::errors::ProviderError) -> Self {
+        use crate::errors::ProviderError;
+        match err {
+            ProviderError::ContextLengthExceeded(_) => MessageErrorKind::ContextLengthExceeded,
+            ProviderError::CreditsExhausted { .. } => MessageErrorKind::CreditsExhausted,
+            _ => MessageErrorKind::Other,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ErrorContent {
+    pub kind: MessageErrorKind,
+    pub message: String,
+}
+
 pub type MessageContent = MessageContentBlock;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -219,6 +250,7 @@ pub enum MessageContentBlock {
     Thinking(ThinkingContentBlock),
     RedactedThinking(RedactedThinkingContentBlock),
     SystemNotification(SystemNotificationContent),
+    Error(ErrorContent),
 }
 
 impl fmt::Display for MessageContentBlock {
@@ -250,6 +282,9 @@ impl fmt::Display for MessageContentBlock {
                 ActionRequiredData::ElicitationResponse { id, .. } => {
                     write!(f, "[ActionRequired: ElicitationResponse for {}]", id)
                 }
+                ActionRequiredData::ToolConfirmationResponse { id, .. } => {
+                    write!(f, "[ActionRequired: ToolConfirmationResponse for {}]", id)
+                }
             },
             MessageContentBlock::FrontendToolRequest(r) => match &r.tool_call {
                 Ok(tool_call) => write!(f, "[FrontendToolRequest: {}]", tool_call.name),
@@ -260,6 +295,7 @@ impl fmt::Display for MessageContentBlock {
             MessageContentBlock::SystemNotification(r) => {
                 write!(f, "[SystemNotification: {}]", r.msg)
             }
+            MessageContentBlock::Error(e) => write!(f, "[Error: {}]", e.message),
         }
     }
 }
@@ -433,6 +469,18 @@ impl MessageContentBlock {
         })
     }
 
+    pub fn action_required_tool_confirmation_response<S: Into<String>>(
+        id: S,
+        permission: crate::permission::Permission,
+    ) -> Self {
+        MessageContentBlock::ActionRequired(ActionRequired {
+            data: ActionRequiredData::ToolConfirmationResponse {
+                id: id.into(),
+                permission,
+            },
+        })
+    }
+
     pub fn action_required_elicitation_response<S: Into<String>>(
         id: S,
         user_data: serde_json::Value,
@@ -489,6 +537,21 @@ impl MessageContentBlock {
             msg: msg.into(),
             data: Some(data),
         })
+    }
+
+    pub fn error<S: Into<String>>(kind: MessageErrorKind, message: S) -> Self {
+        MessageContentBlock::Error(ErrorContent {
+            kind,
+            message: message.into(),
+        })
+    }
+
+    pub fn as_error(&self) -> Option<&ErrorContent> {
+        if let MessageContentBlock::Error(error) = self {
+            Some(error)
+        } else {
+            None
+        }
     }
 
     pub fn as_system_notification(&self) -> Option<&SystemNotificationContent> {
@@ -655,6 +718,12 @@ impl MessageUsage {
     }
 }
 
+/// Notes an operation left on a message, keyed by operation name. Nested rather
+/// than free-form so metadata that is not shaped like notes fails to load
+/// instead of being silently ignored.
+pub type OperationNotes =
+    std::collections::BTreeMap<String, serde_json::Map<String, serde_json::Value>>;
+
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 /// Metadata for message visibility and model inference details
 #[serde(rename_all = "camelCase")]
@@ -665,13 +734,24 @@ pub struct MessageMetadata {
     pub agent_visible: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub inference: Option<InferenceMetadata>,
+    /// Whether the provider stopped generating because it reached its output token limit
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub output_token_limit_reached: bool,
     /// Whether this message is a steer injected into an active run. UI-only:
     /// surfaced as `_meta.goose.steer` so clients can mark the steer boundary
     /// without matching user-visible text. Never sent to providers.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub steer: bool,
+    /// Whether this message is a per-turn context event appended by the agent.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub turn_context: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage: Option<Box<MessageUsage>>,
+    /// What an operation did to this message, keyed by operation name. Read back
+    /// from the persisted conversation so a rebuilt pipeline knows what already
+    /// happened. Never sent to providers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operations: Option<Box<OperationNotes>>,
 }
 
 impl Default for MessageMetadata {
@@ -680,13 +760,28 @@ impl Default for MessageMetadata {
             user_visible: true,
             agent_visible: true,
             inference: None,
+            output_token_limit_reached: false,
             steer: false,
+            turn_context: false,
             usage: None,
+            operations: None,
         }
     }
 }
 
 impl MessageMetadata {
+    pub fn operation_note(&self, operation: &str, key: &str) -> Option<&serde_json::Value> {
+        self.operations.as_ref()?.get(operation)?.get(key)
+    }
+
+    pub fn set_operation_note(&mut self, operation: &str, key: &str, value: serde_json::Value) {
+        self.operations
+            .get_or_insert_with(Box::default)
+            .entry(operation.to_string())
+            .or_default()
+            .insert(key.to_string(), value);
+    }
+
     /// Create metadata for messages visible only to the agent
     pub fn agent_only() -> Self {
         MessageMetadata {
@@ -753,6 +848,11 @@ impl MessageMetadata {
 
     pub fn with_steer(mut self) -> Self {
         self.steer = true;
+        self
+    }
+
+    pub fn with_turn_context(mut self) -> Self {
+        self.turn_context = true;
         self
     }
 }
@@ -1061,6 +1161,34 @@ impl Message {
         .with_metadata(MessageMetadata::user_only())
     }
 
+    pub fn with_error<S: Into<String>>(self, kind: MessageErrorKind, message: S) -> Self {
+        self.with_content(MessageContentBlock::error(kind, message))
+            .with_metadata(MessageMetadata::user_only())
+    }
+
+    pub fn from_provider_error(err: &crate::errors::ProviderError) -> Self {
+        use crate::errors::ProviderError;
+        let text = match err {
+            ProviderError::NetworkError(_) => {
+                format!("{err}\n\nPlease resend your message to try again.")
+            }
+            ProviderError::ContextLengthExceeded(_) => {
+                format!("{err}\n\nThe conversation is too long for the model's context window.")
+            }
+            _ => format!(
+                "Ran into this error: {err}.\n\n\
+                 Please retry if you think this is a transient or recoverable error."
+            ),
+        };
+        Message::assistant().with_error(MessageErrorKind::from(err), text)
+    }
+
+    pub fn error_kind(&self) -> Option<MessageErrorKind> {
+        self.content
+            .iter()
+            .find_map(|content| content.as_error().map(|error| error.kind))
+    }
+
     pub fn with_visibility(mut self, user_visible: bool, agent_visible: bool) -> Self {
         self.metadata.user_visible = user_visible;
         self.metadata.agent_visible = agent_visible;
@@ -1108,6 +1236,10 @@ impl Message {
 
     pub fn is_agent_visible(&self) -> bool {
         self.metadata.agent_visible
+    }
+
+    pub fn is_turn_context(&self) -> bool {
+        self.metadata.turn_context
     }
 }
 
@@ -1619,15 +1751,17 @@ mod tests {
 
     #[test]
     fn test_message_metadata_serialization() {
-        let message = Message::user()
+        let mut message = Message::user()
             .with_text("Test message")
             .with_visibility(false, true);
+        message.metadata.output_token_limit_reached = true;
 
         let json_str = serde_json::to_string(&message).unwrap();
         let value: Value = serde_json::from_str(&json_str).unwrap();
 
         assert_eq!(value["metadata"]["userVisible"], false);
         assert_eq!(value["metadata"]["agentVisible"], true);
+        assert_eq!(value["metadata"]["outputTokenLimitReached"], true);
     }
 
     #[test]
@@ -1649,6 +1783,7 @@ mod tests {
         let message: Message = serde_json::from_str(json_with_metadata).unwrap();
         assert!(!message.is_user_visible());
         assert!(message.is_agent_visible());
+        assert!(!message.metadata.output_token_limit_reached);
     }
 
     #[test]

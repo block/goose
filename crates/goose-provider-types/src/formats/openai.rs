@@ -49,6 +49,16 @@ fn describe_json_value(value: &Value) -> &'static str {
     }
 }
 
+fn output_token_limit_tool_error(function_name: &str, id: &str) -> ErrorData {
+    ErrorData {
+        code: ErrorCode::INVALID_PARAMS,
+        message: Cow::from(format!(
+            "Tool arguments for {function_name} (id {id}) were truncated because the model reached its output token limit"
+        )),
+        data: None,
+    }
+}
+
 pub fn is_reserved_request_param_key(key: &str) -> bool {
     matches!(key, "messages" | "model" | "stream" | "stream_options")
 }
@@ -268,7 +278,7 @@ pub fn format_messages_with_options(
                 MessageContentBlock::RedactedThinking(_) => {
                     continue;
                 }
-                MessageContentBlock::SystemNotification(_) => {
+                MessageContentBlock::SystemNotification(_) | MessageContentBlock::Error(_) => {
                     continue;
                 }
                 MessageContentBlock::ToolRequest(request) => match &request.tool_call {
@@ -671,6 +681,11 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
 
 /// Convert OpenAI's API response to internal Message format
 pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
+    let output_token_limit_reached = response
+        .pointer("/choices/0/finish_reason")
+        .and_then(Value::as_str)
+        == Some("length");
+
     let Some(original) = response
         .get("choices")
         .and_then(|c| c.get(0))
@@ -751,6 +766,16 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                     })
                     .filter(|m: &serde_json::Map<String, Value>| !m.is_empty());
 
+                if output_token_limit_reached {
+                    let error = output_token_limit_tool_error(&function_name, &id);
+                    content.push(MessageContentBlock::tool_request_with_metadata(
+                        id,
+                        Err(error),
+                        metadata.as_ref(),
+                    ));
+                    continue;
+                }
+
                 if function_name.is_empty() {
                     let error = ErrorData {
                         code: ErrorCode::INVALID_REQUEST,
@@ -815,11 +840,9 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
         }
     }
 
-    Ok(Message::new(
-        Role::Assistant,
-        chrono::Utc::now().timestamp(),
-        content,
-    ))
+    let mut message = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
+    message.metadata.output_token_limit_reached = output_token_limit_reached;
+    Ok(message)
 }
 
 pub fn get_usage(usage: &Value) -> Usage {
@@ -1063,6 +1086,15 @@ fn parse_streaming_chunk(line: &str) -> Result<StreamingChunk, ProviderError> {
     })
 }
 
+fn output_token_limit_marker(id: Option<String>) -> Message {
+    let mut message = Message::assistant();
+    if let Some(id) = id {
+        message = message.with_id(id);
+    }
+    message.metadata.output_token_limit_reached = true;
+    message
+}
+
 pub fn response_to_streaming_message<S>(
     mut stream: S,
 ) -> impl Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
@@ -1083,6 +1115,9 @@ where
         // reasoning_content in a later chunk would produce duplicated reasoning.
         let mut pending_inline_thinking = String::new();
         let mut last_seen_model: Option<String> = None;
+        let mut last_response_id: Option<String> = None;
+        let mut output_token_limit_reached = false;
+        let mut output_token_limit_metadata_emitted = false;
 
         'outer: while let Some(response) = stream.next().await {
             let response_str = response?;
@@ -1102,6 +1137,9 @@ where
             if let Some(model) = &chunk.model {
                 last_seen_model = Some(model.clone());
             }
+            if let Some(id) = &chunk.id {
+                last_response_id = Some(id.clone());
+            }
 
             if !chunk.choices.is_empty() {
                 if let Some(details) = &chunk.choices[0].delta.reasoning_details {
@@ -1117,6 +1155,11 @@ where
             }
 
             let mut usage = extract_usage_with_output_tokens(&chunk, last_seen_model.as_deref());
+            output_token_limit_reached |= chunk
+                .choices
+                .first()
+                .and_then(|choice| choice.finish_reason.as_deref())
+                == Some("length");
 
             if chunk.choices.is_empty() {
                 yield (None, usage)
@@ -1132,7 +1175,10 @@ where
                     }
                 }
 
-                let is_complete = chunk.choices[0].finish_reason == Some("tool_calls".to_string());
+                let is_complete = matches!(
+                    chunk.choices[0].finish_reason.as_deref(),
+                    Some("tool_calls" | "length")
+                );
 
                 if !is_complete {
                     let mut done = false;
@@ -1148,12 +1194,19 @@ where
                                 if let Some(model) = &tool_chunk.model {
                                     last_seen_model = Some(model.clone());
                                 }
+                                if let Some(id) = &tool_chunk.id {
+                                    last_response_id = Some(id.clone());
+                                }
 
                                 if let Some(chunk_usage) = extract_usage_with_output_tokens(&tool_chunk, last_seen_model.as_deref()) {
                                     usage = Some(chunk_usage);
                                 }
 
                                 if !tool_chunk.choices.is_empty() {
+                                    output_token_limit_reached |=
+                                        tool_chunk.choices[0].finish_reason.as_deref()
+                                            == Some("length");
+
                                     if let Some(details) = &tool_chunk.choices[0].delta.reasoning_details {
                                         accumulated_reasoning.extend(details.iter().cloned());
                                     }
@@ -1262,7 +1315,13 @@ where
                             extra_fields.as_ref().filter(|m| !m.is_empty()).cloned()
                         };
 
-                        let content = if arguments.is_empty() {
+                        let content = if output_token_limit_reached {
+                            MessageContentBlock::tool_request_with_metadata(
+                                id.clone(),
+                                Err(output_token_limit_tool_error(function_name, id)),
+                                metadata.as_ref(),
+                            )
+                        } else if arguments.is_empty() {
                             MessageContentBlock::tool_request_with_metadata(
                                 id.clone(),
                                 Ok(CallToolRequestParams::new(function_name.clone()).with_arguments(object(json!({})))),
@@ -1319,6 +1378,8 @@ where
                 if let Some(id) = chunk.id {
                     msg = msg.with_id(id);
                 }
+                msg.metadata.output_token_limit_reached = output_token_limit_reached;
+                output_token_limit_metadata_emitted |= output_token_limit_reached;
 
                 yield (
                     Some(msg),
@@ -1397,14 +1458,23 @@ where
                 content.push(MessageContentBlock::thinking(trailing_thinking, ""));
             }
 
-            yield (
-                Some(Message::new(
-                    Role::Assistant,
-                    chrono::Utc::now().timestamp(),
-                    content,
-                )),
-                None,
-            )
+            let mut message = Message::new(
+                Role::Assistant,
+                chrono::Utc::now().timestamp(),
+                content,
+            );
+            if let Some(id) = last_response_id.clone() {
+                message = message.with_id(id);
+            }
+            message.metadata.output_token_limit_reached =
+                output_token_limit_reached && !output_token_limit_metadata_emitted;
+            output_token_limit_metadata_emitted |= message.metadata.output_token_limit_reached;
+
+            yield (Some(message), None)
+        }
+
+        if output_token_limit_reached && !output_token_limit_metadata_emitted {
+            yield (Some(output_token_limit_marker(last_response_id)), None)
         }
     }
 }
@@ -2175,6 +2245,76 @@ mod tests {
     }
 
     #[test]
+    fn test_response_to_message_marks_length_finish_reason() -> anyhow::Result<()> {
+        let response = json!({
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": "Partial answer"
+                },
+                "finish_reason": "length"
+            }]
+        });
+
+        let message = response_to_message(&response)?;
+
+        assert_eq!(message.as_concat_text(), "Partial answer");
+        assert!(message.metadata.output_token_limit_reached);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_rejects_length_terminated_tool_calls() -> anyhow::Result<()> {
+        let response = json!({
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": null,
+                    "tool_calls": [
+                        {
+                            "id": "call_empty",
+                            "type": "function",
+                            "function": {
+                                "name": "empty_tool",
+                                "arguments": ""
+                            }
+                        },
+                        {
+                            "id": "call_valid",
+                            "type": "function",
+                            "function": {
+                                "name": "valid_tool",
+                                "arguments": "{\"value\":true}"
+                            }
+                        }
+                    ]
+                },
+                "finish_reason": "length"
+            }]
+        });
+
+        let message = response_to_message(&response)?;
+
+        assert!(message.metadata.output_token_limit_reached);
+        assert_eq!(message.content.len(), 2);
+        for (content, expected_id) in message.content.iter().zip(["call_empty", "call_valid"]) {
+            let MessageContentBlock::ToolRequest(request) = content else {
+                panic!("expected tool request");
+            };
+            assert_eq!(request.id, expected_id);
+            let error = request
+                .tool_call
+                .as_ref()
+                .expect_err("length-terminated tool call must not be executable");
+            assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
+            assert!(error.message.contains("output token limit"));
+        }
+
+        Ok(())
+    }
+
+    #[test]
     fn test_response_to_message_valid_toolrequest() -> anyhow::Result<()> {
         let response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
         let message = response_to_message(&response)?;
@@ -2756,6 +2896,8 @@ mod tests {
         usage: Option<ProviderUsage>,
         tool_calls: Vec<String>,
         has_text_content: bool,
+        text: String,
+        output_token_limit_message_ids: Vec<Option<String>>,
     }
 
     async fn run_streaming_test(response_lines: &str) -> anyhow::Result<StreamingUsageTestResult> {
@@ -2769,6 +2911,8 @@ mod tests {
             usage: None,
             tool_calls: Vec::new(),
             has_text_content: false,
+            text: String::new(),
+            output_token_limit_message_ids: Vec::new(),
         };
 
         while let Some(Ok((message, usage))) = messages.next().await {
@@ -2777,6 +2921,9 @@ mod tests {
                 result.usage = Some(u);
             }
             if let Some(msg) = message {
+                if msg.metadata.output_token_limit_reached {
+                    result.output_token_limit_message_ids.push(msg.id.clone());
+                }
                 for content in &msg.content {
                     match content {
                         MessageContentBlock::ToolRequest(req) => {
@@ -2786,6 +2933,7 @@ mod tests {
                         }
                         MessageContentBlock::Text(text) if !text.text.is_empty() => {
                             result.has_text_content = true;
+                            result.text.push_str(&text.text);
                         }
                         _ => {}
                     }
@@ -2812,6 +2960,26 @@ mod tests {
         assert_eq!(usage.usage.input_tokens, Some(expected_input));
         assert_eq!(usage.usage.output_tokens, Some(expected_output));
         assert_eq!(usage.usage.total_tokens, Some(expected_total));
+    }
+
+    #[tokio::test]
+    async fn test_streaming_marks_length_on_empty_terminal_chunk() -> anyhow::Result<()> {
+        let response_lines = r#"
+data: {"id":"chatcmpl-limit","model":"test-model","choices":[{"index":0,"delta":{"role":"assistant","content":"Partial answer"},"finish_reason":null}]}
+data: {"id":"chatcmpl-limit","model":"test-model","choices":[{"index":0,"delta":{},"finish_reason":"length"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}
+data: [DONE]
+"#;
+
+        let result = run_streaming_test(response_lines).await?;
+
+        assert_eq!(result.text, "Partial answer");
+        assert_eq!(
+            result.output_token_limit_message_ids,
+            vec![Some("chatcmpl-limit".to_string())]
+        );
+        assert_usage_yielded_once(&result, 10, 5, 15);
+
+        Ok(())
     }
 
     #[test]
@@ -3134,7 +3302,8 @@ data: [DONE]"#;
     async fn test_streaming_non_object_arguments_does_not_panic() -> anyhow::Result<()> {
         // Streamed tool call whose arguments are valid JSON but NOT an object.
         // Must yield an INVALID_PARAMS tool error, not panic via rmcp `object()`.
-        let response_lines = r#"data: {"model":"test-model","choices":[{"delta":{"role":"assistant","tool_calls":[{"id":"call_bad","function":{"name":"test_tool","arguments":"[1, 2, 3]"},"type":"function","index":0}]},"index":0,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110},"object":"chat.completion.chunk","id":"test-id","created":1234567890}
+        let response_lines = r#"data: {"model":"test-model","choices":[{"delta":{"role":"assistant","tool_calls":[{"id":"call_bad","function":{"name":"test_tool","arguments":"[1, "},"type":"function","index":0}]},"index":0,"finish_reason":null}],"object":"chat.completion.chunk","id":"test-id","created":1234567890}
+data: {"model":"test-model","choices":[{"delta":{"tool_calls":[{"function":{"arguments":"2, 3]"},"index":0}]},"index":0,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110},"object":"chat.completion.chunk","id":"test-id","created":1234567890}
 data: [DONE]"#;
 
         let response_stream =
@@ -3142,9 +3311,17 @@ data: [DONE]"#;
         let messages = response_to_streaming_message(response_stream);
         pin!(messages);
 
-        while let Some(Ok((message, _usage))) = messages.next().await {
+        let mut found_tool_error = false;
+        let mut usage_count = 0;
+        while let Some(result) = messages.next().await {
+            let (message, usage) = result?;
+            if usage.is_some() {
+                usage_count += 1;
+            }
             if let Some(msg) = message {
                 if let MessageContentBlock::ToolRequest(request) = &msg.content[0] {
+                    assert!(!msg.metadata.output_token_limit_reached);
+                    assert_eq!(msg.id.as_deref(), Some("test-id"));
                     match &request.tool_call {
                         Err(ErrorData {
                             code: ErrorCode::INVALID_PARAMS,
@@ -3156,14 +3333,60 @@ data: [DONE]"#;
                                 m.contains("test_tool"),
                                 "error must name the original tool so the model can retry it: {m}"
                             );
-                            return Ok(());
+                            found_tool_error = true;
                         }
                         _ => panic!("expected INVALID_PARAMS for non-object streamed args"),
                     }
                 }
             }
         }
-        panic!("expected a tool request message");
+
+        assert!(found_tool_error, "expected a tool request message");
+        assert_eq!(usage_count, 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_length_rejects_tool_calls_regardless_of_arguments() -> anyhow::Result<()>
+    {
+        let response_lines = r#"data: {"model":"test-model","choices":[{"delta":{"role":"assistant","tool_calls":[{"id":"call_empty","function":{"name":"empty_tool","arguments":""},"type":"function","index":0},{"id":"call_valid","function":{"name":"valid_tool","arguments":"{\"value\":"},"type":"function","index":1}]},"index":0,"finish_reason":null}],"object":"chat.completion.chunk","id":"test-id","created":1234567890}
+data: {"model":"test-model","choices":[{"delta":{"tool_calls":[{"function":{"arguments":""},"index":0},{"function":{"arguments":"true}"},"index":1}]},"index":0,"finish_reason":"length"}],"usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110},"object":"chat.completion.chunk","id":"test-id","created":1234567890}
+data: [DONE]"#;
+
+        let response_stream =
+            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
+        let messages = response_to_streaming_message(response_stream);
+        pin!(messages);
+
+        let mut tool_error_ids = Vec::new();
+        let mut usage_count = 0;
+        while let Some(result) = messages.next().await {
+            let (message, usage) = result?;
+            if usage.is_some() {
+                usage_count += 1;
+            }
+            if let Some(msg) = message {
+                assert!(msg.metadata.output_token_limit_reached);
+                assert_eq!(msg.id.as_deref(), Some("test-id"));
+                for content in msg.content {
+                    if let MessageContentBlock::ToolRequest(request) = content {
+                        let request_id = request.id.clone();
+                        match request.tool_call {
+                            Err(error) => {
+                                assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
+                                assert!(error.message.contains("output token limit"));
+                                tool_error_ids.push(request_id);
+                            }
+                            Ok(_) => panic!("length-terminated tool call must not be executable"),
+                        }
+                    }
+                }
+            }
+        }
+
+        assert_eq!(tool_error_ids, vec!["call_empty", "call_valid"]);
+        assert_eq!(usage_count, 1);
+        Ok(())
     }
 
     #[tokio::test]
@@ -3201,6 +3424,87 @@ data: [DONE]"#;
 
         assert_eq!(text, "y");
         assert_eq!(thinking, "x");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_truncated_inline_think_preserves_output_token_limit(
+    ) -> anyhow::Result<()> {
+        let response_lines = concat!(
+            "data: {\"id\":\"chunk-1\",\"model\":\"test-model\",\"choices\":[{\"delta\":{\"content\":\"<think>unfinished reasoning\"},\"index\":0,\"finish_reason\":null}]}\n",
+            "data: {\"id\":\"chunk-1\",\"choices\":[{\"delta\":{},\"index\":0,\"finish_reason\":\"length\"}],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":5,\"total_tokens\":15}}\n",
+            "data: [DONE]\n"
+        );
+
+        let response_stream =
+            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+        let mut streamed_messages = Vec::new();
+        let mut usage_count = 0;
+
+        while let Some(result) = messages.next().await {
+            let (message, usage) = result?;
+            if usage.is_some() {
+                usage_count += 1;
+            }
+            if let Some(message) = message {
+                streamed_messages.push(message);
+            }
+        }
+
+        assert_eq!(usage_count, 1);
+        assert_eq!(
+            streamed_messages
+                .iter()
+                .filter(|message| message.metadata.output_token_limit_reached)
+                .count(),
+            1
+        );
+        let trailing_message = streamed_messages
+            .last()
+            .expect("expected trailing thinking");
+        assert!(trailing_message.metadata.output_token_limit_reached);
+        assert!(matches!(
+            trailing_message.content.as_slice(),
+            [MessageContentBlock::Thinking(thinking)]
+                if thinking.thinking == "unfinished reasoning"
+        ));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_partial_think_tag_emits_one_output_limit_marker() -> anyhow::Result<()>
+    {
+        let response_lines = concat!(
+            "data: {\"id\":\"chunk-1\",\"model\":\"test-model\",\"choices\":[{\"delta\":{\"content\":\"<thi\"},\"index\":0,\"finish_reason\":null}]}\n",
+            "data: {\"id\":\"chunk-1\",\"choices\":[{\"delta\":{},\"index\":0,\"finish_reason\":\"length\"}],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":5,\"total_tokens\":15}}\n",
+            "data: [DONE]\n"
+        );
+
+        let response_stream =
+            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+        let mut streamed_messages = Vec::new();
+        let mut usage_count = 0;
+
+        while let Some(result) = messages.next().await {
+            let (message, usage) = result?;
+            usage_count += usize::from(usage.is_some());
+            if let Some(message) = message {
+                streamed_messages.push(message);
+            }
+        }
+
+        assert_eq!(usage_count, 1);
+        let marked_messages: Vec<_> = streamed_messages
+            .iter()
+            .filter(|message| message.metadata.output_token_limit_reached)
+            .collect();
+        assert_eq!(marked_messages.len(), 1);
+        assert_eq!(marked_messages[0].id.as_deref(), Some("chunk-1"));
+        assert_eq!(marked_messages[0].as_concat_text(), "<thi");
 
         Ok(())
     }
@@ -4574,5 +4878,62 @@ data: [DONE]"#;
             assistant[0]["content"],
             json!("<think>\nreasoning\n</think>")
         );
+    }
+
+    mod cache_prefix_stability {
+        use super::*;
+
+        fn turn_context(time: &str, turn_budget: &str) -> String {
+            format!(
+                "<turn-context>\n\
+                 <current-time>{time}</current-time>\n\
+                 <working-directory>/Users/me/code/goose</working-directory>\n\
+                 <turn-budget>{turn_budget}</turn-budget>\n\
+                 </turn-context>"
+            )
+        }
+
+        fn tool_loop_conversation(turn_context_block: &str) -> Vec<Message> {
+            vec![
+                Message::user().with_text("What does the main entrypoint do?"),
+                Message::assistant().with_text("Let me read it."),
+                Message::user()
+                    .with_text("Now add error handling to it.")
+                    .with_text(turn_context_block),
+                Message::assistant().with_tool_request(
+                    "tool_1",
+                    Ok(CallToolRequestParams::new("read_file")
+                        .with_arguments(object!({"path": "src/main.rs"}))),
+                ),
+                Message::user().with_tool_response(
+                    "tool_1",
+                    Ok(CallToolResult::success(vec![ContentBlock::text(
+                        "fn main() { run(); }",
+                    )])),
+                ),
+            ]
+        }
+
+        #[test]
+        fn turn_context_stays_on_its_source_message() {
+            let block = turn_context("2026-08-03 12:00:00", "14/40 used");
+            let spec = format_messages(&tool_loop_conversation(&block), &ImageFormat::OpenAi);
+
+            let occurrences: Vec<usize> = spec
+                .iter()
+                .enumerate()
+                .filter_map(|(i, m)| {
+                    m["content"]
+                        .as_str()
+                        .is_some_and(|c| c.contains("<turn-context>"))
+                        .then_some(i)
+                })
+                .collect();
+            assert_eq!(
+                occurrences,
+                vec![2],
+                "turn-context must appear exactly once, on its source message"
+            );
+        }
     }
 }

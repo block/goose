@@ -1,4 +1,3 @@
-use crate::session::user_projected_message_to_markdown;
 use anyhow::{Context, Result};
 
 use cliclack::{confirm, multiselect, select};
@@ -8,7 +7,8 @@ use goose::config::Config;
 #[cfg(feature = "nostr")]
 use goose::session::nostr_share;
 use goose::session::{
-    generate_diagnostics, DiagnosticsLevel, Session, SessionManager, SessionType,
+    export_session_to_markdown, generate_diagnostics, DiagnosticsLevel, Session, SessionManager,
+    SessionType,
 };
 use goose::utils::safe_truncate;
 use regex::Regex;
@@ -365,74 +365,6 @@ pub async fn handle_diagnostics(session_id: &str, output_path: Option<PathBuf>) 
     Ok(())
 }
 
-fn export_session_to_markdown(
-    messages: Vec<goose::conversation::message::Message>,
-    session_name: &String,
-) -> String {
-    let mut markdown_output = String::new();
-
-    markdown_output.push_str(&format!("# Session Export: {}\n\n", session_name));
-
-    if messages.is_empty() {
-        markdown_output.push_str("*(This session has no messages)*\n");
-        return markdown_output;
-    }
-
-    markdown_output.push_str(&format!("*Total messages: {}*\n\n---\n\n", messages.len()));
-
-    // Track if the last message had tool requests to properly handle tool responses
-    let mut skip_next_if_tool_response = false;
-
-    for message in &messages {
-        // Check if this is a User message containing only ToolResponses
-        let is_only_tool_response = message.role == rmcp::model::Role::User
-            && message.content.iter().all(|content| {
-                matches!(
-                    content,
-                    goose::conversation::message::MessageContent::ToolResponse(_)
-                )
-            });
-
-        // If the previous message had tool requests and this one is just tool responses,
-        // don't create a new User section - we'll attach the responses to the tool calls
-        if skip_next_if_tool_response && is_only_tool_response {
-            // Export the tool responses without a User heading
-            markdown_output.push_str(&user_projected_message_to_markdown(message));
-            markdown_output.push_str("\n\n---\n\n");
-            skip_next_if_tool_response = false;
-            continue;
-        }
-
-        // Reset the skip flag - we'll update it below if needed
-        skip_next_if_tool_response = false;
-
-        // Output the role prefix except for tool response-only messages
-        if !is_only_tool_response {
-            let role_prefix = match message.role {
-                rmcp::model::Role::User => "### User:\n",
-                rmcp::model::Role::Assistant => "### Assistant:\n",
-            };
-            markdown_output.push_str(role_prefix);
-        }
-
-        // Add the message content
-        markdown_output.push_str(&user_projected_message_to_markdown(message));
-        markdown_output.push_str("\n\n---\n\n");
-
-        // Check if this message has any tool requests, to handle the next message differently
-        if message.content.iter().any(|content| {
-            matches!(
-                content,
-                goose::conversation::message::MessageContent::ToolRequest(_)
-            )
-        }) {
-            skip_next_if_tool_response = true;
-        }
-    }
-
-    markdown_output
-}
-
 /// Prompt the user to interactively select a session
 ///
 /// Shows a list of available sessions and lets the user select one
@@ -485,42 +417,5 @@ pub async fn prompt_interactive_session_selection(
         Ok(session.id.clone())
     } else {
         Err(anyhow::anyhow!("Invalid selection"))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use goose::conversation::message::Message;
-    use goose::conversation::Conversation;
-    use rmcp::model::{Annotations, ContentBlock, Role, TextContent};
-
-    #[test]
-    fn markdown_export_preserves_user_audience_tool_output() {
-        let user_output = ContentBlock::Text(
-            TextContent::new("user-visible output")
-                .with_annotations(Annotations::default().with_audience(vec![Role::User])),
-        );
-        let assistant_output = ContentBlock::Text(
-            TextContent::new("assistant-only output")
-                .with_annotations(Annotations::default().with_audience(vec![Role::Assistant])),
-        );
-        let conversation = Conversation::new_unvalidated([Message::user().with_tool_response(
-            "tool-1",
-            Ok(rmcp::model::CallToolResult::success(vec![
-                user_output,
-                assistant_output,
-                ContentBlock::text("shared output"),
-            ])),
-        )]);
-
-        let markdown = export_session_to_markdown(
-            conversation.user_visible_messages(),
-            &"Audience export".to_string(),
-        );
-
-        assert!(markdown.contains("user-visible output"));
-        assert!(markdown.contains("shared output"));
-        assert!(!markdown.contains("assistant-only output"));
     }
 }

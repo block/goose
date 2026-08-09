@@ -4,7 +4,7 @@ import ChatSessionsContainer from './ChatSessionsContainer';
 import { subscribeToAcpRecovery } from '../acp/acpConnection';
 import { acpChatSessionController } from '../acp/chatSessionController';
 
-vi.mock('react-router-dom', () => ({
+vi.mock('react-router', () => ({
   useSearchParams: () => [new URLSearchParams('resumeSessionId=session-1')],
 }));
 

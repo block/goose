@@ -3770,6 +3770,12 @@
   "sessions.action.export": {
     "defaultMessage": "Exportar sessão"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "Abrir numa nova janela"
   },
@@ -3868,6 +3874,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "Sessão \"{name}\" duplicada com êxito"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "Falha ao exportar a sessão: {error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "Sessão exportada com êxito"

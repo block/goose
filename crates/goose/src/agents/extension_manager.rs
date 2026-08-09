@@ -17,7 +17,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use std::task::{Context, Poll};
 use std::time::Duration;
 use tempfile::{tempdir, TempDir};
@@ -62,6 +62,7 @@ const TOOL_CALL_NOTIFICATION_CHANNEL_CAPACITY: usize = 32;
 
 struct ActionRequiredStream {
     inner: ReceiverStream<crate::conversation::message::Message>,
+    manager: Arc<ActionRequiredManager>,
     session_id: String,
     tool_call_request_id: String,
 }
@@ -69,11 +70,13 @@ struct ActionRequiredStream {
 impl ActionRequiredStream {
     fn new(
         receiver: tokio::sync::mpsc::Receiver<crate::conversation::message::Message>,
+        manager: Arc<ActionRequiredManager>,
         session_id: String,
         tool_call_request_id: String,
     ) -> Self {
         Self {
             inner: ReceiverStream::new(receiver),
+            manager,
             session_id,
             tool_call_request_id,
         }
@@ -90,13 +93,14 @@ impl Stream for ActionRequiredStream {
 
 impl Drop for ActionRequiredStream {
     fn drop(&mut self) {
+        let manager = self.manager.clone();
         let session_id = self.session_id.clone();
         let tool_call_request_id = self.tool_call_request_id.clone();
         let Ok(handle) = tokio::runtime::Handle::try_current() else {
             return;
         };
         handle.spawn(async move {
-            ActionRequiredManager::global()
+            manager
                 .unregister_action_required_stream(&session_id, &tool_call_request_id)
                 .await;
         });
@@ -172,6 +176,7 @@ pub struct ExtensionManagerCapabilities {
 #[serde(rename_all = "camelCase")]
 pub struct GooseMcpAppToolAttachment {
     pub tool_name: String,
+    pub tool_name_is_actual: bool,
     pub extension_name: String,
     pub resource_uri: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -396,7 +401,6 @@ pub fn is_hidden_extension(name: &str) -> bool {
 
 /// Result of resolving a tool call to its owning extension
 struct ResolvedTool {
-    tool_name: String,
     extension_name: String,
     actual_tool_name: String,
     client: McpClientBox,
@@ -404,6 +408,7 @@ struct ResolvedTool {
     resource_uri: Option<String>,
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn child_process_client(
     mut command: Command,
     timeout: &Option<u64>,
@@ -412,6 +417,8 @@ async fn child_process_client(
     docker_container: Option<String>,
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
+    action_required: Arc<ActionRequiredManager>,
+    extension_manager: Weak<ExtensionManager>,
 ) -> ExtensionResult<McpClient> {
     configure_subprocess(&mut command);
 
@@ -450,6 +457,8 @@ async fn child_process_client(
         client_name,
         capabilities,
         working_dir.clone(),
+        action_required,
+        extension_manager,
     )
     .await;
 
@@ -613,6 +622,7 @@ const GOOSE_USER_AGENT: reqwest::header::HeaderValue =
 #[allow(clippy::too_many_arguments)]
 async fn connect_with_auth(
     auth_manager: rmcp::transport::AuthorizationManager,
+    action_required: Arc<ActionRequiredManager>,
     uri: &str,
     timeout: Duration,
     headers: &HashMap<String, String>,
@@ -620,6 +630,7 @@ async fn connect_with_auth(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    extension_manager: Weak<ExtensionManager>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     let mut auth_headers = HeaderMap::new();
     auth_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
@@ -654,6 +665,8 @@ async fn connect_with_auth(
             client_name,
             capabilities,
             roots_dir.to_path_buf(),
+            action_required,
+            extension_manager,
         )
         .await?,
     ))
@@ -671,6 +684,8 @@ async fn create_streamable_http_client(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    action_required: Arc<ActionRequiredManager>,
+    extension_manager: Weak<ExtensionManager>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     #[cfg(unix)]
     if let Some(socket_path) = socket {
@@ -684,6 +699,8 @@ async fn create_streamable_http_client(
             client_name,
             capabilities,
             roots_dir,
+            action_required,
+            extension_manager,
         )
         .await;
     }
@@ -732,6 +749,7 @@ async fn create_streamable_http_client(
             Ok(auth_manager) => {
                 let auth_result = connect_with_auth(
                     auth_manager,
+                    action_required.clone(),
                     uri,
                     timeout_duration,
                     headers,
@@ -739,6 +757,7 @@ async fn create_streamable_http_client(
                     client_name.clone(),
                     capabilities.clone(),
                     roots_dir,
+                    extension_manager.clone(),
                 )
                 .await;
 
@@ -777,6 +796,8 @@ async fn create_streamable_http_client(
         client_name.clone(),
         capabilities.clone(),
         roots_dir.to_path_buf(),
+        action_required.clone(),
+        extension_manager.clone(),
     )
     .await;
 
@@ -785,6 +806,7 @@ async fn create_streamable_http_client(
             Ok(auth_manager) => {
                 connect_with_auth(
                     auth_manager,
+                    action_required,
                     uri,
                     timeout_duration,
                     headers,
@@ -792,10 +814,17 @@ async fn create_streamable_http_client(
                     client_name,
                     capabilities,
                     roots_dir,
+                    extension_manager,
                 )
                 .await
             }
-            Err(_) => Ok(Box::new(client_res?)),
+            Err(e) => {
+                warn!(
+                    "[OAuth:{}] Browser authorization flow failed: {:#}",
+                    name, e
+                );
+                Ok(Box::new(client_res?))
+            }
         }
     } else {
         Ok(Box::new(client_res?))
@@ -814,6 +843,8 @@ async fn create_unix_socket_http_client(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    action_required: Arc<ActionRequiredManager>,
+    extension_manager: Weak<ExtensionManager>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     use rmcp::transport::UnixSocketHttpClient;
 
@@ -851,6 +882,8 @@ async fn create_unix_socket_http_client(
         client_name.clone(),
         capabilities.clone(),
         roots_dir.to_path_buf(),
+        action_required,
+        extension_manager,
     )
     .await;
 
@@ -875,6 +908,7 @@ impl ExtensionManager {
     pub fn new(
         provider: SharedProvider,
         session_manager: Arc<crate::session::SessionManager>,
+        scheduler: Option<Arc<dyn crate::scheduler_trait::SchedulerTrait>>,
         client_name: String,
         capabilities: ExtensionManagerCapabilities,
         use_login_shell_path: bool,
@@ -884,6 +918,7 @@ impl ExtensionManager {
             context: PlatformExtensionContext {
                 extension_manager: None,
                 session_manager,
+                scheduler,
                 session: None,
                 use_login_shell_path,
             },
@@ -900,6 +935,7 @@ impl ExtensionManager {
         Self::new(
             Arc::new(Mutex::new(None)),
             session_manager,
+            None,
             "goose-cli".to_string(),
             ExtensionManagerCapabilities {
                 mcpui: false,
@@ -995,6 +1031,8 @@ impl ExtensionManager {
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
                     &effective_working_dir,
+                    self.context.session_manager.action_required(),
+                    Arc::downgrade(self),
                 )
                 .await?
             }
@@ -1018,7 +1056,12 @@ impl ExtensionManager {
                             context.session = Some(Arc::new(session));
                         }
                     }
-                    (def.client_factory)(context)
+                    // A platform extension the host cannot provide (no scheduler
+                    // service, say) declines rather than registering with no tools.
+                    let Some(client) = (def.client_factory)(context) else {
+                        return Ok(());
+                    };
+                    client
                 } else {
                     // Builtin MCP server extension
                     let timeout_secs = resolve_timeout(timeout);
@@ -1052,6 +1095,8 @@ impl ExtensionManager {
                             Some(container_id.to_string()),
                             self.client_name.clone(),
                             self.mcp_client_capabilities(),
+                            self.context.session_manager.action_required(),
+                            Arc::downgrade(self),
                         )
                         .await?;
                         Box::new(client)
@@ -1068,6 +1113,8 @@ impl ExtensionManager {
                                 self.client_name.clone(),
                                 self.mcp_client_capabilities(),
                                 effective_working_dir.clone(),
+                                self.context.session_manager.action_required(),
+                                Arc::downgrade(self),
                             )
                             .await?,
                         )
@@ -1129,6 +1176,8 @@ impl ExtensionManager {
                     container.map(|c| c.id().to_string()),
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
+                    self.context.session_manager.action_required(),
+                    Arc::downgrade(self),
                 )
                 .await?;
                 Box::new(client)
@@ -1161,6 +1210,8 @@ impl ExtensionManager {
                     container.map(|c| c.id().to_string()),
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
+                    self.context.session_manager.action_required(),
+                    Arc::downgrade(self),
                 )
                 .await?;
 
@@ -1362,7 +1413,8 @@ impl ExtensionManager {
         let resource_uri = resolved_tool.resource_uri.clone()?;
 
         let mut attachment = GooseMcpAppToolAttachment {
-            tool_name: resolved_tool.tool_name.clone(),
+            tool_name: resolved_tool.actual_tool_name.clone(),
+            tool_name_is_actual: true,
             extension_name: resolved_tool.extension_name.clone(),
             resource_uri: resource_uri.clone(),
             tool_meta: resolved_tool.tool_meta.clone(),
@@ -1385,7 +1437,7 @@ impl ExtensionManager {
         Some(attachment)
     }
 
-    async fn invalidate_tools_cache_and_bump_version(&self) {
+    pub(crate) async fn invalidate_tools_cache_and_bump_version(&self) {
         self.tools_cache_version.fetch_add(1, Ordering::SeqCst);
         *self.tools_cache.lock().await = None;
     }
@@ -1740,7 +1792,6 @@ impl ExtensionManager {
                 })?;
 
                 return Ok(ResolvedTool {
-                    tool_name: tool.name.to_string(),
                     extension_name: owner,
                     actual_tool_name,
                     client,
@@ -1753,7 +1804,6 @@ impl ExtensionManager {
                 let owner = name_to_key(prefix);
                 if let Some(client) = self.get_server_client(&owner).await {
                     return Ok(ResolvedTool {
-                        tool_name: name.to_string(),
                         extension_name: owner,
                         actual_tool_name: actual.to_string(),
                         client,
@@ -1797,7 +1847,7 @@ impl ExtensionManager {
         ctx: &super::tool_execution::ToolCallContext,
         tool_call: CallToolRequestParams,
         cancellation_token: CancellationToken,
-    ) -> Result<ToolCallResult> {
+    ) -> std::result::Result<ToolCallResult, ErrorData> {
         let tool_name_str = tool_call.name.to_string();
         let resolved = self.resolve_tool(&ctx.session_id, &tool_name_str).await?;
 
@@ -1813,8 +1863,7 @@ impl ExtensionManager {
                         resolved.actual_tool_name, resolved.extension_name
                     ),
                     None,
-                )
-                .into());
+                ));
             }
         }
 
@@ -1824,16 +1873,17 @@ impl ExtensionManager {
         let client_notifications_receiver = client.subscribe().await;
         let session_id = ctx.session_id.clone();
         let action_required_tool_call_request_id = ctx.tool_call_request_id.clone();
+        let action_required_manager = self.context.session_manager.action_required();
         let action_required_receiver =
             if let Some(tool_call_request_id) = action_required_tool_call_request_id.clone() {
-                if ActionRequiredManager::global()
+                if action_required_manager
                     .has_action_required_stream(&session_id, &tool_call_request_id)
                     .await
                 {
                     None
                 } else {
                     let registered_tool_call_request_id = tool_call_request_id.clone();
-                    let receiver = ActionRequiredManager::global()
+                    let receiver = action_required_manager
                         .register_action_required_stream(session_id.clone(), tool_call_request_id)
                         .await;
                     Some((
@@ -1925,6 +1975,7 @@ impl ExtensionManager {
                 |(rx, session_id, tool_call_request_id)| {
                     Box::new(ActionRequiredStream::new(
                         rx,
+                        action_required_manager,
                         session_id,
                         tool_call_request_id,
                     )) as _
@@ -2107,7 +2158,7 @@ impl ExtensionManager {
     }
 
     pub async fn collect_moim_parts(&self, session_id: &str) -> Vec<String> {
-        let platform_clients: Vec<(String, McpClientBox)> = {
+        let mut platform_clients: Vec<(String, McpClientBox)> = {
             let extensions = self.extensions.lock().await;
             extensions
                 .iter()
@@ -2127,6 +2178,9 @@ impl ExtensionManager {
                 })
                 .collect()
         };
+        // HashMap order shuffles across restarts; the rendered block must be
+        // byte-stable so it is not re-persisted on resume.
+        platform_clients.sort_by(|a, b| a.0.cmp(&b.0));
 
         let mut parts = Vec::new();
         for (name, client) in platform_clients {
@@ -2519,8 +2573,7 @@ mod tests {
             .dispatch_tool_call(&ctx, invalid_tool_call, CancellationToken::default())
             .await;
         if let Err(err) = result {
-            let tool_err = err.downcast_ref::<ErrorData>().expect("Expected ErrorData");
-            assert_eq!(tool_err.code, ErrorCode::RESOURCE_NOT_FOUND);
+            assert_eq!(err.code, ErrorCode::RESOURCE_NOT_FOUND);
         } else {
             panic!("Expected ErrorData with ErrorCode::RESOURCE_NOT_FOUND");
         }
@@ -2532,8 +2585,7 @@ mod tests {
             .dispatch_tool_call(&ctx, invalid_tool_call, CancellationToken::default())
             .await;
         if let Err(err) = result {
-            let tool_err = err.downcast_ref::<ErrorData>().expect("Expected ErrorData");
-            assert_eq!(tool_err.code, ErrorCode::RESOURCE_NOT_FOUND);
+            assert_eq!(err.code, ErrorCode::RESOURCE_NOT_FOUND);
         } else {
             panic!("Expected ErrorData with ErrorCode::RESOURCE_NOT_FOUND");
         }
@@ -2637,8 +2689,7 @@ mod tests {
             .await;
 
         if let Err(err) = result {
-            let tool_err = err.downcast_ref::<ErrorData>().expect("Expected ErrorData");
-            assert_eq!(tool_err.code, ErrorCode::RESOURCE_NOT_FOUND);
+            assert_eq!(err.code, ErrorCode::RESOURCE_NOT_FOUND);
         } else {
             panic!("Expected ErrorData with ErrorCode::RESOURCE_NOT_FOUND");
         }
@@ -2982,7 +3033,8 @@ mod tests {
             .resolve_tool("test-session-id", "test_client.tool")
             .await
             .expect("mangled dotted name should resolve to the real tool");
-        assert_eq!(resolved.tool_name, "test_client__tool");
+        assert_eq!(resolved.extension_name, "test_client");
+        assert_eq!(resolved.actual_tool_name, "tool");
     }
 
     #[tokio::test]
@@ -2998,7 +3050,8 @@ mod tests {
             .resolve_tool("test-session-id", "functions.test_client__tool")
             .await
             .expect("functions-prefixed name should resolve to the real tool");
-        assert_eq!(resolved.tool_name, "test_client__tool");
+        assert_eq!(resolved.extension_name, "test_client");
+        assert_eq!(resolved.actual_tool_name, "tool");
     }
 
     #[tokio::test]
@@ -3014,7 +3067,7 @@ mod tests {
             .resolve_tool("test-session-id", "dotted__db.query")
             .await
             .expect("exact dotted tool name must resolve");
-        assert_eq!(resolved.tool_name, "dotted__db.query");
+        assert_eq!(resolved.extension_name, "dotted");
         assert_eq!(resolved.actual_tool_name, "db.query");
     }
 
@@ -3031,7 +3084,7 @@ mod tests {
             .resolve_tool("test-session-id", "dotted.db.query")
             .await
             .expect("mangled extension separator should resolve");
-        assert_eq!(resolved.tool_name, "dotted__db.query");
+        assert_eq!(resolved.extension_name, "dotted");
         assert_eq!(resolved.actual_tool_name, "db.query");
     }
 
@@ -3106,7 +3159,8 @@ mod tests {
     fn test_insert_trusted_tool_update_meta_stores_backend_payload() {
         let mut result = CallToolResult::success(vec![]);
         let attachment = GooseMcpAppToolAttachment {
-            tool_name: "weather__render".to_string(),
+            tool_name: "render__secret".to_string(),
+            tool_name_is_actual: true,
             extension_name: "weather".to_string(),
             resource_uri: "ui://weather/app".to_string(),
             tool_meta: None,
@@ -3129,7 +3183,8 @@ mod tests {
             meta.0.get(TRUSTED_TOOL_UPDATE_META_KEY),
             Some(&serde_json::json!({
                 "mcpApp": {
-                    "toolName": "weather__render",
+                    "toolName": "render__secret",
+                    "toolNameIsActual": true,
                     "extensionName": "weather",
                     "resourceUri": "ui://weather/app",
                     "resourceResult": {
@@ -3329,6 +3384,8 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            Arc::new(ActionRequiredManager::new()),
+            Weak::new(),
         )
         .await;
 
@@ -3364,6 +3421,8 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            Arc::new(ActionRequiredManager::new()),
+            Weak::new(),
         )
         .await;
 
@@ -3410,6 +3469,8 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            Arc::new(ActionRequiredManager::new()),
+            Weak::new(),
         )
         .await;
 
@@ -3484,6 +3545,7 @@ mod tests {
         // only care that the outgoing request carried the custom header.
         let _ = connect_with_auth(
             auth_manager,
+            Arc::new(ActionRequiredManager::new()),
             &mock_server.uri(),
             Duration::from_secs(5),
             &headers,
@@ -3491,6 +3553,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            Weak::new(),
         )
         .await;
 

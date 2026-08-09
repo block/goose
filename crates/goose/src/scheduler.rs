@@ -12,10 +12,10 @@ use tokio::sync::Mutex;
 use tokio_cron_scheduler::{job::JobId, Job, JobScheduler as TokioJobScheduler};
 use tokio_util::sync::CancellationToken;
 
-use crate::agents::AgentEvent;
-use crate::agents::{Agent, SessionConfig};
+use crate::agents::{Agent, AgentConfig, AgentEvent, GoosePlatform, SessionConfig};
 use crate::config::paths::Paths;
-use crate::config::{resolve_extensions_for_new_session, Config};
+use crate::config::permission::PermissionManager;
+use crate::config::{resolve_extensions_for_new_session, Config, GooseMode};
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 #[cfg(feature = "telemetry")]
@@ -302,6 +302,7 @@ impl Scheduler {
         let jobs_arc = self.jobs.clone();
         let storage_path = self.storage_path.clone();
         let running_tasks_arc = self.running_tasks.clone();
+        let session_manager = self.session_manager.clone();
 
         let cron_parts: Vec<&str> = job.cron.split_whitespace().collect();
         let cron = match cron_parts.len() {
@@ -319,7 +320,7 @@ impl Scheduler {
                     "Invalid cron expression '{}': expected 5 or 6 fields, got {}",
                     job.cron,
                     cron_parts.len()
-                )))
+                )));
             }
         };
 
@@ -332,6 +333,7 @@ impl Scheduler {
             let local_storage_path = storage_path.clone();
             let job_to_execute = job_for_task.clone();
             let running_tasks = running_tasks_arc.clone();
+            let session_manager = session_manager.clone();
 
             Box::pin(async move {
                 let should_execute = {
@@ -371,6 +373,7 @@ impl Scheduler {
                     current_jobs_arc.clone(),
                     task_job_id.clone(),
                     cancel_token.clone(),
+                    session_manager,
                 )
                 .await;
 
@@ -458,7 +461,12 @@ impl Scheduler {
                     (original_recipe_path, None)
                 };
 
-            let scheduled_recipes_dir = get_default_scheduled_recipes_dir()?;
+            let scheduled_recipes_dir = self
+                .storage_path
+                .parent()
+                .unwrap_or(Path::new("."))
+                .join("scheduled_recipes");
+            fs::create_dir_all(&scheduled_recipes_dir)?;
             let original_extension = original_recipe_path
                 .extension()
                 .and_then(|ext| ext.to_str())
@@ -813,6 +821,7 @@ impl Scheduler {
             self.jobs.clone(),
             sched_id.to_string(),
             cancel_token.clone(),
+            self.session_manager.clone(),
         )
         .await;
         let was_cancelled = cancel_token.is_cancelled();
@@ -987,6 +996,7 @@ async fn execute_job(
     jobs: Arc<Mutex<JobsMap>>,
     job_id: String,
     cancel_token: CancellationToken,
+    session_manager: Arc<SessionManager>,
 ) -> Result<String> {
     if job.source.is_empty() {
         return Ok(job.id.to_string());
@@ -1012,7 +1022,14 @@ async fn execute_job(
     )
     .map_err(|e| anyhow!(e.to_string()))?;
 
-    let agent = Agent::new();
+    let agent = Agent::with_config(AgentConfig::new(
+        session_manager,
+        PermissionManager::instance(),
+        None,
+        GooseMode::Auto,
+        true,
+        GoosePlatform::GooseCli,
+    ));
 
     let config = Config::global();
     let provider_name = config.get_goose_provider()?;
@@ -1027,7 +1044,7 @@ async fn execute_job(
             std::env::current_dir()?,
             format!("Scheduled job: {}", job.id),
             SessionType::Scheduled,
-            agent.config.goose_mode,
+            GooseMode::Auto,
         )
         .await?;
 
@@ -1044,6 +1061,9 @@ async fn execute_job(
     let agent_provider = create(&provider_name, extensions).await?;
     agent
         .update_provider(agent_provider, model_config, &session.id)
+        .await?;
+    agent
+        .update_goose_mode(GooseMode::Auto, &session.id)
         .await?;
 
     let mut jobs_guard = jobs.lock().await;
@@ -1106,6 +1126,15 @@ async fn execute_job(
     let user_message = Message::user().with_text(prompt_text);
     let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
 
+    agent
+        .config
+        .session_manager
+        .update(&session.id)
+        .schedule_id(Some(job.id.clone()))
+        .recipe(Some(recipe.clone()))
+        .apply()
+        .await?;
+
     let session_config = SessionConfig {
         id: session.id.clone(),
         schedule_id: Some(job.id.clone()),
@@ -1139,15 +1168,6 @@ async fn execute_job(
             }
         }
     }
-
-    agent
-        .config
-        .session_manager
-        .update(&session.id)
-        .schedule_id(Some(job.id.clone()))
-        .recipe(Some(recipe))
-        .apply()
-        .await?;
 
     {
         let session_duration = start_time.elapsed();
@@ -1301,7 +1321,16 @@ mod tests {
 
     fn create_test_recipe(dir: &Path, name: &str) -> PathBuf {
         let recipe_path = dir.join(format!("{}.yaml", name));
-        fs::write(&recipe_path, "prompt: test\n").unwrap();
+        fs::write(
+            &recipe_path,
+            format!(
+                "version: 1.0.0\n\
+                 title: {name}\n\
+                 description: Scheduler test recipe\n\
+                 prompt: test\n"
+            ),
+        )
+        .unwrap();
         recipe_path
     }
 
@@ -1422,6 +1451,7 @@ mod tests {
         let _guard = env_lock::lock_env([
             ("GOOSE_PROVIDER", Some("openai")),
             ("GOOSE_MODEL", Some("gpt-4o")),
+            ("GOOSE_MODE", Some("chat")),
             ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
             ("OPENAI_CUSTOM_HEADERS", Some("")),
         ]);
@@ -1429,7 +1459,9 @@ mod tests {
         let storage_path = temp_dir.path().join("schedule.json");
         let recipe_path = create_test_recipe(temp_dir.path(), "scheduled_job");
         let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
-        let scheduler = Scheduler::new(storage_path, session_manager).await.unwrap();
+        let scheduler = Scheduler::new(storage_path, session_manager.clone())
+            .await
+            .unwrap();
 
         let job = ScheduledJob {
             id: "scheduled_job".to_string(),
@@ -1449,6 +1481,26 @@ mod tests {
 
         let jobs = scheduler.list_scheduled_jobs().await;
         assert!(jobs[0].last_run.is_some(), "Job should have run");
+        let sessions = session_manager
+            .list_sessions_by_types(&[SessionType::Scheduled])
+            .await
+            .unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].goose_mode, GooseMode::Auto);
+        let session = session_manager
+            .get_session(&sessions[0].id, true)
+            .await
+            .unwrap();
+        assert_eq!(
+            sessions[0].message_count,
+            session
+                .conversation
+                .unwrap()
+                .messages()
+                .iter()
+                .filter(|m| m.is_user_visible())
+                .count()
+        );
     }
 
     #[tokio::test]

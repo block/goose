@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 use std::sync::Arc;
 
 use axum::body::Body;

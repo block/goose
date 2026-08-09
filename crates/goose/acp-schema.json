@@ -3409,14 +3409,25 @@
       "properties": {
         "sessionId": {
           "type": "string"
+        },
+        "format": {
+          "$ref": "#/$defs/SessionExportFormat",
+          "default": "json"
         }
       },
       "required": [
         "sessionId"
       ],
-      "description": "Export a session as a JSON string.",
+      "description": "Export a session as a JSON or markdown string.",
       "x-side": "agent",
       "x-method": "_goose/unstable/session/export"
+    },
+    "SessionExportFormat": {
+      "type": "string",
+      "enum": [
+        "json",
+        "markdown"
+      ]
     },
     "ExportSessionResponse_unstable": {
       "type": "object",
@@ -3428,7 +3439,7 @@
       "required": [
         "data"
       ],
-      "description": "Export session response — raw JSON of the goose session with `conversation`.",
+      "description": "Export session response — raw JSON of the goose session with `conversation`,\nor a markdown transcript when `format` is `markdown`.",
       "x-side": "agent",
       "x-method": "_goose/unstable/session/export"
     },

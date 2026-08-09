@@ -100,12 +100,25 @@ impl SnowflakeProvider {
             .api_client
             .request("api/v2/cortex/inference:complete")
             .model_headers(model_config)?
+            .streaming(true)
             .response_post(payload)
             .await?;
 
         let status = response.status();
         let url = sanitize_url(response.url().as_str());
-        let payload_text: String = response.text().await.ok().unwrap_or_default();
+        let is_json = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v.to_ascii_lowercase())
+            .is_some_and(|v| v.contains("json"));
+        let payload_text: String = if status.is_success() && !is_json {
+            response.text().await.ok().unwrap_or_default()
+        } else {
+            crate::http_status::read_error_body(response)
+                .await
+                .unwrap_or_default()
+        };
 
         if status.is_success() {
             if let Ok(payload) = serde_json::from_str::<Value>(&payload_text) {
