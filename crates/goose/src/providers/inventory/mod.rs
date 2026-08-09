@@ -1082,7 +1082,8 @@ fn configured_models_to_inventory(
     let mut result: Vec<InventoryModel> = Vec::new();
     let mut seen_names: HashSet<String> = HashSet::new();
     for model in models {
-        let enriched = enriched_model(provider_family, &model.name, Some(model.context_limit));
+        let declared = (model.context_limit > 0).then_some(model.context_limit);
+        let enriched = enriched_model(provider_family, &model.name, declared);
         if seen_names.insert(enriched.name.clone()) {
             result.push(enriched);
         }
@@ -1120,10 +1121,15 @@ fn inventory_models_from_snapshot(
     }
 }
 
+/// `declared_context_limit` is the provider's own statement about the endpoint
+/// and outranks a canonical entry matched on model *name*, matching the
+/// precedence in `ProviderEntry::normalize_model_config`. Built-in providers
+/// derive their known models from the canonical registry, so the two agree and
+/// this is a no-op for them.
 fn enriched_model(
     provider_family: &str,
     model_id: &str,
-    fallback_context_limit: Option<usize>,
+    declared_context_limit: Option<usize>,
 ) -> InventoryModel {
     let registry = CanonicalModelRegistry::bundled().ok();
     let canonical = registry.as_ref().and_then(|registry| {
@@ -1139,10 +1145,8 @@ fn enriched_model(
             .map(|model| model.name.clone())
             .unwrap_or_else(|| model_id.to_string()),
         family: canonical.as_ref().and_then(|model| model.family.clone()),
-        context_limit: canonical
-            .as_ref()
-            .map(|model| model.limit.context)
-            .or(fallback_context_limit),
+        context_limit: declared_context_limit
+            .or_else(|| canonical.as_ref().map(|model| model.limit.context)),
         reasoning: canonical.as_ref().and_then(|model| model.reasoning),
         recommended: false,
     }

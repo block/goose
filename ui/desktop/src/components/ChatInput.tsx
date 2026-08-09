@@ -603,15 +603,12 @@ export default function ChatInput({
         return;
       }
 
-      // Priority 2: Check canonical model info (source of truth)
-      const canonicalInfo = await fetchCanonicalModelInfo(provider, model);
-      if (canonicalInfo?.contextLimit) {
-        setTokenLimit(canonicalInfo.contextLimit);
-        setIsTokenLimitLoaded(true);
-        return;
-      }
-
-      // Priority 3: Fall back to provider metadata known_models (may be outdated)
+      // Priority 2: The provider's own declaration, which describes the endpoint
+      // that will serve the request. The canonical catalog is matched on model
+      // *name*, so a local or proxied deployment reusing a well-known name
+      // inherits limits that have nothing to do with it. This mirrors the
+      // backend precedence in ProviderEntry::normalize_model_config; built-in
+      // providers derive known_models from the catalog, so they are unaffected.
       const providers = await acpListProviderDetails();
       const currentProvider = providers.find((p) => p.name === provider);
       if (currentProvider?.metadata?.known_models) {
@@ -621,6 +618,14 @@ export default function ChatInput({
           setIsTokenLimitLoaded(true);
           return;
         }
+      }
+
+      // Priority 3: Fall back to the canonical catalog
+      const canonicalInfo = await fetchCanonicalModelInfo(provider, model);
+      if (canonicalInfo?.contextLimit) {
+        setTokenLimit(canonicalInfo.contextLimit);
+        setIsTokenLimitLoaded(true);
+        return;
       }
 
       // Priority 4: Use default if nothing else found
