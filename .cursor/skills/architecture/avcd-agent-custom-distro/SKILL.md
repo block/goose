@@ -10,7 +10,7 @@ description: >-
 
 # Avocado Work — Custom Distribution & Rebrand
 
-> **Related**: Upstream [CUSTOM_DISTROS.md](../../../../CUSTOM_DISTROS.md) (Appendix D) | Published docs [Custom Distributions](https://block-goose.mintlify.app/advanced/custom-distributions) | [branding-checklist](references/branding-checklist.md) | [openrouter-preset](references/openrouter-preset.md) | [file-map](references/file-map.md)
+> **Related**: Upstream [CUSTOM_DISTROS.md](../../../../CUSTOM_DISTROS.md) (Appendix D) | Published docs [Custom Distributions](https://block-goose.mintlify.app/advanced/custom-distributions) | [mcp-oauth-connections](../mcp-oauth-connections/SKILL.md) | [branding-checklist](references/branding-checklist.md) | [openrouter-preset](references/openrouter-preset.md) | [file-map](references/file-map.md)
 
 **Status**: Living skill — update when branding, packaging, or local-dev wiring changes.
 
