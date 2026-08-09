@@ -65,7 +65,22 @@ fn default_tool_title(tool_name: &str, arguments: Option<&serde_json::Value>) ->
 
 pub(crate) fn goose_tool_call_meta(tool_request: &ToolRequest) -> Option<Meta> {
     let tool_call = tool_request.tool_call.as_ref().ok()?;
-    let tool_name = tool_call.name.to_string();
+    let persisted_tool_name = tool_call.name.to_string();
+    let tool_name = if persisted_tool_name == "acp_tool" {
+        tool_request
+            .generated_title()
+            .or_else(|| {
+                tool_request
+                    .tool_meta
+                    .as_ref()
+                    .and_then(|meta| meta.get("goose.acp.kind"))
+                    .and_then(serde_json::Value::as_str)
+            })
+            .unwrap_or(&persisted_tool_name)
+            .to_string()
+    } else {
+        persisted_tool_name
+    };
     let extension_name = tool_request
         .tool_name_parts()
         .and_then(|parts| parts.extension_name)
@@ -598,6 +613,55 @@ mod tests {
                     "toolCall": {
                         "toolName": "other__query-docs",
                         "extensionName": "context7",
+                    },
+                })),
+            );
+        }
+
+        #[test]
+        fn exposes_acp_title_as_the_ui_tool_name() {
+            let request = ToolRequest {
+                id: "req_1".to_string(),
+                tool_call: Ok(CallToolRequestParams::new("acp_tool")),
+                metadata: None,
+                tool_meta: Some(serde_json::json!({
+                    "goose.toolSummary.title": "Read project configuration",
+                    "goose.acp.kind": "read",
+                })),
+            };
+
+            let meta = goose_tool_call_meta(&request).expect("expected metadata");
+
+            assert_eq!(
+                request.tool_call.as_ref().unwrap().name.as_ref(),
+                "acp_tool"
+            );
+            assert_eq!(
+                meta.get("goose"),
+                Some(&serde_json::json!({
+                    "toolCall": {
+                        "toolName": "Read project configuration",
+                    },
+                })),
+            );
+        }
+
+        #[test]
+        fn falls_back_to_acp_kind_for_the_ui_tool_name() {
+            let request = ToolRequest {
+                id: "req_1".to_string(),
+                tool_call: Ok(CallToolRequestParams::new("acp_tool")),
+                metadata: None,
+                tool_meta: Some(serde_json::json!({"goose.acp.kind": "execute"})),
+            };
+
+            let meta = goose_tool_call_meta(&request).expect("expected metadata");
+
+            assert_eq!(
+                meta.get("goose"),
+                Some(&serde_json::json!({
+                    "toolCall": {
+                        "toolName": "execute",
                     },
                 })),
             );
