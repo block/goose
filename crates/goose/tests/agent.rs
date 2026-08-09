@@ -14,8 +14,11 @@ mod tests {
         use super::*;
         use async_trait::async_trait;
         use chrono::{DateTime, Utc};
-        use goose::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
-        use goose::agents::AgentConfig;
+        use goose::agents::platform_extensions::scheduler::{
+            EXTENSION_NAME as SCHEDULER_EXTENSION_NAME, MANAGE_SCHEDULE_TOOL_NAME_COMPLETE,
+        };
+        use goose::agents::ExtensionConfig;
+        use goose::agents::{AgentConfig, ScheduleTool};
         use goose::config::permission::PermissionManager;
         use goose::config::GooseMode;
         use goose::scheduler::{ScheduledJob, SchedulerError, ValidatedScheduleRecipe};
@@ -125,6 +128,25 @@ mod tests {
             }
         }
 
+        async fn add_scheduler_extension(agent: &Agent) {
+            agent
+                .extension_manager
+                .add_extension(
+                    ExtensionConfig::Platform {
+                        name: SCHEDULER_EXTENSION_NAME.to_string(),
+                        description: "Create and manage scheduled recipe execution".to_string(),
+                        display_name: Some("Scheduler".to_string()),
+                        bundled: Some(true),
+                        available_tools: vec![],
+                    },
+                    None,
+                    None,
+                    None,
+                )
+                .await
+                .unwrap();
+        }
+
         #[async_trait]
         impl SchedulerTrait for MockScheduler {
             async fn add_scheduled_job(
@@ -230,11 +252,12 @@ mod tests {
                 GoosePlatform::GooseCli,
             );
             let agent = Agent::with_config(config);
+            add_scheduler_extension(&agent).await;
 
             let tools = agent.list_tools("test-session-id", None).await;
             let schedule_tool = tools
                 .iter()
-                .find(|tool| tool.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME);
+                .find(|tool| tool.name == MANAGE_SCHEDULE_TOOL_NAME_COMPLETE);
             assert!(schedule_tool.is_some());
 
             let tool = schedule_tool.unwrap();
@@ -248,16 +271,17 @@ mod tests {
         #[tokio::test]
         async fn test_no_schedule_management_tool_without_scheduler() {
             let agent = Agent::new();
+            add_scheduler_extension(&agent).await;
 
             let tools = agent.list_tools("test-session-id", None).await;
             let schedule_tool = tools
                 .iter()
-                .find(|tool| tool.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME);
+                .find(|tool| tool.name == MANAGE_SCHEDULE_TOOL_NAME_COMPLETE);
             assert!(schedule_tool.is_none());
         }
 
         #[tokio::test]
-        async fn test_schedule_management_tool_in_platform_tools() {
+        async fn test_schedule_management_tool_in_scheduler_extension() {
             let temp_dir = TempDir::new().unwrap();
             let data_dir = temp_dir.path().to_path_buf();
             let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
@@ -272,15 +296,18 @@ mod tests {
                 GoosePlatform::GooseCli,
             );
             let agent = Agent::with_config(config);
+            add_scheduler_extension(&agent).await;
 
             let tools = agent
-                .list_tools("test-session-id", Some("platform".to_string()))
+                .list_tools(
+                    "test-session-id",
+                    Some(SCHEDULER_EXTENSION_NAME.to_string()),
+                )
                 .await;
 
-            // Check that the schedule management tool is included in platform tools
             let schedule_tool = tools
                 .iter()
-                .find(|tool| tool.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME);
+                .find(|tool| tool.name == MANAGE_SCHEDULE_TOOL_NAME_COMPLETE);
             assert!(schedule_tool.is_some());
 
             let tool = schedule_tool.unwrap();
@@ -327,11 +354,12 @@ mod tests {
                 GoosePlatform::GooseCli,
             );
             let agent = Agent::with_config(config);
+            add_scheduler_extension(&agent).await;
 
             let tools = agent.list_tools("test-session-id", None).await;
             let schedule_tool = tools
                 .iter()
-                .find(|tool| tool.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME);
+                .find(|tool| tool.name == MANAGE_SCHEDULE_TOOL_NAME_COMPLETE);
             assert!(schedule_tool.is_some());
 
             let tool = schedule_tool.unwrap();
@@ -358,9 +386,7 @@ mod tests {
         #[tokio::test]
         async fn test_schedule_sessions_reports_message_count_without_conversation() {
             let temp_dir = TempDir::new().unwrap();
-            let data_dir = temp_dir.path().to_path_buf();
-            let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
-            let permission_manager = Arc::new(PermissionManager::new(data_dir));
+            let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
 
             let session = Session {
                 id: "session-123".to_string(),
@@ -373,24 +399,13 @@ mod tests {
                 "session-123".to_string(),
                 session,
             )]));
-            let config = AgentConfig::new(
-                session_manager,
-                permission_manager,
-                Some(mock_scheduler),
-                GooseMode::Auto,
-                false,
-                GoosePlatform::GooseCli,
-            );
-            let agent = Agent::with_config(config);
+            let schedule_tool = ScheduleTool::new(mock_scheduler, session_manager);
 
-            let result = agent
-                .handle_schedule_management(
-                    serde_json::json!({
-                        "action": "sessions",
-                        "job_id": "daily-report"
-                    }),
-                    "test-request".to_string(),
-                )
+            let result = schedule_tool
+                .execute(serde_json::json!({
+                    "action": "sessions",
+                    "job_id": "daily-report"
+                }))
                 .await
                 .expect("schedule sessions should succeed");
 
@@ -1389,7 +1404,11 @@ mod tests {
                 .messages()
                 .to_vec();
 
-            let user_count = messages.iter().filter(|m| m.role == Role::User).count();
+            // Turn-context events are excluded; this test is about streaming deltas.
+            let user_count = messages
+                .iter()
+                .filter(|m| m.role == Role::User && m.is_user_visible())
+                .count();
             let asst_count = messages
                 .iter()
                 .filter(|m| m.role == Role::Assistant)
@@ -1438,7 +1457,10 @@ mod tests {
                 .messages()
                 .to_vec();
 
-            let user_count2 = messages2.iter().filter(|m| m.role == Role::User).count();
+            let user_count2 = messages2
+                .iter()
+                .filter(|m| m.role == Role::User && m.is_user_visible())
+                .count();
             let asst_count2 = messages2
                 .iter()
                 .filter(|m| m.role == Role::Assistant)

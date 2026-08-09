@@ -518,14 +518,33 @@ fn fix_tool_calling(mut messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
     (messages, issues)
 }
 
+/// Never merges across visibility or turn-context boundaries, so the result
+/// is safe to persist.
 pub fn merge_consecutive_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
+    merge_consecutive(messages, false)
+}
+
+/// Merges regardless of visibility, for providers that require strict role
+/// alternation. Never persist the result.
+pub fn merge_consecutive_messages_for_request(messages: Vec<Message>) -> Vec<Message> {
+    merge_consecutive(messages, true).0
+}
+
+fn merge_consecutive(
+    messages: Vec<Message>,
+    across_visibility: bool,
+) -> (Vec<Message>, Vec<String>) {
     let mut issues = Vec::new();
     let mut merged_messages: Vec<Message> = Vec::new();
 
     for message in messages {
         if let Some(last) = merged_messages.last_mut() {
             let effective = effective_role(&message);
-            if effective_role(last) == effective {
+            if effective_role(last) == effective
+                && (across_visibility
+                    || (last.metadata.user_visible == message.metadata.user_visible
+                        && last.metadata.turn_context == message.metadata.turn_context))
+            {
                 last.content.extend(message.content);
                 issues.push(format!("Merged consecutive {} messages", effective));
                 continue;
@@ -613,19 +632,30 @@ pub const TURN_CONTEXT_TAG: &str = "turn-context";
 pub const CURRENT_TIME_TAG: &str = "current-time";
 pub const WORKING_DIRECTORY_TAG: &str = "working-directory";
 
-pub fn is_turn_context_text(text: &str) -> bool {
-    text.starts_with(&format!("<{TURN_CONTEXT_TAG}>\n<{CURRENT_TIME_TAG}>"))
-        && text.contains(&format!("</{CURRENT_TIME_TAG}>\n<{WORKING_DIRECTORY_TAG}>"))
-        && text.trim_end().ends_with(&format!("</{TURN_CONTEXT_TAG}>"))
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EffectiveRole {
+    User,
+    Assistant,
+    Tool,
 }
 
-pub fn effective_role(message: &Message) -> String {
+impl std::fmt::Display for EffectiveRole {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::User => write!(f, "user"),
+            Self::Assistant => write!(f, "assistant"),
+            Self::Tool => write!(f, "tool"),
+        }
+    }
+}
+
+pub fn effective_role(message: &Message) -> EffectiveRole {
     if message.role == Role::User && has_tool_response(message) {
-        "tool".to_string()
+        EffectiveRole::Tool
     } else {
         match message.role {
-            Role::User => "user".to_string(),
-            Role::Assistant => "assistant".to_string(),
+            Role::User => EffectiveRole::User,
+            Role::Assistant => EffectiveRole::Assistant,
         }
     }
 }
@@ -696,7 +726,9 @@ pub fn debug_conversation_fix(
 
 #[cfg(test)]
 mod tests {
-    use crate::conversation::message::{InferenceMetadata, Message, MessageContentBlock};
+    use crate::conversation::message::{
+        InferenceMetadata, Message, MessageContentBlock, MessageMetadata,
+    };
     use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
     use rmcp::model::{CallToolRequestParams, Role};
     use rmcp::object;
@@ -827,6 +859,62 @@ mod tests {
         assert_eq!(fixed[2].role, Role::User);
 
         assert_eq!(fixed[0].content.len(), 2);
+    }
+
+    #[test]
+    fn merge_does_not_cross_user_visibility() {
+        let visible = Message::user().with_text("what is in main.rs?");
+        let hidden = Message::user()
+            .with_text("<turn-context>frozen</turn-context>")
+            .with_visibility(false, true);
+
+        let (fixed, _) = fix_conversation(Conversation::new_unvalidated(vec![visible, hidden]));
+        assert_eq!(
+            fixed.messages().len(),
+            2,
+            "the persistable form keeps the agent-only event separate"
+        );
+        assert!(fixed.messages()[0].is_user_visible());
+        assert!(!fixed.messages()[1].is_user_visible());
+
+        let merged =
+            crate::conversation::merge_consecutive_messages_for_request(fixed.messages().clone());
+        assert_eq!(
+            merged.len(),
+            1,
+            "the request form merges to satisfy role alternation"
+        );
+        assert_eq!(merged[0].content.len(), 2);
+    }
+
+    #[test]
+    fn merge_does_not_erase_turn_context_marker() {
+        let preserved_prompt = Message::user()
+            .with_text("the preserved prompt")
+            .with_metadata(MessageMetadata::agent_only());
+        let carried_event = Message::user()
+            .with_text("<turn-context>frozen</turn-context>")
+            .with_metadata(MessageMetadata::agent_only().with_turn_context());
+
+        let (fixed, _) = fix_conversation(Conversation::new_unvalidated(vec![
+            preserved_prompt,
+            carried_event,
+        ]));
+        assert_eq!(
+            fixed.messages().len(),
+            2,
+            "the persistable form must not fold a turn-context event into the prompt"
+        );
+        assert!(!fixed.messages()[0].is_turn_context());
+        assert!(fixed.messages()[1].is_turn_context());
+
+        let merged =
+            crate::conversation::merge_consecutive_messages_for_request(fixed.messages().clone());
+        assert_eq!(
+            merged.len(),
+            1,
+            "the request form still merges to satisfy role alternation"
+        );
     }
 
     #[test]

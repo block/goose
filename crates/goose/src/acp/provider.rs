@@ -1442,14 +1442,14 @@ fn messages_to_prompt(messages: &[Message], include_handoff_context: bool) -> Ve
 fn last_user_message_index(messages: &[Message]) -> Option<usize> {
     messages
         .iter()
-        .rposition(|m| m.role == Role::User && m.is_agent_visible())
+        .rposition(|m| m.role == Role::User && m.is_agent_visible() && !m.is_turn_context())
 }
 
 fn has_handoff_context(messages: &[Message]) -> bool {
     last_user_message_index(messages).is_some_and(|last_user_index| {
         messages[..last_user_index]
             .iter()
-            .any(Message::is_agent_visible)
+            .any(|m| m.is_agent_visible() && !m.is_turn_context())
     })
 }
 
@@ -1458,6 +1458,7 @@ fn build_handoff_context_memo(prior_messages: &[Message]) -> Option<String> {
         Conversation::new_unvalidated(prior_messages.iter().cloned())
             .agent_visible_messages()
             .iter()
+            .filter(|message| !message.is_turn_context())
             .map(|message| format_message_for_compacting(&message.agent_visible_content()))
             .collect();
 
@@ -1808,6 +1809,37 @@ mod tests {
         assert!(memo.contains("tool_response: file contents"));
         assert!(memo.contains("Current user request follows."));
         assert_eq!(prompt_text(&blocks[1]), "continue from there");
+    }
+
+    #[test]
+    fn messages_to_prompt_skips_turn_context_events() {
+        use crate::conversation::message::MessageMetadata;
+
+        let turn_context = |text: &str| {
+            Message::user()
+                .with_text(text)
+                .with_metadata(MessageMetadata::agent_only().with_turn_context())
+        };
+        let messages = vec![
+            Message::user().with_text("inspect src/lib.rs"),
+            turn_context("<turn-context>old cwd /repo</turn-context>"),
+            Message::assistant().with_text("I found the file"),
+            Message::user().with_text("continue from there"),
+            turn_context("<turn-context>new cwd /repo</turn-context>"),
+        ];
+
+        let blocks = messages_to_prompt(&messages, true);
+
+        assert_eq!(blocks.len(), 2);
+        assert!(
+            !prompt_text(&blocks[0]).contains("turn-context"),
+            "handoff memo must not include turn-context events"
+        );
+        assert_eq!(
+            prompt_text(&blocks[1]),
+            "continue from there",
+            "the current prompt must be the user's request, not a trailing turn-context event"
+        );
     }
 
     #[test]

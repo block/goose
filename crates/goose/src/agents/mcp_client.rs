@@ -189,16 +189,18 @@ pub struct GooseClient {
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     working_dir: Arc<tokio::sync::RwLock<PathBuf>>,
+    action_required: Arc<ActionRequiredManager>,
     extension_manager: Weak<ExtensionManager>,
 }
 
 impl GooseClient {
-    pub fn new(
+    pub(crate) fn new(
         handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
         provider: SharedProvider,
         client_name: String,
         capabilities: GooseMcpClientCapabilities,
         working_dir: PathBuf,
+        action_required: Arc<ActionRequiredManager>,
         extension_manager: Weak<ExtensionManager>,
     ) -> Self {
         GooseClient {
@@ -209,6 +211,7 @@ impl GooseClient {
             client_name,
             capabilities,
             working_dir: Arc::new(tokio::sync::RwLock::new(working_dir)),
+            action_required,
             extension_manager,
         }
     }
@@ -525,7 +528,7 @@ impl ClientHandler for GooseClient {
             _ => (String::new(), serde_json::json!({})),
         };
 
-        ActionRequiredManager::global()
+        self.action_required
             .request_and_wait(
                 session_id,
                 tool_call_request_id,
@@ -582,13 +585,15 @@ pub struct McpClient {
 }
 
 impl McpClient {
-    pub async fn connect<T, E, A>(
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn connect<T, E, A>(
         transport: T,
         timeout: std::time::Duration,
         provider: SharedProvider,
         client_name: String,
         capabilities: GooseMcpClientCapabilities,
         working_dir: PathBuf,
+        action_required: Arc<ActionRequiredManager>,
         extension_manager: Weak<ExtensionManager>,
     ) -> Result<Self, ClientInitializeError>
     where
@@ -603,13 +608,14 @@ impl McpClient {
             client_name,
             capabilities,
             working_dir,
+            action_required,
             extension_manager,
         )
         .await
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub async fn connect_with_container<T, E, A>(
+    pub(crate) async fn connect_with_container<T, E, A>(
         transport: T,
         timeout: std::time::Duration,
         provider: SharedProvider,
@@ -617,6 +623,7 @@ impl McpClient {
         client_name: String,
         capabilities: GooseMcpClientCapabilities,
         working_dir: PathBuf,
+        action_required: Arc<ActionRequiredManager>,
         extension_manager: Weak<ExtensionManager>,
     ) -> Result<Self, ClientInitializeError>
     where
@@ -632,6 +639,7 @@ impl McpClient {
             client_name.clone(),
             capabilities.clone(),
             working_dir,
+            action_required,
             extension_manager,
         );
         let client: rmcp::service::RunningService<rmcp::RoleClient, GooseClient> =
@@ -1103,6 +1111,7 @@ mod tests {
             platform.to_string(),
             capabilities,
             std::env::current_dir().unwrap_or_default(),
+            Arc::new(ActionRequiredManager::new()),
             Weak::new(),
         )
     }
@@ -1145,6 +1154,7 @@ mod tests {
                 host_info: None,
             },
             temp_dir.path().to_path_buf(),
+            Arc::new(ActionRequiredManager::new()),
             Arc::downgrade(&extension_manager),
         );
 
@@ -1520,6 +1530,7 @@ mod tests {
                 }),
             },
             std::env::current_dir().unwrap_or_default(),
+            Arc::new(ActionRequiredManager::new()),
             Weak::new(),
         );
 
@@ -1552,6 +1563,7 @@ mod tests {
                 }),
             },
             std::env::current_dir().unwrap_or_default(),
+            Arc::new(ActionRequiredManager::new()),
             Weak::new(),
         );
 
@@ -1581,6 +1593,7 @@ mod tests {
                 }),
             },
             std::env::current_dir().unwrap_or_default(),
+            Arc::new(ActionRequiredManager::new()),
             Weak::new(),
         );
 
