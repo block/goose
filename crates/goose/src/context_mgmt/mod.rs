@@ -382,6 +382,25 @@ async fn do_compact(
         .await
         {
             Ok((mut response, mut provider_usage)) => {
+                // A summary cut off at max_tokens loses its tail, and because
+                // the JSON never brace-balances it also falls back to raw text
+                // (see `structured::json_candidates`) — so the compacted
+                // context becomes scratchpad plus a half-written object. Less
+                // input yields a shorter summary, which is what the removal
+                // ladder already produces, so retry before settling for it.
+                if response.metadata.output_token_limit_reached {
+                    if attempt < removal_percentages.len() - 1 {
+                        warn!(
+                            "Compaction summary hit the output token limit at {}% tool-response removal; retrying with more removed",
+                            remove_percent
+                        );
+                        continue;
+                    }
+                    warn!(
+                        "Compaction summary still hit the output token limit after removing all tool responses; the retained context will be incomplete"
+                    );
+                }
+
                 response.role = Role::User;
 
                 // Usage must reflect the raw model output (billable tokens),
@@ -727,6 +746,10 @@ mod tests {
         config: ModelConfig,
         max_tool_responses: Option<usize>,
         captured_system: std::sync::Mutex<Option<String>>,
+        /// Number of leading attempts that come back flagged as cut off at the
+        /// output token limit, simulating a summary the model could not finish.
+        truncated_attempts: usize,
+        attempts: std::sync::atomic::AtomicUsize,
     }
 
     impl MockProvider {
@@ -746,12 +769,23 @@ mod tests {
                 },
                 max_tool_responses: None,
                 captured_system: std::sync::Mutex::new(None),
+                truncated_attempts: 0,
+                attempts: std::sync::atomic::AtomicUsize::new(0),
             }
         }
 
         fn with_max_tool_responses(mut self, max: usize) -> Self {
             self.max_tool_responses = Some(max);
             self
+        }
+
+        fn with_truncated_attempts(mut self, truncated_attempts: usize) -> Self {
+            self.truncated_attempts = truncated_attempts;
+            self
+        }
+
+        fn attempt_count(&self) -> usize {
+            self.attempts.load(std::sync::atomic::Ordering::Relaxed)
         }
     }
 
@@ -788,7 +822,13 @@ mod tests {
                 }
             }
 
-            let message = self.message.clone();
+            let attempt = self
+                .attempts
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let mut message = self.message.clone();
+            if attempt < self.truncated_attempts {
+                message.metadata.output_token_limit_reached = true;
+            }
             let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
             Ok(stream_from_single_message(message, usage))
         }
@@ -799,6 +839,72 @@ mod tests {
         ) -> Result<usize, ProviderError> {
             Ok(self.config.context_limit())
         }
+    }
+
+    fn conversation_with_tool_pairs(pairs: usize) -> Conversation {
+        let mut messages = vec![Message::user().with_text("start")];
+        for i in 0..pairs {
+            messages.extend(create_tool_pair(
+                &format!("tool_{i}"),
+                &format!("resp_{i}"),
+                "read_file",
+                &format!("contents of file {i}"),
+            ));
+        }
+        Conversation::new_unvalidated(messages)
+    }
+
+    /// A summary cut off at max_tokens loses its tail and, because the JSON
+    /// never brace-balances, also falls back to raw text — so the compacted
+    /// context becomes scratchpad plus a half-written object. Less input
+    /// produces a shorter summary, so the removal ladder should be used.
+    #[tokio::test]
+    async fn compaction_retries_when_the_summary_hits_the_output_token_limit() {
+        let provider = MockProvider::new(Message::assistant().with_text("<mock summary>"), 100_000)
+            .with_truncated_attempts(1);
+        let conversation = conversation_with_tool_pairs(4);
+
+        let (summary, _usage) = do_compact(
+            &provider,
+            &provider.config.clone(),
+            "test-session",
+            conversation.messages(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            provider.attempt_count(),
+            2,
+            "a truncated summary should be retried with more tool responses removed"
+        );
+        assert!(!summary.metadata.output_token_limit_reached);
+        assert!(summary.as_concat_text().contains("<mock summary>"));
+    }
+
+    /// Retrying forever would be worse than an incomplete summary: the ladder
+    /// is finite, and the last rung's result is accepted.
+    #[tokio::test]
+    async fn compaction_accepts_a_truncated_summary_once_the_ladder_is_exhausted() {
+        let provider = MockProvider::new(Message::assistant().with_text("<mock summary>"), 100_000)
+            .with_truncated_attempts(usize::MAX);
+        let conversation = conversation_with_tool_pairs(4);
+
+        let (summary, _usage) = do_compact(
+            &provider,
+            &provider.config.clone(),
+            "test-session",
+            conversation.messages(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            provider.attempt_count(),
+            5,
+            "every rung of the removal ladder should be tried before giving up"
+        );
+        assert!(summary.as_concat_text().contains("<mock summary>"));
     }
 
     #[tokio::test]
