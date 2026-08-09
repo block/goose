@@ -235,12 +235,23 @@ struct ResolvedProviderConfig {
 
 fn validate_provider_override_context(
     session_config: &SessionBuilderConfig,
+    saved_provider: Option<&str>,
+    saved_model: Option<&str>,
     provider_name: &str,
+    model_name: &str,
     provider_manages_own_context: bool,
 ) -> anyhow::Result<()> {
-    if session_config.resume && session_config.provider.is_some() && provider_manages_own_context {
+    let provider_changed = saved_provider
+        .map(|saved| saved != provider_name)
+        .unwrap_or_else(|| session_config.provider.is_some());
+    let model_changed = saved_model
+        .map(|saved| saved != model_name)
+        .unwrap_or_else(|| session_config.model.is_some());
+
+    if session_config.resume && provider_manages_own_context && (provider_changed || model_changed)
+    {
         anyhow::bail!(
-            "Cannot resume with provider '{}' because it manages its own conversation context. Start a new session to use this provider.",
+            "Cannot resume with provider or model changes because provider '{}' manages its own conversation context. Start a new session to use this provider or model.",
             provider_name
         );
     }
@@ -277,7 +288,7 @@ async fn resolve_provider_and_model(
         let recipe_provider_matches = settings
             .goose_provider
             .as_deref()
-            .map_or(true, |provider| provider == provider_name);
+            .is_none_or(|provider| provider == provider_name);
 
         if provider_overridden && recipe_provider_matches {
             settings.goose_model.clone()
@@ -285,6 +296,12 @@ async fn resolve_provider_and_model(
             None
         }
     });
+    let matching_environment_model =
+        if provider_overridden && configured_provider.as_deref() == Some(provider_name.as_str()) {
+            std::env::var("GOOSE_MODEL").ok()
+        } else {
+            None
+        };
     let matching_config_model =
         if provider_overridden && configured_provider.as_deref() == Some(provider_name.as_str()) {
             config.get_goose_model().ok()
@@ -299,6 +316,7 @@ async fn resolve_provider_and_model(
     let target_provider_default = if provider_overridden
         && session_config.model.is_none()
         && matching_recipe_model.is_none()
+        && matching_environment_model.is_none()
         && matching_config_model.is_none()
         && configured_provider_model.is_none()
     {
@@ -323,7 +341,7 @@ async fn resolve_provider_and_model(
         .clone()
         .or_else(|| {
             if session_config.resume {
-                matching_config_model.clone()
+                matching_environment_model.clone()
             } else {
                 None
             }
@@ -336,6 +354,7 @@ async fn resolve_provider_and_model(
             }
         })
         .or(matching_recipe_model)
+        .or(matching_environment_model)
         .or(matching_config_model)
         .or(configured_provider_model)
         .or(target_provider_default)
@@ -615,6 +634,10 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         (None, None)
     };
 
+    let saved_provider_for_validation = saved_provider.clone();
+    let saved_model_for_validation = saved_model_config
+        .as_ref()
+        .map(|model_config| model_config.model_name.clone());
     let resolved =
         resolve_provider_and_model(&session_config, config, saved_provider, saved_model_config)
             .await;
@@ -714,7 +737,10 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     validate_provider_override_context(
         &session_config,
+        saved_provider_for_validation.as_deref(),
+        saved_model_for_validation.as_deref(),
         &effective_provider_name,
+        &effective_model_name,
         new_provider.manages_own_context(),
     )
     .unwrap_or_else(|e| {
@@ -814,6 +840,13 @@ mod tests {
         .unwrap()
     }
 
+    fn clear_provider_env() -> env_lock::EnvGuard<'static> {
+        env_lock::lock_env([
+            ("GOOSE_PROVIDER", None::<&str>),
+            ("GOOSE_MODEL", None::<&str>),
+        ])
+    }
+
     fn saved_model_config(model_name: &str) -> goose_providers::model::ModelConfig {
         goose_providers::model::ModelConfig::new(model_name).with_merged_request_params(
             std::collections::HashMap::from([(
@@ -887,6 +920,7 @@ mod tests {
 
     #[tokio::test]
     async fn resume_provider_override_uses_target_provider_model() {
+        let _guard = clear_provider_env();
         let temp_dir = TempDir::new().unwrap();
         let config = test_config(&temp_dir);
         set_provider_entry(
@@ -921,6 +955,7 @@ mod tests {
 
     #[tokio::test]
     async fn matching_provider_override_preserves_configured_model() {
+        let _guard = clear_provider_env();
         let temp_dir = TempDir::new().unwrap();
         let config = test_config(&temp_dir);
         config.set_param("GOOSE_PROVIDER", "openai").unwrap();
@@ -944,12 +979,22 @@ mod tests {
 
     #[tokio::test]
     async fn matching_environment_model_overrides_saved_model() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PROVIDER", Some("openai")),
+            ("GOOSE_MODEL", Some("environment-model")),
+        ]);
         let temp_dir = TempDir::new().unwrap();
         let config = test_config(&temp_dir);
-        config.set_param("GOOSE_PROVIDER", "openai").unwrap();
-        config
-            .set_param("GOOSE_MODEL", "environment-model")
-            .unwrap();
+        set_provider_entry(
+            &config,
+            "openai",
+            &ProviderEntry {
+                enabled: true,
+                model: "configured-model".to_string(),
+                configured: true,
+            },
+        )
+        .unwrap();
 
         let resolved = resolve_provider_and_model(
             &SessionBuilderConfig {
@@ -969,7 +1014,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn matching_provider_override_preserves_saved_model_over_configured_model() {
+        let _guard = clear_provider_env();
+        let temp_dir = TempDir::new().unwrap();
+        let config = test_config(&temp_dir);
+        config.set_param("active_provider", "openai").unwrap();
+        set_provider_entry(
+            &config,
+            "openai",
+            &ProviderEntry {
+                enabled: true,
+                model: "configured-model".to_string(),
+                configured: true,
+            },
+        )
+        .unwrap();
+
+        let resolved = resolve_provider_and_model(
+            &SessionBuilderConfig {
+                resume: true,
+                provider: Some("openai".to_string()),
+                ..SessionBuilderConfig::default()
+            },
+            &config,
+            Some("openai".to_string()),
+            Some(goose_providers::model::ModelConfig::new("saved-model")),
+        )
+        .await;
+
+        assert_eq!(resolved.provider_name, "openai");
+        assert_eq!(resolved.model_name, "saved-model");
+        assert_eq!(resolved.model_config.model_name, "saved-model");
+    }
+
+    #[tokio::test]
     async fn matching_provider_override_preserves_recipe_model() {
+        let _guard = clear_provider_env();
         let temp_dir = TempDir::new().unwrap();
         let config = test_config(&temp_dir);
         config.set_param("GOOSE_PROVIDER", "openai").unwrap();
@@ -1005,6 +1085,7 @@ mod tests {
 
     #[tokio::test]
     async fn conflicting_recipe_model_is_ignored_for_provider_override() {
+        let _guard = clear_provider_env();
         let temp_dir = TempDir::new().unwrap();
         let config = test_config(&temp_dir);
         set_provider_entry(
@@ -1047,6 +1128,7 @@ mod tests {
 
     #[tokio::test]
     async fn resume_provider_override_uses_target_provider_default_instead_of_active_model() {
+        let _guard = clear_provider_env();
         let temp_dir = TempDir::new().unwrap();
         let config = test_config(&temp_dir);
         config.set_param("GOOSE_PROVIDER", "anthropic").unwrap();
@@ -1081,6 +1163,7 @@ mod tests {
 
     #[tokio::test]
     async fn resume_provider_override_rebuilds_same_named_model_config() {
+        let _guard = clear_provider_env();
         let temp_dir = TempDir::new().unwrap();
         let config = test_config(&temp_dir);
         let saved_model_config = saved_model_config("current");
@@ -1107,6 +1190,7 @@ mod tests {
 
     #[tokio::test]
     async fn resume_same_provider_reuses_saved_model_config() {
+        let _guard = clear_provider_env();
         let temp_dir = TempDir::new().unwrap();
         let config = test_config(&temp_dir);
         let saved_model_config = saved_model_config("current");
@@ -1137,15 +1221,54 @@ mod tests {
                 provider: Some("claude-code".to_string()),
                 ..SessionBuilderConfig::default()
             },
+            Some("openai"),
+            Some("gpt-5.4"),
             "claude-code",
+            "claude-sonnet-4-6",
             true,
         )
         .expect_err("context-owning replacement provider should be rejected");
 
         assert_eq!(
             error.to_string(),
-            "Cannot resume with provider 'claude-code' because it manages its own conversation context. Start a new session to use this provider."
+            "Cannot resume with provider or model changes because provider 'claude-code' manages its own conversation context. Start a new session to use this provider or model."
         );
+    }
+
+    #[test]
+    fn resumed_same_context_owning_provider_override_is_allowed() {
+        let result = validate_provider_override_context(
+            &SessionBuilderConfig {
+                resume: true,
+                provider: Some("claude-code".to_string()),
+                ..SessionBuilderConfig::default()
+            },
+            Some("claude-code"),
+            Some("current"),
+            "claude-code",
+            "current",
+            true,
+        );
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn resumed_context_owning_provider_rejects_model_change() {
+        let result = validate_provider_override_context(
+            &SessionBuilderConfig {
+                resume: true,
+                model: Some("new-model".to_string()),
+                ..SessionBuilderConfig::default()
+            },
+            Some("claude-code"),
+            Some("current"),
+            "claude-code",
+            "new-model",
+            true,
+        );
+
+        assert!(result.is_err());
     }
 
     #[test]
@@ -1155,7 +1278,10 @@ mod tests {
                 provider: Some("claude-code".to_string()),
                 ..SessionBuilderConfig::default()
             },
+            None,
+            None,
             "claude-code",
+            "current",
             true,
         );
 
@@ -1169,7 +1295,10 @@ mod tests {
                 resume: true,
                 ..SessionBuilderConfig::default()
             },
+            Some("claude-code"),
+            Some("current"),
             "claude-code",
+            "current",
             true,
         );
 
