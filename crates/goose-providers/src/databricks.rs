@@ -464,6 +464,7 @@ impl DatabricksProvider {
             name: info.name,
             resolved_model: info.upstream_model_name,
             context_limit,
+            max_tokens: None,
             input_token_cost: None,
             output_token_cost: None,
             currency: None,

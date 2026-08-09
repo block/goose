@@ -356,6 +356,7 @@ fn model_info_for_deployment(deployment_name: &str, model_name: &str) -> ModelIn
             .as_ref()
             .map(|model| model.limit.context)
             .unwrap_or_else(|| ModelConfig::new(model_name).context_limit()),
+        max_tokens: None,
         input_token_cost: None,
         output_token_cost: None,
         currency: None,
