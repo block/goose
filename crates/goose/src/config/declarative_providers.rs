@@ -544,6 +544,7 @@ mod tests {
                 name: "test/model".to_string(),
                 resolved_model: None,
                 context_limit: 128_000,
+                max_tokens: None,
                 input_token_cost: None,
                 output_token_cost: None,
                 currency: None,

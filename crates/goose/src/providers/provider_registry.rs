@@ -55,21 +55,55 @@ impl ProviderEntry {
     }
 
     /// Apply provider-specific normalization to a model config: materialize
-    /// global defaults and backfill `context_limit` from the provider's known
-    /// models when the canonical registry didn't already resolve one. Used by
-    /// the agent/session layer to resolve effective limits (e.g. for custom
-    /// providers that declare explicit context limits in their config).
-    pub fn normalize_model_config(&self, mut model: ModelConfig) -> Result<ModelConfig> {
-        model = crate::model_config::materialize_model_config(&self.metadata.name, model)?;
+    /// global defaults, then let the provider's own model declaration outrank
+    /// the canonical catalog.
+    ///
+    /// A declaration in the provider's config describes the endpoint that will
+    /// actually serve the request. A canonical entry is matched on model *name*,
+    /// which collides whenever a local or proxied deployment reuses a well-known
+    /// name — a `deepseek-v4-flash` behind a llama.cpp server with `--ctx 49152`
+    /// inherits the hosted model's million-token limit, and auto-compaction is
+    /// then calibrated against a ceiling the endpoint will never accept.
+    ///
+    /// Built-in providers derive `known_models` from the canonical registry
+    /// (`model_info_for_provider_model`), so their declared and canonical values
+    /// already agree and this changes nothing for them.
+    ///
+    /// Precedence: caller-supplied value, then `GOOSE_CONTEXT_LIMIT` /
+    /// `GOOSE_MAX_TOKENS`, then the provider declaration, then canonical.
+    pub fn normalize_model_config(&self, model: ModelConfig) -> Result<ModelConfig> {
+        let declared = self
+            .metadata
+            .known_models
+            .iter()
+            .find(|m| m.name.eq_ignore_ascii_case(&model.model_name));
+        let declared_context_limit = declared.map(|m| m.context_limit).filter(|limit| *limit > 0);
+        let declared_max_tokens = declared
+            .and_then(|m| m.max_tokens)
+            .filter(|tokens| *tokens > 0);
 
-        if model.context_limit.is_none() {
-            if let Some(info) = self
-                .metadata
-                .known_models
-                .iter()
-                .find(|m| m.name.eq_ignore_ascii_case(&model.model_name) && m.context_limit > 0)
-            {
-                model.context_limit = Some(info.context_limit);
+        // Callers hand in an already-materialized config, so `is_some()` cannot
+        // tell a value the caller chose from one the canonical catalog filled
+        // in. Compare against what canonical alone would produce: matching it
+        // means nobody chose the value, so the declaration may take over.
+        let canonical =
+            ModelConfig::new(&model.model_name).with_canonical_limits(&self.metadata.name);
+        let context_limit_unchosen =
+            model.context_limit.is_none() || model.context_limit == canonical.context_limit;
+        let max_tokens_unchosen =
+            model.max_tokens.is_none() || model.max_tokens == canonical.max_tokens;
+
+        let mut model = crate::model_config::materialize_model_config(&self.metadata.name, model)?;
+
+        let config = crate::config::Config::global();
+        if let Some(limit) = declared_context_limit {
+            if context_limit_unchosen && config.get_goose_context_limit()?.is_none() {
+                model.context_limit = Some(limit);
+            }
+        }
+        if let Some(max_tokens) = declared_max_tokens {
+            if max_tokens_unchosen && config.get_goose_max_tokens()?.is_none() {
+                model.max_tokens = Some(max_tokens);
             }
         }
 
@@ -408,5 +442,167 @@ mod tests {
         let entry = registry.entries.get("custom_hf").unwrap();
 
         assert!(!entry.inventory_configured());
+    }
+
+    /// `deepseek-v4-flash` name-matches a hosted catalog entry with a
+    /// million-token context. A local server declaring 32_768 must not inherit it.
+    fn entry_declaring(models: Vec<ModelInfo>) -> ProviderEntry {
+        let mut config = test_config();
+        config.models = models;
+        let mut registry = ProviderRegistry::new(None);
+        registry.register_with_name_and_inventory_configured::<OpenAiProviderDef, _, _, _>(
+            &config,
+            ProviderType::Declarative,
+            false,
+            |_| unreachable!("constructor is not used by this test"),
+            || Ok(InventoryIdentityInput::new("custom_hf", "huggingface")),
+            || false,
+        );
+        registry.entries.get("custom_hf").unwrap().clone()
+    }
+
+    fn declared_flash_model() -> ModelInfo {
+        ModelInfo {
+            max_tokens: Some(4096),
+            ..ModelInfo::new("deepseek-v4-flash", 32_768)
+        }
+    }
+
+    #[test]
+    fn declared_limits_outrank_canonical_catalog() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+        ]);
+
+        let normalized = entry_declaring(vec![declared_flash_model()])
+            .normalize_model_config(ModelConfig::new("deepseek-v4-flash"))
+            .unwrap();
+
+        assert_eq!(normalized.context_limit, Some(32_768));
+        assert_eq!(normalized.max_tokens, Some(4096));
+    }
+
+    #[test]
+    fn undeclared_limit_still_falls_back_to_canonical_catalog() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+        ]);
+
+        let normalized = entry_declaring(vec![ModelInfo::new("deepseek-v4-flash", 0)])
+            .normalize_model_config(ModelConfig::new("deepseek-v4-flash"))
+            .unwrap();
+
+        assert!(
+            normalized.context_limit.is_some_and(|limit| limit > 32_768),
+            "a model with no declared limit should still be enriched from the catalog, got {:?}",
+            normalized.context_limit
+        );
+    }
+
+    #[test]
+    fn goose_context_limit_outranks_declaration() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_CONTEXT_LIMIT", Some("20000")),
+            ("GOOSE_MAX_TOKENS", Some("2048")),
+        ]);
+
+        let normalized = entry_declaring(vec![declared_flash_model()])
+            .normalize_model_config(ModelConfig::new("deepseek-v4-flash"))
+            .unwrap();
+
+        assert_eq!(normalized.context_limit, Some(20_000));
+        assert_eq!(normalized.max_tokens, Some(2048));
+    }
+
+    /// The limits an operator writes into `custom_providers/<id>.json` must
+    /// survive deserialization and reach the resolved config.
+    #[test]
+    fn limits_declared_in_provider_json_reach_the_resolved_config() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+        ]);
+
+        let config: DeclarativeProviderConfig = serde_json::from_str(
+            r#"{
+                "name": "custom_hf",
+                "engine": "openai",
+                "display_name": "Local ds4",
+                "base_url": "http://localhost:8000/v1",
+                "requires_auth": false,
+                "dynamic_models": false,
+                "skip_canonical_filtering": true,
+                "models": [
+                    { "name": "deepseek-v4-flash", "context_limit": 32768, "max_tokens": 4096 }
+                ]
+            }"#,
+        )
+        .unwrap();
+
+        let mut registry = ProviderRegistry::new(None);
+        registry.register_with_name_and_inventory_configured::<OpenAiProviderDef, _, _, _>(
+            &config,
+            ProviderType::Declarative,
+            false,
+            |_| unreachable!("constructor is not used by this test"),
+            || Ok(InventoryIdentityInput::new("custom_hf", "huggingface")),
+            || false,
+        );
+
+        let normalized = registry
+            .entries
+            .get("custom_hf")
+            .unwrap()
+            .normalize_model_config(ModelConfig::new("deepseek-v4-flash"))
+            .unwrap();
+
+        assert_eq!(normalized.context_limit, Some(32_768));
+        assert_eq!(normalized.max_tokens, Some(4096));
+    }
+
+    /// Every production caller (`session/builder.rs`, `acp/server.rs`) passes a
+    /// config that already went through `model_config_from_user_config`, so the
+    /// canonical limits are populated before this runs. Treating a populated
+    /// field as "the caller chose it" would silently skip the declaration —
+    /// which is the original bug.
+    #[test]
+    fn declaration_still_applies_to_an_already_materialized_config() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+        ]);
+
+        let already_resolved =
+            crate::model_config::model_config_from_user_config("custom_hf", "deepseek-v4-flash")
+                .unwrap();
+        assert!(
+            already_resolved.context_limit.is_some(),
+            "precondition: the caller's config arrives with canonical limits already applied"
+        );
+
+        let normalized = entry_declaring(vec![declared_flash_model()])
+            .normalize_model_config(already_resolved)
+            .unwrap();
+
+        assert_eq!(normalized.context_limit, Some(32_768));
+        assert_eq!(normalized.max_tokens, Some(4096));
+    }
+
+    #[test]
+    fn caller_supplied_limit_outranks_declaration() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+        ]);
+
+        let normalized = entry_declaring(vec![declared_flash_model()])
+            .normalize_model_config(
+                ModelConfig::new("deepseek-v4-flash").with_context_limit(Some(8_000)),
+            )
+            .unwrap();
+
+        assert_eq!(normalized.context_limit, Some(8_000));
     }
 }

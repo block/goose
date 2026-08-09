@@ -244,6 +244,10 @@ pub struct ModelInfo {
     pub resolved_model: Option<String>,
     /// The maximum context length this model supports
     pub context_limit: usize,
+    /// The maximum output tokens to request from this model, when the provider
+    /// declares one. `None` leaves the choice to the canonical catalog.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_tokens: Option<i32>,
     /// Cost per token for input in USD (optional)
     pub input_token_cost: Option<f64>,
     /// Cost per token for output in USD (optional)
@@ -269,6 +273,7 @@ impl ModelInfo {
             name: name.into(),
             resolved_model: None,
             context_limit,
+            max_tokens: None,
             input_token_cost: None,
             output_token_cost: None,
             currency: None,
@@ -290,6 +295,7 @@ impl ModelInfo {
             name: name.into(),
             resolved_model: None,
             context_limit,
+            max_tokens: None,
             input_token_cost: Some(input_cost),
             output_token_cost: Some(output_cost),
             currency: Some("$".to_string()),
@@ -337,6 +343,7 @@ pub fn model_info_for_provider_model(provider_name: &str, model_name: &str) -> M
         context_limit: ModelConfig::new(model_name)
             .with_canonical_limits(provider_name)
             .context_limit(),
+        max_tokens: None,
         input_token_cost: None,
         output_token_cost: None,
         currency: None,
@@ -801,6 +808,7 @@ mod tests {
             name: "test-model".to_string(),
             resolved_model: None,
             context_limit: 1000,
+            max_tokens: None,
             input_token_cost: None,
             output_token_cost: None,
             currency: None,
@@ -816,6 +824,7 @@ mod tests {
             name: "test-model".to_string(),
             resolved_model: None,
             context_limit: 1000,
+            max_tokens: None,
             input_token_cost: None,
             output_token_cost: None,
             currency: None,
@@ -831,6 +840,7 @@ mod tests {
             name: "test-model".to_string(),
             resolved_model: None,
             context_limit: 2000,
+            max_tokens: None,
             input_token_cost: None,
             output_token_cost: None,
             currency: None,
