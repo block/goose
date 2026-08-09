@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Zap, AlertCircle, Plus } from 'lucide-react';
+import { Zap, AlertCircle, Plus, MessageSquare } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -11,6 +11,10 @@ import { defineMessages, useIntl } from '../../i18n';
 import { SearchView } from '../conversation/SearchView';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 import { listSkillSources } from '../../acp/sources';
+import { createSession } from '../../sessions';
+import { AppEvents } from '../../constants/events';
+import { useNavigation } from '../../hooks/useNavigation';
+import { toChatSkillDraft } from './lib/skillChatPrompt';
 
 const i18n = defineMessages({
   errorLoadingSkills: {
@@ -48,7 +52,7 @@ const i18n = defineMessages({
   },
   skillsDescription: {
     id: 'skillsView.skillsDescription',
-    defaultMessage: 'View installed skills that extend AVCD Agent capabilities. {shortcut} to search.',
+    defaultMessage: 'View installed skills that extend agent capabilities. {shortcut} to search.',
   },
   searchSkillsPlaceholder: {
     id: 'skillsView.searchSkillsPlaceholder',
@@ -58,6 +62,14 @@ const i18n = defineMessages({
     id: 'skillsView.comingSoon',
     defaultMessage: 'Coming soon',
   },
+  useInChat: {
+    id: 'skillsView.useInChat',
+    defaultMessage: 'Use in chat',
+  },
+  startingChat: {
+    id: 'skillsView.startingChat',
+    defaultMessage: 'Starting…',
+  },
 });
 
 interface SkillEntry {
@@ -65,7 +77,16 @@ interface SkillEntry {
   description: string;
 }
 
-function SkillItem({ skill }: { skill: SkillEntry }) {
+function SkillItem({
+  skill,
+  onUseInChat,
+  busy,
+}: {
+  skill: SkillEntry;
+  onUseInChat: (skill: SkillEntry) => void;
+  busy: boolean;
+}) {
+  const intl = useIntl();
   return (
     <Card className="py-2 px-4 mb-2 bg-background-primary border-none hover:bg-background-secondary transition-all duration-150">
       <div className="flex justify-between items-center gap-4">
@@ -75,6 +96,19 @@ function SkillItem({ skill }: { skill: SkillEntry }) {
           </div>
           <p className="text-text-secondary text-sm line-clamp-2">{skill.description}</p>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-1.5 shrink-0"
+          disabled={busy}
+          onClick={() => onUseInChat(skill)}
+          data-testid={`use-skill-${skill.name}`}
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          {busy
+            ? intl.formatMessage(i18n.startingChat)
+            : intl.formatMessage(i18n.useInChat)}
+        </Button>
       </div>
     </Card>
   );
@@ -95,12 +129,14 @@ function SkillSkeleton() {
 
 export default function SkillsView() {
   const intl = useIntl();
+  const setView = useNavigation();
   const [skills, setSkills] = useState<SkillEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSkeleton, setShowSkeleton] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showContent, setShowContent] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [startingSkill, setStartingSkill] = useState<string | null>(null);
 
   const filteredSkills = useMemo(() => {
     if (!searchTerm) return skills;
@@ -145,6 +181,43 @@ export default function SkillsView() {
     }
     return undefined;
   }, [loading, showSkeleton]);
+
+  const handleUseInChat = useCallback(
+    async (skill: SkillEntry) => {
+      if (startingSkill) return;
+      setStartingSkill(skill.name);
+      try {
+        const draft = toChatSkillDraft({
+          id: skill.name,
+          name: skill.name,
+          description: skill.description,
+        });
+        const session = await createSession(getInitialWorkingDir());
+        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
+        window.dispatchEvent(
+          new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
+            detail: {
+              sessionId: session.id,
+              noAutoSubmit: true,
+              initialSkillDrafts: [draft],
+            },
+          })
+        );
+        setView('pair', {
+          disableAnimation: true,
+          resumeSessionId: session.id,
+          noAutoSubmit: true,
+          initialSkillDrafts: [draft],
+        });
+      } catch (err) {
+        console.error('Failed to start chat with skill:', err);
+        setError(errorMessage(err, 'Failed to start chat with skill'));
+      } finally {
+        setStartingSkill(null);
+      }
+    },
+    [setView, startingSkill]
+  );
 
   const renderContent = () => {
     if (loading || showSkeleton) {
@@ -194,7 +267,12 @@ export default function SkillsView() {
     return (
       <div className="space-y-2">
         {filteredSkills.map((skill) => (
-          <SkillItem key={skill.name} skill={skill} />
+          <SkillItem
+            key={skill.name}
+            skill={skill}
+            onUseInChat={handleUseInChat}
+            busy={startingSkill === skill.name}
+          />
         ))}
       </div>
     );

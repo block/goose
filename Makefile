@@ -78,14 +78,20 @@ upload-secrets: infisical-check
 # -----------------------------------------------------------------------------
 # Repository-specific developer targets
 
+WITH_NODE := ./scripts/with-node.sh
+
 cli:
 	$(COMPOSE) $(COMPOSE_FILES) --profile cli run --rm cli
 
 dev-ui:
-	cd ui/desktop && \
-		GOOSE_EXTERNAL_BACKEND=true \
-		GOOSE_SERVER__SECRET_KEY="$(GOOSE_SERVER__SECRET_KEY)" \
-		pnpm install --frozen-lockfile && pnpm run start-gui
+	@SERVER_PORT="$(SERVER_PORT)" GOOSE_SERVER__SECRET_KEY="$(GOOSE_SERVER__SECRET_KEY)" ./scripts/prepare-dev-ui-env.sh
+	@curl -sf -H "X-Secret-Key: $(GOOSE_SERVER__SECRET_KEY)" "http://127.0.0.1:$(SERVER_PORT)/status" >/dev/null \
+		|| (echo "ACP backend is not running. Start it first: make dev" && exit 1)
+	@echo "Desktop UI: $$(./scripts/with-node.sh 24 bash -c 'echo node $$(node -v), pnpm $$(pnpm -v)')"
+	$(WITH_NODE) 24 bash -c 'cd ui/desktop && \
+		set -a && . ./.env && set +a && \
+		DOTENV_CONFIG_PATH="$$(pwd)/.env" \
+		pnpm install --frozen-lockfile && pnpm run start-gui'
 
 build-desktop-binary:
 	cargo build -p goose-cli --bin goose --no-default-features \

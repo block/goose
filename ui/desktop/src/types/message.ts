@@ -184,8 +184,20 @@ export type MessageUsage = {
   isCompaction?: boolean;
 };
 
+export type MessageChip = {
+  label: string;
+  type: 'skill';
+};
+
+export type ChatSendOptions = {
+  chips?: MessageChip[];
+  displayText?: string;
+  assistantPrompt?: string;
+};
+
 export type MessageMetadata = {
   agentVisible: boolean;
+  chips?: MessageChip[];
   fallbackContent?: boolean;
   inference?: InferenceMetadata | null;
   outputTokenLimitReached?: boolean;
@@ -294,13 +306,40 @@ export function imageDataFromMessage(message: Message): ImageData[] {
 export interface UserInput {
   msg: string;
   images: ImageData[];
+  sendOptions?: ChatSendOptions;
 }
 
-export function createUserMessage(text: string, images?: ImageData[]): Message {
+function isAssistantOnlyAudience(annotations?: Annotations | JsonObject): boolean {
+  if (!annotations || typeof annotations !== 'object' || Array.isArray(annotations)) {
+    return false;
+  }
+  const audience = (annotations as Annotations).audience;
+  return Boolean(audience && audience.length > 0 && !audience.includes('user'));
+}
+
+export function createUserMessage(
+  text: string,
+  images?: ImageData[],
+  options?: ChatSendOptions
+): Message {
   const content: Message['content'] = [];
 
-  if (text.trim()) {
+  if (options?.assistantPrompt?.trim()) {
+    content.push({
+      type: 'text',
+      text: options.assistantPrompt,
+      annotations: { audience: ['assistant'] },
+    });
+  }
+
+  const displayText = options?.displayText ?? text;
+  if (displayText.trim()) {
+    content.push({ type: 'text', text: displayText });
+  } else if (!options?.assistantPrompt && text.trim()) {
     content.push({ type: 'text', text });
+  } else if (options?.chips && options.chips.length > 0) {
+    // Chip-only send still needs a visible text block for ACP prompts.
+    content.push({ type: 'text', text: ' ' });
   }
 
   if (images && images.length > 0) {
@@ -320,7 +359,11 @@ export function createUserMessage(text: string, images?: ImageData[]): Message {
     role: 'user',
     created: Math.floor(Date.now() / 1000),
     content,
-    metadata: { userVisible: true, agentVisible: true },
+    metadata: {
+      userVisible: true,
+      agentVisible: true,
+      ...(options?.chips && options.chips.length > 0 ? { chips: options.chips } : {}),
+    },
   };
 }
 
@@ -337,6 +380,9 @@ export function getTextAndImageContent(message: Message): {
 
   for (const content of message.content) {
     if (content.type === 'text') {
+      if (isAssistantOnlyAudience(content.annotations)) {
+        continue;
+      }
       textContent += content.text;
     } else if (content.type === 'image') {
       imagePaths.push(`data:${content.mimeType};base64,${content.data}`);

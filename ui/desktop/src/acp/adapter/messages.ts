@@ -4,6 +4,14 @@ import type {
 } from '@agentclientprotocol/sdk';
 import type { ContentBlock, Message } from '../../types/message';
 import {
+  attachChipsToMessage,
+  clearPendingReplayChips,
+  getPendingReplayChips,
+  isAssistantOnlyAudience,
+  setPendingReplayChips,
+  skillInstructionToChips,
+} from '../acpSkillReplayChips';
+import {
   type AcpChatStateChange,
   type AdapterState,
   DEFAULT_VISIBLE_MESSAGE_METADATA,
@@ -29,6 +37,25 @@ export function applyContentChunk(
   const gooseMeta = getGooseMessageMeta(update);
   const messageId = update.messageId ?? gooseMeta.messageId;
   const existing = findMessageForChunk(state, role, messageId, gooseMeta.created);
+
+  if (
+    role === 'user' &&
+    content.type === 'text' &&
+    isAssistantOnlyAudience(content.annotations)
+  ) {
+    const chips = skillInstructionToChips(content.text);
+    if (chips.length === 0) {
+      return [];
+    }
+    if (existing) {
+      attachChipsToMessage(existing, chips);
+      return messagesChange(state);
+    }
+    if (messageId) {
+      setPendingReplayChips(messageId, chips);
+    }
+    return [];
+  }
 
   if (existing) {
     const isOutputLimitFallbackChunk =
@@ -58,8 +85,15 @@ export function applyContentChunk(
       existing.content.push(content);
     }
 
+    if (role === 'user' && messageId) {
+      const pending = getPendingReplayChips(messageId);
+      attachChipsToMessage(existing, pending);
+      clearPendingReplayChips(messageId);
+    }
+
     return messagesChangeWithLocalSteerConfirmation(state, existing, gooseMeta.steer);
   } else {
+    const pendingChips = role === 'user' && messageId ? getPendingReplayChips(messageId) : [];
     state.messages.push({
       ...(messageId ? { id: messageId } : {}),
       role,
@@ -68,10 +102,14 @@ export function applyContentChunk(
       metadata: {
         ...DEFAULT_VISIBLE_MESSAGE_METADATA,
         ...(gooseMeta.steer ? { steer: true } : {}),
+        ...(pendingChips.length > 0 ? { chips: pendingChips } : {}),
         outputTokenLimitReached: gooseMeta.outputTokenLimitReached,
         fallbackContent: gooseMeta.fallbackContent,
       },
     });
+    if (role === 'user' && messageId) {
+      clearPendingReplayChips(messageId);
+    }
   }
 
   return messagesChange(state);

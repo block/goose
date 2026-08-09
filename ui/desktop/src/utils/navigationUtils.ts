@@ -1,6 +1,7 @@
 import type { NavigateFunction } from 'react-router';
 import type { Recipe } from '../recipe';
 import { UserInput } from '../types/message';
+import type { ChatSkillDraft } from '../components/skills/lib/skillChatPrompt';
 
 export type View =
   | 'chat'
@@ -28,6 +29,8 @@ export type ViewOptions = {
   parentViewOptions?: ViewOptions;
   disableAnimation?: boolean;
   initialMessage?: UserInput;
+  initialSkillDrafts?: ChatSkillDraft[];
+  noAutoSubmit?: boolean;
   resumeSessionId?: string;
   pendingScheduleDeepLink?: string;
 };

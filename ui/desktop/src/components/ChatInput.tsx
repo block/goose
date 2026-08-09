@@ -18,7 +18,7 @@ import { useModelAndProvider } from './ModelAndProviderContext';
 import { acpListProviderDetails } from '../acp/providers';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { toastError } from '../toasts';
-import MentionPopover, { DisplayItemWithMatch } from './MentionPopover';
+import MentionPopover, { DisplayItem, DisplayItemWithMatch } from './MentionPopover';
 import { COST_TRACKING_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { ContextWindowIndicator } from './bottom_menu/ContextWindowIndicator';
@@ -38,6 +38,14 @@ import { fetchCanonicalModelInfo } from '../utils/canonical';
 import { defineMessages, useIntl } from '../i18n';
 import TurndownService from 'turndown';
 import type { NextChatExtensionDraft } from '../utils/nextChatExtensions';
+import { listSlashCommandItems } from '../acp/autocomplete';
+import {
+  resolveSkillSlashCommand,
+  toChatSkillDraft,
+  type ChatSkillDraft,
+} from './skills/lib/skillChatPrompt';
+import { buildSkillSendPayload } from './skills/lib/skillSendPayload';
+import { ChatInputSelectionChips } from './chat/ChatInputSelectionChips';
 
 const turndown = new TurndownService({
   headingStyle: 'atx',
@@ -189,6 +197,7 @@ interface ChatInputProps {
   latestInference?: Message['metadata']['inference'] | null;
   nextChatExtensionDraft?: NextChatExtensionDraft;
   onNextChatExtensionDraftChange?: (draft: NextChatExtensionDraft) => void;
+  initialSkillDrafts?: ChatSkillDraft[];
 }
 
 export default function ChatInput({
@@ -224,12 +233,14 @@ export default function ChatInput({
   latestInference,
   nextChatExtensionDraft,
   onNextChatExtensionDraftChange,
+  initialSkillDrafts = [],
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
   const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
+  const [skillDrafts, setSkillDrafts] = useState<ChatSkillDraft[]>(initialSkillDrafts);
 
   // Derived state - chatState != Idle means we're in some form of loading state
   const isLoading = chatState !== ChatState.Idle;
@@ -824,6 +835,7 @@ export default function ChatInput({
     setDisplayValue('');
     setValue('');
     setPastedImages([]);
+    setSkillDrafts([]);
     if (onFilesProcessed && droppedFiles.length > 0) {
       onFilesProcessed();
     }
@@ -831,6 +843,17 @@ export default function ChatInput({
       setLocalDroppedFiles([]);
     }
   }, [droppedFiles.length, localDroppedFiles.length, onFilesProcessed, setLocalDroppedFiles]);
+
+  useEffect(() => {
+    if (initialSkillDrafts.length === 0) return;
+    setSkillDrafts((prev) => {
+      const byId = new Map(prev.map((skill) => [skill.id, skill]));
+      for (const skill of initialSkillDrafts) {
+        byId.set(skill.id, skill);
+      }
+      return Array.from(byId.values());
+    });
+  }, [initialSkillDrafts]);
 
   const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
     if (isRecording) return;
@@ -1091,8 +1114,9 @@ export default function ChatInput({
     (text?: string) => {
       const imageData = convertImagesToImageData();
       const textToSend = appendDroppedFilePaths(text ?? displayValue.trim());
+      const draftsSnapshot = skillDrafts;
 
-      if (textToSend || imageData.length > 0) {
+      if (textToSend || imageData.length > 0 || draftsSnapshot.length > 0) {
         // Store original message in history
         if (displayValue.trim()) {
           LocalMessageStorage.addMessage(displayValue);
@@ -1105,7 +1129,28 @@ export default function ChatInput({
           }
         }
 
-        handleSubmit({ msg: textToSend, images: imageData });
+        void (async () => {
+          let skillsForResolve = draftsSnapshot.map((skill) => ({ name: skill.name }));
+          try {
+            const slashItems = await listSlashCommandItems(currentWorkingDir);
+            skillsForResolve = [
+              ...slashItems
+                .filter((item) => item.itemType === 'Skill')
+                .map((item) => ({ name: item.name })),
+              ...skillsForResolve,
+            ];
+          } catch {
+            // Slash catalog unavailable — still resolve against selected drafts.
+          }
+
+          const slashMatch = resolveSkillSlashCommand(textToSend, skillsForResolve);
+          const payload = buildSkillSendPayload(textToSend, draftsSnapshot, slashMatch);
+          handleSubmit({
+            msg: payload.messageText,
+            images: imageData,
+            sendOptions: payload.sendOptions,
+          });
+        })();
 
         // Auto-resume queue after sending a NON-interruption message (if it was paused due to interruption)
         if (
@@ -1132,6 +1177,8 @@ export default function ChatInput({
       allDroppedFiles,
       handleSubmit,
       lastInterruption,
+      skillDrafts,
+      currentWorkingDir,
       clearInputState,
     ]
   );
@@ -1314,8 +1361,35 @@ export default function ChatInput({
     }, 0);
   };
 
+  const handleMentionSkillSelect = (item: DisplayItem) => {
+    setSkillDrafts((prev) => {
+      if (prev.some((skill) => skill.name === item.name)) {
+        return prev;
+      }
+      return [
+        ...prev,
+        toChatSkillDraft({
+          id: item.name,
+          name: item.name,
+          description: item.extra,
+        }),
+      ];
+    });
+
+    const beforeMention = displayValue.slice(0, mentionPopover.mentionStart);
+    const afterMention = displayValue.slice(
+      mentionPopover.mentionStart + 1 + mentionPopover.query.length
+    );
+    const newValue = `${beforeMention}${afterMention}`.replace(/^\s+/, '');
+    setDisplayValue(newValue);
+    setValue(newValue);
+    setMentionPopover((prev) => ({ ...prev, isOpen: false }));
+    textAreaRef.current?.focus();
+  };
+
   const hasSubmittableContent =
     displayValue.trim() ||
+    skillDrafts.length > 0 ||
     pastedImages.some((img) => img.dataUrl && !img.error && !img.isLoading) ||
     allDroppedFiles.some((file) => !file.error && !file.isLoading);
   const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
@@ -1497,7 +1571,13 @@ export default function ChatInput({
       )}
       {/* Input row with inline action buttons wrapped in form */}
       <form onSubmit={onFormSubmit} className="relative">
-        <div className="relative">
+        <div className="relative px-3 pt-2">
+          <ChatInputSelectionChips
+            skills={skillDrafts}
+            onRemoveSkill={(skillId) =>
+              setSkillDrafts((prev) => prev.filter((skill) => skill.id !== skillId))
+            }
+          />
           <textarea
             data-testid="chat-input"
             autoFocus
@@ -1519,7 +1599,7 @@ export default function ChatInput({
               maxHeight: `${maxHeight}px`,
               overflowY: 'auto',
             }}
-            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 text-sm resize-none text-text-primary placeholder:text-text-secondary"
+            className="w-full outline-none border-none focus:ring-0 bg-transparent px-0 pt-1 pb-1.5 text-sm resize-none text-text-primary placeholder:text-text-secondary"
           />
 
           {/* Recording/transcribing status indicator (floats above the bottom bar) */}
@@ -1856,6 +1936,7 @@ export default function ChatInput({
           isSlashCommand={mentionPopover.isSlashCommand}
           onClose={() => setMentionPopover((prev) => ({ ...prev, isOpen: false }))}
           onSelect={handleMentionItemSelect}
+          onSelectSkill={handleMentionSkillSelect}
           position={mentionPopover.position}
           query={mentionPopover.query}
           selectedIndex={mentionPopover.selectedIndex}

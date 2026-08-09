@@ -36,7 +36,7 @@ static COMMANDS: &[CommandDef] = &[
     },
     CommandDef {
         name: "skills",
-        description: "List installed skills and other available sources",
+        description: "List installed skills, or load one or more by name (/skills a b)",
     },
     CommandDef {
         name: "doctor",
@@ -143,7 +143,7 @@ impl Agent {
             "prompt" => self.handle_prompt_command(&params, session_id).await,
             "compact" => self.handle_compact_command(session_id).await,
             "clear" => self.handle_clear_command(session_id).await,
-            "skills" => self.handle_skills_command(session_id).await,
+            "skills" => self.handle_skills_command(session_id, params_str).await,
             "doctor" => Ok(Some(crate::doctor::run(self, session_id).await?)),
             "status" => self.handle_status_command(session_id).await,
             "goal" => self.handle_goal_command(params_str).await,
@@ -217,7 +217,11 @@ impl Agent {
         Ok(Some(user_only_assistant_text("Conversation cleared")))
     }
 
-    async fn handle_skills_command(&self, session_id: &str) -> Result<Option<Message>> {
+    async fn handle_skills_command(
+        &self,
+        session_id: &str,
+        params_str: &str,
+    ) -> Result<Option<Message>> {
         let working_dir = self
             .config
             .session_manager
@@ -225,8 +229,15 @@ impl Agent {
             .await
             .ok()
             .map(|s| s.working_dir);
-        let output = skill_slash_command::format_installed_skills(working_dir.as_deref());
-        Ok(Some(Message::assistant().with_text(output)))
+
+        if params_str.is_empty() {
+            let output = skill_slash_command::format_installed_skills(working_dir.as_deref());
+            return Ok(Some(Message::assistant().with_text(output)));
+        }
+
+        let names: Vec<&str> = params_str.split_whitespace().collect();
+        let nudge = skill_slash_command::format_load_skills_nudge(&names);
+        Ok(Some(Message::user().with_text(nudge)))
     }
 
     async fn handle_status_command(&self, session_id: &str) -> Result<Option<Message>> {

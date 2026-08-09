@@ -85,8 +85,9 @@ export default function Hub({
   }, []);
 
   const handleSubmit = async (input: UserInput) => {
-    const { msg: userMessage, images } = input;
-    if (!(images.length > 0 || userMessage.trim()) || isCreatingSession) return;
+    const { msg: userMessage, images, sendOptions } = input;
+    const hasSkillChips = (sendOptions?.chips?.length ?? 0) > 0;
+    if (!(images.length > 0 || userMessage.trim() || hasSkillChips) || isCreatingSession) return;
 
     setIsCreatingSession(true);
 
@@ -101,18 +102,19 @@ export default function Hub({
 
       const session = await createSession(workingDir, sessionOptions);
       setNextChatExtensionDraft(null);
+      const initialMessage: UserInput = { msg: userMessage, images, sendOptions };
 
       window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
       window.dispatchEvent(
         new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
-          detail: { sessionId: session.id, initialMessage: { msg: userMessage, images } },
+          detail: { sessionId: session.id, initialMessage },
         })
       );
 
       setView('pair', {
         disableAnimation: true,
         resumeSessionId: session.id,
-        initialMessage: { msg: userMessage, images },
+        initialMessage,
       });
     } catch (error) {
       console.error('Failed to create session:', error);
