@@ -12,7 +12,7 @@ use rmcp::transport::auth::{AuthorizationRequest, CredentialStore, OAuthState, S
 use rmcp::transport::AuthorizationManager;
 use serde::Deserialize;
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tokio::sync::{oneshot, Mutex};
 use tracing::warn;
@@ -45,6 +45,53 @@ fn resolve_oauth_callback_timeout(value: Option<&str>) -> Duration {
 fn oauth_callback_timeout() -> Duration {
     let timeout = std::env::var(OAUTH_CALLBACK_TIMEOUT_ENV).ok();
     resolve_oauth_callback_timeout(timeout.as_deref())
+}
+
+/// An authorization URL the user has to open to complete an OAuth flow.
+#[derive(Debug, Clone)]
+pub struct AuthorizationPrompt {
+    pub extension_name: String,
+    pub authorization_url: String,
+}
+
+pub type AuthorizationUrlHandler = Arc<dyn Fn(AuthorizationPrompt) + Send + Sync>;
+
+static AUTHORIZATION_URL_HANDLER: RwLock<Option<AuthorizationUrlHandler>> = RwLock::new(None);
+
+/// Delegate opening authorization URLs to the connected client.
+///
+/// goose can run in a container or on a remote host, where `webbrowser::open`
+/// would target that machine rather than the user's. Front ends that can open a
+/// browser for the user register a handler here; without one we fall back to
+/// opening a browser in this process, which is correct for the CLI.
+pub fn set_authorization_url_handler(handler: AuthorizationUrlHandler) {
+    if let Ok(mut slot) = AUTHORIZATION_URL_HANDLER.write() {
+        *slot = Some(handler);
+    }
+}
+
+fn authorization_url_handler() -> Option<AuthorizationUrlHandler> {
+    AUTHORIZATION_URL_HANDLER
+        .read()
+        .ok()
+        .and_then(|slot| slot.as_ref().cloned())
+}
+
+fn open_authorization_url(name: &str, authorization_url: &str) {
+    if let Some(handler) = authorization_url_handler() {
+        handler(AuthorizationPrompt {
+            extension_name: name.to_string(),
+            authorization_url: authorization_url.to_string(),
+        });
+        return;
+    }
+
+    if let Err(e) = webbrowser::open(authorization_url) {
+        warn!(
+            "[OAuth:{}] Failed to open browser automatically: {}",
+            name, e
+        );
+    }
 }
 
 fn announce_authorization_url(name: &str, authorization_url: &str) {
@@ -236,12 +283,7 @@ pub async fn oauth_flow(
 
     let authorization_url = oauth_state.get_authorization_url().await?;
     announce_authorization_url(name, authorization_url.as_str());
-    if let Err(e) = webbrowser::open(authorization_url.as_str()) {
-        warn!(
-            "[OAuth:{}] Failed to open browser automatically: {}",
-            name, e
-        );
-    }
+    open_authorization_url(name, authorization_url.as_str());
 
     let callback_params = wait_for_callback(
         code_receiver,

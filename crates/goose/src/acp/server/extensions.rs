@@ -6,6 +6,32 @@ use crate::oauth::authenticate_streamable_http_extension;
 use agent_client_protocol::schema::v1::{HttpHeader, McpServer, McpServerHttp, McpServerStdio};
 
 impl GooseAcpAgent {
+    /// Route OAuth authorization URLs to the client, which owns the user's browser.
+    ///
+    /// Without this the agent opens a browser in its own process, which is wrong
+    /// whenever it runs in a container or over a remote transport.
+    pub(super) fn register_oauth_authorization_url_handler(&self) {
+        if !self.supports_goose_custom_notifications() {
+            return;
+        }
+        let Some(cx) = self.client_cx.get().cloned() else {
+            return;
+        };
+
+        set_authorization_url_handler(Arc::new(move |prompt: AuthorizationPrompt| {
+            let notification = ExtensionAuthorizationRequiredNotification {
+                extension_name: prompt.extension_name.clone(),
+                authorization_url: prompt.authorization_url,
+            };
+            if let Err(error) = cx.send_notification(notification) {
+                warn!(
+                    "[OAuth:{}] Failed to ask the client to open the authorization URL: {}",
+                    prompt.extension_name, error
+                );
+            }
+        }));
+    }
+
     pub(super) async fn on_add_session_extension(
         &self,
         req: AddSessionExtensionRequest,
