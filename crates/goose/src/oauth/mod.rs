@@ -89,6 +89,36 @@ async fn wait_for_callback(
 /// paths that must not block — notably loading a session's extensions, where a
 /// pending browser flow would stall session creation for
 /// `DEFAULT_OAUTH_CALLBACK_TIMEOUT_SECS`.
+/// Run the browser OAuth flow for a streamable HTTP MCP extension.
+///
+/// When `force` is false and valid credentials already exist, only refreshes stored
+/// tokens. When `force` is true, always opens the browser (re-authorize).
+pub async fn authenticate_streamable_http_extension(
+    mcp_server_url: &str,
+    name: &str,
+    force: bool,
+) -> Result<(), anyhow::Error> {
+    if !force {
+        let credential_store = GooseCredentialStore::new(name.to_string());
+        if credential_store.load().await?.is_some() {
+            match oauth_flow_stored_credentials_only(&mcp_server_url.to_string(), &name.to_string())
+                .await
+            {
+                Ok(_) => return Ok(()),
+                Err(e) => {
+                    warn!(
+                        "[OAuth:{}] Stored credentials invalid, starting browser auth: {}",
+                        name, e
+                    );
+                }
+            }
+        }
+    }
+
+    oauth_flow(&mcp_server_url.to_string(), &name.to_string()).await?;
+    Ok(())
+}
+
 pub async fn oauth_flow_stored_credentials_only(
     mcp_server_url: &String,
     name: &String,

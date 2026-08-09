@@ -592,7 +592,14 @@ function deliverExtensionOrSessionDeepLink(
     return;
   }
 
-  if (parsedUrl.hostname === 'extension') {
+  if (parsedUrl.hostname === 'extension-authenticate') {
+    targetWindow.webContents.send('authenticate-extension', url);
+  } else if (
+    parsedUrl.hostname === 'extension' &&
+    parsedUrl.searchParams.get('action') === 'authenticate'
+  ) {
+    targetWindow.webContents.send('authenticate-extension', url);
+  } else if (parsedUrl.hostname === 'extension') {
     targetWindow.webContents.send('add-extension', url);
   } else if (parsedUrl.hostname === 'sessions') {
     sendOpenSharedSession(targetWindow, url);
@@ -671,7 +678,14 @@ async function processProtocolUrl(url: string, parsedUrl: URL, window: BrowserWi
   const recentDirs = loadRecentDirs();
   const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
-  if (parsedUrl.hostname === 'extension') {
+  if (parsedUrl.hostname === 'extension-authenticate') {
+    window.webContents.send('authenticate-extension', url);
+  } else if (
+    parsedUrl.hostname === 'extension' &&
+    parsedUrl.searchParams.get('action') === 'authenticate'
+  ) {
+    window.webContents.send('authenticate-extension', url);
+  } else if (parsedUrl.hostname === 'extension') {
     window.webContents.send('add-extension', url);
   } else if (parsedUrl.hostname === 'sessions') {
     sendOpenSharedSession(window, url);

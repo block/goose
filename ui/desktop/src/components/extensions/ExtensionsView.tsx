@@ -33,7 +33,7 @@ const i18n = defineMessages({
   defaultNote: {
     id: 'extensionsView.defaultNote',
     defaultMessage:
-      'Connections enabled here are used for new chats. Toggle Google Workspace on to authenticate before asking about Drive, Gmail, or Calendar.',
+      'Connections enabled here are used for new chats. Turn Google Workspace on to open Google sign-in in your browser.',
   },
   addCustomExtension: {
     id: 'extensionsView.addCustomExtension',

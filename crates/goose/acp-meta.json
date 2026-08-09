@@ -121,6 +121,11 @@
       "responseType": "EmptyResponse"
     },
     {
+      "method": "_goose/unstable/config/extensions/authenticate",
+      "requestType": "AuthenticateConfigExtensionRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
       "method": "_goose/unstable/session/extensions/list",
       "requestType": "GetSessionExtensionsRequest_unstable",
       "responseType": "GetSessionExtensionsResponse_unstable"

@@ -219,10 +219,10 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 name: crate::skills::EXTENSION_NAME,
                 display_name: "Skills",
                 description: "Discover and provide skill instructions from filesystem and builtins",
-                // Consumer distro: skill authoring is power-user; keep off and hidden.
-                default_enabled: false,
+                // Avocado Work: skill authoring + load_skill/create_skill are first-class.
+                default_enabled: true,
                 unprefixed_tools: true,
-                hidden: true,
+                hidden: false,
                 client_factory: |ctx| {
                     Some(Box::new(crate::skills::SkillsClient::new(ctx).unwrap()))
                 },

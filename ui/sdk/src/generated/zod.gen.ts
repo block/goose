@@ -716,6 +716,14 @@ export const zSetConfigExtensionEnabledRequest_unstable = z.object({
     enabled: z.boolean()
 });
 
+/**
+ * Run the OAuth browser flow for a persisted streamable HTTP extension.
+ */
+export const zAuthenticateConfigExtensionRequest_unstable = z.object({
+    configKey: z.string(),
+    force: z.boolean().optional().default(false)
+});
+
 export const zGetSessionExtensionsRequest_unstable = z.object({
     sessionId: z.string()
 });
@@ -2850,6 +2858,7 @@ export const zExtRequest = z.object({
             zAddConfigExtensionRequest_unstable,
             zRemoveConfigExtensionRequest_unstable,
             zSetConfigExtensionEnabledRequest_unstable,
+            zAuthenticateConfigExtensionRequest_unstable,
             zGetSessionExtensionsRequest_unstable,
             zListProvidersRequest_unstable,
             zProviderSupportedModelsListRequest_unstable,

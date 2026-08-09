@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { acpCreateCustomProviderFromRequest, acpListProviderDetails } from '../../acp/providers';
 import type { ProviderDetails, UpdateCustomProviderRequest } from '../../types/providers';
 import { Select } from '../ui/Select';
@@ -69,6 +69,7 @@ export default function ProviderSelector({
   const [selectedOption, setSelectedOption] = useState<ProviderOption | null>(null);
   const [selectedPath, setSelectedPath] = useState<SelectedPath>(null);
   const [showCustomModal, setShowCustomModal] = useState(false);
+  const autoConfiguredRef = useRef(false);
 
   useEffect(() => {
     const load = async () => {
@@ -93,6 +94,25 @@ export default function ProviderSelector({
     };
     load();
   }, []);
+
+  useEffect(() => {
+    if (autoConfiguredRef.current || PROVIDER_MANAGEMENT_ENABLED || providerList.length === 0) {
+      return;
+    }
+
+    const defaultProvider = window.appConfig?.get?.('GOOSE_DEFAULT_PROVIDER');
+    const defaultModel = window.appConfig?.get?.('GOOSE_DEFAULT_MODEL');
+    if (typeof defaultProvider !== 'string' || !defaultProvider.trim()) return;
+    if (typeof defaultModel !== 'string' || !defaultModel.trim()) return;
+
+    const match = providerList.find(
+      (provider) => provider.name === defaultProvider && provider.is_configured
+    );
+    if (!match) return;
+
+    autoConfiguredRef.current = true;
+    void onConfigured(defaultProvider, defaultModel);
+  }, [providerList, onConfigured]);
 
   const options: ProviderOption[] = useMemo(() => {
     return [...providerList]

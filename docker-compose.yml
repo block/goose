@@ -32,6 +32,8 @@ services:
     volumes:
       - avcd-agent-config:/home/goose/.config/goose
       - ./workspace:/workspace
+      # Host global skills for Docker dev parity with ~/.agents/skills discovery.
+      - ${HOME}/.agents/skills:/home/goose/.agents/skills
     restart: unless-stopped
 
   cli:
@@ -55,6 +57,7 @@ services:
     volumes:
       - avcd-agent-config:/home/goose/.config/goose
       - ./workspace:/workspace
+      - ${HOME}/.agents/skills:/home/goose/.agents/skills
 
 volumes:
   avcd-agent-config:

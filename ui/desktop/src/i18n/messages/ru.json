@@ -1,4 +1,40 @@
 {
+  "addSkillDialog.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "addSkillDialog.contentLabel": {
+    "defaultMessage": "Instructions"
+  },
+  "addSkillDialog.contentPlaceholder": {
+    "defaultMessage": "# My Skill Step-by-step guidance for the agent…"
+  },
+  "addSkillDialog.create": {
+    "defaultMessage": "Create skill"
+  },
+  "addSkillDialog.creating": {
+    "defaultMessage": "Creating…"
+  },
+  "addSkillDialog.description": {
+    "defaultMessage": "Creates a SKILL.md under .agents/skills/ (project) or ~/.agents/skills/ (global)."
+  },
+  "addSkillDialog.descriptionLabel": {
+    "defaultMessage": "Description"
+  },
+  "addSkillDialog.descriptionPlaceholder": {
+    "defaultMessage": "What it does and when to use it"
+  },
+  "addSkillDialog.globalLabel": {
+    "defaultMessage": "Global skill (available in all projects)"
+  },
+  "addSkillDialog.nameLabel": {
+    "defaultMessage": "Name"
+  },
+  "addSkillDialog.namePlaceholder": {
+    "defaultMessage": "my-skill-name"
+  },
+  "addSkillDialog.title": {
+    "defaultMessage": "Add Skill"
+  },
   "alertBox.autoCompactAt": {
     "defaultMessage": "Автосжимать при"
   },
@@ -1354,6 +1390,9 @@
   },
   "hub.goodMorning": {
     "defaultMessage": "Доброе утро"
+  },
+  "hub.sessionCreateFailed": {
+    "defaultMessage": "Could not start chat"
   },
   "huggingFaceModelSearch.download": {
     "defaultMessage": "Скачать"
@@ -4115,9 +4154,6 @@
   "skillsView.adjustSearchTerms": {
     "defaultMessage": "Попробуйте изменить поисковый запрос"
   },
-  "skillsView.comingSoon": {
-    "defaultMessage": "Скоро"
-  },
   "skillsView.errorLoadingSkills": {
     "defaultMessage": "Ошибка загрузки навыков"
   },
@@ -4133,14 +4169,23 @@
   "skillsView.searchSkillsPlaceholder": {
     "defaultMessage": "Поиск навыков..."
   },
+  "skillsView.skillCreated": {
+    "defaultMessage": "Created skill \"{name}\"."
+  },
   "skillsView.skillsDescription": {
     "defaultMessage": "Просматривайте установленные навыки, расширяющие возможности Goose. {shortcut} для поиска."
   },
   "skillsView.skillsTitle": {
     "defaultMessage": "Навыки"
   },
+  "skillsView.startingChat": {
+    "defaultMessage": "Starting…"
+  },
   "skillsView.tryAgain": {
     "defaultMessage": "Повторить попытку"
+  },
+  "skillsView.useInChat": {
+    "defaultMessage": "Use in chat"
   },
   "spellcheckToggle.description": {
     "defaultMessage": "Проверять орфографию в поле ввода чата. Для применения требуется перезапуск."

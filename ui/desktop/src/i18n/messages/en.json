@@ -1,4 +1,40 @@
 {
+  "addSkillDialog.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "addSkillDialog.contentLabel": {
+    "defaultMessage": "Instructions"
+  },
+  "addSkillDialog.contentPlaceholder": {
+    "defaultMessage": "# My Skill Step-by-step guidance for the agent…"
+  },
+  "addSkillDialog.create": {
+    "defaultMessage": "Create skill"
+  },
+  "addSkillDialog.creating": {
+    "defaultMessage": "Creating…"
+  },
+  "addSkillDialog.description": {
+    "defaultMessage": "Creates a SKILL.md under .agents/skills/ (project) or ~/.agents/skills/ (global)."
+  },
+  "addSkillDialog.descriptionLabel": {
+    "defaultMessage": "Description"
+  },
+  "addSkillDialog.descriptionPlaceholder": {
+    "defaultMessage": "What it does and when to use it"
+  },
+  "addSkillDialog.globalLabel": {
+    "defaultMessage": "Global skill (available in all projects)"
+  },
+  "addSkillDialog.nameLabel": {
+    "defaultMessage": "Name"
+  },
+  "addSkillDialog.namePlaceholder": {
+    "defaultMessage": "my-skill-name"
+  },
+  "addSkillDialog.title": {
+    "defaultMessage": "Add Skill"
+  },
   "alertBox.autoCompactAt": {
     "defaultMessage": "Auto compact at"
   },
@@ -1164,13 +1200,13 @@
     "defaultMessage": "Browse extensions"
   },
   "extensionsView.defaultNote": {
-    "defaultMessage": "Extensions enabled here are used as the default for new chats. You can also toggle active extensions during chat."
+    "defaultMessage": "Connections enabled here are used for new chats. Toggle Google Workspace on to authenticate before asking about Drive, Gmail, or Calendar."
   },
   "extensionsView.description": {
-    "defaultMessage": "These extensions use the Model Context Protocol (MCP). They can expand Avocado Work's capabilities using three main components: Prompts, Resources, and Tools. {searchShortcut} to search."
+    "defaultMessage": "Connect tools your team uses — Google Workspace, files, and more. Turn a connection on to sign in when prompted. {searchShortcut} to search."
   },
   "extensionsView.heading": {
-    "defaultMessage": "Extensions"
+    "defaultMessage": "Connections"
   },
   "extensionsView.searchPlaceholder": {
     "defaultMessage": "Search extensions..."
@@ -2340,7 +2376,7 @@
     "defaultMessage": "Apps"
   },
   "navigation.itemExtensions": {
-    "defaultMessage": "Extensions"
+    "defaultMessage": "Connections"
   },
   "navigation.itemHome": {
     "defaultMessage": "New Chat"
@@ -4118,9 +4154,6 @@
   "skillsView.adjustSearchTerms": {
     "defaultMessage": "Try adjusting your search terms"
   },
-  "skillsView.comingSoon": {
-    "defaultMessage": "Coming soon"
-  },
   "skillsView.errorLoadingSkills": {
     "defaultMessage": "Error Loading Skills"
   },
@@ -4128,7 +4161,7 @@
     "defaultMessage": "No matching skills found"
   },
   "skillsView.noSkillsDescription": {
-    "defaultMessage": "Skills are loaded from SKILL.md files in ~/.config/agents/skills/, .goose/skills/, or other supported directories."
+    "defaultMessage": "Skills are loaded from SKILL.md files in .agents/skills/, ~/.agents/skills/, or other supported directories."
   },
   "skillsView.noSkillsInstalled": {
     "defaultMessage": "No skills installed"
@@ -4136,14 +4169,23 @@
   "skillsView.searchSkillsPlaceholder": {
     "defaultMessage": "Search skills..."
   },
+  "skillsView.skillCreated": {
+    "defaultMessage": "Created skill \"{name}\"."
+  },
   "skillsView.skillsDescription": {
     "defaultMessage": "View installed skills that extend Avocado Work capabilities. {shortcut} to search."
   },
   "skillsView.skillsTitle": {
     "defaultMessage": "Skills"
   },
+  "skillsView.startingChat": {
+    "defaultMessage": "Starting…"
+  },
   "skillsView.tryAgain": {
     "defaultMessage": "Try Again"
+  },
+  "skillsView.useInChat": {
+    "defaultMessage": "Use in chat"
   },
   "spellcheckToggle.description": {
     "defaultMessage": "Check spelling in the chat input. Requires restart to take effect."

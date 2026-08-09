@@ -1,4 +1,40 @@
 {
+  "addSkillDialog.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "addSkillDialog.contentLabel": {
+    "defaultMessage": "Instructions"
+  },
+  "addSkillDialog.contentPlaceholder": {
+    "defaultMessage": "# My Skill Step-by-step guidance for the agent…"
+  },
+  "addSkillDialog.create": {
+    "defaultMessage": "Create skill"
+  },
+  "addSkillDialog.creating": {
+    "defaultMessage": "Creating…"
+  },
+  "addSkillDialog.description": {
+    "defaultMessage": "Creates a SKILL.md under .agents/skills/ (project) or ~/.agents/skills/ (global)."
+  },
+  "addSkillDialog.descriptionLabel": {
+    "defaultMessage": "Description"
+  },
+  "addSkillDialog.descriptionPlaceholder": {
+    "defaultMessage": "What it does and when to use it"
+  },
+  "addSkillDialog.globalLabel": {
+    "defaultMessage": "Global skill (available in all projects)"
+  },
+  "addSkillDialog.nameLabel": {
+    "defaultMessage": "Name"
+  },
+  "addSkillDialog.namePlaceholder": {
+    "defaultMessage": "my-skill-name"
+  },
+  "addSkillDialog.title": {
+    "defaultMessage": "Add Skill"
+  },
   "alertBox.autoCompactAt": {
     "defaultMessage": "Compactage automatique à"
   },
@@ -1354,6 +1390,9 @@
   },
   "hub.goodMorning": {
     "defaultMessage": "Bonjour"
+  },
+  "hub.sessionCreateFailed": {
+    "defaultMessage": "Could not start chat"
   },
   "huggingFaceModelSearch.download": {
     "defaultMessage": "Télécharger"
@@ -4115,9 +4154,6 @@
   "skillsView.adjustSearchTerms": {
     "defaultMessage": "Essayez d'ajuster vos termes de recherche"
   },
-  "skillsView.comingSoon": {
-    "defaultMessage": "Bientôt disponible"
-  },
   "skillsView.errorLoadingSkills": {
     "defaultMessage": "Erreur lors du chargement des compétences"
   },
@@ -4133,14 +4169,23 @@
   "skillsView.searchSkillsPlaceholder": {
     "defaultMessage": "Rechercher des compétences..."
   },
+  "skillsView.skillCreated": {
+    "defaultMessage": "Created skill \"{name}\"."
+  },
   "skillsView.skillsDescription": {
     "defaultMessage": "Affichez les compétences installées qui étendent les capacités de Goose. {shortcut} pour rechercher."
   },
   "skillsView.skillsTitle": {
     "defaultMessage": "Compétences"
   },
+  "skillsView.startingChat": {
+    "defaultMessage": "Starting…"
+  },
   "skillsView.tryAgain": {
     "defaultMessage": "Réessayer"
+  },
+  "skillsView.useInChat": {
+    "defaultMessage": "Use in chat"
   },
   "spellcheckToggle.description": {
     "defaultMessage": "Vérifier l'orthographe dans le champ de saisie de la discussion. Nécessite un redémarrage pour prendre effet."

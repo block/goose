@@ -12,6 +12,7 @@ import {
 import { importNostrSessionFromDeepLink } from './sessionLinks';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ExtensionInstallModal } from './components/ExtensionInstallModal';
+import { ExtensionAuthenticateHandler } from './components/ExtensionAuthenticateHandler';
 import RecipeParamsModalContainer from './components/RecipeParamsModalContainer';
 import { isRecipeParamsCancelled } from './acp/errors';
 import { toast, ToastContainer } from 'react-toastify';
@@ -673,6 +674,7 @@ export function AppInner() {
       {EXTENSIONS_INSTALL_ENABLED && (
         <ExtensionInstallModal addExtension={addExtension} setView={setView} />
       )}
+      <ExtensionAuthenticateHandler />
       <RecipeParamsModalContainer />
       <div className="relative w-screen h-screen overflow-hidden bg-background-secondary flex flex-col">
         <div className="titlebar-drag-region" />

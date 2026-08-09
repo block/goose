@@ -62,28 +62,44 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   const [configuredModel, setConfiguredModel] = useState<string | null>(null);
   const hasTrackedOnboardingStart = useRef(false);
 
-  const checkProvider = async (retries = 3, delay = 1000) => {
+  const hasBundledProviderDefaults = () => {
+    const provider = window.appConfig?.get?.('GOOSE_DEFAULT_PROVIDER');
+    const model = window.appConfig?.get?.('GOOSE_DEFAULT_MODEL');
+    return (
+      typeof provider === 'string' &&
+      provider.trim().length > 0 &&
+      typeof model === 'string' &&
+      model.trim().length > 0
+    );
+  };
+
+  const checkProvider = async (retries = 12, delay = 1000) => {
     setIsCheckingProvider(true);
     setCheckProviderError(false);
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const { providerId: provider } = await acpReadDefaults();
-        if (provider?.trim()) {
+        const { providerId, modelId } = await acpReadDefaults();
+        if (providerId?.trim() && modelId?.trim()) {
+          await refreshCurrentModelAndProvider();
           setHasProvider(true);
           setIsCheckingProvider(false);
           return;
         }
 
-        const fallback = await getFallbackModelAndProvider();
-        if (fallback.provider?.trim() && fallback.model?.trim()) {
-          const { providerId: configuredProvider, modelId: configuredModel } =
-            await acpReadDefaults();
-          if (configuredProvider?.trim() && configuredModel?.trim()) {
+        if (hasBundledProviderDefaults()) {
+          await getFallbackModelAndProvider();
+          const afterFallback = await acpReadDefaults();
+          if (afterFallback.providerId?.trim() && afterFallback.modelId?.trim()) {
             await refreshCurrentModelAndProvider();
             setHasProvider(true);
             setIsCheckingProvider(false);
             return;
           }
+        }
+
+        if (attempt < retries) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
         }
 
         setHasProvider(false);

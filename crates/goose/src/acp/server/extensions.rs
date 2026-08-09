@@ -1,6 +1,8 @@
 use super::*;
 use crate::agents::extension::Envs;
+use crate::agents::ExtensionConfig;
 use crate::config::extensions::ExtensionEntry;
+use crate::oauth::authenticate_streamable_http_extension;
 use agent_client_protocol::schema::v1::{HttpHeader, McpServer, McpServerHttp, McpServerStdio};
 
 impl GooseAcpAgent {
@@ -97,12 +99,37 @@ impl GooseAcpAgent {
         &self,
         req: SetConfigExtensionEnabledRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        if req.enabled {
+            if let Some(entry) = crate::config::extensions::get_extension_entry(&req.config_key) {
+                authenticate_config_extension_if_streamable_http(&entry.config, false)
+                    .await
+                    .internal_err()?;
+            }
+        }
+
         let updated =
             crate::config::extensions::set_extension_enabled(&req.config_key, req.enabled);
         if !updated {
             return Err(agent_client_protocol::Error::invalid_params()
                 .data(format!("Extension '{}' not found", req.config_key)));
         }
+
+        Ok(EmptyResponse {})
+    }
+
+    pub(super) async fn on_authenticate_config_extension(
+        &self,
+        req: AuthenticateConfigExtensionRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        let entry =
+            crate::config::extensions::get_extension_entry(&req.config_key).ok_or_else(|| {
+                agent_client_protocol::Error::invalid_params()
+                    .data(format!("Extension '{}' not found", req.config_key))
+            })?;
+
+        authenticate_config_extension_if_streamable_http(&entry.config, req.force)
+            .await
+            .internal_err()?;
 
         Ok(EmptyResponse {})
     }
@@ -133,6 +160,19 @@ impl GooseAcpAgent {
 
         Ok(GetSessionExtensionsResponse { extensions })
     }
+}
+
+async fn authenticate_config_extension_if_streamable_http(
+    config: &ExtensionConfig,
+    force: bool,
+) -> Result<(), anyhow::Error> {
+    let ExtensionConfig::StreamableHttp { uri, name, .. } = config else {
+        return Err(anyhow::anyhow!(
+            "OAuth authentication is only supported for streamable HTTP extensions"
+        ));
+    };
+
+    authenticate_streamable_http_extension(uri, name, force).await
 }
 
 fn config_to_goose_extension(

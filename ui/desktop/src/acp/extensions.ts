@@ -166,3 +166,14 @@ export async function setConfigExtensionEnabled(
   const client = await getAcpClient();
   await client.goose.configExtensionsSetEnabled_unstable({ configKey, enabled });
 }
+
+export async function authenticateConfigExtension(
+  configKey: string,
+  options?: { force?: boolean }
+): Promise<void> {
+  const client = await getAcpClient();
+  await client.goose.configExtensionsAuthenticate_unstable({
+    configKey,
+    force: options?.force ?? false,
+  });
+}

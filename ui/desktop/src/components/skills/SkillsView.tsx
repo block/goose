@@ -15,6 +15,7 @@ import { createSession } from '../../sessions';
 import { AppEvents } from '../../constants/events';
 import { useNavigation } from '../../hooks/useNavigation';
 import { toChatSkillDraft } from './lib/skillChatPrompt';
+import { AddSkillDialog } from './AddSkillDialog';
 
 const i18n = defineMessages({
   errorLoadingSkills: {
@@ -32,7 +33,11 @@ const i18n = defineMessages({
   noSkillsDescription: {
     id: 'skillsView.noSkillsDescription',
     defaultMessage:
-      'Skills are loaded from SKILL.md files in ~/.config/agents/skills/, .goose/skills/, or other supported directories.',
+      'Skills are loaded from SKILL.md files in .agents/skills/, ~/.agents/skills/, or other supported directories.',
+  },
+  skillCreated: {
+    id: 'skillsView.skillCreated',
+    defaultMessage: 'Created skill "{name}".',
   },
   noMatchingSkills: {
     id: 'skillsView.noMatchingSkills',
@@ -57,10 +62,6 @@ const i18n = defineMessages({
   searchSkillsPlaceholder: {
     id: 'skillsView.searchSkillsPlaceholder',
     defaultMessage: 'Search skills...',
-  },
-  comingSoon: {
-    id: 'skillsView.comingSoon',
-    defaultMessage: 'Coming soon',
   },
   useInChat: {
     id: 'skillsView.useInChat',
@@ -137,6 +138,8 @@ export default function SkillsView() {
   const [showContent, setShowContent] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [startingSkill, setStartingSkill] = useState<string | null>(null);
+  const [addSkillOpen, setAddSkillOpen] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const filteredSkills = useMemo(() => {
     if (!searchTerm) return skills;
@@ -289,8 +292,8 @@ export default function SkillsView() {
                 variant="outline"
                 size="sm"
                 className="flex items-center gap-2"
-                hidden
-                title={intl.formatMessage(i18n.comingSoon)}
+                onClick={() => setAddSkillOpen(true)}
+                data-testid="add-skill-button"
               >
                 <Plus className="w-4 h-4" />
                 {intl.formatMessage(i18n.addSkill)}
@@ -301,8 +304,22 @@ export default function SkillsView() {
                 shortcut: getSearchShortcutText(),
               })}
             </p>
+            {statusMessage ? (
+              <p className="text-sm text-text-secondary" data-testid="skill-status-message">
+                {statusMessage}
+              </p>
+            ) : null}
           </div>
         </div>
+
+        <AddSkillDialog
+          open={addSkillOpen}
+          onOpenChange={setAddSkillOpen}
+          onCreated={(source) => {
+            setStatusMessage(intl.formatMessage(i18n.skillCreated, { name: source.name }));
+            void loadSkills();
+          }}
+        />
 
         <div className="flex-1 min-h-0 relative px-8">
           <ScrollArea className="h-full">

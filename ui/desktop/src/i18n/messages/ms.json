@@ -1,4 +1,40 @@
 {
+  "addSkillDialog.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "addSkillDialog.contentLabel": {
+    "defaultMessage": "Instructions"
+  },
+  "addSkillDialog.contentPlaceholder": {
+    "defaultMessage": "# My Skill Step-by-step guidance for the agent…"
+  },
+  "addSkillDialog.create": {
+    "defaultMessage": "Create skill"
+  },
+  "addSkillDialog.creating": {
+    "defaultMessage": "Creating…"
+  },
+  "addSkillDialog.description": {
+    "defaultMessage": "Creates a SKILL.md under .agents/skills/ (project) or ~/.agents/skills/ (global)."
+  },
+  "addSkillDialog.descriptionLabel": {
+    "defaultMessage": "Description"
+  },
+  "addSkillDialog.descriptionPlaceholder": {
+    "defaultMessage": "What it does and when to use it"
+  },
+  "addSkillDialog.globalLabel": {
+    "defaultMessage": "Global skill (available in all projects)"
+  },
+  "addSkillDialog.nameLabel": {
+    "defaultMessage": "Name"
+  },
+  "addSkillDialog.namePlaceholder": {
+    "defaultMessage": "my-skill-name"
+  },
+  "addSkillDialog.title": {
+    "defaultMessage": "Add Skill"
+  },
   "alertBox.autoCompactAt": {
     "defaultMessage": "Padatkan automatik pada"
   },
@@ -1354,6 +1390,9 @@
   },
   "hub.goodMorning": {
     "defaultMessage": "Selamat pagi"
+  },
+  "hub.sessionCreateFailed": {
+    "defaultMessage": "Could not start chat"
   },
   "huggingFaceModelSearch.download": {
     "defaultMessage": "Muat Turun"
@@ -4115,9 +4154,6 @@
   "skillsView.adjustSearchTerms": {
     "defaultMessage": "Cuba laraskan terma carian anda"
   },
-  "skillsView.comingSoon": {
-    "defaultMessage": "Akan datang"
-  },
   "skillsView.errorLoadingSkills": {
     "defaultMessage": "Ralat Memuatkan Kemahiran"
   },
@@ -4133,14 +4169,23 @@
   "skillsView.searchSkillsPlaceholder": {
     "defaultMessage": "Cari kemahiran..."
   },
+  "skillsView.skillCreated": {
+    "defaultMessage": "Created skill \"{name}\"."
+  },
   "skillsView.skillsDescription": {
     "defaultMessage": "Lihat kemahiran terpasang yang meluaskan keupayaan Goose. {shortcut} untuk mencari."
   },
   "skillsView.skillsTitle": {
     "defaultMessage": "Kemahiran"
   },
+  "skillsView.startingChat": {
+    "defaultMessage": "Starting…"
+  },
   "skillsView.tryAgain": {
     "defaultMessage": "Cuba Lagi"
+  },
+  "skillsView.useInChat": {
+    "defaultMessage": "Use in chat"
   },
   "spellcheckToggle.description": {
     "defaultMessage": "Semak ejaan dalam input sembang. Memerlukan mula semula untuk berkuat kuasa."

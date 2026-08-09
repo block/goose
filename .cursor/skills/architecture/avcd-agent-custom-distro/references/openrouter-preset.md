@@ -156,4 +156,48 @@ Regular (non-developer) defaults for small-business admins:
 Google connector URI: `https://dev.avocado.tech/google-workspace/mcp`  
 Allowlist Goose callback on Workspace MCP: `http://127.0.0.1:18787/oauth_callback` (`google-workspace-mcp` deploy / `.env.example`).
 
+### Google Workspace MCP OAuth (investigation notes)
+
+**Recommended pattern (not legacy `@modelcontextprotocol/server-gdrive`):**
+
+- Extension type: `streamable_http` → hosted MCP at `https://dev.avocado.tech/google-workspace/mcp`
+- MCP OAuth discovery: `WWW-Authenticate` → `https://dev.avocado.tech/.well-known/oauth-protected-resource/google-workspace/mcp`
+- Auth server: `https://dev.avocado.tech/google-workspace` (authorization + token endpoints)
+- Goose stores tokens as `oauth_creds_google-workspace` in config secrets
+
+**Why extensions “failed to load” before fix:**
+
+1. Google Workspace was **enabled by default** in `bundled-extensions.json`
+2. New sessions bulk-load extensions with **`StoredCredentialsOnly`** — no browser OAuth on session start
+3. Connections toggle only updated config; it did **not** run OAuth until user added the extension in an active chat
+
+**Fix in avcd-agent:**
+
+- Toggling a streamable HTTP extension **on** in Connections runs browser OAuth (`config/extensions/set-enabled`)
+- **Sign in** button on Connections cards re-runs OAuth (`config/extensions/authenticate`)
+- Google Workspace defaults to **disabled** until the user enables it
+- Session load shows a friendly “sign in from Connections” message instead of a hard error when creds are missing
+
+**Local dev checklist:**
+
+- Docker publishes OAuth callback: `18787:18787` + `GOOSE_OAUTH_CALLBACK_PORT=18787`
+- `make dev-ui` writes the same port to `ui/desktop/.env`
+- Complete sign-in from **Connections** before expecting Drive/Gmail tools in new chats
+
+**Authentication deeplink (shareable):**
+
+Opens Avocado Work and runs the MCP OAuth browser flow for a configured extension. This is **not** a direct Google URL — goose must host the OAuth callback on loopback.
+
+```
+avocado-work://extension-authenticate?configKey=google-workspace
+```
+
+Alternate form (legacy `goose://` scheme, dev builds):
+
+```
+goose://extension?action=authenticate&configKey=google-workspace
+```
+
+Force re-authorization: append `&force=true`. Users can copy the link from the Google Workspace card in **Connections** (“Copy sign-in link”).
+
 To restore open Extensions UI: set `EXTENSIONS_UI_ENABLED = true`. To skip Google sync: `GOOGLE_WORKSPACE_ENABLED = false`.

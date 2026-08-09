@@ -463,6 +463,19 @@ pub struct SetConfigExtensionEnabledRequest {
     pub enabled: bool,
 }
 
+/// Run the OAuth browser flow for a persisted streamable HTTP extension.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/config/extensions/authenticate",
+    response = EmptyResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthenticateConfigExtensionRequest {
+    pub config_key: String,
+    #[serde(default)]
+    pub force: bool,
+}
+
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/session/extensions/list", response = GetSessionExtensionsResponse)]
 #[serde(rename_all = "camelCase")]

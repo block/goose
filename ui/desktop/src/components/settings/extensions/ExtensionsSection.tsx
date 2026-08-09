@@ -17,6 +17,7 @@ import {
 import { activateExtensionDefault, deleteExtension, toggleExtensionDefault } from './index';
 import type { ExtensionConfig } from '../../../types/extensions';
 import { EXTENSIONS_INSTALL_ENABLED } from '../../../updates';
+import { authenticateConfigExtension } from '../../../acp/extensions';
 
 const i18n = defineMessages({
   addCustomExtension: {
@@ -108,6 +109,14 @@ export default function ExtensionsSection({
   const fetchExtensions = useCallback(async () => {
     await getExtensions(true); // Force refresh - this will update the context
   }, [getExtensions]);
+
+  const handleExtensionAuthenticate = async (
+    extensionConfig: FixedExtensionEntry,
+    force = false
+  ) => {
+    const configKey = extensionConfig.configKey ?? nameToKey(extensionConfig.name);
+    await authenticateConfigExtension(configKey, { force });
+  };
 
   const handleExtensionToggle = async (extensionConfig: FixedExtensionEntry) => {
     if (customToggle) {
@@ -214,6 +223,7 @@ export default function ExtensionsSection({
         <ExtensionList
           extensions={extensions}
           onToggle={handleExtensionToggle}
+          onAuthenticate={handleExtensionAuthenticate}
           onConfigure={handleConfigureClick}
           disableConfiguration={disableConfiguration}
           searchTerm={searchTerm}

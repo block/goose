@@ -1,4 +1,40 @@
 {
+  "addSkillDialog.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "addSkillDialog.contentLabel": {
+    "defaultMessage": "Instructions"
+  },
+  "addSkillDialog.contentPlaceholder": {
+    "defaultMessage": "# My Skill Step-by-step guidance for the agent…"
+  },
+  "addSkillDialog.create": {
+    "defaultMessage": "Create skill"
+  },
+  "addSkillDialog.creating": {
+    "defaultMessage": "Creating…"
+  },
+  "addSkillDialog.description": {
+    "defaultMessage": "Creates a SKILL.md under .agents/skills/ (project) or ~/.agents/skills/ (global)."
+  },
+  "addSkillDialog.descriptionLabel": {
+    "defaultMessage": "Description"
+  },
+  "addSkillDialog.descriptionPlaceholder": {
+    "defaultMessage": "What it does and when to use it"
+  },
+  "addSkillDialog.globalLabel": {
+    "defaultMessage": "Global skill (available in all projects)"
+  },
+  "addSkillDialog.nameLabel": {
+    "defaultMessage": "Name"
+  },
+  "addSkillDialog.namePlaceholder": {
+    "defaultMessage": "my-skill-name"
+  },
+  "addSkillDialog.title": {
+    "defaultMessage": "Add Skill"
+  },
   "alertBox.autoCompactAt": {
     "defaultMessage": "自動壓縮於"
   },
@@ -1354,6 +1390,9 @@
   },
   "hub.goodMorning": {
     "defaultMessage": "早安"
+  },
+  "hub.sessionCreateFailed": {
+    "defaultMessage": "Could not start chat"
   },
   "huggingFaceModelSearch.download": {
     "defaultMessage": "下載"
@@ -4115,9 +4154,6 @@
   "skillsView.adjustSearchTerms": {
     "defaultMessage": "請嘗試調整您的搜尋字詞"
   },
-  "skillsView.comingSoon": {
-    "defaultMessage": "即將推出"
-  },
   "skillsView.errorLoadingSkills": {
     "defaultMessage": "載入技能時發生錯誤"
   },
@@ -4133,14 +4169,23 @@
   "skillsView.searchSkillsPlaceholder": {
     "defaultMessage": "搜尋技能..."
   },
+  "skillsView.skillCreated": {
+    "defaultMessage": "Created skill \"{name}\"."
+  },
   "skillsView.skillsDescription": {
     "defaultMessage": "檢視可擴充 Goose 功能的已安裝技能。{shortcut} 即可搜尋。"
   },
   "skillsView.skillsTitle": {
     "defaultMessage": "技能"
   },
+  "skillsView.startingChat": {
+    "defaultMessage": "Starting…"
+  },
   "skillsView.tryAgain": {
     "defaultMessage": "重試"
+  },
+  "skillsView.useInChat": {
+    "defaultMessage": "Use in chat"
   },
   "spellcheckToggle.description": {
     "defaultMessage": "檢查聊天輸入中的拼字。需重新啟動才會生效。"

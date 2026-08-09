@@ -1,4 +1,40 @@
 {
+  "addSkillDialog.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "addSkillDialog.contentLabel": {
+    "defaultMessage": "Instructions"
+  },
+  "addSkillDialog.contentPlaceholder": {
+    "defaultMessage": "# My Skill Step-by-step guidance for the agent…"
+  },
+  "addSkillDialog.create": {
+    "defaultMessage": "Create skill"
+  },
+  "addSkillDialog.creating": {
+    "defaultMessage": "Creating…"
+  },
+  "addSkillDialog.description": {
+    "defaultMessage": "Creates a SKILL.md under .agents/skills/ (project) or ~/.agents/skills/ (global)."
+  },
+  "addSkillDialog.descriptionLabel": {
+    "defaultMessage": "Description"
+  },
+  "addSkillDialog.descriptionPlaceholder": {
+    "defaultMessage": "What it does and when to use it"
+  },
+  "addSkillDialog.globalLabel": {
+    "defaultMessage": "Global skill (available in all projects)"
+  },
+  "addSkillDialog.nameLabel": {
+    "defaultMessage": "Name"
+  },
+  "addSkillDialog.namePlaceholder": {
+    "defaultMessage": "my-skill-name"
+  },
+  "addSkillDialog.title": {
+    "defaultMessage": "Add Skill"
+  },
   "alertBox.autoCompactAt": {
     "defaultMessage": "Compactar automáticamente al"
   },
@@ -1354,6 +1390,9 @@
   },
   "hub.goodMorning": {
     "defaultMessage": "Buenos días"
+  },
+  "hub.sessionCreateFailed": {
+    "defaultMessage": "Could not start chat"
   },
   "huggingFaceModelSearch.download": {
     "defaultMessage": "Descargar"
@@ -4115,9 +4154,6 @@
   "skillsView.adjustSearchTerms": {
     "defaultMessage": "Intenta ajustar los términos de búsqueda"
   },
-  "skillsView.comingSoon": {
-    "defaultMessage": "Próximamente"
-  },
   "skillsView.errorLoadingSkills": {
     "defaultMessage": "Error al cargar las Skills"
   },
@@ -4133,14 +4169,23 @@
   "skillsView.searchSkillsPlaceholder": {
     "defaultMessage": "Buscar Skills..."
   },
+  "skillsView.skillCreated": {
+    "defaultMessage": "Created skill \"{name}\"."
+  },
   "skillsView.skillsDescription": {
     "defaultMessage": "Mira las Skills instaladas que amplían las capacidades de Goose. {shortcut} para buscar."
   },
   "skillsView.skillsTitle": {
     "defaultMessage": "Skills"
   },
+  "skillsView.startingChat": {
+    "defaultMessage": "Starting…"
+  },
   "skillsView.tryAgain": {
     "defaultMessage": "Intentar de nuevo"
+  },
+  "skillsView.useInChat": {
+    "defaultMessage": "Use in chat"
   },
   "spellcheckToggle.description": {
     "defaultMessage": "Revisa la ortografía en la entrada del chat. Requiere reiniciar para que tenga efecto."

@@ -20,6 +20,7 @@ import type {
   AppsListRequest_unstable,
   AppsListResponse_unstable,
   ArchiveSessionRequest_unstable,
+  AuthenticateConfigExtensionRequest_unstable,
   CanonicalModelInfoRequest_unstable,
   CanonicalModelInfoResponse_unstable,
   ConfigReadAllRequest_unstable,
@@ -516,6 +517,15 @@ export class GooseExtClient {
   ): Promise<void> {
     await this.conn.extMethod(
       "_goose/unstable/config/extensions/set-enabled",
+      params,
+    );
+  }
+
+  async configExtensionsAuthenticate_unstable(
+    params: AuthenticateConfigExtensionRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod(
+      "_goose/unstable/config/extensions/authenticate",
       params,
     );
   }

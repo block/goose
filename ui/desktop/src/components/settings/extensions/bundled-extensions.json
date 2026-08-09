@@ -58,7 +58,7 @@
     "name": "google-workspace",
     "display_name": "Google Workspace",
     "description": "Gmail, Drive, Calendar, and Docs via Avocado hosted Google Workspace MCP (OAuth).",
-    "enabled": true,
+    "enabled": false,
     "type": "streamable_http",
     "uri": "https://dev.avocado.tech/google-workspace/mcp",
     "timeout": 300,

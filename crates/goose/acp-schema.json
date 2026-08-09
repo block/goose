@@ -1599,6 +1599,24 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/config/extensions/set-enabled"
     },
+    "AuthenticateConfigExtensionRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "configKey": {
+          "type": "string"
+        },
+        "force": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "configKey"
+      ],
+      "description": "Run the OAuth browser flow for a persisted streamable HTTP extension.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/extensions/authenticate"
+    },
     "GetSessionExtensionsRequest_unstable": {
       "type": "object",
       "properties": {
@@ -7108,6 +7126,15 @@
                   ],
                   "description": "Params for _goose/unstable/config/extensions/set-enabled",
                   "title": "SetConfigExtensionEnabledRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/AuthenticateConfigExtensionRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/extensions/authenticate",
+                  "title": "AuthenticateConfigExtensionRequest_unstable"
                 },
                 {
                   "allOf": [
