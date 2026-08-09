@@ -1,0 +1,27 @@
+services:
+  avcd-agent-gateway:
+    build: .
+    ports:
+      - "3100:3100"
+    environment:
+      PORT: "3100"
+      GATEWAY_HOST: "0.0.0.0"
+      JWT_REQUIRED: "true"
+      ZITADEL_ISSUER: ${ZITADEL_ISSUER:-https://zitadel.avcd.ai}
+      ZITADEL_PROJECT_ID: ${ZITADEL_PROJECT_ID:-}
+      AGENT_ACCESS_ROLE_KEY: ${AGENT_ACCESS_ROLE_KEY:-agent-access}
+      AVCD_AGENT_DATA_ROOT: /var/lib/avcd-agent
+      GOOSE_BIN: ${GOOSE_BIN:-goose}
+      GOOSE_PROVIDER: ${GOOSE_PROVIDER:-openrouter}
+      GOOSE_MODEL: ${GOOSE_MODEL:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    volumes:
+      - avcd-agent-data:/var/lib/avcd-agent
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3100/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  avcd-agent-data:

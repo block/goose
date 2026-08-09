@@ -1,14 +1,17 @@
 .PHONY: help dev dev-down dev-logs \
 	infisical-check pull-secrets upload-secrets \
 	ensure-local-env cli dev-ui build-desktop-binary package-ui test-smoke validate-openrouter \
-	check-core clippy sync-i18n check-ui
+	check-core clippy sync-i18n check-ui \
+	gateway-install gateway-test gateway-test-e2e gateway-dev gateway-dev-down gateway-up gateway-down
 
 .DEFAULT_GOAL := help
 
 COMPOSE ?= docker compose
 COMPOSE_FILES ?= -f docker-compose.yml
 SERVER_PORT ?= 3000
+GATEWAY_PORT ?= 3100
 GOOSE_SERVER__SECRET_KEY ?= avcd-agent-local-development-key
+ZITADEL_OAUTH_ENV ?=
 
 INFISICAL_API_URL ?= https://secrets.avcd.ai/api
 INFISICAL_PROJECT_ID ?=
@@ -24,7 +27,8 @@ help:
 	@echo "  make dev-down        Stop the local development stack"
 	@echo "  make dev-logs        Follow backend logs"
 	@echo "  make cli             Open the Avocado Work CLI in Docker"
-	@echo "  make dev-ui          Run Electron on the host against Docker (Node 24+)"
+	@echo "  make dev-ui          Run Electron with Zitadel login (needs config/avcd-agent-oauth.env)"
+	@echo "                       Legacy Docker backend, no login: DEV_UI_LEGACY=1 make dev-ui"
 	@echo "  make package-ui      Build a local desktop package"
 	@echo "  make test-smoke      Verify backend, CLI, branding, and package"
 	@echo "  make validate-openrouter  Verify the AVCD OpenRouter provider preset"
@@ -34,6 +38,11 @@ help:
 	@echo "  make check-ui        Type-check, lint, and test the desktop"
 	@echo "  make pull-secrets    Export Infisical dev secrets to .env.local"
 	@echo "  make upload-secrets  Upload .env.local to Infisical"
+	@echo "  make gateway-test    Unit-test avcd-agent-gateway"
+	@echo "  make gateway-test-e2e E2E-test avcd-agent-gateway isolation"
+	@echo "  make gateway-up      Build/start gateway via its compose file"
+	@echo "  make gateway-down    Stop gateway compose stack"
+	@echo "  make gateway-dev-down Stop the background gateway started by make dev-ui"
 
 ensure-local-env:
 	@test -f .env.local || (cp .env.local.example .env.local && echo "Created .env.local from .env.local.example")
@@ -89,9 +98,25 @@ cli: ensure-local-env
 	$(COMPOSE) $(COMPOSE_FILES) --profile cli run --rm cli
 
 dev-ui:
-	@SERVER_PORT="$(SERVER_PORT)" GOOSE_SERVER__SECRET_KEY="$(GOOSE_SERVER__SECRET_KEY)" ./scripts/prepare-dev-ui-env.sh
-	@curl -sf -H "X-Secret-Key: $(GOOSE_SERVER__SECRET_KEY)" "http://127.0.0.1:$(SERVER_PORT)/status" >/dev/null \
-		|| (echo "ACP backend is not running. Start it first: make dev" && exit 1)
+	@chmod +x scripts/prepare-dev-ui-env.sh scripts/ensure-gateway-dev.sh
+	@if [ "$(DEV_UI_LEGACY)" = "1" ]; then \
+		SERVER_PORT="$(SERVER_PORT)" GOOSE_SERVER__SECRET_KEY="$(GOOSE_SERVER__SECRET_KEY)" ./scripts/prepare-dev-ui-env.sh; \
+		curl -sf -H "X-Secret-Key: $(GOOSE_SERVER__SECRET_KEY)" "http://127.0.0.1:$(SERVER_PORT)/status" >/dev/null \
+			|| (echo "ACP backend is not running. Start it first: make dev" && exit 1); \
+	elif [ -n "$(ZITADEL_OAUTH_ENV)" ] || [ -f config/avcd-agent-oauth.env ] || [ -f ../avcd-zitadel/config/avcd-agent-oauth.env ]; then \
+		$(MAKE) build-desktop-binary; \
+		GATEWAY_PORT="$(GATEWAY_PORT)" ZITADEL_OAUTH_ENV="$(ZITADEL_OAUTH_ENV)" ./scripts/ensure-gateway-dev.sh; \
+		GATEWAY_PORT="$(GATEWAY_PORT)" ZITADEL_OAUTH_ENV="$(ZITADEL_OAUTH_ENV)" ./scripts/prepare-dev-ui-env.sh; \
+		curl -sf "http://127.0.0.1:$(GATEWAY_PORT)/healthz" >/dev/null \
+			|| (echo "Gateway health check failed on :$(GATEWAY_PORT)" && exit 1); \
+	else \
+		echo "Missing config/avcd-agent-oauth.env — the login screen cannot be shown."; \
+		echo "Bootstrap it after the Zitadel terraform apply:"; \
+		echo "  cd ../avcd-zitadel && make write-avcd-agent-oauth-env"; \
+		echo "  cp ../avcd-zitadel/config/avcd-agent-oauth.env config/avcd-agent-oauth.env"; \
+		echo "Or run without login: DEV_UI_LEGACY=1 make dev-ui"; \
+		exit 1; \
+	fi
 	@echo "Desktop UI: $$(./scripts/with-node.sh 24 bash -c 'echo node $$(node -v), pnpm $$(pnpm -v)')"
 	$(WITH_NODE) 24 bash -c 'cd ui/desktop && \
 		set -a && . ./.env && set +a && \
@@ -132,3 +157,30 @@ sync-i18n:
 check-ui:
 	$(WITH_NODE) 24 bash -c 'cd ui/desktop && pnpm install --frozen-lockfile && \
 		pnpm run lint:check && pnpm run test:run'
+
+gateway-install:
+	cd services/avcd-agent-gateway && npm ci
+
+gateway-test: gateway-install
+	cd services/avcd-agent-gateway && npm run test:unit
+
+gateway-test-e2e: gateway-install
+	cd services/avcd-agent-gateway && npm run test:e2e
+
+gateway-dev:
+	cd services/avcd-agent-gateway && AVCD_GATEWAY_MAIN=1 npm run dev
+
+gateway-dev-down:
+	@if [ -f .gateway-dev.pid ]; then \
+		pid=$$(cat .gateway-dev.pid); \
+		kill $$pid 2>/dev/null && echo "Stopped gateway (pid $$pid)" || echo "Gateway pid $$pid not running"; \
+		rm -f .gateway-dev.pid; \
+	else \
+		echo "No .gateway-dev.pid — no gateway started by make dev-ui"; \
+	fi
+
+gateway-up:
+	$(COMPOSE) -f services/avcd-agent-gateway/docker-compose.yml up -d --build
+
+gateway-down:
+	$(COMPOSE) -f services/avcd-agent-gateway/docker-compose.yml down

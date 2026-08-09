@@ -12,11 +12,13 @@ import {
   Notification,
   powerMonitor,
   powerSaveBlocker,
+  safeStorage,
   screen,
   session,
   shell,
   Tray,
 } from 'electron';
+import { AuthManager, isZitadelAuthEnabled } from './auth';
 import { pathToFileURL, format as formatUrl, URLSearchParams } from 'node:url';
 import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
@@ -925,6 +927,15 @@ const getExternalBackendFromEnv = (): ExternalBackend | null => {
     return null;
   }
 
+  // Zitadel auth mode: access token is supplied per-request; secret placeholder unused.
+  if (isZitadelAuthEnabled()) {
+    return {
+      source: 'env',
+      url,
+      secret: 'zitadel-access-token',
+    };
+  }
+
   const secret = process.env.GOOSE_SERVER__SECRET_KEY;
   if (!secret) {
     throw new Error(
@@ -996,6 +1007,26 @@ const windowMap = new Map<number, BrowserWindow>();
 const appWindows = new Map<string, BrowserWindow>();
 
 const gooseServeLeases = new GooseServeLeaseRegistry(log);
+
+let authManager: AuthManager | null = null;
+
+function getAuthManager(): AuthManager | null {
+  return authManager;
+}
+
+function ensureAuthManager(): AuthManager | null {
+  if (authManager) return authManager;
+  if (!isZitadelAuthEnabled()) return null;
+  authManager = new AuthManager({
+    userDataPath: app.getPath('userData'),
+    safeStorage,
+    openExternal: async (url: string) => {
+      await shell.openExternal(url);
+    },
+    fetchImpl: net.fetch as unknown as typeof fetch,
+  });
+  return authManager;
+}
 
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
 // Track pending initial messages per window
@@ -1104,9 +1135,31 @@ const createChat = async (
         );
       }
 
+      const auth = ensureAuthManager();
+      let probeSecret = serverSecret;
+      let authMode: 'secret' | 'bearer' = 'secret';
+      if (auth?.isEnabled()) {
+        const accessToken = await auth.getAccessToken();
+        if (!accessToken) {
+          externalCertificateTrust?.release();
+          dialog.showMessageBoxSync({
+            type: 'error',
+            title: 'Sign-in required',
+            message: 'Sign in with Avocado before connecting to the external backend.',
+            buttons: ['Quit'],
+            defaultId: 0,
+          });
+          app.quit();
+          return;
+        }
+        probeSecret = accessToken;
+        authMode = 'bearer';
+      }
+
       const externalBackendReady = await checkBackendStatus({
         baseUrl: externalBaseUrl,
-        serverSecret,
+        serverSecret: probeSecret,
+        authMode,
         fetch: net.fetch as unknown as typeof globalThis.fetch,
       });
       if (!externalBackendReady) {
@@ -1116,8 +1169,9 @@ const createChat = async (
           type: 'error',
           title: 'External Backend Unreachable',
           message: `Could not connect to external backend at ${externalBaseUrl}`,
-          detail:
-            'The external backend must be running and the configured secret must match GOOSE_SERVER__SECRET_KEY on the server.',
+          detail: authMode === 'bearer'
+            ? 'The gateway must be running and your Zitadel access token must include the agent-access role.'
+            : 'The external backend must be running and the configured secret must match GOOSE_SERVER__SECRET_KEY on the server.',
           buttons: canDisableExternalBackend
             ? ['Disable External Backend & Retry', 'Quit']
             : ['Quit'],
@@ -1141,8 +1195,8 @@ const createChat = async (
       const leaseCertificateTrust = externalCertificateTrust;
       externalCertificateTrust = null;
       gooseServeLease = gooseServeLeases.createExternal(
-        acpWebSocketUrlFromHttpBase(externalBaseUrl, serverSecret),
-        serverSecret,
+        acpWebSocketUrlFromHttpBase(externalBaseUrl, probeSecret),
+        probeSecret,
         leaseCertificateTrust ? async () => leaseCertificateTrust.release() : undefined
       );
     } catch (error) {
@@ -1999,10 +2053,14 @@ ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
   }
 });
 
-ipcMain.handle('get-secret-key', (event) => {
+ipcMain.handle('get-secret-key', async (event) => {
   const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
   if (!windowId) {
     return null;
+  }
+  const auth = getAuthManager();
+  if (auth?.isEnabled()) {
+    return (await auth.getAccessToken()) ?? null;
   }
   return gooseServeLeases.getSecretKey(windowId) ?? null;
 });
@@ -2012,7 +2070,59 @@ ipcMain.handle('get-acp-url', async (event) => {
   if (!windowId) {
     return null;
   }
-  return gooseServeLeases.getAcpUrl(windowId) ?? null;
+  const baseAcpUrl = gooseServeLeases.getAcpUrl(windowId);
+  if (!baseAcpUrl) {
+    return null;
+  }
+  const auth = getAuthManager();
+  if (auth?.isEnabled()) {
+    const token = await auth.getAccessToken();
+    if (!token) {
+      throw new Error('Session expired. Sign in again.');
+    }
+    const url = new URL(baseAcpUrl);
+    url.searchParams.set('token', token);
+    return url.toString();
+  }
+  return baseAcpUrl;
+});
+
+ipcMain.handle('auth-is-enabled', () => isZitadelAuthEnabled());
+
+ipcMain.handle('auth-get-status', () => {
+  const auth = ensureAuthManager();
+  if (!auth) return { state: 'disabled' as const };
+  return auth.getStatus();
+});
+
+ipcMain.handle('auth-login', async () => {
+  const auth = ensureAuthManager();
+  if (!auth) return { state: 'disabled' as const };
+  return auth.login();
+});
+
+ipcMain.handle('auth-logout', async () => {
+  const auth = ensureAuthManager();
+  if (!auth) return { state: 'disabled' as const };
+
+  // Stop the user's goose instance on the gateway before revoking tokens.
+  try {
+    const token = await auth.getAccessToken();
+    const settings = getSettings();
+    const backend = getActiveExternalBackend(settings);
+    if (token && backend) {
+      const base = normalizeAcpHttpBaseUrl(backend.url);
+      await (net.fetch as unknown as typeof fetch)(`${base}/auth/logout`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}` },
+      }).catch(() => undefined);
+    }
+  } catch {
+    // ignore gateway logout failures
+  }
+
+  await auth.logout();
+  return auth.getStatus();
 });
 
 // Handle menu bar icon visibility
