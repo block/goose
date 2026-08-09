@@ -369,6 +369,14 @@ pub async fn collect_stream(
         if let Some(msg) = msg_opt {
             final_message = Some(match final_message {
                 Some(mut prev) => {
+                    // The streaming decoders set this on the chunk carrying
+                    // `finish_reason` — the last one — so merging content alone
+                    // would discard it and downstream truncation handling
+                    // (compaction retry, UI notice) would never see it. OR it
+                    // across chunks, as conversation.rs does when merging
+                    // messages.
+                    prev.metadata.output_token_limit_reached |=
+                        msg.metadata.output_token_limit_reached;
                     for new_content in msg.content {
                         match (&mut prev.content.last_mut(), &new_content) {
                             // Coalesce consecutive text blocks
@@ -743,6 +751,31 @@ mod tests {
         let stream = create_test_stream(items);
         let (msg, _) = collect_stream(Box::pin(stream)).await.unwrap();
         assert_eq!(content_to_strings(&msg), expected);
+    }
+
+    /// The flag arrives on the final chunk (the one with `finish_reason`),
+    /// after earlier chunks have already seeded `final_message` — the exact
+    /// shape real streaming produces, where merging content alone loses it.
+    #[tokio::test]
+    async fn collect_stream_keeps_output_token_limit_flag_from_a_later_chunk() {
+        use futures::stream;
+        let first = Message::new(
+            rmcp::model::Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            vec![MessageContentBlock::text("partial ")],
+        );
+        let mut last = Message::new(
+            rmcp::model::Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            vec![MessageContentBlock::text("answer")],
+        );
+        last.metadata.output_token_limit_reached = true;
+
+        let stream = stream::iter(vec![Ok((Some(first), None)), Ok((Some(last), None))]);
+        let (msg, _) = collect_stream(Box::pin(stream)).await.unwrap();
+
+        assert!(msg.metadata.output_token_limit_reached);
+        assert_eq!(content_to_strings(&msg), vec!["partial answer"]);
     }
 
     #[tokio::test]
