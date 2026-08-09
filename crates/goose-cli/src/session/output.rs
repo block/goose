@@ -540,7 +540,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
             "subagent" => render_delegate_request(call, debug),
             "todo__write" => render_todo_request(call, debug),
             "load" => {}
-            _ => render_default_request(call, debug),
+            _ => render_default_request_with_label(call, acp_tool_label(req), debug),
         },
         Err(e) => print_markdown(&e.to_string(), theme),
     }
@@ -889,9 +889,35 @@ fn render_todo_request(call: &CallToolRequestParams, _debug: bool) {
 }
 
 fn render_default_request(call: &CallToolRequestParams, debug: bool) {
-    print_tool_header(call);
+    render_default_request_with_label(call, None, debug);
+}
+
+fn render_default_request_with_label(
+    call: &CallToolRequestParams,
+    label: Option<&str>,
+    debug: bool,
+) {
+    if let Some(label) = label {
+        print_tool_header_name(label);
+    } else {
+        print_tool_header(call);
+    }
     print_params(&call.arguments, 1, debug);
     println!();
+}
+
+fn acp_tool_label(req: &ToolRequest) -> Option<&str> {
+    let call = req.tool_call.as_ref().ok()?;
+    if call.name.as_ref() != "acp_tool" {
+        return None;
+    }
+
+    req.generated_title().or_else(|| {
+        req.tool_meta
+            .as_ref()
+            .and_then(|meta| meta.get("goose.acp.kind"))
+            .and_then(Value::as_str)
+    })
 }
 
 fn extension_display_name(name: &str) -> &str {
@@ -992,7 +1018,11 @@ fn render_subagent_tool_graph(subagent_id: &str, tool_graph: &[Value]) {
 // Helper functions
 
 fn print_tool_header(call: &CallToolRequestParams) {
-    let parts = ToolNameParts::from(call.name.as_ref());
+    print_tool_header_name(call.name.as_ref());
+}
+
+fn print_tool_header_name(name: &str) {
+    let parts = ToolNameParts::from(name);
     let tool_header = match parts.extension_name {
         Some(extension_name) => format!(
             "  {} {} {}",
@@ -1666,6 +1696,45 @@ mod tests {
             format_subagent_tool_call_message("subagent_42", "calendar__events__list"),
             "[subagent:42] events__list | calendar"
         );
+    }
+
+    #[test]
+    fn uses_saved_acp_title_for_cli_tool_labels() {
+        let request = ToolRequest {
+            id: "req_1".to_string(),
+            tool_call: Ok(CallToolRequestParams::new("acp_tool")),
+            metadata: None,
+            tool_meta: Some(json!({
+                "goose.toolSummary.title": "Read project configuration",
+                "goose.acp.kind": "read",
+            })),
+        };
+
+        assert_eq!(acp_tool_label(&request), Some("Read project configuration"));
+    }
+
+    #[test]
+    fn falls_back_to_acp_kind_for_cli_tool_labels() {
+        let request = ToolRequest {
+            id: "req_1".to_string(),
+            tool_call: Ok(CallToolRequestParams::new("acp_tool")),
+            metadata: None,
+            tool_meta: Some(json!({"goose.acp.kind": "execute"})),
+        };
+
+        assert_eq!(acp_tool_label(&request), Some("execute"));
+    }
+
+    #[test]
+    fn leaves_non_acp_cli_tool_labels_unchanged() {
+        let request = ToolRequest {
+            id: "req_1".to_string(),
+            tool_call: Ok(CallToolRequestParams::new("developer__shell")),
+            metadata: None,
+            tool_meta: Some(json!({"goose.toolSummary.title": "Run tests"})),
+        };
+
+        assert_eq!(acp_tool_label(&request), None);
     }
 
     #[test]
