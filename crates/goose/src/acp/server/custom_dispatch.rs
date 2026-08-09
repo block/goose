@@ -227,6 +227,14 @@ impl GooseAcpAgent {
         self.on_authenticate_config_extension(req).await
     }
 
+    #[custom_method(DeauthenticateConfigExtensionRequest)]
+    async fn dispatch_deauthenticate_config_extension(
+        &self,
+        req: DeauthenticateConfigExtensionRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_deauthenticate_config_extension(req).await
+    }
+
     #[custom_method(GetSessionExtensionsRequest)]
     async fn dispatch_get_session_extensions(
         &self,

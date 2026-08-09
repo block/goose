@@ -41,6 +41,7 @@ import type {
   CustomProviderReadResponse_unstable,
   CustomProviderUpdateRequest_unstable,
   CustomProviderUpdateResponse_unstable,
+  DeauthenticateConfigExtensionRequest_unstable,
   DecodeRecipeRequest_unstable,
   DecodeRecipeResponse_unstable,
   DefaultsClearRequest_unstable,
@@ -73,6 +74,7 @@ import type {
   ExportSessionResponse_unstable,
   ExportSourceRequest_unstable,
   ExportSourceResponse_unstable,
+  ExtensionAuthorizationRequiredNotification_unstable,
   GetAvailableExtensionsRequest_unstable,
   GetAvailableExtensionsResponse_unstable,
   GetConfigExtensionsRequest_unstable,
@@ -225,6 +227,7 @@ import {
   zEncodeRecipeResponse_unstable,
   zExportSessionResponse_unstable,
   zExportSourceResponse_unstable,
+  zExtensionAuthorizationRequiredNotification_unstable,
   zGetAvailableExtensionsResponse_unstable,
   zGetConfigExtensionsResponse_unstable,
   zGetPromptResponse_unstable,
@@ -526,6 +529,15 @@ export class GooseExtClient {
   ): Promise<void> {
     await this.conn.extMethod(
       "_goose/unstable/config/extensions/authenticate",
+      params,
+    );
+  }
+
+  async configExtensionsDeauthenticate_unstable(
+    params: DeauthenticateConfigExtensionRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod(
+      "_goose/unstable/config/extensions/deauthenticate",
       params,
     );
   }
@@ -1477,6 +1489,9 @@ export interface GooseExtNotifications {
   unstable_sessionUpdate?: (
     notification: GooseSessionNotification_unstable,
   ) => Promise<void>;
+  unstable_extensionsAuthorizationRequired?: (
+    notification: ExtensionAuthorizationRequiredNotification_unstable,
+  ) => Promise<void>;
 }
 
 export interface GooseExtAgentRequests {
@@ -1504,6 +1519,14 @@ export function installGooseExtNotificationDispatcher(
             params,
           ) as GooseSessionNotification_unstable;
           await callbacks.unstable_sessionUpdate?.(parsed);
+          return;
+        }
+        case "_goose/unstable/extensions/authorization-required": {
+          const parsed =
+            zExtensionAuthorizationRequiredNotification_unstable.parse(
+              params,
+            ) as ExtensionAuthorizationRequiredNotification_unstable;
+          await callbacks.unstable_extensionsAuthorizationRequired?.(parsed);
           return;
         }
         default:

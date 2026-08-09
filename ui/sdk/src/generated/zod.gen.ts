@@ -673,6 +673,10 @@ export const zGooseExtensionEntry = z.object({
     configKey: z.union([
         z.string(),
         z.null()
+    ]).optional(),
+    authenticated: z.union([
+        z.boolean(),
+        z.null()
     ]).optional()
 });
 
@@ -722,6 +726,13 @@ export const zSetConfigExtensionEnabledRequest_unstable = z.object({
 export const zAuthenticateConfigExtensionRequest_unstable = z.object({
     configKey: z.string(),
     force: z.boolean().optional().default(false)
+});
+
+/**
+ * Clear locally stored OAuth credentials for a streamable HTTP extension.
+ */
+export const zDeauthenticateConfigExtensionRequest_unstable = z.object({
+    configKey: z.string()
 });
 
 export const zGetSessionExtensionsRequest_unstable = z.object({
@@ -2817,6 +2828,19 @@ export const zGooseSessionNotification_unstable = z.object({
     update: zGooseSessionUpdate
 });
 
+/**
+ * Asks the client to open an OAuth authorization URL in the user's browser.
+ *
+ * The agent may run in a container or on a remote host, so it cannot reach the
+ * user's browser itself. Clients advertising `customNotifications` are expected
+ * to open the URL externally; the agent meanwhile blocks on its loopback
+ * callback until the user finishes or the flow times out.
+ */
+export const zExtensionAuthorizationRequiredNotification_unstable = z.object({
+    extensionName: z.string(),
+    authorizationUrl: z.string()
+});
+
 export const zRequestRecipeParams_unstable = z.object({
     sessionId: z.string(),
     parameters: z.array(zRecipeParameterDto)
@@ -2859,6 +2883,7 @@ export const zExtRequest = z.object({
             zRemoveConfigExtensionRequest_unstable,
             zSetConfigExtensionEnabledRequest_unstable,
             zAuthenticateConfigExtensionRequest_unstable,
+            zDeauthenticateConfigExtensionRequest_unstable,
             zGetSessionExtensionsRequest_unstable,
             zListProvidersRequest_unstable,
             zProviderSupportedModelsListRequest_unstable,
@@ -3053,7 +3078,10 @@ export const zExtResponse = z.union([
 export const zExtNotification = z.object({
     method: z.string(),
     params: z.union([
-        zGooseSessionNotification_unstable,
+        z.union([
+            zGooseSessionNotification_unstable,
+            zExtensionAuthorizationRequiredNotification_unstable
+        ]),
         z.union([
             z.record(z.unknown()),
             z.null()

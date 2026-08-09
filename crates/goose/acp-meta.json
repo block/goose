@@ -126,6 +126,11 @@
       "responseType": "EmptyResponse"
     },
     {
+      "method": "_goose/unstable/config/extensions/deauthenticate",
+      "requestType": "DeauthenticateConfigExtensionRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
       "method": "_goose/unstable/session/extensions/list",
       "requestType": "GetSessionExtensionsRequest_unstable",
       "responseType": "GetSessionExtensionsResponse_unstable"
@@ -575,6 +580,10 @@
     {
       "method": "_goose/unstable/session/update",
       "paramsType": "GooseSessionNotification_unstable"
+    },
+    {
+      "method": "_goose/unstable/extensions/authorization-required",
+      "paramsType": "ExtensionAuthorizationRequiredNotification_unstable"
     }
   ],
   "agentRequests": [

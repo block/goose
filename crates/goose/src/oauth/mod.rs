@@ -166,6 +166,24 @@ pub async fn authenticate_streamable_http_extension(
     Ok(())
 }
 
+/// Remove locally stored OAuth credentials for a streamable HTTP MCP extension.
+pub async fn deauthenticate_streamable_http_extension(name: &str) -> Result<(), anyhow::Error> {
+    GooseCredentialStore::new(name.to_string())
+        .clear()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to clear OAuth credentials for {}: {}", name, e))?;
+    Ok(())
+}
+
+pub async fn streamable_http_has_stored_credentials(name: &str) -> bool {
+    GooseCredentialStore::new(name.to_string())
+        .load()
+        .await
+        .ok()
+        .flatten()
+        .is_some()
+}
+
 pub async fn oauth_flow_stored_credentials_only(
     mcp_server_url: &String,
     name: &String,

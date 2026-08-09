@@ -196,6 +196,26 @@ mod tests {
     }
 
     #[test]
+    fn extension_authorization_required_serializes_to_expected_wire_shape() {
+        let notification = ExtensionAuthorizationRequiredNotification {
+            extension_name: "google-workspace".to_string(),
+            authorization_url: "https://example.test/authorize?client_id=abc".to_string(),
+        };
+
+        assert_eq!(
+            notification.method(),
+            "_goose/unstable/extensions/authorization-required"
+        );
+        assert_eq!(
+            serde_json::to_value(notification).unwrap(),
+            json!({
+                "extensionName": "google-workspace",
+                "authorizationUrl": "https://example.test/authorize?client_id=abc"
+            })
+        );
+    }
+
+    #[test]
     fn message_usage_serializes_to_expected_wire_shape() {
         let notification = GooseSessionNotification {
             session_id: "s1".to_string(),

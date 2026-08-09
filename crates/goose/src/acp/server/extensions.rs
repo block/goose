@@ -2,7 +2,10 @@ use super::*;
 use crate::agents::extension::Envs;
 use crate::agents::ExtensionConfig;
 use crate::config::extensions::ExtensionEntry;
-use crate::oauth::authenticate_streamable_http_extension;
+use crate::oauth::{
+    authenticate_streamable_http_extension, deauthenticate_streamable_http_extension,
+    set_authorization_url_handler, streamable_http_has_stored_credentials, AuthorizationPrompt,
+};
 use agent_client_protocol::schema::v1::{HttpHeader, McpServer, McpServerHttp, McpServerStdio};
 
 impl GooseAcpAgent {
@@ -69,15 +72,14 @@ impl GooseAcpAgent {
             })
             .collect::<Vec<_>>();
         let warnings = crate::config::extensions::get_warnings();
-        let extensions = extensions
-            .into_iter()
-            .map(config_entry_to_goose_entry)
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
+        let mut goose_extensions = Vec::new();
+        for ext in extensions {
+            if let Some(entry) = config_entry_to_goose_entry(ext).await? {
+                goose_extensions.push(entry);
+            }
+        }
         Ok(GetConfigExtensionsResponse {
-            extensions,
+            extensions: goose_extensions,
             warnings,
         })
     }
@@ -131,6 +133,15 @@ impl GooseAcpAgent {
                     .await
                     .internal_err()?;
             }
+        } else if let Some(entry) = crate::config::extensions::get_extension_entry(&req.config_key)
+        {
+            if let Err(e) = deauthenticate_config_extension_if_streamable_http(&entry.config).await
+            {
+                warn!(
+                    "[OAuth] Failed to clear credentials when disabling {}: {}",
+                    req.config_key, e
+                );
+            }
         }
 
         let updated =
@@ -154,6 +165,23 @@ impl GooseAcpAgent {
             })?;
 
         authenticate_config_extension_if_streamable_http(&entry.config, req.force)
+            .await
+            .internal_err()?;
+
+        Ok(EmptyResponse {})
+    }
+
+    pub(super) async fn on_deauthenticate_config_extension(
+        &self,
+        req: DeauthenticateConfigExtensionRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        let entry =
+            crate::config::extensions::get_extension_entry(&req.config_key).ok_or_else(|| {
+                agent_client_protocol::Error::invalid_params()
+                    .data(format!("Extension '{}' not found", req.config_key))
+            })?;
+
+        deauthenticate_config_extension_if_streamable_http(&entry.config)
             .await
             .internal_err()?;
 
@@ -199,6 +227,25 @@ async fn authenticate_config_extension_if_streamable_http(
     };
 
     authenticate_streamable_http_extension(uri, name, force).await
+}
+
+async fn deauthenticate_config_extension_if_streamable_http(
+    config: &ExtensionConfig,
+) -> Result<(), anyhow::Error> {
+    let ExtensionConfig::StreamableHttp { name, .. } = config else {
+        return Err(anyhow::anyhow!(
+            "OAuth sign-out is only supported for streamable HTTP extensions"
+        ));
+    };
+
+    deauthenticate_streamable_http_extension(name).await
+}
+
+async fn streamable_http_authenticated(config: &ExtensionConfig) -> Option<bool> {
+    let ExtensionConfig::StreamableHttp { name, .. } = config else {
+        return None;
+    };
+    Some(streamable_http_has_stored_credentials(name).await)
 }
 
 fn config_to_goose_extension(
@@ -411,10 +458,11 @@ pub(super) fn goose_extensions_to_configs(
         .collect()
 }
 
-fn config_entry_to_goose_entry(
+async fn config_entry_to_goose_entry(
     entry: ExtensionEntry,
 ) -> Result<Option<GooseExtensionEntry>, agent_client_protocol::Error> {
     let config_key = entry.config.key();
+    let authenticated = streamable_http_authenticated(&entry.config).await;
     let Some(extension) = config_to_goose_extension(&entry.config)? else {
         return Ok(None);
     };
@@ -422,6 +470,7 @@ fn config_entry_to_goose_entry(
         extension,
         enabled: entry.enabled,
         config_key: Some(config_key),
+        authenticated,
     }))
 }
 

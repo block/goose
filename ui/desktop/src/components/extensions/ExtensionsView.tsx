@@ -28,12 +28,12 @@ const i18n = defineMessages({
   description: {
     id: 'extensionsView.description',
     defaultMessage:
-      'Connect tools your team uses — Google Workspace, files, and more. Turn a connection on to sign in when prompted. {searchShortcut} to search.',
+      'Connect tools your team uses — Google Workspace, files, and more. Turn a connection on to sign in; turn it off to sign out. {searchShortcut} to search.',
   },
   defaultNote: {
     id: 'extensionsView.defaultNote',
     defaultMessage:
-      'Connections enabled here are used for new chats. Turn Google Workspace on to open Google sign-in in your browser.',
+      'Connections enabled here are used for new chats. Turn Google Workspace on to sign in in your browser; turn it off to sign out.',
   },
   addCustomExtension: {
     id: 'extensionsView.addCustomExtension',

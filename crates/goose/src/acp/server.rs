@@ -1502,6 +1502,8 @@ impl GooseAcpAgent {
             .use_login_shell_path
             .set(extract_use_login_shell_path(&args));
 
+        self.register_oauth_authorization_url_handler();
+
         let capabilities = AgentCapabilities::new()
             .load_session(true)
             .session_capabilities(

@@ -27,7 +27,6 @@ const i18n = defineMessages({
 interface ExtensionListProps {
   extensions: FixedExtensionEntry[];
   onToggle: (extension: FixedExtensionEntry) => Promise<boolean | void> | void;
-  onAuthenticate?: (extension: FixedExtensionEntry, force?: boolean) => Promise<void>;
   onConfigure?: (extension: FixedExtensionEntry) => void;
   isStatic?: boolean;
   disableConfiguration?: boolean;
@@ -37,7 +36,6 @@ interface ExtensionListProps {
 export default function ExtensionList({
   extensions,
   onToggle,
-  onAuthenticate,
   onConfigure,
   isStatic,
   disableConfiguration: _disableConfiguration,
@@ -85,7 +83,6 @@ export default function ExtensionList({
                 key={extension.name}
                 extension={extension}
                 onToggle={onToggle}
-                onAuthenticate={onAuthenticate}
                 onConfigure={onConfigure}
                 isStatic={isStatic}
               />
@@ -108,7 +105,6 @@ export default function ExtensionList({
                 key={extension.name}
                 extension={extension}
                 onToggle={onToggle}
-                onAuthenticate={onAuthenticate}
                 onConfigure={onConfigure}
                 isStatic={isStatic}
               />

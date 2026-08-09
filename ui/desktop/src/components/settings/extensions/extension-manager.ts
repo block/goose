@@ -1,5 +1,6 @@
 import type { ExtensionConfig } from '../../../types/extensions';
 import { toastService } from '../../../toasts';
+import { dismissExtensionAuthorizationToast } from '../../../acp/extensionAuthorization';
 import {
   trackExtensionAdded,
   trackExtensionEnabled,
@@ -51,6 +52,7 @@ export async function toggleExtensionDefault({
 }: ToggleExtensionDefaultProps) {
   const isBuiltin = isBuiltinExtension(extensionConfig);
   const enabled = toggle === 'toggleOn';
+  const isStreamableHttp = extensionConfig.type === 'streamable_http';
 
   try {
     await setEnabled(enabled);
@@ -61,7 +63,13 @@ export async function toggleExtensionDefault({
     }
     toastService.success({
       title: extensionConfig.name,
-      msg: enabled ? 'Extension enabled in defaults' : 'Extension removed from defaults',
+      msg: isStreamableHttp
+        ? enabled
+          ? 'Signed in and enabled for new chats'
+          : 'Signed out and disabled'
+        : enabled
+          ? 'Extension enabled in defaults'
+          : 'Extension removed from defaults',
     });
   } catch (error) {
     console.error('Failed to update extension default in config:', error);
@@ -72,9 +80,15 @@ export async function toggleExtensionDefault({
     }
     toastService.error({
       title: extensionConfig.name,
-      msg: 'Failed to update extension default',
+      msg: isStreamableHttp
+        ? enabled
+          ? 'Sign in failed — connection stays off'
+          : 'Failed to sign out'
+        : 'Failed to update extension default',
     });
     throw error;
+  } finally {
+    dismissExtensionAuthorizationToast(extensionConfig.name);
   }
 }
 

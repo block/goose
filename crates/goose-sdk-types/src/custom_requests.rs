@@ -398,6 +398,9 @@ pub struct GooseExtensionEntry {
     pub enabled: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config_key: Option<String>,
+    /// Present for `streamable_http` extensions: whether OAuth credentials exist locally.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authenticated: Option<bool>,
 }
 
 /// List Goose-owned extension definitions available to configure or enable.
@@ -474,6 +477,17 @@ pub struct AuthenticateConfigExtensionRequest {
     pub config_key: String,
     #[serde(default)]
     pub force: bool,
+}
+
+/// Clear locally stored OAuth credentials for a streamable HTTP extension.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/config/extensions/deauthenticate",
+    response = EmptyResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct DeauthenticateConfigExtensionRequest {
+    pub config_key: String,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
