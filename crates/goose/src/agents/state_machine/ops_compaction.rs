@@ -232,7 +232,18 @@ impl Operation for CompactionOperation {
                 return not_applicable();
             }
         } else {
-            if last_effective_role(messages)? != EffectiveRole::User {
+            // Tool output accumulates inside a turn, so a user-boundary-only
+            // check cannot see a turn that grows from under the threshold to
+            // past the context limit without ever returning to the user.
+            //
+            // `Tool` is the other safe point: it means the responses for the
+            // preceding requests have landed. `Assistant` stays excluded —
+            // compacting there would hide tool requests whose responses have
+            // not arrived yet, orphaning them.
+            if !matches!(
+                last_effective_role(messages)?,
+                EffectiveRole::User | EffectiveRole::Tool
+            ) {
                 return not_applicable();
             }
             match session.usage.total_tokens {

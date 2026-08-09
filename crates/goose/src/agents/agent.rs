@@ -3284,6 +3284,61 @@ impl Agent {
                 }
                 conversation.extend(messages_to_add);
 
+                // The turn-start check cannot see tool output, so a turn that
+                // begins under the threshold can run to the context limit
+                // without ever being re-examined. Re-check here, once the tool
+                // responses have been appended: compacting between a request
+                // and its response would orphan the request. Skipped when the
+                // turn is ending, since the next turn starts with a check, and
+                // after a recovery compaction, which already shrank the context.
+                if !exit_chat && !did_recovery_compact_this_iteration {
+                    let session_now = session_manager
+                        .get_session(&session_config.id, true)
+                        .await?;
+                    let over_threshold = check_if_compaction_needed(
+                        self.provider().await?.as_ref(),
+                        &conversation,
+                        None,
+                        &session_now,
+                    )
+                    .await?;
+
+                    if over_threshold {
+                        yield AgentEvent::Message(
+                            Message::assistant().with_system_notification(
+                                SystemNotificationType::ProgressMessage,
+                                COMPACTION_PROGRESS_TEXT,
+                            )
+                        );
+                        match compact_messages(
+                            self.provider().await?.as_ref(),
+                            &model_config,
+                            &session_config.id,
+                            &conversation,
+                            false,
+                        )
+                        .await
+                        {
+                            Ok(compaction) => {
+                                session_manager.replace_conversation(&session_config.id, &compaction.conversation).await?;
+                                self.update_session_metrics(
+                                    &session_config.id,
+                                    session_config.schedule_id.clone(),
+                                    &compaction.usage,
+                                    Some(compaction.retained_context_tokens),
+                                ).await?;
+                                conversation = compaction.conversation;
+                                yield AgentEvent::HistoryReplaced(conversation.clone());
+                            }
+                            Err(e) => {
+                                // The turn can continue: the request that follows may
+                                // still fit, and the reactive path catches it if not.
+                                error!("Mid-turn compaction failed: {}", e);
+                            }
+                        }
+                    }
+                }
+
                 if exit_chat && self.has_pending_steers(&session_config.id).await {
                     exit_chat = false;
                 }
