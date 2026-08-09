@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { HardDrive, Key, Plus } from 'lucide-react';
 import { defineMessages, useIntl } from '../../i18n';
 import { useFeatures } from '../../contexts/FeaturesContext';
+import { PROVIDER_MANAGEMENT_ENABLED } from '../../updates';
+import { getPredefinedModelsFromEnv } from '../settings/models/predefinedModelsUtils';
 
 const i18n = defineMessages({
   useLocalModel: {
@@ -72,7 +74,19 @@ export default function ProviderSelector({
     const load = async () => {
       try {
         const list = await acpListProviderDetails();
-        setProviderList(list);
+        if (PROVIDER_MANAGEMENT_ENABLED) {
+          setProviderList(list);
+          return;
+        }
+        const allowed = new Set(
+          getPredefinedModelsFromEnv().map((model) => model.provider).filter(Boolean)
+        );
+        allowed.add('openrouter');
+        const defaultProvider = window.appConfig?.get?.('GOOSE_DEFAULT_PROVIDER');
+        if (typeof defaultProvider === 'string' && defaultProvider) {
+          allowed.add(defaultProvider);
+        }
+        setProviderList(list.filter((provider) => allowed.has(provider.name)));
       } catch (err) {
         console.error('Failed to fetch providers:', err);
       }
@@ -190,13 +204,15 @@ export default function ProviderSelector({
             />
           </div>
 
-          <button
-            onClick={() => setShowCustomModal(true)}
-            className="flex items-center gap-1 text-sm text-text-muted hover:text-text-default transition-colors mb-6"
-          >
-            <Plus size={14} />
-            <span>{intl.formatMessage(i18n.addCustomProvider)}</span>
-          </button>
+          {PROVIDER_MANAGEMENT_ENABLED && (
+            <button
+              onClick={() => setShowCustomModal(true)}
+              className="flex items-center gap-1 text-sm text-text-muted hover:text-text-default transition-colors mb-6"
+            >
+              <Plus size={14} />
+              <span>{intl.formatMessage(i18n.addCustomProvider)}</span>
+            </button>
+          )}
 
           {selectedProvider && (
             <ProviderConfigForm
@@ -208,19 +224,21 @@ export default function ProviderSelector({
         </div>
       )}
 
-      <Dialog open={showCustomModal} onOpenChange={setShowCustomModal}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{intl.formatMessage(i18n.addCustomProviderTitle)}</DialogTitle>
-          </DialogHeader>
-          <CustomProviderForm
-            initialData={null}
-            isEditable={true}
-            onSubmit={handleCreateCustomProvider}
-            onCancel={() => setShowCustomModal(false)}
-          />
-        </DialogContent>
-      </Dialog>
+      {PROVIDER_MANAGEMENT_ENABLED && (
+        <Dialog open={showCustomModal} onOpenChange={setShowCustomModal}>
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{intl.formatMessage(i18n.addCustomProviderTitle)}</DialogTitle>
+            </DialogHeader>
+            <CustomProviderForm
+              initialData={null}
+              isEditable={true}
+              onSubmit={handleCreateCustomProvider}
+              onCancel={() => setShowCustomModal(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

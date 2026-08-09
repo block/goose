@@ -1,0 +1,99 @@
+{
+  "rung": "smoke",
+  "started_at": "2026-08-08T23:09:09Z",
+  "finished_at": "2026-08-08T23:09:41Z",
+  "results": {
+    "test-smoke": "FAIL exit=2: Avocado Work desktop bundle is missing (steps 1-3 PASS)",
+    "validate-openrouter": "PASS exit=0: catalog 13 models + compose + goose info",
+    "goose-run-pong": "PASS exit=0: replied 'pong' (openrouter deepseek/deepseek-v4-flash)",
+    "status-x5": "PASS exit=0: 5/5 concurrent HTTP 200 body=ok",
+    "vite": "PASS http=200 on localhost:5174 (IPv6-only listen; 127.0.0.1 fails)"
+  },
+  "pass": false,
+  "notes": {
+    "avocado_work_pid": 37350,
+    "avcd_agent_killed": true,
+    "acp_status": "ok with X-Secret-Key",
+    "goose_external_backend_env": "GOOSE_EXTERNAL_BACKEND=set; GOOSE_EXTERNAL_BACKEND_URL=set",
+    "telemetry": "GOOSE_TELEMETRY_ENABLED true in ~/.config/goose/config.yaml \u2014 may surface TelemetryConsentPrompt",
+    "vite_bind": "node 37347 listens [::1]:5174 only",
+    "ladder": "HTTP AVERAGE/STRESS/SPIKE/BREAKPOINT + CHAT sequential/concurrent complete; no kill switch"
+  },
+  "ladder": {
+    "rung": "ladder",
+    "finished_at": "2026-08-08T23:17:12Z",
+    "pass": true,
+    "slo_held": true,
+    "results": {
+      "AVERAGE": {
+        "count": 1200,
+        "success_rate": 1.0,
+        "p50_ms": 2.2768960043322295,
+        "p95_ms": 4.377245506475446,
+        "p99_ms": 7.186275921849301,
+        "error_rate": 0.0
+      },
+      "STRESS": {
+        "count": 6000,
+        "success_rate": 1.0,
+        "p50_ms": 1.7882500033010729,
+        "p95_ms": 3.947630948096048,
+        "p99_ms": 5.665117504249795,
+        "error_rate": 0.0
+      },
+      "SPIKE": {
+        "count": 8100,
+        "success_rate": 1.0,
+        "recovery_time_s_to_p99_lt_200ms": 1.9580365830042865,
+        "recovered": true,
+        "burst_p99_ms": 3.992120077891742,
+        "recovery_p99_ms": 10.448339900176505
+      },
+      "BREAKPOINT": {
+        "count": 114633,
+        "success_rate": 1.0,
+        "error_rate": 0.0,
+        "stop_reason": "ramp_complete",
+        "sustained_failure_arrival_rps": null,
+        "peak_rps_at_stop": 2000.0
+      },
+      "CHAT_STRESS": {
+        "sequential_count": 5,
+        "sequential_success_rate": 1.0,
+        "sequential_durations_s": [
+          3.5296767499967245,
+          3.035828041989589,
+          2.7578151660127332,
+          3.0213616249966435,
+          3.4729064580023987
+        ],
+        "sequential_mean_s": 3.163517608199618,
+        "sequential_max_s": 3.5296767499967245,
+        "sequential_p50_ms": 3035.828041989589,
+        "sequential_p95_ms": 3518.3226915978594,
+        "sequential_p99_ms": 3527.4059383169515,
+        "concurrent_count": 3,
+        "concurrent_success_rate": 1.0,
+        "concurrent_durations_s": [
+          3.4113085829885677,
+          3.5542865410097875,
+          3.438814959008596
+        ],
+        "concurrent_wall_s": 3.5553458749927813,
+        "oom_killed": false,
+        "container_state": {
+          "Status": "running",
+          "OOMKilled": false,
+          "ExitCode": 0,
+          "Running": true,
+          "Error": ""
+        },
+        "status_after_ok": true,
+        "slo_goose_p99_lt_15s_at_1_concurrent": true
+      }
+    },
+    "findings_count": 0,
+    "kill_switch": false
+  },
+  "ladder_pass": true
+}

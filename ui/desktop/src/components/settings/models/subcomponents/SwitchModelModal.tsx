@@ -29,6 +29,7 @@ import Model, {
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 import type { ProviderDetails, ProviderType, ThinkingEffort } from '../../../../types/providers';
 import { trackModelChanged } from '../../../../utils/analytics';
+import { PROVIDER_MANAGEMENT_ENABLED } from '../../../../updates';
 
 const i18n = defineMessages({
   thinkingEffortOff: {
@@ -487,10 +488,14 @@ export const SwitchModelModal = ({
             value: name,
             label: metadata.display_name,
           })),
-          {
-            value: 'configure_providers',
-            label: intl.formatMessage(i18n.useOtherProvider),
-          },
+          ...(PROVIDER_MANAGEMENT_ENABLED
+            ? [
+                {
+                  value: 'configure_providers',
+                  label: intl.formatMessage(i18n.useOtherProvider),
+                },
+              ]
+            : []),
         ]);
       } catch (error: unknown) {
         console.error('Failed to query providers:', error);
@@ -818,8 +823,10 @@ export const SwitchModelModal = ({
                     const option = newValue as { value: string; label: string } | null;
                     if (option?.value === 'configure_providers') {
                       // Navigate to ConfigureProviders view
-                      setView('ConfigureProviders');
-                      onClose(); // Close the current modal
+                      if (PROVIDER_MANAGEMENT_ENABLED) {
+                        setView('ConfigureProviders');
+                        onClose(); // Close the current modal
+                      }
                     } else {
                       setProvider(option?.value || null);
                       setModel('');

@@ -1,8 +1,8 @@
 [Desktop Entry]
-Name=AVCD Agent
-Exec=/usr/lib/avcd-agent/avcd-agent %U
-Icon=/usr/share/pixmaps/avcd-agent.png
+Name=Avocado Work
+Exec=/usr/lib/avocado-work/avocado-work %U
+Icon=/usr/share/pixmaps/avocado-work.png
 Terminal=false
 Type=Application
 Categories=Development;
-MimeType=x-scheme-handler/avcd-agent;
+MimeType=x-scheme-handler/avocado-work;

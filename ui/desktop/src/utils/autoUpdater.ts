@@ -295,7 +295,7 @@ export function registerUpdateIpcHandlers() {
           type: 'info',
           title: 'Update Ready to Install',
           message: `Version ${githubUpdateInfo.latestVersion} is ready to install.`,
-          detail: `The update has been downloaded and extracted. To complete the installation:\n\n1. Click "Open Folder" to view the new AVCD Agent.app\n2. Quit AVCD Agent (this app will close)\n3. Drag the new AVCD Agent.app to your Applications folder\n4. Replace the existing app when prompted\n\nThe update will be available the next time you launch AVCD Agent.`,
+          detail: `The update has been downloaded and extracted. To complete the installation:\n\n1. Click "Open Folder" to view the new Avocado Work.app\n2. Quit Avocado Work (this app will close)\n3. Drag the new Avocado Work.app to your Applications folder\n4. Replace the existing app when prompted\n\nThe update will be available the next time you launch Avocado Work.`,
           buttons: ['Open Folder & Quit', 'Open Folder Only', 'Cancel'],
           defaultId: 0,
           cancelId: 2,
@@ -675,7 +675,7 @@ export function setupAutoUpdater(tray?: Tray) {
     // Show native notification
     const notification = new Notification({
       title: 'Update Ready',
-      body: `Version ${info.version} will be installed when you quit AVCD Agent. Click to install now.`,
+      body: `Version ${info.version} will be installed when you quit Avocado Work. Click to install now.`,
     });
     notification.show();
 
@@ -766,7 +766,7 @@ function updateTrayIcon(hasUpdate: boolean) {
     } else {
       iconPath = path.join(process.resourcesPath, 'images', 'iconTemplateUpdate.png');
     }
-    trayRef.setToolTip('AVCD Agent - Update Available');
+    trayRef.setToolTip('Avocado Work - Update Available');
   } else {
     // Use normal icon
     if (isDev) {
@@ -774,7 +774,7 @@ function updateTrayIcon(hasUpdate: boolean) {
     } else {
       iconPath = path.join(process.resourcesPath, 'images', 'iconTemplate.png');
     }
-    trayRef.setToolTip('AVCD Agent');
+    trayRef.setToolTip('Avocado Work');
   }
 
   const icon = nativeImage.createFromPath(iconPath);

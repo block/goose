@@ -4,6 +4,7 @@ import { SwitchModelModal } from './SwitchModelModal';
 import type { View } from '../../../../utils/navigationUtils';
 import { shouldShowPredefinedModels } from '../predefinedModelsUtils';
 import { defineMessages, useIntl } from '../../../../i18n';
+import { PROVIDER_MANAGEMENT_ENABLED } from '../../../../updates';
 
 const i18n = defineMessages({
   switchModels: {
@@ -42,7 +43,7 @@ export default function ModelSettingsButtons({ setView }: ConfigureModelButtonsP
           onClose={() => setIsAddModelModalOpen(false)}
         />
       ) : null}
-      {!hasPredefinedModels && (
+      {PROVIDER_MANAGEMENT_ENABLED && !hasPredefinedModels && (
         <Button
           className="flex items-center gap-2 justify-center"
           variant="secondary"

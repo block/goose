@@ -1,3 +1,6 @@
+/**
+ * @vitest-environment jsdom
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
@@ -56,8 +59,8 @@ describe('useAutoSubmit', () => {
     expect(dispatchEventSpy).not.toHaveBeenCalled();
   });
 
-  it('keeps the initial message while blocked and submits it once unblocked', () => {
-    const handleSubmit = vi.fn();
+  it('keeps the initial message while blocked and submits it once unblocked', async () => {
+    const handleSubmit = vi.fn().mockResolvedValue(true);
     const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent');
 
     const wrapper = ({ children }: PropsWithChildren) => (
@@ -86,8 +89,50 @@ describe('useAutoSubmit', () => {
 
     rerender({ canAutoSubmit: true });
 
-    expect(handleSubmit).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => {
+      expect(handleSubmit).toHaveBeenCalledTimes(1);
+    });
     expect(handleSubmit).toHaveBeenCalledWith(initialMessage);
+    expect(dispatchEventSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries Hub initial message when handleSubmit skips (returns false)', async () => {
+    const handleSubmit = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent');
+
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <MemoryRouter initialEntries={['/pair?resumeSessionId=sess-1']}>{children}</MemoryRouter>
+    );
+
+    const { rerender } = renderHook(
+      ({ chatState }) =>
+        useAutoSubmit({
+          sessionId: 'sess-1',
+          session: makeSession(),
+          messages: [],
+          chatState,
+          initialMessage,
+          canAutoSubmit: true,
+          handleSubmit,
+        }),
+      {
+        initialProps: { chatState: ChatState.Idle },
+        wrapper,
+      }
+    );
+
+    await vi.waitFor(() => {
+      expect(handleSubmit).toHaveBeenCalledTimes(1);
+    });
+    expect(dispatchEventSpy).not.toHaveBeenCalled();
+
+    // Simulate recovery: leave Idle then return so the effect re-runs
+    rerender({ chatState: ChatState.LoadingConversation });
+    rerender({ chatState: ChatState.Idle });
+
+    await vi.waitFor(() => {
+      expect(handleSubmit).toHaveBeenCalledTimes(2);
+    });
     expect(dispatchEventSpy).toHaveBeenCalledTimes(1);
   });
 });

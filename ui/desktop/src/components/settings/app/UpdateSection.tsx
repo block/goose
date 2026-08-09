@@ -12,7 +12,7 @@ const i18n = defineMessages({
   disableAutoDownloadDesc: {
     id: 'updateSection.disableAutoDownloadDesc',
     defaultMessage:
-      'When enabled, AVCD Agent will notify you of new versions but will not download them automatically.',
+      'When enabled, Avocado Work will notify you of new versions but will not download them automatically.',
   },
   autoDownloadDisabledByEnv: {
     id: 'updateSection.autoDownloadDisabledByEnv',
@@ -82,7 +82,7 @@ const i18n = defineMessages({
   autoDownload: {
     id: 'updateSection.autoDownload',
     defaultMessage:
-      'AVCD Agent will download the update in the background and install it the next time you quit or restart.',
+      'Avocado Work will download the update in the background and install it the next time you quit or restart.',
   },
   manualInstallNote: {
     id: 'updateSection.manualInstallNote',
@@ -103,7 +103,7 @@ const i18n = defineMessages({
   readyInstallAuto: {
     id: 'updateSection.readyInstallAuto',
     defaultMessage:
-      "Update is ready. Restart AVCD Agent to finish installing it, or quit when you're done.",
+      "Update is ready. Restart Avocado Work to finish installing it, or quit when you're done.",
   },
   installNowHint: {
     id: 'updateSection.installNowHint',

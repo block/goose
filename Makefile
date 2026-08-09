@@ -1,6 +1,7 @@
 .PHONY: help dev dev-down dev-logs \
 	infisical-check pull-secrets upload-secrets \
-	cli dev-ui build-desktop-binary package-ui test-smoke check-core clippy sync-i18n check-ui
+	ensure-local-env cli dev-ui build-desktop-binary package-ui test-smoke validate-openrouter \
+	check-core clippy sync-i18n check-ui
 
 .DEFAULT_GOAL := help
 
@@ -18,14 +19,15 @@ INFISICAL_PULL_FILE ?= .env.local
 INFISICAL_CREDENTIALS_FILE ?= ../infisical/.env
 
 help:
-	@echo "AVCD Agent development"
+	@echo "Avocado Work development"
 	@echo "  make dev             Build and start the local ACP backend"
 	@echo "  make dev-down        Stop the local development stack"
 	@echo "  make dev-logs        Follow backend logs"
-	@echo "  make cli             Open the AVCD Agent CLI in Docker"
-	@echo "  make dev-ui          Run Electron on the host against Docker"
+	@echo "  make cli             Open the Avocado Work CLI in Docker"
+	@echo "  make dev-ui          Run Electron on the host against Docker (Node 24+)"
 	@echo "  make package-ui      Build a local desktop package"
 	@echo "  make test-smoke      Verify backend, CLI, branding, and package"
+	@echo "  make validate-openrouter  Verify the AVCD OpenRouter provider preset"
 	@echo "  make check-core      Type-check the Rust core and CLI"
 	@echo "  make clippy          Run strict Rust workspace linting"
 	@echo "  make sync-i18n       Refresh desktop English messages"
@@ -33,14 +35,17 @@ help:
 	@echo "  make pull-secrets    Export Infisical dev secrets to .env.local"
 	@echo "  make upload-secrets  Upload .env.local to Infisical"
 
-dev:
+ensure-local-env:
+	@test -f .env.local || (cp .env.local.example .env.local && echo "Created .env.local from .env.local.example")
+
+dev: ensure-local-env
 	SERVER_PORT="$(SERVER_PORT)" GOOSE_SERVER__SECRET_KEY="$(GOOSE_SERVER__SECRET_KEY)" \
 		$(COMPOSE) $(COMPOSE_FILES) up -d --build
 
-dev-down:
+dev-down: ensure-local-env
 	$(COMPOSE) $(COMPOSE_FILES) down
 
-dev-logs:
+dev-logs: ensure-local-env
 	$(COMPOSE) $(COMPOSE_FILES) logs -f server
 
 # -----------------------------------------------------------------------------
@@ -78,14 +83,20 @@ upload-secrets: infisical-check
 # -----------------------------------------------------------------------------
 # Repository-specific developer targets
 
-cli:
+WITH_NODE := ./scripts/with-node.sh
+
+cli: ensure-local-env
 	$(COMPOSE) $(COMPOSE_FILES) --profile cli run --rm cli
 
 dev-ui:
-	cd ui/desktop && \
-		GOOSE_EXTERNAL_BACKEND=true \
-		GOOSE_SERVER__SECRET_KEY="$(GOOSE_SERVER__SECRET_KEY)" \
-		pnpm install --frozen-lockfile && pnpm run start-gui
+	@SERVER_PORT="$(SERVER_PORT)" GOOSE_SERVER__SECRET_KEY="$(GOOSE_SERVER__SECRET_KEY)" ./scripts/prepare-dev-ui-env.sh
+	@curl -sf -H "X-Secret-Key: $(GOOSE_SERVER__SECRET_KEY)" "http://127.0.0.1:$(SERVER_PORT)/status" >/dev/null \
+		|| (echo "ACP backend is not running. Start it first: make dev" && exit 1)
+	@echo "Desktop UI: $$(./scripts/with-node.sh 24 bash -c 'echo node $$(node -v), pnpm $$(pnpm -v)')"
+	$(WITH_NODE) 24 bash -c 'cd ui/desktop && \
+		set -a && . ./.env && set +a && \
+		DOTENV_CONFIG_PATH="$$(pwd)/.env" \
+		pnpm install --frozen-lockfile && pnpm run start-gui'
 
 build-desktop-binary:
 	cargo build -p goose-cli --bin goose --no-default-features \
@@ -93,17 +104,20 @@ build-desktop-binary:
 	cp target/debug/goose ui/desktop/src/bin/goose
 
 package-ui: build-desktop-binary
-	cd ui/desktop && pnpm install --frozen-lockfile && pnpm run package && \
-		(test -d "out/AVCD Agent-darwin-arm64/AVCD Agent.app" || \
-			pnpm exec electron-packager . "AVCD Agent" \
+	$(WITH_NODE) 22 bash -c 'cd ui/desktop && pnpm install --frozen-lockfile && pnpm run package && \
+		(test -d "out/Avocado Work-darwin-arm64/Avocado Work.app" || \
+			pnpm exec electron-packager . "Avocado Work" \
 				--platform=darwin --arch=arm64 --out=out --overwrite --asar \
-				--executable-name=avcd-agent --icon=src/images/icon.icns \
+				--executable-name=avocado-work --icon=src/images/icon.icns \
 				--extra-resource=src/bin --extra-resource=src/images \
 				--extra-resource=src/app-update.yml) && \
-		test -d "out/AVCD Agent-darwin-arm64/AVCD Agent.app"
+		test -d "out/Avocado Work-darwin-arm64/Avocado Work.app"'
 
 test-smoke:
 	SERVER_PORT="$(SERVER_PORT)" ./scripts/smoke-test.sh
+
+validate-openrouter: ensure-local-env
+	./scripts/validate-openrouter-preset.sh all
 
 check-core:
 	cargo check -p goose -p goose-cli --no-default-features \
@@ -116,5 +130,5 @@ sync-i18n:
 	cd ui/desktop && pnpm install --frozen-lockfile && pnpm run i18n:extract
 
 check-ui:
-	cd ui/desktop && pnpm install --frozen-lockfile && \
-		pnpm run lint:check && pnpm run test:run
+	$(WITH_NODE) 24 bash -c 'cd ui/desktop && pnpm install --frozen-lockfile && \
+		pnpm run lint:check && pnpm run test:run'

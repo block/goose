@@ -4,7 +4,7 @@ import { useConfig } from '../../ConfigContext';
 import { ConversationLimitsDropdown } from './ConversationLimitsDropdown';
 
 export const ModeSection = () => {
-  const [currentMode, setCurrentMode] = useState('auto');
+  const [currentMode, setCurrentMode] = useState('smart_approve');
   const [maxTurns, setMaxTurns] = useState<number>(1000);
   const { config, read, upsert } = useConfig();
 

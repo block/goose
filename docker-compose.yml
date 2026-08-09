@@ -13,11 +13,22 @@ services:
       - 0.0.0.0
       - --port
       - "3000"
+    env_file:
+      - .env.local
     environment:
+      GOOSE_DISABLE_KEYRING: "true"
+      GOOSE_MODEL: ${GOOSE_MODEL:-deepseek/deepseek-v4-flash}
+      GOOSE_PROVIDER: ${GOOSE_PROVIDER:-openrouter}
       GOOSE_SERVER__SECRET_KEY: ${GOOSE_SERVER__SECRET_KEY:-avcd-agent-local-development-key}
       GOOSE_TELEMETRY_OFF: "true"
+      OPENROUTER_HOST: ${OPENROUTER_HOST:-https://openrouter.ai}
+      # Host-browser OAuth for streamable_http extensions (Google Workspace).
+      GOOSE_OAUTH_CALLBACK_PORT: "18787"
+      GOOSE_OAUTH_CALLBACK_BIND: "0.0.0.0"
+      GOOSE_MODE: ${GOOSE_MODE:-smart_approve}
     ports:
       - "${SERVER_PORT:-3000}:3000"
+      - "18787:18787"
     volumes:
       - avcd-agent-config:/home/goose/.config/goose
       - ./workspace:/workspace
@@ -30,9 +41,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
+    env_file:
+      - .env.local
     environment:
+      GOOSE_DISABLE_KEYRING: "true"
+      GOOSE_MODEL: ${GOOSE_MODEL:-deepseek/deepseek-v4-flash}
+      GOOSE_PROVIDER: ${GOOSE_PROVIDER:-openrouter}
       GOOSE_SERVER__SECRET_KEY: ${GOOSE_SERVER__SECRET_KEY:-avcd-agent-local-development-key}
       GOOSE_TELEMETRY_OFF: "true"
+      OPENROUTER_HOST: ${OPENROUTER_HOST:-https://openrouter.ai}
     stdin_open: true
     tty: true
     volumes:

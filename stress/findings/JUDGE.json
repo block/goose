@@ -1,0 +1,137 @@
+{
+  "confirmed": [
+    {
+      "id": "SMOKE-001",
+      "severity": "P3",
+      "title": "Avocado Work.app desktop bundle missing for make test-smoke",
+      "repro": "ls ui/desktop/out \u2014 directory absent; scripts/smoke-test.sh find Avocado Work.app fails",
+      "evidence_summary": "ui/desktop/out does not exist; smoke-findings.md and stress-status.json record test-smoke FAIL exit=2. SCOPE lists packaging installers out of scope, but make test-smoke still fails the smoke rung."
+    },
+    {
+      "id": "UI-006",
+      "severity": "P3",
+      "title": "Concurrent Goose 2.app process with separate userData",
+      "repro": "pgrep -fl 'Goose 2'; observe PID 10439 with userData Application Support/Goose alongside Avocado Work",
+      "evidence_summary": "Reconfirmed during judge: Goose 2.app still running (translocated path). Risk of typing into wrong window / confusion during UI stress."
+    },
+    {
+      "id": "UI-008",
+      "severity": "P3",
+      "title": "Vite renderer binds IPv6 localhost only",
+      "repro": "curl http://localhost:5173/ \u2192 200; curl http://127.0.0.1:5173/ \u2192 connection fail; lsof shows [::1]:5173",
+      "evidence_summary": "Reconfirmed after relaunch on port 5173. Electron uses localhost so OK; harness/tools using 127.0.0.1 falsely report UI down."
+    }
+  ],
+  "flaky": [],
+  "not_reproducible": [
+    {
+      "id": "UI-004",
+      "severity": "P2",
+      "title": "OnboardingGuard hiding chat-input as active typing failure",
+      "reason": "Code path exists, but after arena restore Electron logged React ready; no Electron DOM/screenshot evidence that welcome/server-error gate is currently blocking chat. Assistive/screenshot harness denied."
+    },
+    {
+      "id": "UI-005",
+      "severity": "P2",
+      "title": "Missing local goose serve in main.log as defect",
+      "reason": "make dev-ui intentionally uses GOOSE_EXTERNAL_BACKEND against docker make-dev ACP; absence of Starting goose serve is expected for this arena, not a product regression."
+    }
+  ],
+  "harness_bug": [
+    {
+      "id": "UI-001",
+      "severity": "P2",
+      "title": "Browser Vite probe blank #root / missing chat-input",
+      "reason": "Playwright Chromium lacks Electron preload (window.electron). Electron session shows React ready \u2014 not blank-root product failure."
+    },
+    {
+      "id": "UI-002",
+      "severity": "P2",
+      "title": "Missing window.electron crashes SPA in browser probe",
+      "reason": "Same harness gap: ExtensionInstallModal/App assume preload. Valid Electron-only assumption for shipped app; browser probe is not a supported surface."
+    },
+    {
+      "id": "UI-007",
+      "severity": "P2",
+      "title": "Avocado Work/Vite died mid-investigation",
+      "reason": "stress-status notes avcd_agent_killed=true (intentional kill of old tree). Leftover default_app Electron was environmental/harness cleanup side effect; restored via make dev-ui."
+    },
+    {
+      "id": "UI-HARNESS-001",
+      "severity": "P3",
+      "title": "AppleScript keystroke blocked (assistive access)",
+      "reason": "macOS privacy; not a product bug."
+    },
+    {
+      "id": "UI-HARNESS-002",
+      "severity": "P3",
+      "title": "screencapture of Electron window denied",
+      "reason": "Screen Recording permission; not a product bug."
+    },
+    {
+      "id": "UI-HARNESS-003",
+      "severity": "P3",
+      "title": "Playwright browser revision mismatch",
+      "reason": "Mitigated via channel:chrome; harness setup issue."
+    }
+  ],
+  "dismissed": [
+    {
+      "id": "ISO-001",
+      "severity": "P3",
+      "title": "GET /status returns 200 without X-Secret-Key",
+      "rationale": "Intentional unauthenticated health. Reproduced (200 ok) but product+unit test require this. /acp without secret \u2192 401 (control).",
+      "repro": "curl -sS -D- http://127.0.0.1:3000/status \u2192 200 ok",
+      "evidence_summary": "Judge re-exec 200 ok; create_router mounts /status on aux_routes without check_acp_token; health_endpoints_skip_token_check."
+    },
+    {
+      "id": "ISO-002",
+      "severity": "P3",
+      "title": "GET /status 200 with wrong X-Secret-Key",
+      "rationale": "Same intentional health behavior; secret ignored on /status.",
+      "repro": "curl -H 'X-Secret-Key: wrong-secret-value' http://127.0.0.1:3000/status \u2192 200 ok",
+      "evidence_summary": "Judge re-exec 200 ok; ACP with wrong secret still 401."
+    },
+    {
+      "id": "ISO-003",
+      "severity": "P3",
+      "title": "GET /status 200 with empty X-Secret-Key",
+      "rationale": "Intentional; empty header irrelevant for public health route.",
+      "repro": "curl -H 'X-Secret-Key:' http://127.0.0.1:3000/status \u2192 200 ok",
+      "evidence_summary": "Judge re-exec 200 ok."
+    },
+    {
+      "id": "ISO-004",
+      "severity": "P3",
+      "title": "GET /status 200 with 10KB X-Secret-Key",
+      "rationale": "Intentional; oversized invalid secret does not change public /status. No crash observed.",
+      "repro": "X-Secret-Key of 10240 A's \u2192 200 ok",
+      "evidence_summary": "Judge re-exec 200 ok; subsequent /status healthy."
+    },
+    {
+      "id": "UI-003",
+      "severity": "P3",
+      "title": "TelemetryConsentPrompt blocking typing",
+      "rationale": "Config evidence shows GOOSE_TELEMETRY_ENABLED already true and GOOSE_PROVIDER absent \u2014 consent dialog path should not open. Not a typing gate.",
+      "repro": "Read TelemetryConsentPrompt conditions + ~/.config/goose/config.yaml",
+      "evidence_summary": "Negative finding / config rules out telemetry as blocker."
+    }
+  ],
+  "judge_notes": [
+    "/status and /health are intentionally unauthenticated health/liveness endpoints. Wired on aux_routes without auth middleware in crates/goose/src/acp/transport/mod.rs; unit test health_endpoints_skip_token_check asserts /health and /status return 200 without token. Auth applies to /acp (control: 401 without secret). SCOPE isolation oracle that required secrets on /status conflicts with product design \u2014 ISO-001..004 dismissed.",
+    "Browser blank-#root (UI-001/UI-002) is harness: Electron preload required. After relaunch, main.log shows Opening URL http://localhost:5173 and React ready (twice).",
+    "Vite this session binds [::1]:5173 (not 5174); localhost\u2192200, 127.0.0.1\u2192fail."
+  ],
+  "arena": {
+    "acp_status_with_secret": 200,
+    "acp_without_secret": 401,
+    "vite_port": 5173,
+    "vite_localhost_http": 200,
+    "vite_127_0_0_1_http": 0,
+    "electron_userData": "Avocado Work",
+    "electron_pid": 46137,
+    "react_ready": true,
+    "desktop_out_missing": true
+  },
+  "judge_pass_at": "2026-08-08T23:19:58Z"
+}

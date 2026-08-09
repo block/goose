@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-  <rect width="1024" height="1024" rx="220" fill="#183d27"/>
-  <path d="M512 150c-108 0-176 72-236 208l-112 258c-50 116 23 258 155 258h104l89-260 89 260h104c132 0 205-142 155-258L748 358C688 222 620 150 512 150Z" fill="#fff5cf"/>
-  <path d="M512 400c-79 0-143 89-143 199 0 57 17 108 45 145l98-285 98 285c28-37 45-88 45-145 0-110-64-199-143-199Z" fill="#7a3f16"/>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Avocado Work">
+  <!-- Rounded app tile + avocado.tech landing mark (logo.svg), brand #5c7230 -->
+  <rect width="1024" height="1024" rx="220" fill="#e8e3d4"/>
+  <g transform="translate(192 128) scale(22.857)">
+    <path fill="#5c7230" fill-rule="evenodd"
+      d="M14 0C6.6 0 0.6 5.8 0.15 13.2C-0.3 22.6 5.6 32 14 32C22.4 32 28.3 22.6 27.85 13.2C27.4 5.8 21.4 0 14 0ZM14 22.4a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Z"/>
+  </g>
 </svg>

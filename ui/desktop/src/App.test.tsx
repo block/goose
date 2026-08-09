@@ -142,6 +142,7 @@ vi.mock('react-router', () => ({
   HashRouter: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   Routes: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   Route: ({ element }: { element: React.ReactNode }) => element,
+  Navigate: () => null,
   useNavigate: () => mockNavigate,
   useLocation: () => ({ state: null, pathname: '/' }),
   useSearchParams: () => [mockSearchParams, mockSetSearchParams],
@@ -262,7 +263,7 @@ describe('App Component - Brand New State', () => {
       expect(mockElectron.reactReady).toHaveBeenCalled();
     });
 
-    expect(screen.getByText(/^Welcome to goose/)).toBeInTheDocument();
+    expect(screen.getByText(/^Welcome to Avocado Work/)).toBeInTheDocument();
   });
 
   it('should not redirect when provider is configured', async () => {
@@ -305,6 +306,43 @@ describe('App Component - Brand New State', () => {
     newChatHandler?.({} as any);
 
     expect(mockNavigate).toHaveBeenCalledWith('/');
+  });
+
+  it('does not purge a brand-new empty Hub session from the startup list', async () => {
+    const sessionsMod = await import('./acp/sessions');
+    const now = Date.now();
+    vi.mocked(sessionsMod.acpListSessions).mockResolvedValueOnce({
+      sessions: [
+        {
+          id: 'fresh-hub',
+          name: '',
+          workingDir: '/tmp',
+          updatedAt: new Date(now).toISOString(),
+          messageCount: 0,
+          createdAt: new Date(now).toISOString(),
+          userSetName: false,
+          hasRecipe: false,
+        },
+        {
+          id: 'stale-phantom',
+          name: '',
+          workingDir: '/tmp',
+          updatedAt: new Date(now - 120_000).toISOString(),
+          messageCount: 0,
+          createdAt: new Date(now - 120_000).toISOString(),
+          userSetName: false,
+          hasRecipe: false,
+        },
+      ],
+      nextCursor: null,
+    } as any);
+
+    render(<AppInner />, { wrapper: AppInnerTestWrapper });
+
+    await waitFor(() => {
+      expect(sessionsMod.acpDeleteSession).toHaveBeenCalledWith('stale-phantom');
+    });
+    expect(sessionsMod.acpDeleteSession).not.toHaveBeenCalledWith('fresh-hub');
   });
 
   it('should reconnect ACP when the main process emits system-resume', async () => {

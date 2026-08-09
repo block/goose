@@ -20,12 +20,12 @@ const i18n = defineMessages({
   dialogDescription: {
     id: 'goosehintsModal.dialogDescription',
     defaultMessage:
-      'Provide additional context about your project to improve communication with AVCD Agent',
+      'Provide additional context about your project to improve communication with Avocado Work',
   },
   helpText1: {
     id: 'goosehintsModal.helpText1',
     defaultMessage:
-      '.goosehints is a text file used to provide additional context about your project and improve communication with AVCD Agent.',
+      '.goosehints is a text file used to provide additional context about your project and improve communication with Avocado Work.',
   },
   helpText2: {
     id: 'goosehintsModal.helpText2',

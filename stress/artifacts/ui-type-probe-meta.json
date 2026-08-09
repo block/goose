@@ -1,0 +1,233 @@
+{
+  "ts": "2026-08-08T23:11:27.445Z",
+  "dump": {
+    "title": "Avocado Work",
+    "rootExists": true,
+    "rootHTML": "",
+    "rootChildCount": 0,
+    "bodyText": "",
+    "chatInput": false,
+    "dialogs": 0,
+    "textareas": 0,
+    "buttons": [],
+    "h1s": [],
+    "hasElectron": false,
+    "hasAppConfig": false
+  },
+  "pageErrors": [
+    "Cannot read properties of undefined (reading 'logInfo')",
+    "Cannot read properties of undefined (reading 'logInfo')",
+    "Cannot read properties of undefined (reading 'logInfo')",
+    "Cannot read properties of undefined (reading 'logInfo')",
+    "Cannot read properties of undefined (reading 'getAcpUrl')",
+    "Cannot read properties of undefined (reading 'logInfo')",
+    "Cannot read properties of undefined (reading 'logInfo')",
+    "Cannot read properties of undefined (reading 'getAcpUrl')"
+  ],
+  "consoleErrors": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Error sending reactReady: TypeError: Cannot read properties of undefined (reading 'reactReady')\n    at http://localhost:5174/src/App.tsx:349:23\n    at Object.react_stack_bottom_frame (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:18567:20)\n    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:997:72)\n    at commitHookEffectListMount (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9411:163)\n    at commitHookPassiveMountEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9465:60)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11273:13)\n    at recursivelyTraverseReconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11240:11)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11317:13)\n    at recursivelyTraverseReconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11240:11)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11317:13)"
+    },
+    {
+      "type": "error",
+      "text": "Error sending reactReady: TypeError: Cannot read properties of undefined (reading 'reactReady')\n    at http://localhost:5174/src/App.tsx:349:23\n    at Object.react_stack_bottom_frame (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:18567:20)\n    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:997:72)\n    at commitHookEffectListMount (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9411:163)\n    at commitHookPassiveMountEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9465:60)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11273:13)\n    at recursivelyTraverseReconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11240:11)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11317:13)\n    at recursivelyTraverseReconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11240:11)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11317:13)"
+    },
+    {
+      "type": "error",
+      "text": "%o\n\n%s\n\n%s\n TypeError: Cannot read properties of undefined (reading 'on')\n    at http://localhost:5174/src/components/ExtensionInstallModal.tsx:260:21\n    at Object.react_stack_bottom_frame (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:18567:20)\n    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:997:72)\n    at commitHookEffectListMount (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9411:163)\n    at commitHookPassiveMountEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9465:60)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11273:13)\n    at recursivelyTraverseReconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11240:11)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11265:13)\n    at recursivelyTraverseReconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11240:11)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11317:13) The above error occurred in the <ExtensionInstallModal> component. React will try to recreate this component tree from scratch using the error boundary you provided, ErrorBoundary."
+    },
+    {
+      "type": "error",
+      "text": "Error checking provider (attempt 1/4): TypeError: Cannot read properties of undefined (reading 'getAcpUrl')\n    at openConnection (http://localhost:5174/src/acp/acpConnection.ts:104:39)\n    at getConnection (http://localhost:5174/src/acp/acpConnection.ts:93:25)\n    at getAcpClient (http://localhost:5174/src/acp/acpConnection.ts:26:17)\n    at acpReadDefaults (http://localhost:5174/src/acp/providers.ts:122:24)\n    at checkProvider (http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:63:48)\n    at http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:93:5\n    at Object.react_stack_bottom_frame (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:18567:20)\n    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:997:72)\n    at commitHookEffectListMount (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9411:163)\n    at commitHookPassiveMountEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9465:60)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to read default model or provider"
+    },
+    {
+      "type": "error",
+      "text": "Error checking provider (attempt 1/4): TypeError: Cannot read properties of undefined (reading 'getAcpUrl')\n    at openConnection (http://localhost:5174/src/acp/acpConnection.ts:104:39)\n    at getConnection (http://localhost:5174/src/acp/acpConnection.ts:93:25)\n    at getAcpClient (http://localhost:5174/src/acp/acpConnection.ts:26:17)\n    at acpReadDefaults (http://localhost:5174/src/acp/providers.ts:122:24)\n    at checkProvider (http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:63:48)\n    at http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:93:5\n    at Object.react_stack_bottom_frame (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:18567:20)\n    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:997:72)\n    at commitHookEffectListMount (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9411:163)\n    at commitHookPassiveMountEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9465:60)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to read default model or provider"
+    },
+    {
+      "type": "error",
+      "text": "Failed to refresh current model and provider: Error: Failed to read default model or provider\n    at http://localhost:5174/src/components/ModelAndProviderContext.tsx:130:13\n    at async http://localhost:5174/src/components/ModelAndProviderContext.tsx:173:35"
+    },
+    {
+      "type": "error",
+      "text": "Failed to refresh current model and provider: Error: Failed to read default model or provider\n    at http://localhost:5174/src/components/ModelAndProviderContext.tsx:130:13\n    at async http://localhost:5174/src/components/ModelAndProviderContext.tsx:173:35"
+    },
+    {
+      "type": "error",
+      "text": "Error checking provider (attempt 2/4): TypeError: Cannot read properties of undefined (reading 'getAcpUrl')\n    at openConnection (http://localhost:5174/src/acp/acpConnection.ts:104:39)\n    at getConnection (http://localhost:5174/src/acp/acpConnection.ts:93:25)\n    at getAcpClient (http://localhost:5174/src/acp/acpConnection.ts:26:17)\n    at acpReadDefaults (http://localhost:5174/src/acp/providers.ts:122:24)\n    at checkProvider (http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:63:48)"
+    },
+    {
+      "type": "error",
+      "text": "Error checking provider (attempt 2/4): TypeError: Cannot read properties of undefined (reading 'getAcpUrl')\n    at openConnection (http://localhost:5174/src/acp/acpConnection.ts:104:39)\n    at getConnection (http://localhost:5174/src/acp/acpConnection.ts:93:25)\n    at getAcpClient (http://localhost:5174/src/acp/acpConnection.ts:26:17)\n    at acpReadDefaults (http://localhost:5174/src/acp/providers.ts:122:24)\n    at checkProvider (http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:63:48)"
+    },
+    {
+      "type": "error",
+      "text": "Creating a worker from 'blob:http://localhost:5174/5c851930-78ea-4046-99d2-82cb250073e6' violates the following Content Security Policy directive: \"worker-src 'self'\". The action has been blocked."
+    },
+    {
+      "type": "error",
+      "text": "Error checking provider (attempt 3/4): TypeError: Cannot read properties of undefined (reading 'getAcpUrl')\n    at openConnection (http://localhost:5174/src/acp/acpConnection.ts:104:39)\n    at getConnection (http://localhost:5174/src/acp/acpConnection.ts:93:25)\n    at getAcpClient (http://localhost:5174/src/acp/acpConnection.ts:26:17)\n    at acpReadDefaults (http://localhost:5174/src/acp/providers.ts:122:24)\n    at checkProvider (http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:63:48)"
+    },
+    {
+      "type": "error",
+      "text": "Error checking provider (attempt 3/4): TypeError: Cannot read properties of undefined (reading 'getAcpUrl')\n    at openConnection (http://localhost:5174/src/acp/acpConnection.ts:104:39)\n    at getConnection (http://localhost:5174/src/acp/acpConnection.ts:93:25)\n    at getAcpClient (http://localhost:5174/src/acp/acpConnection.ts:26:17)\n    at acpReadDefaults (http://localhost:5174/src/acp/providers.ts:122:24)\n    at checkProvider (http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:63:48)"
+    },
+    {
+      "type": "error",
+      "text": "Error checking provider (attempt 4/4): TypeError: Cannot read properties of undefined (reading 'getAcpUrl')\n    at openConnection (http://localhost:5174/src/acp/acpConnection.ts:104:39)\n    at getConnection (http://localhost:5174/src/acp/acpConnection.ts:93:25)\n    at getAcpClient (http://localhost:5174/src/acp/acpConnection.ts:26:17)\n    at acpReadDefaults (http://localhost:5174/src/acp/providers.ts:122:24)\n    at checkProvider (http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:63:48)"
+    },
+    {
+      "type": "error",
+      "text": "Error checking provider (attempt 4/4): TypeError: Cannot read properties of undefined (reading 'getAcpUrl')\n    at openConnection (http://localhost:5174/src/acp/acpConnection.ts:104:39)\n    at getConnection (http://localhost:5174/src/acp/acpConnection.ts:93:25)\n    at getAcpClient (http://localhost:5174/src/acp/acpConnection.ts:26:17)\n    at acpReadDefaults (http://localhost:5174/src/acp/providers.ts:122:24)\n    at checkProvider (http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:63:48)"
+    }
+  ],
+  "consoleWarnings": [
+    {
+      "type": "warning",
+      "text": "[ThemeContext] Failed to load theme settings: TypeError: Cannot read properties of undefined (reading 'getSetting')\n    at loadThemeFromSettings (http://localhost:5174/src/contexts/ThemeContext.tsx:29:27)\n    at http://localhost:5174/src/contexts/ThemeContext.tsx:44:5\n    at Object.react_stack_bottom_frame (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:18567:20)\n    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:997:72)\n    at commitHookEffectListMount (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9411:163)\n    at commitHookPassiveMountEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9465:60)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11273:13)\n    at recursivelyTraverseReconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11240:11)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11265:13)\n    at recursivelyTraverseReconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11240:11)"
+    },
+    {
+      "type": "warning",
+      "text": "[ThemeContext] Failed to load theme settings: TypeError: Cannot read properties of undefined (reading 'getSetting')\n    at loadThemeFromSettings (http://localhost:5174/src/contexts/ThemeContext.tsx:29:27)\n    at http://localhost:5174/src/contexts/ThemeContext.tsx:44:5\n    at Object.react_stack_bottom_frame (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:18567:20)\n    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:997:72)\n    at commitHookEffectListMount (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9411:163)\n    at commitHookPassiveMountEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9465:60)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11273:13)\n    at recursivelyTraverseReconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11240:11)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11265:13)\n    at recursivelyTraverseReconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11240:11)"
+    },
+    {
+      "type": "warning",
+      "text": "[i18n] Locale \"en-US\" has no translations; falling back to \"en\"."
+    },
+    {
+      "type": "warning",
+      "text": "%s\n\n%s\n An error occurred in the <ErrorBoundary> component. Consider adding an error boundary to your tree to customize error handling behavior.\nVisit https://react.dev/link/error-boundaries to learn more about error boundaries."
+    },
+    {
+      "type": "warning",
+      "text": "[FeaturesContext] Failed to fetch features: TypeError: Cannot read properties of undefined (reading 'getAcpUrl')\n    at openConnection (http://localhost:5174/src/acp/acpConnection.ts:104:39)\n    at getConnection (http://localhost:5174/src/acp/acpConnection.ts:93:25)\n    at getAcpClient (http://localhost:5174/src/acp/acpConnection.ts:26:17)\n    at acpReadDefaults (http://localhost:5174/src/acp/providers.ts:122:24)\n    at checkProvider (http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:63:48)\n    at http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:93:5\n    at Object.react_stack_bottom_frame (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:18567:20)\n    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:997:72)\n    at commitHookEffectListMount (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9411:163)\n    at commitHookPassiveMountEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9465:60)"
+    },
+    {
+      "type": "warning",
+      "text": "[FeaturesContext] Failed to fetch features: TypeError: Cannot read properties of undefined (reading 'getAcpUrl')\n    at openConnection (http://localhost:5174/src/acp/acpConnection.ts:104:39)\n    at getConnection (http://localhost:5174/src/acp/acpConnection.ts:93:25)\n    at getAcpClient (http://localhost:5174/src/acp/acpConnection.ts:26:17)\n    at acpReadDefaults (http://localhost:5174/src/acp/providers.ts:122:24)\n    at checkProvider (http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:63:48)\n    at http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:93:5\n    at Object.react_stack_bottom_frame (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:18567:20)\n    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:997:72)\n    at commitHookEffectListMount (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9411:163)\n    at commitHookPassiveMountEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9465:60)"
+    }
+  ],
+  "consoleAllSample": [
+    {
+      "type": "debug",
+      "text": "[vite] connecting..."
+    },
+    {
+      "type": "debug",
+      "text": "[vite] connected."
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Error sending reactReady: TypeError: Cannot read properties of undefined (reading 'reactReady')\n    at http://localhost:5174/src/App.tsx:349:23\n    at Object.react_stack_bottom_frame (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:18567:20)\n    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:997:72)\n    at commitHookEffectListMount (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9411:163)\n    at commitHookPassiveMountEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9465:60)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11273:13)\n    at recursivelyTraverseReconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11240:11)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11317:13)\n    at recursivelyTraverseReconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11240:11)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11317:13)"
+    },
+    {
+      "type": "warning",
+      "text": "[ThemeContext] Failed to load theme settings: TypeError: Cannot read properties of undefined (reading 'getSetting')\n    at loadThemeFromSettings (http://localhost:5174/src/contexts/ThemeContext.tsx:29:27)\n    at http://localhost:5174/src/contexts/ThemeContext.tsx:44:5\n    at Object.react_stack_bottom_frame (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:18567:20)\n    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:997:72)\n    at commitHookEffectListMount (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9411:163)\n    at commitHookPassiveMountEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9465:60)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11273:13)\n    at recursivelyTraverseReconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11240:11)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11265:13)\n    at recursivelyTraverseReconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11240:11)"
+    },
+    {
+      "type": "error",
+      "text": "Error sending reactReady: TypeError: Cannot read properties of undefined (reading 'reactReady')\n    at http://localhost:5174/src/App.tsx:349:23\n    at Object.react_stack_bottom_frame (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:18567:20)\n    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:997:72)\n    at commitHookEffectListMount (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9411:163)\n    at commitHookPassiveMountEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9465:60)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11273:13)\n    at recursivelyTraverseReconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11240:11)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11317:13)\n    at recursivelyTraverseReconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11240:11)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11317:13)"
+    },
+    {
+      "type": "warning",
+      "text": "[ThemeContext] Failed to load theme settings: TypeError: Cannot read properties of undefined (reading 'getSetting')\n    at loadThemeFromSettings (http://localhost:5174/src/contexts/ThemeContext.tsx:29:27)\n    at http://localhost:5174/src/contexts/ThemeContext.tsx:44:5\n    at Object.react_stack_bottom_frame (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:18567:20)\n    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:997:72)\n    at commitHookEffectListMount (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9411:163)\n    at commitHookPassiveMountEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9465:60)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11273:13)\n    at recursivelyTraverseReconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11240:11)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11265:13)\n    at recursivelyTraverseReconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11240:11)"
+    },
+    {
+      "type": "warning",
+      "text": "[i18n] Locale \"en-US\" has no translations; falling back to \"en\"."
+    },
+    {
+      "type": "error",
+      "text": "%o\n\n%s\n\n%s\n TypeError: Cannot read properties of undefined (reading 'on')\n    at http://localhost:5174/src/components/ExtensionInstallModal.tsx:260:21\n    at Object.react_stack_bottom_frame (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:18567:20)\n    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:997:72)\n    at commitHookEffectListMount (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9411:163)\n    at commitHookPassiveMountEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9465:60)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11273:13)\n    at recursivelyTraverseReconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11240:11)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11265:13)\n    at recursivelyTraverseReconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11240:11)\n    at reconnectPassiveEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:11317:13) The above error occurred in the <ExtensionInstallModal> component. React will try to recreate this component tree from scratch using the error boundary you provided, ErrorBoundary."
+    },
+    {
+      "type": "warning",
+      "text": "%s\n\n%s\n An error occurred in the <ErrorBoundary> component. Consider adding an error boundary to your tree to customize error handling behavior.\nVisit https://react.dev/link/error-boundaries to learn more about error boundaries."
+    },
+    {
+      "type": "error",
+      "text": "Error checking provider (attempt 1/4): TypeError: Cannot read properties of undefined (reading 'getAcpUrl')\n    at openConnection (http://localhost:5174/src/acp/acpConnection.ts:104:39)\n    at getConnection (http://localhost:5174/src/acp/acpConnection.ts:93:25)\n    at getAcpClient (http://localhost:5174/src/acp/acpConnection.ts:26:17)\n    at acpReadDefaults (http://localhost:5174/src/acp/providers.ts:122:24)\n    at checkProvider (http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:63:48)\n    at http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:93:5\n    at Object.react_stack_bottom_frame (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:18567:20)\n    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:997:72)\n    at commitHookEffectListMount (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9411:163)\n    at commitHookPassiveMountEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9465:60)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to read default model or provider"
+    },
+    {
+      "type": "warning",
+      "text": "[FeaturesContext] Failed to fetch features: TypeError: Cannot read properties of undefined (reading 'getAcpUrl')\n    at openConnection (http://localhost:5174/src/acp/acpConnection.ts:104:39)\n    at getConnection (http://localhost:5174/src/acp/acpConnection.ts:93:25)\n    at getAcpClient (http://localhost:5174/src/acp/acpConnection.ts:26:17)\n    at acpReadDefaults (http://localhost:5174/src/acp/providers.ts:122:24)\n    at checkProvider (http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:63:48)\n    at http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:93:5\n    at Object.react_stack_bottom_frame (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:18567:20)\n    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:997:72)\n    at commitHookEffectListMount (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9411:163)\n    at commitHookPassiveMountEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9465:60)"
+    },
+    {
+      "type": "error",
+      "text": "Error checking provider (attempt 1/4): TypeError: Cannot read properties of undefined (reading 'getAcpUrl')\n    at openConnection (http://localhost:5174/src/acp/acpConnection.ts:104:39)\n    at getConnection (http://localhost:5174/src/acp/acpConnection.ts:93:25)\n    at getAcpClient (http://localhost:5174/src/acp/acpConnection.ts:26:17)\n    at acpReadDefaults (http://localhost:5174/src/acp/providers.ts:122:24)\n    at checkProvider (http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:63:48)\n    at http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:93:5\n    at Object.react_stack_bottom_frame (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:18567:20)\n    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:997:72)\n    at commitHookEffectListMount (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9411:163)\n    at commitHookPassiveMountEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9465:60)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to read default model or provider"
+    },
+    {
+      "type": "warning",
+      "text": "[FeaturesContext] Failed to fetch features: TypeError: Cannot read properties of undefined (reading 'getAcpUrl')\n    at openConnection (http://localhost:5174/src/acp/acpConnection.ts:104:39)\n    at getConnection (http://localhost:5174/src/acp/acpConnection.ts:93:25)\n    at getAcpClient (http://localhost:5174/src/acp/acpConnection.ts:26:17)\n    at acpReadDefaults (http://localhost:5174/src/acp/providers.ts:122:24)\n    at checkProvider (http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:63:48)\n    at http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:93:5\n    at Object.react_stack_bottom_frame (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:18567:20)\n    at runWithFiberInDEV (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:997:72)\n    at commitHookEffectListMount (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9411:163)\n    at commitHookPassiveMountEffects (http://localhost:5174/node_modules/.vite/deps/react-dom_client.js?v=f2671c11:9465:60)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to refresh current model and provider: Error: Failed to read default model or provider\n    at http://localhost:5174/src/components/ModelAndProviderContext.tsx:130:13\n    at async http://localhost:5174/src/components/ModelAndProviderContext.tsx:173:35"
+    },
+    {
+      "type": "error",
+      "text": "Failed to refresh current model and provider: Error: Failed to read default model or provider\n    at http://localhost:5174/src/components/ModelAndProviderContext.tsx:130:13\n    at async http://localhost:5174/src/components/ModelAndProviderContext.tsx:173:35"
+    },
+    {
+      "type": "error",
+      "text": "Error checking provider (attempt 2/4): TypeError: Cannot read properties of undefined (reading 'getAcpUrl')\n    at openConnection (http://localhost:5174/src/acp/acpConnection.ts:104:39)\n    at getConnection (http://localhost:5174/src/acp/acpConnection.ts:93:25)\n    at getAcpClient (http://localhost:5174/src/acp/acpConnection.ts:26:17)\n    at acpReadDefaults (http://localhost:5174/src/acp/providers.ts:122:24)\n    at checkProvider (http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:63:48)"
+    },
+    {
+      "type": "error",
+      "text": "Error checking provider (attempt 2/4): TypeError: Cannot read properties of undefined (reading 'getAcpUrl')\n    at openConnection (http://localhost:5174/src/acp/acpConnection.ts:104:39)\n    at getConnection (http://localhost:5174/src/acp/acpConnection.ts:93:25)\n    at getAcpClient (http://localhost:5174/src/acp/acpConnection.ts:26:17)\n    at acpReadDefaults (http://localhost:5174/src/acp/providers.ts:122:24)\n    at checkProvider (http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:63:48)"
+    },
+    {
+      "type": "log",
+      "text": "[vite] server connection lost. Polling for restart..."
+    },
+    {
+      "type": "error",
+      "text": "Creating a worker from 'blob:http://localhost:5174/5c851930-78ea-4046-99d2-82cb250073e6' violates the following Content Security Policy directive: \"worker-src 'self'\". The action has been blocked."
+    },
+    {
+      "type": "error",
+      "text": "Error checking provider (attempt 3/4): TypeError: Cannot read properties of undefined (reading 'getAcpUrl')\n    at openConnection (http://localhost:5174/src/acp/acpConnection.ts:104:39)\n    at getConnection (http://localhost:5174/src/acp/acpConnection.ts:93:25)\n    at getAcpClient (http://localhost:5174/src/acp/acpConnection.ts:26:17)\n    at acpReadDefaults (http://localhost:5174/src/acp/providers.ts:122:24)\n    at checkProvider (http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:63:48)"
+    },
+    {
+      "type": "error",
+      "text": "Error checking provider (attempt 3/4): TypeError: Cannot read properties of undefined (reading 'getAcpUrl')\n    at openConnection (http://localhost:5174/src/acp/acpConnection.ts:104:39)\n    at getConnection (http://localhost:5174/src/acp/acpConnection.ts:93:25)\n    at getAcpClient (http://localhost:5174/src/acp/acpConnection.ts:26:17)\n    at acpReadDefaults (http://localhost:5174/src/acp/providers.ts:122:24)\n    at checkProvider (http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:63:48)"
+    },
+    {
+      "type": "error",
+      "text": "Error checking provider (attempt 4/4): TypeError: Cannot read properties of undefined (reading 'getAcpUrl')\n    at openConnection (http://localhost:5174/src/acp/acpConnection.ts:104:39)\n    at getConnection (http://localhost:5174/src/acp/acpConnection.ts:93:25)\n    at getAcpClient (http://localhost:5174/src/acp/acpConnection.ts:26:17)\n    at acpReadDefaults (http://localhost:5174/src/acp/providers.ts:122:24)\n    at checkProvider (http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:63:48)"
+    },
+    {
+      "type": "error",
+      "text": "Error checking provider (attempt 4/4): TypeError: Cannot read properties of undefined (reading 'getAcpUrl')\n    at openConnection (http://localhost:5174/src/acp/acpConnection.ts:104:39)\n    at getConnection (http://localhost:5174/src/acp/acpConnection.ts:93:25)\n    at getAcpClient (http://localhost:5174/src/acp/acpConnection.ts:26:17)\n    at acpReadDefaults (http://localhost:5174/src/acp/providers.ts:122:24)\n    at checkProvider (http://localhost:5174/src/components/onboarding/OnboardingGuard.tsx:63:48)"
+    }
+  ]
+}

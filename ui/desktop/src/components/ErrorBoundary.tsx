@@ -12,7 +12,7 @@ const i18n = defineMessages({
   },
   errorWithVersion: {
     id: 'errorBoundary.errorWithVersion',
-    defaultMessage: 'An error occurred in AVCD Agent v{version}.',
+    defaultMessage: 'An error occurred in Avocado Work v{version}.',
   },
   errorGeneric: {
     id: 'errorBoundary.errorGeneric',

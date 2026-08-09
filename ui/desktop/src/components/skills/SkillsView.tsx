@@ -48,7 +48,7 @@ const i18n = defineMessages({
   },
   skillsDescription: {
     id: 'skillsView.skillsDescription',
-    defaultMessage: 'View installed skills that extend AVCD Agent capabilities. {shortcut} to search.',
+    defaultMessage: 'View installed skills that extend Avocado Work capabilities. {shortcut} to search.',
   },
   searchSkillsPlaceholder: {
     id: 'skillsView.searchSkillsPlaceholder',

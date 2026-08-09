@@ -1,0 +1,118 @@
+{
+  "CHAT_STRESS": {
+    "sequential": [
+      {
+        "label": "seq-1",
+        "started_at": "2026-08-08T23:16:34Z",
+        "finished_at": "2026-08-08T23:16:37Z",
+        "duration_s": 3.5296767499967245,
+        "exit_code": 0,
+        "timed_out": false,
+        "stdout_tail": "\n    __( O)>  \u25cf new session \u00b7 openrouter deepseek/deepseek-v4-flash\n   \\____)    20260808_18 \u00b7 /workspace\n     L L     goose is ready\nHi there! \ud83d\udc4b\n",
+        "stderr_tail": "",
+        "ok": true
+      },
+      {
+        "label": "seq-2",
+        "started_at": "2026-08-08T23:16:38Z",
+        "finished_at": "2026-08-08T23:16:41Z",
+        "duration_s": 3.035828041989589,
+        "exit_code": 0,
+        "timed_out": false,
+        "stdout_tail": "\n    __( O)>  \u25cf new session \u00b7 openrouter deepseek/deepseek-v4-flash\n   \\____)    20260808_19 \u00b7 /workspace\n     L L     goose is ready\nHi there!\n",
+        "stderr_tail": "",
+        "ok": true
+      },
+      {
+        "label": "seq-3",
+        "started_at": "2026-08-08T23:16:42Z",
+        "finished_at": "2026-08-08T23:16:44Z",
+        "duration_s": 2.7578151660127332,
+        "exit_code": 0,
+        "timed_out": false,
+        "stdout_tail": "\n    __( O)>  \u25cf new session \u00b7 openrouter deepseek/deepseek-v4-flash\n   \\____)    20260808_20 \u00b7 /workspace\n     L L     goose is ready\nHello there!\n",
+        "stderr_tail": "",
+        "ok": true
+      },
+      {
+        "label": "seq-4",
+        "started_at": "2026-08-08T23:16:45Z",
+        "finished_at": "2026-08-08T23:16:48Z",
+        "duration_s": 3.0213616249966435,
+        "exit_code": 0,
+        "timed_out": false,
+        "stdout_tail": "\n    __( O)>  \u25cf new session \u00b7 openrouter deepseek/deepseek-v4-flash\n   \\____)    20260808_21 \u00b7 /workspace\n     L L     goose is ready\nHi there!\n",
+        "stderr_tail": "",
+        "ok": true
+      },
+      {
+        "label": "seq-5",
+        "started_at": "2026-08-08T23:16:48Z",
+        "finished_at": "2026-08-08T23:16:52Z",
+        "duration_s": 3.4729064580023987,
+        "exit_code": 0,
+        "timed_out": false,
+        "stdout_tail": "\n    __( O)>  \u25cf new session \u00b7 openrouter deepseek/deepseek-v4-flash\n   \\____)    20260808_22 \u00b7 /workspace\n     L L     goose is ready\nHello from Avocado! \ud83e\udd51\n",
+        "stderr_tail": "",
+        "ok": true
+      }
+    ],
+    "concurrent": [
+      {
+        "label": "conc-1",
+        "started_at": "2026-08-08T23:16:52Z",
+        "finished_at": "2026-08-08T23:16:56Z",
+        "duration_s": 3.4113085829885677,
+        "exit_code": 0,
+        "timed_out": false,
+        "stdout_tail": "\n    __( O)>  \u25cf new session \u00b7 openrouter deepseek/deepseek-v4-flash\n   \\____)    20260808_24 \u00b7 /workspace\n     L L     goose is ready\nHello there!\n",
+        "stderr_tail": "",
+        "ok": true
+      },
+      {
+        "label": "conc-2",
+        "started_at": "2026-08-08T23:16:52Z",
+        "finished_at": "2026-08-08T23:16:56Z",
+        "duration_s": 3.5542865410097875,
+        "exit_code": 0,
+        "timed_out": false,
+        "stdout_tail": "\n    __( O)>  \u25cf new session \u00b7 openrouter deepseek/deepseek-v4-flash\n   \\____)    20260808_23 \u00b7 /workspace\n     L L     goose is ready\nHello from Avocado!\n",
+        "stderr_tail": "",
+        "ok": true
+      },
+      {
+        "label": "conc-3",
+        "started_at": "2026-08-08T23:16:52Z",
+        "finished_at": "2026-08-08T23:16:56Z",
+        "duration_s": 3.438814959008596,
+        "exit_code": 0,
+        "timed_out": false,
+        "stdout_tail": "\n    __( O)>  \u25cf new session \u00b7 openrouter deepseek/deepseek-v4-flash\n   \\____)    20260808_25 \u00b7 /workspace\n     L L     goose is ready\nHi there! \ud83d\udc4b\n",
+        "stderr_tail": "",
+        "ok": true
+      }
+    ],
+    "concurrent_wall_s": 3.5553458749927813,
+    "sequential_ok": true,
+    "concurrent_ok": true,
+    "sequential_durations_s": [
+      3.5296767499967245,
+      3.035828041989589,
+      2.7578151660127332,
+      3.0213616249966435,
+      3.4729064580023987
+    ],
+    "sequential_mean_s": 3.163517608199618,
+    "sequential_max_s": 3.5296767499967245,
+    "container_inspect": "",
+    "status_after_ok": true,
+    "oom_or_hang": false,
+    "container_state": {
+      "Status": "running",
+      "OOMKilled": false,
+      "ExitCode": 0,
+      "Running": true,
+      "Error": ""
+    }
+  }
+}

@@ -1,4 +1,4 @@
-AVCD Agent
+Avocado Work
 Copyright 2026 Avocado Technology
 
 This product is a modified distribution of goose:
@@ -8,6 +8,6 @@ goose is developed by the Agentic AI Foundation and its contributors.
 The original software and this distribution are licensed under the
 Apache License 2.0. See LICENSE for the complete license terms.
 
-Modifications include AVCD Agent branding, local Docker Compose development,
+Modifications include Avocado Work branding, local Docker Compose development,
 AVCD Makefile workflows, fork-owned update configuration, and disabled
 upstream telemetry.

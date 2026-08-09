@@ -168,10 +168,10 @@
     "defaultMessage": "Launch"
   },
   "chat.notification.taskComplete.body": {
-    "defaultMessage": "Click here to bring AVCD Agent back into focus."
+    "defaultMessage": "Click here to bring Avocado Work back into focus."
   },
   "chat.notification.taskComplete.title": {
-    "defaultMessage": "AVCD Agent finished the task."
+    "defaultMessage": "Avocado Work finished the task."
   },
   "chatInput.contextWindow": {
     "defaultMessage": "Context window"
@@ -222,13 +222,13 @@
     "defaultMessage": "Waiting for images to save..."
   },
   "chatSettings.modeDescription": {
-    "defaultMessage": "Choose the default mode AVCD Agent uses for new sessions. Existing sessions keep their current mode."
+    "defaultMessage": "Choose the default mode Avocado Work uses for new sessions. Existing sessions keep their current mode."
   },
   "chatSettings.modeTitle": {
     "defaultMessage": "Default Mode"
   },
   "chatSettings.responseStylesDescription": {
-    "defaultMessage": "Choose how AVCD Agent should format and style its responses"
+    "defaultMessage": "Choose how Avocado Work should format and style its responses"
   },
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "Response Styles"
@@ -324,7 +324,7 @@
     "defaultMessage": "Max Turns"
   },
   "conversationLimitsDropdown.maxTurnsDescription": {
-    "defaultMessage": "Maximum agent turns before AVCD Agent asks for user input"
+    "defaultMessage": "Maximum agent turns before Avocado Work asks for user input"
   },
   "costTracker.costUnavailable": {
     "defaultMessage": "Cost data not available for {model} ({inputTokens} input, {outputTokens} output tokens)"
@@ -936,7 +936,7 @@
     "defaultMessage": "Information request was cancelled."
   },
   "elicitationRequest.defaultMessage": {
-    "defaultMessage": "AVCD Agent needs some information from you."
+    "defaultMessage": "Avocado Work needs some information from you."
   },
   "elicitationRequest.expired": {
     "defaultMessage": "This request has expired. The extension will need to ask again."
@@ -981,7 +981,7 @@
     "defaultMessage": "An error occurred."
   },
   "errorBoundary.errorWithVersion": {
-    "defaultMessage": "An error occurred in AVCD Agent v{version}."
+    "defaultMessage": "An error occurred in Avocado Work v{version}."
   },
   "errorBoundary.heading": {
     "defaultMessage": "Honk!"
@@ -1167,7 +1167,7 @@
     "defaultMessage": "Extensions enabled here are used as the default for new chats. You can also toggle active extensions during chat."
   },
   "extensionsView.description": {
-    "defaultMessage": "These extensions use the Model Context Protocol (MCP). They can expand AVCD Agent's capabilities using three main components: Prompts, Resources, and Tools. {searchShortcut} to search."
+    "defaultMessage": "These extensions use the Model Context Protocol (MCP). They can expand Avocado Work's capabilities using three main components: Prompts, Resources, and Tools. {searchShortcut} to search."
   },
   "extensionsView.heading": {
     "defaultMessage": "Extensions"
@@ -1185,13 +1185,13 @@
     "defaultMessage": "AA:BB:CC:... or sha256/base64"
   },
   "externalBackendSection.description": {
-    "defaultMessage": "By default AVCD Agent starts a local backend. Use this to connect to an external ACP-compatible backend."
+    "defaultMessage": "By default Avocado Work starts a local backend. Use this to connect to an external ACP-compatible backend."
   },
   "externalBackendSection.fingerprintRequiresHttps": {
     "defaultMessage": "Certificate fingerprint requires an https URL"
   },
   "externalBackendSection.restartNote": {
-    "defaultMessage": "Changes apply to new chat windows. Restart AVCD Agent to update existing windows."
+    "defaultMessage": "Changes apply to new chat windows. Restart Avocado Work to update existing windows."
   },
   "externalBackendSection.secretKey": {
     "defaultMessage": "Secret Key"
@@ -1206,7 +1206,7 @@
     "defaultMessage": "Backend Base URL"
   },
   "externalBackendSection.serverUrlHelp": {
-    "defaultMessage": "Enter the HTTP(S) base URL. AVCD Agent checks /status and connects to /acp under this base."
+    "defaultMessage": "Enter the HTTP(S) base URL. Avocado Work checks /status and connects to /acp under this base."
   },
   "externalBackendSection.title": {
     "defaultMessage": "External Backend (ACP)"
@@ -1233,7 +1233,7 @@
     "defaultMessage": "Developer"
   },
   "goosehintsModal.dialogDescription": {
-    "defaultMessage": "Provide additional context about your project to improve communication with AVCD Agent"
+    "defaultMessage": "Provide additional context about your project to improve communication with Avocado Work"
   },
   "goosehintsModal.dialogTitle": {
     "defaultMessage": "Configure Project Hints (.goosehints)"
@@ -1254,7 +1254,7 @@
     "defaultMessage": ".goosehints file found at: {filePath}"
   },
   "goosehintsModal.helpText1": {
-    "defaultMessage": ".goosehints is a text file used to provide additional context about your project and improve communication with AVCD Agent."
+    "defaultMessage": ".goosehints is a text file used to provide additional context about your project and improve communication with Avocado Work."
   },
   "goosehintsModal.helpText2": {
     "defaultMessage": "Please make sure {bold} extension is enabled in the extensions page. This extension is required to use .goosehints. You'll need to restart your session for .goosehints updates to take effect."
@@ -1281,7 +1281,7 @@
     "defaultMessage": "Configure"
   },
   "goosehintsSection.description": {
-    "defaultMessage": "Configure your project's .goosehints file to provide additional context to AVCD Agent"
+    "defaultMessage": "Configure your project's .goosehints file to provide additional context to Avocado Work"
   },
   "goosehintsSection.title": {
     "defaultMessage": "Project Hints (.goosehints)"
@@ -1354,6 +1354,9 @@
   },
   "hub.goodMorning": {
     "defaultMessage": "Good morning"
+  },
+  "hub.sessionCreateFailed": {
+    "defaultMessage": "Could not start chat"
   },
   "huggingFaceModelSearch.download": {
     "defaultMessage": "Download"
@@ -1566,13 +1569,13 @@
     "defaultMessage": "Application Shortcuts"
   },
   "keyboardShortcuts.categoryApplicationDescription": {
-    "defaultMessage": "These shortcuts work when AVCD Agent is the active application"
+    "defaultMessage": "These shortcuts work when Avocado Work is the active application"
   },
   "keyboardShortcuts.categoryGlobal": {
     "defaultMessage": "Global Shortcuts"
   },
   "keyboardShortcuts.categoryGlobalDescription": {
-    "defaultMessage": "These shortcuts work system-wide, even when AVCD Agent is not focused"
+    "defaultMessage": "These shortcuts work system-wide, even when Avocado Work is not focused"
   },
   "keyboardShortcuts.categorySearch": {
     "defaultMessage": "Search Shortcuts"
@@ -1614,10 +1617,10 @@
     "defaultMessage": "Find Previous"
   },
   "keyboardShortcuts.focusWindowDescription": {
-    "defaultMessage": "Bring AVCD Agent window to front from anywhere"
+    "defaultMessage": "Bring Avocado Work window to front from anywhere"
   },
   "keyboardShortcuts.focusWindowLabel": {
-    "defaultMessage": "Focus AVCD Agent Window"
+    "defaultMessage": "Focus Avocado Work Window"
   },
   "keyboardShortcuts.loading": {
     "defaultMessage": "Loading..."
@@ -1629,7 +1632,7 @@
     "defaultMessage": "New Chat"
   },
   "keyboardShortcuts.newChatWindowDescription": {
-    "defaultMessage": "Open a new AVCD Agent window"
+    "defaultMessage": "Open a new Avocado Work window"
   },
   "keyboardShortcuts.newChatWindowLabel": {
     "defaultMessage": "New Chat Window"
@@ -1668,7 +1671,7 @@
     "defaultMessage": "Reset to Defaults"
   },
   "keyboardShortcuts.restartDescription": {
-    "defaultMessage": "Changes to application shortcuts (like New Chat and Settings) require restarting AVCD Agent to take effect. Global shortcuts (Focus Window and Quick Launcher) work immediately."
+    "defaultMessage": "Changes to application shortcuts (like New Chat and Settings) require restarting Avocado Work to take effect. Global shortcuts (Focus Window and Quick Launcher) work immediately."
   },
   "keyboardShortcuts.restartRequired": {
     "defaultMessage": "Restart Required"
@@ -1701,10 +1704,10 @@
     "defaultMessage": "Ask goose anything..."
   },
   "loadingGoose.compacting": {
-    "defaultMessage": "goose is compacting the conversation..."
+    "defaultMessage": "Avocado Work is compacting the conversation..."
   },
   "loadingGoose.idle": {
-    "defaultMessage": "goose is working on it…"
+    "defaultMessage": "Avocado Work is working on it…"
   },
   "loadingGoose.loadingConversation": {
     "defaultMessage": "loading conversation..."
@@ -1713,13 +1716,13 @@
     "defaultMessage": "restarting session..."
   },
   "loadingGoose.streaming": {
-    "defaultMessage": "goose is working on it…"
+    "defaultMessage": "Avocado Work is working on it…"
   },
   "loadingGoose.thinking": {
-    "defaultMessage": "goose is thinking…"
+    "defaultMessage": "Avocado Work is thinking…"
   },
   "loadingGoose.waiting": {
-    "defaultMessage": "goose is waiting…"
+    "defaultMessage": "Avocado Work is waiting…"
   },
   "localInferenceSettings.deleteConfirm": {
     "defaultMessage": "Delete this model? You can re-download it later."
@@ -2397,7 +2400,7 @@
     "defaultMessage": "The server may be starting up or temporarily unavailable."
   },
   "onboardingGuard.checkProviderErrorTitle": {
-    "defaultMessage": "Unable to connect to AVCD Agent server"
+    "defaultMessage": "Unable to connect to Avocado Work server"
   },
   "onboardingGuard.retry": {
     "defaultMessage": "Retry"
@@ -2406,10 +2409,10 @@
     "defaultMessage": "Your local AI agent. Connect an AI model provider to get started."
   },
   "onboardingGuard.welcomeTitle": {
-    "defaultMessage": "Welcome to goose"
+    "defaultMessage": "Welcome to Avocado Work"
   },
   "onboardingSuccess.allSet": {
-    "defaultMessage": "You're all set to start using goose."
+    "defaultMessage": "You're all set to start using Avocado Work."
   },
   "onboardingSuccess.connectedTo": {
     "defaultMessage": "Connected to {providerName}"
@@ -2424,7 +2427,7 @@
     "defaultMessage": "Local model ready"
   },
   "onboardingSuccess.privacyDescription": {
-    "defaultMessage": "Anonymous usage data helps improve goose. We never collect your conversations, code, or personal data."
+    "defaultMessage": "Anonymous usage data helps improve Avocado Work. We never collect your conversations, code, or personal data."
   },
   "onboardingSuccess.privacyTitle": {
     "defaultMessage": "Privacy"
@@ -3789,7 +3792,7 @@
     "defaultMessage": "Chat history"
   },
   "sessions.chatHistoryDesc": {
-    "defaultMessage": "View and search your past conversations with AVCD Agent. {shortcut} to search."
+    "defaultMessage": "View and search your past conversations with Avocado Work. {shortcut} to search."
   },
   "sessions.close": {
     "defaultMessage": "Close"
@@ -3825,7 +3828,7 @@
     "defaultMessage": "Import Link"
   },
   "sessions.importNostr.description": {
-    "defaultMessage": "Paste an AVCD Agent Nostr share link to fetch, decrypt, and import the session."
+    "defaultMessage": "Paste an Avocado Work Nostr share link to fetch, decrypt, and import the session."
   },
   "sessions.importNostr.placeholder": {
     "defaultMessage": "goose://sessions/nostr?nevent=...&key=..."
@@ -4038,7 +4041,7 @@
     "defaultMessage": "Open Settings"
   },
   "settings.notifications.task.description": {
-    "defaultMessage": "Notify when AVCD Agent finishes a task while the window is in the background"
+    "defaultMessage": "Notify when Avocado Work finishes a task while the window is in the background"
   },
   "settings.notifications.task.title": {
     "defaultMessage": "Task completion notifications"
@@ -4134,7 +4137,7 @@
     "defaultMessage": "Search skills..."
   },
   "skillsView.skillsDescription": {
-    "defaultMessage": "View installed skills that extend AVCD Agent capabilities. {shortcut} to search."
+    "defaultMessage": "View installed skills that extend Avocado Work capabilities. {shortcut} to search."
   },
   "skillsView.skillsTitle": {
     "defaultMessage": "Skills"
@@ -4485,10 +4488,10 @@
     "defaultMessage": "Allow {toolName}?"
   },
   "toolConfirmation.gooseWouldLikeToCallWithName": {
-    "defaultMessage": "AVCD Agent would like to call {toolName}. Allow?"
+    "defaultMessage": "Avocado Work would like to call {toolName}. Allow?"
   },
   "updateSection.autoDownload": {
-    "defaultMessage": "AVCD Agent will download the update in the background and install it the next time you quit or restart."
+    "defaultMessage": "Avocado Work will download the update in the background and install it the next time you quit or restart."
   },
   "updateSection.autoDownloadDisabledByEnv": {
     "defaultMessage": "Automatic downloads are disabled via the GOOSE_DISABLE_AUTO_DOWNLOAD environment variable."
@@ -4512,7 +4515,7 @@
     "defaultMessage": "Disable automatic update downloads"
   },
   "updateSection.disableAutoDownloadDesc": {
-    "defaultMessage": "When enabled, AVCD Agent will notify you of new versions but will not download them automatically."
+    "defaultMessage": "When enabled, Avocado Work will notify you of new versions but will not download them automatically."
   },
   "updateSection.downloadNow": {
     "defaultMessage": "Download Now"
@@ -4545,7 +4548,7 @@
     "defaultMessage": "Manual installation required for this update method."
   },
   "updateSection.readyInstallAuto": {
-    "defaultMessage": "Update is ready. Restart AVCD Agent to finish installing it, or quit when you're done."
+    "defaultMessage": "Update is ready. Restart Avocado Work to finish installing it, or quit when you're done."
   },
   "updateSection.readyInstallManual": {
     "defaultMessage": "✓ Update is ready! Click \"Install & Restart\" for installation instructions."

@@ -56,6 +56,6 @@ ENTRYPOINT ["/usr/local/bin/goose"]
 CMD ["--help"]
 
 LABEL org.opencontainers.image.title="avcd-agent"
-LABEL org.opencontainers.image.description="AVCD Agent local development CLI and ACP server"
+LABEL org.opencontainers.image.description="Avocado Work local development CLI and ACP server"
 LABEL org.opencontainers.image.vendor="Avocado Technology"
 LABEL org.opencontainers.image.source="https://github.com/Avocado-Technology/avcd-agent"

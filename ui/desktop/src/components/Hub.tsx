@@ -19,7 +19,11 @@ import { useConfig } from './ConfigContext';
 import { getInitialWorkingDir } from '../utils/workingDir';
 import { createSession } from '../sessions';
 import LoadingGoose from './LoadingGoose';
-import { UserInput } from '../types/message';
+import { UserInput, createUserMessage } from '../types/message';
+import { toastError } from '../toasts';
+import { errorMessage } from '../utils/conversionUtils';
+import { acpChatSessionController } from '../acp/chatSessionController';
+import { acpChatSessionActions, acpChatSessionStore } from '../acp/chatSessionStore';
 import {
   createNextChatExtensionDraft,
   selectNextChatExtensions,
@@ -30,6 +34,10 @@ const i18n = defineMessages({
   goodMorning: { id: 'hub.goodMorning', defaultMessage: 'Good morning' },
   goodAfternoon: { id: 'hub.goodAfternoon', defaultMessage: 'Good afternoon' },
   goodEvening: { id: 'hub.goodEvening', defaultMessage: 'Good evening' },
+  sessionCreateFailed: {
+    id: 'hub.sessionCreateFailed',
+    defaultMessage: 'Could not start chat',
+  },
 });
 
 function useClock(): { time: string; meridiem: string; hour: number } {
@@ -84,9 +92,9 @@ export default function Hub({
     setNextChatExtensionDraft(draft);
   }, []);
 
-  const handleSubmit = async (input: UserInput) => {
+  const handleSubmit = async (input: UserInput): Promise<boolean> => {
     const { msg: userMessage, images } = input;
-    if (!(images.length > 0 || userMessage.trim()) || isCreatingSession) return;
+    if (!(images.length > 0 || userMessage.trim()) || isCreatingSession) return false;
 
     setIsCreatingSession(true);
 
@@ -99,24 +107,46 @@ export default function Hub({
           ? { extensionConfigs: selectedExtensions }
           : { allExtensions: extensionsList };
 
-      const session = await createSession(workingDir, sessionOptions);
+      // Docker ACP (make dev-ui) only has /workspace. DirSwitcher/recent host paths
+      // like /Users/... must not override the configured container cwd.
+      const configuredWorkingDir = getInitialWorkingDir();
+      const sessionWorkingDir =
+        configuredWorkingDir === '/workspace' &&
+        workingDir !== '/workspace' &&
+        !workingDir.startsWith('/workspace/')
+          ? configuredWorkingDir
+          : workingDir || configuredWorkingDir;
+
+      const session = await createSession(sessionWorkingDir, sessionOptions);
       setNextChatExtensionDraft(null);
+
+      const firstMessage = createUserMessage(userMessage, images);
+      acpChatSessionActions.setMessages(session.id, [firstMessage]);
+      void acpChatSessionController.submitMessage(session.id, firstMessage, {
+        getCurrentSnapshot: () => acpChatSessionStore.getSnapshot(session.id),
+        onFinish: () => {},
+      });
 
       window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
       window.dispatchEvent(
         new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
-          detail: { sessionId: session.id, initialMessage: { msg: userMessage, images } },
+          detail: { sessionId: session.id },
         })
       );
 
       setView('pair', {
         disableAnimation: true,
         resumeSessionId: session.id,
-        initialMessage: { msg: userMessage, images },
       });
+      return true;
     } catch (error) {
       console.error('Failed to create session:', error);
+      toastError({
+        title: intl.formatMessage(i18n.sessionCreateFailed),
+        msg: errorMessage(error, 'Unknown error'),
+      });
       setIsCreatingSession(false);
+      return false;
     }
   };
 

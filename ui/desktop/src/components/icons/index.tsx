@@ -19,6 +19,7 @@ import { Gavel } from './Gavel';
 import { GlassWater } from './GlassWater';
 import { Grape } from './Grape';
 import { Gear } from './Gear';
+import { Avocado } from './Avocado';
 import { Goose } from './Goose';
 import { Microphone } from './Microphone';
 import { Watch0 } from './Watch0';
@@ -33,6 +34,7 @@ export {
   ArrowDown,
   ArrowUp,
   Attach,
+  Avocado,
   Bird1,
   Bird2,
   Bird3,

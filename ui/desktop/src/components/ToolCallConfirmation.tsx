@@ -10,7 +10,7 @@ const i18n = defineMessages({
   },
   gooseWouldLikeToCallWithName: {
     id: 'toolConfirmation.gooseWouldLikeToCallWithName',
-    defaultMessage: 'AVCD Agent would like to call {toolName}. Allow?',
+    defaultMessage: 'Avocado Work would like to call {toolName}. Allow?',
   },
 });
 

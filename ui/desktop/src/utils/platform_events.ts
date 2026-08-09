@@ -1,5 +1,6 @@
 import type { GooseApp } from '../types/apps';
 import { listMcpApps } from '../acp/mcp-apps';
+import { APPS_UI_ENABLED } from '../updates';
 
 interface PlatformEventData {
   extension: string;
@@ -15,6 +16,10 @@ interface AppsEventData extends PlatformEventData {
 type PlatformEventHandler = (eventType: string, data: PlatformEventData) => Promise<void>;
 
 async function handleAppsEvent(eventType: string, eventData: PlatformEventData): Promise<void> {
+  if (!APPS_UI_ENABLED) {
+    return;
+  }
+
   const { app_name, sessionId } = eventData as AppsEventData;
 
   if (!sessionId) {

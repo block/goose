@@ -1,0 +1,2 @@
+make -C /Users/genarionogueira/Documents/avcd/avcd-agent dev-down
+pkill -f 'avcd-agent/ui/desktop' || true

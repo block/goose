@@ -83,6 +83,45 @@ async fn wait_for_callback(
     }
 }
 
+/// Authorize using only credentials already on disk.
+///
+/// Never opens a browser and never waits for a callback, so it is safe to call on
+/// paths that must not block — notably loading a session's extensions, where a
+/// pending browser flow would stall session creation for
+/// `DEFAULT_OAUTH_CALLBACK_TIMEOUT_SECS`.
+pub async fn oauth_flow_stored_credentials_only(
+    mcp_server_url: &String,
+    name: &String,
+) -> Result<AuthorizationManager, anyhow::Error> {
+    let credential_store = GooseCredentialStore::new(name.clone());
+    let mut auth_manager = AuthorizationManager::new(mcp_server_url).await?;
+    auth_manager.set_credential_store(credential_store.clone());
+
+    if !auth_manager.initialize_from_store().await? {
+        return Err(anyhow::anyhow!(
+            "{} is not authorized yet. Connect it from Connections to sign in.",
+            name
+        ));
+    }
+
+    match auth_manager.refresh_token().await {
+        Ok(_) => Ok(auth_manager),
+        Err(e) => {
+            warn!(
+                "[OAuth:{}] Token refresh failed: {} - clearing stored credentials",
+                name, e
+            );
+            if let Err(e) = credential_store.clear().await {
+                warn!("[OAuth:{}] error clearing bad credentials: {}", name, e);
+            }
+            Err(anyhow::anyhow!(
+                "{} authorization expired. Reconnect it from Connections to sign in again.",
+                name
+            ))
+        }
+    }
+}
+
 pub async fn oauth_flow(
     mcp_server_url: &String,
     name: &String,
@@ -133,7 +172,16 @@ pub async fn oauth_flow(
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(0);
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    // Default loopback. In Docker ACP, set GOOSE_OAUTH_CALLBACK_BIND=0.0.0.0 and publish
+    // the callback port so the host browser can complete the redirect.
+    let bind_ip = match std::env::var("GOOSE_OAUTH_CALLBACK_BIND")
+        .unwrap_or_else(|_| "127.0.0.1".to_string())
+        .as_str()
+    {
+        "0.0.0.0" | "*" => [0, 0, 0, 0],
+        _ => [127, 0, 0, 1],
+    };
+    let addr = SocketAddr::from((bind_ip, port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let used_addr = listener.local_addr()?;
     let server_handle = tokio::spawn(async move {
@@ -145,6 +193,8 @@ pub async fn oauth_flow(
 
     let mut oauth_state = OAuthState::new(mcp_server_url, None).await?;
 
+    // Always advertise loopback to the auth server / host browser, even when the
+    // callback listener is bound to 0.0.0.0 inside a container.
     let redirect_uri = format!("http://127.0.0.1:{}/oauth_callback", used_addr.port());
     oauth_state
         .start_authorization(

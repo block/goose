@@ -20,7 +20,7 @@ const i18n = defineMessages({
   },
   defaultMessage: {
     id: 'elicitationRequest.defaultMessage',
-    defaultMessage: 'AVCD Agent needs some information from you.',
+    defaultMessage: 'Avocado Work needs some information from you.',
   },
   submit: {
     id: 'elicitationRequest.submit',

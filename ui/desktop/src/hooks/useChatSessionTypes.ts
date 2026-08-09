@@ -15,7 +15,8 @@ export interface UseChatSessionResult {
   chatState: ChatState;
   progressMessage?: string;
   updateSession: (updater: (session: Session) => Session) => void;
-  handleSubmit: (input: UserInput) => Promise<void>;
+  /** Resolves true when a prompt was started; false when submit was skipped. */
+  handleSubmit: (input: UserInput) => Promise<boolean>;
   onSteerQueuedMessage?: (input: UserInput) => Promise<boolean>;
   submitElicitationResponse: (
     elicitationId: string,

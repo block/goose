@@ -41,7 +41,7 @@ const i18n = defineMessages({
   },
   taskNotificationsDesc: {
     id: 'settings.notifications.task.description',
-    defaultMessage: 'Notify when AVCD Agent finishes a task while the window is in the background',
+    defaultMessage: 'Notify when Avocado Work finishes a task while the window is in the background',
   },
   menuBarIcon: { id: 'settings.menuBarIcon.title', defaultMessage: 'Menu bar icon' },
   menuBarIconDesc: {

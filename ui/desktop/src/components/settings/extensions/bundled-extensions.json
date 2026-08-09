@@ -37,7 +37,7 @@
     "name": "memory",
     "display_name": "Memory",
     "description": "Teach goose your preferences as you go.",
-    "enabled": false,
+    "enabled": true,
     "type": "builtin",
     "env_keys": [],
     "timeout": 300,
@@ -51,6 +51,17 @@
     "enabled": false,
     "type": "builtin",
     "env_keys": [],
+    "bundled": true
+  },
+  {
+    "id": "google-workspace",
+    "name": "google-workspace",
+    "display_name": "Google Workspace",
+    "description": "Gmail, Drive, Calendar, and Docs via Avocado hosted Google Workspace MCP (OAuth).",
+    "enabled": true,
+    "type": "streamable_http",
+    "uri": "https://dev.avocado.tech/google-workspace/mcp",
+    "timeout": 300,
     "bundled": true
   }
 ]

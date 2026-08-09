@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Avocado Work">
+  <!-- Dark tile + light brand mark #a8c168 (logo-dark.svg) -->
+  <rect width="1024" height="1024" rx="220" fill="#14160f"/>
+  <g transform="translate(192 128) scale(22.857)">
+    <path fill="#a8c168" fill-rule="evenodd"
+      d="M14 0C6.6 0 0.6 5.8 0.15 13.2C-0.3 22.6 5.6 32 14 32C22.4 32 28.3 22.6 27.85 13.2C27.4 5.8 21.4 0 14 0ZM14 22.4a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Z"/>
+  </g>
+</svg>

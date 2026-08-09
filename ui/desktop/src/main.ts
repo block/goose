@@ -50,7 +50,7 @@ import {
   setupAutoUpdater,
   updateTrayMenu,
 } from './utils/autoUpdater';
-import { UPDATES_ENABLED } from './updates';
+import { APPS_UI_ENABLED, UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
 import type { GooseApp } from './types/apps';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
@@ -96,11 +96,11 @@ const MENU_TRANSLATIONS_ZH_CN: Record<string, string> = {
   'New Chat Window': '新建聊天窗口',
   'Open Directory...': '打开目录…',
   'Recent Directories': '最近的目录',
-  'Focus AVCD Agent Window': '聚焦 AVCD Agent 窗口',
+  'Focus Avocado Work Window': '聚焦 Avocado Work 窗口',
   'Quick Launcher': '快速启动器',
   'Always on Top': '窗口置顶',
   'Toggle Navigation': '切换导航',
-  'About AVCD Agent': '关于 AVCD Agent',
+  'About Avocado Work': '关于 Avocado Work',
   // Electron's default role-based labels we want to translate as well.
   // (The menu role itself still provides the correct behaviour; only the
   // display string is overridden.)
@@ -126,7 +126,7 @@ const MENU_TRANSLATIONS_ZH_CN: Record<string, string> = {
   'Bring All to Front': '全部置于最前',
   'Emoji & Symbols': '表情符号',
   'Start Dictation…': '开始听写…',
-  'Hide AVCD Agent': '隐藏 AVCD Agent',
+  'Hide Avocado Work': '隐藏 Avocado Work',
   'Hide Others': '隐藏其他',
   'Show All': '全部显示',
   Services: '服务',
@@ -765,7 +765,7 @@ app.on('open-url', async (_event, url) => {
 app.on('will-finish-launching', () => {
   if (process.platform === 'darwin') {
     app.setAboutPanelOptions({
-      applicationName: 'AVCD Agent',
+      applicationName: 'Avocado Work',
       applicationVersion: app.getVersion(),
     });
   }
@@ -820,7 +820,7 @@ async function handleFileOpen(filePath: string) {
 
     // Show user-friendly error notification
     new Notification({
-      title: 'AVCD Agent',
+      title: 'Avocado Work',
       body: `Could not open directory: ${path.basename(filePath)}`,
     }).show();
   }
@@ -1068,7 +1068,13 @@ const createChat = async (
   }
 
   const serverSecret = externalBackend ? externalBackend.secret : GENERATED_SECRET;
-  let workingDir = dir || os.homedir();
+  // Prefer an explicit cwd (e.g. /workspace for Docker ACP via make dev-ui).
+  // Host paths from process.cwd()/recent-dirs are not visible inside the compose container.
+  const configuredWorkingDir = process.env.GOOSE_WORKING_DIR?.trim() || '';
+  let workingDir = dir || configuredWorkingDir || os.homedir();
+  if (externalBackend && configuredWorkingDir) {
+    workingDir = configuredWorkingDir;
+  }
   let gooseServeLease: GooseServeLease | null = null;
 
   if (externalBackend) {
@@ -1195,7 +1201,7 @@ const createChat = async (
       log.error('goose serve failed to start', error);
       dialog.showMessageBoxSync({
         type: 'error',
-        title: 'AVCD Agent Failed to Start',
+        title: 'Avocado Work Failed to Start',
         message: 'The backend server failed to start.',
         detail: [
           'Backend: goose serve',
@@ -2530,7 +2536,7 @@ async function appMain() {
 
   const shortcuts = getKeyboardShortcuts(settings);
 
-  const appMenu = menu?.items.find((item) => item.label === 'AVCD Agent');
+  const appMenu = menu?.items.find((item) => item.label === 'Avocado Work');
   if (appMenu?.submenu) {
     appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
     if (shortcuts.settings) {
@@ -2658,7 +2664,7 @@ async function appMain() {
     if (shortcuts.focusWindow) {
       fileMenu.submenu.append(
         new MenuItem({
-          label: menuT('Focus AVCD Agent Window'),
+          label: menuT('Focus Avocado Work Window'),
           accelerator: shortcuts.focusWindow,
           click() {
             focusWindow();
@@ -2767,7 +2773,7 @@ async function appMain() {
 
       // Create the About Goose menu item with a submenu
       const aboutGooseMenuItem = new MenuItem({
-        label: menuT('About AVCD Agent'),
+        label: menuT('About Avocado Work'),
         submenu: Menu.buildFromTemplate([]), // Start with an empty submenu for About
       });
 
@@ -2988,6 +2994,10 @@ async function appMain() {
 
   ipcMain.handle('launch-app', async (event, gooseApp: GooseApp) => {
     try {
+      if (!APPS_UI_ENABLED) {
+        throw new Error('Apps UI is temporarily disabled.');
+      }
+
       if (isRetiredGooseChatApp(gooseApp)) {
         throw new Error('This built-in Chat app is no longer supported.');
       }
@@ -3098,7 +3108,7 @@ app.whenReady().then(async () => {
   try {
     await appMain();
   } catch (error) {
-    dialog.showErrorBox('AVCD Agent Error', `Failed to create main window: ${error}`);
+    dialog.showErrorBox('Avocado Work Error', `Failed to create main window: ${error}`);
     app.quit();
   }
 });

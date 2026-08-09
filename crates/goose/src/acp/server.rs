@@ -656,6 +656,24 @@ impl GooseAcpAgent {
         );
         let agent_manager = Arc::new(AgentManager::new(agent_config, None).await?);
 
+        // Seed AgentManager with the env/config default provider (e.g. openrouter in
+        // Docker make-dev) so session restore failures can fall back instead of
+        // leaving Agent.provider unset → "Provider not set" on first prompt.
+        if let Ok(provider_name) = Config::global().get_goose_provider() {
+            match crate::providers::create(&provider_name, Vec::new()).await {
+                Ok(provider) => {
+                    agent_manager.set_default_provider(provider).await;
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Could not seed ACP default provider '{}': {}",
+                        provider_name,
+                        e
+                    );
+                }
+            }
+        }
+
         Ok(Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
             active_prompt_runs: Arc::new(Mutex::new(HashMap::new())),

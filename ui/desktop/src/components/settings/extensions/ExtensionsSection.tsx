@@ -16,6 +16,7 @@ import {
 
 import { activateExtensionDefault, deleteExtension, toggleExtensionDefault } from './index';
 import type { ExtensionConfig } from '../../../types/extensions';
+import { EXTENSIONS_INSTALL_ENABLED } from '../../../updates';
 
 const i18n = defineMessages({
   addCustomExtension: {
@@ -218,7 +219,7 @@ export default function ExtensionsSection({
           searchTerm={searchTerm}
         />
 
-        {!hideButtons && (
+        {!hideButtons && EXTENSIONS_INSTALL_ENABLED && (
           <div className="flex gap-4 pt-4 w-full">
             <Button
               className="flex items-center gap-2 justify-center"

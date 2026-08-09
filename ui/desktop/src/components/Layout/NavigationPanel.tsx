@@ -3,7 +3,6 @@ import { useLocation } from 'react-router';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigationContext } from './NavigationContext';
-import { useConfig } from '../ConfigContext';
 import { useNavigationSessions } from '../../hooks/useNavigationSessions';
 import {
   NAV_ITEMS,
@@ -20,6 +19,7 @@ import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { cn } from '../../utils';
 import type { ProjectGroup } from '../../utils/projectSessions';
 import { defineMessages, useIntl } from '../../i18n';
+import { APPS_UI_ENABLED, EXTENSIONS_UI_ENABLED } from '../../updates';
 
 type StreamState = 'idle' | 'loading' | 'streaming' | 'error';
 
@@ -223,16 +223,16 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
   const intl = useIntl();
   const { isNavExpanded } = useNavigationContext();
   const location = useLocation();
-  const { extensionsList } = useConfig();
 
-  const appsExtensionEnabled = !!extensionsList?.find((ext) => ext.name === 'apps')?.enabled;
-
+  // Show Apps whenever the distro flag is on. The platform extension may still be
+  // off/hidden in an older backend binary; gallery + create tools need that separately.
   const visibleItems = useMemo<NavItem[]>(() => {
     return NAV_ITEMS.filter((item) => {
-      if (item.path === '/apps') return appsExtensionEnabled;
+      if (item.path === '/apps') return APPS_UI_ENABLED;
+      if (item.path === '/extensions') return EXTENSIONS_UI_ENABLED;
       return true;
     });
-  }, [appsExtensionEnabled]);
+  }, []);
 
   const isActive = useCallback((path: string) => location.pathname === path, [location.pathname]);
 

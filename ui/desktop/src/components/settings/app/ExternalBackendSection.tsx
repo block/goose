@@ -15,7 +15,7 @@ const i18n = defineMessages({
   description: {
     id: 'externalBackendSection.description',
     defaultMessage:
-      'By default AVCD Agent starts a local backend. Use this to connect to an external ACP-compatible backend.',
+      'By default Avocado Work starts a local backend. Use this to connect to an external ACP-compatible backend.',
   },
   useExternalServer: {
     id: 'externalBackendSection.useExternalServer',
@@ -32,7 +32,7 @@ const i18n = defineMessages({
   serverUrlHelp: {
     id: 'externalBackendSection.serverUrlHelp',
     defaultMessage:
-      'Enter the HTTP(S) base URL. AVCD Agent checks /status and connects to /acp under this base.',
+      'Enter the HTTP(S) base URL. Avocado Work checks /status and connects to /acp under this base.',
   },
   secretKey: {
     id: 'externalBackendSection.secretKey',
@@ -61,7 +61,7 @@ const i18n = defineMessages({
   },
   restartNote: {
     id: 'externalBackendSection.restartNote',
-    defaultMessage: 'Changes apply to new chat windows. Restart AVCD Agent to update existing windows.',
+    defaultMessage: 'Changes apply to new chat windows. Restart Avocado Work to update existing windows.',
   },
   urlProtocolError: {
     id: 'externalBackendSection.urlProtocolError',

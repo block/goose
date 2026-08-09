@@ -6,8 +6,8 @@ const isLinuxVulkanBuild = process.env.GOOSE_DESKTOP_LINUX_VARIANT === 'vulkan';
 
 let cfg = {
   asar: true,
-  name: 'AVCD Agent',
-  executableName: 'avcd-agent',
+  name: 'Avocado Work',
+  executableName: 'avocado-work',
   extraResource: ['src/bin', 'src/images', 'src/app-update.yml'],
   icon: 'src/images/icon',
   // Windows specific configuration
@@ -21,8 +21,8 @@ let cfg = {
   // Protocol registration
   protocols: [
     {
-      name: 'AvcdAgentProtocol',
-      schemes: ['avcd-agent'],
+      name: 'AvocadoWorkProtocol',
+      schemes: ['avocado-work'],
     },
   ],
   // macOS Info.plist extensions for drag-and-drop support
@@ -38,9 +38,9 @@ let cfg = {
     ],
     // Usage descriptions for macOS TCC (Transparency, Consent, and Control)
     NSMicrophoneUsageDescription:
-      'AVCD Agent needs access to your microphone for voice dictation.',
+      'Avocado Work needs access to your microphone for voice dictation.',
     NSAppleEventsUsageDescription:
-      'AVCD Agent needs access to send Apple Events to control other apps on your behalf.',
+      'Avocado Work needs access to send Apple Events to control other apps on your behalf.',
   },
 };
 
@@ -89,10 +89,10 @@ module.exports = {
     {
       name: '@electron-forge/maker-deb',
       config: {
-        name: 'avcd-agent',
-        bin: 'avcd-agent',
+        name: 'avocado-work',
+        bin: 'avocado-work',
         maintainer: 'Avocado Technology',
-        homepage: 'https://avcd.ai/',
+        homepage: 'https://avocado.tech/',
         categories: ['Development'],
         desktopTemplate: './forge.deb.desktop',
         options: {
@@ -105,10 +105,10 @@ module.exports = {
     {
       name: '@electron-forge/maker-rpm',
       config: {
-        name: 'avcd-agent',
-        bin: 'avcd-agent',
+        name: 'avocado-work',
+        bin: 'avocado-work',
         maintainer: 'Avocado Technology',
-        homepage: 'https://avcd.ai/',
+        homepage: 'https://avocado.tech/',
         categories: ['Development'],
         desktopTemplate: './forge.rpm.desktop',
         options: {
@@ -122,17 +122,17 @@ module.exports = {
       name: '@electron-forge/maker-flatpak',
       config: {
         options: {
-          id: 'ai.avcd.Agent',
+          id: 'ai.avocado.Work',
           categories: ['Development'],
-          mimeType: ['x-scheme-handler/avcd-agent'],
+          mimeType: ['x-scheme-handler/avocado-work'],
           icon: {
             scalable: 'src/images/icon.svg',
             '512x512': 'src/images/icon-512.png',
           },
-          homepage: 'https://avcd.ai/',
+          homepage: 'https://avocado.tech/',
           runtimeVersion: '25.08',
           baseVersion: '25.08',
-          bin: 'avcd-agent',
+          bin: 'avocado-work',
           modules: [
             {
               name: 'libbz2-shim',

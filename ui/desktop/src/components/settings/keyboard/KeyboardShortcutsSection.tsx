@@ -12,11 +12,11 @@ const i18n = defineMessages({
   // Shortcut labels
   focusWindowLabel: {
     id: 'keyboardShortcuts.focusWindowLabel',
-    defaultMessage: 'Focus AVCD Agent Window',
+    defaultMessage: 'Focus Avocado Work Window',
   },
   focusWindowDescription: {
     id: 'keyboardShortcuts.focusWindowDescription',
-    defaultMessage: 'Bring AVCD Agent window to front from anywhere',
+    defaultMessage: 'Bring Avocado Work window to front from anywhere',
   },
   quickLauncherLabel: {
     id: 'keyboardShortcuts.quickLauncherLabel',
@@ -40,7 +40,7 @@ const i18n = defineMessages({
   },
   newChatWindowDescription: {
     id: 'keyboardShortcuts.newChatWindowDescription',
-    defaultMessage: 'Open a new AVCD Agent window',
+    defaultMessage: 'Open a new Avocado Work window',
   },
   openDirectoryLabel: {
     id: 'keyboardShortcuts.openDirectoryLabel',
@@ -106,7 +106,7 @@ const i18n = defineMessages({
   },
   categoryGlobalDescription: {
     id: 'keyboardShortcuts.categoryGlobalDescription',
-    defaultMessage: 'These shortcuts work system-wide, even when AVCD Agent is not focused',
+    defaultMessage: 'These shortcuts work system-wide, even when Avocado Work is not focused',
   },
   categoryApplication: {
     id: 'keyboardShortcuts.categoryApplication',
@@ -114,7 +114,7 @@ const i18n = defineMessages({
   },
   categoryApplicationDescription: {
     id: 'keyboardShortcuts.categoryApplicationDescription',
-    defaultMessage: 'These shortcuts work when AVCD Agent is the active application',
+    defaultMessage: 'These shortcuts work when Avocado Work is the active application',
   },
   categorySearch: {
     id: 'keyboardShortcuts.categorySearch',
@@ -145,7 +145,7 @@ const i18n = defineMessages({
   restartDescription: {
     id: 'keyboardShortcuts.restartDescription',
     defaultMessage:
-      'Changes to application shortcuts (like New Chat and Settings) require restarting AVCD Agent to take effect. Global shortcuts (Focus Window and Quick Launcher) work immediately.',
+      'Changes to application shortcuts (like New Chat and Settings) require restarting Avocado Work to take effect. Global shortcuts (Focus Window and Quick Launcher) work immediately.',
   },
   dismiss: {
     id: 'keyboardShortcuts.dismiss',

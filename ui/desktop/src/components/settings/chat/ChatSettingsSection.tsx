@@ -15,7 +15,7 @@ const i18n = defineMessages({
   modeDescription: {
     id: 'chatSettings.modeDescription',
     defaultMessage:
-      'Choose the default mode AVCD Agent uses for new sessions. Existing sessions keep their current mode.',
+      'Choose the default mode Avocado Work uses for new sessions. Existing sessions keep their current mode.',
   },
   responseStylesTitle: {
     id: 'chatSettings.responseStylesTitle',
@@ -23,7 +23,7 @@ const i18n = defineMessages({
   },
   responseStylesDescription: {
     id: 'chatSettings.responseStylesDescription',
-    defaultMessage: 'Choose how AVCD Agent should format and style its responses',
+    defaultMessage: 'Choose how Avocado Work should format and style its responses',
   },
 });
 

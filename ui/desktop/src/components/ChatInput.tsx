@@ -158,7 +158,7 @@ const i18n = defineMessages({
 
 interface ChatInputProps {
   sessionId: string | null;
-  handleSubmit: (input: UserInput) => void;
+  handleSubmit: (input: UserInput) => void | boolean | Promise<void | boolean>;
   chatState: ChatState;
   onStop?: () => void;
   onSteerQueuedMessage?: (input: UserInput) => Promise<boolean>;
@@ -1088,7 +1088,7 @@ export default function ChatInput({
       allDroppedFiles.some((file) => !file.error && !file.isLoading));
 
   const performSubmit = useCallback(
-    (text?: string) => {
+    async (text?: string) => {
       const imageData = convertImagesToImageData();
       const textToSend = appendDroppedFilePaths(text ?? displayValue.trim());
 
@@ -1105,7 +1105,12 @@ export default function ChatInput({
           }
         }
 
-        handleSubmit({ msg: textToSend, images: imageData });
+        const accepted = await Promise.resolve(
+          handleSubmit({ msg: textToSend, images: imageData })
+        );
+        if (accepted === false) {
+          return;
+        }
 
         // Auto-resume queue after sending a NON-interruption message (if it was paused due to interruption)
         if (

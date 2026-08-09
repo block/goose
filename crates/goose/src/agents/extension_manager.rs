@@ -45,7 +45,7 @@ use crate::builtin_extension::get_builtin_extension;
 use crate::config::extensions::name_to_key;
 use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
-use crate::oauth::{oauth_flow, GooseCredentialStore};
+use crate::oauth::{oauth_flow, oauth_flow_stored_credentials_only, GooseCredentialStore};
 use crate::prompt_template;
 use crate::subprocess::configure_subprocess;
 use rmcp::model::{
@@ -513,6 +513,33 @@ fn should_attempt_oauth_fallback(res: &Result<McpClient, ClientInitializeError>)
     res.as_ref().err().is_some_and(is_oauth_auth_failure)
 }
 
+/// Whether an extension load is allowed to start a browser OAuth flow.
+///
+/// Bulk loads (session creation/resume) must stay non-blocking, so they only use
+/// credentials already stored. A user explicitly connecting an extension expects
+/// the browser to open and can wait for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OAuthInteractivity {
+    #[default]
+    Interactive,
+    StoredCredentialsOnly,
+}
+
+impl OAuthInteractivity {
+    async fn authorize(
+        self,
+        uri: &str,
+        name: &str,
+    ) -> Result<rmcp::transport::AuthorizationManager, anyhow::Error> {
+        match self {
+            Self::Interactive => oauth_flow(&uri.to_string(), &name.to_string()).await,
+            Self::StoredCredentialsOnly => {
+                oauth_flow_stored_credentials_only(&uri.to_string(), &name.to_string()).await
+            }
+        }
+    }
+}
+
 async fn clear_credentials_on_post_refresh_auth_failure(
     credential_store: &dyn CredentialStore,
     name: &str,
@@ -686,6 +713,7 @@ async fn create_streamable_http_client(
     roots_dir: &std::path::Path,
     action_required: Arc<ActionRequiredManager>,
     extension_manager: Weak<ExtensionManager>,
+    oauth_interactivity: OAuthInteractivity,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     #[cfg(unix)]
     if let Some(socket_path) = socket {
@@ -745,7 +773,7 @@ async fn create_streamable_http_client(
     // If we have stored OAuth credentials, try refreshing and connecting directly.
     // This avoids the unnecessary 401 → browser re-auth cycle on every new session.
     if credential_store.load().await.is_ok_and(|c| c.is_some()) {
-        match oauth_flow(&uri.to_string(), &name.to_string()).await {
+        match oauth_interactivity.authorize(uri, name).await {
             Ok(auth_manager) => {
                 let auth_result = connect_with_auth(
                     auth_manager,
@@ -802,7 +830,7 @@ async fn create_streamable_http_client(
     .await;
 
     if should_attempt_oauth_fallback(&client_res) {
-        match oauth_flow(&uri.to_string(), &name.to_string()).await {
+        match oauth_interactivity.authorize(uri, name).await {
             Ok(auth_manager) => {
                 connect_with_auth(
                     auth_manager,
@@ -819,6 +847,10 @@ async fn create_streamable_http_client(
                 .await
             }
             Err(e) => {
+                if oauth_interactivity == OAuthInteractivity::StoredCredentialsOnly {
+                    warn!("[OAuth:{}] Authorization required: {:#}", name, e);
+                    return Err(ExtensionError::SetupError(e.to_string()));
+                }
                 warn!(
                     "[OAuth:{}] Browser authorization flow failed: {:#}",
                     name, e
@@ -963,13 +995,33 @@ impl ExtensionManager {
 
     /// Add an extension with an optional working directory.
     /// If working_dir is None, falls back to current_dir.
-    #[allow(clippy::too_many_lines)]
     pub async fn add_extension(
         self: &Arc<Self>,
         config: ExtensionConfig,
         working_dir: Option<PathBuf>,
         container: Option<&Container>,
         session_id: Option<&str>,
+    ) -> ExtensionResult<()> {
+        self.add_extension_with_oauth(
+            config,
+            working_dir,
+            container,
+            session_id,
+            OAuthInteractivity::Interactive,
+        )
+        .await
+    }
+
+    /// Add an extension, choosing whether an unauthorized OAuth extension may open
+    /// a browser. Session-wide loads pass `StoredCredentialsOnly` so they never block.
+    #[allow(clippy::too_many_lines)]
+    pub async fn add_extension_with_oauth(
+        self: &Arc<Self>,
+        config: ExtensionConfig,
+        working_dir: Option<PathBuf>,
+        container: Option<&Container>,
+        session_id: Option<&str>,
+        oauth_interactivity: OAuthInteractivity,
     ) -> ExtensionResult<()> {
         let sanitized_name = config.key();
 
@@ -1033,6 +1085,7 @@ impl ExtensionManager {
                     &effective_working_dir,
                     self.context.session_manager.action_required(),
                     Arc::downgrade(self),
+                    oauth_interactivity,
                 )
                 .await?
             }
@@ -3327,6 +3380,55 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_unauthorized_http_extension_fails_fast_without_browser_flow() {
+        use wiremock::matchers::any;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(401).insert_header(
+                "www-authenticate",
+                "Bearer realm=\"test\", error=\"invalid_token\"",
+            ))
+            .mount(&mock_server)
+            .await;
+
+        let temp_dir = tempdir().unwrap();
+        let provider: SharedProvider = Arc::new(Mutex::new(None));
+        let capabilities = GooseMcpClientCapabilities {
+            mcpui: false,
+            host_info: None,
+        };
+
+        // A session load must never wait on a browser callback, so an unauthorized
+        // extension has to return promptly instead of blocking for the OAuth timeout.
+        let started_at = std::time::Instant::now();
+        let result = create_streamable_http_client(
+            &mock_server.uri(),
+            None,
+            &HashMap::new(),
+            "test-ext",
+            None,
+            Box::new(rmcp::transport::auth::InMemoryCredentialStore::new()),
+            provider,
+            "goose-test".to_string(),
+            capabilities,
+            temp_dir.path(),
+            Arc::new(ActionRequiredManager::new()),
+            Weak::new(),
+            OAuthInteractivity::StoredCredentialsOnly,
+        )
+        .await;
+
+        assert!(
+            started_at.elapsed() < Duration::from_secs(30),
+            "unauthorized extension load should fail fast, took {:?}",
+            started_at.elapsed()
+        );
+        assert!(result.is_err(), "expected unauthorized extension to fail");
+    }
+
+    #[tokio::test]
     async fn test_post_refresh_auth_failure_clears_credentials() {
         use rmcp::transport::auth::{
             InMemoryCredentialStore, OAuthTokenResponse, StoredCredentials,
@@ -3386,6 +3488,7 @@ mod tests {
             temp_dir.path(),
             Arc::new(ActionRequiredManager::new()),
             Weak::new(),
+            OAuthInteractivity::StoredCredentialsOnly,
         )
         .await;
 
@@ -3423,6 +3526,7 @@ mod tests {
             temp_dir.path(),
             Arc::new(ActionRequiredManager::new()),
             Weak::new(),
+            OAuthInteractivity::StoredCredentialsOnly,
         )
         .await;
 
@@ -3471,6 +3575,7 @@ mod tests {
             temp_dir.path(),
             Arc::new(ActionRequiredManager::new()),
             Weak::new(),
+            OAuthInteractivity::StoredCredentialsOnly,
         )
         .await;
 

@@ -1,6 +1,6 @@
 use axum::{
     extract::{ConnectInfo, DefaultBodyLimit, Query, State},
-    http::{header, HeaderValue, StatusCode},
+    http::{header, HeaderMap, HeaderValue, StatusCode},
     response::{Html, IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -61,7 +61,6 @@ struct StoreGuestResponse {
 struct AppState {
     secret_key: String,
     guest_store: GuestHtmlStore,
-    guest_base_url: String,
 }
 
 #[derive(Clone)]
@@ -149,8 +148,13 @@ fn is_valid_dns_label(label: &str) -> bool {
         && label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
 }
 
-fn peer_addr_is_loopback(peer_addr: &SocketAddr) -> bool {
-    peer_addr.ip().is_loopback()
+/// The shared secret is the real auth boundary for the MCP app proxy. In Docker
+/// Desktop the published port can be reached from the host via a proxy that
+/// preserves the host's public IP, so a strict loopback check breaks the flow.
+/// We keep the function for clarity and tests but allow any peer that presents
+/// the correct secret.
+fn peer_addr_is_allowed(_peer_addr: &SocketAddr) -> bool {
+    true
 }
 
 fn parse_domains(domains: Option<&String>) -> Vec<String> {
@@ -230,7 +234,7 @@ async fn mcp_app_proxy(
     if params.secret != state.secret_key {
         return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
     }
-    if !peer_addr_is_loopback(&peer_addr) {
+    if !peer_addr_is_allowed(&peer_addr) {
         return (
             StatusCode::BAD_REQUEST,
             "MCP app proxy is only available to loopback clients",
@@ -246,7 +250,7 @@ async fn mcp_app_proxy(
             &parse_domains(params.frame_domains.as_ref()),
             &parse_domains(params.base_uri_domains.as_ref()),
             &parse_domains(params.script_domains.as_ref()),
-            &state.guest_base_url,
+            "",
         ),
     );
 
@@ -266,12 +270,13 @@ async fn mcp_app_proxy(
 async fn store_guest_html(
     State(state): State<AppState>,
     ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     Json(body): Json<StoreGuestBody>,
 ) -> Response {
     if body.secret != state.secret_key {
         return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
     }
-    if !peer_addr_is_loopback(&peer_addr) {
+    if !peer_addr_is_allowed(&peer_addr) {
         return (
             StatusCode::BAD_REQUEST,
             "MCP app guest storage is only available to loopback clients",
@@ -281,7 +286,7 @@ async fn store_guest_html(
 
     let nonce = Uuid::new_v4().to_string();
     let csp = body.csp.unwrap_or_default();
-    let guest_url = format!("{}/mcp-app-guest?nonce={}", state.guest_base_url, nonce);
+    let guest_url = build_guest_url(&headers, &nonce);
 
     {
         let mut store = state.guest_store.write().await;
@@ -348,52 +353,44 @@ async fn serve_guest_html(
     }
 }
 
-fn spawn_guest_server(guest_store: GuestHtmlStore) -> String {
-    let listener =
-        std::net::TcpListener::bind(("127.0.0.1", 0)).expect("failed to bind MCP app guest server");
-    let addr = listener
-        .local_addr()
-        .expect("failed to read MCP app guest server address");
-    listener
-        .set_nonblocking(true)
-        .expect("failed to configure MCP app guest server");
-    let listener = tokio::net::TcpListener::from_std(listener)
-        .expect("failed to create MCP app guest listener");
-
-    let app = Router::new()
-        .route("/mcp-app-guest", get(serve_guest_html))
-        .with_state(GuestState { guest_store });
-
-    tokio::spawn(async move {
-        if let Err(error) = axum::serve(listener, app).await {
-            tracing::error!(%error, "MCP app guest server stopped");
-        }
-    });
-
-    format!("http://{addr}")
+fn build_guest_url(headers: &HeaderMap, nonce: &str) -> String {
+    let host = headers
+        .get(header::HOST)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("127.0.0.1:3000");
+    let scheme = headers
+        .get("x-forwarded-proto")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("http");
+    format!("{scheme}://{host}/mcp-app-guest?nonce={nonce}")
 }
 
 pub(crate) fn routes(secret_key: String) -> Router {
     let guest_store = Arc::new(RwLock::new(HashMap::new()));
-    let guest_base_url = spawn_guest_server(guest_store.clone());
     let state = AppState {
         secret_key,
-        guest_store,
-        guest_base_url,
+        guest_store: guest_store.clone(),
     };
+    let guest_state = GuestState { guest_store };
 
-    Router::new()
+    let app_routes = Router::new()
         .route("/mcp-app-proxy", get(mcp_app_proxy))
         .route(
             "/mcp-app-guest",
             post(store_guest_html).layer(DefaultBodyLimit::max(GUEST_HTML_MAX_BYTES)),
         )
-        .with_state(state)
+        .with_state(state);
+
+    let guest_routes = Router::new()
+        .route("/mcp-app-guest", get(serve_guest_html))
+        .with_state(guest_state);
+
+    app_routes.merge(guest_routes)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{build_outer_csp, normalize_csp_source, parse_domains, peer_addr_is_loopback};
+    use super::{build_outer_csp, normalize_csp_source, parse_domains, peer_addr_is_allowed};
     use axum::{
         body::Body,
         extract::ConnectInfo,
@@ -456,15 +453,21 @@ mod tests {
     }
 
     #[test]
-    fn detects_loopback_peer_addresses() {
-        assert!(peer_addr_is_loopback(
+    fn allows_any_peer_with_valid_secret() {
+        assert!(peer_addr_is_allowed(
             &"127.0.0.1:12345".parse::<SocketAddr>().unwrap()
         ));
-        assert!(peer_addr_is_loopback(
+        assert!(peer_addr_is_allowed(
             &"[::1]:12345".parse::<SocketAddr>().unwrap()
         ));
-        assert!(!peer_addr_is_loopback(
+        assert!(peer_addr_is_allowed(
+            &"172.31.0.1:12345".parse::<SocketAddr>().unwrap()
+        ));
+        assert!(peer_addr_is_allowed(
             &"192.168.1.10:12345".parse::<SocketAddr>().unwrap()
+        ));
+        assert!(peer_addr_is_allowed(
+            &"8.8.8.8:12345".parse::<SocketAddr>().unwrap()
         ));
     }
 

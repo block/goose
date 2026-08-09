@@ -1,0 +1,71 @@
+{
+  "provider": "openrouter",
+  "defaultModel": "deepseek/deepseek-v4-flash",
+  "models": [
+    {
+      "name": "deepseek/deepseek-v4-flash",
+      "alias": "DeepSeek V4 Flash",
+      "subtext": "Open-weight agentic coding"
+    },
+    {
+      "name": "openai/gpt-oss-120b",
+      "alias": "GPT-OSS 120B",
+      "subtext": "OpenAI open-weight"
+    },
+    {
+      "name": "nvidia/nemotron-3-super-120b-a12b",
+      "alias": "Nemotron 3 Super",
+      "subtext": "NVIDIA open-weight"
+    },
+    {
+      "name": "qwen/qwen3.6-35b-a3b",
+      "alias": "Qwen3.6 35B-A3B",
+      "subtext": "Efficient open MoE"
+    },
+    {
+      "name": "z-ai/glm-5.2",
+      "alias": "GLM 5.2",
+      "subtext": "Efficient open flagship"
+    },
+    {
+      "name": "z-ai/glm-5.1",
+      "alias": "GLM 5.1",
+      "subtext": "Open Opus-class"
+    },
+    {
+      "name": "z-ai/glm-5-turbo",
+      "alias": "GLM 5 Turbo",
+      "subtext": "Open Sonnet/Opus-class turbo"
+    },
+    {
+      "name": "minimax/minimax-m3",
+      "alias": "MiniMax M3",
+      "subtext": "Open multimodal with 1M context"
+    },
+    {
+      "name": "moonshotai/kimi-k2.6",
+      "alias": "Kimi K2.6",
+      "subtext": "Moonshot open-weight"
+    },
+    {
+      "name": "moonshotai/kimi-k3",
+      "alias": "Kimi K3",
+      "subtext": "Newest Moonshot flagship"
+    },
+    {
+      "name": "deepseek/deepseek-v4-pro",
+      "alias": "DeepSeek V4 Pro",
+      "subtext": "Stronger open agentic model"
+    },
+    {
+      "name": "anthropic/claude-haiku-4.5",
+      "alias": "Claude Haiku 4.5",
+      "subtext": "Fast Claude"
+    },
+    {
+      "name": "anthropic/claude-sonnet-4.6",
+      "alias": "Claude Sonnet 4.6",
+      "subtext": "Capable Claude"
+    }
+  ]
+}

@@ -19,7 +19,7 @@ use super::tool_execution::{
 use crate::action_required_manager::ElicitationOutcome;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{
-    get_parameter_names, ExtensionManager, ExtensionManagerCapabilities,
+    get_parameter_names, ExtensionManager, ExtensionManagerCapabilities, OAuthInteractivity,
 };
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
 use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
@@ -1328,7 +1328,11 @@ impl Agent {
                     }
 
                     match agent_ref
-                        .add_extension_inner(config_clone, &session_id_clone)
+                        .add_extension_inner(
+                            config_clone,
+                            &session_id_clone,
+                            OAuthInteractivity::StoredCredentialsOnly,
+                        )
                         .await
                     {
                         Ok(_) => ExtensionLoadResult {
@@ -1367,7 +1371,8 @@ impl Agent {
         extension: ExtensionConfig,
         session_id: &str,
     ) -> ExtensionResult<()> {
-        self.add_extension_inner(extension, session_id).await?;
+        self.add_extension_inner(extension, session_id, OAuthInteractivity::Interactive)
+            .await?;
 
         // Persist extension state after successful add
         self.persist_extension_state(session_id)
@@ -1417,7 +1422,13 @@ impl Agent {
                 async move {
                     let name = config.name().to_string();
                     match ext_manager
-                        .add_extension(config, working_dir, container.as_ref(), Some(&sid))
+                        .add_extension_with_oauth(
+                            config,
+                            working_dir,
+                            container.as_ref(),
+                            Some(&sid),
+                            OAuthInteractivity::StoredCredentialsOnly,
+                        )
                         .await
                     {
                         Ok(_) => ExtensionLoadResult {
@@ -1452,6 +1463,7 @@ impl Agent {
         &self,
         extension: ExtensionConfig,
         session_id: &str,
+        oauth_interactivity: OAuthInteractivity,
     ) -> ExtensionResult<()> {
         let session = self
             .config
@@ -1473,11 +1485,12 @@ impl Agent {
             _ => {
                 let container = self.container.lock().await;
                 self.extension_manager
-                    .add_extension(
+                    .add_extension_with_oauth(
                         extension.clone(),
                         working_dir,
                         container.as_ref(),
                         Some(session_id),
+                        oauth_interactivity,
                     )
                     .await?;
             }
@@ -3526,34 +3539,46 @@ impl Agent {
         let extensions =
             EnabledExtensionsState::extensions_or_default(Some(&session.extension_data), config);
 
-        let (provider, active_model_config, provider_changed) =
-            if crate::providers::get_from_registry(&provider_name)
-                .await
-                .is_ok()
-            {
-                let p = crate::providers::create_with_working_dir(
-                    &provider_name,
-                    extensions,
-                    session.working_dir.clone(),
-                )
-                .await
-                .map_err(|e| anyhow!("Could not create provider: {}", e))?;
-                (p, model_config, false)
-            } else {
+        // Prefer the session provider; if it is missing from the registry OR cannot be
+        // constructed (e.g. recipe pinned to anthropic without ANTHROPIC_API_KEY), fall
+        // back to GOOSE_PROVIDER from env/config so ACP/Docker OpenRouter keeps working.
+        let create_result = if crate::providers::get_from_registry(&provider_name)
+            .await
+            .is_ok()
+        {
+            crate::providers::create_with_working_dir(
+                &provider_name,
+                extensions.clone(),
+                session.working_dir.clone(),
+            )
+            .await
+            .map(|p| (p, model_config, false))
+        } else {
+            Err(anyhow!(
+                "Could not create provider: provider '{}' not found",
+                provider_name
+            ))
+        };
+
+        let (provider, active_model_config, provider_changed) = match create_result {
+            Ok(ok) => ok,
+            Err(primary_err) => {
                 let fallback_provider_name = config
                     .get_goose_provider()
                     .ok()
                     .filter(|name| name != &provider_name)
                     .ok_or_else(|| {
                         anyhow!(
-                            "Could not create provider: provider '{}' not found",
-                            provider_name
+                            "Could not create provider '{}' and no fallback GOOSE_PROVIDER: {}",
+                            provider_name,
+                            primary_err
                         )
                     })?;
 
                 tracing::warn!(
-                    "Session provider '{}' unavailable, falling back to '{}'",
+                    "Session provider '{}' unavailable ({}), falling back to '{}'",
                     provider_name,
+                    primary_err,
                     fallback_provider_name
                 );
 
@@ -3596,7 +3621,8 @@ impl Agent {
                 }
 
                 (fallback_provider, fallback_model_config, true)
-            };
+            }
+        };
 
         self.update_provider(provider, active_model_config, &session.id)
             .await?;

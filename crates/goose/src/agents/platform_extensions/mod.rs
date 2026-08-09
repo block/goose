@@ -37,9 +37,10 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 display_name: "Analyze",
                 description:
                     "Analyze code structure with tree-sitter: directory overviews, file details, symbol call graphs",
-                default_enabled: true,
+                // Consumer distro: developer-centric — keep off and hidden.
+                default_enabled: false,
                 unprefixed_tools: true,
-                hidden: false,
+                hidden: true,
                 client_factory: |ctx| Some(Box::new(analyze::AnalyzeClient::new(ctx).unwrap())),
             },
         );
@@ -65,9 +66,10 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 display_name: "Apps",
                 description:
                     "Create and manage custom Goose apps through chat. Apps are HTML/CSS/JavaScript and run in sandboxed windows.",
-                default_enabled: true,
+                // Consumer distro: Apps UI is locked off (APPS_UI_ENABLED=false).
+                default_enabled: false,
                 unprefixed_tools: false,
-                hidden: false,
+                hidden: true,
                 client_factory: |ctx| Some(Box::new(apps::AppsManagerClient::new(ctx).unwrap())),
             },
         );
@@ -79,7 +81,8 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 display_name: "Chat Recall",
                 description:
                     "Search past conversations and load session summaries for contextual memory",
-                default_enabled: false,
+                // Consumer distro: default on — past-session search for non-developers.
+                default_enabled: true,
                 unprefixed_tools: false,
                 hidden: false,
                 client_factory: |ctx| {
@@ -95,9 +98,10 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 display_name: "Extension Manager",
                 description:
                     "Enable extension management tools for discovering, enabling, and disabling extensions",
-                default_enabled: true,
+                // Consumer distro: no open marketplace / agent-driven installs.
+                default_enabled: false,
                 unprefixed_tools: false,
-                hidden: false,
+                hidden: true,
                 client_factory: |ctx| Some(Box::new(ext_manager::ExtensionManagerClient::new(ctx).unwrap())),
             },
         );
@@ -123,9 +127,10 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 name: summon::EXTENSION_NAME,
                 display_name: "Summon",
                 description: "Load knowledge and delegate tasks to subagents",
-                default_enabled: true,
+                // Consumer distro: advanced agent orchestration — keep off and hidden.
+                default_enabled: false,
                 unprefixed_tools: true,
-                hidden: false,
+                hidden: true,
                 client_factory: |ctx| Some(Box::new(summon::SummonClient::new(ctx).unwrap())),
             },
         );
@@ -200,9 +205,10 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 display_name: "Top Of Mind",
                 description:
                     "Inject custom context into every turn via GOOSE_MOIM_MESSAGE_TEXT and GOOSE_MOIM_MESSAGE_FILE environment variables",
-                default_enabled: true,
+                // Consumer distro: env-var developer workflow — keep off and hidden.
+                default_enabled: false,
                 unprefixed_tools: false,
-                hidden: false,
+                hidden: true,
                 client_factory: |ctx| Some(Box::new(tom::TomClient::new(ctx).unwrap())),
             },
         );
@@ -213,9 +219,10 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 name: crate::skills::EXTENSION_NAME,
                 display_name: "Skills",
                 description: "Discover and provide skill instructions from filesystem and builtins",
-                default_enabled: true,
+                // Consumer distro: skill authoring is power-user; keep off and hidden.
+                default_enabled: false,
                 unprefixed_tools: true,
-                hidden: false,
+                hidden: true,
                 client_factory: |ctx| {
                     Some(Box::new(crate::skills::SkillsClient::new(ctx).unwrap()))
                 },

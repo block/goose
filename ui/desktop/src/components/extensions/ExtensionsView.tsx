@@ -18,21 +18,22 @@ import { useConfig } from '../ConfigContext';
 import { SearchView } from '../conversation/SearchView';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 import { defineMessages, useIntl } from '../../i18n';
+import { EXTENSIONS_INSTALL_ENABLED } from '../../updates';
 
 const i18n = defineMessages({
   heading: {
     id: 'extensionsView.heading',
-    defaultMessage: 'Extensions',
+    defaultMessage: 'Connections',
   },
   description: {
     id: 'extensionsView.description',
     defaultMessage:
-      "These extensions use the Model Context Protocol (MCP). They can expand AVCD Agent's capabilities using three main components: Prompts, Resources, and Tools. {searchShortcut} to search.",
+      'Connect tools your team uses — Google Workspace, files, and more. Turn a connection on to sign in when prompted. {searchShortcut} to search.',
   },
   defaultNote: {
     id: 'extensionsView.defaultNote',
     defaultMessage:
-      'Extensions enabled here are used as the default for new chats. You can also toggle active extensions during chat.',
+      'Connections enabled here are used for new chats. Toggle Google Workspace on to authenticate before asking about Drive, Gmail, or Calendar.',
   },
   addCustomExtension: {
     id: 'extensionsView.addCustomExtension',
@@ -142,25 +143,27 @@ export default function ExtensionsView({
               {intl.formatMessage(i18n.defaultNote)}
             </p>
 
-            {/* Action Buttons */}
-            <div className="flex gap-4 mb-8">
-              <Button
-                className="flex items-center gap-2 justify-center"
-                variant="default"
-                onClick={() => setIsAddModalOpen(true)}
-              >
-                <Plus className="h-4 w-4" />
-                {intl.formatMessage(i18n.addCustomExtension)}
-              </Button>
-              <Button
-                className="flex items-center gap-2 justify-center"
-                variant="secondary"
-                onClick={() => window.open('https://goose-docs.ai/v1/extensions/', '_blank')}
-              >
-                <GPSIcon size={12} />
-                {intl.formatMessage(i18n.browseExtensions)}
-              </Button>
-            </div>
+            {/* Marketplace install only when unlocked — curated toggles always on this page */}
+            {EXTENSIONS_INSTALL_ENABLED && (
+              <div className="flex gap-4 mb-8">
+                <Button
+                  className="flex items-center gap-2 justify-center"
+                  variant="default"
+                  onClick={() => setIsAddModalOpen(true)}
+                >
+                  <Plus className="h-4 w-4" />
+                  {intl.formatMessage(i18n.addCustomExtension)}
+                </Button>
+                <Button
+                  className="flex items-center gap-2 justify-center"
+                  variant="secondary"
+                  onClick={() => window.open('https://goose-docs.ai/v1/extensions/', '_blank')}
+                >
+                  <GPSIcon size={12} />
+                  {intl.formatMessage(i18n.browseExtensions)}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 

@@ -1,4 +1,4 @@
 provider: github
 owner: Avocado-Technology
 repo: avcd-agent
-updaterCacheDirName: avcd-agent-updater
+updaterCacheDirName: avocado-work-updater
