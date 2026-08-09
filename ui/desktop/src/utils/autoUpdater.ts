@@ -290,12 +290,16 @@ export function registerUpdateIpcHandlers() {
           throw new Error('Update file not found. Please download the update first.');
         }
 
-        // Improved dialog with clearer instructions
+        const downloadedPath = githubUpdateInfo.downloadPath || '';
+        const isWindowsInstaller = downloadedPath.toLowerCase().endsWith('.exe');
+        const detail = isWindowsInstaller
+          ? `The installer has been downloaded to your Downloads folder.\n\n1. Click "Open Folder" to find Avocado Work-Setup-x64.exe\n2. Quit Avocado Work\n3. Run the installer and follow the prompts\n\nAvocado Work will open at the new version after install.`
+          : `The update file has been downloaded to your Downloads folder.\n\n1. Click "Open Folder" to find the downloaded file\n2. Quit Avocado Work\n3. Open the downloaded file (zip/app) and replace the existing Avocado Work.app in Applications\n\nThe update will be available the next time you launch Avocado Work.`;
         const dialogResult = (await dialog.showMessageBox({
           type: 'info',
           title: 'Update Ready to Install',
           message: `Version ${githubUpdateInfo.latestVersion} is ready to install.`,
-          detail: `The update has been downloaded and extracted. To complete the installation:\n\n1. Click "Open Folder" to view the new Avocado Work.app\n2. Quit Avocado Work (this app will close)\n3. Drag the new Avocado Work.app to your Applications folder\n4. Replace the existing app when prompted\n\nThe update will be available the next time you launch Avocado Work.`,
+          detail,
           buttons: ['Open Folder & Quit', 'Open Folder Only', 'Cancel'],
           defaultId: 0,
           cancelId: 2,

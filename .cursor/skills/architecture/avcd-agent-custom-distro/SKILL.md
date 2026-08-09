@@ -200,6 +200,49 @@ AVCD Docker Compose sets `GOOSE_PROVIDER`, `GOOSE_MODEL`, `OPENROUTER_*`, `GOOSE
 
 ---
 
+## Distribution (GitHub Releases + website)
+
+Desktop installers ship from **GitHub Releases** on `Avocado-Technology/avcd-agent`. The avocado.tech `/download` page links to the `stable` tag; it does not host binaries.
+
+### Release asset contract
+
+Single source of truth: [`ui/desktop/scripts/release-assets.js`](../../../../ui/desktop/scripts/release-assets.js).
+
+| Platform | Website installer | In-app update check |
+|----------|-------------------|---------------------|
+| macOS arm64 | `Avocado Work.dmg` | `Avocado Work.zip` |
+| macOS x64 | `Avocado Work_intel_mac.dmg` | `Avocado Work_intel_mac.zip` |
+| Windows x64 | `Avocado Work-Setup-x64.exe` | same Setup.exe (assisted download) |
+
+Forge makers: `@electron-forge/maker-dmg` + `@electron-forge/maker-squirrel` (`name: avocado-work`, `setupExe: Avocado Work-Setup-x64.exe`) + `maker-zip`.
+
+### Verifier
+
+```bash
+bash scripts/verify-release-assets.sh          # no Goose* release paths
+bash scripts/verify-release-assets.sh --guards # npm/Maven upstream-only; Docker uses ghcr.io/${{ github.repository }}
+bash scripts/verify-release-assets.sh --local ui/desktop/out  # after local make/bundle
+```
+
+### CLI install script
+
+[`download_cli.sh`](../../../../download_cli.sh) installs from `Avocado-Technology/avcd-agent`. On-disk binary name stays `goose` (archive names unchanged).
+
+### Website env (`avcd-landingpage`)
+
+```
+NEXT_PUBLIC_DESKTOP_RELEASE_OWNER=Avocado-Technology
+NEXT_PUBLIC_DESKTOP_RELEASE_REPO=avcd-agent
+NEXT_PUBLIC_DESKTOP_RELEASE_TAG=stable
+NEXT_PUBLIC_RELEASE_SIGNED=false
+```
+
+### Signing / release paths
+
+See [DESKTOP_RELEASE_RUNBOOK.md](../../../../docs/development/manual-tests/DESKTOP_RELEASE_RUNBOOK.md). v1 update UX is **assisted download** (GitHubUpdater saves the installer/zip); keep `ENABLE_MAC_NATIVE_AUTO_UPDATE=false` until a follow-up enables native electron-updater.
+
+---
+
 ## Licensing & telemetry (must keep)
 
 - Keep `LICENSE` aligned with upstream Apache-2.0
@@ -239,6 +282,9 @@ AVCD Docker Compose sets `GOOSE_PROVIDER`, `GOOSE_MODEL`, `OPENROUTER_*`, `GOOSE
 | `validate-openrouter` fails on provider | Script used `goose info` without `-v` | Use `goose info -v` (script should already) |
 | Electron exits immediately | Launched from Cursor agent shell | Launch via Terminal.app / `make dev-ui` |
 | Smoke “bundle missing” | Never packaged | `make package-ui` then `make test-smoke` |
+| macOS release fails on updater verify | Script still asserted `aaif-goose` | Use fork `app-update.yml` / `GITHUB_OWNER`+`GITHUB_REPO` |
+| DMG make fails locally | `macos-alias` / `fs-xattr` natives not built | `pnpm run premake` (ensure-macos-alias.js) |
+| Website `/download` 404 on static serve | Extensionless path | Production nginx `try_files $uri.html`; local Playwright uses `serve` |
 
 ---
 
@@ -247,5 +293,6 @@ AVCD Docker Compose sets `GOOSE_PROVIDER`, `GOOSE_MODEL`, `OPENROUTER_*`, `GOOSE
 - [branding-checklist.md](references/branding-checklist.md) — release / PR checklist  
 - [openrouter-preset.md](references/openrouter-preset.md) — catalog, env, validation  
 - [file-map.md](references/file-map.md) — every branding / distro file path  
+- [DESKTOP_RELEASE_RUNBOOK.md](../../../../docs/development/manual-tests/DESKTOP_RELEASE_RUNBOOK.md) — unsigned/signed release paths  
 - Upstream [CUSTOM_DISTROS.md](../../../../CUSTOM_DISTROS.md)  
 - Docs site: https://block-goose.mintlify.app/advanced/custom-distributions  

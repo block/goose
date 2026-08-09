@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 
+'use strict';
+
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const { getReleaseAssets } = require('./release-assets.js');
 
 function usage() {
   console.error(
@@ -62,17 +65,22 @@ function yamlString(value) {
   return JSON.stringify(value);
 }
 
-function writeManifest({ directory, version }) {
-  const files = [
+function manifestFilePairs() {
+  const assets = getReleaseAssets();
+  return [
     {
-      sourceName: 'Goose.zip',
-      updateName: 'Goose-darwin-arm64.zip',
+      sourceName: assets.macArm64.update,
+      updateName: assets.macArm64.updateManifestName,
     },
     {
-      sourceName: 'Goose_intel_mac.zip',
-      updateName: 'Goose-darwin-x64.zip',
+      sourceName: assets.macX64.update,
+      updateName: assets.macX64.updateManifestName,
     },
   ];
+}
+
+function writeManifest({ directory, version }) {
+  const files = manifestFilePairs();
 
   const entries = files.map(({ sourceName, updateName }) => {
     const sourcePath = path.join(directory, sourceName);
@@ -104,9 +112,13 @@ function writeManifest({ directory, version }) {
   fs.writeFileSync(path.join(directory, 'latest-mac.yml'), manifest);
 }
 
-try {
-  writeManifest(parseArgs(process.argv.slice(2)));
-} catch (error) {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
+module.exports = { manifestFilePairs, writeManifest };
+
+if (require.main === module) {
+  try {
+    writeManifest(parseArgs(process.argv.slice(2)));
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
 }

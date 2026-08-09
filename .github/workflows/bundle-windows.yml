@@ -255,22 +255,26 @@ jobs:
         shell: bash
         env:
           ELECTRON_PLATFORM: win32
+          GITHUB_OWNER: Avocado-Technology
+          GITHUB_REPO: avcd-agent
+          GOOSE_BUNDLE_NAME: Avocado Work
         run: |
           cd ui/desktop
           pnpm install --frozen-lockfile
           node scripts/build-main.js
           node scripts/prepare-platform-binaries.js
-          pnpm run make --platform=win32 --arch=x64
+          # Package first (no installer yet) so signing can happen before Squirrel wraps the app.
+          pnpm exec electron-forge package --platform=win32 --arch=x64
 
       - name: Prepare flat distribution
         shell: bash
         run: |
           cd ui/desktop
-          mkdir -p ./out/Goose-win32-x64/resources/bin
-          cp -r src/bin/* out/Goose-win32-x64/resources/bin/
+          mkdir -p "./out/Avocado Work-win32-x64/resources/bin"
+          cp -r src/bin/* "./out/Avocado Work-win32-x64/resources/bin/"
 
           mkdir -p ./dist-windows
-          cp -r ./out/Goose-win32-x64/* ./dist-windows/
+          cp -r "./out/Avocado Work-win32-x64/"* ./dist-windows/
 
           ls -la ./dist-windows/
           ls -la ./dist-windows/resources/bin/
@@ -313,14 +317,14 @@ jobs:
           trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT_NAME }}
           certificate-profile-name: ${{ secrets.AZURE_CERTIFICATE_PROFILE_NAME }}
           files: |
-            ${{ github.workspace }}/dist-windows/Goose.exe
+            ${{ github.workspace }}/dist-windows/avocado-work.exe
             ${{ github.workspace }}/dist-windows/resources/bin/goose.exe
 
       - name: Verify signed executables
         shell: pwsh
         run: |
           $files = @(
-            "dist-windows/Goose.exe",
+            "dist-windows/avocado-work.exe",
             "dist-windows/resources/bin/goose.exe"
           )
           foreach ($file in $files) {
@@ -330,17 +334,66 @@ jobs:
             Write-Output "Signature valid: $file"
           }
 
+      - name: Checkout for Forge makers
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          path: src
+
+      - name: Build signed Squirrel installer
+        shell: bash
+        env:
+          GITHUB_OWNER: Avocado-Technology
+          GITHUB_REPO: avcd-agent
+          GOOSE_BUNDLE_NAME: Avocado Work
+        run: |
+          set -euo pipefail
+          cd src
+          npm install -g pnpm@10.30.3
+          cd ui/desktop
+          pnpm install --frozen-lockfile
+          rm -rf "out/Avocado Work-win32-x64"
+          mkdir -p "out/Avocado Work-win32-x64"
+          cp -r "${GITHUB_WORKSPACE}/dist-windows/"* "out/Avocado Work-win32-x64/"
+          pnpm exec electron-forge make --platform=win32 --arch=x64 --skip-package \
+            --targets=@electron-forge/maker-squirrel,@electron-forge/maker-zip
+          SETUP_SRC=$(find out/make -name 'Avocado Work-Setup-x64.exe' -print -quit)
+          test -n "$SETUP_SRC"
+          cp "$SETUP_SRC" "${GITHUB_WORKSPACE}/Avocado Work-Setup-x64.exe"
+
+      - name: Sign Squirrel Setup.exe
+        uses: azure/trusted-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82  # v2.0.0
+        with:
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ secrets.AZURE_CERTIFICATE_PROFILE_NAME }}
+          files: |
+            ${{ github.workspace }}/Avocado Work-Setup-x64.exe
+
+      - name: Verify signed Setup.exe
+        shell: pwsh
+        run: |
+          $sig = Get-AuthenticodeSignature "Avocado Work-Setup-x64.exe"
+          if ($sig.Status -ne "Valid") { throw "Signature invalid for Setup.exe: $($sig.Status)" }
+
       - name: Create Windows zip package
         shell: bash
         env:
           VARIANT_SUFFIX: ${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
-        run: 7z a -tzip "Goose-win32-x64${VARIANT_SUFFIX}.zip" dist-windows/
+        run: 7z a -tzip "Avocado Work-win32-x64${VARIANT_SUFFIX}.zip" dist-windows/
 
-      - name: Upload signed Windows build
+      - name: Upload signed Windows zip
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          name: Goose-win32-x64${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
-          path: Goose-win32-x64${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}.zip
+          name: Avocado Work-win32-x64${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
+          path: Avocado Work-win32-x64${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}.zip
+          if-no-files-found: error
+          overwrite: true
+
+      - name: Upload signed Windows Setup.exe
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: Avocado Work-Setup-x64${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
+          path: Avocado Work-Setup-x64.exe
           if-no-files-found: error
           overwrite: true
 
@@ -350,22 +403,52 @@ jobs:
     if: ${{ inputs.package_desktop && !inputs.signing }}
     runs-on: windows-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
       - name: Download unsigned distribution
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: internal-windows-unsigned${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
           path: dist-windows
 
-      - name: Create Windows zip package
+      - name: Install pnpm
+        run: npm install -g pnpm@10.30.3
+
+      - name: Build unsigned Squirrel installer from packaged app
         shell: bash
         env:
+          GITHUB_OWNER: Avocado-Technology
+          GITHUB_REPO: avcd-agent
+          GOOSE_BUNDLE_NAME: Avocado Work
           VARIANT_SUFFIX: ${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
-        run: 7z a -tzip "Goose-win32-x64${VARIANT_SUFFIX}.zip" dist-windows/
+        run: |
+          set -euo pipefail
+          cd ui/desktop
+          pnpm install --frozen-lockfile
+          rm -rf "out/Avocado Work-win32-x64"
+          mkdir -p "out/Avocado Work-win32-x64"
+          cp -r "${GITHUB_WORKSPACE}/dist-windows/"* "out/Avocado Work-win32-x64/"
+          pnpm exec electron-forge make --platform=win32 --arch=x64 --skip-package \
+            --targets=@electron-forge/maker-squirrel,@electron-forge/maker-zip
+          SETUP_SRC=$(find out/make -name 'Avocado Work-Setup-x64.exe' -print -quit)
+          test -n "$SETUP_SRC"
+          cp "$SETUP_SRC" "${GITHUB_WORKSPACE}/Avocado Work-Setup-x64${VARIANT_SUFFIX}.exe"
+          cd "${GITHUB_WORKSPACE}"
+          7z a -tzip "Avocado Work-win32-x64${VARIANT_SUFFIX}.zip" dist-windows/
 
-      - name: Upload Windows build
+      - name: Upload Windows zip
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          name: Goose-win32-x64${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
-          path: Goose-win32-x64${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}.zip
+          name: Avocado Work-win32-x64${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
+          path: Avocado Work-win32-x64${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}.zip
+          if-no-files-found: error
+          overwrite: true
+
+      - name: Upload Windows Setup.exe
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: Avocado Work-Setup-x64${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
+          path: Avocado Work-Setup-x64${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}.exe
           if-no-files-found: error
           overwrite: true

@@ -270,6 +270,9 @@ jobs:
           APPLE_ID_PASSWORD: ${{ inputs.signing && secrets.APPLE_ID_PASSWORD || '' }}
           APPLE_TEAM_ID: ${{ inputs.signing && secrets.APPLE_TEAM_ID || '' }}
           BUNDLE_SCRIPT: ${{ inputs.target == 'x86_64-apple-darwin' && 'bundle:intel' || 'bundle:default' }}
+          GITHUB_OWNER: Avocado-Technology
+          GITHUB_REPO: avcd-agent
+          GOOSE_BUNDLE_NAME: Avocado Work
         run: |
           source ../../bin/activate-hermit
           attempt=0
@@ -288,8 +291,51 @@ jobs:
 
       - name: Verify macOS updater resources
         env:
-          APP_PATH: ${{ inputs.target == 'x86_64-apple-darwin' && 'out/Goose-darwin-x64/Goose.app' || 'out/Goose-darwin-arm64/Goose.app' }}
+          APP_PATH: ${{ inputs.target == 'x86_64-apple-darwin' && 'out/Avocado Work-darwin-x64/Avocado Work.app' || 'out/Avocado Work-darwin-arm64/Avocado Work.app' }}
+          GITHUB_OWNER: Avocado-Technology
+          GITHUB_REPO: avcd-agent
         run: node scripts/verify-mac-update-resources.js "$APP_PATH"
+        working-directory: ui/desktop
+
+      - name: Notarize and staple DMG
+        if: ${{ inputs.signing }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          DMG_PATH: ${{ inputs.target == 'x86_64-apple-darwin' && 'out/make/Avocado Work_intel_mac.dmg' || 'out/make/Avocado Work.dmg' }}
+        run: |
+          set -euo pipefail
+          if [ ! -f "$DMG_PATH" ]; then
+            # maker-dmg emits "Avocado Work.dmg"; intel builds may keep the same name
+            if [ -f "out/make/Avocado Work.dmg" ]; then
+              DMG_PATH="out/make/Avocado Work.dmg"
+            else
+              echo "DMG not found at $DMG_PATH" >&2
+              ls -la out/make || true
+              exit 1
+            fi
+          fi
+          if [ "${{ inputs.target }}" = "x86_64-apple-darwin" ] && [ "$(basename "$DMG_PATH")" = "Avocado Work.dmg" ]; then
+            mv "$DMG_PATH" "out/make/Avocado Work_intel_mac.dmg"
+            DMG_PATH="out/make/Avocado Work_intel_mac.dmg"
+          fi
+          codesign --force --sign "Developer ID Application" --timestamp "$DMG_PATH"
+          xcrun notarytool submit "$DMG_PATH" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "$DMG_PATH"
+          xcrun stapler validate "$DMG_PATH"
+        working-directory: ui/desktop
+
+      - name: Normalize Intel DMG filename (unsigned)
+        if: ${{ !inputs.signing && inputs.target == 'x86_64-apple-darwin' }}
+        run: |
+          if [ -f "out/make/Avocado Work.dmg" ] && [ ! -f "out/make/Avocado Work_intel_mac.dmg" ]; then
+            mv "out/make/Avocado Work.dmg" "out/make/Avocado Work_intel_mac.dmg"
+          fi
         working-directory: ui/desktop
 
       - name: Clean up signing keychain
@@ -304,28 +350,36 @@ jobs:
           rm -f ui/desktop/src/bin/goose
           df -h
 
-      - name: Upload Desktop artifact
+      - name: Upload Desktop zip artifact
         id: upload-app-bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          name: ${{ inputs.target == 'x86_64-apple-darwin' && 'Goose-darwin-x64' || 'Goose-darwin-arm64' }}
-          path: ${{ inputs.target == 'x86_64-apple-darwin' && 'ui/desktop/out/Goose-darwin-x64/Goose_intel_mac.zip' || 'ui/desktop/out/Goose-darwin-arm64/Goose.zip' }}
+          name: ${{ inputs.target == 'x86_64-apple-darwin' && 'Avocado Work-darwin-x64' || 'Avocado Work-darwin-arm64' }}
+          path: ${{ inputs.target == 'x86_64-apple-darwin' && 'ui/desktop/out/Avocado Work-darwin-x64/Avocado Work_intel_mac.zip' || 'ui/desktop/out/Avocado Work-darwin-arm64/Avocado Work.zip' }}
+          if-no-files-found: error
+          overwrite: true
+
+      - name: Upload Desktop DMG artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: ${{ inputs.target == 'x86_64-apple-darwin' && 'Avocado Work-darwin-x64-dmg' || 'Avocado Work-darwin-arm64-dmg' }}
+          path: ${{ inputs.target == 'x86_64-apple-darwin' && 'ui/desktop/out/make/Avocado Work_intel_mac.dmg' || 'ui/desktop/out/make/Avocado Work.dmg' }}
           if-no-files-found: error
           overwrite: true
 
       - name: Quick launch test (macOS)
         env:
-          APP_PATH: ${{ inputs.target == 'x86_64-apple-darwin' && 'ui/desktop/out/Goose-darwin-x64/Goose.app' || 'ui/desktop/out/Goose-darwin-arm64/Goose.app' }}
+          APP_PATH: ${{ inputs.target == 'x86_64-apple-darwin' && 'ui/desktop/out/Avocado Work-darwin-x64/Avocado Work.app' || 'ui/desktop/out/Avocado Work-darwin-arm64/Avocado Work.app' }}
         run: |
           xattr -cr "$APP_PATH"
-          echo "Opening Goose.app..."
+          echo "Opening Avocado Work.app..."
           open -g "$APP_PATH"
           sleep 5
 
-          if pgrep -f "Goose.app/Contents/MacOS/Goose" > /dev/null; then
+          if pgrep -f "Avocado Work.app/Contents/MacOS/avocado-work" > /dev/null; then
             echo "App appears to be running."
           else
             echo "App did not stay open. Possible crash or startup error."
             exit 1
           fi
-          pkill -f "Goose.app/Contents/MacOS/Goose"
+          pkill -f "Avocado Work.app/Contents/MacOS/avocado-work"

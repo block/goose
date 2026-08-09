@@ -87,6 +87,26 @@ module.exports = {
       },
     },
     {
+      name: '@electron-forge/maker-dmg',
+      platforms: ['darwin'],
+      config: {
+        name: 'Avocado Work',
+        icon: 'src/images/icon.icns',
+        overwrite: true,
+      },
+    },
+    {
+      name: '@electron-forge/maker-squirrel',
+      platforms: ['win32'],
+      config: {
+        name: 'avocado-work',
+        authors: 'Avocado Technology',
+        exe: 'avocado-work.exe',
+        setupExe: 'Avocado Work-Setup-x64.exe',
+        setupIcon: 'src/images/icon.ico',
+      },
+    },
+    {
       name: '@electron-forge/maker-deb',
       config: {
         name: 'avocado-work',

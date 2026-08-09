@@ -26,9 +26,23 @@ interface UpdateCheckResult {
   error?: string;
 }
 
+export function resolveUpdateAssetName(
+  platform: NodeJS.Platform,
+  arch: string,
+  bundleName = process.env.GOOSE_BUNDLE_NAME || 'Avocado Work'
+): string {
+  if (platform === 'darwin') {
+    return arch === 'arm64' ? `${bundleName}.zip` : `${bundleName}_intel_mac.zip`;
+  }
+  if (platform === 'win32') {
+    return `${bundleName}-Setup-x64.exe`;
+  }
+  return `${bundleName}-linux-${arch}.zip`;
+}
+
 export class GitHubUpdater {
-  private readonly owner = process.env.GITHUB_OWNER || 'aaif-goose';
-  private readonly repo = process.env.GITHUB_REPO || 'goose';
+  private readonly owner = process.env.GITHUB_OWNER || 'Avocado-Technology';
+  private readonly repo = process.env.GITHUB_REPO || 'avcd-agent';
   private readonly bundleName = process.env.GOOSE_BUNDLE_NAME || 'Avocado Work';
   private readonly apiUrl = `https://api.github.com/repos/${this.owner}/${this.repo}/releases/latest`;
 
@@ -93,31 +107,18 @@ export class GitHubUpdater {
         };
       }
 
-      // Find the appropriate download URL based on platform
       const platform = process.platform;
       const arch = process.arch;
       let downloadUrl: string | undefined;
-      let assetName: string;
+      const assetName = resolveUpdateAssetName(platform, arch, this.bundleName);
 
       log.info(`GitHubUpdater: Looking for asset for platform: ${platform}, arch: ${arch}`);
-
-      if (platform === 'darwin') {
-        // macOS
-        if (arch === 'arm64') {
-          assetName = `${this.bundleName}.zip`;
-        } else {
-          assetName = `${this.bundleName}_intel_mac.zip`;
-        }
-      } else if (platform === 'win32') {
-        // Windows - for future support
-        assetName = `${this.bundleName}-win32-x64.zip`;
-      } else {
-        // Linux - for future support
-        assetName = `${this.bundleName}-linux-${arch}.zip`;
-      }
-
       log.info(`GitHubUpdater: Looking for asset named: ${assetName}`);
       log.info(`GitHubUpdater: Available assets: ${release.assets.map((a) => a.name).join(', ')}`);
+
+      if (/^Goose(\.zip|_intel_mac\.zip|-win32-|-Setup)/i.test(assetName)) {
+        throw new Error(`Refusing Goose-named update asset: ${assetName}`);
+      }
 
       const asset = release.assets.find((a) => a.name.toLowerCase() === assetName.toLowerCase());
       if (asset) {
@@ -252,9 +253,10 @@ export class GitHubUpdater {
       const buffer = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
       log.info(`GitHubUpdater: Buffer created - ${buffer.length} bytes`);
 
-      // Save to Downloads directory
       const downloadsDir = path.join(os.homedir(), 'Downloads');
-      const fileName = `${this.bundleName}-${latestVersion}.zip`;
+      const remoteName = path.basename(new URL(downloadUrl).pathname);
+      const extension = path.extname(remoteName) || '.zip';
+      const fileName = `${this.bundleName}-${latestVersion}${extension}`;
       const downloadPath = path.join(downloadsDir, fileName);
 
       log.info(`GitHubUpdater: Writing file to ${downloadPath}...`);

@@ -24,6 +24,7 @@ jobs:
   # ------------------------------------
   prepare-version:
     name: Prepare Version
+    if: github.repository == 'aaif-goose/goose'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.set-version.outputs.version }}
@@ -53,6 +54,7 @@ jobs:
   # ------------------------------------
   install-script:
     name: Upload Install Script
+    if: github.repository == 'aaif-goose/goose'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -133,6 +135,7 @@ jobs:
   # ------------------------------------
   release:
     name: Release
+    if: github.repository == 'aaif-goose/goose'
     runs-on: ubuntu-latest
     needs: [build-cli-linux, install-script, bundle-macos-arm64, bundle-macos-x64, bundle-desktop-linux, bundle-windows, bundle-windows-cuda]
     permissions:
@@ -154,7 +157,9 @@ jobs:
             goose-*.tar.bz2
             goose-*.tar.gz
             goose-*.zip
-            Goose*.zip
+            Avocado Work*.zip
+            Avocado Work*.dmg
+            Avocado Work-Setup-x64.exe
             *.deb
             *.rpm
             *.flatpak
@@ -171,7 +176,9 @@ jobs:
             goose-*.tar.bz2
             goose-*.tar.gz
             goose-*.zip
-            Goose*.zip
+            Avocado Work*.zip
+            Avocado Work*.dmg
+            Avocado Work-Setup-x64.exe
             *.deb
             *.rpm
             *.flatpak

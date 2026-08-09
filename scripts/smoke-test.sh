@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-TOTAL=10
+TOTAL=11
 pass_count=0
 
 pass() {
@@ -85,5 +85,12 @@ git diff --quiet upstream/main -- LICENSE \
   && grep -q 'Apache License 2.0' NOTICE \
   && pass "license and attribution are present" \
   || fail "NOTICE is missing Apache 2.0 attribution"
+
+if grep -q 'REPO="Avocado-Technology/avcd-agent"' download_cli.sh \
+  && ! grep -q 'aaif-goose/goose' download_cli.sh; then
+  pass "download_cli.sh installs from Avocado-Technology/avcd-agent"
+else
+  fail "download_cli.sh still references aaif-goose/goose"
+fi
 
 printf 'All %s smoke checks passed.\n' "$pass_count"

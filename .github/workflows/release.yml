@@ -151,7 +151,9 @@ jobs:
             goose-*.tar.bz2
             goose-*.tar.gz
             goose-*.zip
-            Goose*.zip
+            Avocado Work*.zip
+            Avocado Work*.dmg
+            Avocado Work-Setup-x64.exe
             *.deb
             *.rpm
             *.flatpak
@@ -166,7 +168,9 @@ jobs:
             goose-*.tar.bz2
             goose-*.tar.gz
             goose-*.zip
-            Goose*.zip
+            Avocado Work*.zip
+            Avocado Work*.dmg
+            Avocado Work-Setup-x64.exe
             *.deb
             *.rpm
             *.flatpak
@@ -186,7 +190,9 @@ jobs:
             goose-*.tar.bz2
             goose-*.tar.gz
             goose-*.zip
-            Goose*.zip
+            Avocado Work*.zip
+            Avocado Work*.dmg
+            Avocado Work-Setup-x64.exe
             *.deb
             *.rpm
             *.flatpak
