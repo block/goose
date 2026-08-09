@@ -1,10 +1,10 @@
 mod builder;
 mod completion;
-mod editor;
+pub mod editor;
 mod elicitation;
-mod export;
 mod input;
 mod output;
+mod paste;
 pub mod streaming_buffer;
 mod task_execution_display;
 mod thinking;
@@ -12,21 +12,25 @@ mod thinking;
 use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
-use goose::conversation::Conversation;
+use goose::conversation::{fix_conversation, merge_consecutive_messages_for_request, Conversation};
+use std::env;
 use std::io::Write;
 use std::str::FromStr;
 use tokio::signal::ctrl_c;
 use tokio_util::task::AbortOnDropHandle;
 
-pub use self::export::message_to_markdown;
 pub use builder::{build_session, SessionBuilderConfig};
 use console::Color;
+use goose::agents::platform_extensions::developer::shell::{
+    parse_shell_output_notification, ShellOutputNotificationParams, ShellOutputStream,
+};
 use goose::agents::AgentEvent;
 use goose::agents::SUBAGENT_TOOL_REQUEST_TYPE;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
 use goose::providers::base::Provider;
+use goose::providers::base::ProviderUsage;
 use goose::utils::safe_truncate;
 
 use anyhow::{Context, Result};
@@ -37,13 +41,16 @@ use goose::agents::{Agent, SessionConfig, COMPACT_TRIGGERS};
 use goose::config::extensions::name_to_key;
 use goose::config::{Config, GooseMode};
 use input::InputResult;
-use rmcp::model::PromptMessage;
 use rmcp::model::ServerNotification;
+use rmcp::model::{ElicitationAction, PromptMessage};
 use rmcp::model::{ErrorCode, ErrorData};
 use strum::VariantNames;
 
 use goose::config::paths::Paths;
+use goose::config::providers;
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
+use goose::providers::inventory::ProviderInventoryService;
+use goose::session::SessionManager;
 use rustyline::EditMode;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -51,10 +58,28 @@ use std::collections::{HashMap, HashSet};
 use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
+
+const GOOSE_PLANNER_CONTEXT_LIMIT: &str = "GOOSE_PLANNER_CONTEXT_LIMIT";
+const SHELL_STATUS_FALLBACK_WIDTH: usize = 120;
+const SHELL_STATUS_MAX_LINES: usize = 3;
+const SHELL_STATUS_RESERVED_WIDTH: usize = 2;
+
+fn planner_provider_messages(plan_messages: &Conversation) -> Conversation {
+    // The planner prompt has no turn-context instructions; drop the blocks.
+    let projected_messages: Vec<Message> = plan_messages
+        .agent_visible_messages()
+        .into_iter()
+        .filter(|message| !message.is_turn_context())
+        .collect();
+    let fixed = fix_conversation(Conversation::new_unvalidated(projected_messages)).0;
+    Conversation::new_unvalidated(merge_consecutive_messages_for_request(
+        fixed.messages().clone(),
+    ))
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 struct JsonOutput {
@@ -69,6 +94,12 @@ struct JsonMetadata {
     input_tokens: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     output_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_read_input_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_write_input_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cost_usd: Option<f64>,
     status: String,
 }
 
@@ -92,6 +123,12 @@ enum StreamEvent {
         input_tokens: Option<i32>,
         #[serde(skip_serializing_if = "Option::is_none")]
         output_tokens: Option<i32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_read_input_tokens: Option<i32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_write_input_tokens: Option<i32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cost_usd: Option<f64>,
     },
 }
 
@@ -172,6 +209,7 @@ pub struct CliSession {
     edit_mode: Option<EditMode>,
     retry_config: Option<RetryConfig>,
     output_format: String,
+    stats: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -185,6 +223,9 @@ pub enum HintStatus {
 pub struct CompletionCache {
     pub prompts: HashMap<String, Vec<String>>,
     pub prompt_info: HashMap<String, output::PromptInfo>,
+    pub provider_names: Vec<String>,
+    pub provider_models: HashMap<String, Vec<String>>,
+    pub current_session_provider: String,
     pub last_updated: Instant,
     pub hint_status: HintStatus,
 }
@@ -194,6 +235,9 @@ impl CompletionCache {
         Self {
             prompts: HashMap::new(),
             prompt_info: HashMap::new(),
+            provider_names: Vec::new(),
+            provider_models: HashMap::new(),
+            current_session_provider: String::new(),
             last_updated: Instant::now(),
             hint_status: HintStatus::Default,
         }
@@ -214,22 +258,23 @@ pub async fn classify_planner_response(
     session_id: &str,
     message_text: String,
     provider: Arc<dyn Provider>,
+    model_config: goose_providers::model::ModelConfig,
 ) -> Result<PlannerResponseType> {
     let prompt = format!(
         "The text below is the output from an AI model which can either provide a plan or list of clarifying questions. Based on the text below, decide if the output is a \"plan\" or \"clarifying questions\".\n---\n{message_text}"
     );
 
     let message = Message::user().with_text(&prompt);
-    let model_config = provider.get_model_config();
-    let (result, _usage) = provider
-        .complete(
+    let (result, _usage) = goose::session_context::with_session_id(
+        Some(session_id.to_string()),
+        provider.complete(
             &model_config,
-            session_id,
             "Reply only with the classification label: \"plan\" or \"clarifying questions\"",
             &[message],
             &[],
-        )
-        .await?;
+        ),
+    )
+    .await?;
 
     let predicted = result.as_concat_text();
     if predicted.to_lowercase().contains("plan") {
@@ -237,6 +282,15 @@ pub async fn classify_planner_response(
     } else {
         Ok(PlannerResponseType::ClarifyingQuestions)
     }
+}
+
+fn planner_classification_text(response: &Message) -> Result<String> {
+    let text = response.agent_visible_content().as_concat_text();
+    anyhow::ensure!(
+        !text.trim().is_empty(),
+        "Planner returned no agent-visible text to classify"
+    );
+    Ok(text)
 }
 
 impl CliSession {
@@ -250,6 +304,7 @@ impl CliSession {
         edit_mode: Option<EditMode>,
         retry_config: Option<RetryConfig>,
         output_format: String,
+        stats: bool,
     ) -> Self {
         let messages = agent
             .config
@@ -271,6 +326,7 @@ impl CliSession {
             edit_mode,
             retry_config,
             output_format,
+            stats,
         }
     }
 
@@ -312,6 +368,7 @@ impl CliSession {
             env_keys: Vec::new(),
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            cwd: None,
             bundled: None,
             available_tools: Vec::new(),
         })
@@ -478,10 +535,6 @@ impl CliSession {
 
     /// Start an interactive session, optionally with an initial message
     pub async fn interactive(&mut self, prompt: Option<String>) -> Result<()> {
-        self.agent
-            .emit_hook(goose::hooks::HookEvent::SessionStart, &self.session_id)
-            .await;
-
         let result = self.run_interactive(prompt).await;
 
         self.agent
@@ -517,6 +570,7 @@ impl CliSession {
 
             let conversation_strings: Vec<String> = self
                 .messages
+                .user_visible_messages()
                 .iter()
                 .map(|msg| {
                     let role = match msg.role {
@@ -608,9 +662,9 @@ impl CliSession {
                 history.save(editor);
                 self.handle_goose_mode(&mode).await?;
             }
-            InputResult::Model(model) => {
+            InputResult::Model(options) => {
                 history.save(editor);
-                self.handle_model(model.as_deref()).await?;
+                self.handle_model(options).await?;
             }
             InputResult::Plan(options) => {
                 self.handle_plan_mode(options).await?;
@@ -647,6 +701,8 @@ impl CliSession {
                             prefill.as_deref(),
                         ) {
                             Ok((message, true)) => {
+                                editor.add_history_entry(message.as_str())?;
+                                history.save(editor);
                                 self.handle_message_input(&message, history, editor).await?;
                             }
                             Ok((_, false)) => {}
@@ -687,16 +743,6 @@ impl CliSession {
                 history.save(editor);
                 self.push_message(Message::user().with_text(content));
 
-                if let Err(e) = crate::project_tracker::update_project_tracker(
-                    Some(content),
-                    Some(&self.session_id),
-                ) {
-                    eprintln!(
-                        "Warning: Failed to update project tracker with instruction: {}",
-                        e
-                    );
-                }
-
                 let _provider = self.agent.provider().await?;
 
                 println!();
@@ -714,8 +760,8 @@ impl CliSession {
             RunMode::Plan => {
                 let mut plan_messages = self.messages.clone();
                 plan_messages.push(Message::user().with_text(content));
-                let reasoner = get_reasoner().await?;
-                self.plan_with_reasoner_model(plan_messages, reasoner)
+                let (reasoner, reasoner_model_config) = get_reasoner().await?;
+                self.plan_with_reasoner_model(plan_messages, reasoner, reasoner_model_config)
                     .await?;
             }
         }
@@ -799,27 +845,48 @@ impl CliSession {
         Ok(())
     }
 
-    async fn handle_model(&self, model: Option<&str>) -> Result<()> {
+    async fn handle_model(&mut self, options: input::ModelCommandOptions) -> Result<()> {
         let provider = self.agent.provider().await?;
         let current_provider_name = provider.get_name().to_string();
-        let current_model_config = provider.get_model_config();
+        let current_model_config = self
+            .agent
+            .model_config_for_session(&self.session_id)
+            .await?;
         let current_model_name = current_model_config.model_name.clone();
 
-        if model.is_none() {
+        if options.provider.is_none() && options.model.is_none() {
             output::goose_mode_message(&format!(
-                "Current session model: '{}' (provider '{}')",
+                "Current session model: '{}' (provider '{}')\n\
+                 Tip: use '/model <name>' to switch model, or '/model --provider <name> [model]' to switch provider.",
                 current_model_name, current_provider_name
             ));
             return Ok(());
         }
 
-        let model_name = model.unwrap_or_default().trim();
-        if model_name.is_empty() {
-            output::render_error("Model name cannot be empty");
+        let requested_provider = options
+            .provider
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+        let target_provider_name = requested_provider.unwrap_or(&current_provider_name);
+
+        if options.provider.is_some() && requested_provider.is_none() {
+            output::render_error("Provider name is required after '--provider'.");
             return Ok(());
         }
 
-        if current_provider_name.ends_with("-acp") {
+        let target_entry = match goose::providers::get_from_registry(target_provider_name).await {
+            Ok(entry) => entry,
+            Err(_) => {
+                output::render_error(&format!(
+                    "Unknown provider '{}'. Use tab-completion to see available providers.",
+                    target_provider_name
+                ));
+                return Ok(());
+            }
+        };
+
+        if target_provider_name.ends_with("-acp") {
             output::render_error(
                 "Session model switching is not supported for ACP providers in the CLI.",
             );
@@ -828,17 +895,55 @@ impl CliSession {
 
         if provider.manages_own_context() {
             output::render_error(&format!(
-                "Session model switching is not supported for provider '{}' because it manages its own conversation context.",
+                "Session model or provider switching is not supported for provider '{}' because it manages its own conversation context.",
                 current_provider_name
             ));
             return Ok(());
         }
 
-        let new_model_config =
-            build_switched_model_config(&current_provider_name, model_name, &current_model_config)?;
+        if options
+            .model
+            .as_deref()
+            .is_some_and(|model| model.split_whitespace().count() > 1)
+        {
+            output::render_error("Unexpected arguments after model name.");
+            return Ok(());
+        }
 
-        if new_model_config.model_name == current_model_config.model_name
-            && new_model_config.thinking_effort() == current_model_config.thinking_effort()
+        let target_model_name = match options.model.as_deref().map(str::trim) {
+            Some(m) if !m.is_empty() => m.to_string(),
+            _ => {
+                if target_provider_name == current_provider_name {
+                    current_model_name.clone()
+                } else {
+                    let known: Vec<&str> = target_entry
+                        .metadata()
+                        .known_models
+                        .iter()
+                        .map(|m| m.name.as_str())
+                        .collect();
+                    if known.contains(&current_model_name.as_str()) {
+                        current_model_name.clone()
+                    } else {
+                        target_entry.metadata().default_model.clone()
+                    }
+                }
+            }
+        };
+
+        let new_model_config = build_switched_model_config(
+            target_provider_name,
+            &target_model_name,
+            &current_model_config,
+        )?;
+
+        let configured_effort = Config::global().get_goose_thinking_effort();
+        let new_effort = new_model_config.thinking_effort().or(configured_effort);
+        let current_effort = current_model_config.thinking_effort().or(configured_effort);
+        let provider_unchanged = target_provider_name == current_provider_name;
+        if provider_unchanged
+            && new_model_config.model_name == current_model_config.model_name
+            && new_effort == current_effort
         {
             output::goose_mode_message(&format!(
                 "Session already using model '{}' for provider '{}'",
@@ -847,22 +952,69 @@ impl CliSession {
             return Ok(());
         }
 
+        if let Some(model_info) = target_entry
+            .metadata()
+            .known_models
+            .iter()
+            .find(|m| m.name == target_model_name)
+        {
+            if model_info.context_limit < current_model_config.context_limit.unwrap_or(0) {
+                eprintln!(
+                    "{}",
+                    console::style(format!(
+                        "Warning: '{}' has a smaller context window ({} tokens) than the current session ({} tokens). \
+                        You may need to use /compact.",
+                        target_model_name,
+                        model_info.context_limit,
+                        current_model_config.context_limit.unwrap_or(0)
+                    ))
+                    .yellow()
+                );
+            }
+        }
+
         let extensions = self.agent.get_extension_configs().await;
-        let new_provider =
-            goose::providers::create(&current_provider_name, new_model_config, extensions)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to create provider: {e}"))?;
+        let new_provider = match goose::providers::create(target_provider_name, extensions).await {
+            Ok(p) => p,
+            Err(e) => {
+                output::render_error(&format!(
+                    "Cannot switch to provider '{}': {}\n\
+                         Set credentials via `goose configure` or the appropriate environment variable.\n\
+                         Session continues with current provider '{}'.",
+                    target_provider_name, e, current_provider_name
+                ));
+                return Ok(());
+            }
+        };
+
+        if new_provider.manages_own_context() {
+            output::render_error(&format!(
+                "Session provider switching is not supported for '{}' because it manages its own conversation context.",
+                target_provider_name
+            ));
+            return Ok(());
+        }
 
         self.agent
-            .update_provider(new_provider, &self.session_id)
+            .update_provider(new_provider, new_model_config, &self.session_id)
             .await?;
 
         let mode = self.agent.goose_mode().await;
         self.agent.update_goose_mode(mode, &self.session_id).await?;
-        output::goose_mode_message(&format!(
-            "Session model switched from '{}' to '{}' for provider '{}'",
-            current_model_name, model_name, current_provider_name
-        ));
+
+        self.update_completion_cache().await?;
+
+        if provider_unchanged {
+            output::goose_mode_message(&format!(
+                "Session model switched from '{}' to '{}' for provider '{}'",
+                current_model_name, target_model_name, current_provider_name
+            ));
+        } else {
+            output::goose_mode_message(&format!(
+                "Session switched from provider '{}' / model '{}' to provider '{}' / model '{}'",
+                current_provider_name, current_model_name, target_provider_name, target_model_name
+            ));
+        }
         Ok(())
     }
 
@@ -877,8 +1029,9 @@ impl CliSession {
         let mut plan_messages = self.messages.clone();
         plan_messages.push(Message::user().with_text(&options.message_text));
 
-        let reasoner = get_reasoner().await?;
-        self.plan_with_reasoner_model(plan_messages, reasoner).await
+        let (reasoner, reasoner_model_config) = get_reasoner().await?;
+        self.plan_with_reasoner_model(plan_messages, reasoner, reasoner_model_config)
+            .await
     }
 
     async fn handle_clear(&mut self) -> Result<()> {
@@ -898,9 +1051,11 @@ impl CliSession {
             .config
             .session_manager
             .update(&self.session_id)
-            .total_tokens(Some(0))
-            .input_tokens(Some(0))
-            .output_tokens(Some(0))
+            .usage(goose_providers::conversation::token_usage::Usage::new(
+                Some(0),
+                Some(0),
+                Some(0),
+            ))
             .apply()
             .await
         {
@@ -1038,25 +1193,37 @@ impl CliSession {
         &mut self,
         plan_messages: Conversation,
         reasoner: Arc<dyn Provider>,
+        model_config: goose_providers::model::ModelConfig,
     ) -> Result<(), anyhow::Error> {
         let plan_prompt = self.agent.get_plan_prompt(&self.session_id).await?;
+        let provider_messages = planner_provider_messages(&plan_messages);
         output::show_thinking();
-        let model_config = reasoner.get_model_config();
-        let (plan_response, _usage) = reasoner
-            .complete(
+        let (plan_response, _usage) = goose::session_context::with_session_id(
+            Some(self.session_id.clone()),
+            reasoner.complete(
                 &model_config,
-                &self.session_id,
                 &plan_prompt,
-                plan_messages.messages(),
+                provider_messages.messages(),
                 &[],
-            )
-            .await?;
+            ),
+        )
+        .await?;
+        let classifier_text = planner_classification_text(&plan_response);
+        let plan_response = plan_response.user_visible_content();
         output::render_message(&plan_response, self.debug);
         output::hide_thinking();
+        let classifier_text = classifier_text?;
+        anyhow::ensure!(
+            !plan_response.content.is_empty(),
+            "Planner returned no user-visible content"
+        );
         let planner_response_type = classify_planner_response(
             &self.session_id,
-            plan_response.as_concat_text(),
+            classifier_text,
             self.agent.provider().await?,
+            self.agent
+                .model_config_for_session(&self.session_id)
+                .await?,
         )
         .await?;
 
@@ -1121,9 +1288,6 @@ impl CliSession {
 
     /// Process a single message and exit
     pub async fn headless(&mut self, prompt: String) -> Result<()> {
-        self.agent
-            .emit_hook(goose::hooks::HookEvent::SessionStart, &self.session_id)
-            .await;
         let message = Message::user().with_text(&prompt);
         let result = self
             .process_message(message, CancellationToken::default(), false)
@@ -1176,6 +1340,9 @@ impl CliSession {
         let mut markdown_buffer = streaming_buffer::MarkdownBuffer::new();
         let mut prompted_credits_urls: HashSet<String> = HashSet::new();
         let mut thinking_header_shown = false;
+        let run_started = Instant::now();
+        let mut first_token_at: Option<Instant> = None;
+        let mut last_usage: Option<ProviderUsage> = None;
 
         use futures::StreamExt;
         loop {
@@ -1183,6 +1350,9 @@ impl CliSession {
                 result = stream.next() => {
                     match result {
                         Some(Ok(AgentEvent::Message(message))) => {
+                            if first_token_at.is_none() && message_has_text(&message) {
+                                first_token_at = Some(Instant::now());
+                            }
                             if let Some((id, security_prompt)) = find_tool_confirmation(&message) {
                                 let permission = if interactive {
                                     prompt_tool_confirmation(&security_prompt)?
@@ -1248,25 +1418,38 @@ impl CliSession {
                                 let _ = progress_bars.hide();
 
                                 match elicitation::collect_elicitation_input(&elicitation_message, &schema) {
-                                    Ok(Some(user_data)) => {
-                                        let user_data_value = serde_json::to_value(user_data)
+                                    Ok(input) => {
+                                        match &input.action {
+                                            ElicitationAction::Decline => {
+                                                output::render_text("Information request declined.", Some(Color::Yellow), true);
+                                            }
+                                            ElicitationAction::Cancel => {
+                                                output::render_text("Information request cancelled.", Some(Color::Yellow), true);
+                                            }
+                                            ElicitationAction::Accept => {}
+                                            _ => {}
+                                        }
+
+                                        let should_cancel = input.action == ElicitationAction::Cancel;
+                                        let action = input.action;
+                                        let user_data_value = serde_json::to_value(input.user_data)
                                             .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
                                         let response_message = Message::user()
                                             .with_content(MessageContent::action_required_elicitation_response(
                                                 elicitation_id,
                                                 user_data_value,
+                                                action,
                                             ))
                                             .with_visibility(false, true);
                                         self.messages.push(response_message.clone());
                                         // Elicitation responses return an empty stream - the response
                                         // unblocks the waiting tool call via ActionRequiredManager
                                         let _ = self.agent.reply(response_message, session_config.clone(), Some(cancel_token.clone())).await?;
-                                    }
-                                    Ok(None) => {
-                                        output::render_text("Information request cancelled.", Some(Color::Yellow), true);
-                                        cancel_token_clone.cancel();
-                                        drop(stream);
-                                        break;
+                                        if should_cancel {
+                                            cancel_token_clone.cancel();
+                                            drop(stream);
+                                            break;
+                                        }
                                     }
                                     Err(e) => {
                                         output::render_error(&format!("Failed to collect input: {}", e));
@@ -1294,6 +1477,10 @@ impl CliSession {
                                 }
                             }
                         }
+                        Some(Ok(AgentEvent::Usage(usage))) => {
+                            last_usage = Some(usage);
+                        }
+                        Some(Ok(AgentEvent::MessageUsage { .. })) => {}
                         Some(Ok(AgentEvent::McpNotification((extension_id, notification)))) => {
                             handle_mcp_notification(
                                 &extension_id,
@@ -1346,50 +1533,72 @@ impl CliSession {
                 .agent
                 .config
                 .session_manager
-                .get_session(&self.session_id, false)
+                .get_session_usage_totals(&self.session_id)
                 .await
             {
-                Ok(session) => JsonMetadata {
-                    total_tokens: session.accumulated_total_tokens.or(session.total_tokens),
-                    input_tokens: session.accumulated_input_tokens.or(session.input_tokens),
-                    output_tokens: session.accumulated_output_tokens.or(session.output_tokens),
+                Ok(totals) => JsonMetadata {
+                    total_tokens: totals.accumulated_usage.total_tokens,
+                    input_tokens: totals.accumulated_usage.input_tokens,
+                    output_tokens: totals.accumulated_usage.output_tokens,
+                    cache_read_input_tokens: totals.accumulated_usage.cache_read_input_tokens,
+                    cache_write_input_tokens: totals.accumulated_usage.cache_write_input_tokens,
+                    cost_usd: totals.accumulated_cost,
                     status: "completed".to_string(),
                 },
                 Err(_) => JsonMetadata {
                     total_tokens: None,
                     input_tokens: None,
                     output_tokens: None,
+                    cache_read_input_tokens: None,
+                    cache_write_input_tokens: None,
+                    cost_usd: None,
                     status: "completed".to_string(),
                 },
             };
             let json_output = JsonOutput {
-                messages: self.messages.messages().to_vec(),
+                messages: self.messages.user_visible_messages(),
                 metadata,
             };
             println!("{}", serde_json::to_string_pretty(&json_output)?);
         } else if is_stream_json_mode {
-            let session = self
+            let totals = self
                 .agent
                 .config
                 .session_manager
-                .get_session(&self.session_id, false)
+                .get_session_usage_totals(&self.session_id)
                 .await
                 .ok();
-            let (total_tokens, input_tokens, output_tokens) = match session {
-                Some(s) => (
-                    s.accumulated_total_tokens.or(s.total_tokens),
-                    s.accumulated_input_tokens.or(s.input_tokens),
-                    s.accumulated_output_tokens.or(s.output_tokens),
+            let (
+                total_tokens,
+                input_tokens,
+                output_tokens,
+                cache_read_input_tokens,
+                cache_write_input_tokens,
+                cost_usd,
+            ) = match totals {
+                Some(totals) => (
+                    totals.accumulated_usage.total_tokens,
+                    totals.accumulated_usage.input_tokens,
+                    totals.accumulated_usage.output_tokens,
+                    totals.accumulated_usage.cache_read_input_tokens,
+                    totals.accumulated_usage.cache_write_input_tokens,
+                    totals.accumulated_cost,
                 ),
-                None => (None, None, None),
+                None => (None, None, None, None, None, None),
             };
             emit_stream_event(&StreamEvent::Complete {
                 total_tokens,
                 input_tokens,
                 output_tokens,
+                cache_read_input_tokens,
+                cache_write_input_tokens,
+                cost_usd,
             });
         } else {
             println!();
+            if self.stats {
+                print_run_stats(run_started, first_token_at, last_usage.as_ref());
+            }
         }
 
         Ok(())
@@ -1444,24 +1653,29 @@ impl CliSession {
                 &Message::assistant().with_text(interrupt_prompt),
                 self.debug,
             );
-        } else if let Some(last_msg) = self.messages.last() {
-            if last_msg.role == rmcp::model::Role::User {
-                match last_msg.content.first() {
-                    Some(MessageContent::ToolResponse(_)) => {
-                        self.push_message(Message::assistant().with_text(interrupt_prompt));
-                        output::render_message(
-                            &Message::assistant().with_text(interrupt_prompt),
-                            self.debug,
-                        );
-                    }
-                    Some(_) => {
-                        self.messages.pop();
-                        let assistant_msg = Message::assistant().with_text(interrupt_prompt);
-                        self.push_message(assistant_msg.clone());
-                        output::render_message(&assistant_msg, self.debug);
-                    }
-                    None => {
-                        // Empty message content — nothing to do, just continue gracefully
+        } else {
+            while self.messages.last().is_some_and(Message::is_turn_context) {
+                self.messages.pop();
+            }
+            if let Some(last_msg) = self.messages.last() {
+                if last_msg.role == rmcp::model::Role::User {
+                    match last_msg.content.first() {
+                        Some(MessageContent::ToolResponse(_)) => {
+                            self.push_message(Message::assistant().with_text(interrupt_prompt));
+                            output::render_message(
+                                &Message::assistant().with_text(interrupt_prompt),
+                                self.debug,
+                            );
+                        }
+                        Some(_) => {
+                            self.messages.pop();
+                            let assistant_msg = Message::assistant().with_text(interrupt_prompt);
+                            self.push_message(assistant_msg.clone());
+                            output::render_message(&assistant_msg, self.debug);
+                        }
+                        None => {
+                            // Empty message content — nothing to do, just continue gracefully
+                        }
                     }
                 }
             }
@@ -1469,13 +1683,38 @@ impl CliSession {
         Ok(())
     }
 
-    /// Update the completion cache with fresh data
-    /// This should be called before the interactive session starts
     pub async fn update_completion_cache(&mut self) -> Result<()> {
-        // Get fresh data
         let prompts = self.agent.list_extension_prompts(&self.session_id).await;
+        let all_providers = goose::providers::providers().await;
+        let session_provider = self.agent.provider().await?.get_name().to_string();
 
-        // Update the cache with write lock
+        let provider_ids: Vec<String> = all_providers.iter().map(|(m, _)| m.name.clone()).collect();
+        let inventory_models: HashMap<String, Vec<String>> = {
+            let storage = SessionManager::instance().storage().clone();
+            let inventory = ProviderInventoryService::new(storage);
+            inventory
+                .entries(&provider_ids)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .map(|entry| {
+                    let model_ids: Vec<String> =
+                        entry.models.iter().map(|m| m.id.clone()).collect();
+                    (entry.provider_id, model_ids)
+                })
+                .collect()
+        };
+
+        let config = Config::global();
+        let configured_models: HashMap<String, String> = all_providers
+            .iter()
+            .filter_map(|(m, _)| {
+                providers::get_provider_entry(config, &m.name)
+                    .map(|entry| (m.name.clone(), entry.model))
+                    .filter(|(_, model)| !model.is_empty())
+            })
+            .collect();
+
         let mut cache = self.completion_cache.write().unwrap();
         cache.prompts.clear();
         cache.prompt_info.clear();
@@ -1497,6 +1736,33 @@ impl CliSession {
             }
         }
 
+        cache.provider_names = all_providers.iter().map(|(m, _)| m.name.clone()).collect();
+        cache.current_session_provider = session_provider;
+        cache.provider_models.clear();
+        for (metadata, _) in &all_providers {
+            let mut models: Vec<String> = metadata
+                .known_models
+                .iter()
+                .map(|m| m.name.clone())
+                .collect();
+
+            if let Some(inv_models) = inventory_models.get(&metadata.name) {
+                for model_id in inv_models {
+                    if !models.contains(model_id) {
+                        models.push(model_id.clone());
+                    }
+                }
+            }
+
+            if let Some(model) = configured_models.get(&metadata.name) {
+                if !models.contains(model) {
+                    models.push(model.clone());
+                }
+            }
+
+            cache.provider_models.insert(metadata.name.clone(), models);
+        }
+
         cache.last_updated = Instant::now();
         Ok(())
     }
@@ -1516,18 +1782,19 @@ impl CliSession {
 
     /// Render all past messages from the session history
     pub fn render_message_history(&self) {
-        if self.messages.is_empty() {
+        let messages = self.messages.user_visible_messages();
+        if messages.is_empty() {
             return;
         }
 
         println!(
             "\n  {} {}",
             console::style("↻").cyan(),
-            console::style(format!("{} messages restored", self.messages.len())).dim()
+            console::style(format!("{} messages restored", messages.len())).dim()
         );
 
         // Render each message
-        for message in self.messages.iter() {
+        for message in &messages {
             output::render_message(message, self.debug);
         }
 
@@ -1544,14 +1811,20 @@ impl CliSession {
 
     pub async fn get_total_token_usage(&self) -> Result<Option<i32>> {
         let metadata = self.get_session().await?;
-        Ok(metadata.accumulated_total_tokens)
+        Ok(metadata.accumulated_usage.total_tokens)
     }
 
     /// Display enhanced context usage with session totals
     pub async fn display_context_usage(&self) -> Result<()> {
         let provider = self.agent.provider().await?;
-        let model_config = provider.get_model_config();
-        let context_limit = model_config.context_limit();
+        let model_config = self
+            .agent
+            .model_config_for_session(&self.session_id)
+            .await?;
+        let context_limit = provider
+            .get_context_limit(&model_config)
+            .await
+            .unwrap_or_else(|_| model_config.context_limit());
 
         let config = Config::global();
         let show_cost = config
@@ -1564,18 +1837,15 @@ impl CliSession {
 
         match self.get_session().await {
             Ok(metadata) => {
-                let total_tokens = metadata.total_tokens.unwrap_or(0) as usize;
+                let total_tokens = metadata.usage.total_tokens.unwrap_or(0) as usize;
 
                 output::display_context_usage(total_tokens, context_limit);
 
                 if show_cost {
-                    let input_tokens = metadata.input_tokens.unwrap_or(0) as usize;
-                    let output_tokens = metadata.output_tokens.unwrap_or(0) as usize;
                     output::display_cost_usage(
                         &provider_name,
                         &model_config.model_name,
-                        input_tokens,
-                        output_tokens,
+                        &metadata.usage,
                     );
                 }
             }
@@ -1709,6 +1979,87 @@ impl CliSession {
     }
 }
 
+fn message_has_text(message: &Message) -> bool {
+    message.content.iter().any(
+        |content| matches!(content, MessageContent::Text(text) if !text.text.trim().is_empty()),
+    )
+}
+
+fn print_run_stats(
+    run_started: Instant,
+    first_token_at: Option<Instant>,
+    usage: Option<&ProviderUsage>,
+) {
+    let elapsed = run_started.elapsed();
+    let stats = usage.and_then(|usage| usage.stats.as_ref());
+    let generation_elapsed = stats
+        .and_then(|stats| stats.elapsed_ms)
+        .map(Duration::from_millis);
+    let output_tokens = usage
+        .and_then(|usage| usage.usage.output_tokens)
+        .and_then(|tokens| usize::try_from(tokens).ok())
+        .or_else(|| stats.and_then(|stats| stats.output_tokens));
+    let tokens_per_second = output_tokens.map(|tokens| {
+        let rate_elapsed = generation_elapsed.unwrap_or(elapsed);
+        if rate_elapsed.as_secs_f64() > 0.0 {
+            tokens as f64 / rate_elapsed.as_secs_f64()
+        } else {
+            0.0
+        }
+    });
+    let model_load_ms = stats.and_then(|stats| stats.model_load_ms);
+    let generation_time_to_first_token_ms = stats.and_then(|stats| stats.time_to_first_token_ms);
+
+    eprintln!("\nStats:");
+    if let Some(ms) = model_load_ms {
+        eprintln!("  Model load: {:.2}s", ms as f64 / 1000.0);
+    }
+    if model_load_ms.is_some() {
+        match generation_time_to_first_token_ms {
+            Some(ms) => eprintln!(
+                "  Generation time to first token: {:.2}s",
+                ms as f64 / 1000.0
+            ),
+            None => eprintln!("  Generation time to first token: unavailable"),
+        }
+        match first_token_at {
+            Some(first) => eprintln!(
+                "  End-to-end time to first token: {:.2}s",
+                first.duration_since(run_started).as_secs_f64()
+            ),
+            None => eprintln!("  End-to-end time to first token: unavailable"),
+        }
+    } else if let Some(ms) = generation_time_to_first_token_ms {
+        eprintln!("  Time to first token: {:.2}s", ms as f64 / 1000.0);
+    } else {
+        match first_token_at {
+            Some(first) => eprintln!(
+                "  Time to first token: {:.2}s",
+                first.duration_since(run_started).as_secs_f64()
+            ),
+            None => eprintln!("  Time to first token: unavailable"),
+        }
+    }
+    match tokens_per_second {
+        Some(rate) => eprintln!("  Tokens/sec: {:.2}", rate),
+        None => eprintln!("  Tokens/sec: unavailable"),
+    }
+    if let Some(tokens) = output_tokens {
+        eprintln!("  Output tokens: {tokens}");
+    }
+
+    if let Some(draft) = stats.and_then(|stats| stats.draft.as_ref()) {
+        eprintln!("  Draft accept rate: {:.1}%", draft.accept_rate * 100.0);
+        eprintln!(
+            "  Draft tokens: {} accepted: {} target verified: {} rounds: {}",
+            draft.draft_tokens, draft.accepted_tokens, draft.target_tokens, draft.rounds
+        );
+        if let Some(model) = &draft.model {
+            eprintln!("  Draft model: {model}");
+        }
+    }
+}
+
 fn maybe_open_credits_top_up_url(
     message: &Message,
     interactive: bool,
@@ -1826,6 +2177,7 @@ fn find_elicitation_request(message: &Message) -> Option<(String, String, Value)
 }
 
 /// Handle MCP notification event (logging or progress)
+#[expect(deprecated)]
 fn handle_mcp_notification(
     extension_id: &str,
     notification: &ServerNotification,
@@ -1920,8 +2272,69 @@ fn handle_mcp_notification(
                 );
             }
         }
+        ServerNotification::CustomNotification(notification) => {
+            if let Some(params) = parse_shell_output_notification(notification) {
+                if is_stream_json_mode
+                    || is_json_mode
+                    || !interactive
+                    || !std::io::stdout().is_terminal()
+                {
+                    return;
+                }
+                display_shell_output_notification(params, progress_bars);
+            }
+        }
         _ => (),
     }
+}
+
+fn display_shell_output_notification(
+    params: ShellOutputNotificationParams,
+    progress_bars: &mut output::McpSpinners,
+) {
+    if params.truncated {
+        return;
+    }
+
+    let max_width = console::Term::stdout()
+        .size_checked()
+        .map(|(_, width)| usize::from(width).saturating_sub(SHELL_STATUS_RESERVED_WIDTH))
+        .unwrap_or(SHELL_STATUS_FALLBACK_WIDTH);
+    let lines = latest_shell_output_lines(&params, max_width)
+        .into_iter()
+        .map(|(stream, line)| match stream {
+            ShellOutputStream::Stdout => console::style(line).dim().to_string(),
+            ShellOutputStream::Stderr => console::style(line).yellow().dim().to_string(),
+        })
+        .collect::<Vec<_>>();
+    if !lines.is_empty() {
+        progress_bars.log_shell_output(lines, SHELL_STATUS_MAX_LINES);
+    }
+}
+
+fn latest_shell_output_lines(
+    params: &ShellOutputNotificationParams,
+    max_width: usize,
+) -> Vec<(ShellOutputStream, String)> {
+    let mut lines = params
+        .chunks
+        .iter()
+        .rev()
+        .flat_map(|chunk| {
+            chunk
+                .output
+                .lines()
+                .rev()
+                .map(move |line| (chunk.stream, line))
+        })
+        .take(SHELL_STATUS_MAX_LINES)
+        .map(|(stream, line)| {
+            let line = output::sanitize_terminal_line(line);
+            (stream, safe_truncate(&line, max_width))
+        })
+        .collect::<Vec<_>>();
+    lines.reverse();
+    lines
 }
 
 /// Format a logging notification from MCP, returns (formatted_message, subagent_id, notification_type)
@@ -2091,11 +2504,11 @@ fn handle_agent_error(e: &anyhow::Error, is_stream_json_mode: bool) {
         });
     }
 
-    if e.downcast_ref::<goose::providers::errors::ProviderError>()
+    if e.downcast_ref::<goose_providers::errors::ProviderError>()
         .map(|provider_error| {
             matches!(
                 provider_error,
-                goose::providers::errors::ProviderError::ContextLengthExceeded(_)
+                goose_providers::errors::ProviderError::ContextLengthExceeded(_)
             )
         })
         .unwrap_or(false)
@@ -2115,8 +2528,8 @@ fn handle_agent_error(e: &anyhow::Error, is_stream_json_mode: bool) {
     }
 }
 
-async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
-    use goose::model::ModelConfig;
+async fn get_reasoner(
+) -> Result<(Arc<dyn Provider>, goose_providers::model::ModelConfig), anyhow::Error> {
     use goose::providers::create;
 
     let config = Config::global();
@@ -2141,12 +2554,23 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
             .expect("No model configured. Run 'goose configure' first")
     };
 
-    let model_config =
-        ModelConfig::new_with_context_env(model, &provider, Some("GOOSE_PLANNER_CONTEXT_LIMIT"))?;
-    let extensions = goose::config::extensions::get_enabled_extensions_with_config(config);
-    let reasoner = create(&provider, model_config, extensions).await?;
+    let planner_context_limit = match env::var(GOOSE_PLANNER_CONTEXT_LIMIT)
+        .ok()
+        .map(|v| v.parse::<usize>())
+    {
+        Some(Ok(n)) if n >= 4096 => Some(n),
+        Some(Ok(_)) => anyhow::bail!("{} must be at least 4096", GOOSE_PLANNER_CONTEXT_LIMIT),
+        Some(Err(e)) => anyhow::bail!("{}: {}", GOOSE_PLANNER_CONTEXT_LIMIT, e),
+        None => None,
+    };
 
-    Ok(reasoner)
+    let model_config =
+        goose::model_config::model_config_from_user_config(&provider, model.as_str())?
+            .with_context_limit(planner_context_limit);
+    let extensions = goose::config::extensions::get_enabled_extensions_with_config(config);
+    let reasoner = create(&provider, extensions).await?;
+
+    Ok((reasoner, model_config))
 }
 
 /// Format elapsed time duration
@@ -2165,12 +2589,11 @@ fn format_elapsed_time(duration: std::time::Duration) -> String {
 fn build_switched_model_config(
     provider_name: &str,
     model_name: &str,
-    current_model_config: &goose::model::ModelConfig,
-) -> Result<goose::model::ModelConfig> {
-    goose::model::ModelConfig::new(model_name)
+    current_model_config: &goose_providers::model::ModelConfig,
+) -> Result<goose_providers::model::ModelConfig> {
+    goose::model_config::model_config_from_user_config(provider_name, model_name)
         .map(|config| {
             config
-                .with_canonical_limits(provider_name)
                 .with_temperature(current_model_config.temperature)
                 .with_toolshim(current_model_config.toolshim)
                 .with_toolshim_model(current_model_config.toolshim_model.clone())
@@ -2186,6 +2609,81 @@ mod tests {
     use std::collections::HashMap;
     use std::time::Duration;
     use test_case::test_case;
+
+    #[test]
+    fn planner_classification_excludes_user_only_content() {
+        use rmcp::model::{Annotations, Role, TextContent};
+
+        let user_only = TextContent::new("user-only plan")
+            .with_annotations(Annotations::default().with_audience(vec![Role::User]));
+        let assistant_only = TextContent::new("agent classification text")
+            .with_annotations(Annotations::default().with_audience(vec![Role::Assistant]));
+        let mixed = Message::assistant()
+            .with_content(MessageContent::Text(user_only.clone()))
+            .with_content(MessageContent::Text(assistant_only));
+
+        assert_eq!(
+            planner_classification_text(&mixed).unwrap(),
+            "agent classification text"
+        );
+        assert!(planner_classification_text(
+            &Message::assistant().with_content(MessageContent::Text(user_only))
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn planner_history_is_fixed_after_audience_projection() {
+        use rmcp::model::{Annotations, Role, TextContent};
+
+        let hidden_separator = MessageContent::Text(
+            TextContent::new("hidden separator")
+                .with_annotations(Annotations::default().with_audience(vec![Role::User])),
+        );
+        let history = Conversation::new_unvalidated([
+            Message::user().with_text("first request"),
+            Message::assistant().with_content(hidden_separator),
+            Message::user().with_text("second request"),
+        ]);
+
+        let provider_messages = planner_provider_messages(&history).agent_visible_messages();
+
+        assert_eq!(provider_messages.len(), 1);
+        assert_eq!(provider_messages[0].role, Role::User);
+        assert_eq!(
+            provider_messages[0].as_concat_text(),
+            "first request\nsecond request"
+        );
+        assert!(!provider_messages[0]
+            .as_concat_text()
+            .contains("hidden separator"));
+    }
+
+    #[test]
+    fn planner_history_excludes_turn_context_events() {
+        use goose::conversation::message::MessageMetadata;
+
+        let history = Conversation::new_unvalidated([
+            Message::user().with_text("plan the refactor"),
+            Message::user()
+                .with_text("<turn-context>cwd /repo, todo: ship v2</turn-context>")
+                .with_metadata(MessageMetadata::agent_only().with_turn_context()),
+            Message::assistant().with_text("on it"),
+        ]);
+
+        let provider_text = planner_provider_messages(&history)
+            .agent_visible_messages()
+            .iter()
+            .map(|message| message.as_concat_text())
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(provider_text.contains("plan the refactor"));
+        assert!(
+            !provider_text.contains("turn-context"),
+            "the planner prompt has no turn-context instructions, so blocks must not reach it"
+        );
+    }
 
     #[test]
     fn test_format_elapsed_time_under_60_seconds() {
@@ -2263,6 +2761,7 @@ mod tests {
             env_keys: vec![],
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         }
@@ -2278,6 +2777,7 @@ mod tests {
             env_keys: vec![],
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         }
@@ -2293,6 +2793,7 @@ mod tests {
             env_keys: vec![],
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         }
@@ -2317,24 +2818,24 @@ mod tests {
             ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
         ]);
 
-        let current_model_config = goose::model::ModelConfig {
+        let current_model_config = goose_providers::model::ModelConfig {
             model_name: "gpt-4o".to_string(),
             context_limit: Some(128_000),
             temperature: Some(0.25),
             max_tokens: Some(16_384),
             toolshim: true,
             toolshim_model: Some("qwen2.5-coder".to_string()),
-            fast_model_config: None,
             request_params: Some(HashMap::from([(
                 "anthropic_beta".to_string(),
                 serde_json::json!(["output-128k-2025-02-19"]),
             )])),
             reasoning: Some(false),
+            request_headers: None,
         };
 
         let switched =
             build_switched_model_config("openai", "gpt-5.4", &current_model_config).unwrap();
-        let expected = goose::model::ModelConfig::new_or_fail("gpt-5.4")
+        let expected = goose_providers::model::ModelConfig::new("gpt-5.4")
             .with_canonical_limits("openai")
             .with_temperature(Some(0.25))
             .with_toolshim(true)
@@ -2361,12 +2862,12 @@ mod tests {
             ("GOOSE_THINKING_EFFORT", None::<&str>),
         ]);
 
-        let current =
-            goose::model::ModelConfig::new_or_fail("gpt-5.4-high").with_canonical_limits("openai");
+        let current = goose_providers::model::ModelConfig::new("gpt-5.4-high")
+            .with_canonical_limits("openai");
         assert_eq!(current.model_name, "gpt-5.4");
         assert_eq!(
             current.thinking_effort(),
-            Some(goose::model::ThinkingEffort::High)
+            Some(goose_providers::thinking::ThinkingEffort::High)
         );
 
         let switched = build_switched_model_config("openai", "gpt-5.4", &current).unwrap();

@@ -59,7 +59,7 @@ impl GooseAcpAgent {
     ) -> Result<OnboardingImportApplyResponse, agent_client_protocol::Error> {
         let config = self.config()?;
         Ok(apply_onboarding_import_candidates(
-            &config,
+            config,
             &self.config_dir,
             &req,
         ))
@@ -519,6 +519,7 @@ fn apply_claude_desktop_candidate(
                 envs: Envs::new(server.env),
                 env_keys: Vec::new(),
                 timeout: Some(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                cwd: None,
                 bundled: None,
                 available_tools: Vec::new(),
             },

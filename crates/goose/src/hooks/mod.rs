@@ -26,6 +26,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -35,6 +36,7 @@ use serde_json::Value;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 use tracing::{debug, info, warn};
+use tracing_futures::Instrument;
 
 use crate::plugins::discovery::{discover_enabled_plugins, DiscoveredPlugin};
 
@@ -58,8 +60,6 @@ pub enum HookEvent {
     BeforeShellExecution,
     AfterShellExecution,
     Stop,
-    SubagentStart,
-    SubagentStop,
 }
 
 impl HookEvent {
@@ -76,8 +76,6 @@ impl HookEvent {
             HookEvent::BeforeShellExecution => "BeforeShellExecution",
             HookEvent::AfterShellExecution => "AfterShellExecution",
             HookEvent::Stop => "Stop",
-            HookEvent::SubagentStart => "SubagentStart",
-            HookEvent::SubagentStop => "SubagentStop",
         }
     }
 
@@ -94,8 +92,6 @@ impl HookEvent {
             "BeforeShellExecution" => HookEvent::BeforeShellExecution,
             "AfterShellExecution" => HookEvent::AfterShellExecution,
             "Stop" => HookEvent::Stop,
-            "SubagentStart" => HookEvent::SubagentStart,
-            "SubagentStop" => HookEvent::SubagentStop,
             _ => return None,
         })
     }
@@ -171,6 +167,8 @@ pub struct HookContext {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_assistant_message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub working_dir: Option<String>,
 }
 
@@ -184,6 +182,7 @@ impl HookContext {
             tool_input: None,
             tool_output: None,
             message: None,
+            last_assistant_message: None,
             working_dir: None,
         }
     }
@@ -208,6 +207,14 @@ impl HookContext {
         self
     }
 
+    pub fn with_last_assistant_message(mut self, message: impl Into<String>) -> Self {
+        let message = message.into();
+        if !message.is_empty() {
+            self.last_assistant_message = Some(message);
+        }
+        self
+    }
+
     pub fn with_working_dir(mut self, dir: impl Into<String>) -> Self {
         self.working_dir = Some(dir.into());
         self
@@ -224,21 +231,22 @@ pub enum HookDecision {
 #[derive(Debug, Default, Clone)]
 pub struct HookManager {
     rules: HashMap<HookEvent, Vec<LoadedRule>>,
+    use_login_shell_path: bool,
 }
 
 impl HookManager {
     /// Build a manager by scanning all enabled plugins for `hooks/hooks.json`.
-    pub fn load(project_root: Option<&Path>) -> Self {
+    pub fn load(project_root: Option<&Path>, use_login_shell_path: bool) -> Self {
         let plugins = discover_enabled_plugins(project_root);
-        Self::from_plugins(plugins)
+        Self::from_plugins(plugins, use_login_shell_path)
     }
 
     #[cfg(test)]
     pub(crate) fn from_plugins_for_test(plugins: Vec<DiscoveredPlugin>) -> Self {
-        Self::from_plugins(plugins)
+        Self::from_plugins(plugins, false)
     }
 
-    fn from_plugins(plugins: Vec<DiscoveredPlugin>) -> Self {
+    fn from_plugins(plugins: Vec<DiscoveredPlugin>, use_login_shell_path: bool) -> Self {
         let mut rules: HashMap<HookEvent, Vec<LoadedRule>> = HashMap::new();
         let mut total = 0usize;
 
@@ -271,12 +279,54 @@ impl HookManager {
             );
         }
 
-        Self { rules }
+        Self {
+            rules,
+            use_login_shell_path,
+        }
     }
 
     /// Returns true if any rule is registered for `event`.
     pub fn has_hooks(&self, event: HookEvent) -> bool {
         self.rules.get(&event).is_some_and(|r| !r.is_empty())
+    }
+
+    async fn run_action(
+        &self,
+        event: HookEvent,
+        session_id: &str,
+        rule: &LoadedRule,
+        command: &str,
+        payload: &str,
+        timeout: Duration,
+    ) -> Result<std::process::Output> {
+        let span = tracing::info_span!(
+            target: "goose::hooks",
+            "execute_hook",
+            "gen_ai.operation.name" = "execute_hook",
+            "goose.hook.event" = %event,
+            "goose.hook.plugin" = %rule.plugin_name,
+            "error.type" = tracing::field::Empty,
+            session.id = %session_id,
+        );
+        let result = run_command_hook(
+            command,
+            &rule.plugin_root,
+            payload,
+            timeout,
+            self.use_login_shell_path,
+        )
+        .instrument(span.clone())
+        .await;
+        match &result {
+            Ok(output) if !output.status.success() => {
+                span.record("error.type", "hook_exit");
+            }
+            Err(_) => {
+                span.record("error.type", "hook_execution_error");
+            }
+            _ => {}
+        }
+        result
     }
 
     /// Fire all rules whose matcher matches the event context. Errors from
@@ -314,7 +364,8 @@ impl HookManager {
                     command = %command,
                     "Running plugin hook",
                 );
-                let res = run_command_hook(command, &rule.plugin_root, &payload, *timeout)
+                let res = self
+                    .run_action(event, &ctx.session_id, rule, command, &payload, *timeout)
                     .await
                     .and_then(|o| {
                         if o.status.success() {
@@ -368,20 +419,22 @@ impl HookManager {
 
             for action in &rule.actions {
                 let LoadedAction::Command { command, timeout } = action;
-                let output =
-                    match run_command_hook(command, &rule.plugin_root, &payload, *timeout).await {
-                        Ok(o) => o,
-                        Err(err) => {
-                            warn!(
-                                plugin = %rule.plugin_name,
-                                event = %event,
-                                command = %command,
-                                error = %err,
-                                "Plugin hook failed",
-                            );
-                            continue;
-                        }
-                    };
+                let output = match self
+                    .run_action(event, &ctx.session_id, rule, command, &payload, *timeout)
+                    .await
+                {
+                    Ok(o) => o,
+                    Err(err) => {
+                        warn!(
+                            plugin = %rule.plugin_name,
+                            event = %event,
+                            command = %command,
+                            error = %err,
+                            "Plugin hook failed",
+                        );
+                        continue;
+                    }
+                };
 
                 if let Some(reason) = deny_reason(&output) {
                     info!(
@@ -507,16 +560,38 @@ async fn run_command_hook(
     plugin_root: &Path,
     payload: &str,
     timeout: Duration,
+    use_login_shell_path: bool,
+) -> Result<std::process::Output> {
+    match tokio::time::timeout(
+        timeout,
+        run_command_hook_inner(raw_command, plugin_root, payload, use_login_shell_path),
+    )
+    .await
+    {
+        Ok(res) => res,
+        Err(_) => anyhow::bail!("hook `{raw_command}` timed out after {:?}", timeout),
+    }
+}
+
+async fn run_command_hook_inner(
+    raw_command: &str,
+    plugin_root: &Path,
+    payload: &str,
+    use_login_shell_path: bool,
 ) -> Result<std::process::Output> {
     let command = expand_plugin_root(raw_command, plugin_root);
-    let mut child = Command::new("sh")
-        .arg("-c")
-        .arg(&command)
-        .env("PLUGIN_ROOT", plugin_root)
+    let path = if use_login_shell_path {
+        hook_path().await
+    } else {
+        None
+    };
+    let mut process = hook_command(&command, plugin_root, path.as_deref());
+    process
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .kill_on_drop(true)
+        .kill_on_drop(true);
+    let mut child = process
         .spawn()
         .with_context(|| format!("spawning hook `{command}`"))?;
 
@@ -525,10 +600,87 @@ async fn run_command_hook(
         let _ = stdin.shutdown().await;
     }
 
-    match tokio::time::timeout(timeout, child.wait_with_output()).await {
-        Ok(res) => res.with_context(|| format!("waiting on hook `{command}`")),
-        Err(_) => anyhow::bail!("hook `{command}` timed out after {:?}", timeout),
+    child
+        .wait_with_output()
+        .await
+        .with_context(|| format!("waiting on hook `{command}`"))
+}
+
+fn hook_command(command: &str, plugin_root: &Path, path: Option<&str>) -> Command {
+    #[cfg(not(windows))]
+    {
+        if crate::agents::platform_extensions::developer::shell::is_flatpak() {
+            let mut process =
+                crate::agents::platform_extensions::developer::shell::flatpak_spawn_command();
+            process.arg(format!("--env=PLUGIN_ROOT={}", plugin_root.display()));
+            if let Some(path) = path {
+                process.arg(format!("--env=PATH={path}"));
+            }
+            process.arg("sh").arg("-c").arg(command);
+            return process;
+        }
     }
+
+    let mut process = Command::new("sh");
+    process
+        .arg("-c")
+        .arg(command)
+        .env("PLUGIN_ROOT", plugin_root);
+    if let Some(path) = path {
+        process.env("PATH", path);
+    }
+    process
+}
+
+async fn hook_path() -> Option<String> {
+    static HOOK_PATH: OnceLock<tokio::sync::watch::Receiver<Option<String>>> = OnceLock::new();
+    let mut rx = HOOK_PATH
+        .get_or_init(|| {
+            let (tx, rx) = tokio::sync::watch::channel(None);
+            tokio::spawn(async move {
+                let path = resolve_hook_path().await;
+                let _ = tx.send(path);
+            });
+            rx
+        })
+        .clone();
+
+    if rx.borrow().is_some() {
+        return rx.borrow().clone();
+    }
+    if rx.changed().await.is_ok() {
+        rx.borrow().clone()
+    } else {
+        None
+    }
+}
+
+async fn resolve_hook_path() -> Option<String> {
+    #[cfg(not(windows))]
+    {
+        tokio::task::spawn_blocking(|| {
+            crate::agents::platform_extensions::developer::shell::resolve_login_shell_path()
+                .map(|login| merge_paths(&login, &std::env::var("PATH").unwrap_or_default()))
+        })
+        .await
+        .ok()
+        .flatten()
+    }
+    #[cfg(windows)]
+    {
+        None
+    }
+}
+
+fn merge_paths(first: &str, second: &str) -> String {
+    let mut seen = std::collections::HashSet::new();
+    let mut merged = Vec::new();
+    for entry in first.split(':').chain(second.split(':')) {
+        if !entry.is_empty() && seen.insert(entry) {
+            merged.push(entry);
+        }
+    }
+    merged.join(":")
 }
 
 fn expand_plugin_root(command: &str, plugin_root: &Path) -> String {
@@ -548,7 +700,7 @@ mod tests {
     }
 
     fn make_manager(plugins: Vec<DiscoveredPlugin>) -> HookManager {
-        HookManager::from_plugins(plugins)
+        HookManager::from_plugins(plugins, false)
     }
 
     #[test]
@@ -649,6 +801,69 @@ mod tests {
                 reason: "say something first".into(),
                 plugin: "p".into(),
             }
+        );
+    }
+
+    #[test]
+    fn merge_paths_keeps_login_entries_first() {
+        assert_eq!(
+            merge_paths("/opt/homebrew/bin:/bin", "/bin:/usr/bin:/custom/bin"),
+            "/opt/homebrew/bin:/bin:/usr/bin:/custom/bin"
+        );
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn command_hooks_repair_path_when_enabled() {
+        let tmp = tempfile::tempdir().unwrap();
+        let login_bin = tmp.path().join("login-bin");
+        std::fs::create_dir(&login_bin).unwrap();
+
+        let fake_shell = tmp.path().join("fake-login-shell");
+        std::fs::write(
+            &fake_shell,
+            "#!/bin/sh\nprintf '%s\\n' \"$FAKE_LOGIN_PATH\"\n",
+        )
+        .unwrap();
+        let helper = login_bin.join("hook-visible-tool");
+        std::fs::write(&helper, "#!/bin/sh\nprintf 'hook-visible-tool-ran'\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            for path in [&fake_shell, &helper] {
+                let mut perms = std::fs::metadata(path).unwrap().permissions();
+                perms.set_mode(0o755);
+                std::fs::set_permissions(path, perms).unwrap();
+            }
+        }
+
+        let fake_shell = fake_shell.to_string_lossy().into_owned();
+        let fake_login_path = format!("{}:/usr/bin:/bin", login_bin.display());
+        let _guard = env_lock::lock_env([
+            ("GOOSE_SHELL", Some(fake_shell.as_str())),
+            ("FAKE_LOGIN_PATH", Some(fake_login_path.as_str())),
+            (
+                "PATH",
+                Some(
+                    "/Applications/Goose.app/Contents/Resources/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+                ),
+            ),
+        ]);
+
+        let output = run_command_hook(
+            "hook-visible-tool",
+            tmp.path(),
+            "{}",
+            Duration::from_secs(5),
+            true,
+        )
+        .await
+        .unwrap();
+
+        assert!(output.status.success());
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            "hook-visible-tool-ran"
         );
     }
 

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use goose_sdk::custom_requests::{SourceEntry, SourceType};
+use goose_sdk_types::custom_requests::{SourceEntry, SourceType};
 
 use super::types::{SlashCommandEntry, SlashCommandSource};
 use super::util::normalize_command_name;
@@ -73,6 +73,7 @@ pub(super) fn commands_from_sources(sources: Vec<SourceEntry>) -> Vec<SlashComma
                 name,
                 description: source.description,
                 source: SlashCommandSource::Skill,
+                source_path: None,
                 input_hint,
             })
         })
@@ -82,7 +83,7 @@ pub(super) fn commands_from_sources(sources: Vec<SourceEntry>) -> Vec<SlashComma
 #[cfg(test)]
 mod tests {
     use super::*;
-    use goose_sdk::custom_requests::SourceType;
+    use goose_sdk_types::custom_requests::SourceType;
     use std::collections::HashMap;
     use tempfile::TempDir;
 

@@ -68,9 +68,19 @@ impl PromptInjectionScanner {
             ClassifierType::Prompt => "PROMPT",
         };
 
-        let enabled = config
-            .get_param::<bool>(&format!("SECURITY_{}_CLASSIFIER_ENABLED", prefix))
-            .unwrap_or(false);
+        let enabled = match classifier_type {
+            ClassifierType::Command => {
+                crate::security::get_override("SECURITY_COMMAND_CLASSIFIER_ENABLED_OVERRIDE")
+                    .unwrap_or_else(|| {
+                        config
+                            .get_param::<bool>("SECURITY_COMMAND_CLASSIFIER_ENABLED")
+                            .unwrap_or(false)
+                    })
+            }
+            ClassifierType::Prompt => config
+                .get_param::<bool>("SECURITY_PROMPT_CLASSIFIER_ENABLED")
+                .unwrap_or(false),
+        };
 
         if !enabled {
             anyhow::bail!("{} classifier not enabled", prefix);
@@ -160,15 +170,16 @@ impl PromptInjectionScanner {
             self.combine_confidences(tool_result.confidence, context_result.ml_confidence);
 
         tracing::info!(
-            tool_confidence = %tool_result.confidence,
-            context_confidence = ?context_result.ml_confidence,
-            final_confidence = %final_confidence,
-            used_command_ml = tool_result.ml_confidence.is_some(),
-            used_prompt_ml = context_result.ml_confidence.is_some(),
-            used_pattern_detection = tool_result.used_pattern_detection,
-            threshold = %threshold,
-            malicious = final_confidence >= threshold,
-            "Security analysis complete"
+            security.event_type = "prompt_injection_scan",
+            security.confidence = final_confidence,
+            security.threshold = threshold,
+            security.above_threshold = final_confidence >= threshold,
+            scanner.tool_confidence = tool_result.confidence,
+            scanner.context_confidence = ?context_result.ml_confidence,
+            scanner.used_command_ml = tool_result.ml_confidence.is_some(),
+            scanner.used_prompt_ml = context_result.ml_confidence.is_some(),
+            scanner.used_pattern_detection = tool_result.used_pattern_detection,
+            "prompt injection scan: analysis complete"
         );
 
         let final_result = DetailedScanResult {
@@ -341,7 +352,10 @@ impl PromptInjectionScanner {
         messages
             .iter()
             .rev()
-            .filter(|m| crate::conversation::effective_role(m) == "user")
+            .filter(|m| {
+                crate::conversation::effective_role(m) == crate::conversation::EffectiveRole::User
+                    && !m.is_turn_context()
+            })
             .take(limit)
             .map(|m| {
                 m.content
@@ -446,5 +460,34 @@ mod tests {
             .unwrap();
 
         assert!(result.is_malicious);
+    }
+
+    #[test]
+    fn extract_user_messages_skips_turn_context_events() {
+        use crate::conversation::message::MessageMetadata;
+
+        let scanner = PromptInjectionScanner::new();
+        let turn_context = |text: &str| {
+            Message::user()
+                .with_text(text)
+                .with_metadata(MessageMetadata::agent_only().with_turn_context())
+        };
+        let messages = vec![
+            Message::user().with_text("oldest prompt"),
+            turn_context("turn context one"),
+            Message::assistant().with_text("ok"),
+            Message::user().with_text("middle prompt"),
+            turn_context("turn context two"),
+            Message::assistant().with_text("done"),
+            Message::user().with_text("newest prompt"),
+            turn_context("turn context three"),
+        ];
+
+        let extracted = scanner.extract_user_messages(&messages, 3);
+
+        assert_eq!(
+            extracted,
+            vec!["newest prompt", "middle prompt", "oldest prompt"]
+        );
     }
 }

@@ -1,39 +1,17 @@
-# goose ACP TUI
+# goose ACP TUI — Deprecated
 
-Early stage and part of goose's broader move to ACP
+> [!WARNING]
+> **This project is deprecated and no longer maintained.**
+>
+> The experimental terminal UI (TUI) that lived here, published to npm as
+> [`@aaif/goose`](https://www.npmjs.com/package/@aaif/goose), is no longer being
+> developed. The source has been removed and the npm package has been marked as
+> deprecated.
 
-https://github.com/aaif-goose/goose/issues/6642
-https://github.com/aaif-goose/goose/discussions/7309
+## What to use instead
 
-## Running
+- **CLI** — use the `goose` command line interface (`crates/goose-cli`).
+- **Desktop app** — use the goose desktop application (`ui/desktop`).
+- Any ACP based TUI from https://agentclientprotocol.com/get-started/clients#cli-and-tui
 
-The TUI automatically launches the goose ACP server using the `goose acp` command.
-
-### Development (from source)
-
-When running from source, `npm start` automatically builds the Rust binary from the workspace root if needed:
-
-```bash
-cd ui/text
-npm i
-npm run start
-```
-
-The `dev:binary` script checks if the Rust binary needs rebuilding by comparing timestamps of:
-- `target/release/goose` binary
-- `Cargo.toml` and `Cargo.lock` 
-- `crates/goose-cli/Cargo.toml`
-
-If any source files are newer, it runs `cargo build --release -p goose-cli` automatically.
-
-### Production (with prebuilt binaries)
-
-In production, the TUI uses prebuilt binaries from the `@aaif/goose-binary-*` packages installed via `postinstall`.
-
-### Custom server URL
-
-To use a custom server URL instead of the built-in binary:
-
-```bash
-npm run start -- --server http://localhost:8080
-```
+All of these options are actively maintained and receive ongoing feature work.

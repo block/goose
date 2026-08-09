@@ -8,48 +8,51 @@ use crate::acp::{
 };
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
-use crate::model::ModelConfig;
-use crate::providers::acp_tooling::{acp_adapter_installed, acp_inventory_identity};
-use crate::providers::base::{current_working_dir, ProviderDef, ProviderMetadata};
-use crate::providers::inventory::InventoryIdentityInput;
+use crate::providers::base::{
+    current_working_dir, ProviderDef, ProviderDescriptor, ProviderMetadata,
+};
 
-const CODEX_ACP_PROVIDER_NAME: &str = "codex-acp";
-const CODEX_ACP_DOC_URL: &str = "https://github.com/zed-industries/codex-acp";
+pub(crate) const CODEX_ACP_PROVIDER_NAME: &str = "codex-acp";
+const CODEX_ACP_DOC_URL: &str = "https://github.com/agentclientprotocol/codex-acp";
 
 pub struct CodexAcpProvider;
 
-impl ProviderDef for CodexAcpProvider {
-    type Provider = AcpProvider;
-
+impl goose_providers::base::ProviderDescriptor for CodexAcpProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             CODEX_ACP_PROVIDER_NAME,
             "Codex CLI",
-            "Use goose with your ChatGPT Plus/Pro subscription via the codex-acp adapter.",
+            "Use goose with ChatGPT Plus/Pro or OpenAI API credits via the codex-acp adapter.",
             ACP_CURRENT_MODEL,
             vec![],
             CODEX_ACP_DOC_URL,
             vec![],
         )
         .with_setup_steps(vec![
-            "Install the ACP adapter: `npm install -g @zed-industries/codex-acp`",
-            "Run `codex` once to authenticate with your OpenAI account",
-            "Add to your goose config file (`~/.config/goose/config.yaml` on macOS/Linux):\n  GOOSE_PROVIDER: codex-acp\n  GOOSE_MODEL: current\n  codex-acp_configured: true",
-            "Restart goose for changes to take effect",
+            "Verify `codex-acp --version` shows `@agentclientprotocol/codex-acp`",
+            "If `--version` is rejected, remove `@zed-industries/codex-acp`: `npm uninstall -g @zed-industries/codex-acp`",
+            "If `codex-acp` is missing or was removed, install `@agentclientprotocol/codex-acp`: `npm install -g @agentclientprotocol/codex-acp`",
+            "Authenticate with OpenAI: run `codex` and follow the prompts",
+            "Configure goose in `~/.config/goose/config.yaml`:\n  GOOSE_PROVIDER: codex-acp\n  GOOSE_MODEL: current",
+            "Restart goose",
         ])
     }
+}
+
+impl ProviderDef for CodexAcpProvider {
+    type Provider = AcpProvider;
 
     fn from_env(
-        model: ModelConfig,
         extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<AcpProvider>> {
-        Self::from_env_with_working_dir(model, extensions, current_working_dir())
+        Self::from_env_with_working_dir(extensions, current_working_dir(), tls_config)
     }
 
     fn from_env_with_working_dir(
-        model: ModelConfig,
         extensions: Vec<crate::config::ExtensionConfig>,
         working_dir: PathBuf,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<AcpProvider>> {
         Box::pin(async move {
             let config = Config::global();
@@ -57,94 +60,32 @@ impl ProviderDef for CodexAcpProvider {
             let resolved_command = SearchPaths::builder()
                 .with_npm()
                 .resolve(CODEX_ACP_PROVIDER_NAME)?;
-            let env = vec![];
             let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
             let mcp_servers = extension_configs_to_mcp_servers(&extensions);
 
-            // fixed goose mode via -c overrides until session/set-mode works
-            let (approval_policy, sandbox_mode) = map_goose_mode(goose_mode);
-            let mut args = vec![
-                "-c".to_string(),
-                format!("approval_policy={approval_policy}"),
-                "-c".to_string(),
-                format!("sandbox_mode={sandbox_mode}"),
-            ];
-
-            // Codex sandbox blocks network by default. Enable it when HTTP MCP
-            // servers are configured so codex-acp can connect to them.
-            let has_http_mcp = mcp_servers
-                .iter()
-                .any(|s| matches!(s, agent_client_protocol::schema::McpServer::Http(_)));
-            if has_http_mcp {
-                args.extend([
-                    "-c".to_string(),
-                    "sandbox_workspace_write.network_access=true".to_string(),
-                ]);
-            }
-
-            // Chat and Approve both map to "read-only".
             let mode_mapping = HashMap::from([
-                (GooseMode::Auto, "full-access".to_string()),
-                (GooseMode::Approve, "read-only".to_string()),
-                (GooseMode::SmartApprove, "auto".to_string()),
-                (GooseMode::Chat, "read-only".to_string()),
+                (GooseMode::Auto, vec!["agent-full-access".to_string()]),
+                (GooseMode::SmartApprove, vec!["agent".to_string()]),
+                (GooseMode::Approve, vec!["read-only".to_string()]),
+                (GooseMode::Chat, vec!["read-only".to_string()]),
             ]);
 
             let provider_config = AcpProviderConfig {
                 command: resolved_command,
-                args,
-                env,
+                args: vec![],
+                env: vec![],
                 env_remove: vec![],
                 work_dir: working_dir,
                 mcp_servers,
-                // Disabled until https://github.com/zed-industries/codex-acp/issues/179 is fixed.
                 session_mode_id: None,
+                session_config_options: vec![],
+                model_config_option_id: Some("model".to_string()),
                 mode_mapping,
                 notification_callback: None,
             };
 
             let metadata = Self::metadata();
-            AcpProvider::connect(metadata.name, model, goose_mode, provider_config).await
+            AcpProvider::connect(metadata.name, goose_mode, provider_config).await
         })
-    }
-
-    fn supports_inventory_refresh() -> bool {
-        true
-    }
-
-    fn inventory_identity() -> Result<InventoryIdentityInput> {
-        acp_inventory_identity(CODEX_ACP_PROVIDER_NAME, CODEX_ACP_PROVIDER_NAME)
-    }
-
-    fn inventory_configured() -> bool {
-        acp_adapter_installed(CODEX_ACP_PROVIDER_NAME)
-    }
-}
-
-// Codex sandbox scope determines what needs approval: operations within the
-// sandbox are auto-approved, operations outside it trigger on-request prompts.
-// So Approve uses read-only sandbox to force write approvals through goose.
-fn map_goose_mode(goose_mode: GooseMode) -> (&'static str, &'static str) {
-    match goose_mode {
-        GooseMode::Auto => ("never", "danger-full-access"),
-        GooseMode::SmartApprove => ("on-request", "workspace-write"),
-        GooseMode::Approve => ("on-request", "read-only"),
-        GooseMode::Chat => ("never", "read-only"),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use test_case::test_case;
-
-    #[test_case(GooseMode::Auto, "never", "danger-full-access")]
-    #[test_case(GooseMode::SmartApprove, "on-request", "workspace-write")]
-    #[test_case(GooseMode::Approve, "on-request", "read-only")]
-    #[test_case(GooseMode::Chat, "never", "read-only")]
-    fn test_map_goose_mode(mode: GooseMode, expected_approval: &str, expected_sandbox: &str) {
-        let (approval, sandbox) = map_goose_mode(mode);
-        assert_eq!(approval, expected_approval);
-        assert_eq!(sandbox, expected_sandbox);
     }
 }

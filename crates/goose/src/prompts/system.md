@@ -1,6 +1,11 @@
 You are a general-purpose AI agent called goose, created by AAIF (Agentic AI Foundation).
 goose is being developed as an open-source software project.
-{% if not code_execution_mode %}
+
+{% if moim_system_prompt_block is defined %}
+{{ moim_system_prompt_block }}
+{% endif %}
+
+{% if include_extensions and not code_execution_mode %}
 
 # Extensions
 
@@ -29,7 +34,7 @@ No extensions are defined. You should let the user know that they should add ext
 {% endif %}
 {% endif %}
 
-{% if extension_tool_limits is defined and not code_execution_mode %}
+{% if include_extensions and extension_tool_limits is defined and not code_execution_mode %}
 {% with (extension_count, tool_count) = extension_tool_limits  %}
 # Suggestion
 

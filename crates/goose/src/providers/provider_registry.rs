@@ -1,18 +1,19 @@
+use super::api_client::TlsConfig;
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderType};
-use super::inventory::InventoryIdentityInput;
+use super::inventory::{InventoryIdentityInput, InventoryRegistration, InventoryResolvers};
 use crate::config::{DeclarativeProviderConfig, ExtensionConfig};
-use crate::model::ModelConfig;
 use anyhow::Result;
 use futures::future::BoxFuture;
+use goose_providers::model::ModelConfig;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 pub type ProviderConstructor = Arc<
     dyn Fn(
-            ModelConfig,
             Vec<ExtensionConfig>,
             Option<PathBuf>,
+            Option<TlsConfig>,
         ) -> BoxFuture<'static, Result<Arc<dyn Provider>>>
         + Send
         + Sync,
@@ -20,20 +21,16 @@ pub type ProviderConstructor = Arc<
 
 pub type ProviderCleanup = Arc<dyn Fn() -> BoxFuture<'static, Result<()>> + Send + Sync>;
 
-pub type ProviderInventoryIdentityResolver =
-    Arc<dyn Fn() -> Result<InventoryIdentityInput> + Send + Sync>;
-
-pub type ProviderInventoryConfiguredResolver = Arc<dyn Fn() -> bool + Send + Sync>;
-
 #[derive(Clone)]
 pub struct ProviderEntry {
     metadata: ProviderMetadata,
     pub(crate) constructor: ProviderConstructor,
-    pub(crate) inventory_identity: ProviderInventoryIdentityResolver,
-    pub(crate) inventory_configured: ProviderInventoryConfiguredResolver,
+    pub(crate) inventory_identity: super::inventory::InventoryIdentityResolver,
+    pub(crate) inventory_configured: super::inventory::InventoryConfiguredResolver,
     pub(crate) cleanup: Option<ProviderCleanup>,
     provider_type: ProviderType,
     supports_inventory_refresh: bool,
+    tls_config: Option<TlsConfig>,
 }
 
 impl ProviderEntry {
@@ -57,8 +54,13 @@ impl ProviderEntry {
         (self.inventory_configured)()
     }
 
-    fn normalize_model_config(&self, mut model: ModelConfig) -> ModelConfig {
-        model = model.with_canonical_limits(&self.metadata.name);
+    /// Apply provider-specific normalization to a model config: materialize
+    /// global defaults and backfill `context_limit` from the provider's known
+    /// models when the canonical registry didn't already resolve one. Used by
+    /// the agent/session layer to resolve effective limits (e.g. for custom
+    /// providers that declare explicit context limits in their config).
+    pub fn normalize_model_config(&self, mut model: ModelConfig) -> Result<ModelConfig> {
+        model = crate::model_config::materialize_model_config(&self.metadata.name, model)?;
 
         if model.context_limit.is_none() {
             if let Some(info) = self
@@ -71,47 +73,40 @@ impl ProviderEntry {
             }
         }
 
-        model
+        Ok(model)
     }
 
     pub async fn create_with_default_model(
         &self,
         extensions: Vec<ExtensionConfig>,
     ) -> Result<Arc<dyn Provider>> {
-        let default_model = &self.metadata.default_model;
-        let model_config = self.normalize_model_config(ModelConfig::new(default_model.as_str())?);
-        (self.constructor)(model_config, extensions, None).await
+        self.create(extensions).await
     }
 
-    pub async fn create(
-        &self,
-        model: ModelConfig,
-        extensions: Vec<ExtensionConfig>,
-    ) -> Result<Arc<dyn Provider>> {
-        let model = self.normalize_model_config(model);
-        (self.constructor)(model, extensions, None).await
+    pub async fn create(&self, extensions: Vec<ExtensionConfig>) -> Result<Arc<dyn Provider>> {
+        (self.constructor)(extensions, None, self.tls_config.clone()).await
     }
 
     pub async fn create_with_working_dir(
         &self,
-        model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
         working_dir: PathBuf,
     ) -> Result<Arc<dyn Provider>> {
-        let model = self.normalize_model_config(model);
-        (self.constructor)(model, extensions, Some(working_dir)).await
+        (self.constructor)(extensions, Some(working_dir), self.tls_config.clone()).await
     }
 }
 
 #[derive(Default)]
 pub struct ProviderRegistry {
     pub(crate) entries: HashMap<String, ProviderEntry>,
+    tls_config: Option<TlsConfig>,
 }
 
 impl ProviderRegistry {
-    pub fn new() -> Self {
+    pub fn new(tls_config: Option<TlsConfig>) -> Self {
         Self {
             entries: HashMap::new(),
+            tls_config,
         }
     }
 
@@ -119,33 +114,47 @@ impl ProviderRegistry {
     where
         F: ProviderDef + 'static,
     {
+        self.register_with_inventory::<F>(preferred, None);
+    }
+
+    pub fn register_with_inventory<F>(
+        &mut self,
+        preferred: bool,
+        inventory_registration: Option<InventoryRegistration>,
+    ) where
+        F: ProviderDef + 'static,
+    {
         let metadata = F::metadata();
         let name = metadata.name.clone();
+
+        let inventory = InventoryResolvers::for_metadata(&metadata, inventory_registration);
 
         self.entries.insert(
             name,
             ProviderEntry {
                 metadata,
-                constructor: Arc::new(|model, extensions, working_dir| {
+                constructor: Arc::new(|extensions, working_dir, tls_config| {
                     Box::pin(async move {
                         let provider = match working_dir {
                             Some(working_dir) => {
-                                F::from_env_with_working_dir(model, extensions, working_dir).await?
+                                F::from_env_with_working_dir(extensions, working_dir, tls_config)
+                                    .await?
                             }
-                            None => F::from_env(model, extensions).await?,
+                            None => F::from_env(extensions, tls_config).await?,
                         };
                         Ok(Arc::new(provider) as Arc<dyn Provider>)
                     })
                 }),
-                inventory_identity: Arc::new(F::inventory_identity),
-                inventory_configured: Arc::new(F::inventory_configured),
+                inventory_identity: inventory.identity,
+                inventory_configured: inventory.configured,
                 cleanup: None,
                 provider_type: if preferred {
                     ProviderType::Preferred
                 } else {
                     ProviderType::Builtin
                 },
-                supports_inventory_refresh: F::supports_inventory_refresh(),
+                supports_inventory_refresh: inventory.supports_refresh,
+                tls_config: self.tls_config.clone(),
             },
         );
     }
@@ -159,7 +168,54 @@ impl ProviderRegistry {
         inventory_identity: G,
     ) where
         P: ProviderDef + 'static,
-        F: Fn(ModelConfig) -> Result<P::Provider> + Send + Sync + 'static,
+        F: Fn(Option<TlsConfig>) -> Result<P::Provider> + Send + Sync + 'static,
+        G: Fn() -> Result<InventoryIdentityInput> + Send + Sync + 'static,
+    {
+        self.register_with_name_impl::<P, F, G>(
+            config,
+            provider_type,
+            supports_inventory_refresh,
+            constructor,
+            inventory_identity,
+            None,
+        );
+    }
+
+    pub fn register_with_name_and_inventory_configured<P, F, G, H>(
+        &mut self,
+        config: &DeclarativeProviderConfig,
+        provider_type: ProviderType,
+        supports_inventory_refresh: bool,
+        constructor: F,
+        inventory_identity: G,
+        inventory_configured: H,
+    ) where
+        P: ProviderDef + 'static,
+        F: Fn(Option<TlsConfig>) -> Result<P::Provider> + Send + Sync + 'static,
+        G: Fn() -> Result<InventoryIdentityInput> + Send + Sync + 'static,
+        H: Fn() -> bool + Send + Sync + 'static,
+    {
+        self.register_with_name_impl::<P, F, G>(
+            config,
+            provider_type,
+            supports_inventory_refresh,
+            constructor,
+            inventory_identity,
+            Some(Arc::new(inventory_configured)),
+        );
+    }
+
+    fn register_with_name_impl<P, F, G>(
+        &mut self,
+        config: &DeclarativeProviderConfig,
+        provider_type: ProviderType,
+        supports_inventory_refresh: bool,
+        constructor: F,
+        inventory_identity: G,
+        inventory_configured: Option<super::inventory::InventoryConfiguredResolver>,
+    ) where
+        P: ProviderDef + 'static,
+        F: Fn(Option<TlsConfig>) -> Result<P::Provider> + Send + Sync + 'static,
         G: Fn() -> Result<InventoryIdentityInput> + Send + Sync + 'static,
     {
         let base_metadata = P::metadata();
@@ -176,14 +232,9 @@ impl ProviderRegistry {
             .models
             .iter()
             .map(|m| ModelInfo {
-                name: m.name.clone(),
                 resolved_model: None,
-                context_limit: m.context_limit,
-                input_token_cost: m.input_token_cost,
-                output_token_cost: m.output_token_cost,
-                currency: m.currency.clone(),
                 supports_cache_control: Some(m.supports_cache_control.unwrap_or(false)),
-                reasoning: m.reasoning,
+                ..m.clone()
             })
             .collect();
 
@@ -241,30 +292,33 @@ impl ProviderRegistry {
             config_keys,
             setup_steps: config.setup_steps.clone(),
             model_selection_hint: None,
+            fast_model: config.fast_model.clone(),
         };
         let inventory_config_keys = custom_metadata.config_keys.clone();
+        let default_inventory_configured = Arc::new(move || {
+            super::inventory::default_inventory_configured(
+                &inventory_config_keys,
+                crate::config::Config::global(),
+            )
+        });
 
         self.entries.insert(
             config.name.clone(),
             ProviderEntry {
                 metadata: custom_metadata,
-                constructor: Arc::new(move |model, _extensions, _working_dir| {
-                    let result = constructor(model);
+                constructor: Arc::new(move |_extensions, _working_dir, tls_config| {
+                    let result = constructor(tls_config);
                     Box::pin(async move {
                         let provider = result?;
                         Ok(Arc::new(provider) as Arc<dyn Provider>)
                     })
                 }),
                 inventory_identity: Arc::new(inventory_identity),
-                inventory_configured: Arc::new(move || {
-                    super::inventory::default_inventory_configured(
-                        &inventory_config_keys,
-                        crate::config::Config::global(),
-                    )
-                }),
+                inventory_configured: inventory_configured.unwrap_or(default_inventory_configured),
                 cleanup: None,
                 provider_type,
                 supports_inventory_refresh,
+                tls_config: self.tls_config.clone(),
             },
         );
     }
@@ -286,7 +340,6 @@ impl ProviderRegistry {
     pub async fn create(
         &self,
         name: &str,
-        model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
     ) -> Result<Arc<dyn Provider>> {
         let entry = self
@@ -294,7 +347,7 @@ impl ProviderRegistry {
             .get(name)
             .ok_or_else(|| anyhow::anyhow!("Unknown provider: {}", name))?;
 
-        entry.create(model, extensions).await
+        entry.create(extensions).await
     }
 
     pub fn all_metadata_with_types(&self) -> Vec<(ProviderMetadata, ProviderType)> {
@@ -306,5 +359,54 @@ impl ProviderRegistry {
 
     pub fn remove_custom_providers(&mut self) {
         self.entries.retain(|name, _| !name.starts_with("custom_"));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::declarative_providers::ProviderEngine;
+    use crate::providers::openai_def::OpenAiProviderDef;
+
+    fn test_config() -> DeclarativeProviderConfig {
+        DeclarativeProviderConfig {
+            name: "custom_hf".to_string(),
+            engine: ProviderEngine::OpenAI,
+            display_name: "Custom HF".to_string(),
+            description: None,
+            api_key_env: String::new(),
+            base_url: "https://router.huggingface.co/v1".to_string(),
+            models: vec![ModelInfo::new("test-model", 128_000)],
+            headers: None,
+            timeout_seconds: None,
+            supports_streaming: Some(true),
+            requires_auth: true,
+            catalog_provider_id: Some("huggingface".to_string()),
+            base_path: None,
+            env_vars: None,
+            dynamic_models: None,
+            skip_canonical_filtering: false,
+            model_doc_link: None,
+            setup_steps: vec![],
+            fast_model: None,
+            preserves_thinking: false,
+        }
+    }
+
+    #[test]
+    fn register_with_name_can_override_inventory_configured() {
+        let mut registry = ProviderRegistry::new(None);
+        registry.register_with_name_and_inventory_configured::<OpenAiProviderDef, _, _, _>(
+            &test_config(),
+            ProviderType::Declarative,
+            false,
+            |_| unreachable!("constructor is not used by this test"),
+            || Ok(InventoryIdentityInput::new("custom_hf", "huggingface")),
+            || false,
+        );
+
+        let entry = registry.entries.get("custom_hf").unwrap();
+
+        assert!(!entry.inventory_configured());
     }
 }

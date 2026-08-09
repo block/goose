@@ -11,10 +11,10 @@ use crate::recipe::yaml_format_utils::reformat_fields_with_multiline_values;
 use crate::utils::contains_unicode_tags;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 
 pub mod build_recipe;
 pub mod local_recipes;
+pub mod manifest;
 pub mod read_recipe_file_content;
 mod recipe_extension_adapter;
 pub mod template_recipe;
@@ -38,7 +38,7 @@ pub fn strip_error_location(error_msg: &str) -> String {
         .to_string()
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Recipe {
     // Required fields
     #[serde(default = "default_version")]
@@ -85,7 +85,7 @@ pub struct Recipe {
     pub retry: Option<RetryConfig>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Author {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contact: Option<String>, // creator/contact information of the recipe
@@ -94,7 +94,7 @@ pub struct Author {
     pub metadata: Option<String>, // any additional metadata for the author
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Settings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub goose_provider: Option<String>,
@@ -109,13 +109,13 @@ pub struct Settings {
     pub max_turns: Option<usize>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Response {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub json_schema: Option<serde_json::Value>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SubRecipe {
     pub name: String,
     pub path: String,
@@ -152,7 +152,7 @@ where
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum RecipeParameterRequirement {
     Required,
@@ -170,7 +170,7 @@ impl fmt::Display for RecipeParameterRequirement {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum RecipeParameterInputType {
     String,
@@ -193,7 +193,7 @@ impl fmt::Display for RecipeParameterInputType {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RecipeParameter {
     pub key: String,
     pub input_type: RecipeParameterInputType,

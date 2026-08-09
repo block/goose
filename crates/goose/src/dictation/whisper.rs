@@ -9,6 +9,9 @@
 use crate::config::paths::Paths;
 
 pub const LOCAL_WHISPER_MODEL_CONFIG_KEY: &str = "LOCAL_WHISPER_MODEL";
+pub const LOCAL_WHISPER_LANGUAGE_CONFIG_KEY: &str = "LOCAL_WHISPER_LANGUAGE";
+const ENGLISH_LANGUAGE_TOKEN: u32 = 50259;
+const LANGUAGE_TOKEN_COUNT: u32 = 99;
 use anyhow::{Context, Result};
 use candle_core::{Device, IndexOp, Tensor};
 use candle_nn::ops::log_softmax;
@@ -23,7 +26,6 @@ use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
 use tokenizers::Tokenizer;
-use utoipa::ToSchema;
 
 // Common suppress tokens for all Whisper models
 const SUPPRESS_TOKENS: &[u32] = &[
@@ -42,7 +44,7 @@ const EOT_TOKEN: u32 = 50257;
 const TIMESTAMP_BEGIN: u32 = 50364;
 const SAMPLE_BEGIN: usize = 3;
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WhisperModel {
     /// Model identifier (e.g., "tiny", "base", "small")
     pub id: &'static str,
@@ -256,6 +258,8 @@ impl WhisperTranscriber {
         let tokenizer = Self::load_tokenizer(model_path_ref, Some(bundled_tokenizer))?;
         tracing::debug!("tokenizer loaded successfully");
 
+        let language_token = Self::resolve_language_token(&tokenizer);
+
         Ok(Self {
             model,
             config,
@@ -264,9 +268,18 @@ impl WhisperTranscriber {
             tokenizer,
             eot_token: 50257,
             no_timestamps_token: 50363,
-            language_token: 50259,
+            language_token,
             max_initial_timestamp_index: 50,
         })
+    }
+
+    fn resolve_language_token(tokenizer: &Tokenizer) -> u32 {
+        let configured = crate::config::Config::global()
+            .get(LOCAL_WHISPER_LANGUAGE_CONFIG_KEY, false)
+            .ok()
+            .and_then(|v| v.as_str().map(|s| s.to_string()));
+
+        language_token(tokenizer, configured.as_deref())
     }
 
     fn load_tokenizer(model_dir: &Path, bundled_tokenizer: Option<&str>) -> Result<Tokenizer> {
@@ -302,6 +315,8 @@ impl WhisperTranscriber {
             tracing::debug!("empty audio data received");
             return Ok(String::new());
         }
+
+        self.language_token = Self::resolve_language_token(&self.tokenizer);
 
         let (mel_tensor, actual_content_frames) = self.prepare_audio_input(audio_data)?;
         let (_, _, padded_frames) = mel_tensor.dims3()?;
@@ -719,6 +734,35 @@ impl WhisperTranscriber {
     }
 }
 
+/// Resolve an ISO 639-1 language code to its Whisper language token.
+///
+/// Whisper tokenizers expose one `<|xx|>` token per supported language, so the code is looked up
+/// in the tokenizer rather than mapped through a table that would drift from the model.
+/// Unset or unrecognized codes fall back to English.
+///
+/// The result is bounded to the language block because the tokenizer also contains task and
+/// control tokens such as `<|translate|>`, which would otherwise resolve here and produce an
+/// invalid decoder prompt.
+fn language_token(tokenizer: &Tokenizer, code: Option<&str>) -> u32 {
+    let Some(code) = code else {
+        return ENGLISH_LANGUAGE_TOKEN;
+    };
+
+    let code = code.trim().to_lowercase();
+    let languages = ENGLISH_LANGUAGE_TOKEN..ENGLISH_LANGUAGE_TOKEN + LANGUAGE_TOKEN_COUNT;
+
+    match tokenizer.token_to_id(&format!("<|{}|>", code)) {
+        Some(token) if languages.contains(&token) => token,
+        _ => {
+            tracing::warn!(
+                language = %code,
+                "unsupported LOCAL_WHISPER_LANGUAGE, transcribing as English"
+            );
+            ENGLISH_LANGUAGE_TOKEN
+        }
+    }
+}
+
 /// Remove repeated phrases from transcribed text.
 ///
 /// Whisper models (especially smaller/quantized ones) tend to loop, producing output like
@@ -1103,6 +1147,23 @@ mod tests {
     use test_case::test_case;
 
     const TS: u32 = 50364; // A timestamp token for tests
+
+    #[test_case(None, ENGLISH_LANGUAGE_TOKEN ; "unset falls back to english")]
+    #[test_case(Some("en"), ENGLISH_LANGUAGE_TOKEN ; "english")]
+    #[test_case(Some("de"), 50261 ; "german")]
+    #[test_case(Some("ru"), 50263 ; "russian")]
+    #[test_case(Some("DE"), 50261 ; "uppercase code is normalized")]
+    #[test_case(Some("klingon"), ENGLISH_LANGUAGE_TOKEN ; "unsupported falls back to english")]
+    #[test_case(Some("su"), 50357 ; "last language in the block")]
+    #[test_case(Some("translate"), ENGLISH_LANGUAGE_TOKEN ; "task token is not a language")]
+    #[test_case(Some("notimestamps"), ENGLISH_LANGUAGE_TOKEN ; "control token is not a language")]
+    #[test_case(Some("startoftranscript"), ENGLISH_LANGUAGE_TOKEN ; "sot token is not a language")]
+    fn test_language_token(code: Option<&str>, expected: u32) {
+        let tokenizer =
+            Tokenizer::from_bytes(include_bytes!("whisper_data/tokens.json")).expect("tokenizer");
+
+        assert_eq!(language_token(&tokenizer, code), expected);
+    }
 
     // detect_repetition_impl tests
     // sample_begin=3 means tokens[0..3] are SOT, language, transcribe

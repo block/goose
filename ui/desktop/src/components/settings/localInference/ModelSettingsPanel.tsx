@@ -10,7 +10,7 @@ import {
   type ModelSettings,
   type SamplingConfig,
   type ToolCallingMode,
-} from '../../../api';
+} from '../../../acp/local-inference';
 import { defineMessages, useIntl } from '../../../i18n';
 
 const i18n = defineMessages({
@@ -221,27 +221,33 @@ const i18n = defineMessages({
 });
 
 const DEFAULT_SETTINGS: ModelSettings = {
-  context_size: null,
-  max_output_tokens: null,
+  backendId: null,
+  contextSize: null,
+  maxOutputTokens: null,
+  draftModel: null,
   sampling: {
     type: 'Temperature',
     temperature: 0.8,
-    top_k: 40,
-    top_p: 0.95,
-    min_p: 0.05,
+    topK: 40,
+    topP: 0.95,
+    minP: 0.05,
     seed: null,
   },
-  repeat_penalty: 1.0,
-  repeat_last_n: 64,
-  frequency_penalty: 0.0,
-  presence_penalty: 0.0,
-  n_batch: null,
-  n_gpu_layers: null,
-  use_mlock: false,
-  flash_attention: null,
-  n_threads: null,
-  tool_calling: 'auto',
-  chat_template: { type: 'embedded' },
+  repeatPenalty: 1.0,
+  repeatLastN: 64,
+  frequencyPenalty: 0.0,
+  presencePenalty: 0.0,
+  nBatch: null,
+  nGpuLayers: null,
+  useMlock: false,
+  flashAttention: null,
+  nThreads: null,
+  toolCalling: 'auto',
+  chatTemplate: { type: 'embedded' },
+  enableThinking: true,
+  visionCapable: false,
+  imageTokenEstimate: 256,
+  mmprojSizeBytes: 0,
 };
 
 type SamplingType = SamplingConfig['type'];
@@ -390,17 +396,17 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
   const load = useCallback(async () => {
     try {
       const [settingsResult, builtinsResult] = await Promise.allSettled([
-        getModelSettings({ path: { model_id: modelId } }),
+        getModelSettings(modelId),
         listBuiltinChatTemplates(),
       ]);
-      if (builtinsResult.status === 'fulfilled' && builtinsResult.value.data?.length) {
-        setBuiltinTemplateOptions(builtinsResult.value.data);
+      if (builtinsResult.status === 'fulfilled' && builtinsResult.value.length) {
+        setBuiltinTemplateOptions(builtinsResult.value);
       }
-      if (settingsResult.status === 'fulfilled' && settingsResult.value.data) {
+      if (settingsResult.status === 'fulfilled') {
         setSettings({
-          ...settingsResult.value.data,
-          tool_calling: settingsResult.value.data.tool_calling ?? 'auto',
-          chat_template: settingsResult.value.data.chat_template ?? { type: 'embedded' },
+          ...settingsResult.value,
+          toolCalling: settingsResult.value.toolCalling ?? 'auto',
+          chatTemplate: settingsResult.value.chatTemplate ?? { type: 'embedded' },
         });
       }
     } catch {
@@ -415,7 +421,7 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
   }, [load]);
 
   useEffect(() => {
-    const chatTemplate = settings.chat_template;
+    const chatTemplate = settings.chatTemplate;
     if (chatTemplate?.type === 'custom_inline') {
       setChatTemplateDraft(chatTemplate.template ?? '');
     } else {
@@ -424,13 +430,13 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
     if (chatTemplate?.type === 'builtin') {
       setBuiltinTemplateDraft(chatTemplate.name ?? 'chatml');
     }
-  }, [settings.chat_template]);
+  }, [settings.chatTemplate]);
 
   const save = async (updated: ModelSettings) => {
     setSettings(updated);
     setSaving(true);
     try {
-      await updateModelSettings({ path: { model_id: modelId }, body: updated });
+      await updateModelSettings(modelId, updated);
     } catch (e) {
       console.error('Failed to save settings:', e);
     } finally {
@@ -445,7 +451,7 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
   };
 
   const samplingType: SamplingType = settings.sampling?.type ?? 'Temperature';
-  const chatTemplate = settings.chat_template ?? { type: 'embedded' };
+  const chatTemplate = settings.chatTemplate ?? { type: 'embedded' };
   const chatTemplateMode: ChatTemplateMode =
     chatTemplate.type === 'custom_inline'
       ? 'custom_inline'
@@ -458,23 +464,26 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
     if (mode === 'custom_inline') {
       next = { type: 'custom_inline', template: chatTemplateDraft };
     } else if (mode === 'builtin') {
-      next = { type: 'builtin', name: builtinTemplateDraft.trim() || builtinTemplateOptions[0] || 'chatml' };
+      next = {
+        type: 'builtin',
+        name: builtinTemplateDraft.trim() || builtinTemplateOptions[0] || 'chatml',
+      };
     } else {
       next = { type: 'embedded' };
     }
-    updateField('chat_template', next);
+    updateField('chatTemplate', next);
   };
 
   const setBuiltinTemplateName = (name: string) => {
     setBuiltinTemplateDraft(name);
     if (chatTemplateMode === 'builtin') {
-      updateField('chat_template', { type: 'builtin', name });
+      updateField('chatTemplate', { type: 'builtin', name });
     }
   };
 
   const saveChatTemplateDraft = () => {
     if (chatTemplateMode === 'custom_inline') {
-      updateField('chat_template', { type: 'custom_inline', template: chatTemplateDraft });
+      updateField('chatTemplate', { type: 'custom_inline', template: chatTemplateDraft });
     }
   };
 
@@ -488,9 +497,9 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
       sampling = {
         type: 'Temperature',
         temperature: 0.8,
-        top_k: 40,
-        top_p: 0.95,
-        min_p: 0.05,
+        topK: 40,
+        topP: 0.95,
+        minP: 0.05,
         seed: null,
       };
     }
@@ -526,8 +535,8 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
           <NumberField
             label={intl.formatMessage(i18n.contextSize)}
             description={intl.formatMessage(i18n.contextSizeDescription)}
-            value={settings.context_size}
-            onChange={(v) => updateField('context_size', v)}
+            value={settings.contextSize}
+            onChange={(v) => updateField('contextSize', v)}
             placeholder="Auto"
             min={0}
             allowNull
@@ -535,8 +544,8 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
           <NumberField
             label={intl.formatMessage(i18n.maxOutputTokens)}
             description={intl.formatMessage(i18n.maxOutputTokensDescription)}
-            value={settings.max_output_tokens}
-            onChange={(v) => updateField('max_output_tokens', v)}
+            value={settings.maxOutputTokens}
+            onChange={(v) => updateField('maxOutputTokens', v)}
             placeholder="No limit"
             min={1}
             allowNull
@@ -569,22 +578,22 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
             />
             <NumberField
               label={intl.formatMessage(i18n.topK)}
-              value={settings.sampling.top_k}
-              onChange={(v) => updateSampling({ top_k: v ?? 40 })}
+              value={settings.sampling.topK}
+              onChange={(v) => updateSampling({ topK: v ?? 40 })}
               min={0}
             />
             <NumberField
               label={intl.formatMessage(i18n.topP)}
-              value={settings.sampling.top_p}
-              onChange={(v) => updateSampling({ top_p: v ?? 0.95 })}
+              value={settings.sampling.topP}
+              onChange={(v) => updateSampling({ topP: v ?? 0.95 })}
               min={0}
               max={1}
               step={0.01}
             />
             <NumberField
               label={intl.formatMessage(i18n.minP)}
-              value={settings.sampling.min_p}
-              onChange={(v) => updateSampling({ min_p: v ?? 0.05 })}
+              value={settings.sampling.minP}
+              onChange={(v) => updateSampling({ minP: v ?? 0.05 })}
               min={0}
               max={1}
               step={0.01}
@@ -636,23 +645,23 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
           <NumberField
             label={intl.formatMessage(i18n.repeatPenalty)}
             description={intl.formatMessage(i18n.repeatPenaltyDescription)}
-            value={settings.repeat_penalty}
-            onChange={(v) => updateField('repeat_penalty', v ?? 1.0)}
+            value={settings.repeatPenalty}
+            onChange={(v) => updateField('repeatPenalty', v ?? 1.0)}
             min={0}
             step={0.05}
           />
           <NumberField
             label={intl.formatMessage(i18n.repeatWindow)}
             description={intl.formatMessage(i18n.repeatWindowDescription)}
-            value={settings.repeat_last_n}
-            onChange={(v) => updateField('repeat_last_n', v ?? 64)}
+            value={settings.repeatLastN}
+            onChange={(v) => updateField('repeatLastN', v ?? 64)}
             min={0}
           />
           <NumberField
             label={intl.formatMessage(i18n.frequencyPenalty)}
             description={intl.formatMessage(i18n.frequencyPenaltyDescription)}
-            value={settings.frequency_penalty}
-            onChange={(v) => updateField('frequency_penalty', v ?? 0.0)}
+            value={settings.frequencyPenalty}
+            onChange={(v) => updateField('frequencyPenalty', v ?? 0.0)}
             min={0}
             max={2}
             step={0.05}
@@ -660,8 +669,8 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
           <NumberField
             label={intl.formatMessage(i18n.presencePenalty)}
             description={intl.formatMessage(i18n.presencePenaltyDescription)}
-            value={settings.presence_penalty}
-            onChange={(v) => updateField('presence_penalty', v ?? 0.0)}
+            value={settings.presencePenalty}
+            onChange={(v) => updateField('presencePenalty', v ?? 0.0)}
             min={0}
             max={2}
             step={0.05}
@@ -676,8 +685,8 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
           <NumberField
             label={intl.formatMessage(i18n.batchSize)}
             description={intl.formatMessage(i18n.batchSizeDescription)}
-            value={settings.n_batch}
-            onChange={(v) => updateField('n_batch', v)}
+            value={settings.nBatch}
+            onChange={(v) => updateField('nBatch', v)}
             placeholder="Auto"
             min={1}
             allowNull
@@ -685,8 +694,8 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
           <NumberField
             label={intl.formatMessage(i18n.gpuLayers)}
             description={intl.formatMessage(i18n.gpuLayersDescription)}
-            value={settings.n_gpu_layers}
-            onChange={(v) => updateField('n_gpu_layers', v)}
+            value={settings.nGpuLayers}
+            onChange={(v) => updateField('nGpuLayers', v)}
             placeholder="All"
             min={0}
             allowNull
@@ -694,8 +703,8 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
           <NumberField
             label={intl.formatMessage(i18n.threads)}
             description={intl.formatMessage(i18n.threadsDescription)}
-            value={settings.n_threads}
-            onChange={(v) => updateField('n_threads', v)}
+            value={settings.nThreads}
+            onChange={(v) => updateField('nThreads', v)}
             placeholder="Auto"
             min={1}
             allowNull
@@ -704,16 +713,16 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
         <ToggleField
           label={intl.formatMessage(i18n.lockModelInRam)}
           description={intl.formatMessage(i18n.lockModelInRamDescription)}
-          value={settings.use_mlock ?? false}
-          onChange={(v) => updateField('use_mlock', v)}
+          value={settings.useMlock ?? false}
+          onChange={(v) => updateField('useMlock', v)}
         />
         <SelectField
           label={intl.formatMessage(i18n.flashAttention)}
           description={intl.formatMessage(i18n.flashAttentionDescription)}
           value={
-            settings.flash_attention === null || settings.flash_attention === undefined
+            settings.flashAttention === null || settings.flashAttention === undefined
               ? 'auto'
-              : settings.flash_attention
+              : settings.flashAttention
                 ? 'on'
                 : 'off'
           }
@@ -722,18 +731,18 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
             { value: 'on', label: 'On' },
             { value: 'off', label: 'Off' },
           ]}
-          onChange={(v) => updateField('flash_attention', v === 'auto' ? null : v === 'on')}
+          onChange={(v) => updateField('flashAttention', v === 'auto' ? null : v === 'on')}
         />
         <SelectField<ToolCallingMode>
           label={intl.formatMessage(i18n.toolCalling)}
           description={intl.formatMessage(i18n.toolCallingDescription)}
-          value={settings.tool_calling ?? 'auto'}
+          value={settings.toolCalling ?? 'auto'}
           options={[
             { value: 'auto', label: intl.formatMessage(i18n.toolCallingAuto) },
             { value: 'force_native', label: intl.formatMessage(i18n.toolCallingForceNative) },
             { value: 'force_emulated', label: intl.formatMessage(i18n.toolCallingForceEmulated) },
           ]}
-          onChange={(v) => updateField('tool_calling', v)}
+          onChange={(v) => updateField('toolCalling', v)}
         />
         <SelectField<ChatTemplateMode>
           label={intl.formatMessage(i18n.chatTemplate)}

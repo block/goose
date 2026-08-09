@@ -1,4 +1,12 @@
-use super::base::{ConfigKey, ModelInfo, ProviderType};
+pub mod registrations;
+mod resolver;
+
+pub use resolver::{
+    default_inventory_identity_resolver, InventoryConfiguredResolver, InventoryIdentityResolver,
+    InventoryRegistration, InventoryResolvers,
+};
+
+use super::base::{ConfigKey, ModelInfo, Provider, ProviderType};
 use super::canonical::{map_provider_name, map_to_canonical_model, CanonicalModelRegistry};
 use super::catalog::ProviderSetupCategory;
 use crate::config::declarative_providers::{DeclarativeProviderConfig, ProviderEngine};
@@ -7,10 +15,12 @@ use crate::session::session_manager::SessionStorage;
 use crate::utils::bytes_to_hex;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Duration, Utc};
+use futures::FutureExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use sqlx::{Pool, Row, Sqlite, Transaction};
+use sqlx::{Row, Sqlite, Transaction};
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use tracing::warn;
 
@@ -284,6 +294,7 @@ impl ProviderInventoryService {
             snapshot.as_ref(),
             &descriptor.identity.provider_family,
             &descriptor.static_models,
+            descriptor.supports_refresh,
         );
 
         Ok(Some(ProviderInventoryEntry {
@@ -308,6 +319,23 @@ impl ProviderInventoryService {
             last_refresh_error: snapshot.and_then(|snapshot| snapshot.last_refresh_error),
             model_selection_hint: descriptor.model_selection_hint,
         }))
+    }
+
+    pub async fn find_entry_for_provider(
+        &self,
+        provider_id: &str,
+    ) -> Option<ProviderInventoryEntry> {
+        match self.entry_for_provider(provider_id).await {
+            Ok(entry) => entry,
+            Err(error) => {
+                warn!(
+                    provider = %provider_id,
+                    %error,
+                    "failed to look up provider inventory entry"
+                );
+                None
+            }
+        }
     }
 
     pub async fn entries(&self, provider_ids: &[String]) -> Result<Vec<ProviderInventoryEntry>> {
@@ -561,6 +589,108 @@ impl ProviderInventoryService {
         }
     }
 
+    pub(crate) async fn refresh_with_provider(
+        &self,
+        provider_name: &str,
+        provider: &Arc<dyn Provider>,
+        inventory: &mut ProviderInventoryEntry,
+        context: &str,
+    ) {
+        let provider_id = provider_name.to_string();
+        match self
+            .plan_refresh_jobs(std::slice::from_ref(&provider_id))
+            .await
+        {
+            Ok(plan)
+                if plan
+                    .started
+                    .iter()
+                    .any(|job| job.provider_id == provider_id) =>
+            {
+                let refresh_job = plan
+                    .started
+                    .into_iter()
+                    .find(|job| job.provider_id == provider_id);
+                if let Some(refresh_job) = refresh_job {
+                    let mut refresh_guard = self.refresh_guard(&refresh_job.identity);
+                    let fetch_result: Result<Vec<String>> =
+                        match ensure_refresh_identity_current(&provider_id, &refresh_job.identity)
+                            .await
+                        {
+                            Ok(()) => {
+                                match AssertUnwindSafe(provider.fetch_recommended_models(
+                                    crate::model_config::global_toolshim(),
+                                ))
+                                .catch_unwind()
+                                .await
+                                {
+                                    Ok(Ok(models)) => Ok(models),
+                                    Ok(Err(error)) => Err(anyhow::anyhow!(error.to_string())),
+                                    Err(_) => Err(anyhow::anyhow!(
+                                        "provider inventory refresh task panicked"
+                                    )),
+                                }
+                            }
+                            Err(error) => Err(error),
+                        };
+                    match fetch_result {
+                        Ok(models) => {
+                            if let Err(error) = self
+                                .store_refreshed_models_for_identity(&refresh_job.identity, &models)
+                                .await
+                            {
+                                warn!(
+                                    provider = %provider_id,
+                                    context = %context,
+                                    error = %error,
+                                    "failed to store refreshed provider inventory"
+                                );
+                            } else {
+                                refresh_guard.complete();
+                            }
+                        }
+                        Err(error) => {
+                            let error_message = error.to_string();
+                            if let Err(store_error) = self
+                                .store_refresh_error_for_identity(
+                                    &refresh_job.identity,
+                                    error_message.clone(),
+                                )
+                                .await
+                            {
+                                warn!(
+                                    provider = %provider_id,
+                                    context = %context,
+                                    error = %store_error,
+                                    "failed to store provider inventory refresh error"
+                                );
+                            } else {
+                                refresh_guard.complete();
+                            }
+                            warn!(
+                                provider = %provider_id,
+                                context = %context,
+                                error = %error_message,
+                                "provider inventory refresh failed"
+                            );
+                        }
+                    }
+                }
+            }
+            Ok(_) => {}
+            Err(error) => warn!(
+                provider = %provider_id,
+                context = %context,
+                error = %error,
+                "failed to plan provider inventory refresh"
+            ),
+        }
+
+        if let Some(refreshed_inventory) = self.find_entry_for_provider(provider_name).await {
+            *inventory = refreshed_inventory;
+        }
+    }
+
     pub fn is_stale(entry: &ProviderInventoryEntry) -> bool {
         let Some(last_updated_at) = entry.last_updated_at else {
             return false;
@@ -717,6 +847,19 @@ impl ProviderInventoryService {
     }
 }
 
+pub(crate) async fn ensure_refresh_identity_current(
+    provider_id: &str,
+    planned_identity: &InventoryIdentity,
+) -> Result<()> {
+    let current_identity = crate::providers::inventory_identity(provider_id)
+        .await?
+        .into_identity()?;
+    if current_identity != *planned_identity {
+        anyhow::bail!("provider inventory identity changed before refresh completed");
+    }
+    Ok(())
+}
+
 pub fn default_inventory_identity(
     provider_id: &str,
     provider_family: &str,
@@ -871,6 +1014,20 @@ fn enrich_model_ids_with_canonical(
     provider_family: &str,
     model_ids: &[String],
 ) -> Vec<InventoryModel> {
+    if provider_family == "litellm" {
+        return model_ids
+            .iter()
+            .map(|id| InventoryModel {
+                id: id.clone(),
+                name: id.clone(),
+                family: None,
+                context_limit: None,
+                reasoning: None,
+                recommended: false,
+            })
+            .collect();
+    }
+
     let mut models: Vec<InventoryModel> = Vec::new();
     let mut seen_names: HashSet<String> = HashSet::new();
 
@@ -949,7 +1106,12 @@ fn inventory_models_from_snapshot(
     snapshot: Option<&InventorySnapshot>,
     provider_family: &str,
     configured_models: &[ModelInfo],
+    supports_refresh: bool,
 ) -> Vec<InventoryModel> {
+    if !supports_refresh {
+        return configured_models_to_inventory(provider_family, configured_models);
+    }
+
     match snapshot {
         Some(snapshot) if !snapshot.models.is_empty() || snapshot.last_updated_at.is_some() => {
             snapshot.models.clone()
@@ -986,52 +1148,7 @@ fn enriched_model(
     }
 }
 
-pub async fn create_tables(pool: &Pool<Sqlite>) -> Result<()> {
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS provider_inventory_entries (
-            inventory_key TEXT PRIMARY KEY,
-            provider_id TEXT NOT NULL,
-            provider_family TEXT NOT NULL,
-            last_updated_at TEXT,
-            last_refresh_attempt_at TEXT,
-            last_refresh_error TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        "#,
-    )
-    .execute(pool)
-    .await?;
-
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS provider_inventory_models (
-            inventory_key TEXT NOT NULL REFERENCES provider_inventory_entries(inventory_key) ON DELETE CASCADE,
-            ordinal INTEGER NOT NULL,
-            model_id TEXT NOT NULL,
-            name TEXT NOT NULL,
-            family TEXT,
-            context_limit INTEGER,
-            reasoning BOOLEAN,
-            recommended BOOLEAN,
-            PRIMARY KEY (inventory_key, ordinal)
-        )
-        "#,
-    )
-    .execute(pool)
-    .await?;
-
-    sqlx::query(
-        "CREATE INDEX IF NOT EXISTS idx_provider_inventory_provider_id ON provider_inventory_entries(provider_id)",
-    )
-    .execute(pool)
-    .await?;
-
-    Ok(())
-}
-
-pub async fn create_tables_in_tx(tx: &mut Transaction<'_, Sqlite>) -> Result<()> {
+pub async fn create_tables(tx: &mut Transaction<'_, Sqlite>) -> Result<()> {
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS provider_inventory_entries (
@@ -1210,7 +1327,7 @@ mod tests {
         };
 
         let models =
-            inventory_models_from_snapshot(Some(&snapshot), "anthropic", &configured_models);
+            inventory_models_from_snapshot(Some(&snapshot), "anthropic", &configured_models, true);
 
         assert_eq!(models.len(), 1);
         assert_eq!(models[0].id, "claude-sonnet-4-5");
@@ -1227,8 +1344,36 @@ mod tests {
         };
 
         let models =
-            inventory_models_from_snapshot(Some(&snapshot), "anthropic", &configured_models);
+            inventory_models_from_snapshot(Some(&snapshot), "anthropic", &configured_models, true);
 
         assert!(models.is_empty());
+    }
+
+    #[test]
+    fn inventory_ignores_stale_snapshots_for_static_providers() {
+        let configured_models = [ModelInfo::new("gpt-5.6", 0)];
+        let snapshot = InventorySnapshot {
+            models: vec![InventoryModel {
+                id: "gpt-5.5".to_string(),
+                name: "gpt-5.5".to_string(),
+                family: None,
+                context_limit: None,
+                reasoning: None,
+                recommended: false,
+            }],
+            last_updated_at: Some(Utc::now()),
+            last_refresh_attempt_at: Some(Utc::now()),
+            last_refresh_error: None,
+        };
+
+        let models = inventory_models_from_snapshot(
+            Some(&snapshot),
+            "chatgpt_codex",
+            &configured_models,
+            false,
+        );
+
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].id, "gpt-5.6");
     }
 }

@@ -1,6 +1,38 @@
 use super::*;
 use crate::config::declarative_providers;
+use crate::providers::inventory::ensure_refresh_identity_current;
+use crate::providers::provider_secrets;
 use std::str::FromStr;
+
+fn provider_secret_to_dto(secret: provider_secrets::ProviderSecret) -> ProviderSecretDto {
+    let storage = match secret.storage {
+        provider_secrets::ProviderSecretStorage::SecretStore => {
+            ProviderSecretStorageDto::SecretStore
+        }
+        provider_secrets::ProviderSecretStorage::ProviderCache => {
+            ProviderSecretStorageDto::ProviderCache
+        }
+    };
+    let status = match secret.status {
+        provider_secrets::ProviderSecretStatus::Valid => ProviderSecretStatusDto::Valid,
+        provider_secrets::ProviderSecretStatus::Expired => ProviderSecretStatusDto::Expired,
+        provider_secrets::ProviderSecretStatus::Unknown => ProviderSecretStatusDto::Unknown,
+    };
+    ProviderSecretDto {
+        id: secret.id,
+        provider: secret.provider,
+        provider_display_name: secret.provider_display_name,
+        name: secret.name,
+        storage,
+        expires_at: secret.expires_at.map(|value| value.to_rfc3339()),
+        status,
+        configured: secret.configured,
+        has_secret: secret.has_secret,
+        can_delete: secret.can_delete,
+        can_configure: secret.can_configure,
+        configure_provider: secret.configure_provider,
+    }
+}
 
 fn inventory_entry_to_dto(entry: ProviderInventoryEntry) -> ProviderInventoryEntryDto {
     let stale = ProviderInventoryService::is_stale(&entry);
@@ -442,19 +474,25 @@ impl GooseAcpAgent {
         &self,
         req: ProviderSupportedModelsListRequest,
     ) -> Result<ProviderSupportedModelsListResponse, agent_client_protocol::Error> {
-        let entry = crate::providers::get_from_registry(&req.provider_id)
-            .await
-            .invalid_params_err_ctx("Unknown provider")?;
-        let model_config = crate::model::ModelConfig::new(&entry.metadata().default_model)
-            .invalid_params_err_ctx("Invalid default model")?;
         let provider = self
-            .create_provider(&req.provider_id, model_config, Vec::new(), None)
+            .create_provider(&req.provider_id, Vec::new(), None)
             .await
             .internal_err_ctx("Failed to initialize provider")?;
-        let models = provider
-            .fetch_supported_models()
-            .await
-            .internal_err_ctx("Failed to fetch provider supported models")?;
+        let models = match provider.fetch_supported_models().await {
+            Ok(models) => models,
+            Err(goose_providers::errors::ProviderError::Authentication(error)) => {
+                return Err(agent_client_protocol::Error::auth_required().data(error));
+            }
+            Err(goose_providers::errors::ProviderError::NotConfigured) => {
+                return Err(agent_client_protocol::Error::invalid_params()
+                    .data(format!("Provider is not configured: {}", req.provider_id)));
+            }
+            Err(error) => {
+                return Err(agent_client_protocol::Error::internal_error().data(format!(
+                    "Failed to fetch provider supported models: {error}"
+                )));
+            }
+        };
 
         Ok(ProviderSupportedModelsListResponse {
             provider_id: req.provider_id,
@@ -718,34 +756,33 @@ impl GooseAcpAgent {
             tokio::spawn(async move {
                 let mut refresh_guard = provider_inventory.refresh_guard(&identity);
                 let provider_result = AssertUnwindSafe(async {
-                    let metadata = crate::providers::get_from_registry(&provider_id).await?;
-                    let model_config =
-                        crate::model::ModelConfig::new(&metadata.metadata().default_model)?
-                            .with_canonical_limits(&provider_id);
-                    provider_factory(provider_id.clone(), model_config, Vec::new(), None).await
+                    provider_factory(provider_id.clone(), Vec::new(), None).await
                 })
                 .catch_unwind()
                 .await;
 
-                let fetch_result: Result<Vec<String>> = match provider_result {
-                    Ok(Ok(provider)) => {
-                        match ensure_refresh_identity_current(&provider_id, &identity).await {
-                            Ok(()) => match AssertUnwindSafe(provider.fetch_recommended_models())
+                let fetch_result: Result<Vec<String>> =
+                    match provider_result {
+                        Ok(Ok(provider)) => {
+                            match ensure_refresh_identity_current(&provider_id, &identity).await {
+                                Ok(()) => match AssertUnwindSafe(provider.fetch_recommended_models(
+                                    crate::model_config::global_toolshim(),
+                                ))
                                 .catch_unwind()
                                 .await
-                            {
-                                Ok(Ok(models)) => Ok(models),
-                                Ok(Err(error)) => Err(anyhow::anyhow!(error.to_string())),
-                                Err(_) => {
-                                    Err(anyhow::anyhow!("provider inventory refresh task panicked"))
-                                }
-                            },
-                            Err(error) => Err(error),
+                                {
+                                    Ok(Ok(models)) => Ok(models),
+                                    Ok(Err(error)) => Err(anyhow::anyhow!(error.to_string())),
+                                    Err(_) => Err(anyhow::anyhow!(
+                                        "provider inventory refresh task panicked"
+                                    )),
+                                },
+                                Err(error) => Err(error),
+                            }
                         }
-                    }
-                    Ok(Err(error)) => Err(error),
-                    Err(_) => Err(anyhow::anyhow!("provider inventory refresh task panicked")),
-                };
+                        Ok(Err(error)) => Err(error),
+                        Err(_) => Err(anyhow::anyhow!("provider inventory refresh task panicked")),
+                    };
 
                 match fetch_result {
                     Ok(models) => match provider_inventory
@@ -932,27 +969,88 @@ impl GooseAcpAgent {
         let entry = crate::providers::get_from_registry(&req.provider_id)
             .await
             .invalid_params_err_ctx("Unknown provider")?;
-        let metadata = entry.metadata().clone();
-        if !metadata.config_keys.iter().any(|key| key.oauth_flow) {
-            return Err(agent_client_protocol::Error::invalid_params().data(format!(
-                "Provider does not support native authentication: {}",
-                req.provider_id
-            )));
-        }
 
-        let provider = entry
-            .create_with_default_model(Vec::new())
-            .await
-            .internal_err_ctx("Failed to initialize provider")?;
-        provider
-            .configure_oauth()
-            .await
-            .internal_err_ctx("Failed to authenticate provider")?;
+        if req.provider_id == crate::providers::huggingface_auth::HUGGINGFACE_PROVIDER_NAME {
+            crate::providers::huggingface_auth::configure_oauth()
+                .await
+                .internal_err_ctx("Failed to authenticate provider")?;
+        } else {
+            let metadata = entry.metadata().clone();
+            if !metadata.config_keys.iter().any(|key| key.oauth_flow) {
+                return Err(agent_client_protocol::Error::invalid_params().data(format!(
+                    "Provider does not support native authentication: {}",
+                    req.provider_id
+                )));
+            }
+
+            let provider = entry
+                .create_with_default_model(Vec::new())
+                .await
+                .internal_err_ctx("Failed to initialize provider")?;
+            provider
+                .configure_oauth()
+                .await
+                .internal_err_ctx("Failed to authenticate provider")?;
+        }
         Config::global().invalidate_secrets_cache();
 
         let provider_ids = [req.provider_id.clone()];
         let status = Self::provider_config_status(req.provider_id.clone()).await;
         let refresh = self.start_provider_inventory_refresh(&provider_ids).await?;
         Ok(ProviderConfigChangeResponse { status, refresh })
+    }
+
+    pub(super) async fn on_list_provider_secrets(
+        &self,
+        _req: ProviderSecretsListRequest,
+    ) -> Result<ProviderSecretsListResponse, agent_client_protocol::Error> {
+        let secrets = provider_secrets::list_provider_secrets()
+            .await
+            .internal_err_ctx("Failed to list provider secrets")?
+            .into_iter()
+            .map(provider_secret_to_dto)
+            .collect();
+        Ok(ProviderSecretsListResponse { secrets })
+    }
+
+    pub(super) async fn on_delete_provider_secret(
+        &self,
+        req: ProviderSecretDeleteRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        match provider_secrets::delete_provider_secret(&req.id).await {
+            Ok(()) => Ok(EmptyResponse {}),
+            Err(provider_secrets::DeleteProviderSecretError::InvalidId(id)) => {
+                Err(agent_client_protocol::Error::invalid_params()
+                    .data(format!("Invalid provider secret id: '{}'", id)))
+            }
+            Err(e) => Err(agent_client_protocol::Error::internal_error().data(e.to_string())),
+        }
+    }
+
+    pub(super) async fn on_canonical_model_info(
+        &self,
+        req: CanonicalModelInfoRequest,
+    ) -> Result<CanonicalModelInfoResponse, agent_client_protocol::Error> {
+        use goose_providers::model::ModelConfig;
+
+        let model_info =
+            crate::providers::canonical::maybe_get_canonical_model(&req.provider, &req.model).map(
+                |canonical_model| CanonicalModelInfoDto {
+                    provider: req.provider.clone(),
+                    model: req.model.clone(),
+                    context_limit: canonical_model.limit.context,
+                    max_output_tokens: canonical_model.limit.output,
+                    reasoning: canonical_model
+                        .reasoning
+                        .unwrap_or_else(|| ModelConfig::new(&req.model).is_reasoning_model()),
+                    input_token_cost: canonical_model.cost.input,
+                    output_token_cost: canonical_model.cost.output,
+                    cache_read_token_cost: canonical_model.cost.cache_read,
+                    cache_write_token_cost: canonical_model.cost.cache_write,
+                    currency: "$".to_string(),
+                },
+            );
+
+        Ok(CanonicalModelInfoResponse { model_info })
     }
 }

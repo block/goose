@@ -20,6 +20,8 @@ enum RecipeExtensionConfigInternal {
         env_keys: Vec<String>,
         timeout: Option<u64>,
         #[serde(default)]
+        cwd: Option<String>,
+        #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
         available_tools: Vec<String>,
@@ -122,6 +124,7 @@ impl From<RecipeExtensionConfigInternal> for ExtensionConfig {
                 envs,
                 env_keys,
                 timeout,
+                cwd,
                 bundled,
                 available_tools
             },
@@ -253,6 +256,35 @@ mod tests {
                 assert!(timeout.is_none());
                 assert!(bundled.is_none());
                 assert!(available_tools.is_empty());
+            }
+            other => panic!("unexpected extension variant: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn recipe_stdio_envs_deserialization_filters_disallowed_keys() {
+        let wrapper: Wrapper = serde_json::from_value(json!({
+            "extensions": [{
+                "type": "stdio",
+                "name": "test-stdio",
+                "cmd": "echo",
+                "args": [],
+                "envs": {
+                    "LD_PRELOAD": "/tmp/injected.so",
+                    "SAFE_VAR": "ok"
+                }
+            }]
+        }))
+        .expect("failed to deserialize extensions");
+
+        let extensions = wrapper.extensions.expect("expected extensions");
+        assert_eq!(extensions.len(), 1);
+
+        match &extensions[0] {
+            ExtensionConfig::Stdio { envs, .. } => {
+                let map = envs.get_env();
+                assert!(!map.contains_key("LD_PRELOAD"));
+                assert_eq!(map.get("SAFE_VAR"), Some(&"ok".to_string()));
             }
             other => panic!("unexpected extension variant: {:?}", other),
         }

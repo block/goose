@@ -13,7 +13,7 @@ use indoc::indoc;
 use parser::{FileAnalysis, Parser};
 use rayon::prelude::*;
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    CallToolResult, ContentBlock, Implementation, InitializeResult, JsonObject, ListToolsResult,
     ServerCapabilities, Tool, ToolAnnotations,
 };
 use schemars::{schema_for, JsonSchema};
@@ -58,10 +58,15 @@ impl AnalyzeClient {
         let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Analyze"))
             .with_instructions(indoc! {"
-            Analyze code structure using tree-sitter AST parsing. Three auto-selected modes:
-            - Directory path → structure overview (file tree with function/class counts)
-            - File path → semantic details (functions, classes, imports, call counts)
-            - Any path + focus parameter → symbol call graph (incoming/outgoing chains)
+            Index code structure via tree-sitter. Use to navigate or summarize an unfamiliar
+            and large codebase. Returns one of three views:
+
+              1) Directory path → file tree with LOC, function, and class counts
+                 (depth-limited).
+              2) File path → list of functions (with signatures), classes, imports,
+                 and call counts. Functions called >3x are marked •N.
+              3) Any path + `focus` → incoming/outgoing call graph for a symbol
+                 (case-sensitive).
 
             For large codebases, delegate analysis to a subagent and retain only the summary.
         "});
@@ -99,11 +104,10 @@ impl AnalyzeClient {
 
     fn analyze(&self, params: AnalyzeParams, path: PathBuf) -> CallToolResult {
         if !path.exists() {
-            return CallToolResult::error(vec![Content::text(format!(
+            return CallToolResult::error(vec![ContentBlock::text(format!(
                 "Error: path not found: {}",
                 path.display()
-            ))
-            .with_priority(0.0)]);
+            ))]);
         }
 
         if let Some(ref focus) = params.focus {
@@ -160,11 +164,10 @@ impl AnalyzeClient {
                 let output = format::format_semantic(&analysis, root);
                 Self::finish(output, force)
             }
-            None => CallToolResult::error(vec![Content::text(format!(
+            None => CallToolResult::error(vec![ContentBlock::text(format!(
                 "Error: could not analyze {} (unsupported language or binary file)",
                 path.display()
-            ))
-            .with_priority(0.0)]),
+            ))]),
         }
     }
 
@@ -199,8 +202,8 @@ impl AnalyzeClient {
 
     fn finish(output: String, force: bool) -> CallToolResult {
         match format::check_size(&output, force) {
-            Ok(text) => CallToolResult::success(vec![Content::text(text).with_priority(0.0)]),
-            Err(warning) => CallToolResult::error(vec![Content::text(warning).with_priority(0.0)]),
+            Ok(text) => CallToolResult::success(vec![ContentBlock::text(text)]),
+            Err(warning) => CallToolResult::error(vec![ContentBlock::text(warning)]),
         }
     }
 }
@@ -230,6 +233,7 @@ impl McpClientTrait for AnalyzeClient {
             tools: vec![tool],
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 
@@ -247,15 +251,13 @@ impl McpClientTrait for AnalyzeClient {
                     let path = Self::resolve_path(&params.path, working_dir);
                     Ok(self.analyze(params, path))
                 }
-                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                     "Error: {error}"
-                ))
-                .with_priority(0.0)])),
+                ))])),
             },
-            _ => Ok(CallToolResult::error(vec![Content::text(format!(
+            _ => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Error: Unknown tool: {name}"
-            ))
-            .with_priority(0.0)])),
+            ))])),
         }
     }
 
@@ -268,7 +270,7 @@ impl McpClientTrait for AnalyzeClient {
 mod tests {
     use super::*;
     use crate::session::SessionManager;
-    use rmcp::model::RawContent;
+    use rmcp::model::ContentBlock;
     use std::fs;
     use std::sync::Arc;
     use tempfile::tempdir;
@@ -277,14 +279,15 @@ mod tests {
         PlatformExtensionContext {
             extension_manager: None,
             session_manager: Arc::new(SessionManager::new(std::env::temp_dir())),
+            scheduler: None,
             session: None,
             use_login_shell_path: false,
         }
     }
 
     fn text(result: &CallToolResult) -> &str {
-        match &result.content[0].raw {
-            RawContent::Text(t) => &t.text,
+        match &result.content[0] {
+            ContentBlock::Text(t) => &t.text,
             _ => panic!("expected text"),
         }
     }

@@ -1,80 +1,65 @@
-import { Session, startAgent, ExtensionConfig } from './api';
+import type { Session } from './types/session';
+import type { ExtensionConfig } from './types/extensions';
 import type { setViewType } from './hooks/useNavigation';
-import {
-  getExtensionConfigsWithOverrides,
-  clearExtensionOverrides,
-  hasExtensionOverrides,
-} from './store/extensionOverrides';
 import type { FixedExtensionEntry } from './components/ConfigContext';
 import { AppEvents } from './constants/events';
-import { decodeRecipe, Recipe } from './recipe';
+import { acpChatSessionController } from './acp/chatSessionController';
+import { getConfiguredGooseExtensions, gooseExtensionName } from './acp/extensions';
 
-export function shouldShowNewChatTitle(session: Session): boolean {
-  if (session.recipe) {
-    return false;
+export function getSessionDisplayName(session: Session): string {
+  if (session.user_set_name) {
+    return session.name;
   }
-  return !session.user_set_name && session.message_count === 0;
+  if (session.recipe?.title) {
+    return session.recipe.title;
+  }
+  return session.name;
 }
 
-export function resumeSession(session: Session, setView: setViewType) {
-  const eventDetail = {
-    sessionId: session.id,
-    initialMessage: undefined,
-  };
+interface CreateSessionOptions {
+  recipeDeeplink?: string;
+  recipeId?: string;
+  extensionConfigs?: ExtensionConfig[];
+  allExtensions?: FixedExtensionEntry[];
+}
 
-  window.dispatchEvent(
-    new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
-      detail: eventDetail,
-    })
-  );
+function selectedExtensionConfigs(options?: CreateSessionOptions): ExtensionConfig[] {
+  if (options?.extensionConfigs && options.extensionConfigs.length > 0) {
+    return options.extensionConfigs;
+  }
+  if (options?.allExtensions) {
+    return options.allExtensions
+      .filter((extension) => extension.enabled)
+      .map((extension) => {
+        const { enabled: _enabled, ...config } = extension;
+        return config as ExtensionConfig;
+      });
+  }
+  return [];
+}
 
-  setView('pair', {
-    disableAnimation: true,
-    resumeSessionId: session.id,
+async function createAcpSession(
+  workingDir: string,
+  options?: CreateSessionOptions
+): Promise<Session> {
+  const selectedNames = new Set(selectedExtensionConfigs(options).map((config) => config.name));
+  const gooseExtensions =
+    selectedNames.size > 0
+      ? (await getConfiguredGooseExtensions())
+          .filter((entry) => selectedNames.has(gooseExtensionName(entry.extension)))
+          .map((entry) => entry.extension)
+      : [];
+  return acpChatSessionController.createSession(workingDir, gooseExtensions, {
+    recipeId: options?.recipeId,
+    recipeDeeplink: options?.recipeDeeplink,
   });
 }
 
 export async function createSession(
   workingDir: string,
-  options?: {
-    recipeDeeplink?: string;
-    recipeId?: string;
-    extensionConfigs?: ExtensionConfig[];
-    allExtensions?: FixedExtensionEntry[];
-  }
+  options?: CreateSessionOptions
 ): Promise<Session> {
-  const body: {
-    working_dir: string;
-    recipe?: Recipe;
-    recipe_id?: string;
-    extension_overrides?: ExtensionConfig[];
-  } = {
-    working_dir: workingDir,
-  };
-
-  if (options?.recipeId) {
-    body.recipe_id = options.recipeId;
-  } else if (options?.recipeDeeplink) {
-    body.recipe = await decodeRecipe(options.recipeDeeplink);
-  }
-
-  if (options?.extensionConfigs && options.extensionConfigs.length > 0) {
-    body.extension_overrides = options.extensionConfigs;
-  } else if (options?.allExtensions) {
-    const extensionConfigs = getExtensionConfigsWithOverrides(options.allExtensions);
-    if (extensionConfigs.length > 0) {
-      body.extension_overrides = extensionConfigs;
-    }
-    if (hasExtensionOverrides()) {
-      clearExtensionOverrides();
-    }
-  }
-
-  const newAgent = await startAgent({
-    body,
-    throwOnError: true,
-  });
-  return newAgent.data;
+  return createAcpSession(workingDir, options);
 }
 
 export async function startNewSession(

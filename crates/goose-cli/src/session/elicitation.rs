@@ -1,20 +1,40 @@
 use console::style;
+use rmcp::model::ElicitationAction;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::io::{self, BufRead, IsTerminal, Write};
 
-pub fn collect_elicitation_input(
-    message: &str,
-    schema: &Value,
-) -> io::Result<Option<HashMap<String, Value>>> {
+pub struct ElicitationInput {
+    pub action: ElicitationAction,
+    pub user_data: HashMap<String, Value>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum SelectChoice {
+    Value(String),
+    Skip,
+}
+
+struct SingleSelect<'a> {
+    field_name: &'a str,
+    description: Option<&'a str>,
+    options: Vec<(SelectChoice, String)>,
+    initial_value: Option<SelectChoice>,
+}
+
+pub fn collect_elicitation_input(message: &str, schema: &Value) -> io::Result<ElicitationInput> {
     if !message.is_empty() {
         println!("\n{}", style(message).cyan());
     }
 
     let properties = schema.get("properties").and_then(|p| p.as_object());
 
-    // Schema-less (or empty-schema) elicitations are pure approval prompts —
-    // offer an explicit Y/N confirmation instead of silently auto-accepting.
+    if io::stdin().is_terminal() && io::stderr().is_terminal() {
+        if let Some(select) = single_select(schema) {
+            return prompt_single_select(select);
+        }
+    }
+
     let properties = match properties {
         Some(props) if !props.is_empty() => props,
         _ => {
@@ -24,9 +44,18 @@ pub fn collect_elicitation_input(
                 "Approve?"
             };
             return match cliclack::confirm(prompt).initial_value(true).interact() {
-                Ok(true) => Ok(Some(HashMap::new())),
-                Ok(false) => Ok(None),
-                Err(e) if e.kind() == io::ErrorKind::Interrupted => Ok(None),
+                Ok(true) => Ok(ElicitationInput {
+                    action: ElicitationAction::Accept,
+                    user_data: HashMap::new(),
+                }),
+                Ok(false) => Ok(ElicitationInput {
+                    action: ElicitationAction::Decline,
+                    user_data: HashMap::new(),
+                }),
+                Err(e) if e.kind() == io::ErrorKind::Interrupted => Ok(ElicitationInput {
+                    action: ElicitationAction::Cancel,
+                    user_data: HashMap::new(),
+                }),
                 Err(e) => Err(e),
             };
         }
@@ -50,7 +79,6 @@ pub fn collect_elicitation_input(
         let default = field_schema.get("default");
         let enum_values = field_schema.get("enum").and_then(|e| e.as_array());
 
-        // makes a little true/false toggle
         if field_type == "boolean" {
             let label = match description {
                 Some(desc) => format!("{} ({})", name, desc),
@@ -65,7 +93,12 @@ pub fn collect_elicitation_input(
                 Ok(v) => {
                     data.insert(name.clone(), Value::Bool(v));
                 }
-                Err(e) if e.kind() == io::ErrorKind::Interrupted => return Ok(None),
+                Err(e) if e.kind() == io::ErrorKind::Interrupted => {
+                    return Ok(ElicitationInput {
+                        action: ElicitationAction::Cancel,
+                        user_data: HashMap::new(),
+                    });
+                }
                 Err(e) => return Err(e),
             }
             continue;
@@ -91,9 +124,11 @@ pub fn collect_elicitation_input(
 
         let input = read_line()?;
 
-        // Handle Ctrl+C / EOF for cancellation
         if input.is_none() {
-            return Ok(None);
+            return Ok(ElicitationInput {
+                action: ElicitationAction::Cancel,
+                user_data: HashMap::new(),
+            });
         }
         let input = input.unwrap();
 
@@ -114,12 +149,113 @@ pub fn collect_elicitation_input(
                 "{}",
                 style(format!("Required field '{}' is missing", name)).red()
             );
-            return Ok(None);
+            return Ok(ElicitationInput {
+                action: ElicitationAction::Decline,
+                user_data: HashMap::new(),
+            });
         }
     }
 
     println!();
-    Ok(Some(data))
+    Ok(ElicitationInput {
+        action: ElicitationAction::Accept,
+        user_data: data,
+    })
+}
+
+fn single_select(schema: &Value) -> Option<SingleSelect<'_>> {
+    let properties = schema.get("properties")?.as_object()?;
+    if properties.len() != 1 {
+        return None;
+    }
+
+    let (field_name, field_schema) = properties.iter().next()?;
+    let description = field_schema.get("description").and_then(Value::as_str);
+    let mut options: Vec<(SelectChoice, String)> =
+        if let Some(one_of) = field_schema.get("oneOf").and_then(Value::as_array) {
+            one_of
+                .iter()
+                .map(|option| {
+                    let value = option.get("const")?.as_str()?;
+                    let label = option.get("title").and_then(Value::as_str).unwrap_or(value);
+                    Some((SelectChoice::Value(value.to_string()), label.to_string()))
+                })
+                .collect::<Option<_>>()?
+        } else {
+            field_schema
+                .get("enum")?
+                .as_array()?
+                .iter()
+                .map(|value| {
+                    let value = value.as_str()?;
+                    Some((SelectChoice::Value(value.to_string()), value.to_string()))
+                })
+                .collect::<Option<_>>()?
+        };
+
+    if options.is_empty() {
+        return None;
+    }
+
+    let is_required = schema
+        .get("required")
+        .and_then(Value::as_array)
+        .is_some_and(|required| {
+            required
+                .iter()
+                .any(|value| value.as_str() == Some(field_name))
+        });
+    let default_value = field_schema
+        .get("default")
+        .and_then(Value::as_str)
+        .map(|value| SelectChoice::Value(value.to_string()))
+        .filter(|value| options.iter().any(|(option, _)| option == value));
+
+    let initial_value = if !is_required && default_value.is_none() {
+        options.push((SelectChoice::Skip, "Skip".to_string()));
+        Some(SelectChoice::Skip)
+    } else {
+        default_value
+    };
+
+    Some(SingleSelect {
+        field_name,
+        description,
+        options,
+        initial_value,
+    })
+}
+
+fn prompt_single_select(select: SingleSelect<'_>) -> io::Result<ElicitationInput> {
+    let items: Vec<_> = select
+        .options
+        .iter()
+        .map(|(value, label)| (value.clone(), label, ""))
+        .collect();
+    let label = match select.description {
+        Some(desc) => format!("{} ({})", select.field_name, desc),
+        None => select.field_name.to_string(),
+    };
+    let mut prompt = cliclack::select(label).items(&items);
+    if let Some(initial_value) = select.initial_value {
+        prompt = prompt.initial_value(initial_value);
+    }
+
+    match prompt.interact() {
+        Ok(SelectChoice::Value(value)) => Ok(ElicitationInput {
+            action: ElicitationAction::Accept,
+            user_data: HashMap::from([(select.field_name.to_string(), Value::String(value))]),
+        }),
+        Ok(SelectChoice::Skip) => Ok(ElicitationInput {
+            action: ElicitationAction::Accept,
+            user_data: HashMap::new(),
+        }),
+        Err(error) if error.kind() == io::ErrorKind::Interrupted => Ok(ElicitationInput {
+            action: ElicitationAction::Cancel,
+            user_data: HashMap::new(),
+        }),
+        Err(error) => Err(error),
+    }
 }
 
 fn read_line() -> io::Result<Option<String>> {
@@ -131,7 +267,7 @@ fn read_line() -> io::Result<Option<String>> {
 
     let mut line = String::new();
     match io::stdin().lock().read_line(&mut line) {
-        Ok(0) => Ok(None), // EOF
+        Ok(0) => Ok(None),
         Ok(_) => Ok(Some(line.trim().to_string())),
         Err(e) if e.kind() == io::ErrorKind::Interrupted => Ok(None),
         Err(e) => Err(e),
@@ -176,5 +312,107 @@ fn parse_value(input: &str, field_type: &str, enum_values: Option<&Vec<Value>>) 
             .map(Value::Number)
             .unwrap_or(Value::Null),
         _ => Value::String(input.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use test_case::test_case;
+
+    #[test]
+    fn builds_required_enum_select_with_default() {
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "color": {
+                    "type": "string",
+                    "enum": ["red", "green"],
+                    "default": "green"
+                }
+            },
+            "required": ["color"]
+        });
+
+        let select = single_select(&schema).unwrap();
+
+        assert_eq!(select.field_name, "color");
+        assert_eq!(
+            select.options,
+            vec![
+                (SelectChoice::Value("red".to_string()), "red".to_string()),
+                (
+                    SelectChoice::Value("green".to_string()),
+                    "green".to_string()
+                )
+            ]
+        );
+        assert_eq!(
+            select.initial_value,
+            Some(SelectChoice::Value("green".to_string()))
+        );
+    }
+
+    #[test]
+    fn optional_select_defaults_to_skip() {
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "color": { "type": "string", "enum": ["", "green"] }
+            }
+        });
+
+        let select = single_select(&schema).unwrap();
+
+        assert_eq!(select.initial_value, Some(SelectChoice::Skip));
+        assert_eq!(select.options.last().unwrap().0, SelectChoice::Skip);
+        assert_eq!(
+            select.options.first().unwrap().0,
+            SelectChoice::Value(String::new())
+        );
+    }
+
+    #[test]
+    fn uses_one_of_titles_as_labels() {
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "size": {
+                    "oneOf": [
+                        { "const": "s", "title": "Small" },
+                        { "const": "l", "title": "Large" }
+                    ]
+                }
+            },
+            "required": ["size"]
+        });
+
+        let select = single_select(&schema).unwrap();
+
+        assert_eq!(select.options[0].0, SelectChoice::Value("s".to_string()));
+        assert_eq!(select.options[0].1, "Small");
+        assert_eq!(select.options[1].0, SelectChoice::Value("l".to_string()));
+        assert_eq!(select.options[1].1, "Large");
+    }
+
+    #[test_case(json!({}); "missing properties")]
+    #[test_case(json!({ "properties": {} }); "empty properties")]
+    #[test_case(json!({
+        "properties": {
+            "first": { "enum": ["a"] },
+            "second": { "enum": ["b"] }
+        }
+    }); "multiple properties")]
+    #[test_case(json!({
+        "properties": { "choice": { "enum": ["a", 2] } }
+    }); "non-string enum value")]
+    #[test_case(json!({
+        "properties": {
+            "choice": { "oneOf": [{ "const": "a" }, { "type": "string" }] }
+        }
+    }); "oneOf branch without const")]
+    fn unsupported_schema_does_not_build_select(schema: Value) {
+        assert!(single_select(&schema).is_none());
     }
 }

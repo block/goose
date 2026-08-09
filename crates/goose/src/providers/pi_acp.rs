@@ -8,20 +8,17 @@ use crate::acp::{
 };
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
-use crate::model::ModelConfig;
-use crate::providers::acp_tooling::{acp_adapter_installed, acp_inventory_identity};
-use crate::providers::base::{current_working_dir, ProviderDef, ProviderMetadata};
-use crate::providers::inventory::InventoryIdentityInput;
+use crate::providers::base::{
+    current_working_dir, ProviderDef, ProviderDescriptor, ProviderMetadata,
+};
 
-const PI_ACP_PROVIDER_NAME: &str = "pi-acp";
+pub(crate) const PI_ACP_PROVIDER_NAME: &str = "pi-acp";
 const PI_ACP_DOC_URL: &str = "https://github.com/anthropics/pi";
-const PI_ACP_BINARY: &str = "pi-acp";
+pub(crate) const PI_ACP_BINARY: &str = "pi-acp";
 
 pub struct PiAcpProvider;
 
-impl ProviderDef for PiAcpProvider {
-    type Provider = AcpProvider;
-
+impl goose_providers::base::ProviderDescriptor for PiAcpProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             PI_ACP_PROVIDER_NAME,
@@ -40,30 +37,40 @@ impl ProviderDef for PiAcpProvider {
         ])
         .with_model_selection_hint("Use the Pi CLI to configure models")
     }
+}
+
+impl ProviderDef for PiAcpProvider {
+    type Provider = AcpProvider;
 
     fn from_env(
-        model: ModelConfig,
         extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<AcpProvider>> {
-        Self::from_env_with_working_dir(model, extensions, current_working_dir())
+        Self::from_env_with_working_dir(extensions, current_working_dir(), tls_config)
     }
 
     fn from_env_with_working_dir(
-        model: ModelConfig,
         extensions: Vec<crate::config::ExtensionConfig>,
         working_dir: PathBuf,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<AcpProvider>> {
         Box::pin(async move {
             let config = Config::global();
             let resolved_command = SearchPaths::builder().with_npm().resolve(PI_ACP_BINARY)?;
             let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
+            let model = config
+                .get_goose_model()
+                .unwrap_or_else(|_| ACP_CURRENT_MODEL.to_string());
 
-            let mode_mapping = HashMap::from([
-                (GooseMode::Auto, "auto".to_string()),
-                (GooseMode::Approve, "approve".to_string()),
-                (GooseMode::SmartApprove, "smart-approve".to_string()),
-                (GooseMode::Chat, "chat".to_string()),
-            ]);
+            // pi-acp advertises a "model" config option (MODEL_CONFIG_ID = "model")
+            // and applies it via setSessionModel → proc.setModel(provider, id).
+            // Wire it up so model selection from goose config or Buzz's set_model
+            // actually reaches the Pi Droid session instead of being silently dropped.
+            let session_config_options = if model == ACP_CURRENT_MODEL {
+                vec![]
+            } else {
+                vec![("model".to_string(), model)]
+            };
 
             let provider_config = AcpProviderConfig {
                 command: resolved_command,
@@ -72,25 +79,16 @@ impl ProviderDef for PiAcpProvider {
                 env_remove: vec![],
                 work_dir: working_dir,
                 mcp_servers: extension_configs_to_mcp_servers(&extensions),
-                session_mode_id: Some(mode_mapping[&goose_mode].clone()),
-                mode_mapping,
+                session_mode_id: None,
+                session_config_options,
+                model_config_option_id: Some("model".to_string()),
+                // pi-acp exposes thinking levels as ACP modes, not permission modes.
+                mode_mapping: HashMap::new(),
                 notification_callback: None,
             };
 
             let metadata = Self::metadata();
-            AcpProvider::connect(metadata.name, model, goose_mode, provider_config).await
+            AcpProvider::connect(metadata.name, goose_mode, provider_config).await
         })
-    }
-
-    fn supports_inventory_refresh() -> bool {
-        false
-    }
-
-    fn inventory_identity() -> Result<InventoryIdentityInput> {
-        acp_inventory_identity(PI_ACP_PROVIDER_NAME, PI_ACP_BINARY)
-    }
-
-    fn inventory_configured() -> bool {
-        acp_adapter_installed(PI_ACP_BINARY)
     }
 }

@@ -1,17 +1,20 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 use futures::StreamExt;
+use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-use crate::agents::{AgentEvent, ExtensionConfig, SessionConfig};
+use crate::agents::{Agent, AgentEvent, ExtensionConfig, SessionConfig};
 use crate::config::extensions::get_enabled_extensions;
 use crate::config::paths::Paths;
 use crate::config::Config;
-use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::message::{ActionRequiredData, Message, MessageContent};
 use crate::execution::manager::AgentManager;
-use crate::model::ModelConfig;
+use crate::permission::permission_confirmation::PrincipalType;
+use crate::permission::{Permission, PermissionConfirmation};
 use crate::session::SessionType;
 use crate::session::{EnabledExtensionsState, ExtensionState, Session};
 
@@ -37,12 +40,21 @@ fn resolve_gateway_max_turns(gateway_override: Option<u32>, global_max_turns: Op
         .unwrap_or(DEFAULT_GATEWAY_MAX_TURNS)
 }
 
+struct PendingConfirmation {
+    agent: Arc<Agent>,
+    request_id: String,
+}
+
 #[derive(Clone)]
 pub struct GatewayHandler {
     agent_manager: Arc<AgentManager>,
     pairing_store: Arc<PairingStore>,
     gateway: Arc<dyn Gateway>,
     config: GatewayConfig,
+    /// Tracks users who have a tool-confirmation prompt awaiting their reply.
+    pending_confirmations: Arc<Mutex<HashMap<PlatformUser, PendingConfirmation>>>,
+    /// Serializes `relay_to_session` per user; confirmation replies bypass this lock.
+    turn_locks: Arc<Mutex<HashMap<PlatformUser, Arc<Mutex<()>>>>>,
 }
 
 impl GatewayHandler {
@@ -57,6 +69,34 @@ impl GatewayHandler {
             pairing_store,
             gateway,
             config,
+            pending_confirmations: Arc::new(Mutex::new(HashMap::new())),
+            turn_locks: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    pub async fn deny_pending_confirmations(&self) {
+        let pending: Vec<_> = self.pending_confirmations.lock().await.drain().collect();
+        for (_, confirmation) in pending {
+            confirmation
+                .agent
+                .handle_confirmation(
+                    confirmation.request_id,
+                    PermissionConfirmation {
+                        principal_type: PrincipalType::Tool,
+                        permission: Permission::DenyOnce,
+                    },
+                )
+                .await;
+        }
+    }
+
+    async fn prune_turn_lock(&self, user: &PlatformUser) {
+        let mut locks = self.turn_locks.lock().await;
+        let in_use = locks
+            .get(user)
+            .is_some_and(|lock| Arc::strong_count(lock) > 1);
+        if !in_use {
+            locks.remove(user);
         }
     }
 
@@ -118,9 +158,77 @@ impl GatewayHandler {
                 }
             }
             PairingState::Paired { session_id, .. } => {
-                self.relay_to_session(&message, &session_id).await?;
+                if self
+                    .pending_confirmations
+                    .lock()
+                    .await
+                    .contains_key(&message.user)
+                {
+                    self.handle_pending_confirmation(&message).await?;
+                } else {
+                    let turn_lock = {
+                        let mut locks = self.turn_locks.lock().await;
+                        Arc::clone(
+                            locks
+                                .entry(message.user.clone())
+                                .or_insert_with(|| Arc::new(Mutex::new(()))),
+                        )
+                    };
+                    let turn_guard = turn_lock.lock().await;
+                    let result = self.relay_to_session(&message, &session_id).await;
+                    drop(turn_guard);
+                    drop(turn_lock);
+                    self.prune_turn_lock(&message.user).await;
+                    result?;
+                }
             }
         }
+
+        Ok(())
+    }
+
+    async fn handle_pending_confirmation(&self, message: &IncomingMessage) -> anyhow::Result<()> {
+        let text = message.text.trim().to_lowercase();
+        let permission = match text.as_str() {
+            "approve" | "yes" | "y" => Some(Permission::AllowOnce),
+            "approve always" => Some(Permission::AlwaysAllow),
+            "deny" | "no" | "n" => Some(Permission::DenyOnce),
+            "deny always" => Some(Permission::AlwaysDeny),
+            _ => None,
+        };
+
+        let Some(permission) = permission else {
+            self.gateway
+                .send_message(
+                    &message.user,
+                    OutgoingMessage::Text {
+                        body: "Please reply with: approve, approve always, deny, or deny always."
+                            .into(),
+                    },
+                )
+                .await?;
+            return Ok(());
+        };
+
+        let Some(pending) = self
+            .pending_confirmations
+            .lock()
+            .await
+            .remove(&message.user)
+        else {
+            return Ok(());
+        };
+
+        pending
+            .agent
+            .handle_confirmation(
+                pending.request_id,
+                PermissionConfirmation {
+                    principal_type: PrincipalType::Tool,
+                    permission,
+                },
+            )
+            .await;
 
         Ok(())
     }
@@ -164,17 +272,23 @@ impl GatewayHandler {
         // Store the current provider and model config on the session so the agent
         // can be restored after LRU eviction, matching the start_agent flow.
         let mut update = manager.update(&session.id);
-        if let Ok(provider) = config.get_goose_provider() {
+        let provider = config.get_goose_provider().ok();
+        if let Some(ref provider) = provider {
             update = update.provider_name(provider);
         }
-        if let Ok(model_name) = config.get_goose_model() {
-            if let Ok(model_config) = ModelConfig::new(&model_name) {
+        if let (Some(ref provider), Ok(model_name)) = (&provider, config.get_goose_model()) {
+            if let Ok(model_config) =
+                crate::model_config::model_config_from_user_config(provider, &model_name)
+            {
                 update = update.model_config(model_config);
             }
         }
 
         // Store default extensions so load_extensions_from_session works.
-        let extensions = get_enabled_extensions();
+        let mut extensions = get_enabled_extensions();
+        extensions.extend(crate::plugins::mcp_servers::enabled_plugin_mcp_servers(
+            Some(&session.working_dir),
+        ));
         let extensions_state = EnabledExtensionsState::new(extensions);
         let mut extension_data = session.extension_data.clone();
         if let Err(e) = extensions_state.to_extension_data(&mut extension_data) {
@@ -220,7 +334,10 @@ impl GatewayHandler {
         // --- current global config ---
         let current_provider = config.get_goose_provider().ok();
         let current_model_name = config.get_goose_model().ok();
-        let current_extensions = get_enabled_extensions();
+        let mut current_extensions = get_enabled_extensions();
+        current_extensions.extend(crate::plugins::mcp_servers::enabled_plugin_mcp_servers(
+            Some(&session.working_dir),
+        ));
         let current_mode = config.get_goose_mode().unwrap_or_default();
 
         // --- what the session has ---
@@ -253,8 +370,11 @@ impl GatewayHandler {
         if let Some(ref provider) = current_provider {
             update = update.provider_name(provider);
         }
-        if let Some(ref model_name) = current_model_name {
-            if let Ok(model_config) = ModelConfig::new(model_name) {
+        if let (Some(ref provider), Some(ref model_name)) = (&current_provider, &current_model_name)
+        {
+            if let Ok(model_config) =
+                crate::model_config::model_config_from_user_config(provider, model_name)
+            {
                 update = update.model_config(model_config);
             }
         }
@@ -297,7 +417,9 @@ impl GatewayHandler {
         // extension processes don't linger.
         let extensions_changed = self.sync_session_config(&session).await?;
         if extensions_changed {
-            let _ = self.agent_manager.remove_session(session_id).await;
+            self.agent_manager
+                .remove_session_if_loaded(session_id)
+                .await?;
         }
 
         let agent = self
@@ -461,11 +583,92 @@ impl GatewayHandler {
                                         "gateway stream: tool response"
                                     );
                                 }
+                                MessageContent::ActionRequired(action_required) => {
+                                    if let ActionRequiredData::ToolConfirmation {
+                                        id,
+                                        tool_name,
+                                        arguments,
+                                        prompt,
+                                    } = &action_required.data
+                                    {
+                                        // Flush pending text so the user sees context first.
+                                        if !pending_text.is_empty() {
+                                            let _ = self
+                                                .gateway
+                                                .send_message(
+                                                    &message.user,
+                                                    OutgoingMessage::Text {
+                                                        body: std::mem::take(&mut pending_text),
+                                                    },
+                                                )
+                                                .await;
+                                        }
+
+                                        let args_display = serde_json::to_string_pretty(arguments)
+                                            .unwrap_or_default();
+                                        let mut approval_text = format!(
+                                            "🔐 Approval required\n\nTool: {tool_name}\nArguments:\n{args_display}"
+                                        );
+                                        if let Some(p) = prompt {
+                                            approval_text.push_str(&format!("\n\n{p}"));
+                                        }
+                                        approval_text.push_str(
+                                            "\n\nReply with:\n\
+                                             • approve — allow once\n\
+                                             • approve always — always allow\n\
+                                             • deny — deny once\n\
+                                             • deny always — always deny",
+                                        );
+
+                                        self.pending_confirmations.lock().await.insert(
+                                            message.user.clone(),
+                                            PendingConfirmation {
+                                                agent: agent.clone(),
+                                                request_id: id.clone(),
+                                            },
+                                        );
+
+                                        let send_result = self
+                                            .gateway
+                                            .send_message(
+                                                &message.user,
+                                                OutgoingMessage::Text {
+                                                    body: approval_text,
+                                                },
+                                            )
+                                            .await;
+
+                                        if let Err(e) = send_result {
+                                            tracing::error!(
+                                                session_id,
+                                                error = %e,
+                                                "failed to deliver tool approval prompt; denying tool call"
+                                            );
+                                            self.pending_confirmations
+                                                .lock()
+                                                .await
+                                                .remove(&message.user);
+                                            agent
+                                                .handle_confirmation(
+                                                    id.clone(),
+                                                    PermissionConfirmation {
+                                                        principal_type: PrincipalType::Tool,
+                                                        permission: Permission::DenyOnce,
+                                                    },
+                                                )
+                                                .await;
+                                        } else {
+                                            sent_any = true;
+                                        }
+                                    }
+                                }
                                 _ => {}
                             }
                         }
                     }
                 }
+                Ok(AgentEvent::Usage(_)) => {}
+                Ok(AgentEvent::MessageUsage { .. }) => {}
                 Ok(AgentEvent::McpNotification(_)) => {
                     tracing::debug!(
                         session_id,

@@ -75,16 +75,23 @@ impl SubdirectoryHintTracker {
             return Vec::new();
         }
 
+        let Ok(working_dir) = working_dir.canonicalize() else {
+            return Vec::new();
+        };
+
         let mut results = Vec::new();
         for dir in pending {
-            if !dir.starts_with(working_dir) || dir == working_dir {
+            let Ok(dir) = dir.canonicalize() else {
+                continue;
+            };
+            if !dir.starts_with(&working_dir) || dir == working_dir {
                 continue;
             }
             if self.loaded_dirs.contains(&dir) {
                 continue;
             }
             if let Some(content) =
-                load_hints_from_directory(&dir, working_dir, &self.hints_filenames)
+                load_hints_from_directory(&dir, &working_dir, &self.hints_filenames)
             {
                 let key = format!("subdir_hints:{}", dir.display());
                 results.push((key, content));
@@ -230,17 +237,30 @@ pub fn load_hint_files(
     let mut global_hints_contents = Vec::with_capacity(hints_filenames.len());
     let mut local_hints_contents = Vec::with_capacity(hints_filenames.len());
 
-    for hints_filename in hints_filenames {
-        let global_hints_path = Paths::in_config_dir(hints_filename);
+    let mut global_hints_paths: Vec<PathBuf> = hints_filenames
+        .iter()
+        .map(|name| Paths::in_config_dir(name))
+        .collect();
+    if hints_filenames
+        .iter()
+        .any(|name| name == AGENTS_MD_FILENAME)
+    {
+        global_hints_paths.push(Paths::in_agents_home_dir(AGENTS_MD_FILENAME));
+    }
+
+    for global_hints_path in &global_hints_paths {
         if global_hints_path.is_file() {
             let mut visited = HashSet::new();
             let hints_dir = global_hints_path.parent().unwrap();
+            let global_ignore_patterns = GitignoreBuilder::new(hints_dir)
+                .build()
+                .unwrap_or_else(|_| Gitignore::empty());
             let expanded_content = read_referenced_files(
-                &global_hints_path,
+                global_hints_path,
                 hints_dir,
                 &mut visited,
                 0,
-                ignore_patterns,
+                &global_ignore_patterns,
             );
             if !expanded_content.is_empty() {
                 global_hints_contents.push(expanded_content);
@@ -312,6 +332,98 @@ mod tests {
         let hints = load_hint_files(dir.path(), &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
 
         assert!(hints.contains("Test hint content"));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_global_agents_md_in_agents_home() {
+        let root = TempDir::new().unwrap();
+        std::env::set_var("GOOSE_PATH_ROOT", root.path());
+
+        let agents_home = root.path().join(".agents");
+        fs::create_dir_all(&agents_home).unwrap();
+        fs::write(
+            agents_home.join(AGENTS_MD_FILENAME),
+            "Global agents home instructions",
+        )
+        .unwrap();
+
+        let project = TempDir::new().unwrap();
+        let gitignore = create_dummy_gitignore();
+        let hints = load_hint_files(
+            project.path(),
+            &[
+                GOOSE_HINTS_FILENAME.to_string(),
+                AGENTS_MD_FILENAME.to_string(),
+            ],
+            &gitignore,
+        );
+
+        std::env::remove_var("GOOSE_PATH_ROOT");
+
+        assert!(hints.contains("Global Hints"));
+        assert!(hints.contains("Global agents home instructions"));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_global_agents_md_imports_not_filtered_by_project_gitignore() {
+        let root = TempDir::new().unwrap();
+        std::env::set_var("GOOSE_PATH_ROOT", root.path());
+
+        let agents_home = root.path().join(".agents");
+        fs::create_dir_all(&agents_home).unwrap();
+        fs::write(agents_home.join("policy.md"), "Imported policy content").unwrap();
+        fs::write(
+            agents_home.join(AGENTS_MD_FILENAME),
+            "Global header\n@policy.md\n",
+        )
+        .unwrap();
+
+        let project = TempDir::new().unwrap();
+        let mut builder = GitignoreBuilder::new(project.path());
+        builder.add_line(None, "*.md").unwrap();
+        let gitignore = builder.build().unwrap();
+
+        let hints = load_hint_files(
+            project.path(),
+            &[
+                GOOSE_HINTS_FILENAME.to_string(),
+                AGENTS_MD_FILENAME.to_string(),
+            ],
+            &gitignore,
+        );
+
+        std::env::remove_var("GOOSE_PATH_ROOT");
+
+        assert!(hints.contains("Imported policy content"));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_global_agents_md_skipped_when_not_in_context_file_names() {
+        let root = TempDir::new().unwrap();
+        std::env::set_var("GOOSE_PATH_ROOT", root.path());
+
+        let agents_home = root.path().join(".agents");
+        fs::create_dir_all(&agents_home).unwrap();
+        fs::write(
+            agents_home.join(AGENTS_MD_FILENAME),
+            "Global agents home instructions",
+        )
+        .unwrap();
+
+        let project = TempDir::new().unwrap();
+        let gitignore = create_dummy_gitignore();
+        let hints = load_hint_files(
+            project.path(),
+            &[GOOSE_HINTS_FILENAME.to_string()],
+            &gitignore,
+        );
+
+        std::env::remove_var("GOOSE_PATH_ROOT");
+
+        assert!(!hints.contains("Global agents home instructions"));
     }
 
     #[test]
@@ -658,21 +770,25 @@ End of hints"#;
 
     #[test]
     fn tracker_records_path_argument() {
-        let wd = PathBuf::from("/home/user/project");
+        let temp_dir = TempDir::new().unwrap();
+        let wd = temp_dir.path().join("project");
+        let src = wd.join("src");
+        fs::create_dir_all(&src).unwrap();
         let mut tracker = SubdirectoryHintTracker::new();
         let args: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(r#"{"path": "src/main.rs"}"#).unwrap();
         tracker.record_tool_arguments(&Some(args), &wd);
         let hints = tracker.load_new_hints(&wd);
         assert!(hints.is_empty());
-        assert!(tracker
-            .loaded_dirs
-            .contains(&PathBuf::from("/home/user/project/src")));
+        assert!(tracker.loaded_dirs.contains(&src.canonicalize().unwrap()));
     }
 
     #[test]
     fn tracker_records_command_argument() {
-        let wd = PathBuf::from("/home/user/project");
+        let temp_dir = TempDir::new().unwrap();
+        let wd = temp_dir.path().join("project");
+        let nested = wd.join("nested");
+        fs::create_dir_all(&nested).unwrap();
         let mut tracker = SubdirectoryHintTracker::new();
         let args: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(r#"{"command": "cat nested/doc.md"}"#).unwrap();
@@ -681,20 +797,21 @@ End of hints"#;
         assert!(hints.is_empty());
         assert!(tracker
             .loaded_dirs
-            .contains(&PathBuf::from("/home/user/project/nested")));
+            .contains(&nested.canonicalize().unwrap()));
     }
 
     #[test]
     fn tracker_skips_flags_in_command() {
-        let wd = PathBuf::from("/home/user/project");
+        let temp_dir = TempDir::new().unwrap();
+        let wd = temp_dir.path().join("project");
+        let src = wd.join("src");
+        fs::create_dir_all(&src).unwrap();
         let mut tracker = SubdirectoryHintTracker::new();
         let args: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(r#"{"command": "grep -rn pattern src/lib.rs"}"#).unwrap();
         tracker.record_tool_arguments(&Some(args), &wd);
         let _ = tracker.load_new_hints(&wd);
-        assert!(tracker
-            .loaded_dirs
-            .contains(&PathBuf::from("/home/user/project/src")));
+        assert!(tracker.loaded_dirs.contains(&src.canonicalize().unwrap()));
         assert_eq!(tracker.loaded_dirs.len(), 1);
     }
 
@@ -738,6 +855,95 @@ End of hints"#;
         tracker.record_tool_arguments(&Some(args), &project_root);
         let hints = tracker.load_new_hints(&project_root);
         assert!(hints.is_empty());
+    }
+
+    #[test]
+    fn tracker_rejects_parent_traversal_outside_working_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let project_root = temp_dir.path().join("project");
+        let nested = project_root.join("nested");
+        let outside = temp_dir.path().join("outside");
+        fs::create_dir_all(&nested).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(outside.join(GOOSE_HINTS_FILENAME), "outside hints").unwrap();
+
+        let mut tracker = SubdirectoryHintTracker::new();
+        let args: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_str(r#"{"path": "nested/../../outside/file.rs"}"#).unwrap();
+        tracker.record_tool_arguments(&Some(args), &project_root);
+
+        assert!(tracker.load_new_hints(&project_root).is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn tracker_rejects_directory_symlink_outside_working_directory() {
+        use std::os::unix::fs::symlink;
+
+        let temp_dir = TempDir::new().unwrap();
+        let project_root = temp_dir.path().join("project");
+        let outside = temp_dir.path().join("outside");
+        fs::create_dir_all(&project_root).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(outside.join(GOOSE_HINTS_FILENAME), "outside hints").unwrap();
+        symlink(&outside, project_root.join("alias")).unwrap();
+
+        let mut tracker = SubdirectoryHintTracker::new();
+        let args: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_str(r#"{"path": "alias/file.rs"}"#).unwrap();
+        tracker.record_tool_arguments(&Some(args), &project_root);
+
+        assert!(tracker.load_new_hints(&project_root).is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn tracker_preserves_in_boundary_symlinks_and_deduplicates_aliases() {
+        use std::os::unix::fs::symlink;
+
+        let temp_dir = TempDir::new().unwrap();
+        let project_root = temp_dir.path().join("project");
+        let real = project_root.join("real");
+        fs::create_dir_all(&real).unwrap();
+        fs::write(real.join(GOOSE_HINTS_FILENAME), "real hints").unwrap();
+        symlink(&real, project_root.join("alias")).unwrap();
+
+        let mut tracker = SubdirectoryHintTracker::new();
+        let alias_args: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_str(r#"{"path": "alias/file.rs"}"#).unwrap();
+        tracker.record_tool_arguments(&Some(alias_args), &project_root);
+        let hints = tracker.load_new_hints(&project_root);
+        assert_eq!(hints.len(), 1);
+        assert!(hints[0].1.contains("real hints"));
+
+        let real_args: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_str(r#"{"path": "real/file.rs"}"#).unwrap();
+        tracker.record_tool_arguments(&Some(real_args), &project_root);
+        assert!(tracker.load_new_hints(&project_root).is_empty());
+        assert_eq!(tracker.loaded_dirs.len(), 1);
+    }
+
+    #[test]
+    fn tracker_retries_directory_after_parent_is_created() {
+        let temp_dir = TempDir::new().unwrap();
+        let project_root = temp_dir.path().join("project");
+        fs::create_dir_all(&project_root).unwrap();
+
+        let mut tracker = SubdirectoryHintTracker::new();
+        let args: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_str(r#"{"path": "future/file.rs"}"#).unwrap();
+        tracker.record_tool_arguments(&Some(args.clone()), &project_root);
+        assert!(tracker.load_new_hints(&project_root).is_empty());
+        assert!(tracker.loaded_dirs.is_empty());
+
+        let future = project_root.join("future");
+        fs::create_dir_all(&future).unwrap();
+        fs::write(future.join(GOOSE_HINTS_FILENAME), "future hints").unwrap();
+        tracker.record_tool_arguments(&Some(args), &project_root);
+
+        let hints = tracker.load_new_hints(&project_root);
+        assert_eq!(hints.len(), 1);
+        assert!(hints[0].1.contains("future hints"));
     }
 }
 

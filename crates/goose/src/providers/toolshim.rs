@@ -30,22 +30,22 @@
 //! - `augment_message_with_tool_calls`: A utility function that takes any message, extracts text content, sends it to an interpreter, and adds any detected tool calls back to the message.
 //!
 
-use super::errors::ProviderError;
 #[cfg(feature = "local-inference")]
 use super::local_inference::LOCAL_LLM_MODEL_CONFIG_KEY;
 use super::ollama::OLLAMA_DEFAULT_PORT;
 use super::ollama::OLLAMA_HOST;
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
-use crate::model::ModelConfig;
+use crate::model_config::model_config_from_user_config;
 use crate::providers::base::DEFAULT_PROVIDER_TIMEOUT_SECS;
-use crate::providers::formats::openai::create_request;
 use anyhow::Result;
 use futures::StreamExt;
+use goose_providers::errors::ProviderError;
+use goose_providers::formats::openai::create_request;
+use goose_providers::images::ImageFormat;
 use reqwest::Client;
-use rmcp::model::{object, CallToolRequestParams, RawContent, Tool};
+use rmcp::model::{object, CallToolRequestParams, ContentBlock, Tool};
 use serde_json::{json, Value};
-use std::ops::Deref;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -565,13 +565,12 @@ impl LocalInterpreter {
         &self,
         format_instruction: &str,
     ) -> Result<String, ProviderError> {
-        let model_config = ModelConfig::new(&self.model)
+        let model_config = crate::model_config::model_config_from_user_config("local", &self.model)
             .map_err(|e| ProviderError::RequestFailed(format!("Model config error: {e}")))?
-            .with_canonical_limits("local")
             .with_toolshim(false)
             .with_toolshim_model(None);
 
-        let provider = crate::providers::init::create("local", model_config, vec![])
+        let provider = crate::providers::init::create("local", vec![])
             .await
             .map_err(|e| {
                 ProviderError::RequestFailed(format!(
@@ -581,13 +580,7 @@ impl LocalInterpreter {
 
         let request_messages = vec![Message::user().with_text(format_instruction)];
         let mut stream = provider
-            .stream(
-                &provider.get_model_config(),
-                "toolshim-local",
-                "",
-                &request_messages,
-                &[],
-            )
+            .stream(&model_config, "", &request_messages, &[])
             .await?;
 
         let mut content = String::new();
@@ -691,16 +684,14 @@ impl OllamaInterpreter {
         let user_message = Message::user().with_text(format_instruction);
         messages.push(user_message);
 
-        let model_config = ModelConfig::new(model)
-            .map_err(|e| ProviderError::RequestFailed(format!("Model config error: {e}")))?
-            .with_canonical_limits("ollama");
+        let model_config = model_config_from_user_config("ollama", model)?;
 
         let mut payload = create_request(
             &model_config,
             system_prompt,
             &messages,
             &[], // No tools
-            &super::utils::ImageFormat::OpenAi,
+            &ImageFormat::OpenAi,
             false,
         )?;
 
@@ -887,7 +878,7 @@ pub fn format_tool_info(tools: &[Tool]) -> String {
         tool_info.push_str(&format!(
             "Tool Name: {}\nSchema: {}\nDescription: {:?}\n\n",
             tool.name,
-            serde_json::to_string_pretty(&tool.input_schema).unwrap_or_default(),
+            serde_json::to_string(&tool.input_schema).unwrap_or_default(),
             tool.description
         ));
     }
@@ -930,8 +921,8 @@ pub fn convert_tool_messages_to_text(messages: &[Message]) -> Conversation {
                                 let text_contents: Vec<String> = result
                                     .content
                                     .iter()
-                                    .filter_map(|c| match c.deref() {
-                                        RawContent::Text(t) => Some(t.text.clone()),
+                                    .filter_map(|c| match c {
+                                        ContentBlock::Text(t) => Some(t.text.clone()),
                                         _ => None,
                                     })
                                     .collect();
@@ -1068,6 +1059,25 @@ mod tests {
                 "interpreter should not be called".to_string(),
             ))
         }
+    }
+
+    #[test]
+    fn formats_tool_schemas_as_compact_lossless_json() {
+        let schema = object(
+            json!({"type": "object", "properties": {"query": {"type": "string", "description": "café 工"}, "options": {"type": "object", "properties": {}}}}),
+        );
+        let tool = Tool::new("search".to_string(), "Search records".to_string(), schema);
+
+        let output = format_tool_info(std::slice::from_ref(&tool));
+        let description = format!("\nDescription: {:?}\n\n", tool.description);
+        let schema = output
+            .strip_prefix("Tool Name: search\nSchema: ")
+            .and_then(|value| value.strip_suffix(&description))
+            .unwrap();
+
+        assert!(!schema.contains('\n'));
+        let parsed: Value = serde_json::from_str(schema).unwrap();
+        assert_eq!(parsed, serde_json::to_value(&tool.input_schema).unwrap());
     }
 
     #[test]

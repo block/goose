@@ -1,3 +1,4 @@
+use crate::config::tls::provider_tls_config_from_config;
 use crate::config::Config;
 #[cfg(feature = "local-inference")]
 use crate::dictation::whisper::LOCAL_WHISPER_MODEL_CONFIG_KEY;
@@ -8,7 +9,6 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "local-inference")]
 use std::sync::Mutex;
 use std::time::Duration;
-use utoipa::ToSchema;
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const OPENAI_VERSIONLESS_TRANSCRIPTIONS_PATH: &str = "audio/transcriptions";
@@ -22,7 +22,7 @@ static LOCAL_TRANSCRIBER: once_cell::sync::Lazy<
 #[cfg(feature = "local-inference")]
 const WHISPER_TOKENIZER_JSON: &str = include_str!("whisper_data/tokens.json");
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum DictationProvider {
     OpenAI,
@@ -251,10 +251,12 @@ fn build_api_client(provider: DictationProvider) -> Result<(ApiClient, String)> 
         DictationProvider::Local => anyhow::bail!("Local provider should not use API client"),
     };
 
-    let mut client = ApiClient::with_timeout(base_url, auth, REQUEST_TIMEOUT).map_err(|e| {
-        tracing::error!("Failed to create API client: {}", e);
-        e
-    })?;
+    let tls = provider_tls_config_from_config(config)?;
+    let mut client = ApiClient::with_timeout_and_tls(base_url, auth, REQUEST_TIMEOUT, tls)
+        .map_err(|e| {
+            tracing::error!("Failed to create API client: {}", e);
+            e
+        })?;
     if !query_params.is_empty() {
         client = client.with_query(query_params);
     }
@@ -284,7 +286,7 @@ pub async fn transcribe_with_provider(
         .text(model_param, model_value);
 
     let response = client
-        .request(None, &endpoint_path)
+        .request(&endpoint_path)
         .multipart_post(form)
         .await
         .map_err(|e| {

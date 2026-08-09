@@ -9,13 +9,146 @@ use aws_smithy_types::{Document, Number};
 use base64::Engine;
 use chrono::Utc;
 use rmcp::model::{
-    object, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent, ResourceContents,
-    Role, Tool,
+    object, CallToolRequestParams, ContentBlock, ErrorCode, ErrorData, ResourceContents, Role, Tool,
 };
 use serde_json::Value;
 
-use super::super::base::Usage;
 use crate::conversation::message::{Message, MessageContent};
+use crate::providers::bedrock::BEDROCK_PROVIDER_NAME;
+use crate::providers::canonical::maybe_get_canonical_model;
+use crate::providers::formats::anthropic::{
+    adaptive_output_effort, model_supports_temperature, thinking_budget_tokens,
+    thinking_type_for_provider, ThinkingType, ANTHROPIC_PROVIDER_NAME, MIN_ANSWER_TOKENS,
+};
+use crate::utils::sanitize_unicode_tags;
+use goose_providers::conversation::token_usage::Usage;
+use goose_providers::model::ModelConfig;
+use once_cell::sync::Lazy;
+use regex::Regex;
+
+static BEDROCK_VERSION_SUFFIX_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"-v\d+(:\d+)?$").unwrap());
+
+pub fn bedrock_anthropic_thinking_fields(model_config: &ModelConfig) -> Option<Document> {
+    let thinking_type = bedrock_anthropic_thinking_type(model_config);
+    let thinking = match thinking_type {
+        ThinkingType::Adaptive => Document::Object(HashMap::from([(
+            "type".to_string(),
+            Document::String("adaptive".to_string()),
+        )])),
+        ThinkingType::Enabled => {
+            // Thinking tokens count against `maxTokens`, which `bedrock_inference_config`
+            // now sends when explicitly configured. Mirror the Anthropic formatter: clamp
+            // the budget to leave room for an answer, and drop thinking entirely when even
+            // a minimal budget wouldn't fit under the cap. When max_tokens is unset, Bedrock
+            // applies its per-model default so there is nothing to clamp against.
+            let mut budget_tokens = thinking_budget_tokens(model_config);
+            if let Some(max_tokens) = model_config.max_tokens {
+                budget_tokens = budget_tokens.min(max_tokens.saturating_sub(MIN_ANSWER_TOKENS));
+                if budget_tokens < MIN_ANSWER_TOKENS {
+                    return None;
+                }
+            }
+            Document::Object(HashMap::from([
+                ("type".to_string(), Document::String("enabled".to_string())),
+                (
+                    "budget_tokens".to_string(),
+                    Document::Number(Number::PosInt(budget_tokens as u64)),
+                ),
+            ]))
+        }
+        ThinkingType::Disabled => return None,
+    };
+
+    let mut fields = HashMap::from([("thinking".to_string(), thinking)]);
+
+    if thinking_type == ThinkingType::Adaptive {
+        fields.insert(
+            "output_config".to_string(),
+            Document::Object(HashMap::from([(
+                "effort".to_string(),
+                Document::String(adaptive_output_effort(model_config).to_string()),
+            )])),
+        );
+    }
+
+    Some(Document::Object(fields))
+}
+
+fn bedrock_anthropic_thinking_type(model_config: &ModelConfig) -> ThinkingType {
+    let Some((_, anthropic_model)) = model_config.model_name.rsplit_once("anthropic.") else {
+        return ThinkingType::Disabled;
+    };
+
+    let anthropic_config = ModelConfig {
+        model_name: strip_bedrock_version_suffix(anthropic_model),
+        ..model_config.clone()
+    };
+
+    thinking_type_for_provider(ANTHROPIC_PROVIDER_NAME, &anthropic_config)
+}
+
+/// Bedrock model ids carry a `-v1:0` style suffix (e.g.
+/// `claude-opus-4-1-20250805-v1:0`) that the canonical Anthropic registry does
+/// not recognise. Dropping it lets the date stamp become the terminal segment
+/// the registry already knows how to normalise.
+fn strip_bedrock_version_suffix(model_name: &str) -> String {
+    BEDROCK_VERSION_SUFFIX_RE
+        .replace(model_name, "")
+        .into_owned()
+}
+
+/// Build the Bedrock `InferenceConfiguration` (`maxTokens`, `temperature`) for
+/// a request from the active [`ModelConfig`].
+///
+/// Without this the `Converse`/`ConverseStream` APIs fall back to per-model
+/// server defaults, so a configured `max_tokens`/`temperature` is silently
+/// dropped. Each field is sent only when the user has configured it, so that
+/// unset values continue to use Bedrock's per-model server defaults rather than
+/// being pinned to a generic fallback:
+/// - `max_tokens` is sent only when explicitly set (`model_config.max_tokens`).
+///   Using [`ModelConfig::max_output_tokens`] here would forward its `4096`
+///   fallback for every model whose id is not in the canonical catalog (e.g.
+///   cross-region ids like `us.anthropic.claude-...`), capping models whose
+///   real output limit is far higher.
+/// - `temperature` is sent only when set and the model supports it. Support is
+///   resolved against the Anthropic canonical registry for `anthropic.*` model
+///   ids (the same mapping used for thinking) and the Bedrock canonical registry
+///   for other known Bedrock ids, so models that reject a custom temperature keep
+///   the server default.
+pub fn bedrock_inference_config(model_config: &ModelConfig) -> bedrock::InferenceConfiguration {
+    let mut builder = bedrock::InferenceConfiguration::builder();
+
+    if let Some(max_tokens) = model_config.max_tokens {
+        builder = builder.max_tokens(max_tokens);
+    }
+
+    if let Some(temperature) = model_config.temperature {
+        if bedrock_model_supports_temperature(model_config) {
+            builder = builder.temperature(temperature);
+        }
+    }
+
+    builder.build()
+}
+
+/// Whether `temperature` may be sent for this Bedrock model. For `anthropic.*`
+/// ids we resolve against the Anthropic canonical registry (mapping the model
+/// name the same way [`bedrock_anthropic_thinking_type`] does); for other known
+/// Bedrock ids we consult the Bedrock canonical registry and otherwise keep the
+/// permissive fallback used by [`model_supports_temperature`].
+fn bedrock_model_supports_temperature(model_config: &ModelConfig) -> bool {
+    if let Some((_, anthropic_model)) = model_config.model_name.rsplit_once("anthropic.") {
+        let anthropic_config = ModelConfig {
+            model_name: strip_bedrock_version_suffix(anthropic_model),
+            ..model_config.clone()
+        };
+        model_supports_temperature(ANTHROPIC_PROVIDER_NAME, &anthropic_config)
+    } else {
+        maybe_get_canonical_model(BEDROCK_PROVIDER_NAME, &model_config.model_name)
+            .and_then(|model| model.temperature)
+            .unwrap_or(true)
+    }
+}
 
 pub fn to_bedrock_message_with_caching(
     message: &Message,
@@ -77,6 +210,9 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
         MessageContent::SystemNotification(_) => {
             bail!("SystemNotification should not get passed to the provider")
         }
+        MessageContent::Error(_) => {
+            bail!("Error content should not get passed to the provider")
+        }
         MessageContent::ToolRequest(tool_req) => {
             let tool_use_id = tool_req.id.to_string();
             let tool_use = if let Ok(call) = tool_req.tool_call.as_ref() {
@@ -86,8 +222,14 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                     .input(to_bedrock_json(&args_to_value(call.arguments.clone())))
                     .build()
             } else {
+                // Unparseable tool call: emit a placeholder tool_use so the paired
+                // tool_result isn't orphaned — Bedrock rejects a tool_use with no name
+                // and a tool_result with no matching tool_use. Mirrors the
+                // OpenAI/Databricks/Anthropic formatters.
                 bedrock::ToolUseBlock::builder()
                     .tool_use_id(tool_use_id)
+                    .name("unparseable_tool_call")
+                    .input(to_bedrock_json(&args_to_value(None)))
                     .build()
             }?;
             bedrock::ContentBlock::ToolUse(tool_use)
@@ -101,8 +243,14 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                     .input(to_bedrock_json(&args_to_value(call.arguments.clone())))
                     .build()
             } else {
+                // Unparseable tool call: emit a placeholder tool_use so the paired
+                // tool_result isn't orphaned — Bedrock rejects a tool_use with no name
+                // and a tool_result with no matching tool_use. Mirrors the
+                // OpenAI/Databricks/Anthropic formatters.
                 bedrock::ToolUseBlock::builder()
                     .tool_use_id(tool_use_id)
+                    .name("unparseable_tool_call")
+                    .input(to_bedrock_json(&args_to_value(None)))
                     .build()
             }?;
             bedrock::ContentBlock::ToolUse(tool_use)
@@ -117,11 +265,10 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                         .collect::<Result<_>>()?,
                 ),
                 Err(error) => {
-                    // For errors, create a text content block with the error message
-                    Some(vec![bedrock::ToolResultContentBlock::Text(format!(
-                        "The tool call returned the following error:\n{}",
-                        error
-                    ))])
+                    let message = format!("The tool call returned the following error:\n{}", error);
+                    Some(vec![bedrock::ToolResultContentBlock::Text(
+                        crate::utils::sanitize_unicode_tags(&message),
+                    )])
                 }
             };
             bedrock::ContentBlock::ToolResult(
@@ -145,28 +292,32 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
 /// by Bedrock for Anthropic Claude 3 models.
 pub fn to_bedrock_tool_result_content_block(
     tool_use_id: &str,
-    content: Content,
+    content: ContentBlock,
 ) -> Result<bedrock::ToolResultContentBlock> {
-    Ok(match content.raw {
-        RawContent::Text(text) => bedrock::ToolResultContentBlock::Text(text.text),
-        RawContent::Image(image) => {
+    Ok(match content {
+        ContentBlock::Text(text) => bedrock::ToolResultContentBlock::Text(text.text),
+        ContentBlock::Image(image) => {
             bedrock::ToolResultContentBlock::Image(to_bedrock_image(&image.data, &image.mime_type)?)
         }
-        RawContent::ResourceLink(_link) => {
+        ContentBlock::ResourceLink(_link) => {
             bedrock::ToolResultContentBlock::Text("[Resource link]".to_string())
         }
-        RawContent::Resource(resource) => match &resource.resource {
+        ContentBlock::Resource(resource) => match &resource.resource {
             ResourceContents::TextResourceContents { text, .. } => {
                 match to_bedrock_document(tool_use_id, &resource.resource)? {
                     Some(doc) => bedrock::ToolResultContentBlock::Document(doc),
-                    None => bedrock::ToolResultContentBlock::Text(text.to_string()),
+                    None => {
+                        bedrock::ToolResultContentBlock::Text(sanitize_unicode_tags(text.as_str()))
+                    }
                 }
             }
             ResourceContents::BlobResourceContents { .. } => {
                 bail!("Blob resource content is not supported by Bedrock provider yet")
             }
+            _ => bail!("Unsupported resource content"),
         },
-        RawContent::Audio(..) => bail!("Audio is not supported by Bedrock provider"),
+        ContentBlock::Audio(..) => bail!("Audio is not supported by Bedrock provider"),
+        _ => bail!("Unsupported content"),
     })
 }
 
@@ -273,10 +424,13 @@ fn to_bedrock_document(
     content: &ResourceContents,
 ) -> Result<Option<bedrock::DocumentBlock>> {
     let (uri, text) = match content {
-        ResourceContents::TextResourceContents { uri, text, .. } => (uri, text),
+        ResourceContents::TextResourceContents { uri, text, .. } => {
+            (uri, sanitize_unicode_tags(text))
+        }
         ResourceContents::BlobResourceContents { .. } => {
             bail!("Blob resource content is not supported by Bedrock provider yet")
         }
+        _ => bail!("Unsupported resource content"),
     };
 
     let filename = Path::new(uri)
@@ -405,9 +559,9 @@ fn bedrock_content_block_kind(block: &bedrock::ContentBlock) -> &'static str {
 
 pub fn from_bedrock_tool_result_content_block(
     content: &bedrock::ToolResultContentBlock,
-) -> ToolResult<Content> {
+) -> ToolResult<ContentBlock> {
     Ok(match content {
-        bedrock::ToolResultContentBlock::Text(text) => Content::text(text.to_string()),
+        bedrock::ToolResultContentBlock::Text(text) => ContentBlock::text(text.to_string()),
         _ => {
             return Err(ErrorData {
                 code: ErrorCode::INTERNAL_ERROR,
@@ -427,10 +581,12 @@ pub fn from_bedrock_role(role: &bedrock::ConversationRole) -> Result<Role> {
 }
 
 pub fn from_bedrock_usage(usage: &bedrock::TokenUsage) -> Usage {
-    Usage::new(
+    Usage::from_cache_exclusive_input(
         Some(usage.input_tokens),
         Some(usage.output_tokens),
         Some(usage.total_tokens),
+        usage.cache_read_input_tokens,
+        usage.cache_write_input_tokens,
     )
 }
 
@@ -462,7 +618,147 @@ mod tests {
     use super::*;
     use anyhow::Result;
     use goose_test_support::TEST_IMAGE_B64;
-    use rmcp::model::{AnnotateAble, RawImageContent};
+    use rmcp::model::ImageContent;
+    use serde_json::json;
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_enabled() {
+        let mut params = HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("low"));
+        let mut config = ModelConfig::new("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
+        config.request_params = Some(params);
+        config.reasoning = Some(true);
+
+        let fields = bedrock_anthropic_thinking_fields(&config).expect("thinking fields");
+        assert_eq!(
+            from_bedrock_json(&fields).unwrap(),
+            json!({
+                "thinking": {
+                    "type": "enabled",
+                    "budget_tokens": 4000
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_clamped_to_max_tokens() {
+        // budget (4000) exceeds the room left under an explicit max_tokens, so it
+        // is clamped to max_tokens - MIN_ANSWER_TOKENS, matching the Anthropic
+        // formatter. Without max_tokens set there is nothing to clamp against.
+        let mut params = HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("low"));
+        let mut config = ModelConfig::new("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
+        config.request_params = Some(params);
+        config.reasoning = Some(true);
+        config.max_tokens = Some(3000);
+
+        let fields = bedrock_anthropic_thinking_fields(&config).expect("thinking fields");
+        assert_eq!(
+            from_bedrock_json(&fields).unwrap(),
+            json!({
+                "thinking": {
+                    "type": "enabled",
+                    "budget_tokens": 3000 - 1024
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_dropped_when_no_room() {
+        // When even a minimal budget wouldn't leave MIN_ANSWER_TOKENS under the
+        // cap, thinking is dropped rather than emitting an unsatisfiable request.
+        let mut params = HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("low"));
+        let mut config = ModelConfig::new("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
+        config.request_params = Some(params);
+        config.reasoning = Some(true);
+        config.max_tokens = Some(1500);
+
+        assert!(bedrock_anthropic_thinking_fields(&config).is_none());
+    }
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_disabled() {
+        let mut config = ModelConfig::new("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
+        config.reasoning = Some(true);
+        config.request_params = Some(HashMap::from([(
+            "thinking_effort".to_string(),
+            json!("off"),
+        )]));
+
+        assert!(bedrock_anthropic_thinking_fields(&config).is_none());
+    }
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_always_on_adaptive() {
+        let mut config = ModelConfig::new("global.anthropic.claude-fable-5");
+        config.reasoning = Some(true);
+        config.request_params = Some(HashMap::from([(
+            "thinking_effort".to_string(),
+            json!("off"),
+        )]));
+
+        let fields = bedrock_anthropic_thinking_fields(&config).expect("thinking fields");
+        assert_eq!(
+            from_bedrock_json(&fields).unwrap(),
+            json!({
+                "thinking": {"type": "adaptive"},
+                "output_config": {"effort": "high"}
+            })
+        );
+    }
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_adaptive_with_effort() {
+        let mut config = ModelConfig::new("us.anthropic.claude-opus-4.7");
+        config.reasoning = Some(true);
+        config.request_params = Some(HashMap::from([(
+            "thinking_effort".to_string(),
+            json!("low"),
+        )]));
+
+        let fields = bedrock_anthropic_thinking_fields(&config).expect("thinking fields");
+        assert_eq!(
+            from_bedrock_json(&fields).unwrap(),
+            json!({
+                "thinking": {"type": "adaptive"},
+                "output_config": {"effort": "low"}
+            })
+        );
+    }
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_adaptive_with_version_suffix() {
+        let mut config = ModelConfig::new("us.anthropic.claude-opus-4-7-20251101-v1:0");
+        config.reasoning = Some(true);
+        config.request_params = Some(HashMap::from([(
+            "thinking_effort".to_string(),
+            json!("low"),
+        )]));
+
+        let fields = bedrock_anthropic_thinking_fields(&config).expect("thinking fields");
+        assert_eq!(
+            from_bedrock_json(&fields).unwrap(),
+            json!({
+                "thinking": {"type": "adaptive"},
+                "output_config": {"effort": "low"}
+            })
+        );
+    }
+
+    #[test]
+    fn test_bedrock_thinking_fields_skipped_for_non_anthropic() {
+        let mut config = ModelConfig::new("us.deepseek.r1-v1:0");
+        config.reasoning = Some(true);
+        config.request_params = Some(HashMap::from([(
+            "thinking_effort".to_string(),
+            json!("low"),
+        )]));
+
+        assert!(bedrock_anthropic_thinking_fields(&config).is_none());
+    }
 
     #[test]
     fn test_to_bedrock_image_supported_formats() -> Result<()> {
@@ -475,12 +771,7 @@ mod tests {
         ];
 
         for mime_type in supported_formats {
-            let image = RawImageContent {
-                data: TEST_IMAGE_B64.to_string(),
-                mime_type: mime_type.to_string(),
-                meta: None,
-            }
-            .no_annotation();
+            let image = ImageContent::new(TEST_IMAGE_B64.to_string(), mime_type.to_string());
 
             let result = to_bedrock_image(&image.data, &image.mime_type);
             assert!(result.is_ok(), "Failed to convert {} format", mime_type);
@@ -491,12 +782,7 @@ mod tests {
 
     #[test]
     fn test_to_bedrock_image_unsupported_format() {
-        let image = RawImageContent {
-            data: TEST_IMAGE_B64.to_string(),
-            mime_type: "image/bmp".to_string(),
-            meta: None,
-        }
-        .no_annotation();
+        let image = ImageContent::new(TEST_IMAGE_B64.to_string(), "image/bmp".to_string());
 
         let result = to_bedrock_image(&image.data, &image.mime_type);
         assert!(result.is_err());
@@ -507,12 +793,10 @@ mod tests {
 
     #[test]
     fn test_to_bedrock_image_invalid_base64() {
-        let image = RawImageContent {
-            data: "invalid_base64_data!!!".to_string(),
-            mime_type: "image/png".to_string(),
-            meta: None,
-        }
-        .no_annotation();
+        let image = ImageContent::new(
+            "invalid_base64_data!!!".to_string(),
+            "image/png".to_string(),
+        );
 
         let result = to_bedrock_image(&image.data, &image.mime_type);
         assert!(result.is_err());
@@ -522,12 +806,7 @@ mod tests {
 
     #[test]
     fn test_to_bedrock_message_content_image() -> Result<()> {
-        let image = RawImageContent {
-            data: TEST_IMAGE_B64.to_string(),
-            mime_type: "image/png".to_string(),
-            meta: None,
-        }
-        .no_annotation();
+        let image = ImageContent::new(TEST_IMAGE_B64.to_string(), "image/png".to_string());
 
         let message_content = MessageContent::Image(image);
         let result = to_bedrock_message_content(&message_content)?;
@@ -540,11 +819,40 @@ mod tests {
 
     #[test]
     fn test_to_bedrock_tool_result_content_block_image() -> Result<()> {
-        let content = Content::image(TEST_IMAGE_B64.to_string(), "image/png".to_string());
+        let content = ContentBlock::image(TEST_IMAGE_B64.to_string(), "image/png".to_string());
         let result = to_bedrock_tool_result_content_block("test_id", content)?;
 
-        // Verify the wrapper correctly converts Content::Image to ToolResultContentBlock::Image
+        // Verify the wrapper correctly converts ContentBlock::Image to ToolResultContentBlock::Image
         assert!(matches!(result, bedrock::ToolResultContentBlock::Image(_)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_bedrock_tool_result_sanitizes_text_resource_fallback() -> Result<()> {
+        let content = ContentBlock::embedded_text("file:///result.bin", "visible\u{E0041}text");
+        let result = to_bedrock_tool_result_content_block("test_id", content)?;
+
+        let bedrock::ToolResultContentBlock::Text(text) = result else {
+            panic!("expected text fallback");
+        };
+        assert_eq!(text, "visibletext");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_bedrock_tool_result_sanitizes_document_resource() -> Result<()> {
+        let content = ContentBlock::embedded_text("file:///result.txt", "visible\u{E0041}text");
+        let result = to_bedrock_tool_result_content_block("test_id", content)?;
+
+        let bedrock::ToolResultContentBlock::Document(document) = result else {
+            panic!("expected document");
+        };
+        let Some(bedrock::DocumentSource::Bytes(bytes)) = document.source() else {
+            panic!("expected document bytes");
+        };
+        assert_eq!(bytes.as_ref(), b"visibletext");
 
         Ok(())
     }
@@ -593,6 +901,25 @@ mod tests {
         assert_eq!(empty_msg.content.len(), 0);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_from_bedrock_usage_folds_cache_tokens_into_input() {
+        let usage = bedrock::TokenUsage::builder()
+            .input_tokens(7)
+            .output_tokens(50)
+            .total_tokens(57)
+            .cache_read_input_tokens(5000)
+            .cache_write_input_tokens(1000)
+            .build()
+            .unwrap();
+
+        let converted = from_bedrock_usage(&usage);
+        assert_eq!(converted.input_tokens, Some(6007));
+        assert_eq!(converted.output_tokens, Some(50));
+        assert_eq!(converted.total_tokens, Some(6057));
+        assert_eq!(converted.cache_read_input_tokens, Some(5000));
+        assert_eq!(converted.cache_write_input_tokens, Some(1000));
     }
 
     #[test]
@@ -703,7 +1030,10 @@ mod tests {
                 assert_eq!(text_block.text, "because of X");
                 assert_eq!(text_block.signature.as_deref(), Some("sig-abc"));
             }
-            other => panic!("Expected ReasoningContent::ReasoningText, got {:?}", other),
+            other => panic!(
+                "Expected ReasoningContentBlock::ReasoningText, got {:?}",
+                other
+            ),
         }
         Ok(())
     }
@@ -720,7 +1050,10 @@ mod tests {
                 assert_eq!(text_block.text, "silent reasoning");
                 assert!(text_block.signature.is_none());
             }
-            other => panic!("Expected ReasoningContent::ReasoningText, got {:?}", other),
+            other => panic!(
+                "Expected ReasoningContentBlock::ReasoningText, got {:?}",
+                other
+            ),
         }
         Ok(())
     }
@@ -739,7 +1072,7 @@ mod tests {
                 assert_eq!(blob.as_ref(), raw);
             }
             other => panic!(
-                "Expected ReasoningContent::RedactedContent, got {:?}",
+                "Expected ReasoningContentBlock::RedactedContent, got {:?}",
                 other
             ),
         }
@@ -781,7 +1114,10 @@ mod tests {
                 assert_eq!(text_block.text, "chain of thought");
                 assert_eq!(text_block.signature.as_deref(), Some("sig-xyz"));
             }
-            other => panic!("Expected ReasoningContent::ReasoningText, got {:?}", other),
+            other => panic!(
+                "Expected ReasoningContentBlock::ReasoningText, got {:?}",
+                other
+            ),
         }
         Ok(())
     }
@@ -805,7 +1141,7 @@ mod tests {
                 assert_eq!(blob.as_ref(), raw);
             }
             other => panic!(
-                "Expected ReasoningContent::RedactedContent, got {:?}",
+                "Expected ReasoningContentBlock::RedactedContent, got {:?}",
                 other
             ),
         }
@@ -929,6 +1265,71 @@ mod tests {
     }
 
     #[test]
+    fn tool_request_parse_error_gets_placeholder_name() -> Result<()> {
+        use rmcp::model::{ErrorCode, ErrorData};
+        // An unparseable tool call (ToolRequest(Err)) must still produce a tool_use
+        // with a non-empty name; otherwise Bedrock rejects the tool_use / orphans the
+        // paired tool_result. Mirrors the OpenAI/Databricks/Anthropic formatters.
+        let err = ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            "Tool arguments must be a JSON object".to_string(),
+            None,
+        );
+        let content = MessageContent::tool_request("call_bad".to_string(), Err(err));
+        match to_bedrock_message_content(&content)? {
+            bedrock::ContentBlock::ToolUse(tu) => {
+                assert_eq!(tu.tool_use_id, "call_bad");
+                assert_eq!(tu.name, "unparseable_tool_call");
+            }
+            other => panic!("expected ToolUse, got {other:?}"),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn tool_response_error_sanitizes_unicode_tags() -> Result<()> {
+        let error = ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            "visible\u{E0041}\u{E0042} error".to_string(),
+            None,
+        );
+        let content = MessageContent::tool_response("call_hidden".to_string(), Err(error));
+
+        let bedrock::ContentBlock::ToolResult(result) = to_bedrock_message_content(&content)?
+        else {
+            panic!("expected ToolResult");
+        };
+        let bedrock::ToolResultContentBlock::Text(text) = &result.content[0] else {
+            panic!("expected text error content");
+        };
+
+        assert!(!crate::utils::contains_unicode_tags(text.as_str()));
+        assert!(text.contains("visible error"));
+        Ok(())
+    }
+
+    #[test]
+    fn tool_response_error_preserves_ordinary_text() -> Result<()> {
+        let error = ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            "ordinary tool failure".to_string(),
+            None,
+        );
+        let content = MessageContent::tool_response("call_error".to_string(), Err(error));
+
+        let bedrock::ContentBlock::ToolResult(result) = to_bedrock_message_content(&content)?
+        else {
+            panic!("expected ToolResult");
+        };
+        let bedrock::ToolResultContentBlock::Text(text) = &result.content[0] else {
+            panic!("expected text error content");
+        };
+
+        assert!(text.contains("ordinary tool failure"));
+        Ok(())
+    }
+
+    #[test]
     fn test_cache_points_with_tool_response_messages() -> Result<()> {
         use chrono::Utc;
         use rmcp::model::{CallToolResult, Role};
@@ -938,7 +1339,7 @@ mod tests {
             Utc::now().timestamp(),
             vec![MessageContent::tool_response(
                 "tool_1".to_string(),
-                Ok(CallToolResult::success(vec![Content::text(
+                Ok(CallToolResult::success(vec![ContentBlock::text(
                     "Tool result text".to_string(),
                 )])),
             )],
@@ -1006,5 +1407,74 @@ mod tests {
         ));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_bedrock_inference_config_sets_max_tokens_and_temperature() {
+        let mut config = ModelConfig::new("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        config.max_tokens = Some(8192);
+        config.temperature = Some(0.5);
+
+        let inference_config = bedrock_inference_config(&config);
+
+        assert_eq!(inference_config.max_tokens(), Some(8192));
+        assert_eq!(inference_config.temperature(), Some(0.5));
+    }
+
+    #[test]
+    fn test_bedrock_inference_config_omits_max_tokens_without_config() {
+        let mut config = ModelConfig::new("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        config.max_tokens = None;
+        config.temperature = None;
+
+        let inference_config = bedrock_inference_config(&config);
+
+        // When max_tokens is not explicitly configured we leave it unset so
+        // Bedrock applies its per-model server default. Forwarding
+        // ModelConfig::max_output_tokens() here would pin every model without a
+        // canonical-catalog entry (e.g. cross-region ids) to the generic 4096
+        // fallback, capping models whose real output limit is much higher.
+        assert_eq!(inference_config.max_tokens(), None);
+        assert_eq!(inference_config.temperature(), None);
+    }
+
+    #[test]
+    fn test_bedrock_inference_config_sends_explicit_max_tokens() {
+        let mut config = ModelConfig::new("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        config.max_tokens = Some(4096);
+
+        let inference_config = bedrock_inference_config(&config);
+
+        // An explicitly configured value is always forwarded.
+        assert_eq!(inference_config.max_tokens(), Some(4096));
+    }
+
+    #[test]
+    fn test_bedrock_inference_config_omits_temperature_for_unsupported_model() {
+        // The Anthropic canonical registry maps this id and reports whether a
+        // custom temperature may be sent; when it cannot, temperature is left
+        // unset so the server default is used.
+        let mut config = ModelConfig::new("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        config.temperature = Some(0.5);
+
+        let supported = bedrock_model_supports_temperature(&config);
+        let inference_config = bedrock_inference_config(&config);
+
+        if supported {
+            assert_eq!(inference_config.temperature(), Some(0.5));
+        } else {
+            assert_eq!(inference_config.temperature(), None);
+        }
+    }
+
+    #[test]
+    fn test_bedrock_inference_config_omits_temperature_for_bedrock_registry_unsupported_model() {
+        let mut config = ModelConfig::new("openai.gpt-5.4");
+        config.temperature = Some(0.5);
+
+        let inference_config = bedrock_inference_config(&config);
+
+        assert!(!bedrock_model_supports_temperature(&config));
+        assert_eq!(inference_config.temperature(), None);
     }
 }

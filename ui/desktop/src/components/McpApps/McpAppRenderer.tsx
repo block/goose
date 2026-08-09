@@ -1,8 +1,8 @@
 /**
  * McpAppRenderer — Renders interactive MCP App UIs inside a sandboxed iframe.
  *
- * This component implements the host side of the MCP Apps protocol using the
- * @mcp-ui/client SDK's AppRenderer. It handles resource fetching, sandbox
+ * This component implements the host side of the MCP Apps protocol using
+ * @mcp-ui/client protocol primitives. It handles resource fetching, sandbox
  * proxy setup, CSP enforcement, and bidirectional communication with guest apps.
  *
  * Protocol references:
@@ -15,9 +15,16 @@
  * - "standalone" — Goose-specific mode for dedicated Electron windows
  */
 
-import { AppRenderer, type RequestHandlerExtra } from '@mcp-ui/client';
+import {
+  AppBridge,
+  PostMessageTransport,
+  type AppInfo,
+  type RequestHandlerExtra,
+  type SandboxConfig,
+} from '@mcp-ui/client';
 import type {
   McpUiDisplayMode,
+  McpUiHostCapabilities,
   McpUiHostContext,
   McpUiResourceCsp,
   McpUiResourcePermissions,
@@ -26,7 +33,8 @@ import type {
 import type { CallToolResult, JSONRPCRequest, Tool } from '@modelcontextprotocol/sdk/types.js';
 import { GripHorizontal, Maximize2, PictureInPicture2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { callTool, readResource } from '../../api';
+import { callMcpAppTool, readMcpAppResource } from '../../acp/mcp-apps';
+import { httpBaseFromAcpWebSocketUrl, isLoopbackAcpWebSocketUrl } from '../../acp/url';
 import { getCachedTools } from './toolsCache';
 import { AppEvents } from '../../constants/events';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -44,8 +52,6 @@ import {
   McpAppToolInputPartial,
   DimensionLayout,
   OnDisplayModeChange,
-  SamplingCreateMessageParams,
-  SamplingCreateMessageResponse,
 } from './types';
 import {
   useDisplayMode,
@@ -125,6 +131,7 @@ const i18n = defineMessages({
 
 const DEFAULT_IFRAME_HEIGHT = 200;
 const FULLSCREEN_HEADER_HEIGHT = 48;
+const DEFAULT_SANDBOX_PERMISSIONS = 'allow-scripts allow-same-origin allow-forms';
 
 const DISPLAY_MODE_LAYOUTS: Record<GooseDisplayMode, DimensionLayout> = {
   inline: { width: 'fixed', height: 'unbounded' },
@@ -175,31 +182,37 @@ function getContainerDimensions(
 
 async function fetchMcpAppProxyUrl(csp: McpUiResourceCsp | null): Promise<string | null> {
   try {
-    const baseUrl = await window.electron.getGoosedHostPort();
+    const acpUrl = await window.electron.getAcpUrl();
     const secretKey = await window.electron.getSecretKey();
 
-    if (!baseUrl || !secretKey) {
-      console.error('[McpAppRenderer] Failed to get goosed host/port or secret key');
+    if (!acpUrl || !secretKey) {
+      console.error('[McpAppRenderer] Failed to get ACP URL or secret key');
       return null;
     }
 
-    const params = new URLSearchParams();
-    params.set('secret', secretKey);
+    if (!isLoopbackAcpWebSocketUrl(acpUrl)) {
+      console.error('[McpAppRenderer] MCP app proxy is only supported for loopback ACP backends');
+      return null;
+    }
+
+    const httpBase = httpBaseFromAcpWebSocketUrl(acpUrl).replace(/\/+$/, '');
+    const proxyUrl = new URL(`${httpBase}/mcp-app-proxy`);
+    proxyUrl.searchParams.set('secret', secretKey);
 
     if (csp?.connectDomains?.length) {
-      params.set('connect_domains', csp.connectDomains.join(','));
+      proxyUrl.searchParams.set('connect_domains', csp.connectDomains.join(','));
     }
     if (csp?.resourceDomains?.length) {
-      params.set('resource_domains', csp.resourceDomains.join(','));
+      proxyUrl.searchParams.set('resource_domains', csp.resourceDomains.join(','));
     }
     if (csp?.frameDomains?.length) {
-      params.set('frame_domains', csp.frameDomains.join(','));
+      proxyUrl.searchParams.set('frame_domains', csp.frameDomains.join(','));
     }
     if (csp?.baseUriDomains?.length) {
-      params.set('base_uri_domains', csp.baseUriDomains.join(','));
+      proxyUrl.searchParams.set('base_uri_domains', csp.baseUriDomains.join(','));
     }
 
-    return `${baseUrl}/mcp-app-proxy?${params.toString()}`;
+    return proxyUrl.toString();
   } catch (error) {
     console.error('[McpAppRenderer] Error fetching MCP App Proxy URL:', error);
     return null;
@@ -228,6 +241,256 @@ interface ResourceMeta {
 }
 
 const DEFAULT_META: ResourceMeta = { csp: null, permissions: null, prefersBorder: true };
+
+type FallbackRequestHandler = {
+  fallbackRequestHandler?: (
+    request: JSONRPCRequest,
+    extra: RequestHandlerExtra
+  ) => Promise<Record<string, unknown>>;
+};
+
+interface GooseAppFrameProps {
+  html: string;
+  sandbox: SandboxConfig;
+  hostContext: McpUiHostContext;
+  toolInput?: Record<string, unknown>;
+  toolInputPartial?: Record<string, unknown>;
+  toolResult?: CallToolResult;
+  toolCancelled?: boolean;
+  onMessage: (params: {
+    content: Array<{ type: string; text?: string }>;
+  }) => Promise<Record<string, unknown>>;
+  onOpenLink: (params: {
+    url: string;
+  }) => Promise<{ status: 'success' | 'error'; message?: string }>;
+  onCallTool: (params: {
+    name: string;
+    arguments?: Record<string, unknown>;
+  }) => Promise<CallToolResult>;
+  onReadResource: (params: { uri: string }) => Promise<{
+    contents: Array<{ uri: string; text: string; mimeType?: string }>;
+  }>;
+  onLoggingMessage: (params: { level?: string; logger?: string; data?: unknown }) => void;
+  onFallbackRequest: (
+    request: JSONRPCRequest,
+    extra: RequestHandlerExtra
+  ) => Promise<Record<string, unknown>>;
+  onSizeChanged?: (params: McpUiSizeChangedNotification['params']) => void;
+  onInitialized?: (appInfo: AppInfo) => void;
+  onError?: (error: Error) => void;
+}
+
+const SANDBOX_PROXY_READY_METHOD = 'ui/notifications/sandbox-proxy-ready';
+
+function GooseAppFrame({
+  html,
+  sandbox,
+  hostContext,
+  toolInput,
+  toolInputPartial,
+  toolResult,
+  toolCancelled,
+  onMessage,
+  onOpenLink,
+  onCallTool,
+  onReadResource,
+  onLoggingMessage,
+  onFallbackRequest,
+  onSizeChanged,
+  onInitialized,
+  onError,
+}: GooseAppFrameProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const bridgeRef = useRef<AppBridge | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+  const hostContextRef = useRef(hostContext);
+  const onMessageRef = useRef(onMessage);
+  const onOpenLinkRef = useRef(onOpenLink);
+  const onCallToolRef = useRef(onCallTool);
+  const onReadResourceRef = useRef(onReadResource);
+  const onLoggingMessageRef = useRef(onLoggingMessage);
+  const onFallbackRequestRef = useRef(onFallbackRequest);
+  const onSizeChangedRef = useRef(onSizeChanged);
+  const onInitializedRef = useRef(onInitialized);
+  const onErrorRef = useRef(onError);
+
+  useEffect(() => {
+    hostContextRef.current = hostContext;
+    onMessageRef.current = onMessage;
+    onOpenLinkRef.current = onOpenLink;
+    onCallToolRef.current = onCallTool;
+    onReadResourceRef.current = onReadResource;
+    onLoggingMessageRef.current = onLoggingMessage;
+    onFallbackRequestRef.current = onFallbackRequest;
+    onSizeChangedRef.current = onSizeChanged;
+    onInitializedRef.current = onInitialized;
+    onErrorRef.current = onError;
+  });
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    setConnected(false);
+    setInitialized(false);
+
+    const capabilities: McpUiHostCapabilities = {
+      openLinks: {},
+      serverTools: {},
+      serverResources: {},
+      logging: {},
+      message: { text: {} },
+    };
+    const bridge = new AppBridge(null, { name: 'MCP-UI Host', version: '1.0.0' }, capabilities, {
+      hostContext: hostContextRef.current,
+    });
+    bridge.onmessage = (params) => onMessageRef.current(params);
+    bridge.onopenlink = (params) => onOpenLinkRef.current(params);
+    bridge.onloggingmessage = (params) => onLoggingMessageRef.current(params);
+    bridge.oncalltool = (params) => onCallToolRef.current(params);
+    bridge.onreadresource = (params) => onReadResourceRef.current(params);
+    (bridge as FallbackRequestHandler).fallbackRequestHandler = (request, extra) =>
+      onFallbackRequestRef.current(request, extra);
+
+    const iframe = document.createElement('iframe');
+    iframe.style.width = '100%';
+    iframe.style.height = '600px';
+    iframe.style.border = 'none';
+    iframe.style.backgroundColor = 'transparent';
+    iframe.setAttribute('sandbox', sandbox.permissions || DEFAULT_SANDBOX_PERMISSIONS);
+
+    let active = true;
+    let settled = false;
+    const cleanupReadyListener = () => {
+      window.removeEventListener('message', handleReadyMessage);
+      iframe.removeEventListener('error', handleFrameError);
+      clearTimeout(timeout);
+    };
+    const fail = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanupReadyListener();
+      if (active) {
+        onErrorRef.current?.(error);
+      }
+    };
+    const ready = () => {
+      if (settled) return;
+      settled = true;
+      cleanupReadyListener();
+      void connectBridge();
+    };
+    function handleReadyMessage(event: MessageEvent) {
+      if (event.source !== iframe.contentWindow) return;
+      if (event.data?.method === SANDBOX_PROXY_READY_METHOD) {
+        ready();
+      }
+    }
+    function handleFrameError() {
+      fail(new Error('Failed to load sandbox proxy iframe'));
+    }
+    const timeout = window.setTimeout(() => {
+      fail(new Error('Timed out waiting for sandbox proxy iframe to be ready'));
+    }, 10_000);
+    const connectBridge = async () => {
+      if (!active || !iframe.contentWindow) return;
+      try {
+        bridge.onsizechange = (params) => {
+          onSizeChangedRef.current?.(params);
+          if (params.width !== undefined) {
+            iframe.style.width = `${params.width}px`;
+          }
+          if (params.height !== undefined) {
+            iframe.style.height = `${params.height}px`;
+          }
+        };
+        bridge.oninitialized = () => {
+          if (!active) return;
+          setInitialized(true);
+          onInitializedRef.current?.({
+            appVersion: bridge.getAppVersion(),
+            appCapabilities: bridge.getAppCapabilities(),
+          });
+        };
+        await bridge.connect(new PostMessageTransport(iframe.contentWindow, iframe.contentWindow));
+        if (!active) return;
+        bridgeRef.current = bridge;
+        setConnected(true);
+      } catch (error) {
+        if (!active) return;
+        onErrorRef.current?.(error instanceof Error ? error : new Error(String(error)));
+      }
+    };
+
+    window.addEventListener('message', handleReadyMessage);
+    iframe.addEventListener('error', handleFrameError);
+    container.replaceChildren(iframe);
+    iframeRef.current = iframe;
+    iframe.src = sandbox.url.href;
+
+    return () => {
+      active = false;
+      cleanupReadyListener();
+      if (iframeRef.current === iframe) {
+        iframeRef.current = null;
+      }
+      if (bridgeRef.current === bridge) {
+        bridgeRef.current = null;
+      }
+      bridge.close();
+      iframe.remove();
+    };
+  }, [sandbox.permissions, sandbox.url.href]);
+
+  useEffect(() => {
+    const bridge = bridgeRef.current;
+    if (!connected || !bridge) return;
+    void Promise.resolve(bridge.sendSandboxResourceReady({ html, csp: sandbox.csp })).catch(
+      (error: unknown) => {
+        onErrorRef.current?.(error instanceof Error ? error : new Error(String(error)));
+      }
+    );
+  }, [connected, html, sandbox.csp]);
+
+  useEffect(() => {
+    const bridge = bridgeRef.current;
+    if (connected && initialized && toolInput && bridge) {
+      void bridge.sendToolInput({ arguments: toolInput });
+    }
+  }, [connected, initialized, toolInput]);
+
+  useEffect(() => {
+    const bridge = bridgeRef.current;
+    if (connected && initialized && toolResult && bridge) {
+      void bridge.sendToolResult(toolResult);
+    }
+  }, [connected, initialized, toolResult]);
+
+  useEffect(() => {
+    const bridge = bridgeRef.current;
+    if (initialized && bridge) {
+      bridge.setHostContext(hostContext);
+    }
+  }, [initialized, hostContext]);
+
+  useEffect(() => {
+    const bridge = bridgeRef.current;
+    if (initialized && toolInputPartial && bridge) {
+      void bridge.sendToolInputPartial({ arguments: toolInputPartial });
+    }
+  }, [initialized, toolInputPartial]);
+
+  useEffect(() => {
+    const bridge = bridgeRef.current;
+    if (initialized && toolCancelled && bridge) {
+      void bridge.sendToolCancelled({});
+    }
+  }, [initialized, toolCancelled]);
+
+  return <div ref={containerRef} className="flex h-full w-full flex-col" />;
+}
 
 // Lifecycle: idle → loading_resource → loading_sandbox → ready
 // Any state can transition to error. The sandbox URL is fetched only once
@@ -367,7 +630,7 @@ export default function McpAppRenderer({
         const tool: Tool = {
           name: toolName,
           description: match.description || undefined,
-          inputSchema: (match.input_schema as Tool['inputSchema']) ?? { type: 'object' as const },
+          inputSchema: (match.inputSchema as Tool['inputSchema']) ?? { type: 'object' as const },
         };
         toolDefRef.current = tool;
         setMcpTool(tool);
@@ -417,13 +680,6 @@ export default function McpAppRenderer({
 
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const [containerHeight, setContainerHeight] = useState<number>(0);
-  const [apiHost, setApiHost] = useState<string | null>(null);
-  const [secretKey, setSecretKey] = useState<string | null>(null);
-
-  useEffect(() => {
-    window.electron.getGoosedHostPort().then(setApiHost);
-    window.electron.getSecretKey().then(setSecretKey);
-  }, []);
 
   // Fetch the resource from the extension to get HTML and metadata (CSP, permissions, etc.).
   // If cachedHtml is provided we show it immediately; the fetch updates metadata and
@@ -453,18 +709,11 @@ export default function McpAppRenderer({
         if (cancelled) return;
 
         try {
-          const response = await readResource({
-            body: {
-              session_id: sessionId,
-              uri: resourceUri,
-              extension_name: extensionName,
-            },
-          });
+          const content = await readMcpAppResource(sessionId, extensionName, resourceUri);
 
           if (cancelled) return;
 
-          if (response.data) {
-            const content = response.data;
+          if (content) {
             const rawMeta = content._meta as
               | {
                   ui?: {
@@ -548,33 +797,36 @@ export default function McpAppRenderer({
     });
   }, [state.status, pendingCsp, intl]);
 
-  const handleOpenLink = useCallback(async ({ url }: { url: string }) => {
-    if (isProtocolSafe(url)) {
+  const handleOpenLink = useCallback(
+    async ({ url }: { url: string }) => {
+      if (isProtocolSafe(url)) {
+        await window.electron.openExternal(url);
+        return { status: 'success' as const };
+      }
+
+      const protocol = getProtocol(url);
+      if (!protocol) {
+        return { status: 'error' as const, message: intl.formatMessage(i18n.invalidUrl) };
+      }
+
+      const result = await window.electron.showMessageBox({
+        type: 'question',
+        buttons: [intl.formatMessage(i18n.cancelButton), intl.formatMessage(i18n.openButton)],
+        defaultId: 0,
+        title: intl.formatMessage(i18n.openExternalLinkTitle),
+        message: intl.formatMessage(i18n.openProtocolLink, { protocol }),
+        detail: intl.formatMessage(i18n.openLinkDetail, { url }),
+      });
+
+      if (result.response !== 1) {
+        return { status: 'error' as const, message: 'User cancelled' };
+      }
+
       await window.electron.openExternal(url);
       return { status: 'success' as const };
-    }
-
-    const protocol = getProtocol(url);
-    if (!protocol) {
-      return { status: 'error' as const, message: intl.formatMessage(i18n.invalidUrl) };
-    }
-
-    const result = await window.electron.showMessageBox({
-      type: 'question',
-      buttons: [intl.formatMessage(i18n.cancelButton), intl.formatMessage(i18n.openButton)],
-      defaultId: 0,
-      title: intl.formatMessage(i18n.openExternalLinkTitle),
-      message: intl.formatMessage(i18n.openProtocolLink, { protocol }),
-      detail: intl.formatMessage(i18n.openLinkDetail, { url }),
-    });
-
-    if (result.response !== 1) {
-      return { status: 'error' as const, message: 'User cancelled' };
-    }
-
-    await window.electron.openExternal(url);
-    return { status: 'success' as const };
-  }, [intl]);
+    },
+    [intl]
+  );
 
   const handleMessage = useCallback(
     async ({ content }: { content: Array<{ type: string; text?: string }> }) => {
@@ -606,24 +858,7 @@ export default function McpAppRenderer({
       if (!sessionId) {
         throw new Error('Session not initialized for MCP request');
       }
-
-      const fullToolName = `${extensionName}__${name}`;
-      const response = await callTool({
-        body: {
-          session_id: sessionId,
-          name: fullToolName,
-          arguments: args || {},
-        },
-      });
-
-      return {
-        content: (response.data?.content || []) as unknown as CallToolResult['content'],
-        isError: response.data?.isError || false,
-        structuredContent: response.data?.structuredContent as
-          | { [key: string]: unknown }
-          | undefined,
-        _meta: response.data?._meta as { [key: string]: unknown } | undefined,
-      };
+      return callMcpAppTool(sessionId, extensionName, name, args);
     },
     [sessionId, extensionName]
   );
@@ -633,14 +868,7 @@ export default function McpAppRenderer({
       if (!sessionId) {
         throw new Error('Session not initialized for MCP request');
       }
-      const response = await readResource({
-        body: {
-          session_id: sessionId,
-          uri,
-          extension_name: extensionName,
-        },
-      });
-      const data = response.data;
+      const data = await readMcpAppResource(sessionId, extensionName, uri);
       if (!data) {
         return { contents: [] };
       }
@@ -702,38 +930,12 @@ export default function McpAppRenderer({
 
   const handleFallbackRequest = useCallback(
     async (request: JSONRPCRequest, _extra: RequestHandlerExtra) => {
-      if (request.method === 'sampling/createMessage') {
-        if (!sessionId || !apiHost || !secretKey) {
-          throw new Error('Session not initialized for sampling request');
-        }
-        const { messages, systemPrompt, maxTokens } =
-          request.params as unknown as SamplingCreateMessageParams;
-        const response = await fetch(`${apiHost}/sessions/${sessionId}/sampling/message`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Secret-Key': secretKey,
-          },
-          body: JSON.stringify({
-            messages: messages.map((m) => ({
-              role: m.role,
-              content: m.content,
-            })),
-            systemPrompt,
-            maxTokens,
-          }),
-        });
-        if (!response.ok) {
-          throw new Error(`Sampling request failed: ${response.statusText}`);
-        }
-        return (await response.json()) as SamplingCreateMessageResponse;
-      }
       return {
         status: 'error' as const,
         message: `Unhandled JSON-RPC method: ${request.method ?? '<unknown>'}`,
       };
     },
-    [sessionId, apiHost, secretKey]
+    []
   );
 
   const handleError = useCallback((err: Error) => {
@@ -760,7 +962,7 @@ export default function McpAppRenderer({
     if (!readySandboxUrl) return null;
     return {
       url: readySandboxUrl,
-      permissions: meta.permissions || 'allow-scripts allow-same-origin',
+      permissions: meta.permissions || DEFAULT_SANDBOX_PERMISSIONS,
       csp: mcpUiCsp,
     };
   }, [readySandboxUrl, meta.permissions, mcpUiCsp]);
@@ -810,7 +1012,6 @@ export default function McpAppRenderer({
     mcpTool,
   ]);
 
-  const isToolCancelled = !!toolCancelled;
   const isError = state.status === 'error';
   const isReady = state.status === 'ready';
 
@@ -842,22 +1043,21 @@ export default function McpAppRenderer({
     if (!sandboxConfig) return null;
 
     return (
-      <AppRenderer
+      <GooseAppFrame
         sandbox={sandboxConfig}
-        toolName={resourceUri}
-        html={html ?? undefined}
-        toolInput={toolInput?.arguments}
-        toolInputPartial={toolInputPartial ? { arguments: toolInputPartial.arguments } : undefined}
-        toolCancelled={isToolCancelled}
+        html={html ?? ''}
         hostContext={hostContext}
+        toolInput={toolInput?.arguments}
+        toolInputPartial={toolInputPartial?.arguments}
         toolResult={toolResult}
-        onOpenLink={handleOpenLink}
+        toolCancelled={!!toolCancelled}
         onMessage={handleMessage}
+        onOpenLink={handleOpenLink}
         onCallTool={handleCallTool}
         onReadResource={handleReadResource}
         onLoggingMessage={handleLoggingMessage}
-        onSizeChanged={handleSizeChanged}
         onFallbackRequest={handleFallbackRequest}
+        onSizeChanged={handleSizeChanged}
         onError={handleError}
       />
     );
@@ -964,7 +1164,7 @@ export default function McpAppRenderer({
   };
 
   // Single stable container — CSS switches between inline/fullscreen/pip positioning.
-  // The AppRenderer and its iframe are never unmounted, preserving app state across mode changes.
+  // The iframe is never unmounted, preserving app state across mode changes.
   const containerClasses = cn(
     'mcp-app-container bg-background-primary [&_iframe]:!w-full',
     isFillsViewport && 'fixed inset-0 z-[1000] overflow-hidden [&_iframe]:!h-full',

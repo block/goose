@@ -3,9 +3,10 @@ use indoc::formatdoc;
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, Content, ErrorCode, ErrorData, Implementation, InitializeResult,
-        ListResourcesResult, Meta, PaginatedRequestParams, RawResource, ReadResourceRequestParams,
-        ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
+        CallToolResult, ContentBlock, ErrorCode, ErrorData, Implementation, InitializeResult,
+        ListResourcesResult, MetaObject, PaginatedRequestParams, ReadResourceRequestParams,
+        ReadResourceResponse, ReadResourceResult, Resource, ResourceContents, ServerCapabilities,
+        ServerInfo,
     },
     service::RequestContext,
     tool, tool_handler, tool_router, RoleServer, ServerHandler,
@@ -18,8 +19,8 @@ use std::path::PathBuf;
 const MCP_APPS_MIME_TYPE: &str = "text/html;profile=mcp-app";
 
 /// Build a Meta object with `_meta.ui.resourceUri` for linking a tool to a UI resource.
-fn ui_resource_meta(uri: &str) -> Meta {
-    let mut meta = Meta::new();
+fn ui_resource_meta(uri: &str) -> MetaObject {
+    let mut meta = MetaObject::new();
     meta.0
         .insert("ui".to_string(), json!({ "resourceUri": uri }));
     meta
@@ -116,6 +117,25 @@ fn validation_err(msg: impl Into<String>) -> ErrorData {
     ErrorData::new(ErrorCode::INVALID_PARAMS, msg.into(), None)
 }
 
+/// Accepts `data` either as a JSON value or as a JSON-encoded string,
+/// since models sometimes emit complex tool parameters double-encoded.
+fn lenient_data<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::de::DeserializeOwned,
+{
+    let value = Value::deserialize(deserializer)?;
+    let value = match value {
+        Value::String(s) => serde_json::from_str(&s).map_err(|e| {
+            serde::de::Error::custom(format!(
+                "the 'data' parameter was a JSON-encoded string that could not be parsed as JSON ({e}); provide 'data' as a JSON object, not a string"
+            ))
+        })?,
+        other => other,
+    };
+    T::deserialize(value).map_err(serde::de::Error::custom)
+}
+
 /// Sankey node structure
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct SankeyNode {
@@ -184,6 +204,7 @@ impl SankeyData {
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct RenderSankeyParams {
     /// The data for the Sankey diagram
+    #[serde(deserialize_with = "lenient_data")]
     pub data: SankeyData,
 }
 
@@ -232,6 +253,7 @@ impl RadarData {
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct RenderRadarParams {
     /// The data for the radar chart
+    #[serde(deserialize_with = "lenient_data")]
     pub data: RadarData,
 }
 
@@ -309,6 +331,7 @@ fn validate_donut_charts(charts: &[SingleDonutChart]) -> Result<(), ErrorData> {
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct RenderDonutParams {
     /// The chart data as an array of chart objects. Use a single-element array for one chart.
+    #[serde(deserialize_with = "lenient_data")]
     pub data: Vec<SingleDonutChart>,
 }
 
@@ -350,6 +373,7 @@ impl TreemapNode {
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct RenderTreemapParams {
     /// The hierarchical data for the treemap
+    #[serde(deserialize_with = "lenient_data")]
     pub data: TreemapNode,
 }
 
@@ -393,6 +417,7 @@ impl ChordData {
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct RenderChordParams {
     /// The data for the chord diagram
+    #[serde(deserialize_with = "lenient_data")]
     pub data: ChordData,
 }
 
@@ -493,6 +518,7 @@ impl MapData {
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct RenderMapParams {
     /// The data for the map visualization
+    #[serde(deserialize_with = "lenient_data")]
     pub data: MapData,
 }
 
@@ -608,6 +634,7 @@ impl ChartData {
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct ShowChartParams {
     /// The data for the chart
+    #[serde(deserialize_with = "lenient_data")]
     pub data: ChartData,
 }
 
@@ -656,18 +683,11 @@ impl ServerHandler for AutoVisualiserRouter {
     ) -> Result<ListResourcesResult, ErrorData> {
         let resources = UI_RESOURCES
             .iter()
-            .map(|def| Resource {
-                raw: RawResource {
-                    uri: def.uri.to_string(),
-                    name: def.name.to_string(),
-                    title: Some(def.name.to_string()),
-                    description: Some(def.description.to_string()),
-                    mime_type: Some(MCP_APPS_MIME_TYPE.to_string()),
-                    size: None,
-                    icons: None,
-                    meta: None,
-                },
-                annotations: None,
+            .map(|def| {
+                Resource::new(def.uri, def.name)
+                    .with_title(def.name)
+                    .with_description(def.description)
+                    .with_mime_type(MCP_APPS_MIME_TYPE)
             })
             .collect();
 
@@ -675,6 +695,7 @@ impl ServerHandler for AutoVisualiserRouter {
             resources,
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 
@@ -682,10 +703,10 @@ impl ServerHandler for AutoVisualiserRouter {
         &self,
         params: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, ErrorData> {
+    ) -> Result<ReadResourceResponse, ErrorData> {
         let html = self.get_template_html(&params.uri)?;
 
-        let mut meta = Meta::new();
+        let mut meta = MetaObject::new();
         meta.0
             .insert("ui".to_string(), json!({ "prefersBorder": true }));
 
@@ -696,7 +717,7 @@ impl ServerHandler for AutoVisualiserRouter {
             meta: Some(meta),
         };
 
-        Ok(ReadResourceResult::new(vec![resource_contents]))
+        Ok(ReadResourceResult::new(vec![resource_contents]).into())
     }
 }
 
@@ -896,7 +917,7 @@ Example:
         );
 
         let mut result = CallToolResult::structured(data);
-        result.content = vec![Content::text(text_fallback)];
+        result.content = vec![ContentBlock::text(text_fallback)];
         result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/sankey")));
 
         Ok(result)
@@ -960,7 +981,7 @@ Example:
         );
 
         let mut result = CallToolResult::structured(data);
-        result.content = vec![Content::text(text_fallback)];
+        result.content = vec![ContentBlock::text(text_fallback)];
         result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/radar")));
 
         Ok(result)
@@ -1041,7 +1062,7 @@ Example multiple charts (array of chart objects):
         };
 
         let mut result = CallToolResult::structured(data);
-        result.content = vec![Content::text(text_fallback)];
+        result.content = vec![ContentBlock::text(text_fallback)];
         result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/donut")));
 
         Ok(result)
@@ -1103,7 +1124,7 @@ Example:
         );
 
         let mut result = CallToolResult::structured(data);
-        result.content = vec![Content::text(text_fallback)];
+        result.content = vec![ContentBlock::text(text_fallback)];
         result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/treemap")));
 
         Ok(result)
@@ -1155,7 +1176,7 @@ Example:
         let text_fallback = format!("chord diagram: {} entities", entity_count);
 
         let mut result = CallToolResult::structured(data);
-        result.content = vec![Content::text(text_fallback)];
+        result.content = vec![ContentBlock::text(text_fallback)];
         result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/chord")));
 
         Ok(result)
@@ -1225,7 +1246,7 @@ Example:
         let text_fallback = format!("map: \"{}\" with {} marker(s)", title, marker_count);
 
         let mut result = CallToolResult::structured(data);
-        result.content = vec![Content::text(text_fallback)];
+        result.content = vec![ContentBlock::text(text_fallback)];
         result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/map")));
 
         Ok(result)
@@ -1265,7 +1286,7 @@ graph TD;
         })?;
 
         let mut result = CallToolResult::structured(data);
-        result.content = vec![Content::text(text_fallback)];
+        result.content = vec![ContentBlock::text(text_fallback)];
         result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/mermaid")));
 
         Ok(result)
@@ -1327,7 +1348,7 @@ Example:
         // The host fetches the template via read_resource and sends this data
         // to the template via the MCP Apps postMessage lifecycle.
         let mut result = CallToolResult::structured(data);
-        result.content = vec![Content::text(text_fallback)];
+        result.content = vec![ContentBlock::text(text_fallback)];
         result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/chart")));
 
         Ok(result)
@@ -1338,7 +1359,7 @@ Example:
 mod tests {
     use super::*;
     use rmcp::handler::server::wrapper::Parameters;
-    use rmcp::model::RawContent;
+    use rmcp::model::ContentBlock;
     use serde_json::json;
 
     #[test]
@@ -1481,7 +1502,7 @@ mod tests {
         text_contains: &str,
     ) {
         assert_eq!(tool_result.content.len(), 1);
-        if let RawContent::Text(text_content) = &tool_result.content[0].raw {
+        if let ContentBlock::Text(text_content) = &tool_result.content[0] {
             assert!(
                 text_content.text.contains(text_contains),
                 "Text fallback '{}' should contain '{}'",
@@ -2083,5 +2104,104 @@ mod validation_tests {
         };
         let err = data.validate().unwrap_err();
         assert!(err.message.contains("longitude"));
+    }
+}
+
+#[cfg(test)]
+mod lenient_data_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn show_chart_accepts_string_encoded_data() {
+        let input = json!({
+            "data": "{\"type\": \"bar\", \"labels\": [\"A\", \"B\"], \"datasets\": [{\"label\": \"S\", \"data\": [1, 2]}]}"
+        });
+        let parsed: ShowChartParams = serde_json::from_value(input).unwrap();
+        assert_eq!(parsed.data.datasets.len(), 1);
+    }
+
+    #[test]
+    fn show_chart_still_accepts_object_data() {
+        let input = json!({
+            "data": {"type": "bar", "labels": ["A", "B"], "datasets": [{"label": "S", "data": [1, 2]}]}
+        });
+        let parsed: ShowChartParams = serde_json::from_value(input).unwrap();
+        assert_eq!(parsed.data.datasets.len(), 1);
+    }
+
+    #[test]
+    fn donut_accepts_string_encoded_array_data() {
+        let input = json!({
+            "data": "[{\"values\": [10, 20], \"labels\": [\"A\", \"B\"]}]"
+        });
+        let parsed: RenderDonutParams = serde_json::from_value(input).unwrap();
+        assert_eq!(parsed.data.len(), 1);
+    }
+
+    #[test]
+    fn sankey_accepts_string_encoded_data() {
+        let input = json!({
+            "data": "{\"nodes\": [{\"name\": \"A\"}, {\"name\": \"B\"}], \"links\": [{\"source\": \"A\", \"target\": \"B\", \"value\": 1.0}]}"
+        });
+        let parsed: RenderSankeyParams = serde_json::from_value(input).unwrap();
+        assert_eq!(parsed.data.nodes.len(), 2);
+    }
+
+    #[test]
+    fn radar_accepts_string_encoded_data() {
+        let input = json!({
+            "data": "{\"labels\": [\"X\", \"Y\"], \"datasets\": [{\"label\": \"S\", \"data\": [1.0, 2.0]}]}"
+        });
+        let parsed: RenderRadarParams = serde_json::from_value(input).unwrap();
+        assert_eq!(parsed.data.labels.len(), 2);
+    }
+
+    #[test]
+    fn treemap_accepts_string_encoded_data() {
+        let input = json!({
+            "data": "{\"name\": \"root\", \"children\": [{\"name\": \"leaf\", \"value\": 5.0}]}"
+        });
+        let parsed: RenderTreemapParams = serde_json::from_value(input).unwrap();
+        assert_eq!(parsed.data.name, "root");
+    }
+
+    #[test]
+    fn chord_accepts_string_encoded_data() {
+        let input = json!({
+            "data": "{\"labels\": [\"A\", \"B\"], \"matrix\": [[0.0, 1.0], [1.0, 0.0]]}"
+        });
+        let parsed: RenderChordParams = serde_json::from_value(input).unwrap();
+        assert_eq!(parsed.data.matrix.len(), 2);
+    }
+
+    #[test]
+    fn map_accepts_string_encoded_data() {
+        let input = json!({
+            "data": "{\"markers\": [{\"lat\": 1.0, \"lng\": 2.0}]}"
+        });
+        let parsed: RenderMapParams = serde_json::from_value(input).unwrap();
+        assert_eq!(parsed.data.markers.len(), 1);
+    }
+
+    #[test]
+    fn invalid_json_string_gives_clear_error() {
+        let input = json!({"data": "not valid json"});
+        let err = serde_json::from_value::<ShowChartParams>(input).unwrap_err();
+        assert!(err.to_string().contains("could not be parsed as JSON"));
+    }
+
+    #[test]
+    fn string_encoded_data_with_wrong_shape_reports_field_error() {
+        let input = json!({"data": "{\"nope\": 1}"});
+        let err = serde_json::from_value::<ShowChartParams>(input).unwrap_err();
+        assert!(err.to_string().contains("type"));
+    }
+
+    #[test]
+    fn schema_still_reflects_struct_type() {
+        let schema = serde_json::to_value(rmcp::schemars::schema_for!(ShowChartParams)).unwrap();
+        let data_schema = &schema["properties"]["data"];
+        assert_ne!(data_schema["type"], json!("string"));
     }
 }

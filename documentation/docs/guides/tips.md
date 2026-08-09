@@ -37,7 +37,7 @@ Consider enabling [Code Mode](/docs/guides/managing-tools/code-mode), an alterna
 Help goose remember how you like to work by using [`.goosehints` or other context files](/docs/guides/context-engineering/using-goosehints) or [skills](/docs/guides/context-engineering/using-skills) for permanent project preferences and the [Memory extension](/docs/mcp/memory-mcp) for things you want goose to dynamically recall later. Both can help save valuable context window space while keeping your preferences available.
 
 ### Protect sensitive files
-goose is often eager to make changes. You can stop it from changing specific files by creating a [.gooseignore](/docs/guides/context-engineering/using-gooseignore) file. In this file, you can list all the file paths you want it to avoid.
+Use [permission modes](/docs/guides/managing-tools/goose-permissions) and [tool permissions](/docs/guides/managing-tools/tool-permissions) when working around files you do not want goose to change.
 
 ### Version Control
 Commit your code changes early and often. This allows you to rollback any unexpected changes.

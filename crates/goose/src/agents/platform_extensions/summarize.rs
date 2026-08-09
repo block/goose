@@ -5,7 +5,7 @@ use crate::agents::tool_execution::ToolCallContext;
 use async_trait::async_trait;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    CallToolResult, ContentBlock, Implementation, InitializeResult, JsonObject, ListToolsResult,
     ServerCapabilities, Tool,
 };
 use schemars::{schema_for, JsonSchema};
@@ -94,6 +94,7 @@ impl McpClientTrait for SummarizeClient {
             tools: Self::get_tools(),
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 
@@ -105,14 +106,14 @@ impl McpClientTrait for SummarizeClient {
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         if name != "summarize" {
-            return Ok(CallToolResult::error(vec![Content::text(format!(
+            return Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Error: Unknown tool: {}",
                 name
             ))]));
         }
 
         let Some(working_dir) = ctx.working_dir_str() else {
-            return Ok(CallToolResult::error(vec![Content::text(
+            return Ok(CallToolResult::error(vec![ContentBlock::text(
                 "Error: working_dir is required for summarize",
             )]));
         };
@@ -125,7 +126,7 @@ impl McpClientTrait for SummarizeClient {
         let params: SummarizeParams = match serde_json::from_value(args_value) {
             Ok(p) => p,
             Err(e) => {
-                return Ok(CallToolResult::error(vec![Content::text(format!(
+                return Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                     "Error: Invalid parameters: {}",
                     e
                 ))]));
@@ -133,7 +134,7 @@ impl McpClientTrait for SummarizeClient {
         };
 
         if params.paths.is_empty() {
-            return Ok(CallToolResult::error(vec![Content::text(
+            return Ok(CallToolResult::error(vec![ContentBlock::text(
                 "Error: Must provide at least one path",
             )]));
         }
@@ -141,7 +142,7 @@ impl McpClientTrait for SummarizeClient {
         let provider = match self.get_provider().await {
             Ok(p) => p,
             Err(e) => {
-                return Ok(CallToolResult::error(vec![Content::text(format!(
+                return Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                     "Error: {}",
                     e
                 ))]));
@@ -149,9 +150,18 @@ impl McpClientTrait for SummarizeClient {
         };
 
         let session_id = &ctx.session_id;
-        match execute_summarize(provider, session_id, params, &working_dir).await {
+        let model_config = match self.context.model_config_for_session(session_id).await {
+            Ok(config) => config,
+            Err(e) => {
+                return Ok(CallToolResult::error(vec![ContentBlock::text(format!(
+                    "Error: {}",
+                    e
+                ))]));
+            }
+        };
+        match execute_summarize(provider, model_config, session_id, params, &working_dir).await {
             Ok(result) => Ok(result),
-            Err(msg) => Ok(CallToolResult::error(vec![Content::text(format!(
+            Err(msg) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Error: {}",
                 msg
             ))])),
@@ -165,6 +175,7 @@ impl McpClientTrait for SummarizeClient {
 
 async fn execute_summarize(
     provider: Arc<dyn Provider>,
+    model_config: goose_providers::model::ModelConfig,
     session_id: &str,
     params: SummarizeParams,
     working_dir: &Path,
@@ -187,12 +198,12 @@ async fn execute_summarize(
 
     let user_message = Message::user().with_text(&prompt);
 
-    let model_config = provider.get_model_config();
-
-    let (response, _usage) = provider
-        .complete(&model_config, session_id, system, &[user_message], &[])
-        .await
-        .map_err(|e| format!("LLM call failed: {}", e))?;
+    let (response, _usage) = crate::session_context::with_session_id(
+        Some(session_id.to_string()),
+        provider.complete(&model_config, system, &[user_message], &[]),
+    )
+    .await
+    .map_err(|e| format!("LLM call failed: {}", e))?;
 
     let response_text = response
         .content
@@ -212,7 +223,7 @@ async fn execute_summarize(
         file_count, total_lines
     );
 
-    Ok(CallToolResult::success(vec![Content::text(format!(
+    Ok(CallToolResult::success(vec![ContentBlock::text(format!(
         "{}{}",
         response_text, metadata
     ))]))

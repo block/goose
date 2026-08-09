@@ -1,6 +1,6 @@
 import ExtensionItem from './ExtensionItem';
 import builtInExtensionsData from '../../../../built-in-extensions.json';
-import { ExtensionConfig } from '../../../../api';
+import type { ExtensionConfig } from '../../../../types/extensions';
 import { FixedExtensionEntry } from '../../../ConfigContext';
 import { combineCmdAndArgs } from '../utils';
 import { defineMessages, useIntl } from '../../../../i18n';
@@ -154,9 +154,9 @@ export function getSubtitle(config: ExtensionConfig) {
     }
     case 'sse':
     case 'streamable_http': {
-      const prefix = `${config.type.toUpperCase().replace('_', ' ')} extension`;
+      const label = config.type === 'sse' ? 'SSE' : 'HTTP';
       return {
-        description: `${prefix}${config.description ? ': ' + config.description : ''}`,
+        description: config.description ? `${label}: ${config.description}` : `${label} extension`,
         command: config.uri || null,
       };
     }
@@ -164,7 +164,7 @@ export function getSubtitle(config: ExtensionConfig) {
     default:
       return {
         description: config.description || null,
-        command: 'cmd' in config ? combineCmdAndArgs(config.cmd, config.args) : null,
+        command: 'cmd' in config ? combineCmdAndArgs(config.cmd, config.args ?? []) : null,
       };
   }
 }

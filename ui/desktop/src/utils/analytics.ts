@@ -1,51 +1,19 @@
 /**
  * Frontend Analytics Module
  *
- * Provides privacy-respecting analytics by routing events through the backend.
- * The backend uses posthog-rs which handles the PostHog API correctly.
- *
- * What we track:
- * - Feature usage (which features users interact with)
- * - Screen/view navigation
- * - Onboarding funnel completion
- * - Error types (without sensitive details)
- *
- * What we never track:
- * - Conversation content
- * - Code or file contents
- * - API keys or credentials
- * - Tool arguments or outputs
- * - Personal identifiable information
+ * Compatibility layer for existing UI tracking call sites. Frontend telemetry is
+ * disabled during the ACP migration, so events are intentionally not sent.
  */
 
-import { sendTelemetryEvent } from '../api';
-
-let telemetryEnabled: boolean | null = null;
-
-export function setTelemetryEnabled(enabled: boolean): void {
-  telemetryEnabled = enabled;
+export function setTelemetryEnabled(_enabled: boolean): void {
+  // Frontend telemetry is disabled.
 }
 
-function canTrack(): boolean {
-  return telemetryEnabled === true;
-}
-
-async function sendEvent(
-  eventName: string,
-  properties: Record<string, unknown> = {}
-): Promise<void> {
-  if (!canTrack()) return;
-
-  try {
-    await sendTelemetryEvent({
-      body: {
-        event_name: eventName,
-        properties: properties as Record<string, unknown>,
-      },
-    });
-  } catch (error) {
-    console.debug('[Analytics] Failed to send event:', error);
-  }
+function sendEvent(
+  _eventName: string,
+  _properties: Record<string, unknown> = {}
+): void {
+  // Frontend telemetry is disabled.
 }
 
 // ============================================================================
@@ -76,7 +44,7 @@ export type AnalyticsEvent =
   | {
       name: 'onboarding_setup_failed';
       properties: {
-        provider: 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'local';
+        provider: 'local';
         error_message?: string;
       };
     }
@@ -304,7 +272,7 @@ export function trackOnboardingCompleted(provider: string, model?: string): void
 }
 
 export function trackOnboardingSetupFailed(
-  provider: 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'local',
+  provider: 'local',
   errorMessage?: string
 ): void {
   trackEvent({
@@ -338,8 +306,6 @@ export function trackTelemetryPreference(
   enabled: boolean,
   location: 'settings' | 'onboarding' | 'modal'
 ): void {
-  // Always send this event, even if telemetry is disabled
-  // This is the one exception - we need to know opt-out rates
   sendEvent('telemetry_preference_set', { enabled, location });
 }
 
@@ -481,27 +447,6 @@ export function trackScheduleRunNow(success: boolean, errorDetails?: string): vo
 // Recipe Tracking
 // ============================================================================
 
-export function trackRecipeCreated(success: boolean, errorDetails?: string): void {
-  trackEvent({
-    name: 'recipe_created',
-    properties: { success, error_details: errorDetails },
-  });
-}
-
-export function trackRecipeImported(success: boolean, errorDetails?: string): void {
-  trackEvent({
-    name: 'recipe_imported',
-    properties: { success, error_details: errorDetails },
-  });
-}
-
-export function trackRecipeEdited(success: boolean, errorDetails?: string): void {
-  trackEvent({
-    name: 'recipe_edited',
-    properties: { success, error_details: errorDetails },
-  });
-}
-
 export function trackRecipeDeleted(success: boolean, errorDetails?: string): void {
   trackEvent({
     name: 'recipe_deleted',
@@ -590,30 +535,9 @@ export function trackVoiceDictation(
   });
 }
 
-export function trackModeChanged(fromMode: string, toMode: string): void {
-  trackEvent({
-    name: 'input_mode_changed',
-    properties: { from_mode: fromMode, to_mode: toMode },
-  });
-}
-
 export function trackDiagnosticsOpened(): void {
   trackEvent({
     name: 'input_diagnostics_opened',
-    properties: {},
-  });
-}
-
-export function trackCreateRecipeOpened(): void {
-  trackEvent({
-    name: 'input_create_recipe_opened',
-    properties: {},
-  });
-}
-
-export function trackEditRecipeOpened(): void {
-  trackEvent({
-    name: 'input_edit_recipe_opened',
     properties: {},
   });
 }

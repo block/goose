@@ -8,6 +8,8 @@ import { screen, render, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { AppInner, resolveSessionInitialMessage } from './App';
 import { IntlTestWrapper } from './i18n/test-utils';
+import { FeaturesProvider } from './contexts/FeaturesContext';
+import { reconnectAcpAfterSystemResume } from './acp/acpConnection';
 
 // Set up globals for jsdom
 Object.defineProperty(window, 'location', {
@@ -33,27 +35,10 @@ vi.mock('./utils/costDatabase', () => ({
   initializeCostDatabase: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('./api', () => {
-  const test_chat = {
-    data: {
-      session_id: 'test',
-      messages: [],
-      metadata: {
-        description: '',
-      },
-    },
-  };
-
-  return {
-    initConfig: vi.fn().mockResolvedValue(undefined),
-    readAllConfig: vi.fn().mockResolvedValue(undefined),
-    backupConfig: vi.fn().mockResolvedValue(undefined),
-    recoverConfig: vi.fn().mockResolvedValue(undefined),
-    validateConfig: vi.fn().mockResolvedValue(undefined),
-    startAgent: vi.fn().mockResolvedValue(test_chat),
-    resumeAgent: vi.fn().mockResolvedValue(test_chat),
-  };
-});
+vi.mock('./acp/sessions', () => ({
+  acpListSessions: vi.fn().mockResolvedValue({ sessions: [], nextCursor: null }),
+  acpDeleteSession: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock('./sessions', () => ({
   fetchSessionDetails: vi
@@ -61,6 +46,24 @@ vi.mock('./sessions', () => ({
     .mockResolvedValue({ sessionId: 'test', messages: [], metadata: { description: '' } }),
   generateSessionId: vi.fn(),
   createSession: vi.fn(),
+}));
+
+vi.mock('./acp/capabilities', () => ({
+  getAcpFeatureCapabilities: vi.fn().mockResolvedValue({ localInference: true }),
+}));
+
+vi.mock('./acp/acpConnection', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./acp/acpConnection')>()),
+  reconnectAcpAfterSystemResume: vi.fn(),
+}));
+
+// Mock the ACP providers module used by OnboardingGuard so it doesn't try to
+// open a real ACP client connection during tests. Returning null defaults
+// keeps the app in the "brand new" (no provider configured) onboarding state.
+vi.mock('./acp/providers', () => ({
+  acpReadDefaults: vi.fn().mockResolvedValue({ providerId: null, modelId: null }),
+  acpSaveDefaults: vi.fn().mockResolvedValue(undefined),
+  acpListProviderDetails: vi.fn().mockResolvedValue([]),
 }));
 
 // Mock the ConfigContext module
@@ -134,8 +137,8 @@ const mockNavigate = vi.fn();
 const mockSearchParams = new URLSearchParams();
 const mockSetSearchParams = vi.fn();
 
-// Mock react-router-dom to avoid HashRouter issues in tests
-vi.mock('react-router-dom', () => ({
+// Mock react-router to avoid HashRouter issues in tests
+vi.mock('react-router', () => ({
   HashRouter: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   Routes: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   Route: ({ element }: { element: React.ReactNode }) => element,
@@ -189,6 +192,14 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
+function AppInnerTestWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <IntlTestWrapper>
+      <FeaturesProvider>{children}</FeaturesProvider>
+    </IntlTestWrapper>
+  );
+}
+
 describe('App Component - Brand New State', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -221,7 +232,7 @@ describe('App Component - Brand New State', () => {
       GOOSE_ALLOWLIST_WARNING: false,
     });
 
-    render(<AppInner />, { wrapper: IntlTestWrapper });
+    render(<AppInner />, { wrapper: AppInnerTestWrapper });
 
     // Wait for initialization
     await waitFor(() => {
@@ -244,7 +255,7 @@ describe('App Component - Brand New State', () => {
     // Set up search params to simulate view=settings deep link
     mockSearchParams.set('view', 'settings');
 
-    render(<AppInner />, { wrapper: IntlTestWrapper });
+    render(<AppInner />, { wrapper: AppInnerTestWrapper });
 
     // Wait for initialization
     await waitFor(() => {
@@ -262,7 +273,7 @@ describe('App Component - Brand New State', () => {
       GOOSE_ALLOWLIST_WARNING: false,
     });
 
-    render(<AppInner />, { wrapper: IntlTestWrapper });
+    render(<AppInner />, { wrapper: AppInnerTestWrapper });
 
     // Wait for initialization
     await waitFor(() => {
@@ -271,6 +282,46 @@ describe('App Component - Brand New State', () => {
 
     // Should not navigate anywhere since provider is configured and we're already at "/"
     expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it('should navigate home when the main process emits new-chat', async () => {
+    mockElectron.getConfig.mockReturnValue({
+      GOOSE_DEFAULT_PROVIDER: 'openai',
+      GOOSE_DEFAULT_MODEL: 'gpt-4',
+      GOOSE_ALLOWLIST_WARNING: false,
+    });
+
+    render(<AppInner />, { wrapper: AppInnerTestWrapper });
+
+    await waitFor(() => {
+      expect(mockElectron.reactReady).toHaveBeenCalled();
+    });
+
+    const newChatHandler = mockElectron.on.mock.calls.find(
+      ([channel]) => channel === 'new-chat'
+    )?.[1];
+    expect(newChatHandler).toBeDefined();
+
+    newChatHandler?.({} as any);
+
+    expect(mockNavigate).toHaveBeenCalledWith('/');
+  });
+
+  it('should reconnect ACP when the main process emits system-resume', async () => {
+    render(<AppInner />, { wrapper: AppInnerTestWrapper });
+
+    await waitFor(() => {
+      expect(mockElectron.reactReady).toHaveBeenCalled();
+    });
+
+    const systemResumeHandler = mockElectron.on.mock.calls.find(
+      ([channel]) => channel === 'system-resume'
+    )?.[1];
+    expect(systemResumeHandler).toBeDefined();
+
+    systemResumeHandler?.({} as any);
+
+    expect(reconnectAcpAfterSystemResume).toHaveBeenCalledOnce();
   });
 
   it('should seed recipe sessions with the recipe prompt when no initial message is provided', () => {

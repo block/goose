@@ -248,6 +248,20 @@ pub async fn handle_term_log(command: String) -> Result<()> {
     Ok(())
 }
 
+fn shell_history_text(newest_first_tail: &[&Message]) -> Option<String> {
+    let history: Vec<String> = newest_first_tail
+        .iter()
+        .filter(|m| !m.is_turn_context())
+        .rev()
+        .map(|m| m.as_concat_text())
+        .collect();
+    if history.is_empty() {
+        None
+    } else {
+        Some(history.join("\n"))
+    }
+}
+
 pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
     let prompt = prompt.join(" ");
     let session_id = std::env::var("AGENT_SESSION_ID").map_err(|_| {
@@ -280,25 +294,23 @@ pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
         };
 
     if let Some(oldest_user) = user_messages_after_last_assistant.last() {
-        session_manager
-            .truncate_conversation(&session_id, oldest_user.created)
-            .await?;
+        if let Some(message_id) = oldest_user.id.as_deref() {
+            session_manager
+                .truncate_conversation_from_message(&session_id, message_id)
+                .await?;
+        } else {
+            session_manager
+                .truncate_conversation(&session_id, oldest_user.created)
+                .await?;
+        }
     }
 
-    let prompt_with_context = if user_messages_after_last_assistant.is_empty() {
-        prompt
-    } else {
-        let history = user_messages_after_last_assistant
-            .iter()
-            .rev() // back to chronological order
-            .map(|m| m.as_concat_text())
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        format!(
+    let prompt_with_context = match shell_history_text(&user_messages_after_last_assistant) {
+        Some(history) => format!(
             "<shell_history>\n{}\n</shell_history>\n\n{}",
             history, prompt
-        )
+        ),
+        None => prompt,
     };
 
     let config = SessionBuilderConfig {
@@ -324,7 +336,10 @@ pub async fn handle_term_info() -> Result<()> {
 
     let session_manager = SessionManager::instance();
     let session = session_manager.get_session(&session_id, false).await.ok();
-    let total_tokens = session.as_ref().and_then(|s| s.total_tokens).unwrap_or(0) as usize;
+    let total_tokens = session
+        .as_ref()
+        .and_then(|s| s.usage.total_tokens)
+        .unwrap_or(0) as usize;
 
     let config = goose::config::Config::global();
     let model_name = config
@@ -345,9 +360,7 @@ pub async fn handle_term_info() -> Result<()> {
         .ok()
         .and_then(|model_name| {
             config.get_goose_provider().ok().and_then(|provider_name| {
-                goose::model::ModelConfig::new(&model_name)
-                    .ok()
-                    .map(|c| c.with_canonical_limits(&provider_name))
+                goose::model_config::model_config_from_user_config(&provider_name, &model_name).ok()
             })
         })
         .map(|mc| mc.context_limit())
@@ -399,5 +412,25 @@ mod tests {
         let script = render_term_init_script(Shell::Fish, "session-123", "/tmp/goose", true);
 
         assert!(!script.contains("command_not_found"));
+    }
+
+    #[test]
+    fn shell_history_skips_turn_context_events() {
+        use goose::conversation::message::MessageMetadata;
+
+        let older = Message::user().with_text("git status");
+        let block = Message::user()
+            .with_text("<turn-context>cwd /repo</turn-context>")
+            .with_metadata(MessageMetadata::agent_only().with_turn_context());
+        let newer = Message::user().with_text("cargo build");
+        let newest_first_tail = vec![&newer, &block, &older];
+
+        assert_eq!(
+            shell_history_text(&newest_first_tail).unwrap(),
+            "git status\ncargo build"
+        );
+
+        let only_block = vec![&block];
+        assert_eq!(shell_history_text(&only_block), None);
     }
 }

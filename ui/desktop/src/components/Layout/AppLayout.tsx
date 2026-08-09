@@ -1,15 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router';
 import { motion } from 'framer-motion';
-import { Menu } from 'lucide-react';
+import { Menu, PanelLeft } from 'lucide-react';
 import { defineMessages, useIntl } from '../../i18n';
 import { Button } from '../ui/button';
 import ChatSessionsContainer from '../ChatSessionsContainer';
 import { useChatContext } from '../../contexts/ChatContext';
 import { NavigationProvider, useNavigationContext } from './NavigationContext';
 import { Navigation } from './NavigationPanel';
-import { NAV_DIMENSIONS, Z_INDEX } from './constants';
+import { Z_INDEX } from './constants';
 import { cn } from '../../utils';
 import { UserInput } from '../../types/message';
 
@@ -18,12 +18,17 @@ const i18n = defineMessages({
     id: 'appLayout.openNavigation',
     defaultMessage: 'Open navigation',
   },
+  collapseNavigation: {
+    id: 'appLayout.collapseNavigation',
+    defaultMessage: 'Collapse navigation',
+  },
 });
 
 interface AppLayoutContentProps {
   activeSessions: Array<{
     sessionId: string;
     initialMessage?: UserInput;
+    noAutoSubmit?: boolean;
   }>;
 }
 
@@ -49,7 +54,41 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
     return () => window.electron.off('fullscreen-change', handler);
   }, [safeIsMacOS]);
 
-  const { isNavExpanded, setIsNavExpanded } = useNavigationContext();
+  const { isNavExpanded, setIsNavExpanded, navWidth, setNavWidth } = useNavigationContext();
+  const [isDragging, setIsDragging] = useState(false);
+  const isResizing = useRef(false);
+  const startX = useRef(0);
+  const startWidth = useRef(0);
+
+  const handleResizeMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      isResizing.current = true;
+      startX.current = e.clientX;
+      startWidth.current = navWidth;
+      setIsDragging(true);
+      e.preventDefault();
+    },
+    [navWidth]
+  );
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing.current) return;
+      setNavWidth(startWidth.current + (e.clientX - startX.current));
+    };
+    const handleMouseUp = () => {
+      if (isResizing.current) {
+        isResizing.current = false;
+        setIsDragging(false);
+      }
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [setNavWidth]);
 
   if (!chatContext) {
     throw new Error('AppLayoutContent must be used within ChatProvider');
@@ -59,28 +98,28 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
 
   const needsTrafficLightInset = safeIsMacOS && !isFullScreen;
   const headerPadding = needsTrafficLightInset ? 'pl-[96px]' : 'pl-4';
-  const headerTop = needsTrafficLightInset ? 'top-[15px]' : 'top-[11px]';
+  const headerTop = needsTrafficLightInset ? 'top-[14px]' : 'top-[11px]';
+  const navToggleTitle = intl.formatMessage(
+    isNavExpanded ? i18n.collapseNavigation : i18n.openNavigation
+  );
 
   return (
     <div className="flex flex-1 w-full h-full relative animate-fade-in bg-background-primary flex-row">
-      {/* Floating menu toggle — only when sidebar is collapsed. When expanded,
-          the sidebar's own header has the collapse button. */}
-      {!isNavExpanded && (
-        <div
-          style={{ zIndex: Z_INDEX.HEADER }}
-          className={cn('absolute flex items-center gap-1', headerPadding, headerTop, 'ml-1.5')}
+      <div
+        style={{ zIndex: Z_INDEX.HEADER }}
+        className={cn('absolute flex items-center gap-1', headerPadding, headerTop, 'ml-1.5')}
+      >
+        <Button
+          onClick={() => setIsNavExpanded(!isNavExpanded)}
+          className="no-drag hover:!bg-background-tertiary"
+          variant="ghost"
+          size="xs"
+          title={navToggleTitle}
+          aria-label={navToggleTitle}
         >
-          <Button
-            onClick={() => setIsNavExpanded(true)}
-            className="no-drag hover:!bg-background-tertiary"
-            variant="ghost"
-            size="xs"
-            title={intl.formatMessage(i18n.openNavigation)}
-          >
-            <Menu className="w-5 h-5" />
-          </Button>
-        </div>
-      )}
+          {isNavExpanded ? <PanelLeft className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </Button>
+      </div>
 
       {/* Main content with navigation. Shared white canvas; the sidebar is a
           rounded outlined card floating on it with breathing room. */}
@@ -88,14 +127,22 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
         <motion.div
           key="nav"
           initial={false}
-          animate={{ width: isNavExpanded ? NAV_DIMENSIONS.NAV_WIDTH : 0 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 40 }}
+          animate={{ width: isNavExpanded ? navWidth : 0 }}
+          transition={
+            isDragging ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 40 }
+          }
           style={{ height: '100%' }}
           className="relative flex-shrink-0 overflow-hidden h-full p-2"
         >
           <div className="w-full h-full overflow-hidden rounded-xl border border-border-primary">
             <Navigation />
           </div>
+          {isNavExpanded && (
+            <div
+              className="absolute right-0 top-0 h-full w-2 cursor-col-resize hover:bg-border-primary/30 transition-colors"
+              onMouseDown={handleResizeMouseDown}
+            />
+          )}
         </motion.div>
 
         {/* Main content — no border / no card; just flows on the canvas. */}
@@ -116,6 +163,7 @@ interface AppLayoutProps {
   activeSessions: Array<{
     sessionId: string;
     initialMessage?: UserInput;
+    noAutoSubmit?: boolean;
   }>;
 }
 

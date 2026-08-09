@@ -12,13 +12,13 @@ goose provides several built-in features to help you get support, report issues,
 
 | Feature | Purpose | Location | Output |
 |---------|---------|----------|---------|
-| **Diagnostics** | Generate troubleshooting data | Chat input toolbar | ZIP file with system info, logs, and session data |
+| **Diagnostics** | Generate troubleshooting data | Chat input toolbar | JSON report with system info, logs, and session data |
 | **Report a Bug** | Submit bug reports | Chat input toolbar OR Settings → App → Help & feedback | Opens GitHub issue template |
 | **Request a Feature** | Suggest new features | Settings → App → Help & feedback | Opens GitHub issue template |
 
 ## Diagnostics System
 
-The diagnostics feature creates a comprehensive troubleshooting bundle that includes system information, session data, configuration files, and recent logs. This is invaluable for debugging issues or getting technical support.
+The diagnostics feature creates a comprehensive troubleshooting JSON report that includes system information, session data, configuration files, and recent logs. This is invaluable for debugging issues or getting technical support.
 
 ### Generating Diagnostics
 
@@ -27,8 +27,10 @@ The diagnostics feature creates a comprehensive troubleshooting bundle that incl
     1. In an active chat session, look for the <Bug className="inline" size={16} /> icon in the bottom toolbar
     2. Click the diagnostics button
     3. Review the information in the modal about what data will be collected
-    4. Click `Download` to generate and save the diagnostics bundle
-    5. The ZIP file will be saved as `diagnostics_{session_id}.zip`
+    4. Click `Download` to generate and save the diagnostics report
+    5. The JSON file will be saved as `diagnostics_{session_id}.json`
+
+    You can use `scripts/diagnostics-viewer.py` to inspect downloaded diagnostics reports; by default it looks in `~/Downloads`.
 
     :::tip
     The diagnostics button is only available when you have an active session, as it needs a session ID to generate the bundle.
@@ -45,7 +47,7 @@ The diagnostics feature creates a comprehensive troubleshooting bundle that incl
     goose session diagnostics
 
     # Save to a custom location
-    goose session diagnostics --session-id <session_id> --output /path/to/diagnostics.zip
+    goose session diagnostics --session-id <session_id> --output /path/to/diagnostics.json
     ```
 
     To find your session ID, first list available sessions:
@@ -65,17 +67,18 @@ The diagnostics feature creates a comprehensive troubleshooting bundle that incl
 
 ### Using Diagnostics Data
 
-The diagnostics ZIP file contains several folders:
+The diagnostics JSON file contains structured sections:
 
-```
-diagnostics_abc123def.zip
-├── logs/
-│   ├── goose-2024-01-15.jsonl
-│   ├── goose-2024-01-14.jsonl
-│   └── ...
-├── session.json          # Your session messages
-├── config.yaml          # Configuration files (if they exist)
-└── system.txt           # System information
+```json
+{
+  "system": {},
+  "session": {},
+  "config": {},
+  "logs": {},
+  "prompts": [],
+  "schedule": {},
+  "errors": []
+}
 ```
 
 **When to generate diagnostics:**
@@ -154,4 +157,3 @@ For issues not resolved by diagnostics:
 
 - **[Session and System Logs](/docs/guides/logs)**: View detailed logs for debugging individual sessions
 - **[Telemetry Export](/docs/guides/environment-variables#observability)**: Configure telemetry for performance analysis and production monitoring
-

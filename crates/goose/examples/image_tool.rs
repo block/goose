@@ -4,9 +4,9 @@ use dotenvy::dotenv;
 use goose::conversation::message::Message;
 use goose::providers::anthropic::ANTHROPIC_DEFAULT_MODEL;
 use goose::providers::create_with_named_model;
-use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose::providers::openai::OPEN_AI_DEFAULT_MODEL;
-use rmcp::model::{CallToolRequestParams, Content, Tool};
+use goose_providers::databricks::DATABRICKS_DEFAULT_MODEL;
+use rmcp::model::{CallToolRequestParams, ContentBlock, Tool};
 use rmcp::object;
 use std::fs;
 use std::sync::Arc;
@@ -17,12 +17,30 @@ async fn main() -> Result<()> {
     dotenv().ok();
 
     // Create providers
-    let providers: Vec<Arc<dyn goose::providers::base::Provider>> = vec![
-        create_with_named_model("databricks", DATABRICKS_DEFAULT_MODEL, Vec::new()).await?,
-        create_with_named_model("openai", OPEN_AI_DEFAULT_MODEL, Vec::new()).await?,
-        create_with_named_model("anthropic", ANTHROPIC_DEFAULT_MODEL, Vec::new()).await?,
+    let providers: Vec<(
+        Arc<dyn goose::providers::base::Provider>,
+        goose_providers::model::ModelConfig,
+    )> = vec![
+        (
+            create_with_named_model("databricks", Vec::new()).await?,
+            goose::model_config::model_config_from_user_config(
+                "databricks",
+                DATABRICKS_DEFAULT_MODEL,
+            )?,
+        ),
+        (
+            create_with_named_model("openai", Vec::new()).await?,
+            goose::model_config::model_config_from_user_config("openai", OPEN_AI_DEFAULT_MODEL)?,
+        ),
+        (
+            create_with_named_model("anthropic", Vec::new()).await?,
+            goose::model_config::model_config_from_user_config(
+                "anthropic",
+                ANTHROPIC_DEFAULT_MODEL,
+            )?,
+        ),
     ];
-    for provider in providers {
+    for (provider, model_config) in providers {
         // Read and encode test image
         let image_data = fs::read("crates/goose/examples/test_assets/test_image.png")?;
         let base64_image = BASE64.encode(image_data);
@@ -37,10 +55,9 @@ async fn main() -> Result<()> {
             ),
             Message::user().with_tool_response(
                 "000",
-                Ok(rmcp::model::CallToolResult::success(vec![Content::image(
-                    base64_image,
-                    "image/png",
-                )])),
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    ContentBlock::image(base64_image, "image/png"),
+                ])),
             ),
         ];
 
@@ -56,11 +73,9 @@ async fn main() -> Result<()> {
                 },
             }
         });
-        let model_config = provider.get_model_config();
         let (response, usage) = provider
             .complete(
                 &model_config,
-                "",
                 "You are a helpful assistant. Please describe any text you see in the image.",
                 &messages,
                 &[Tool::new("view_image", "View an image", input_schema)],

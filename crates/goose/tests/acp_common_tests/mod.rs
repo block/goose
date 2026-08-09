@@ -4,9 +4,9 @@
 
 #[path = "../acp_fixtures/mod.rs"]
 pub mod fixtures;
-use agent_client_protocol::schema::{
-    ContentBlock, ListSessionsResponse, McpServer, McpServerHttp, ModelId, SessionInfo,
-    SessionModeId, SessionUpdate, ToolCallStatus, ToolKind,
+use agent_client_protocol::schema::v1::{
+    ContentBlock, ListSessionsResponse, McpServer, McpServerHttp, SessionInfo, SessionModeId,
+    SessionUpdate, ToolCallStatus, ToolKind,
 };
 use fixtures::{
     assert_notifications, Connection, FsFixture, Notification, OpenAiFixture, PermissionDecision,
@@ -16,18 +16,22 @@ use fs_err as fs;
 use goose::acp::server::AcpProviderFactory;
 use goose::config::base::CONFIG_YAML_NAME;
 use goose::config::GooseMode;
-use goose::conversation::message::Message;
-use goose::model::ModelConfig;
-use goose::providers::base::{
-    stream_from_single_message, MessageStream, Provider, ProviderUsage, Usage,
-};
-use goose::providers::errors::ProviderError;
 use goose_test_support::{McpFixture, FAKE_CODE, TEST_IMAGE_B64, TEST_MODEL};
 use sqlx::sqlite::SqlitePoolOptions;
 use std::sync::Arc;
 use std::time::Duration;
 
 const SHELL_TEST_CONTENT: &str = "test-shell-content-98765";
+const TURN_CONTEXT_OPEN: &str = r#"\n<turn-context>"#;
+const OPENAI_SESSION_NAME_RESPONSE: &str = r#"data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1766229303,"model":"gpt-5-nano","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1766229303,"model":"gpt-5-nano","choices":[{"index":0,"delta":{"content":"Generated Test Title"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1766229303,"model":"gpt-5-nano","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1766229303,"model":"gpt-5-nano","choices":[],"usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110}}
+
+data: [DONE]"#;
 
 struct BasicSession<C: Connection> {
     conn: C,
@@ -38,7 +42,7 @@ async fn new_basic_session<C: Connection>(config: TestConnectionConfig) -> Basic
     let expected_session_id = C::expected_session_id();
     let openai = OpenAiFixture::new(
         vec![(
-            r#"</info-msg>\nwhat is 1+1""#.into(),
+            format!("what is 1+1{TURN_CONTEXT_OPEN}"),
             include_str!("../acp_test_data/openai_basic.txt"),
         )],
         expected_session_id.clone(),
@@ -58,46 +62,6 @@ async fn new_basic_session<C: Connection>(config: TestConnectionConfig) -> Basic
     BasicSession { conn, session }
 }
 
-struct NamingProvider {
-    model_config: ModelConfig,
-}
-
-#[async_trait::async_trait]
-impl Provider for NamingProvider {
-    fn get_name(&self) -> &str {
-        "naming-test"
-    }
-
-    async fn stream(
-        &self,
-        _model_config: &ModelConfig,
-        _session_id: &str,
-        system: &str,
-        _messages: &[Message],
-        _tools: &[rmcp::model::Tool],
-    ) -> Result<MessageStream, ProviderError> {
-        let text = if system.contains("four words or less") || system.contains("4 words or less") {
-            "Generated Test Title"
-        } else {
-            "2"
-        };
-        Ok(stream_from_single_message(
-            Message::assistant().with_text(text),
-            ProviderUsage::new(self.model_config.model_name.clone(), Usage::default()),
-        ))
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model_config.clone()
-    }
-}
-
-fn naming_provider_factory() -> AcpProviderFactory {
-    Arc::new(|_provider_name, model_config, _extensions, _working_dir| {
-        Box::pin(async move { Ok(Arc::new(NamingProvider { model_config }) as Arc<dyn Provider>) })
-    })
-}
-
 pub async fn run_list_sessions<C: Connection>() {
     let BasicSession { conn, session } =
         new_basic_session::<C>(TestConnectionConfig::default()).await;
@@ -107,7 +71,9 @@ pub async fn run_list_sessions<C: Connection>() {
         // createdAt is a dynamic timestamp — verify it exists then remove for comparison.
         if let Some(ref mut meta) = s.meta {
             assert!(meta.get("createdAt").and_then(|v| v.as_str()).is_some());
+            assert!(meta.get("lastMessageAt").and_then(|v| v.as_str()).is_some());
             meta.remove("createdAt");
+            meta.remove("lastMessageAt");
             // Provider/model metadata varies by test fixture; not relevant here.
             meta.remove("providerId");
             meta.remove("modelId");
@@ -119,6 +85,11 @@ pub async fn run_list_sessions<C: Connection>() {
         serde_json::Value::Number(2.into()),
     );
     expected_meta.insert("userSetName".to_string(), serde_json::Value::Bool(false));
+    expected_meta.insert(
+        "sessionType".to_string(),
+        serde_json::Value::String("acp".to_string()),
+    );
+    expected_meta.insert("hasRecipe".to_string(), serde_json::Value::Bool(false));
     assert_eq!(
         response,
         ListSessionsResponse::new(vec![SessionInfo::new(
@@ -132,9 +103,21 @@ pub async fn run_list_sessions<C: Connection>() {
 
 pub async fn run_session_name_update_notification<C: Connection>() {
     let expected_session_id = C::expected_session_id();
-    let openai = OpenAiFixture::new(vec![], expected_session_id.clone()).await;
+    let openai = OpenAiFixture::new(
+        vec![
+            (
+                format!("what should we call this conversation?{TURN_CONTEXT_OPEN}"),
+                include_str!("../acp_test_data/openai_basic.txt"),
+            ),
+            (
+                "Generate a short title for the above messages.".into(),
+                OPENAI_SESSION_NAME_RESPONSE,
+            ),
+        ],
+        expected_session_id.clone(),
+    )
+    .await;
     let config = TestConnectionConfig {
-        provider_factory: Some(naming_provider_factory()),
         disable_session_naming: false,
         ..Default::default()
     };
@@ -244,7 +227,7 @@ pub async fn run_config_mcp<C: Connection>() {
     let temp_dir = tempfile::tempdir().unwrap();
     let expected_session_id = C::expected_session_id();
     let prompt = "Use the get_code tool and output only its result.";
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp = McpFixture::new().await;
 
     let config_yaml = format!(
         "GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\nextensions:\n  mcp-fixture:\n    enabled: true\n    type: streamable_http\n    name: mcp-fixture\n    description: MCP fixture\n    uri: \"{}\"\n",
@@ -432,8 +415,22 @@ pub async fn run_fs_write_text_file_true<C: Connection>() {
         .await
         .unwrap();
     assert!(!output.text.is_empty());
+
+    let updates = session.session_updates();
+    let initial_tool_call_id = updates
+        .iter()
+        .find_map(|update| match update {
+            SessionUpdate::ToolCall(tool_call) => Some(&tool_call.tool_call_id),
+            _ => None,
+        })
+        .expect("expected an initial tool call");
+    for update in &updates {
+        if let SessionUpdate::ToolCallUpdate(update) = update {
+            assert_eq!(&update.tool_call_id, initial_tool_call_id);
+        }
+    }
     assert_notifications(
-        &session.notifications(),
+        &fixtures::to_notifications(&updates),
         &[
             Notification::ToolCall,
             Notification::ToolCallKind(ToolKind::Edit),
@@ -448,7 +445,7 @@ pub async fn run_fs_write_text_file_true<C: Connection>() {
 
 pub async fn run_initialize_doesnt_hit_provider<C: Connection>() {
     let provider_factory: AcpProviderFactory =
-        Arc::new(|_, _, _, _| Box::pin(async { Err(anyhow::anyhow!("no provider configured")) }));
+        Arc::new(|_, _, _| Box::pin(async { Err(anyhow::anyhow!("no provider configured")) }));
 
     let openai = OpenAiFixture::new(vec![], C::expected_session_id()).await;
     let config = TestConnectionConfig {
@@ -463,7 +460,7 @@ pub async fn run_load_mode<C: Connection>() {
     let temp_dir = tempfile::tempdir().unwrap();
     let expected_session_id = C::expected_session_id();
     let prompt = "Use the get_code tool and output only its result.";
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp = McpFixture::new().await;
 
     let config_yaml = format!(
         "GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\nextensions:\n  mcp-fixture:\n    enabled: true\n    type: streamable_http\n    name: mcp-fixture\n    description: MCP fixture\n    uri: \"{}\"\n",
@@ -557,13 +554,13 @@ pub async fn run_load_model<C: Connection>() {
     assert_eq!(output.text, "2");
 
     let SessionData { models, .. } = conn.load_session(&session_id, vec![]).await.unwrap();
-    assert_eq!(&*models.unwrap().current_model_id.0, "gpt-4.1");
+    assert_eq!(models.unwrap().current_model_id, "gpt-4.1");
 }
 
 pub async fn run_load_session_mcp<C: Connection>() {
     let expected_session_id = C::expected_session_id();
     let prompt = "Use the get_code tool and output only its result.";
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp = McpFixture::new().await;
     let mcp_url = mcp.url.clone();
 
     // Two rounds of tool call + tool result: one for new session, one for loaded session.
@@ -754,7 +751,7 @@ async fn run_mode_set_impl<C: Connection>(via: SetModeVia) {
     let temp_dir = tempfile::tempdir().unwrap();
     let expected_session_id = C::expected_session_id();
     let prompt = "Use the get_code tool and output only its result.";
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp = McpFixture::new().await;
 
     let config_yaml = format!(
         "GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\nextensions:\n  mcp-fixture:\n    enabled: true\n    type: streamable_http\n    name: mcp-fixture\n    description: MCP fixture\n    uri: \"{}\"\n",
@@ -779,7 +776,6 @@ async fn run_mode_set_impl<C: Connection>(via: SetModeVia) {
 
     let config = TestConnectionConfig {
         data_root: temp_dir.path().to_path_buf(),
-        strip_config_options: matches!(via, SetModeVia::Dedicated),
         ..Default::default()
     };
     let mut conn = C::new(config, openai).await;
@@ -902,7 +898,7 @@ pub async fn run_model_list<C: Connection>() {
 
     let models = models.unwrap();
     assert!(!models.available_models.is_empty());
-    assert_eq!(models.current_model_id, ModelId::new(TEST_MODEL));
+    assert_eq!(models.current_model_id, TEST_MODEL);
 }
 
 #[allow(dead_code)]
@@ -923,20 +919,48 @@ pub async fn run_new_session_returns_initial_config<C: Connection>() {
     assert!(!models.available_models.is_empty());
 }
 
+pub async fn run_new_session_uses_current_config_mode<C: Connection>() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config_path = temp_dir.path().join(goose::config::base::CONFIG_YAML_NAME);
+    fs::write(
+        &config_path,
+        format!("GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\nGOOSE_MODE: approve\n"),
+    )
+    .unwrap();
+
+    let expected_session_id = C::expected_session_id();
+    let openai = OpenAiFixture::new(vec![], expected_session_id.clone()).await;
+    let config = TestConnectionConfig {
+        goose_mode: GooseMode::Approve,
+        data_root: temp_dir.path().to_path_buf(),
+        ..Default::default()
+    };
+
+    let mut conn = C::new(config, openai).await;
+
+    let global_config_path =
+        goose::config::paths::Paths::config_dir().join(goose::config::base::CONFIG_YAML_NAME);
+    fs::write(
+        &global_config_path,
+        format!("GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\nGOOSE_MODE: auto\n"),
+    )
+    .unwrap();
+
+    let SessionData { session, modes, .. } = conn.new_session().await.unwrap();
+    expected_session_id.set(&session.session_id().0);
+
+    assert_eq!(modes.unwrap().current_mode_id, SessionModeId::new("auto"));
+}
+
 pub async fn run_config_option_model_set<C: Connection>() {
-    run_model_set_impl::<C>(SetModelVia::ConfigOption).await;
+    run_model_set_impl::<C>().await;
 }
 
 pub async fn run_model_set<C: Connection>() {
-    run_model_set_impl::<C>(SetModelVia::Dedicated).await;
+    run_model_set_impl::<C>().await;
 }
 
-enum SetModelVia {
-    Dedicated,
-    ConfigOption,
-}
-
-async fn run_model_set_impl<C: Connection>(via: SetModelVia) {
+async fn run_model_set_impl<C: Connection>() {
     // Use a Chat Completions model so the canned SSE fixtures parse correctly.
     // TODO: add a Responses API mock to OpenAiFixture for responses-routed models.
     let expected_session_id = C::expected_session_id();
@@ -957,10 +981,7 @@ async fn run_model_set_impl<C: Connection>(via: SetModelVia) {
     )
     .await;
 
-    let config = TestConnectionConfig {
-        strip_config_options: matches!(via, SetModelVia::Dedicated),
-        ..Default::default()
-    };
+    let config = TestConnectionConfig::default();
     let mut conn = C::new(config, openai).await;
 
     // Session A: default model
@@ -975,13 +996,9 @@ async fn run_model_set_impl<C: Connection>(via: SetModelVia) {
         ..
     } = conn.new_session().await.unwrap();
     let session_id = &session_b.session_id().0;
-    match via {
-        SetModelVia::Dedicated => conn.set_model(session_id, "gpt-4.1").await.unwrap(),
-        SetModelVia::ConfigOption => conn
-            .set_config_option(session_id, "model", "gpt-4.1")
-            .await
-            .unwrap(),
-    }
+    conn.set_config_option(session_id, "model", "gpt-4.1")
+        .await
+        .unwrap();
 
     let set_model_notifs = session_b.notifications();
 
@@ -993,9 +1010,8 @@ async fn run_model_set_impl<C: Connection>(via: SetModelVia) {
         .unwrap();
     assert_eq!(output.text, "2");
 
-    // Some connections emit a ConfigOption update immediately on model change,
-    // while the stripped legacy provider path only updates local state before
-    // the next prompt.
+    // Connections may emit a ConfigOption update immediately on model change,
+    // or only update local state before the next prompt.
     let prompt_notifs = session_b.notifications();
     let mut all = set_model_notifs;
     all.extend(prompt_notifs);
@@ -1085,7 +1101,7 @@ pub async fn run_permission_persistence<C: Connection>() {
     let temp_dir = tempfile::tempdir().unwrap();
     let prompt = "Use the get_code tool and output only its result.";
     let expected_session_id = C::expected_session_id();
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp = McpFixture::new().await;
     let openai = OpenAiFixture::new(
         vec![
             (
@@ -1131,7 +1147,7 @@ pub async fn run_prompt_basic<C: Connection>() {
     let expected_session_id = C::expected_session_id();
     let openai = OpenAiFixture::new(
         vec![(
-            r#"</info-msg>\nwhat is 1+1""#.into(),
+            format!("what is 1+1{TURN_CONTEXT_OPEN}"),
             include_str!("../acp_test_data/openai_basic.txt"),
         )],
         expected_session_id.clone(),
@@ -1147,7 +1163,30 @@ pub async fn run_prompt_basic<C: Connection>() {
         .await
         .unwrap();
     assert_eq!(output.text, "2");
-    assert_notifications(&session.notifications(), &[Notification::AgentMessage]);
+    let updates = session.session_updates();
+    let (standard_message_id, goose_message_id) = updates
+        .iter()
+        .find_map(|update| {
+            let SessionUpdate::AgentMessageChunk(chunk) = update else {
+                return None;
+            };
+            let standard_message_id = chunk.message_id.as_ref()?.0.to_string();
+            let goose_message_id = chunk
+                .meta
+                .as_ref()?
+                .get("goose")?
+                .get("messageId")?
+                .as_str()?
+                .to_string();
+            Some((standard_message_id, goose_message_id))
+        })
+        .expect("expected live agent message chunk with standard and goose message IDs");
+    assert!(!standard_message_id.is_empty());
+    assert_eq!(standard_message_id, goose_message_id);
+    assert_notifications(
+        &fixtures::to_notifications(&updates),
+        &[Notification::AgentMessage],
+    );
     expected_session_id.assert_matches(&session.session_id().0);
 }
 
@@ -1155,11 +1194,11 @@ pub async fn run_prompt_codemode<C: Connection>() {
     let expected_session_id = C::expected_session_id();
     let prompt =
         "Search for getCode and write tools. Use them to save the code to /tmp/result.txt.";
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp = McpFixture::new().await;
     let openai = OpenAiFixture::new(
         vec![
             (
-                format!(r#"</info-msg>\n{prompt}""#),
+                format!("{prompt}{TURN_CONTEXT_OPEN}"),
                 include_str!("../acp_test_data/openai_builtin_search.txt"),
             ),
             (
@@ -1202,12 +1241,13 @@ pub async fn run_prompt_codemode<C: Connection>() {
 
 pub async fn run_prompt_image<C: Connection>() {
     let expected_session_id = C::expected_session_id();
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp = McpFixture::new().await;
     let openai = OpenAiFixture::new(
         vec![
             (
-                r#"</info-msg>\nUse the get_image tool and describe what you see in its result.""#
-                    .into(),
+                format!(
+                    "Use the get_image tool and describe what you see in its result.{TURN_CONTEXT_OPEN}"
+                ),
                 include_str!("../acp_test_data/openai_image_tool_call.txt"),
             ),
             (
@@ -1278,11 +1318,11 @@ pub async fn run_prompt_image_attachment<C: Connection>() {
 
 pub async fn run_prompt_mcp<C: Connection>() {
     let expected_session_id = C::expected_session_id();
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp = McpFixture::new().await;
     let openai = OpenAiFixture::new(
         vec![
             (
-                r#"</info-msg>\nUse the get_code tool and output only its result.""#.into(),
+                format!("Use the get_code tool and output only its result.{TURN_CONTEXT_OPEN}"),
                 include_str!("../acp_test_data/openai_tool_call.txt"),
             ),
             (
@@ -1328,11 +1368,11 @@ pub async fn run_prompt_model_mismatch<C: Connection>() {
     // TODO: add a Responses API mock to OpenAiFixture so we can test with
     // responses-routed models like o4-mini here.
     let config = TestConnectionConfig {
-        current_model: "gpt-4.1".to_string(),
+        current_model: "gpt-4o".to_string(),
         ..Default::default()
     };
 
-    // Server starts on gpt-4.1; client is configured with TEST_MODEL.
+    // Server starts on gpt-4o; client is configured with TEST_MODEL.
     // If session_model is seeded from the response, stream() detects the
     // mismatch and sends set_model(TEST_MODEL) before prompting.
     let BasicSession { conn: _, .. } = new_basic_session::<C>(config).await;
@@ -1407,8 +1447,15 @@ pub async fn run_shell_terminal_false<C: Connection>() {
         .await
         .unwrap();
     assert!(!output.text.is_empty());
+    let mut notifications = session.notifications();
+    notifications.retain(|notification| {
+        !matches!(
+            notification,
+            Notification::ToolCallStatus(ToolCallStatus::InProgress)
+        )
+    });
     assert_notifications(
-        &session.notifications(),
+        &notifications,
         &[
             Notification::ToolCall,
             Notification::ToolCallContent("content".into()),

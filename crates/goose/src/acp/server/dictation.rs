@@ -160,6 +160,7 @@ impl GooseAcpAgent {
             use crate::download_manager::{get_download_manager, DownloadStatus};
 
             let manager = get_download_manager();
+            let recommended_id = whisper::recommend_model();
             let models = whisper::available_models()
                 .iter()
                 .map(|model| DictationLocalModelStatus {
@@ -172,6 +173,7 @@ impl GooseAcpAgent {
                         .get_progress(model.id)
                         .map(|progress| progress.status == DownloadStatus::Downloading)
                         .unwrap_or(false),
+                    recommended: model.id == recommended_id,
                 })
                 .collect();
 

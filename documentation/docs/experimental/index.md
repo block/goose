@@ -74,7 +74,7 @@ The list of experimental features may change as goose development progresses. So
     <Card 
       title="Discord Community"
       description="Join our community to discuss experimental features, share feedback, and connect with other users."
-      link="https://discord.gg/goose-oss"
+      link="https://discord.gg/n8R5VaWDAn"
     />
   </div>
 </div>

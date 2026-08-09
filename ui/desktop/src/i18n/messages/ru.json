@@ -11,17 +11,29 @@
   "announcementModal.gotIt": {
     "defaultMessage": "Понятно!"
   },
+  "appLayout.collapseNavigation": {
+    "defaultMessage": "Collapse navigation"
+  },
   "appLayout.openNavigation": {
     "defaultMessage": "Открыть навигацию"
   },
   "appsView.customApp": {
     "defaultMessage": "Пользовательское приложение"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "Приложения с ваших MCP-серверов и приложения, созданные самим goose. Вы можете попросить его создать новые приложения через чат, и они появятся здесь."
   },
   "appsView.errorLoading": {
     "defaultMessage": "Ошибка загрузки приложений: {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "Импортировать приложение"
@@ -38,11 +50,77 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Нет доступных приложений"
   },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
   "appsView.retry": {
     "defaultMessage": "Повторить"
   },
   "appsView.title": {
     "defaultMessage": "Приложения"
+  },
+  "authSettings.activeProviderWarning": {
+    "defaultMessage": "Это активный провайдер. Новые запросы могут завершаться ошибкой, пока вы не настроите другие учетные данные."
+  },
+  "authSettings.cancel": {
+    "defaultMessage": "Отмена"
+  },
+  "authSettings.delete": {
+    "defaultMessage": "Удалить"
+  },
+  "authSettings.deleteCredential": {
+    "defaultMessage": "Удалить учетные данные"
+  },
+  "authSettings.deleteMessage": {
+    "defaultMessage": "Удалить учетные данные {name} для {provider}?"
+  },
+  "authSettings.deleteTitle": {
+    "defaultMessage": "Удалить учетные данные"
+  },
+  "authSettings.deleted": {
+    "defaultMessage": "Учетные данные удалены"
+  },
+  "authSettings.description": {
+    "defaultMessage": "Управляйте учетными данными провайдеров, сохраненными локально в goose."
+  },
+  "authSettings.empty": {
+    "defaultMessage": "Локально сохраненные учетные данные провайдеров не найдены."
+  },
+  "authSettings.expiresAt": {
+    "defaultMessage": "Истекает {date}"
+  },
+  "authSettings.failedToConfigure": {
+    "defaultMessage": "Не удалось настроить учетные данные: {error}"
+  },
+  "authSettings.failedToDelete": {
+    "defaultMessage": "Не удалось удалить учетные данные: {error}"
+  },
+  "authSettings.failedToLoad": {
+    "defaultMessage": "Не удалось загрузить учетные данные провайдера"
+  },
+  "authSettings.loading": {
+    "defaultMessage": "Загрузка учетных данных..."
+  },
+  "authSettings.reauthorize": {
+    "defaultMessage": "Авторизоваться снова"
+  },
+  "authSettings.signIn": {
+    "defaultMessage": "Войти"
+  },
+  "authSettings.signedIn": {
+    "defaultMessage": "Учетные данные настроены"
+  },
+  "authSettings.storageProviderCache": {
+    "defaultMessage": "Кэш провайдера"
+  },
+  "authSettings.storageSecretStore": {
+    "defaultMessage": "Хранилище секретов"
+  },
+  "authSettings.title": {
+    "defaultMessage": "Учетные данные провайдера"
   },
   "backButton.back": {
     "defaultMessage": "Назад"
@@ -53,17 +131,8 @@
   "baseChat.goHome": {
     "defaultMessage": "На главную"
   },
-  "baseChat.noSession": {
-    "defaultMessage": "Нет сеанса"
-  },
-  "baseChat.recipeCreatedMessage": {
-    "defaultMessage": "«{title}» сохранено и готово к использованию."
-  },
-  "baseChat.recipeCreatedTitle": {
-    "defaultMessage": "Рецепт успешно создан!"
-  },
-  "bottomMenuExtensionSelection.extensionToggleError": {
-    "defaultMessage": "Ошибка переключения расширения"
+  "baseChat.reconnecting": {
+    "defaultMessage": "Соединение потеряно. Повторное подключение…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Расширение обновлено"
@@ -83,9 +152,6 @@
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "управлять расширениями"
   },
-  "bottomMenuExtensionSelection.noActiveSession": {
-    "defaultMessage": "Активный сеанс не найден. Сначала начните чат."
-  },
   "bottomMenuExtensionSelection.noExtensionsAvailable": {
     "defaultMessage": "нет доступных расширений"
   },
@@ -94,15 +160,6 @@
   },
   "bottomMenuExtensionSelection.searchExtensions": {
     "defaultMessage": "поиск расширений..."
-  },
-  "bottomMenuModeSelection.autoFallback": {
-    "defaultMessage": "авто"
-  },
-  "bottomMenuModeSelection.automaticModeDescription": {
-    "defaultMessage": "Автоматический выбор режима"
-  },
-  "bottomMenuModeSelection.currentModeTitle": {
-    "defaultMessage": "Текущий режим: {label} - {description}"
   },
   "cardButtons.configure": {
     "defaultMessage": "Настроить"
@@ -118,9 +175,6 @@
   },
   "chatInput.contextWindow": {
     "defaultMessage": "Контекстное окно"
-  },
-  "chatInput.createRecipeFromSession": {
-    "defaultMessage": "Создать рецепт из сеанса"
   },
   "chatInput.dictationError": {
     "defaultMessage": "Ошибка диктовки"
@@ -149,9 +203,6 @@
   "chatInput.send": {
     "defaultMessage": "Отправить"
   },
-  "chatInput.tooManyTools": {
-    "defaultMessage": "Слишком много инструментов может снизить производительность. Количество инструментов: {toolCount} (рекомендуется: {recommended})"
-  },
   "chatInput.transcribing": {
     "defaultMessage": "Расшифровка..."
   },
@@ -164,8 +215,8 @@
   "chatInput.viewEditRecipe": {
     "defaultMessage": "Просмотреть/изменить рецепт"
   },
-  "chatInput.viewExtensions": {
-    "defaultMessage": "Просмотреть расширения"
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "Ожидание завершения отмены"
   },
   "chatInput.waitingForImages": {
     "defaultMessage": "Ожидание сохранения изображений..."
@@ -352,54 +403,6 @@
   },
   "createEditRecipe.viewEditRecipeTitle": {
     "defaultMessage": "Просмотреть/изменить рецепт"
-  },
-  "createRecipeFromSession.analyzingTitle": {
-    "defaultMessage": "Анализ вашего разговора"
-  },
-  "createRecipeFromSession.cancel": {
-    "defaultMessage": "Отмена"
-  },
-  "createRecipeFromSession.createAndRunRecipe": {
-    "defaultMessage": "Создать и запустить рецепт"
-  },
-  "createRecipeFromSession.createRecipe": {
-    "defaultMessage": "Создать рецепт"
-  },
-  "createRecipeFromSession.creating": {
-    "defaultMessage": "Создание..."
-  },
-  "createRecipeFromSession.extractingInsights": {
-    "defaultMessage": "Извлечение сведений из вашего чата"
-  },
-  "createRecipeFromSession.failedToCreateDefaultMsg": {
-    "defaultMessage": "При создании рецепта произошла непредвиденная ошибка. Повторите попытку."
-  },
-  "createRecipeFromSession.failedToCreateTitle": {
-    "defaultMessage": "Не удалось создать рецепт"
-  },
-  "createRecipeFromSession.stageComplete": {
-    "defaultMessage": "Готово!"
-  },
-  "createRecipeFromSession.stageExtracting": {
-    "defaultMessage": "Извлечение основных тем..."
-  },
-  "createRecipeFromSession.stageFinalizing": {
-    "defaultMessage": "Завершение деталей..."
-  },
-  "createRecipeFromSession.stageGenerating": {
-    "defaultMessage": "Создание структуры рецепта..."
-  },
-  "createRecipeFromSession.stageIdentifying": {
-    "defaultMessage": "Определение ключевых шаблонов..."
-  },
-  "createRecipeFromSession.stageReading": {
-    "defaultMessage": "Чтение вашего разговора..."
-  },
-  "createRecipeFromSession.subtitle": {
-    "defaultMessage": "Создайте повторно используемый рецепт на основе текущего разговора."
-  },
-  "createRecipeFromSession.title": {
-    "defaultMessage": "Создать рецепт из сеанса"
   },
   "createSubRecipeInline.cancel": {
     "defaultMessage": "Отмена"
@@ -941,6 +944,9 @@
   "elicitationRequest.submit": {
     "defaultMessage": "Отправить"
   },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "This request is no longer active. The extension will need to ask again."
+  },
   "elicitationRequest.submitted": {
     "defaultMessage": "Информация отправлена"
   },
@@ -1181,6 +1187,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "По умолчанию goose запускает сервер за вас; используйте это для подключения к внешнему серверу goose"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "Чтобы изменения вступили в силу, требуется перезапуск Goose. Новые окна чата будут подключаться к внешнему серверу."
   },
@@ -1188,7 +1197,7 @@
     "defaultMessage": "Секретный ключ"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "Секретный ключ, настроенный на сервере goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "Секретный ключ, настроенный на сервере Goose (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Введите секретный ключ сервера"
@@ -1196,8 +1205,14 @@
   "externalBackendSection.serverUrl": {
     "defaultMessage": "URL сервера"
   },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
   "externalBackendSection.title": {
     "defaultMessage": "Сервер Goose"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "Неверный формат URL"
@@ -1210,96 +1225,6 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Подключиться к серверу goose, запущенному в другом месте (требуется перезапуск приложения)"
-  },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "Выберите вариант, чтобы начать."
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "Бесплатно и приватно"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "Скачайте модель и запускайте её полностью на своем компьютере. Без API-ключей и учетных записей."
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "Использовать локальную модель"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "Зарегистрируйтесь, чтобы получить 60 млн бесплатных токенов на 7 дней."
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "Повторить"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "Получите доступ к нескольким ИИ-моделям с автоматической настройкой. Зарегистрируйтесь, чтобы получить кредит $10."
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Agent Router by Tetrate"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "Во время настройки произошла непредвиденная ошибка."
-  },
-  "gatewaySettings.botFatherInstructions": {
-    "defaultMessage": "Откройте @BotFather на телефоне, отправьте /newbot и следуйте подсказкам, чтобы назвать бота. BotFather ответит API-токеном — вставьте его ниже."
-  },
-  "gatewaySettings.close": {
-    "defaultMessage": "Закрыть"
-  },
-  "gatewaySettings.expiresIn": {
-    "defaultMessage": "Истекает через {time}"
-  },
-  "gatewaySettings.failedToGeneratePairingCode": {
-    "defaultMessage": "Не удалось создать код подключения"
-  },
-  "gatewaySettings.failedToRemove": {
-    "defaultMessage": "Не удалось удалить"
-  },
-  "gatewaySettings.failedToStart": {
-    "defaultMessage": "Не удалось запустить"
-  },
-  "gatewaySettings.failedToStop": {
-    "defaultMessage": "Не удалось остановить"
-  },
-  "gatewaySettings.failedToUnpairUser": {
-    "defaultMessage": "Не удалось отменить подключение пользователя"
-  },
-  "gatewaySettings.loading": {
-    "defaultMessage": "Загрузка..."
-  },
-  "gatewaySettings.pairDevice": {
-    "defaultMessage": "Подключить устройство"
-  },
-  "gatewaySettings.pairedUsers": {
-    "defaultMessage": "Подключенные пользователи"
-  },
-  "gatewaySettings.pairingCode": {
-    "defaultMessage": "Код подключения"
-  },
-  "gatewaySettings.pasteBotToken": {
-    "defaultMessage": "Вставьте токен бота здесь"
-  },
-  "gatewaySettings.remove": {
-    "defaultMessage": "Удалить"
-  },
-  "gatewaySettings.running": {
-    "defaultMessage": "Выполняется"
-  },
-  "gatewaySettings.sendCodeToPair": {
-    "defaultMessage": "Отправьте этот код вашему боту {gatewayType} для подключения."
-  },
-  "gatewaySettings.start": {
-    "defaultMessage": "Запустить"
-  },
-  "gatewaySettings.stop": {
-    "defaultMessage": "Остановить"
-  },
-  "gatewaySettings.stopped": {
-    "defaultMessage": "Остановлено"
-  },
-  "gatewaySettings.telegram": {
-    "defaultMessage": "Telegram"
   },
   "goosehintsModal.close": {
     "defaultMessage": "Закрыть"
@@ -1465,6 +1390,21 @@
   },
   "huggingFaceModelSearch.tooLarge": {
     "defaultMessage": "Может не поместиться в память (модель {size}, доступно {available})"
+  },
+  "huggingFaceSignInPrompt.failedToConfigure": {
+    "defaultMessage": "Не удалось войти в Hugging Face: {error}"
+  },
+  "huggingFaceSignInPrompt.signIn": {
+    "defaultMessage": "Войти"
+  },
+  "huggingFaceSignInPrompt.signedIn": {
+    "defaultMessage": "Вход в Hugging Face выполнен"
+  },
+  "huggingFaceSignInPrompt.signingIn": {
+    "defaultMessage": "Выполняется вход..."
+  },
+  "huggingFaceSignInPrompt.title": {
+    "defaultMessage": "Hugging Face"
   },
   "imagePreview.altText": {
     "defaultMessage": "изображение goose"
@@ -1787,8 +1727,14 @@
   "localInferenceSettings.description": {
     "defaultMessage": "Скачивайте и управляйте локальными LLM-моделями для инференса без API-ключей. Ищите любые GGUF-модели на HuggingFace или используйте подборку ниже."
   },
+  "localInferenceSettings.dismiss": {
+    "defaultMessage": "Скрыть"
+  },
   "localInferenceSettings.download": {
     "defaultMessage": "Скачать"
+  },
+  "localInferenceSettings.downloadCancelled": {
+    "defaultMessage": "Скачивание отменено"
   },
   "localInferenceSettings.downloadFailed": {
     "defaultMessage": "Скачивание не удалось"
@@ -1802,8 +1748,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Скачивание"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Рекомендуемые модели"
+  },
+  "localInferenceSettings.huggingFaceSignInNote": {
+    "defaultMessage": "Войдите, чтобы увеличить лимиты запросов при поиске и загрузке моделей, а также получить доступ к приватным или ограниченным репозиториям Hugging Face."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Настройки модели"
@@ -1819,6 +1774,9 @@
   },
   "localInferenceSettings.remaining": {
     "defaultMessage": "осталось {time}"
+  },
+  "localInferenceSettings.retry": {
+    "defaultMessage": "Повторить"
   },
   "localInferenceSettings.showAllFeatured": {
     "defaultMessage": "Показать все рекомендуемые (ещё {count})"
@@ -1867,9 +1825,6 @@
   },
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "Показывать только рекомендуемые"
-  },
-  "localModelPicker.back": {
-    "defaultMessage": "Назад"
   },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "Лучше всего для вашего компьютера"
@@ -1994,30 +1949,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Воспроизведение в режиме «картинка в картинке»"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "Отмена"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "Открыть"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Открыть внешнюю ссылку"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "Будет открыто: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "Открыть ссылку {protocol}?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "Получено сообщение для {message}."
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "Сообщение MCP-UI {messageType}"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "Получено сообщение для {message}. Сообщения {messageType} пока не поддерживаются; подробности смотрите в консоли."
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count, plural, one {Найден # элемент} few {Найдено # элемента} many {Найдено # элементов} other {Найдено # элемента}}"
   },
@@ -2098,6 +2029,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "ожидание"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent}% от ввода)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "чтение кэша"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "запись кэша"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Сжатие"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Стоимость"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(оценочно)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Первый токен"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Ввод"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Вывод"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(заявлено)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Скорость"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Всего"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Общее время"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Выберите микрофон для диктовки"
@@ -2183,24 +2159,6 @@
   "modelSettingsPanel.batchSizeDescription": {
     "defaultMessage": "Пакет обработки промпта"
   },
-  "modelSettingsPanel.contextAndGeneration": {
-    "defaultMessage": "Контекст и генерация"
-  },
-  "modelSettingsPanel.contextSize": {
-    "defaultMessage": "Размер контекста"
-  },
-  "modelSettingsPanel.contextSizeDescription": {
-    "defaultMessage": "Максимальное контекстное окно (0 = по умолчанию модели)"
-  },
-  "modelSettingsPanel.etaLearningRate": {
-    "defaultMessage": "Eta (скорость обучения)"
-  },
-  "modelSettingsPanel.flashAttention": {
-    "defaultMessage": "Flash attention"
-  },
-  "modelSettingsPanel.flashAttentionDescription": {
-    "defaultMessage": "Включить оптимизацию flash attention"
-  },
   "modelSettingsPanel.builtinChatTemplate": {
     "defaultMessage": "Встроенный шаблон"
   },
@@ -2222,26 +2180,29 @@
   "modelSettingsPanel.chatTemplateEmbedded": {
     "defaultMessage": "Встроенный"
   },
+  "modelSettingsPanel.contextAndGeneration": {
+    "defaultMessage": "Контекст и генерация"
+  },
+  "modelSettingsPanel.contextSize": {
+    "defaultMessage": "Размер контекста"
+  },
+  "modelSettingsPanel.contextSizeDescription": {
+    "defaultMessage": "Максимальное контекстное окно (0 = по умолчанию модели)"
+  },
   "modelSettingsPanel.customChatTemplate": {
     "defaultMessage": "Пользовательский шаблон чата"
   },
   "modelSettingsPanel.customChatTemplateDescription": {
     "defaultMessage": "Вставьте полный исходный код шаблона Jinja"
   },
-  "modelSettingsPanel.toolCalling": {
-    "defaultMessage": "Вызов инструментов"
+  "modelSettingsPanel.etaLearningRate": {
+    "defaultMessage": "Eta (скорость обучения)"
   },
-  "modelSettingsPanel.toolCallingAuto": {
-    "defaultMessage": "Авто"
+  "modelSettingsPanel.flashAttention": {
+    "defaultMessage": "Flash attention"
   },
-  "modelSettingsPanel.toolCallingDescription": {
-    "defaultMessage": "Выберите, как локальные модели используют нативный или эмулируемый вызов инструментов"
-  },
-  "modelSettingsPanel.toolCallingForceEmulated": {
-    "defaultMessage": "Принудительно эмулируемый"
-  },
-  "modelSettingsPanel.toolCallingForceNative": {
-    "defaultMessage": "Принудительно нативный"
+  "modelSettingsPanel.flashAttentionDescription": {
+    "defaultMessage": "Включить оптимизацию flash attention"
   },
   "modelSettingsPanel.frequencyPenalty": {
     "defaultMessage": "Штраф частоты"
@@ -2324,6 +2285,21 @@
   "modelSettingsPanel.threadsDescription": {
     "defaultMessage": "Потоки CPU для генерации"
   },
+  "modelSettingsPanel.toolCalling": {
+    "defaultMessage": "Вызов инструментов"
+  },
+  "modelSettingsPanel.toolCallingAuto": {
+    "defaultMessage": "Авто"
+  },
+  "modelSettingsPanel.toolCallingDescription": {
+    "defaultMessage": "Выберите, как локальные модели используют нативный или эмулируемый вызов инструментов"
+  },
+  "modelSettingsPanel.toolCallingForceEmulated": {
+    "defaultMessage": "Принудительно эмулируемый"
+  },
+  "modelSettingsPanel.toolCallingForceNative": {
+    "defaultMessage": "Принудительно нативный"
+  },
   "modelSettingsPanel.topK": {
     "defaultMessage": "Top K"
   },
@@ -2384,11 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Чаты"
   },
-  "navigationPanel.collapseSidebar": {
-    "defaultMessage": "Свернуть боковую панель"
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Создано"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Каталог"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Модель"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Статус"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Обновлено"
   },
   "navigationPanel.noChats": {
     "defaultMessage": "Нет недавних чатов"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Ошибка"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Ожидание"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Потоковая передача"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Непрочитанная активность"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Безымянный сеанс"
@@ -2801,6 +2801,9 @@
   "providerConfigurationModal.goBack": {
     "defaultMessage": "Назад"
   },
+  "providerConfigurationModal.huggingFaceOAuthDescription": {
+    "defaultMessage": "Войдите, чтобы использовать Hugging Face Inference Providers без ручного ввода API-токена."
+  },
   "providerConfigurationModal.oauthLoginFailed": {
     "defaultMessage": "Вход OAuth не удался: {error}"
   },
@@ -2840,6 +2843,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Из шаблона или вручную"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Нет провайдеров, соответствующих \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Поиск провайдеров..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "Логотип {providerName}"
   },
@@ -2855,14 +2864,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "Подключите OpenAI, Anthropic, Google и т. д."
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "Используйте локальную модель или провайдера с бесплатными кредитами"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "Скачайте модель и запускайте её полностью на своем компьютере. Без API-ключей и учетных записей."
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "Выберите провайдера"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "Использовать бесплатных/локальных провайдеров"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "Использовать локальную модель"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "Настройки конфигурации провайдера"
@@ -3043,12 +3052,6 @@
   },
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "Использовать провайдера по умолчанию"
-  },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "Имя рецепта"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "Будет автоматически отформатировано (нижний регистр, дефисы вместо пробелов)"
   },
   "recipeWarningModal.cancel": {
     "defaultMessage": "Отмена"
@@ -3281,6 +3284,9 @@
   "scheduleDetailView.cannotModifyRunning": {
     "defaultMessage": "Нельзя запускать или изменять расписание, пока оно выполняется."
   },
+  "scheduleDetailView.completedSession": {
+    "defaultMessage": "Сеанс: {sessionId}"
+  },
   "scheduleDetailView.created": {
     "defaultMessage": "Создано: {date}"
   },
@@ -3301,9 +3307,6 @@
   },
   "scheduleDetailView.errorPrefix": {
     "defaultMessage": "Ошибка: {error}"
-  },
-  "scheduleDetailView.failedToLoadSession": {
-    "defaultMessage": "Не удалось загрузить сеанс"
   },
   "scheduleDetailView.idLabel": {
     "defaultMessage": "ID:"
@@ -3347,9 +3350,6 @@
   "scheduleDetailView.messages": {
     "defaultMessage": "Сообщений: {count}"
   },
-  "scheduleDetailView.newSession": {
-    "defaultMessage": "Новый сеанс: {sessionId}"
-  },
   "scheduleDetailView.noScheduleId": {
     "defaultMessage": "ID расписания не указан. Вернитесь к списку расписаний."
   },
@@ -3386,6 +3386,9 @@
   "scheduleDetailView.runScheduleNow": {
     "defaultMessage": "Запустить расписание сейчас"
   },
+  "scheduleDetailView.scheduleCompleted": {
+    "defaultMessage": "Запуск завершен"
+  },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "Детали расписания"
   },
@@ -3404,9 +3407,6 @@
   "scheduleDetailView.schedulePaused": {
     "defaultMessage": "Расписание приостановлено"
   },
-  "scheduleDetailView.scheduleTriggered": {
-    "defaultMessage": "Расписание запущено"
-  },
   "scheduleDetailView.scheduleUnpaused": {
     "defaultMessage": "Расписание возобновлено"
   },
@@ -3415,9 +3415,6 @@
   },
   "scheduleDetailView.sessionId": {
     "defaultMessage": "ID сеанса: {id}"
-  },
-  "scheduleDetailView.tokens": {
-    "defaultMessage": "Токенов: {count}"
   },
   "scheduleDetailView.unpauseSchedule": {
     "defaultMessage": "Возобновить расписание"
@@ -3659,6 +3656,9 @@
   "securityToggle.mlTokenDescription": {
     "defaultMessage": "Токен аутентификации для ML-сервиса (например, токен HuggingFace)"
   },
+  "securityToggle.overrideNotice": {
+    "defaultMessage": "Этот параметр управляется вашей организацией и не может быть изменен."
+  },
   "securityToggle.promptInjectionDescription": {
     "defaultMessage": "Обнаруживать и предотвращать потенциальные атаки prompt injection"
   },
@@ -3668,56 +3668,86 @@
   "securityToggle.thresholdDescription": {
     "defaultMessage": "Чем выше значение, тем строже проверка (0.01 = очень мягко, 1.0 = максимально строго)"
   },
-  "sessionHistory.cancel": {
-    "defaultMessage": "Отмена"
+  "securityToggle.warpNotice": {
+    "defaultMessage": "Обнаружение внедрения команд работает лучше всего при подключении к WARP (требуется для доступа к сервису классификации)."
   },
-  "sessionHistory.copy": {
-    "defaultMessage": "Копировать"
+  "sessionActionsHeader.actionsLabel": {
+    "defaultMessage": "Session actions"
   },
-  "sessionHistory.empty.description": {
-    "defaultMessage": "Этот сеанс не содержит сообщений"
+  "sessionActionsHeader.cancel": {
+    "defaultMessage": "Cancel"
   },
-  "sessionHistory.empty.title": {
-    "defaultMessage": "Сообщения не найдены"
+  "sessionActionsHeader.close": {
+    "defaultMessage": "Close"
   },
-  "sessionHistory.error.loading": {
-    "defaultMessage": "Ошибка загрузки сведений о сеансе"
+  "sessionActionsHeader.copiedJson": {
+    "defaultMessage": "Session JSON copied"
   },
-  "sessionHistory.error.tryAgain": {
-    "defaultMessage": "Повторить попытку"
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
   },
-  "sessionHistory.loading": {
-    "defaultMessage": "Загрузка сведений о сеансе..."
+  "sessionActionsHeader.copiedText": {
+    "defaultMessage": "Text copied"
   },
-  "sessionHistory.resume": {
-    "defaultMessage": "Продолжить"
+  "sessionActionsHeader.copyJson": {
+    "defaultMessage": "Copy JSON"
   },
-  "sessionHistory.searchPlaceholder": {
-    "defaultMessage": "Поиск по истории..."
+  "sessionActionsHeader.copyText": {
+    "defaultMessage": "Copy text"
   },
-  "sessionHistory.share": {
-    "defaultMessage": "Поделиться"
+  "sessionActionsHeader.duplicateFailed": {
+    "defaultMessage": "Failed to duplicate session: {error}"
   },
-  "sessionHistory.shareModal.description": {
-    "defaultMessage": "Поделитесь ссылкой на этот сеанс, чтобы другие могли просматривать ваш чат goose только для чтения."
+  "sessionActionsHeader.duplicateSession": {
+    "defaultMessage": "Duplicate session"
   },
-  "sessionHistory.shareModal.title": {
-    "defaultMessage": "Поделиться сеансом (бета)"
+  "sessionActionsHeader.duplicated": {
+    "defaultMessage": "Session duplicated"
   },
-  "sessionHistory.shareTooltip": {
-    "defaultMessage": "Чтобы включить общий доступ к сеансам, перейдите в <b>Настройки</b> > <b>Сеанс</b> > <b>Общий доступ к сеансам</b>."
+  "sessionActionsHeader.fullTextTitle": {
+    "defaultMessage": "Text value"
   },
-  "sessionHistory.sharing": {
-    "defaultMessage": "Публикация..."
+  "sessionActionsHeader.jsonFailed": {
+    "defaultMessage": "Failed to load session JSON: {error}"
   },
-  "sessionHistory.toast.copyFailed": {
-    "defaultMessage": "Не удалось скопировать ссылку в буфер обмена"
+  "sessionActionsHeader.jsonTitle": {
+    "defaultMessage": "Session JSON"
   },
-  "sessionHistory.toast.launchFailed": {
-    "defaultMessage": "Не удалось запустить сеанс: {error}"
+  "sessionActionsHeader.loadingJson": {
+    "defaultMessage": "Loading JSON..."
   },
-  "sessionHistory.toast.shareFailed": {
-    "defaultMessage": "Не удалось поделиться сеансом: {error}"
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
+  "sessionActionsHeader.renameFailed": {
+    "defaultMessage": "Failed to rename session: {error}"
+  },
+  "sessionActionsHeader.renamePlaceholder": {
+    "defaultMessage": "Enter session name"
+  },
+  "sessionActionsHeader.renameSession": {
+    "defaultMessage": "Rename session"
+  },
+  "sessionActionsHeader.renameTitle": {
+    "defaultMessage": "Rename Session"
+  },
+  "sessionActionsHeader.renamed": {
+    "defaultMessage": "Session renamed"
+  },
+  "sessionActionsHeader.save": {
+    "defaultMessage": "Save"
+  },
+  "sessionActionsHeader.saving": {
+    "defaultMessage": "Saving..."
+  },
+  "sessionActionsHeader.viewJson": {
+    "defaultMessage": "View session JSON"
+  },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
   },
   "sessionIndicators.error": {
     "defaultMessage": "В сеансе возникла ошибка"
@@ -3727,78 +3757,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Потоковая передача"
-  },
-  "sessionItem.messageCount": {
-    "defaultMessage": "Сообщений: {count}"
-  },
-  "sessionSharingSection.alreadyConfigured": {
-    "defaultMessage": "Общий доступ к сеансам уже настроен"
-  },
-  "sessionSharingSection.baseUrl": {
-    "defaultMessage": "Базовый URL"
-  },
-  "sessionSharingSection.connectionFailed": {
-    "defaultMessage": "Соединение не удалось."
-  },
-  "sessionSharingSection.connectionSuccess": {
-    "defaultMessage": "Соединение успешно!"
-  },
-  "sessionSharingSection.connectionTimedOut": {
-    "defaultMessage": "Время соединения истекло. Сервер может быть медленным или недоступным."
-  },
-  "sessionSharingSection.descriptionConfigured": {
-    "defaultMessage": "Общий доступ к сеансам настроен, но полностью доброволен — сеансы публикуются только когда вы явно нажимаете кнопку «Поделиться»."
-  },
-  "sessionSharingSection.descriptionDefault": {
-    "defaultMessage": "Вы можете включить общий доступ к сеансам, чтобы делиться ими с другими."
-  },
-  "sessionSharingSection.enableSharing": {
-    "defaultMessage": "Включить общий доступ к сеансам"
-  },
-  "sessionSharingSection.invalidUrl": {
-    "defaultMessage": "Неверный формат URL. Введите корректный URL (например, https://example.com/api)."
-  },
-  "sessionSharingSection.serverError": {
-    "defaultMessage": "Ошибка сервера: HTTP {status}. Возможно, сервер настроен неверно."
-  },
-  "sessionSharingSection.testConnection": {
-    "defaultMessage": "Проверить соединение"
-  },
-  "sessionSharingSection.testing": {
-    "defaultMessage": "Проверка..."
-  },
-  "sessionSharingSection.testingConnection": {
-    "defaultMessage": "Проверка соединения..."
-  },
-  "sessionSharingSection.title": {
-    "defaultMessage": "Общий доступ к сеансам"
-  },
-  "sessionSharingSection.unknownError": {
-    "defaultMessage": "Произошла неизвестная ошибка."
-  },
-  "sessionSharingSection.unreachableServer": {
-    "defaultMessage": "Не удалось связаться с сервером. Проверьте URL и сетевое подключение."
-  },
-  "sessionSharingSection.urlPlaceholder": {
-    "defaultMessage": "https://example.com/api"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Этот сеанс не содержит сообщений"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "Сообщения не найдены"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Ошибка загрузки сведений о сеансе"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Повторить попытку"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "Вы"
   },
   "sessions.action.delete": {
     "defaultMessage": "Удалить сеанс"
@@ -3811,6 +3769,12 @@
   },
   "sessions.action.export": {
     "defaultMessage": "Экспортировать сеанс"
+  },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
   },
   "sessions.action.openNewWindow": {
     "defaultMessage": "Открыть в новом окне"
@@ -3853,9 +3817,6 @@
   },
   "sessions.error.tryAgain": {
     "defaultMessage": "Повторить попытку"
-  },
-  "sessions.extensions": {
-    "defaultMessage": "Расширения:"
   },
   "sessions.import": {
     "defaultMessage": "Импортировать сеанс"
@@ -3914,6 +3875,9 @@
   "sessions.toast.duplicated": {
     "defaultMessage": "Сеанс «{name}» успешно дублирован"
   },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "Не удалось экспортировать сеанс: {error}"
+  },
   "sessions.toast.exported": {
     "defaultMessage": "Сеанс успешно экспортирован"
   },
@@ -3934,12 +3898,6 @@
   },
   "sessions.toast.updated": {
     "defaultMessage": "Описание сеанса успешно обновлено"
-  },
-  "sessionsView.error.failedToLoad": {
-    "defaultMessage": "Не удалось загрузить сведения о сеансе. Повторите попытку позже."
-  },
-  "sessionsView.loading": {
-    "defaultMessage": "Загрузка..."
   },
   "settings.appearance.description": {
     "defaultMessage": "Настройте, как goose отображается в вашей системе"
@@ -3973,6 +3931,63 @@
   },
   "settings.help.title": {
     "defaultMessage": "Помощь и отзывы"
+  },
+  "settings.language.description": {
+    "defaultMessage": "Выберите язык интерфейса goose"
+  },
+  "settings.language.english": {
+    "defaultMessage": "Английский"
+  },
+  "settings.language.french": {
+    "defaultMessage": "Французский"
+  },
+  "settings.language.german": {
+    "defaultMessage": "Немецкий"
+  },
+  "settings.language.hindi": {
+    "defaultMessage": "Хинди"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "Индонезийский"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "Итальянский"
+  },
+  "settings.language.japanese": {
+    "defaultMessage": "Японский"
+  },
+  "settings.language.korean": {
+    "defaultMessage": "Корейский"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "Малайский"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "Португальский"
+  },
+  "settings.language.russian": {
+    "defaultMessage": "Русский"
+  },
+  "settings.language.spanish": {
+    "defaultMessage": "Испанский"
+  },
+  "settings.language.systemDefault": {
+    "defaultMessage": "Системный язык"
+  },
+  "settings.language.title": {
+    "defaultMessage": "Язык"
+  },
+  "settings.language.turkish": {
+    "defaultMessage": "Турецкий"
+  },
+  "settings.language.vietnamese": {
+    "defaultMessage": "Вьетнамский"
+  },
+  "settings.language.zhCN": {
+    "defaultMessage": "Китайский (упрощенный)"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "Китайский (традиционный)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Показывать goose в строке меню"
@@ -4055,8 +4070,14 @@
   "settingsView.tabApp": {
     "defaultMessage": "Приложение"
   },
+  "settingsView.tabAuth": {
+    "defaultMessage": "Авторизация"
+  },
   "settingsView.tabChat": {
     "defaultMessage": "Чат"
+  },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Внешний бэкенд"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Клавиатура"
@@ -4070,20 +4091,8 @@
   "settingsView.tabPrompts": {
     "defaultMessage": "Промпты"
   },
-  "settingsView.tabSession": {
-    "defaultMessage": "Сеанс"
-  },
   "settingsView.title": {
     "defaultMessage": "Настройки"
-  },
-  "sharedSession.loading": {
-    "defaultMessage": "Загрузка сведений о сеансе..."
-  },
-  "sharedSession.title": {
-    "defaultMessage": "Общий сеанс"
-  },
-  "sheet.close": {
-    "defaultMessage": "Закрыть"
   },
   "shortcutRecorder.cancel": {
     "defaultMessage": "Отмена"
@@ -4150,15 +4159,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "Провайдер {name} настроен"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Приложение Ollama"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "Для использования либо"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "должно быть установлено на вашем компьютере и открыто, либо нужно ввести значение для OLLAMA_HOST."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "Добавить существующий"
@@ -4451,6 +4451,9 @@
   "toolApprovalButtons.deny": {
     "defaultMessage": "Отклонить"
   },
+  "toolApprovalButtons.staleApprovalRequest": {
+    "defaultMessage": "This approval request is no longer active."
+  },
   "toolCallStatusIndicator.toolStatus": {
     "defaultMessage": "Статус инструмента: {status}"
   },
@@ -4465,9 +4468,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "Журналы"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP UI является экспериментальным и может измениться в любой момент."
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "Вывод"
@@ -4487,98 +4487,14 @@
   "toolConfirmation.gooseWouldLikeToCallWithName": {
     "defaultMessage": "Goose хочет вызвать {toolName}. Разрешить?"
   },
-  "tunnelSection.appStoreQrInstructions": {
-    "defaultMessage": "Отсканируйте этот QR-код камерой iPhone, чтобы установить мобильное приложение goose из App Store"
-  },
-  "tunnelSection.close": {
-    "defaultMessage": "Закрыть"
-  },
-  "tunnelSection.connectionDetails": {
-    "defaultMessage": "Сведения о подключении"
-  },
-  "tunnelSection.downloadIosApp": {
-    "defaultMessage": "Скачать приложение goose для iOS"
-  },
-  "tunnelSection.failedToLoadStatus": {
-    "defaultMessage": "Не удалось загрузить статус туннеля"
-  },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "Не удалось запустить туннель"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "Не удалось остановить туннель"
-  },
-  "tunnelSection.getIosApp": {
-    "defaultMessage": "Получить приложение iOS"
-  },
-  "tunnelSection.mobileApp": {
-    "defaultMessage": "Мобильное приложение"
-  },
-  "tunnelSection.mobileAppConnection": {
-    "defaultMessage": "Подключение мобильного приложения"
-  },
-  "tunnelSection.openInAppStore": {
-    "defaultMessage": "Открыть в App Store"
-  },
-  "tunnelSection.or": {
-    "defaultMessage": "или"
-  },
-  "tunnelSection.previewDescription": {
-    "defaultMessage": "Включите удаленный доступ к goose с мобильных устройств через защищенное туннелирование."
-  },
-  "tunnelSection.previewFeature": {
-    "defaultMessage": "Предварительная функция:"
-  },
-  "tunnelSection.qrCodeInstructions": {
-    "defaultMessage": "Отсканируйте этот QR-код мобильным приложением goose. Не делитесь этим кодом: он предназначен для вашего личного доступа."
-  },
-  "tunnelSection.retry": {
-    "defaultMessage": "Повторить"
-  },
-  "tunnelSection.scanQrCode": {
-    "defaultMessage": "сканировать QR-код"
-  },
-  "tunnelSection.secretKey": {
-    "defaultMessage": "Секретный ключ"
-  },
-  "tunnelSection.showQrCode": {
-    "defaultMessage": "Показать QR-код"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "Запустить туннель"
-  },
-  "tunnelSection.starting": {
-    "defaultMessage": "Запуск..."
-  },
-  "tunnelSection.statusDisabled": {
-    "defaultMessage": "Туннель отключен"
-  },
-  "tunnelSection.statusError": {
-    "defaultMessage": "В туннеле возникла ошибка"
-  },
-  "tunnelSection.statusIdle": {
-    "defaultMessage": "Туннель не запущен"
-  },
-  "tunnelSection.statusRunning": {
-    "defaultMessage": "Туннель активен"
-  },
-  "tunnelSection.statusStarting": {
-    "defaultMessage": "Запуск туннеля..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "Остановить туннель"
-  },
-  "tunnelSection.tunnelStatus": {
-    "defaultMessage": "Статус туннеля"
-  },
-  "tunnelSection.tunnelUrl": {
-    "defaultMessage": "URL туннеля"
-  },
-  "tunnelSection.url": {
-    "defaultMessage": "URL:"
-  },
   "updateSection.autoDownload": {
     "defaultMessage": "Обновление будет автоматически скачано в фоновом режиме."
+  },
+  "updateSection.autoDownloadDisabledByEnv": {
+    "defaultMessage": "Автоматическая загрузка отключена через переменную окружения GOOSE_DISABLE_AUTO_DOWNLOAD."
+  },
+  "updateSection.autoDownloadDisabledNote": {
+    "defaultMessage": "Автоматическая загрузка отключена. Нажмите «Скачать сейчас», чтобы загрузить вручную."
   },
   "updateSection.autoInstallNote": {
     "defaultMessage": "Обновление будет установлено автоматически при выходе из приложения."
@@ -4591,6 +4507,15 @@
   },
   "updateSection.currentVersion": {
     "defaultMessage": "Текущая версия"
+  },
+  "updateSection.disableAutoDownload": {
+    "defaultMessage": "Отключить автоматическую загрузку обновлений"
+  },
+  "updateSection.disableAutoDownloadDesc": {
+    "defaultMessage": "Когда включено, Goose будет уведомлять о новых версиях, но не будет загружать их автоматически."
+  },
+  "updateSection.downloadNow": {
+    "defaultMessage": "Скачать сейчас"
   },
   "updateSection.downloadReady": {
     "defaultMessage": "Обновление скачано и готово к установке!"
@@ -4649,6 +4574,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Изменить"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Прикрепленные изображения:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "Изменить на месте"
   },
@@ -4681,5 +4609,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Создать новый сеанс с измененным сообщением"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Удалить изображение из сообщения"
   }
 }

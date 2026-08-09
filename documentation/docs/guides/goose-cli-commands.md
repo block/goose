@@ -8,7 +8,7 @@ toc_max_heading_level: 4
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-goose provides a command-line interface (CLI) with several commands for managing sessions, configurations and extensions. This guide covers all available CLI commands and interactive session features.
+goose provides a command-line interface (CLI) with commands for managing sessions, configurations and extensions. This guide covers the main CLI commands and interactive session features.
 
 ## Flag Naming Conventions
 
@@ -206,6 +206,7 @@ Start or resume interactive chat sessions.
 - **`-n, --name <name>`**: Give the session a name
 - **`--path <path>`**: Legacy parameter for specifying session by file path
 - **`-r, --resume`**: Resume a previous session
+- **`--edit`**: Open the session's conversation in your editor (`$VISUAL` / `$EDITOR` / `vi`) as YAML. Edit, trim, or rewrite messages, then save and close to continue the session with the edited conversation. Must be used with `--resume`. Can be combined with `--fork` to create a new session from the edited result.
 - **`--fork`**: Create a new duplicate session with copied history. Must be used with `--resume`. Provide `--name` or `--session-id` to fork a specific session. Otherwise, forks the most recent session.
 - **`--history`**: Show previous messages when resuming a session
 - **`--container <container_id>`**: Run extensions inside a [Docker container](/docs/tutorials/goose-in-docker#running-extensions-in-docker-containers).
@@ -234,6 +235,12 @@ goose session --resume --fork --name my-project
 
 # Fork the most recent session and show message history
 goose session --resume --fork --history
+
+# Edit a session's conversation in your editor
+goose session --resume --session-id 20251108_2 --edit
+
+# Edit and fork — create a new session from the edited conversation
+goose session --resume --session-id 20251108_2 --fork --edit --history
 
 # Start with extensions
 goose session --with-extension "npx -y @modelcontextprotocol/server-memory"
@@ -351,13 +358,13 @@ goose session export --path ./my-session.jsonl -o exported.md
 ---
 
 #### session diagnostics [options]
-Generate a comprehensive diagnostics bundle for troubleshooting issues with a specific session.
+Generate a comprehensive diagnostics JSON report for troubleshooting issues with a specific session.
 
 **Options:**
 - **`--session-id <session_id>`**: Generate diagnostics for a specific session by ID
 - **`-n, --name <name>`**: Generate diagnostics for a specific session by name
 - **`--path <path>`**: Generate diagnostics for a specific session by file path (legacy)
-- **`-o, --output <file>`**: Save diagnostics bundle to a specific file path (default: `diagnostics_{session_id}.zip`)
+- **`-o, --output <file>`**: Save diagnostics report to a specific file path (default: `diagnostics_{session_id}.json`)
 
 **What's included:**
 - **System Information**: App version, operating system, architecture, and timestamp
@@ -374,18 +381,18 @@ goose session diagnostics --session-id 20251108_5
 goose session diagnostics -n my-project-session
 
 # Save diagnostics to a custom location
-goose session diagnostics --session-id 20251108_5 -o /path/to/my-diagnostics.zip
+goose session diagnostics --session-id 20251108_5 -o /path/to/my-diagnostics.json
 
 # Interactive selection (prompts you to choose a session)
 goose session diagnostics
 ```
 
 :::warning Privacy Notice
-Diagnostics bundles contain your session messages and system information. If your session includes sensitive data (API keys, personal information, proprietary code), review the contents before sharing publicly.
+Diagnostics reports contain your session messages and system information. If your session includes sensitive data (API keys, personal information, proprietary code), review the contents before sharing publicly.
 :::
 
 :::tip
-Generate diagnostics before reporting bugs to provide technical details that help with faster resolution. The ZIP file can be attached to GitHub issues or shared with support.
+Generate diagnostics before reporting bugs to provide technical details that help with faster resolution. The JSON file can be attached to GitHub issues or shared with support.
 :::
 
 ---
@@ -455,6 +462,51 @@ goose run --provider anthropic --model claude-4-sonnet -t "initial prompt"
 
 # Run with limited turns before prompting user
 goose run --recipe recipe.yaml --max-turns 10
+```
+
+---
+
+#### review [options] [range]
+Review the current git diff using goose. By default, `goose review` reviews the working tree against `HEAD`; pass a range such as `main...HEAD` to review a specific diff.
+
+`goose review` can discover review checks from `.agents/checks/*.md` and scoped review instructions from `.agents/REVIEW.md`.
+
+**Options:**
+- **`--prompt <FILE>`**: Use a custom base review prompt
+- **`--model <MODEL>`**: Set the default model for the main review agent and checks that do not declare their own model
+- **`--provider <PROVIDER>`**: Set the provider for the main review agent
+- **`--override-model <MODEL>`**: Force every discovered check to use this model
+- **`--turn-limit <N>`**: Set the default turn limit for orchestrated review subprocesses and checks
+- **`--dry-run`**: Print the assembled review prompt and discovered checks without running the review
+- **`-q, --quiet`**: Suppress non-result output from the underlying agent
+- **`--no-orchestrate`**: Disable the default Rust-driven parallel orchestrator and use the single-prompt path
+- **`-i, --instructions <TEXT>`**: Add free-form review instructions
+- **`-f, --files <FILE>...`**: Restrict the review to specific files
+- **`-c, --check-filter <NAME>...`**: Run only checks with matching names
+- **`-s, --check-scope <DIR>`**: Search a specific directory for `.agents/checks/*.md`
+- **`--checks-only`**: Skip the main correctness pass and run only check subagents
+- **`--summary-only`**: Print only the diff summary
+- **`--severity <LEVEL>`**: Minimum severity to display. Defaults to `medium`; use `low` to show every finding
+
+**Usage:**
+```bash
+# Review the working tree against HEAD
+goose review
+
+# Review a branch range
+goose review main...HEAD
+
+# Add review intent
+goose review --instructions "This is a refactor; flag behavior changes"
+
+# Review only selected files
+goose review --files crates/goose/src/agents/agent.rs documentation/docs/guides/goose-cli-commands.md
+
+# Preview the assembled prompt and discovered checks
+goose review --dry-run
+
+# Run only named checks
+goose review --check-filter security performance --checks-only
 ```
 
 ---
@@ -531,6 +583,52 @@ Installed plugins are stored under `~/.agents/plugins/<plugin-name>/`. For more 
 
 ---
 
+#### skills
+List skills available to the goose agent.
+
+**Commands:**
+- **`list`**: List installed and discoverable skills, including token counts and source locations
+
+**Usage:**
+```bash
+goose skills list
+```
+
+---
+
+#### local-models
+Search, download, list, and delete local inference models.
+
+:::info
+This command is available in goose builds that include local inference support.
+:::
+
+**Commands:**
+- **`search <QUERY>`**: Search Hugging Face for compatible GGUF and MLX models
+  - **`-l, --limit <NUMBER>`**: Maximum number of results to show. Defaults to `10`
+- **`download <SPEC>`**: Download and register a model from a search result, such as `user/repo:Q4_K_M`
+- **`list`**: List downloaded local models
+- **`delete <ID>`**: Delete a downloaded local model
+
+**Alias:** `lm`
+
+**Usage:**
+```bash
+# Search for local models
+goose local-models search qwen --limit 5
+
+# Download a model from a search result
+goose local-models download 'user/repo:Q4_K_M'
+
+# List downloaded models
+goose local-models list
+
+# Delete a downloaded model
+goose local-models delete user/repo:Q4_K_M
+```
+
+---
+
 #### schedule
 Automate recipes by running them on a [schedule](/docs/guides/recipes/session-recipes.md#schedule-recipe).
 
@@ -585,6 +683,9 @@ Run goose as an Agent Client Protocol (ACP) agent server over stdio. This enable
 
 ACP is an emerging protocol specification that standardizes communication between AI agents and client applications, making it easier for clients to integrate with various AI agents.
 
+**Options:**
+- **`--enable-scheduler`**: Enable scheduled recipe execution. Disabled by default.
+
 **Usage:**
 ```bash
 goose acp
@@ -596,36 +697,75 @@ This command is automatically invoked by ACP-compatible clients and is not typic
 
 ---
 
-### Project Management
+#### serve [options]
+Start goose as an Agent Client Protocol (ACP) server over HTTP and WebSocket.
 
-#### project
-Start working on your last project or create a new one. For detailed usage examples and workflows, see [Managing Projects Guide](/docs/guides/managing-projects).
-
-**Alias**: `p`
-
-**Usage:**
-```bash
-goose project
-```
-
----
-
-#### projects
-Choose one of your projects to start working on.
-
-**Alias**: `ps`
+**Options:**
+- **`--host <HOST>`**: Host to bind to. Defaults to `127.0.0.1`
+- **`--port <PORT>`**: Port to listen on. Defaults to `3284`
+- **`--with-builtin <NAME>`**: Enable built-in extensions by name. Can be passed multiple times or as a comma-separated list. Defaults to `developer` when omitted.
+- **`--dangerously-unauthenticated`**: Run without ACP authentication. Use only for local trusted clients.
+- **`--enable-scheduler`**: Enable scheduled recipe execution. Disabled by default.
 
 **Usage:**
 ```bash
-goose projects
+# Set a secret before starting the server
+export GOOSE_SERVER__SECRET_KEY=$(openssl rand -hex 32)
+
+# Start the ACP server on localhost:3284
+goose serve
+
+# Bind to a different host and port
+goose serve --host 0.0.0.0 --port 3284
+
+# Start with specific built-in extensions
+goose serve --with-builtin developer,memory
 ```
+
+:::warning
+`goose serve` requires `GOOSE_SERVER__SECRET_KEY` unless you pass `--dangerously-unauthenticated`. Only use `--dangerously-unauthenticated` with local trusted clients.
+:::
 
 ---
 
 ### Terminal Integration
 
+#### term
+Set up and use terminal-integrated sessions. Terminal integration gives each shell a persistent goose session through `AGENT_SESSION_ID`, and can create the `@goose` and `@g` aliases.
+
+**Commands:**
+- **`init <SHELL>`** - Print the shell integration script for `bash`, `zsh`, `fish`, `nu`, or `powershell`
+- **`run <PROMPT...>`** - Send a prompt to the terminal-integrated session
+- **`info`** - Print compact session information for shell prompt integration
+
+**Options:**
+- **`-n, --name <NAME>`** - Set the terminal session name when running `init`
+- **`--default`** - Ask goose to handle unknown commands in supported shells
+
+**Usage:**
+```bash
+# Set up zsh integration
+eval "$(goose term init zsh)"
+
+# Set up zsh integration and ask goose about unknown commands
+eval "$(goose term init zsh --default)"
+
+# Set up nushell integration
+let init = ($nu.cache-dir | path join "goose-term-init.nu")
+goose term init nu | save --force $init
+source $init
+
+# Send a prompt to the current terminal session
+goose term run why did the last command fail
+
+# Print session info for prompt integration
+goose term info
+```
+
+---
+
 #### @goose / @g
-Ask goose questions directly from your shell prompt, with command history included in the context. These aliases are created when you set up [terminal integration](/docs/guides/terminal-integration.md).
+Ask goose questions directly from your shell prompt, with command history included in the context. These aliases are created by `goose term init` when you set up [terminal integration](/docs/guides/terminal-integration.md).
 
 **Examples:**
 ```bash
@@ -657,7 +797,7 @@ Once you're in an interactive session (via `goose session` or `goose run --inter
 - **`/recipe [filepath]`** - Generate a recipe from the current conversation and save it to the specified filepath (must end with .yaml). If no filepath is provided, it will be saved to ./recipe.yaml
 - **`/compact`** - Compact and summarize the current conversation to reduce context length while preserving key information
 - **`/r`** - Toggle full tool output display (show complete tool parameters without truncation)
-- **`/skills`** - List available skills
+- **`/skills [<name>...]`** - List available skills, or load one or more skills by name
 - **`/t`** - Toggle between `light`, `dark`, and `ansi` themes. [More info](#themes).
 - **`/t <name>`** - Set theme directly (light, dark, ansi)
 
