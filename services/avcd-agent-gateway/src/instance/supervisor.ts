@@ -1,4 +1,4 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { createServer } from 'node:net'
 import { mkdir } from 'node:fs/promises'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -23,7 +23,7 @@ export type RunningInstance = {
 }
 
 type InternalInstance = RunningInstance & {
-  child: ChildProcessWithoutNullStreams
+  child: ChildProcess
   stdoutBuf: string
   stderrBuf: string
 }
@@ -88,7 +88,7 @@ function spawnGoose(
   args: string[],
   env: Record<string, string>,
   cwd: string
-): ChildProcessWithoutNullStreams {
+): ChildProcess {
   // Prefer `node <script>` when gooseBin is a JS fake (tests) so shebang/env PATH issues never bite.
   if (gooseBin.endsWith('.js') || gooseBin.endsWith('.mjs') || gooseBin.endsWith('.cjs')) {
     return spawn(process.execPath, [gooseBin, ...args], {
@@ -193,13 +193,13 @@ export class InstanceSupervisor {
       stderrBuf: '',
     }
 
-    child.stdout.on('data', (chunk: Buffer) => {
+    child.stdout?.on('data', (chunk: Buffer) => {
       inst.stdoutBuf += chunk.toString('utf8')
       if (inst.stdoutBuf.length > 64_000) {
         inst.stdoutBuf = inst.stdoutBuf.slice(-32_000)
       }
     })
-    child.stderr.on('data', (chunk: Buffer) => {
+    child.stderr?.on('data', (chunk: Buffer) => {
       inst.stderrBuf += chunk.toString('utf8')
       if (inst.stderrBuf.length > 64_000) {
         inst.stderrBuf = inst.stderrBuf.slice(-32_000)
@@ -207,10 +207,10 @@ export class InstanceSupervisor {
     })
     child.on('exit', () => {
       // Detach: leave map cleanup to next getOrStart/stop
-      child.stdout.removeAllListeners('data')
-      child.stderr.removeAllListeners('data')
-      child.stdout.resume()
-      child.stderr.resume()
+      child.stdout?.removeAllListeners('data')
+      child.stderr?.removeAllListeners('data')
+      child.stdout?.resume()
+      child.stderr?.resume()
     })
 
     this.instances.set(instanceKey.key, inst)
@@ -223,8 +223,8 @@ export class InstanceSupervisor {
         isAlive: () => child.exitCode === null && !child.killed,
       })
       // Drain stdio after readiness so pipes cannot fill and hang the child.
-      child.stdout.resume()
-      child.stderr.resume()
+      child.stdout?.resume()
+      child.stderr?.resume()
       return this.publicView(inst)
     } catch (error) {
       const detail = `stdout=${inst.stdoutBuf.slice(-500)} stderr=${inst.stderrBuf.slice(-500)}`

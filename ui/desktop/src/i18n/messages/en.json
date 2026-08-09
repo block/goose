@@ -1,4 +1,16 @@
 {
+  "accessDenied.description": {
+    "defaultMessage": "Your account authenticated successfully, but it does not have the agent-access role. Ask an admin to grant access, then try again."
+  },
+  "accessDenied.retry": {
+    "defaultMessage": "Retry"
+  },
+  "accessDenied.switchAccount": {
+    "defaultMessage": "Switch account"
+  },
+  "accessDenied.title": {
+    "defaultMessage": "Access not granted"
+  },
   "addSkillDialog.cancel": {
     "defaultMessage": "Cancel"
   },
@@ -1127,8 +1139,26 @@
   "extensionInstallModal.yes": {
     "defaultMessage": "Yes"
   },
+  "extensionItem.authLinkCopied": {
+    "defaultMessage": "Sign-in link copied"
+  },
   "extensionItem.configureExtension": {
     "defaultMessage": "Configure {name} Extension"
+  },
+  "extensionItem.copyAuthLink": {
+    "defaultMessage": "Copy sign-in link"
+  },
+  "extensionItem.signIn": {
+    "defaultMessage": "Sign in"
+  },
+  "extensionItem.signInFailed": {
+    "defaultMessage": "Sign in failed"
+  },
+  "extensionItem.signInSuccess": {
+    "defaultMessage": "Signed in successfully"
+  },
+  "extensionItem.signingIn": {
+    "defaultMessage": "Signing in…"
   },
   "extensionItem.toggleExtension": {
     "defaultMessage": "Toggle {name} extension On or Off"
@@ -1200,7 +1230,7 @@
     "defaultMessage": "Browse extensions"
   },
   "extensionsView.defaultNote": {
-    "defaultMessage": "Connections enabled here are used for new chats. Toggle Google Workspace on to authenticate before asking about Drive, Gmail, or Calendar."
+    "defaultMessage": "Connections enabled here are used for new chats. Turn Google Workspace on to open Google sign-in in your browser."
   },
   "extensionsView.description": {
     "defaultMessage": "Connect tools your team uses — Google Workspace, files, and more. Turn a connection on to sign in when prompted. {searchShortcut} to search."
@@ -1210,6 +1240,9 @@
   },
   "extensionsView.searchPlaceholder": {
     "defaultMessage": "Search extensions..."
+  },
+  "externalBackendSection.authModeHelp": {
+    "defaultMessage": "Secret Key is hidden in auth mode — the gateway receives a Zitadel access token instead."
   },
   "externalBackendSection.certFingerprint": {
     "defaultMessage": "Certificate Fingerprint (optional)"
@@ -1225,6 +1258,9 @@
   },
   "externalBackendSection.fingerprintRequiresHttps": {
     "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
+  "externalBackendSection.identity": {
+    "defaultMessage": "Identity"
   },
   "externalBackendSection.restartNote": {
     "defaultMessage": "Changes apply to new chat windows. Restart Avocado Work to update existing windows."
@@ -1243,6 +1279,9 @@
   },
   "externalBackendSection.serverUrlHelp": {
     "defaultMessage": "Enter the HTTP(S) base URL. Avocado Work checks /status and connects to /acp under this base."
+  },
+  "externalBackendSection.signOut": {
+    "defaultMessage": "Sign out"
   },
   "externalBackendSection.title": {
     "defaultMessage": "External Backend (ACP)"
@@ -1915,6 +1954,30 @@
   },
   "localModelPicker.useModel": {
     "defaultMessage": "Use {modelId}"
+  },
+  "loginGuard.authDisabled": {
+    "defaultMessage": "Auth disabled"
+  },
+  "loginGuard.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "loginGuard.signIn": {
+    "defaultMessage": "Sign in with Avocado"
+  },
+  "loginGuard.signingInDescription": {
+    "defaultMessage": "We opened Zitadel in your system browser. Finish login there, then return to this window."
+  },
+  "loginGuard.signingInTitle": {
+    "defaultMessage": "Complete sign-in in your browser"
+  },
+  "loginGuard.waitingCallback": {
+    "defaultMessage": "Waiting for callback on 127.0.0.1:47821"
+  },
+  "loginGuard.welcomeDescription": {
+    "defaultMessage": "Sign in with your Avocado account to continue. Sessions and credentials stay private to your user."
+  },
+  "loginGuard.welcomeTitle": {
+    "defaultMessage": "Welcome to Avocado Work"
   },
   "markdownContent.cancel": {
     "defaultMessage": "Cancel"

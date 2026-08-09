@@ -19,6 +19,7 @@ import { toast, ToastContainer } from 'react-toastify';
 import AnnouncementModal from './components/AnnouncementModal';
 import TelemetryConsentPrompt from './components/TelemetryConsentPrompt';
 import OnboardingGuard from './components/onboarding/OnboardingGuard';
+import LoginGuard from './components/auth/LoginGuard';
 import { createSession } from './sessions';
 import { acpListSessions, acpDeleteSession } from './acp/sessions';
 import { selectPhantomSessionsForPurge } from './utils/phantomSessions';
@@ -698,11 +699,13 @@ export function AppInner() {
             <Route
               path="/"
               element={
-                <OnboardingGuard>
-                  <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
-                    <AppLayout activeSessions={activeSessions} />
-                  </ChatProvider>
-                </OnboardingGuard>
+                <LoginGuard>
+                  <OnboardingGuard>
+                    <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
+                      <AppLayout activeSessions={activeSessions} />
+                    </ChatProvider>
+                  </OnboardingGuard>
+                </LoginGuard>
               }
             >
               <Route index element={<HubRouteWrapper />} />

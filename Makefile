@@ -1,7 +1,8 @@
 .PHONY: help dev dev-down dev-logs \
 	infisical-check pull-secrets upload-secrets \
 	ensure-local-env cli dev-ui build-desktop-binary package-ui test-smoke validate-openrouter \
-	check-core clippy sync-i18n check-ui
+	check-core clippy sync-i18n check-ui \
+	gateway-install gateway-test gateway-test-e2e gateway-dev gateway-up gateway-down
 
 .DEFAULT_GOAL := help
 
@@ -34,6 +35,10 @@ help:
 	@echo "  make check-ui        Type-check, lint, and test the desktop"
 	@echo "  make pull-secrets    Export Infisical dev secrets to .env.local"
 	@echo "  make upload-secrets  Upload .env.local to Infisical"
+	@echo "  make gateway-test    Unit-test avcd-agent-gateway"
+	@echo "  make gateway-test-e2e E2E-test avcd-agent-gateway isolation"
+	@echo "  make gateway-up      Build/start gateway via its compose file"
+	@echo "  make gateway-down    Stop gateway compose stack"
 
 ensure-local-env:
 	@test -f .env.local || (cp .env.local.example .env.local && echo "Created .env.local from .env.local.example")
@@ -132,3 +137,21 @@ sync-i18n:
 check-ui:
 	$(WITH_NODE) 24 bash -c 'cd ui/desktop && pnpm install --frozen-lockfile && \
 		pnpm run lint:check && pnpm run test:run'
+
+gateway-install:
+	cd services/avcd-agent-gateway && npm ci
+
+gateway-test: gateway-install
+	cd services/avcd-agent-gateway && npm run test:unit
+
+gateway-test-e2e: gateway-install
+	cd services/avcd-agent-gateway && npm run test:e2e
+
+gateway-dev:
+	cd services/avcd-agent-gateway && AVCD_GATEWAY_MAIN=1 npm run dev
+
+gateway-up:
+	$(COMPOSE) -f services/avcd-agent-gateway/docker-compose.yml up -d --build
+
+gateway-down:
+	$(COMPOSE) -f services/avcd-agent-gateway/docker-compose.yml down

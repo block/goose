@@ -1,12 +1,11 @@
 /**
  * E2E-2 — desktop LoginGuard gate.
  * covers AC-1, AC-UI
- *
- * Phase 0: written failing (LoginGuard not implemented yet).
  */
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import React from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, render, screen, waitFor } from '@testing-library/react';
+import type { IpcRendererEvent } from 'electron';
+import LoginGuard from '../LoginGuard';
 
 vi.mock('../../../i18n', async () => {
   const actual = await vi.importActual<typeof import('../../../i18n')>('../../../i18n');
@@ -20,11 +19,33 @@ vi.mock('../../../i18n', async () => {
 });
 
 describe('E2E: LoginGuard - Goal: block app until Zitadel login', () => {
+  const listeners = new Map<string, Set<(event: IpcRendererEvent, ...args: unknown[]) => void>>();
+
+  beforeEach(() => {
+    listeners.clear();
+    window.electron = {
+      ...window.electron,
+      getAuthStatus: vi.fn(),
+      authLogin: vi.fn(),
+      authLogout: vi.fn(),
+      isZitadelAuthEnabled: vi.fn().mockResolvedValue(true),
+      on: (channel: string, callback: (event: IpcRendererEvent, ...args: unknown[]) => void) => {
+        if (!listeners.has(channel)) listeners.set(channel, new Set());
+        listeners.get(channel)!.add(callback);
+      },
+      off: (channel: string, callback: (event: IpcRendererEvent, ...args: unknown[]) => void) => {
+        listeners.get(channel)?.delete(callback);
+      },
+    } as typeof window.electron;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('GivenSignedOut_WhenRendering_ThenChildrenNotRendered', async () => {
     // covers AC-1
-    const mod = await import('../LoginGuard');
-    const LoginGuard = mod.default ?? mod.LoginGuard;
-    expect(LoginGuard).toBeTypeOf('function');
+    vi.mocked(window.electron.getAuthStatus).mockResolvedValue({ state: 'signedOut' });
 
     render(
       <LoginGuard>
@@ -32,31 +53,60 @@ describe('E2E: LoginGuard - Goal: block app until Zitadel login', () => {
       </LoginGuard>
     );
 
-    expect(screen.queryByTestId('app-children')).toBeNull();
-    expect(screen.getByRole('button', { name: /sign in/i })).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.queryByTestId('app-children')).toBeNull();
+      expect(screen.getByRole('button', { name: /sign in/i })).toBeTruthy();
+    });
   });
 
   it('GivenSignedIn_WhenRendering_ThenChildrenRendered', async () => {
     // covers AC-1
-    const mod = await import('../LoginGuard');
-    const LoginGuard = mod.default ?? mod.LoginGuard;
+    vi.mocked(window.electron.getAuthStatus).mockResolvedValue({
+      state: 'signedIn',
+      sub: 'user-1',
+      roles: ['agent-access'],
+      expiresAt: Date.now() + 60_000,
+    });
 
-    // When implemented, pass a mock auth state or IPC stub for signedIn
     render(
       <LoginGuard>
         <div data-testid="app-children">secret app</div>
       </LoginGuard>
     );
 
-    // This assertion intentionally fails until LoginGuard can be signed-in in tests
-    expect(screen.getByTestId('app-children')).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByTestId('app-children')).toBeTruthy();
+    });
   });
 
   it('GivenAuthExpired_WhenEventFires_ThenReturnsToLoginScreen', async () => {
     // covers AC-1
-    const mod = await import('../LoginGuard');
-    expect(mod.default ?? mod.LoginGuard).toBeTypeOf('function');
-    // Phase 7 wires auth:on-changed → signedOut and re-shows Sign in
-    expect(false).toBe(true);
+    vi.mocked(window.electron.getAuthStatus).mockResolvedValue({
+      state: 'signedIn',
+      sub: 'user-1',
+      roles: ['agent-access'],
+      expiresAt: Date.now() + 60_000,
+    });
+
+    render(
+      <LoginGuard>
+        <div data-testid="app-children">secret app</div>
+      </LoginGuard>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('app-children')).toBeTruthy();
+    });
+
+    await act(async () => {
+      for (const cb of listeners.get('auth:on-changed') ?? []) {
+        cb({} as IpcRendererEvent, { state: 'signedOut' });
+      }
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('app-children')).toBeNull();
+      expect(screen.getByRole('button', { name: /sign in/i })).toBeTruthy();
+    });
   });
 });

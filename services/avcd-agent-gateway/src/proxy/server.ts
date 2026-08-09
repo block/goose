@@ -79,7 +79,7 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
         return
       }
 
-      if (url.pathname === '/healthz') {
+      if (url.pathname === '/healthz' || url.pathname === '/status') {
         res.writeHead(200, { 'content-type': 'application/json' })
         res.end(JSON.stringify({ status: 'ok', auth: getAuthMetrics() }))
         return
@@ -151,7 +151,10 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
       }
       if (req.headers['x-forwarded-proto']) {
         headers['x-forwarded-proto'] = String(req.headers['x-forwarded-proto'])
-      } else if ((req.socket as net.Socket).encrypted) {
+      } else if (
+        'encrypted' in req.socket &&
+        Boolean((req.socket as net.Socket & { encrypted?: boolean }).encrypted)
+      ) {
         headers['x-forwarded-proto'] = 'https'
       } else {
         headers['x-forwarded-proto'] = 'http'
