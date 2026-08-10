@@ -1,5 +1,5 @@
 [package]
-name = "goose-compaction"
+name = "goose-context-management"
 version = "0.1.0-alpha.5"
 edition.workspace = true
 rust-version.workspace = true

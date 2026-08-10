@@ -1,4 +1,4 @@
-pub use goose_compaction::structured;
+pub use goose_context_management::structured;
 
 use crate::conversation::message::MessageMetadata;
 use crate::conversation::message::{Message, MessageContent};
@@ -20,7 +20,7 @@ use tokio::task::JoinHandle;
 use tracing::info;
 use tracing::log::warn;
 
-pub use goose_compaction::DEFAULT_COMPACTION_THRESHOLD;
+pub use goose_context_management::DEFAULT_COMPACTION_THRESHOLD;
 
 pub(crate) const TOOLCALL_SUMMARIZATION_BATCH_SIZE: usize = 10;
 
@@ -283,7 +283,7 @@ struct FastCompactionModel<'a> {
 }
 
 #[async_trait::async_trait]
-impl goose_compaction::CompactionModel for FastCompactionModel<'_> {
+impl goose_context_management::CompactionModel for FastCompactionModel<'_> {
     async fn complete(
         &self,
         system: &str,
@@ -304,7 +304,7 @@ impl goose_compaction::CompactionModel for FastCompactionModel<'_> {
 struct GooseTokenEstimator;
 
 #[async_trait::async_trait]
-impl goose_compaction::TokenEstimator for GooseTokenEstimator {
+impl goose_context_management::TokenEstimator for GooseTokenEstimator {
     async fn count_chat_tokens(&self, system: &str, messages: &[Message]) -> usize {
         match create_token_counter().await {
             Ok(counter) => counter.count_chat_tokens(system, messages, &[]),
@@ -326,8 +326,8 @@ impl goose_compaction::TokenEstimator for GooseTokenEstimator {
     }
 }
 
-fn compaction_templates() -> Result<goose_compaction::Templates> {
-    Ok(goose_compaction::Templates {
+fn compaction_templates() -> Result<goose_context_management::Templates> {
+    Ok(goose_context_management::Templates {
         compaction: crate::prompt_template::template_source("compaction.md")?,
         summary: crate::prompt_template::template_source("compaction_summary.md")?,
     })
@@ -353,7 +353,7 @@ async fn do_compact(
         model_config,
         session_id,
     };
-    let summary = goose_compaction::summarize(
+    let summary = goose_context_management::summarize(
         &model,
         Some(&GooseTokenEstimator),
         &compaction_templates()?,
@@ -364,7 +364,7 @@ async fn do_compact(
     Ok((summary.message, summary.usage))
 }
 
-pub use goose_compaction::format_message_for_compacting;
+pub use goose_context_management::format_message_for_compacting;
 
 pub fn compute_tool_call_cutoff(context_limit: usize, compaction_threshold: f64) -> usize {
     let threshold = if compaction_threshold > 0.0 && compaction_threshold <= 1.0 {

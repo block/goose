@@ -770,13 +770,13 @@ impl Provider {
             .map(CompactionMessage::to_goose_message)
             .collect();
         let templates = templates.map(Into::into).unwrap_or_default();
-        let model = goose_compaction::ProviderModel::new(
+        let model = goose_context_management::ProviderModel::new(
             self.handle.provider.clone(),
             ModelConfig::new(&model_name),
         );
 
         let summary = run_on_runtime(async move {
-            goose_compaction::summarize(&model, None, &templates, &messages).await
+            goose_context_management::summarize(&model, None, &templates, &messages).await
         })
         .await?
         .map_err(GooseError::generic)?;
@@ -821,7 +821,7 @@ pub struct CompactionTemplates {
     pub summary: String,
 }
 
-impl From<CompactionTemplates> for goose_compaction::Templates {
+impl From<CompactionTemplates> for goose_context_management::Templates {
     fn from(value: CompactionTemplates) -> Self {
         Self {
             compaction: value.compaction,
@@ -840,7 +840,7 @@ pub struct CompactionSummary {
 
 #[uniffi::export]
 pub fn default_compaction_templates() -> CompactionTemplates {
-    let templates = goose_compaction::Templates::default();
+    let templates = goose_context_management::Templates::default();
     CompactionTemplates {
         compaction: templates.compaction,
         summary: templates.summary,

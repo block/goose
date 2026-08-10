@@ -68,7 +68,7 @@ fn builtin_content(name: &str) -> Option<String> {
     CORE_PROMPTS_DIR
         .get_file(name)
         .map(|file| String::from_utf8_lossy(file.contents()).to_string())
-        .or_else(|| goose_compaction::templates::builtin_template(name))
+        .or_else(|| goose_context_management::templates::builtin_template(name))
 }
 
 fn user_prompts_dir() -> PathBuf {

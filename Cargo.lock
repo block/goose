@@ -4950,7 +4950,7 @@ dependencies = [
  "futures",
  "gethostname",
  "goose-acp-macros",
- "goose-compaction",
+ "goose-context-management",
  "goose-download-manager",
  "goose-mcp",
  "goose-providers",
@@ -5114,7 +5114,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "goose-compaction"
+name = "goose-context-management"
 version = "0.1.0-alpha.5"
 dependencies = [
  "anyhow",
@@ -5277,7 +5277,7 @@ dependencies = [
  "anyhow",
  "base64 0.23.0",
  "futures",
- "goose-compaction",
+ "goose-context-management",
  "goose-providers",
  "goose-sdk-types",
  "rmcp 3.0.0",
