@@ -452,6 +452,20 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/session/extensions/remove"
     },
+    "ApplySessionExtensionsRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "description": "Rebuild the session's provider with its current provider and model so\nextension changes reach providers that forward extensions to a downstream\nsession (e.g. ACP harness providers like claude-acp and codex-acp).",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/session/extensions/apply"
+    },
     "GetToolsRequest_unstable": {
       "type": "object",
       "properties": {
@@ -6910,6 +6924,15 @@
                   ],
                   "description": "Params for _goose/unstable/session/extensions/remove",
                   "title": "RemoveSessionExtensionRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ApplySessionExtensionsRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/session/extensions/apply",
+                  "title": "ApplySessionExtensionsRequest_unstable"
                 },
                 {
                   "allOf": [

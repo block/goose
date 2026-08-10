@@ -45,6 +45,16 @@ pub struct RemoveSessionExtensionRequest {
     pub name: String,
 }
 
+/// Rebuild the session's provider with its current provider and model so
+/// extension changes reach providers that forward extensions to a downstream
+/// session (e.g. ACP harness providers like claude-acp and codex-acp).
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/session/extensions/apply", response = EmptyResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ApplySessionExtensionsRequest {
+    pub session_id: String,
+}
+
 /// List all tools available in a session.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/tools/list", response = GetToolsResponse)]

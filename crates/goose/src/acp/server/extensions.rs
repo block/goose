@@ -31,6 +31,28 @@ impl GooseAcpAgent {
         Ok(EmptyResponse {})
     }
 
+    pub(super) async fn on_apply_session_extensions(
+        &self,
+        req: ApplySessionExtensionsRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        let session_id = &req.session_id;
+        let agent = self.get_session_agent(session_id).await?;
+        let provider = agent
+            .provider()
+            .await
+            .internal_err_ctx("Failed to get provider")?;
+        let provider_name = provider.get_name().to_string();
+        let model_config = agent
+            .model_config_for_session(session_id)
+            .await
+            .internal_err_ctx("Failed to resolve model config")?;
+        agent
+            .recreate_provider_for_session(session_id, &provider_name, model_config)
+            .await
+            .internal_err_ctx("Failed to recreate provider")?;
+        Ok(EmptyResponse {})
+    }
+
     pub(super) async fn on_get_config_extensions(
         &self,
     ) -> Result<GetConfigExtensionsResponse, agent_client_protocol::Error> {

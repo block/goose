@@ -26,9 +26,8 @@ make reasonable assumptions, and focus on finishing the user's task.
 # Extensions
 
 Extensions provide additional tools and context from different data sources and applications.
-You can dynamically enable or disable extensions as needed to help complete tasks.
 
-Because you dynamically load extensions, your conversation history may refer
+Extensions can change between turns, so your conversation history may refer
 to interactions with extensions that are not currently active. The currently
 active extensions are below. Each of these extensions provides tools that are
 in your tool specification.

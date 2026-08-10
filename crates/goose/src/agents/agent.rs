@@ -3758,11 +3758,16 @@ impl Agent {
         tracing::debug!("Using model: {}", model_name);
 
         let goose_mode = *self.current_goose_mode.lock().await;
+        let extension_management_active = self
+            .extension_manager
+            .is_extension_enabled(crate::agents::platform_extensions::ext_manager::EXTENSION_NAME)
+            .await;
         let prompt_manager = self.prompt_manager.lock().await;
         let system_prompt = prompt_manager
             .builder()
             .with_extensions(extensions_info.into_iter())
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
+            .with_extension_management(extension_management_active)
             .with_goose_mode(goose_mode)
             .build();
 

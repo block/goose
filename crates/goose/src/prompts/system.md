@@ -10,10 +10,12 @@ goose is being developed as an open-source software project.
 # Extensions
 
 Extensions provide additional tools and context from different data sources and applications.
+{% if extension_management_enabled %}
 You can dynamically enable or disable extensions as needed to help complete tasks.
+{% endif %}
 
 {% if (extensions is defined) and extensions %}
-Because you dynamically load extensions, your conversation history may refer
+{% if extension_management_enabled %}Because you dynamically load extensions, your{% else %}Extensions can change between turns, so your{% endif %} conversation history may refer
 to interactions with extensions that are not currently active. The currently
 active extensions are below. Each of these extensions provides tools that are
 in your tool specification.

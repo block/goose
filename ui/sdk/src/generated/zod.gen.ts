@@ -209,6 +209,15 @@ export const zRemoveSessionExtensionRequest_unstable = z.object({
 });
 
 /**
+ * Rebuild the session's provider with its current provider and model so
+ * extension changes reach providers that forward extensions to a downstream
+ * session (e.g. ACP harness providers like claude-acp and codex-acp).
+ */
+export const zApplySessionExtensionsRequest_unstable = z.object({
+    sessionId: z.string()
+});
+
+/**
  * List all tools available in a session.
  */
 export const zGetToolsRequest_unstable = z.object({
@@ -2828,6 +2837,7 @@ export const zExtRequest = z.object({
         z.union([
             zAddSessionExtensionRequest_unstable,
             zRemoveSessionExtensionRequest_unstable,
+            zApplySessionExtensionsRequest_unstable,
             zGetToolsRequest_unstable,
             zSetToolPermissionsRequest_unstable,
             zGooseToolCallRequest_unstable,
