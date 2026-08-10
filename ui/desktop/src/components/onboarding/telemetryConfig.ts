@@ -9,7 +9,9 @@ export async function readOnboardingTelemetryState(): Promise<{
 }> {
   const config = await acpReadAllConfig();
   return {
-    pending: config[ONBOARDING_TELEMETRY_PENDING_CONFIG_KEY] ?? null,
+    pending: Object.prototype.hasOwnProperty.call(config, ONBOARDING_TELEMETRY_PENDING_CONFIG_KEY)
+      ? config[ONBOARDING_TELEMETRY_PENDING_CONFIG_KEY]
+      : undefined,
     persistedPreference: config[TELEMETRY_CONFIG_KEY] ?? null,
   };
 }

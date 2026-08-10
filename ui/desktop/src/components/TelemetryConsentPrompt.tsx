@@ -9,10 +9,7 @@ import {
 } from '../utils/analytics';
 import PrivacyInfoModal from './onboarding/PrivacyInfoModal';
 import { defineMessages, useIntl } from '../i18n';
-import {
-  readOnboardingTelemetryPending,
-  TELEMETRY_CONFIG_KEY,
-} from './onboarding/telemetryConfig';
+import { readOnboardingTelemetryPending, TELEMETRY_CONFIG_KEY } from './onboarding/telemetryConfig';
 
 const i18n = defineMessages({
   heading: {
@@ -51,7 +48,9 @@ export default function TelemetryConsentPrompt() {
     (async () => {
       try {
         const onboardingTelemetryPending = await readOnboardingTelemetryPending();
-        if (onboardingTelemetryPending !== null && onboardingTelemetryPending !== false) return;
+        if (onboardingTelemetryPending !== undefined && onboardingTelemetryPending !== false) {
+          return;
+        }
 
         const provider = await read('GOOSE_PROVIDER', false);
         if (!provider || provider === '') return;

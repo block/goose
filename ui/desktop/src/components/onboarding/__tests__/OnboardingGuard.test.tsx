@@ -135,11 +135,7 @@ describe('OnboardingGuard telemetry preference', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/', { replace: true });
     expect(mocks.trackTelemetryPreference).toHaveBeenCalledWith(false, 'onboarding');
     expect(mocks.setTelemetryEnabled).toHaveBeenCalledWith(false);
-    expect(mocks.upsert).toHaveBeenCalledWith(
-      'GOOSE_ONBOARDING_TELEMETRY_PENDING',
-      false,
-      false
-    );
+    expect(mocks.upsert).toHaveBeenCalledWith('GOOSE_ONBOARDING_TELEMETRY_PENDING', false, false);
   });
 
   it('enters the application after persisting an opt-in', async () => {
@@ -151,21 +147,13 @@ describe('OnboardingGuard telemetry preference', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/', { replace: true });
     expect(mocks.trackTelemetryPreference).toHaveBeenCalledWith(true, 'onboarding');
     expect(mocks.setTelemetryEnabled).not.toHaveBeenCalled();
-    expect(mocks.upsert).toHaveBeenCalledWith(
-      'GOOSE_ONBOARDING_TELEMETRY_PENDING',
-      false,
-      false
-    );
+    expect(mocks.upsert).toHaveBeenCalledWith('GOOSE_ONBOARDING_TELEMETRY_PENDING', false, false);
   });
 
   it('persists pending consent before saving provider defaults', async () => {
     await reachTelemetryChoice();
 
-    expect(mocks.upsert).toHaveBeenCalledWith(
-      'GOOSE_ONBOARDING_TELEMETRY_PENDING',
-      true,
-      false
-    );
+    expect(mocks.upsert).toHaveBeenCalledWith('GOOSE_ONBOARDING_TELEMETRY_PENDING', true, false);
     expect(mocks.upsert.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.acpSaveDefaults.mock.invocationCallOrder[0]
     );
@@ -212,11 +200,31 @@ describe('OnboardingGuard telemetry preference', () => {
     await user.click(await screen.findByRole('button', { name: 'Decline telemetry' }));
 
     expect(await screen.findByText('Protected application')).toBeInTheDocument();
-    expect(mocks.upsert).toHaveBeenCalledWith(
-      'GOOSE_ONBOARDING_TELEMETRY_PENDING',
-      false,
-      false
+    expect(mocks.upsert).toHaveBeenCalledWith('GOOSE_ONBOARDING_TELEMETRY_PENDING', false, false);
+  });
+
+  it('repairs an explicit null pending marker before entering the application', async () => {
+    mocks.readAll.mockResolvedValue({
+      GOOSE_ONBOARDING_TELEMETRY_PENDING: null,
+    });
+    mocks.acpReadDefaults.mockResolvedValue({
+      providerId: 'test-provider',
+      modelId: 'test-model',
+    });
+
+    const user = userEvent.setup();
+    render(
+      <IntlTestWrapper>
+        <OnboardingGuard>
+          <div>Protected application</div>
+        </OnboardingGuard>
+      </IntlTestWrapper>
     );
+
+    await user.click(await screen.findByRole('button', { name: 'Decline telemetry' }));
+
+    expect(await screen.findByText('Protected application')).toBeInTheDocument();
+    expect(mocks.upsert).toHaveBeenCalledWith('GOOSE_ONBOARDING_TELEMETRY_PENDING', false, false);
   });
 
   it('does not save fallback defaults while consent is pending without a provider', async () => {
@@ -249,11 +257,7 @@ describe('OnboardingGuard telemetry preference', () => {
     await user.click(await screen.findByRole('button', { name: 'Decline telemetry' }));
 
     await waitFor(() =>
-      expect(mocks.upsert).toHaveBeenCalledWith(
-        'GOOSE_ONBOARDING_TELEMETRY_PENDING',
-        false,
-        false
-      )
+      expect(mocks.upsert).toHaveBeenCalledWith('GOOSE_ONBOARDING_TELEMETRY_PENDING', false, false)
     );
     expect(mocks.navigate).not.toHaveBeenCalled();
     expect(mocks.trackTelemetryPreference).not.toHaveBeenCalled();
@@ -279,9 +283,7 @@ describe('OnboardingGuard telemetry preference', () => {
       </IntlTestWrapper>
     );
 
-    await user.click(
-      await screen.findByRole('button', { name: 'Resume saved telemetry choice' })
-    );
+    await user.click(await screen.findByRole('button', { name: 'Resume saved telemetry choice' }));
 
     await waitFor(() =>
       expect(mocks.upsert).toHaveBeenCalledWith('GOOSE_TELEMETRY_ENABLED', false, false)

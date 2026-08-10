@@ -53,10 +53,24 @@ describe('TelemetryConsentPrompt', () => {
     expect(mocks.read).not.toHaveBeenCalled();
   });
 
+  it('does not overlap onboarding while an explicit null pending marker is repaired', async () => {
+    mocks.readAll.mockResolvedValueOnce({
+      GOOSE_ONBOARDING_TELEMETRY_PENDING: null,
+    });
+
+    render(
+      <IntlTestWrapper>
+        <TelemetryConsentPrompt />
+      </IntlTestWrapper>
+    );
+
+    await waitFor(() => expect(mocks.readAll).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('button', { name: 'No thanks' })).not.toBeInTheDocument();
+    expect(mocks.read).not.toHaveBeenCalled();
+  });
+
   it('still prompts configured users with no telemetry preference', async () => {
-    mocks.read
-      .mockResolvedValueOnce('test-provider')
-      .mockResolvedValueOnce(null);
+    mocks.read.mockResolvedValueOnce('test-provider').mockResolvedValueOnce(null);
 
     render(
       <IntlTestWrapper>
