@@ -135,7 +135,11 @@ describe('OnboardingGuard telemetry preference', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/', { replace: true });
     expect(mocks.trackTelemetryPreference).toHaveBeenCalledWith(false, 'onboarding');
     expect(mocks.setTelemetryEnabled).toHaveBeenCalledWith(false);
-    expect(mocks.remove).toHaveBeenCalledWith('GOOSE_ONBOARDING_TELEMETRY_PENDING', false);
+    expect(mocks.upsert).toHaveBeenCalledWith(
+      'GOOSE_ONBOARDING_TELEMETRY_PENDING',
+      false,
+      false
+    );
   });
 
   it('enters the application after persisting an opt-in', async () => {
@@ -147,7 +151,11 @@ describe('OnboardingGuard telemetry preference', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/', { replace: true });
     expect(mocks.trackTelemetryPreference).toHaveBeenCalledWith(true, 'onboarding');
     expect(mocks.setTelemetryEnabled).not.toHaveBeenCalled();
-    expect(mocks.remove).toHaveBeenCalledWith('GOOSE_ONBOARDING_TELEMETRY_PENDING', false);
+    expect(mocks.upsert).toHaveBeenCalledWith(
+      'GOOSE_ONBOARDING_TELEMETRY_PENDING',
+      false,
+      false
+    );
   });
 
   it('persists pending consent before saving provider defaults', async () => {
@@ -204,7 +212,11 @@ describe('OnboardingGuard telemetry preference', () => {
     await user.click(await screen.findByRole('button', { name: 'Decline telemetry' }));
 
     expect(await screen.findByText('Protected application')).toBeInTheDocument();
-    expect(mocks.remove).toHaveBeenCalledWith('GOOSE_ONBOARDING_TELEMETRY_PENDING', false);
+    expect(mocks.upsert).toHaveBeenCalledWith(
+      'GOOSE_ONBOARDING_TELEMETRY_PENDING',
+      false,
+      false
+    );
   });
 
   it('does not save fallback defaults while consent is pending without a provider', async () => {
@@ -227,13 +239,22 @@ describe('OnboardingGuard telemetry preference', () => {
     expect(screen.queryByText('Protected application')).not.toBeInTheDocument();
   });
 
-  it('keeps onboarding pending when clearing the marker fails', async () => {
-    mocks.remove.mockRejectedValueOnce(new Error('config remove failed'));
+  it('keeps onboarding pending when persisting marker completion fails', async () => {
+    mocks.upsert
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('config write failed'));
     const user = await reachTelemetryChoice();
 
     await user.click(await screen.findByRole('button', { name: 'Decline telemetry' }));
 
-    await waitFor(() => expect(mocks.remove).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(mocks.upsert).toHaveBeenCalledWith(
+        'GOOSE_ONBOARDING_TELEMETRY_PENDING',
+        false,
+        false
+      )
+    );
     expect(mocks.navigate).not.toHaveBeenCalled();
     expect(mocks.trackTelemetryPreference).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Decline telemetry' })).toBeInTheDocument();

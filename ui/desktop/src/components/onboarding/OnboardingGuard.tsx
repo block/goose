@@ -51,7 +51,7 @@ interface OnboardingGuardProps {
 export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   const intl = useIntl();
   const navigate = useNavigate();
-  const { remove, upsert } = useConfig();
+  const { upsert } = useConfig();
   const { getFallbackModelAndProvider, refreshCurrentModelAndProvider } = useModelAndProvider();
 
   const [isCheckingProvider, setIsCheckingProvider] = useState(true);
@@ -150,7 +150,7 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   const finishOnboarding = async (telemetryEnabled: boolean) => {
     try {
       await upsert(TELEMETRY_CONFIG_KEY, telemetryEnabled, false);
-      await remove(ONBOARDING_TELEMETRY_PENDING_CONFIG_KEY, false);
+      await upsert(ONBOARDING_TELEMETRY_PENDING_CONFIG_KEY, false, false);
     } catch (error) {
       console.error('Failed to save telemetry preference:', error);
       return;

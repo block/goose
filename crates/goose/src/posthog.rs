@@ -1,7 +1,7 @@
 use crate::config::paths::Paths;
-use crate::config::{get_enabled_extensions, Config, ConfigError};
-use crate::session::session_manager::CURRENT_SCHEMA_VERSION;
+use crate::config::{Config, ConfigError, get_enabled_extensions};
 use crate::session::SessionManager;
+use crate::session::session_manager::CURRENT_SCHEMA_VERSION;
 #[cfg(target_os = "windows")]
 use crate::subprocess::SubprocessExt;
 use chrono::{DateTime, Utc};
@@ -9,8 +9,8 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use uuid::Uuid;
 
 const POSTHOG_API_KEY: &str = "phc_RyX5CaY01VtZJCQyhSR5KFh6qimUy81YwxsEpotAftT";
@@ -645,6 +645,30 @@ mod tests {
             (ONBOARDING_TELEMETRY_PENDING_KEY, Some("true")),
         ]);
         let (_dir, config) = test_config();
+        config.set_param(TELEMETRY_ENABLED_KEY, true).unwrap();
+        config
+            .set_param(ONBOARDING_TELEMETRY_PENDING_KEY, false)
+            .unwrap();
+
+        assert_eq!(get_telemetry_choice_from_config(&config), Some(true));
+    }
+
+    #[test]
+    fn completed_onboarding_overrides_lower_layer_pending_marker() {
+        let _env = env_lock::lock_env([("GOOSE_TELEMETRY_OFF", Some("false"))]);
+        let dir = tempfile::tempdir().unwrap();
+        let system_config = dir.path().join("system.yaml");
+        let user_config = dir.path().join("user.yaml");
+        std::fs::write(
+            &system_config,
+            format!("{ONBOARDING_TELEMETRY_PENDING_KEY}: true\n"),
+        )
+        .unwrap();
+        let config = Config::new_with_config_paths(
+            vec![system_config, user_config],
+            dir.path().join("secrets.yaml"),
+        )
+        .unwrap();
         config.set_param(TELEMETRY_ENABLED_KEY, true).unwrap();
         config
             .set_param(ONBOARDING_TELEMETRY_PENDING_KEY, false)
