@@ -1580,7 +1580,7 @@ mod tests {
         );
         let mut result = CallToolResult::success(vec![text, image]);
         result.structured_content = Some(serde_json::json!({"safe": "世界"}));
-        result.meta = Some(rmcp::model::Meta(object!({"source": "test"})));
+        result.meta = Some(rmcp::model::MetaObject(object!({"source": "test"})));
         let expected = result.clone();
 
         let content = MessageContentBlock::tool_response("tool-1", Ok(result));
