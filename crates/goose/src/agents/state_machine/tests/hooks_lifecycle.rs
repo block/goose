@@ -44,11 +44,20 @@ impl HookTestEnv {
             .lines()
             .count()
     }
+
+    fn last_context(&self) -> serde_json::Value {
+        serde_json::from_str(
+            &std::fs::read_to_string(self.plugin_dir.join("context.json"))
+                .expect("hook context was recorded"),
+        )
+        .expect("hook context is valid JSON")
+    }
 }
 
 const LOG_AND_ALLOW_SCRIPT: &str = "#!/bin/sh\necho ran >> \"$PLUGIN_ROOT/hook.log\"\nexit 0\n";
 const LOG_AND_BLOCK_SCRIPT: &str =
     "#!/bin/sh\necho blocked >> \"$PLUGIN_ROOT/hook.log\"\necho \"not done yet\" >&2\nexit 2\n";
+const LOG_CONTEXT_AND_BLOCK_SCRIPT: &str = "#!/bin/sh\ncat > \"$PLUGIN_ROOT/context.json\"\necho blocked >> \"$PLUGIN_ROOT/hook.log\"\necho \"not done yet\" >&2\nexit 2\n";
 
 #[tokio::test]
 async fn stop_hooks_allow_block_and_skip_non_stop_exits() -> Result<()> {
@@ -62,8 +71,9 @@ async fn stop_hooks_allow_block_and_skip_non_stop_exits() -> Result<()> {
     assert_eq!(api.call_count(), 1);
     assert_eq!(allowed.invocations(), 1);
 
-    let blocked = HookTestEnv::new("Stop", LOG_AND_BLOCK_SCRIPT);
+    let blocked = HookTestEnv::new("Stop", LOG_CONTEXT_AND_BLOCK_SCRIPT);
     let (pipeline, api) = test_pipeline().await?;
+    let expected_working_dir = pipeline.working_dir().to_string_lossy().into_owned();
     let pipeline = pipeline
         .with_hook_manager(blocked.hook_manager())
         .with_stop_hook_block_cap(2);
@@ -73,6 +83,7 @@ async fn stop_hooks_allow_block_and_skip_non_stop_exits() -> Result<()> {
     let (_, result, _) = pipeline.run_reconstructing_each_step("hello").await?;
     assert_eq!(api.call_count(), 3);
     assert_eq!(blocked.invocations(), 3);
+    assert_eq!(blocked.last_context()["working_dir"], expected_working_dir);
     assert_eq!(
         result
             .conversation()

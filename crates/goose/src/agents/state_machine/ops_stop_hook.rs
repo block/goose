@@ -78,7 +78,8 @@ impl Operation for StopHookOperation {
             .unwrap_or_default();
 
         let context = HookContext::new(HookEvent::Stop, &session.id)
-            .with_last_assistant_message(last_assistant_text);
+            .with_last_assistant_message(last_assistant_text)
+            .with_working_dir(session.working_dir.to_string_lossy().into_owned());
         match self
             .hook_manager
             .emit_blocking(HookEvent::Stop, context)
