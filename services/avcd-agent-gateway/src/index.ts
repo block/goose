@@ -31,6 +31,7 @@ async function main(): Promise<void> {
       providerApiKeyEnv: process.env.PROVIDER_API_KEY_ENV || 'OPENROUTER_API_KEY',
       providerApiKey: process.env.OPENROUTER_API_KEY,
     },
+    logger: (message) => console.log(`[gateway] ${message}`),
   })
 
   const { baseUrl } = await listenGateway({

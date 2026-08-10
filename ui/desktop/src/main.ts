@@ -1028,6 +1028,138 @@ function ensureAuthManager(): AuthManager | null {
   return authManager;
 }
 
+async function tryCreateExternalBackendLease(
+  externalBackend: ExternalBackend,
+  probeSecret: string,
+  authMode: 'secret' | 'bearer'
+): Promise<GooseServeLease | null> {
+  let externalCertificateTrust: BackendCertificateTrustRegistration | null = null;
+
+  try {
+    const externalBaseUrl = normalizeAcpHttpBaseUrl(externalBackend.url);
+    const externalBase = new URL(externalBaseUrl);
+    if (externalBase.protocol === 'https:') {
+      externalCertificateTrust = trustBackendCertificate(
+        externalBase.hostname,
+        externalBackend.certFingerprint ?? null
+      );
+    }
+
+    const externalBackendReady = await checkBackendStatus({
+      baseUrl: externalBaseUrl,
+      serverSecret: probeSecret,
+      authMode,
+      fetch: net.fetch as unknown as typeof globalThis.fetch,
+    });
+    if (!externalBackendReady) {
+      externalCertificateTrust?.release();
+      const canDisableExternalBackend = externalBackend.source === 'settings';
+      const response = dialog.showMessageBoxSync({
+        type: 'error',
+        title: 'External Backend Unreachable',
+        message: `Could not connect to external backend at ${externalBaseUrl}`,
+        detail:
+          authMode === 'bearer'
+            ? 'The gateway must be running and your Zitadel access token must include the agent-access role.'
+            : 'The external backend must be running and the configured secret must match GOOSE_SERVER__SECRET_KEY on the server.',
+        buttons: canDisableExternalBackend
+          ? ['Disable External Backend & Retry', 'Quit']
+          : ['Quit'],
+        defaultId: 0,
+        cancelId: canDisableExternalBackend ? 1 : 0,
+      });
+
+      if (canDisableExternalBackend && response === 0) {
+        updateSettings((s) => {
+          if (s.externalGoosed) {
+            s.externalGoosed.enabled = false;
+          }
+        });
+      }
+
+      return null;
+    }
+
+    const leaseCertificateTrust = externalCertificateTrust;
+    externalCertificateTrust = null;
+    return gooseServeLeases.createExternal(
+      acpWebSocketUrlFromHttpBase(externalBaseUrl, probeSecret),
+      probeSecret,
+      leaseCertificateTrust ? async () => leaseCertificateTrust.release() : undefined
+    );
+  } catch (error) {
+    externalCertificateTrust?.release();
+    log.error('External ACP backend is misconfigured', error);
+    const canDisableExternalBackend = externalBackend.source === 'settings';
+    const response = dialog.showMessageBoxSync({
+      type: 'error',
+      title: 'External Backend Misconfigured',
+      message: 'The external backend URL is invalid.',
+      detail: errorMessage(error),
+      buttons: canDisableExternalBackend
+        ? ['Disable External Backend & Retry', 'Quit']
+        : ['Quit'],
+      defaultId: 0,
+      cancelId: canDisableExternalBackend ? 1 : 0,
+    });
+
+    if (canDisableExternalBackend && response === 0) {
+      updateSettings((s) => {
+        if (s.externalGoosed) {
+          s.externalGoosed.enabled = false;
+        }
+      });
+    }
+
+    return null;
+  }
+}
+
+async function attachExternalBackendToAllWindows(): Promise<boolean> {
+  const settings = getSettings();
+  let externalBackend: ExternalBackend | null;
+  try {
+    externalBackend = getActiveExternalBackend(settings);
+  } catch (error) {
+    log.error('External backend misconfigured during auth attach', error);
+    return false;
+  }
+  if (!externalBackend) {
+    return true;
+  }
+
+  const auth = getAuthManager();
+  if (!auth?.isEnabled()) {
+    return true;
+  }
+
+  const accessToken = await auth.getAccessToken();
+  if (!accessToken) {
+    return false;
+  }
+
+  const pendingWindows = BrowserWindow.getAllWindows().filter(
+    (win) => !win.isDestroyed() && !gooseServeLeases.get(win.id)
+  );
+  if (pendingWindows.length === 0) {
+    return true;
+  }
+
+  const lease = await tryCreateExternalBackendLease(externalBackend, accessToken, 'bearer');
+  if (!lease) {
+    return false;
+  }
+
+  for (const win of pendingWindows) {
+    win.once('closed', () => {
+      void gooseServeLeases.releaseWindow(win.id);
+    });
+    gooseServeLeases.attachWindow(win.id, lease);
+  }
+
+  return true;
+}
+
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
 // Track pending initial messages per window
 const pendingInitialMessages = new Map<number, string>(); // windowId -> initialMessage
@@ -1123,109 +1255,35 @@ const createChat = async (
   let gooseServeLease: GooseServeLease | null = null;
 
   if (externalBackend) {
-    let externalCertificateTrust: BackendCertificateTrustRegistration | null = null;
+    const auth = ensureAuthManager();
+    let probeSecret = serverSecret;
+    let authMode: 'secret' | 'bearer' = 'secret';
+    let deferExternalBackend = false;
 
-    try {
-      const externalBaseUrl = normalizeAcpHttpBaseUrl(externalBackend.url);
-      const externalBase = new URL(externalBaseUrl);
-      if (externalBase.protocol === 'https:') {
-        externalCertificateTrust = trustBackendCertificate(
-          externalBase.hostname,
-          externalBackend.certFingerprint ?? null
-        );
-      }
-
-      const auth = ensureAuthManager();
-      let probeSecret = serverSecret;
-      let authMode: 'secret' | 'bearer' = 'secret';
-      if (auth?.isEnabled()) {
-        const accessToken = await auth.getAccessToken();
-        if (!accessToken) {
-          externalCertificateTrust?.release();
-          dialog.showMessageBoxSync({
-            type: 'error',
-            title: 'Sign-in required',
-            message: 'Sign in with Avocado before connecting to the external backend.',
-            buttons: ['Quit'],
-            defaultId: 0,
-          });
-          app.quit();
-          return;
-        }
+    if (auth?.isEnabled()) {
+      const accessToken = await auth.getAccessToken();
+      if (!accessToken) {
+        // Show LoginGuard first; connect to the gateway after the user signs in.
+        deferExternalBackend = true;
+      } else {
         probeSecret = accessToken;
         authMode = 'bearer';
       }
+    }
 
-      const externalBackendReady = await checkBackendStatus({
-        baseUrl: externalBaseUrl,
-        serverSecret: probeSecret,
-        authMode,
-        fetch: net.fetch as unknown as typeof globalThis.fetch,
-      });
-      if (!externalBackendReady) {
-        externalCertificateTrust?.release();
-        const canDisableExternalBackend = externalBackend.source === 'settings';
-        const response = dialog.showMessageBoxSync({
-          type: 'error',
-          title: 'External Backend Unreachable',
-          message: `Could not connect to external backend at ${externalBaseUrl}`,
-          detail: authMode === 'bearer'
-            ? 'The gateway must be running and your Zitadel access token must include the agent-access role.'
-            : 'The external backend must be running and the configured secret must match GOOSE_SERVER__SECRET_KEY on the server.',
-          buttons: canDisableExternalBackend
-            ? ['Disable External Backend & Retry', 'Quit']
-            : ['Quit'],
-          defaultId: 0,
-          cancelId: canDisableExternalBackend ? 1 : 0,
-        });
-
-        if (canDisableExternalBackend && response === 0) {
-          updateSettings((s) => {
-            if (s.externalGoosed) {
-              s.externalGoosed.enabled = false;
-            }
-          });
-          return createChat(app, options);
-        }
-
+    if (!deferExternalBackend) {
+      gooseServeLease = await tryCreateExternalBackendLease(
+        externalBackend,
+        probeSecret,
+        authMode
+      );
+      if (!gooseServeLease && externalBackend.source === 'settings') {
+        return createChat(app, options);
+      }
+      if (!gooseServeLease) {
         app.quit();
         return;
       }
-
-      const leaseCertificateTrust = externalCertificateTrust;
-      externalCertificateTrust = null;
-      gooseServeLease = gooseServeLeases.createExternal(
-        acpWebSocketUrlFromHttpBase(externalBaseUrl, probeSecret),
-        probeSecret,
-        leaseCertificateTrust ? async () => leaseCertificateTrust.release() : undefined
-      );
-    } catch (error) {
-      externalCertificateTrust?.release();
-      log.error('External ACP backend is misconfigured', error);
-      const canDisableExternalBackend = externalBackend.source === 'settings';
-      const response = dialog.showMessageBoxSync({
-        type: 'error',
-        title: 'External Backend Misconfigured',
-        message: 'The external backend URL is invalid.',
-        detail: errorMessage(error),
-        buttons: canDisableExternalBackend
-          ? ['Disable External Backend & Retry', 'Quit']
-          : ['Quit'],
-        defaultId: 0,
-        cancelId: canDisableExternalBackend ? 1 : 0,
-      });
-
-      if (canDisableExternalBackend && response === 0) {
-        updateSettings((s) => {
-          if (s.externalGoosed) {
-            s.externalGoosed.enabled = false;
-          }
-        });
-        return createChat(app, options);
-      }
-
-      app.quit();
-      return;
     }
   } else {
     const localCertificateTrust = trustBackendCertificate('127.0.0.1', null);
@@ -2098,7 +2156,15 @@ ipcMain.handle('auth-get-status', () => {
 ipcMain.handle('auth-login', async () => {
   const auth = ensureAuthManager();
   if (!auth) return { state: 'disabled' as const };
-  return auth.login();
+  const status = await auth.login();
+  if (status.state === 'signedIn') {
+    const connected = await attachExternalBackendToAllWindows();
+    if (!connected) {
+      await auth.logout();
+      return auth.getStatus();
+    }
+  }
+  return auth.getStatus();
 });
 
 ipcMain.handle('auth-logout', async () => {
@@ -2122,6 +2188,13 @@ ipcMain.handle('auth-logout', async () => {
   }
 
   await auth.logout();
+
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) {
+      void gooseServeLeases.releaseWindow(win.id);
+    }
+  }
+
   return auth.getStatus();
 });
 

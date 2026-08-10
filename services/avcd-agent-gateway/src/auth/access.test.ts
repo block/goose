@@ -184,6 +184,22 @@ describe('auth access + verify (covers AC-2, AC-6)', () => {
     ).not.toThrow()
   })
 
+  it('GivenProjectScopedRolesClaimOnly_WhenRequireAccess_ThenAllows', () => {
+    // Zitadel emits roles under `...:project:<projectId>:roles` as well as the
+    // generic key; a token carrying only the project-scoped key must pass.
+    expect(() =>
+      requireAgentAccess(
+        {
+          sub: 'u',
+          [`urn:zitadel:iam:org:project:${projectId}:roles`]: {
+            'agent-access': { 'org-1': 'zitadel.zitadel.avcd.ai' },
+          },
+        },
+        settings()
+      )
+    ).not.toThrow()
+  })
+
   it('GivenOrgClaim_WhenExtractTenant_ThenUsesOrgId', () => {
     expect(
       extractTenantId({

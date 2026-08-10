@@ -11,6 +11,7 @@ import {
   type NavItem,
 } from '../../hooks/useNavigationItems';
 import { AppEvents } from '../../constants/events';
+import { AccountMenu } from '../auth/AccountMenu';
 import { InlineEditText } from '../common/InlineEditText';
 import { SessionIndicators } from '../SessionIndicators';
 import { acpRenameSession, type SessionListItem } from '../../acp/sessions';
@@ -399,12 +400,13 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
         )}
       </div>
 
-      <div className="px-2 pt-2 pb-2 border-t border-border-secondary">
+      <div className="px-2 pt-2 pb-2 border-t border-border-secondary flex flex-col gap-0.5">
         <NavRow
           item={SETTINGS_NAV_ITEM}
           active={isActive(SETTINGS_NAV_ITEM.path)}
           onClick={() => handleNavClick(SETTINGS_NAV_ITEM.path)}
         />
+        <AccountMenu />
       </div>
     </motion.div>
   );

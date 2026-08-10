@@ -11,6 +11,15 @@
   "accessDenied.title": {
     "defaultMessage": "Access not granted"
   },
+  "accountMenu.account": {
+    "defaultMessage": "Account"
+  },
+  "accountMenu.signOut": {
+    "defaultMessage": "Sign out"
+  },
+  "accountMenu.signedInAs": {
+    "defaultMessage": "Signed in"
+  },
   "addSkillDialog.cancel": {
     "defaultMessage": "Cancel"
   },
@@ -109,66 +118,6 @@
   },
   "appsView.title": {
     "defaultMessage": "Apps"
-  },
-  "authSettings.activeProviderWarning": {
-    "defaultMessage": "This is the active provider. New requests may fail until you configure another credential."
-  },
-  "authSettings.cancel": {
-    "defaultMessage": "Cancel"
-  },
-  "authSettings.delete": {
-    "defaultMessage": "Delete"
-  },
-  "authSettings.deleteCredential": {
-    "defaultMessage": "Delete credential"
-  },
-  "authSettings.deleteMessage": {
-    "defaultMessage": "Delete the {name} credential for {provider}?"
-  },
-  "authSettings.deleteTitle": {
-    "defaultMessage": "Delete credential"
-  },
-  "authSettings.deleted": {
-    "defaultMessage": "Credential deleted"
-  },
-  "authSettings.description": {
-    "defaultMessage": "Manage provider credentials stored locally by goose."
-  },
-  "authSettings.empty": {
-    "defaultMessage": "No locally stored provider credentials were found."
-  },
-  "authSettings.expiresAt": {
-    "defaultMessage": "Expires {date}"
-  },
-  "authSettings.failedToConfigure": {
-    "defaultMessage": "Failed to configure credential: {error}"
-  },
-  "authSettings.failedToDelete": {
-    "defaultMessage": "Failed to delete credential: {error}"
-  },
-  "authSettings.failedToLoad": {
-    "defaultMessage": "Failed to load provider credentials"
-  },
-  "authSettings.loading": {
-    "defaultMessage": "Loading credentials..."
-  },
-  "authSettings.reauthorize": {
-    "defaultMessage": "Reauthorize"
-  },
-  "authSettings.signIn": {
-    "defaultMessage": "Sign in"
-  },
-  "authSettings.signedIn": {
-    "defaultMessage": "Credential configured"
-  },
-  "authSettings.storageProviderCache": {
-    "defaultMessage": "Provider cache"
-  },
-  "authSettings.storageSecretStore": {
-    "defaultMessage": "Secret store"
-  },
-  "authSettings.title": {
-    "defaultMessage": "Provider Credentials"
   },
   "backButton.back": {
     "defaultMessage": "Back"
@@ -1148,20 +1097,23 @@
   "extensionItem.copyAuthLink": {
     "defaultMessage": "Copy sign-in link"
   },
-  "extensionItem.signIn": {
-    "defaultMessage": "Sign in"
+  "extensionItem.signedIn": {
+    "defaultMessage": "Signed in"
   },
-  "extensionItem.signInFailed": {
-    "defaultMessage": "Sign in failed"
-  },
-  "extensionItem.signInSuccess": {
-    "defaultMessage": "Signed in successfully"
+  "extensionItem.signedOut": {
+    "defaultMessage": "Not signed in"
   },
   "extensionItem.signingIn": {
     "defaultMessage": "Signing in…"
   },
+  "extensionItem.signingOut": {
+    "defaultMessage": "Signing out…"
+  },
   "extensionItem.toggleExtension": {
     "defaultMessage": "Toggle {name} extension On or Off"
+  },
+  "extensionItem.toggleOAuthExtension": {
+    "defaultMessage": "Turn {name} on to sign in, or off to sign out"
   },
   "extensionList.availableExtensions": {
     "defaultMessage": "Available Extensions ({count})"
@@ -1230,10 +1182,10 @@
     "defaultMessage": "Browse extensions"
   },
   "extensionsView.defaultNote": {
-    "defaultMessage": "Connections enabled here are used for new chats. Turn Google Workspace on to open Google sign-in in your browser."
+    "defaultMessage": "Connections enabled here are used for new chats. Turn Google Workspace on to sign in in your browser; turn it off to sign out."
   },
   "extensionsView.description": {
-    "defaultMessage": "Connect tools your team uses — Google Workspace, files, and more. Turn a connection on to sign in when prompted. {searchShortcut} to search."
+    "defaultMessage": "Connect tools your team uses — Google Workspace, files, and more. Turn a connection on to sign in; turn it off to sign out. {searchShortcut} to search."
   },
   "extensionsView.heading": {
     "defaultMessage": "Connections"
@@ -2500,6 +2452,9 @@
   },
   "onboardingGuard.checkProviderErrorTitle": {
     "defaultMessage": "Unable to connect to Avocado Work server"
+  },
+  "onboardingGuard.connecting": {
+    "defaultMessage": "Connecting to Avocado Work..."
   },
   "onboardingGuard.retry": {
     "defaultMessage": "Retry"
@@ -4171,9 +4126,6 @@
   },
   "settingsView.tabApp": {
     "defaultMessage": "App"
-  },
-  "settingsView.tabAuth": {
-    "defaultMessage": "Auth"
   },
   "settingsView.tabChat": {
     "defaultMessage": "Chat"

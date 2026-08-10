@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Avocado } from '../icons';
 import { Button } from '../ui/button';
 import { defineMessages, useIntl } from '../../i18n';
 import { AccessDenied } from './AccessDenied';
-import type { AuthStatus } from '../../auth';
+import { useAuthStatus } from '../../hooks/useAuthStatus';
 
 const i18n = defineMessages({
   welcomeTitle: {
@@ -46,60 +46,9 @@ type LoginGuardProps = {
   children: ReactNode;
 };
 
-function isAuthApiAvailable(): boolean {
-  return typeof window !== 'undefined' && Boolean(window.electron?.getAuthStatus);
-}
-
 export function LoginGuard({ children }: LoginGuardProps) {
   const intl = useIntl();
-  const [status, setStatus] = useState<AuthStatus | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const refresh = useCallback(async () => {
-    if (!isAuthApiAvailable()) {
-      setStatus({ state: 'disabled' });
-      return;
-    }
-    const next = (await window.electron.getAuthStatus()) as AuthStatus;
-    setStatus(next);
-  }, []);
-
-  useEffect(() => {
-    void refresh();
-    if (!isAuthApiAvailable()) return;
-    const handler = (_event: Electron.IpcRendererEvent, next: unknown) => {
-      setStatus(next as AuthStatus);
-    };
-    window.electron.on('auth:on-changed', handler);
-    return () => {
-      window.electron.off('auth:on-changed', handler);
-    };
-  }, [refresh]);
-
-  const signIn = async () => {
-    if (!isAuthApiAvailable()) return;
-    setBusy(true);
-    try {
-      const next = (await window.electron.authLogin()) as AuthStatus;
-      setStatus(next);
-    } catch (error) {
-      console.error('Login failed', error);
-      await refresh();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const signOut = async () => {
-    if (!isAuthApiAvailable()) return;
-    setBusy(true);
-    try {
-      await window.electron.authLogout();
-      await refresh();
-    } finally {
-      setBusy(false);
-    }
-  };
+  const { status, busy, signIn, signOut } = useAuthStatus();
 
   if (!status || status.state === 'disabled') {
     return <>{children}</>;

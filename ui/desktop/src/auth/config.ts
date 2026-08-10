@@ -48,6 +48,8 @@ export function loadZitadelAuthConfig(
     'email',
     'offline_access',
     projectId ? `urn:zitadel:iam:org:project:id:${projectId}:aud` : '',
+    projectId ? `urn:zitadel:iam:org:project:id:${projectId}:roles` : '',
+    'urn:zitadel:iam:org:projects:roles',
     orgId ? `urn:zitadel:iam:org:id:${orgId}` : '',
     'urn:zitadel:iam:user:resourceowner',
     googleIdpId ? `urn:zitadel:iam:org:idp:id:${googleIdpId}` : '',

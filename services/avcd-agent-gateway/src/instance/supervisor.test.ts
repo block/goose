@@ -2,7 +2,7 @@ import { mkdtemp, writeFile, chmod } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createServer } from 'node:http'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { InstanceSupervisor } from './supervisor.js'
 
@@ -95,6 +95,55 @@ describe('InstanceSupervisor (covers AC-3)', () => {
     await expect(
       sup.getOrStart({ tenantId: 't1', sub: 'u1', key: 't1/u1' })
     ).rejects.toThrow(/readiness timed out/)
+    expect(sup.list()).toHaveLength(0)
+  })
+
+  it('GivenInstanceKilledBySignal_WhenGetOrStart_ThenRespawnsOnNewPort', async () => {
+    // Regression: a SIGKILLed child keeps exitCode === null and killed === false,
+    // so the raw flags reported it alive and the proxy kept forwarding to a dead
+    // port until every request failed with ECONNREFUSED.
+    const dir = await mkdtemp(path.join(tmpdir(), 'gw-sup-'))
+    const bin = await writeFakeGoose(dir)
+    const dataRoot = await mkdtemp(path.join(tmpdir(), 'gw-data-'))
+    const sup = new InstanceSupervisor({
+      gooseBin: bin,
+      instanceConfig: { dataRoot },
+      readinessTimeoutMs: 5_000,
+      killGraceMs: 1_000,
+    })
+    supervisors.push(sup)
+
+    const key = { tenantId: 't1', sub: 'u1', key: 't1/u1' }
+    const first = await sup.getOrStart(key)
+
+    process.kill(first.pid, 'SIGKILL')
+
+    // Polling getOrStart is safe: it returns the stale entry until the 'exit'
+    // event lands, then respawns exactly once.
+    let second = first
+    await vi.waitFor(async () => {
+      second = await sup.getOrStart(key)
+      expect(second.pid).not.toBe(first.pid)
+    })
+
+    expect(second.port).not.toBe(first.port)
+    expect(sup.list()).toHaveLength(1)
+  })
+
+  it('GivenMissingBinary_WhenStart_ThenRejectsWithSpawnErrorAndNoCrash', async () => {
+    const dataRoot = await mkdtemp(path.join(tmpdir(), 'gw-data-'))
+    const sup = new InstanceSupervisor({
+      gooseBin: path.join(tmpdir(), 'definitely-not-a-real-goose-binary'),
+      instanceConfig: { dataRoot },
+      readinessTimeoutMs: 2_000,
+      readinessIntervalMs: 50,
+      killGraceMs: 200,
+    })
+    supervisors.push(sup)
+
+    await expect(sup.getOrStart({ tenantId: 't1', sub: 'u1', key: 't1/u1' })).rejects.toThrow(
+      /spawnError=/
+    )
     expect(sup.list()).toHaveLength(0)
   })
 

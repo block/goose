@@ -16,6 +16,7 @@ export type AuthStatus =
       state: 'signedIn'
       email?: string
       name?: string
+      picture?: string
       sub: string
       tenantId?: string
       roles: string[]
@@ -49,6 +50,21 @@ function decodeJwtPayload(token: string): Record<string, unknown> {
   return JSON.parse(json) as Record<string, unknown>
 }
 
+function collectRoleKeys(value: unknown, out: Set<string>): void {
+  if (value == null) return
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (typeof item === 'string' && item.trim()) out.add(item.trim())
+    }
+    return
+  }
+  if (typeof value === 'object') {
+    for (const key of Object.keys(value as Record<string, unknown>)) {
+      if (key.trim()) out.add(key.trim())
+    }
+  }
+}
+
 function extractRoles(payload: Record<string, unknown>): string[] {
   const roles = new Set<string>()
   for (const [key, value] of Object.entries(payload)) {
@@ -56,11 +72,7 @@ function extractRoles(payload: Record<string, unknown>): string[] {
       key === 'urn:zitadel:iam:org:project:roles' ||
       (key.startsWith('urn:zitadel:iam:org:project:') && key.endsWith(':roles'))
     ) {
-      if (value && typeof value === 'object') {
-        for (const role of Object.keys(value as object)) {
-          if (role.trim()) roles.add(role.trim())
-        }
-      }
+      collectRoleKeys(value, roles)
     }
   }
   return [...roles].sort()
@@ -269,6 +281,8 @@ export class AuthManager {
     this.applyTokenResponse({
       ...body,
       refresh_token: body.refresh_token || refreshToken,
+      // A refresh response usually omits id_token; keep the profile claims.
+      id_token: body.id_token || this.tokens?.idToken,
     })
   }
 
@@ -293,13 +307,16 @@ export class AuthManager {
     const payload = decodeJwtPayload(tokens.accessToken)
     const roles = extractRoles(payload)
     const roleKey = this.config?.accessRoleKey || 'agent-access'
-    const email =
-      typeof payload.email === 'string'
-        ? payload.email
-        : typeof payload.preferred_username === 'string'
-          ? payload.preferred_username
-          : undefined
-    const name = typeof payload.name === 'string' ? payload.name : undefined
+    // Zitadel puts profile claims in the ID token; the access token carries only
+    // roles, audiences and org metadata.
+    const identity = tokens.idToken ? decodeJwtPayload(tokens.idToken) : {}
+    const claim = (key: string): string | undefined => {
+      const value = identity[key] ?? payload[key]
+      return typeof value === 'string' && value.trim() ? value : undefined
+    }
+    const email = claim('email') || claim('preferred_username')
+    const name = claim('name') || claim('given_name')
+    const picture = claim('picture')
     const sub = typeof payload.sub === 'string' ? payload.sub : ''
     const tenantId =
       typeof payload['urn:zitadel:iam:org:id'] === 'string'
@@ -315,6 +332,7 @@ export class AuthManager {
       state: 'signedIn',
       email,
       name,
+      picture,
       sub,
       tenantId,
       roles,

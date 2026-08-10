@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { Loader2 } from 'lucide-react';
 import { useConfig } from '../ConfigContext';
 import { useModelAndProvider } from '../ModelAndProviderContext';
 import { acpListProviderDetails, acpReadDefaults, acpSaveDefaults } from '../../acp/providers';
@@ -36,6 +37,10 @@ const i18n = defineMessages({
   retry: {
     id: 'onboardingGuard.retry',
     defaultMessage: 'Retry',
+  },
+  connecting: {
+    id: 'onboardingGuard.connecting',
+    defaultMessage: 'Connecting to Avocado Work...',
   },
 });
 
@@ -158,7 +163,22 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   };
 
   if (isCheckingProvider) {
-    return null;
+    // The backend probe retries for several seconds; an empty window here reads
+    // as a hung app, so surface the wait explicitly.
+    return (
+      <div
+        className="h-screen w-full bg-background-default flex flex-col items-center justify-center"
+        data-testid="onboarding-connecting"
+      >
+        <div className="text-center">
+          <Avocado className="size-8 mx-auto mb-4" />
+          <p className="text-text-muted flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {intl.formatMessage(i18n.connecting)}
+          </p>
+        </div>
+      </div>
+    );
   }
 
   if (checkProviderError) {

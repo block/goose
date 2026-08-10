@@ -26,6 +26,13 @@ type InternalInstance = RunningInstance & {
   child: ChildProcess
   stdoutBuf: string
   stderrBuf: string
+  /**
+   * Set from 'exit'/'error'. Needed because a child killed by a signal keeps
+   * `exitCode === null`, and `killed` only reflects our own kill() calls — so
+   * the raw flags report a dead instance as alive.
+   */
+  exited: boolean
+  spawnError?: string
 }
 
 export type SupervisorOptions = {
@@ -37,6 +44,7 @@ export type SupervisorOptions = {
   killGraceMs?: number
   fetchImpl?: typeof fetch
   now?: () => number
+  logger?: (message: string) => void
 }
 
 async function findAvailablePort(): Promise<number> {
@@ -83,6 +91,16 @@ async function waitForStatus(
   throw new Error(`goose readiness timed out after ${opts.timeoutMs}ms`)
 }
 
+function isAlive(inst: InternalInstance): boolean {
+  const { child } = inst
+  return (
+    !inst.exited &&
+    !child.killed &&
+    child.exitCode === null &&
+    child.signalCode === null
+  )
+}
+
 function spawnGoose(
   gooseBin: string,
   args: string[],
@@ -116,6 +134,7 @@ export class InstanceSupervisor {
   private readonly killGraceMs: number
   private readonly fetchImpl: typeof fetch
   private readonly now: () => number
+  private readonly logger: (message: string) => void
   private reapTimer?: NodeJS.Timeout
 
   constructor(opts: SupervisorOptions) {
@@ -127,6 +146,7 @@ export class InstanceSupervisor {
     this.killGraceMs = opts.killGraceMs ?? 5_000
     this.fetchImpl = opts.fetchImpl ?? fetch
     this.now = opts.now ?? Date.now
+    this.logger = opts.logger ?? (() => {})
     this.reapTimer = setInterval(() => {
       void this.reapIdle()
     }, Math.min(60_000, this.idleTtlMs))
@@ -135,7 +155,7 @@ export class InstanceSupervisor {
 
   async getOrStart(instanceKey: InstanceKey): Promise<RunningInstance> {
     const existing = this.instances.get(instanceKey.key)
-    if (existing && !existing.child.killed && existing.child.exitCode === null) {
+    if (existing && isAlive(existing)) {
       existing.lastUsedAt = this.now()
       return this.publicView(existing)
     }
@@ -191,6 +211,7 @@ export class InstanceSupervisor {
       child,
       stdoutBuf: '',
       stderrBuf: '',
+      exited: false,
     }
 
     child.stdout?.on('data', (chunk: Buffer) => {
@@ -205,7 +226,19 @@ export class InstanceSupervisor {
         inst.stderrBuf = inst.stderrBuf.slice(-32_000)
       }
     })
-    child.on('exit', () => {
+    // Without this listener a spawn failure (bad gooseBin) raises an unhandled
+    // 'error' event and takes the gateway down with it.
+    child.on('error', (error) => {
+      inst.exited = true
+      inst.spawnError = error.message
+      this.logger(`instance ${inst.key} failed to spawn: ${error.message}`)
+    })
+    child.on('exit', (code, signal) => {
+      inst.exited = true
+      this.logger(
+        `instance ${inst.key} exited (pid=${inst.pid} code=${code} signal=${signal}); ` +
+          'it will be respawned on the next request'
+      )
       // Detach: leave map cleanup to next getOrStart/stop
       child.stdout?.removeAllListeners('data')
       child.stderr?.removeAllListeners('data')
@@ -220,14 +253,17 @@ export class InstanceSupervisor {
         timeoutMs: this.readinessTimeoutMs,
         intervalMs: this.readinessIntervalMs,
         fetchImpl: this.fetchImpl,
-        isAlive: () => child.exitCode === null && !child.killed,
+        isAlive: () => isAlive(inst),
       })
+      this.logger(`instance ${inst.key} ready on ${inst.baseUrl} (pid=${inst.pid})`)
       // Drain stdio after readiness so pipes cannot fill and hang the child.
       child.stdout?.resume()
       child.stderr?.resume()
       return this.publicView(inst)
     } catch (error) {
-      const detail = `stdout=${inst.stdoutBuf.slice(-500)} stderr=${inst.stderrBuf.slice(-500)}`
+      const spawnDetail = inst.spawnError ? ` spawnError=${inst.spawnError}` : ''
+      const detail =
+        `stdout=${inst.stdoutBuf.slice(-500)} stderr=${inst.stderrBuf.slice(-500)}` + spawnDetail
       this.instances.delete(instanceKey.key)
       await this.terminate(inst)
       if (error instanceof Error) {
@@ -239,7 +275,7 @@ export class InstanceSupervisor {
   }
 
   private async terminate(inst: InternalInstance): Promise<void> {
-    if (inst.child.exitCode !== null || inst.child.killed) return
+    if (!isAlive(inst)) return
     inst.child.kill('SIGTERM')
     const exited = await Promise.race([
       new Promise<boolean>((resolve) =>
