@@ -7,7 +7,7 @@ use crate::recipes::secret_discovery::{discover_recipe_secrets, SecretRequiremen
 use anyhow::Result;
 use goose::config::Config;
 use goose::recipe::build_recipe::{
-    apply_values_to_parameters, build_recipe_from_template, RecipeError,
+    apply_values_to_parameters_without_file_expansion, build_recipe_from_template, RecipeError,
 };
 use goose::recipe::validate_recipe::parse_and_validate_parameters;
 use goose::recipe::Recipe;
@@ -140,7 +140,7 @@ pub fn explain_recipe(recipe_name: &str, params: Vec<(String, String)>) -> Resul
         parse_and_validate_parameters(recipe_file_content, Some(recipe_dir_str.clone()))?;
     let recipe_parameters = recipe_template.parameters.clone();
 
-    let (params_for_template, missing_params) = apply_values_to_parameters(
+    let (params_for_template, missing_params) = apply_values_to_parameters_without_file_expansion(
         &params,
         recipe_parameters,
         &recipe_dir_str,
@@ -154,6 +154,7 @@ pub fn explain_recipe(recipe_name: &str, params: Vec<(String, String)>) -> Resul
 
 #[cfg(test)]
 mod tests {
+    use goose::recipe::build_recipe::apply_values_to_parameters_without_file_expansion;
     use goose::recipe::{RecipeParameterInputType, RecipeParameterRequirement};
 
     use crate::recipes::recipe::load_recipe;
@@ -197,5 +198,33 @@ mod tests {
             ));
             assert_eq!(param.description, "A test parameter");
         }
+    }
+
+    #[test]
+    fn explanation_preserves_file_parameter_path_without_reading_contents() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("does-not-exist.txt");
+        let parameters = vec![goose::recipe::RecipeParameter {
+            key: "input_file".to_string(),
+            input_type: RecipeParameterInputType::File,
+            requirement: RecipeParameterRequirement::Required,
+            description: "Input file".to_string(),
+            default: None,
+            options: None,
+        }];
+
+        let (values, missing) = apply_values_to_parameters_without_file_expansion(
+            &[("input_file".to_string(), file_path.display().to_string())],
+            Some(parameters),
+            temp_dir.path().to_str().unwrap(),
+            None::<fn(&str, &str) -> anyhow::Result<String>>,
+        )
+        .unwrap();
+
+        assert!(missing.is_empty());
+        assert_eq!(
+            values.get("input_file"),
+            Some(&file_path.display().to_string())
+        );
     }
 }

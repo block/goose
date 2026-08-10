@@ -84,6 +84,44 @@ pub fn apply_values_to_parameters<F>(
 where
     F: Fn(&str, &str) -> Result<String, anyhow::Error>,
 {
+    apply_values_to_parameters_with_file_handler(
+        user_params,
+        recipe_parameters,
+        recipe_dir,
+        user_prompt_fn,
+        |path| read_parameter_file_content(path),
+    )
+}
+
+pub fn apply_values_to_parameters_without_file_expansion<F>(
+    user_params: &[(String, String)],
+    recipe_parameters: Option<Vec<RecipeParameter>>,
+    recipe_dir: &str,
+    user_prompt_fn: Option<F>,
+) -> Result<(HashMap<String, String>, Vec<String>)>
+where
+    F: Fn(&str, &str) -> Result<String, anyhow::Error>,
+{
+    apply_values_to_parameters_with_file_handler(
+        user_params,
+        recipe_parameters,
+        recipe_dir,
+        user_prompt_fn,
+        |path| Ok(path.to_string()),
+    )
+}
+
+fn apply_values_to_parameters_with_file_handler<F, H>(
+    user_params: &[(String, String)],
+    recipe_parameters: Option<Vec<RecipeParameter>>,
+    recipe_dir: &str,
+    user_prompt_fn: Option<F>,
+    file_handler: H,
+) -> Result<(HashMap<String, String>, Vec<String>)>
+where
+    F: Fn(&str, &str) -> Result<String, anyhow::Error>,
+    H: Fn(&str) -> Result<String, anyhow::Error>,
+{
     let mut param_map: HashMap<String, String> = user_params.iter().cloned().collect();
     param_map.insert(
         BUILT_IN_RECIPE_DIR_PARAM.to_string(),
@@ -106,7 +144,7 @@ where
         match raw_value {
             Some(value) => {
                 let final_value = if matches!(param.input_type, RecipeParameterInputType::File) {
-                    read_parameter_file_content(&value)?
+                    file_handler(&value)?
                 } else {
                     value
                 };
