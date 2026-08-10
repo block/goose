@@ -513,7 +513,6 @@ async fn scenario_crash(
     args: &Args,
 ) -> anyhow::Result<()> {
     let t0 = Instant::now();
-    let end = t0 + Duration::from_secs(args.duration_secs);
     let mut stream = connect_trusted(node, card, "crash", Duration::from_secs(60)).await?;
     let mut counter: u64 = 0;
     let mut frames_ok: u64 = 0;
@@ -540,6 +539,10 @@ async fn scenario_crash(
     frames_ok += 1;
     counter += 1;
     println!("CRASH_RUNNING");
+    // The measured window starts here — the same instant the run script
+    // anchors its kill timer on — so setup time can't eat the window and end
+    // the loop before the kill ever lands.
+    let end = Instant::now() + Duration::from_secs(args.duration_secs);
 
     let reconnect = |stream: &mut RoamingClientStream,
                      watch: &mut tokio::task::JoinHandle<()>,
@@ -564,6 +567,10 @@ async fn scenario_crash(
             }
             Err(_) => {
                 let outage_start = t0.elapsed().as_millis() as u64;
+                // Bound the whole recovery: reconnects that keep being
+                // accepted while every frame still dies must fail the
+                // scenario, not hang the battery.
+                let recovery_deadline = Instant::now() + Duration::from_secs(120);
                 drop(stream);
                 stream = connect_trusted(node, card, "crash", Duration::from_secs(120)).await?;
                 reconnect(&mut stream, &mut watch, &mut seq);
@@ -575,6 +582,10 @@ async fn scenario_crash(
                     match exchange_frame(&mut stream, counter).await {
                         Ok(_) => break,
                         Err(_) => {
+                            anyhow::ensure!(
+                                Instant::now() < recovery_deadline,
+                                "data plane did not recover within 120s of outage start"
+                            );
                             drop(stream);
                             stream = connect_trusted(node, card, "crash", Duration::from_secs(120))
                                 .await?;
