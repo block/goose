@@ -84,10 +84,19 @@ impl AvocadoProvider {
         BUDGET_MARKERS.iter().any(|marker| lower.contains(marker))
     }
 
-    /// Map budget-marker 429s to CreditsExhausted, enrich 402 CreditsExhausted with billing URL.
+    /// Map budget-marker responses to CreditsExhausted (LiteLLM uses 429 historically and
+    /// 400 with `ExceededBudget` / `budget_exceeded` in current builds), enrich 402.
     fn classify_budget_error(err: ProviderError) -> ProviderError {
         match err {
             ProviderError::RateLimitExceeded { details, .. }
+                if Self::details_indicate_budget_exceeded(&details) =>
+            {
+                ProviderError::CreditsExhausted {
+                    details,
+                    top_up_url: Some(AVOCADO_BILLING_URL.to_string()),
+                }
+            }
+            ProviderError::RequestFailed(details)
                 if Self::details_indicate_budget_exceeded(&details) =>
             {
                 ProviderError::CreditsExhausted {
@@ -305,6 +314,26 @@ mod tests {
                 assert!(details.contains("Rate limit exceeded"));
             }
             other => panic!("Expected RateLimitExceeded, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn given_400_request_failed_with_exceeded_budget_when_classify_then_credits_exhausted() {
+        // Real LiteLLM (v1.83.x) returns HTTP 400 + type budget_exceeded, which
+        // http_status maps to RequestFailed — not RateLimitExceeded.
+        let err = ProviderError::RequestFailed(
+            "Bad request (400): ExceededBudget: User=tenant:user over budget. Spend=1.35e-05, Budget=0.0"
+                .to_string(),
+        );
+        match AvocadoProvider::classify_budget_error(err) {
+            ProviderError::CreditsExhausted {
+                details,
+                top_up_url,
+            } => {
+                assert!(details.to_ascii_lowercase().contains("over budget"));
+                assert_eq!(top_up_url.as_deref(), Some(AVOCADO_BILLING_URL));
+            }
+            other => panic!("Expected CreditsExhausted, got {other:?}"),
         }
     }
 
