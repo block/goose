@@ -129,6 +129,7 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
       await upsert(TELEMETRY_CONFIG_KEY, telemetryEnabled, false);
     } catch (error) {
       console.error('Failed to save telemetry preference:', error);
+      return;
     }
     trackTelemetryPreference(telemetryEnabled, 'onboarding');
     if (configuredProvider) {
