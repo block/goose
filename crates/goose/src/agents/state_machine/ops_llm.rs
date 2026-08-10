@@ -497,6 +497,18 @@ impl Inference for InferenceRunner<'_> {
                 .get_context_limit(&self.model_config)
                 .await
                 .unwrap_or_else(|_| self.model_config.context_limit());
+            let provider_name = self.provider.get_name();
+            if let Some(session_id) =
+                super::super::latest_provider_session_id(conversation.messages(), provider_name)
+            {
+                if let Err(error) = self.provider.resume(session_id).await {
+                    tracing::warn!(
+                        provider = provider_name,
+                        %error,
+                        "Could not resume provider session; continuing with a handoff"
+                    );
+                }
+            }
             let turn = messages_since_kickoff(conversation)?;
             let turn_start = turn
                 .first()
@@ -553,16 +565,21 @@ impl Inference for InferenceRunner<'_> {
             );
 
             let requested_model = self.model_config.model_name.clone();
-            let inference = self
+            let resolved_model = self
                 .provider
                 .fetch_model_info(&requested_model)
                 .await
                 .ok()
-                .and_then(|model_info| model_info.resolved_model)
-                .map(|resolved_model| InferenceMetadata {
-                    provider: self.provider.get_name().to_string(),
-                    requested_model,
-                    resolved_model: Some(resolved_model),
+                .and_then(|model_info| model_info.resolved_model);
+            let provider_session_id = self.provider.provider_session_id();
+            let inference =
+                (resolved_model.is_some() || provider_session_id.is_some()).then(|| {
+                    InferenceMetadata {
+                        provider: self.provider.get_name().to_string(),
+                        requested_model,
+                        resolved_model,
+                        provider_session_id,
+                    }
                 });
 
             let mut accumulator = Conversation::empty();
