@@ -19,7 +19,7 @@ import {
 import { GooseClient } from "@aaif/goose-sdk";
 import jsQR from "jsqr";
 import { Button } from "@desktop/components/ui/button";
-import { Camera, ChevronLeft, ChevronRight, Menu, SlidersHorizontal, Square } from "lucide-react";
+import { Camera, ChevronDown, ChevronLeft, ChevronRight, Menu, SlidersHorizontal, Square } from "lucide-react";
 import { SessionMatrix } from "./SessionMatrix";
 import MarkdownContent from "@desktop/components/MarkdownContent";
 import { Goose } from "@desktop/components/icons/Goose";
@@ -232,10 +232,12 @@ function sessionProjectId(s: SessionInfo): string | null {
 // Bucket sessions under their project (server order preserved within each
 // bucket); projectless sessions lead, so the everyday case reads unchanged.
 // Project titles are looked up per host — slugs are only unique per machine.
+type SessionGroup = { key: string; label: string | null; sessions: TaggedSession[] };
+
 function groupSessions(
   sessions: TaggedSession[],
   projects: Record<string, string>,
-): [string | null, TaggedSession[]][] {
+): SessionGroup[] {
   const loose: TaggedSession[] = [];
   const byProject = new Map<string, TaggedSession[]>();
   for (const s of sessions) {
@@ -249,12 +251,29 @@ function groupSessions(
       else byProject.set(key, [s]);
     }
   }
-  const out: [string | null, TaggedSession[]][] = [];
-  if (loose.length) out.push([null, loose]);
+  const out: SessionGroup[] = [];
+  if (loose.length) out.push({ key: "~", label: null, sessions: loose });
   for (const [key, group] of byProject) {
-    out.push([projects[key] ?? key.split(":").slice(1).join(":"), group]);
+    out.push({
+      key,
+      label: projects[key] ?? key.split(":").slice(1).join(":"),
+      sessions: group,
+    });
   }
   return out;
+}
+
+// Collapsed project groups persist per device.
+const COLLAPSED_KEY = "goose-roam-collapsed-projects";
+
+function loadCollapsed(): Set<string> {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_KEY);
+    if (raw) return new Set(JSON.parse(raw) as string[]);
+  } catch {
+    // ignore malformed state
+  }
+  return new Set();
 }
 
 declare const __BUILD_STAMP__: string;
@@ -288,6 +307,21 @@ export function App({ roam }: { roam: RoamClient }) {
   const [showConfig, setShowConfig] = useState(false);
   const [relay, setRelay] = useState<string | null>(null);
   const [projects, setProjects] = useState<Record<string, string>>({});
+  const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsed);
+
+  const toggleGroup = useCallback((key: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
+      } catch {
+        // best effort
+      }
+      return next;
+    });
+  }, []);
   const [activeRun, setActiveRun] = useState<string | null>(null);
   const activeRunRef = useRef<string | null>(null);
   // Loop-boundary guard (L0): the open session is advancing but our
@@ -1245,14 +1279,23 @@ export function App({ roam }: { roam: RoamClient }) {
               + New session
             </button>
             <div id="session-list" className="overflow-y-auto flex flex-col gap-1">
-              {groupSessions(sessions, projects).map(([label, group]) => (
-                <div key={label ?? "~"} className="flex flex-col gap-1">
+              {groupSessions(sessions, projects).map(({ key, label, sessions: group }) => (
+                <div key={key} className="flex flex-col gap-1">
                   {label !== null && (
-                    <div className="project-label text-[10px] uppercase tracking-wide text-text-tertiary px-2.5 pt-2">
-                      {label}
-                    </div>
+                    <button
+                      className="project-label flex items-center gap-1 text-[10px] uppercase tracking-wide text-text-tertiary px-2.5 pt-2 hover:text-text-secondary"
+                      onClick={() => toggleGroup(key)}
+                      aria-expanded={!collapsed.has(key)}
+                    >
+                      <ChevronDown
+                        size={12}
+                        className={`shrink-0 transition-transform duration-150 ${collapsed.has(key) ? "-rotate-90" : ""}`}
+                      />
+                      <span className="truncate">{label}</span>
+                      <span className="font-normal normal-case tracking-normal">({group.length})</span>
+                    </button>
                   )}
-                  {group.map((s) => (
+                  {(label === null || !collapsed.has(key)) && group.map((s) => (
                     <button
                       key={`${s._host}|${s.sessionId}`}
                       className={`session-item text-left rounded-lg px-2.5 py-2 transition-all duration-150 ${
