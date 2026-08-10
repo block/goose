@@ -213,18 +213,12 @@ impl Agent {
             self.tool_inspection_manager.apply_tool_annotations(&tools);
         }
 
-        let extension_management_active = self
-            .extension_manager
-            .is_extension_enabled(crate::agents::platform_extensions::ext_manager::EXTENSION_NAME)
-            .await;
-
         let prompt_manager = self.prompt_manager.lock().await;
         let system_prompt = prompt_manager
             .builder()
             .with_extensions(extensions_info.into_iter())
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
             .with_code_execution_mode(code_execution_active)
-            .with_extension_management(extension_management_active)
             .with_hints(working_dir)
             .with_goose_mode(goose_mode)
             .build();

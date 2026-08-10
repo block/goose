@@ -27,6 +27,7 @@ make reasonable assumptions, and focus on finishing the user's task.
 # Extensions
 
 Extensions provide additional tools and context from different data sources and applications.
+You can dynamically enable or disable extensions as needed to help complete tasks.
 
 No extensions are defined. You should let the user know that they should add extensions.
 
