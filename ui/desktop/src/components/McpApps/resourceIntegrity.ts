@@ -21,9 +21,14 @@ export function resourceIntegrityKey(extensionName: string, resourceUri: string)
 export class ResourceIntegrityTracker {
   private readonly hashes = new Map<string, string>();
 
+  constructor(private readonly maxEntries = 1000) {}
+
   record(key: string, hash: string): IntegrityCheckResult {
     const previousHash = this.hashes.get(key);
     if (previousHash === undefined) {
+      if (this.hashes.size === this.maxEntries) {
+        this.hashes.delete(this.hashes.keys().next().value!);
+      }
       this.hashes.set(key, hash);
       return { hash, firstSeen: true, changed: false };
     }

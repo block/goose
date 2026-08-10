@@ -721,7 +721,7 @@ export default function McpAppRenderer({
   const [containerHeight, setContainerHeight] = useState<number>(0);
 
   useEffect(() => {
-    if (cachedHtml) {
+    if (cachedHtml !== undefined) {
       verifyResourceIntegrity(extensionName, resourceUri, cachedHtml);
     }
   }, [cachedHtml, extensionName, resourceUri]);
@@ -778,7 +778,7 @@ export default function McpAppRenderer({
               prefersBorder: rawMeta?.ui?.prefersBorder ?? true,
             };
 
-            if (resolvedHtml) {
+            if (resolvedHtml !== null) {
               fetchedDataRef.current = { html: resolvedHtml, meta: resolvedMeta };
               verifyResourceIntegrity(extensionName, resourceUri, resolvedHtml);
             }
@@ -918,7 +918,7 @@ export default function McpAppRenderer({
       if (!data) {
         return { contents: [] };
       }
-      if (uri.startsWith('ui://') && data.text) {
+      if (uri.startsWith('ui://') && data.text !== undefined) {
         verifyResourceIntegrity(extensionName, uri, data.text);
       }
       return {

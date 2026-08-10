@@ -71,6 +71,16 @@ describe('ResourceIntegrityTracker', () => {
     expect(tracker.record('b', 'y').firstSeen).toBe(true);
     expect(tracker.record('a', 'x').changed).toBe(false);
   });
+
+  it('evicts the oldest baseline when full', () => {
+    const tracker = new ResourceIntegrityTracker(2);
+    tracker.record('a', 'x');
+    tracker.record('b', 'y');
+    tracker.record('c', 'z');
+
+    expect(tracker.record('a', 'changed').firstSeen).toBe(true);
+    expect(tracker.record('c', 'changed').changed).toBe(true);
+  });
 });
 
 describe('checkResourceIntegrity', () => {
@@ -97,6 +107,15 @@ describe('checkResourceIntegrity', () => {
     );
     expect(repeatTampered.changed).toBe(true);
     expect(repeatTampered.previousHash).toBe(first.hash);
+  });
+
+  it('detects a change to an empty resource', async () => {
+    const tracker = new ResourceIntegrityTracker();
+    await checkResourceIntegrity(tracker, 'ext', 'ui://app', '<html>content</html>');
+
+    const empty = await checkResourceIntegrity(tracker, 'ext', 'ui://app', '');
+
+    expect(empty.changed).toBe(true);
   });
 
   it('detects tampering when cached HTML differs from a later fetch', async () => {
