@@ -162,12 +162,16 @@ export default function ModelsBottomBar({
   };
 
   const handleRecentModelClick = async (recent: RecentModel) => {
+    const previousModel = currentModel;
+    const previousProvider = currentProvider;
     const success = await changeModel(sessionId, { name: recent.model, provider: recent.provider });
     if (success) {
       trackModelChanged(recent.provider, recent.model);
-      const updated = addToRecentModels(recentModels, recent.provider, recent.model);
-      await window.electron.setSetting('recentModels', updated);
-      setRecentModels(updated);
+      if (previousModel && previousProvider) {
+        const updated = addToRecentModels(recentModels, previousProvider, previousModel);
+        await window.electron.setSetting('recentModels', updated);
+        setRecentModels(updated);
+      }
       onModelChanged({ model: recent.model, provider: recent.provider });
     }
   };
@@ -224,7 +228,10 @@ export default function ModelsBottomBar({
                   onClick={() => void handleRecentModelClick(recent)}
                 >
                   <History className="mr-2 h-3.5 w-3.5 flex-shrink-0 text-text-secondary" />
-                  <span className="truncate">{getModelDisplayName(recent.model)}</span>
+                  <div className="flex flex-col min-w-0">
+                    <span className="truncate">{getModelDisplayName(recent.model)}</span>
+                    <span className="truncate text-xs text-text-secondary">{recent.provider}</span>
+                  </div>
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator />
