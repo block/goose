@@ -22,7 +22,7 @@ pub(super) fn is_supported(response: &InitializeResponse) -> bool {
             .is_some_and(|version| version >= MINIMUM_CLAUDE_ACP_VERSION)
 }
 
-pub(super) fn delivery_confirmed(response: ClaudeSteeringResponse) -> bool {
+pub(super) fn delivery_confirmed(response: &ClaudeSteeringResponse) -> bool {
     matches!(response, ClaudeSteeringResponse::Injected)
 }
 
@@ -157,7 +157,7 @@ mod tests {
 
     #[test]
     fn confirms_only_injected_delivery() {
-        assert!(delivery_confirmed(ClaudeSteeringResponse::Injected));
-        assert!(!delivery_confirmed(ClaudeSteeringResponse::PromptRequired));
+        assert!(delivery_confirmed(&ClaudeSteeringResponse::Injected));
+        assert!(!delivery_confirmed(&ClaudeSteeringResponse::PromptRequired));
     }
 }

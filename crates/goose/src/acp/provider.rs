@@ -89,6 +89,7 @@ enum ClientRequest {
     ClaudeSteer {
         session_id: SessionId,
         content: Vec<ContentBlock>,
+        assistant_message_boundary_pending: Arc<AtomicBool>,
         response_tx: oneshot::Sender<Result<ClaudeSteeringResponse>>,
     },
     Prompt {
@@ -180,6 +181,7 @@ impl SessionTitlePublisher {
 pub struct AcpProvider {
     name: String,
     supports_native_steering: bool,
+    assistant_message_boundary_pending: Arc<AtomicBool>,
     goose_mode: Arc<Mutex<GooseMode>>,
     mode_mapping: HashMap<GooseMode, Vec<String>>,
 
@@ -317,6 +319,7 @@ impl AcpProvider {
         Ok(Self {
             name,
             supports_native_steering,
+            assistant_message_boundary_pending: Arc::new(AtomicBool::new(false)),
             goose_mode: goose_mode_shared,
             mode_mapping,
             session,
@@ -386,6 +389,9 @@ impl AcpProvider {
             .send(ClientRequest::ClaudeSteer {
                 session_id,
                 content,
+                assistant_message_boundary_pending: Arc::clone(
+                    &self.assistant_message_boundary_pending,
+                ),
                 response_tx,
             })
             .await
@@ -494,7 +500,7 @@ impl Provider for AcpProvider {
             .await
             .map_err(|error| ProviderError::RequestFailed(error.to_string()))?;
 
-        Ok(claude_steering::delivery_confirmed(response))
+        Ok(claude_steering::delivery_confirmed(&response))
     }
 
     async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
@@ -611,6 +617,8 @@ impl Provider for AcpProvider {
 
         let reject_all_tools = goose_mode == GooseMode::Chat;
         let model_name = model_config.model_name.clone();
+        let assistant_message_boundary_pending =
+            Arc::clone(&self.assistant_message_boundary_pending);
 
         Ok(Box::pin(try_stream! {
             let mut suppress_text = false;
@@ -620,6 +628,13 @@ impl Provider for AcpProvider {
             let mut thought_run: Option<(String, i64)> = None;
 
             while let Some(update) = rx.recv().await {
+                if matches!(&update, AcpUpdate::Text(_) | AcpUpdate::Thought(_))
+                    && assistant_message_boundary_pending.swap(false, Ordering::AcqRel)
+                {
+                    text_run = None;
+                    thought_run = None;
+                }
+
                 match update {
                     AcpUpdate::Text(text) => {
                         if !suppress_text {
@@ -1150,6 +1165,37 @@ fn log_undelivered<E: std::fmt::Debug>(result: Result<(), E>, method: &str) {
     }
 }
 
+async fn run_prompt_request(
+    cx: ConnectionTo<Agent>,
+    session_id: SessionId,
+    content: Vec<ContentBlock>,
+    response_tx: mpsc::Sender<AcpUpdate>,
+    prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
+) -> Result<(), agent_client_protocol::Error> {
+    let response: Result<PromptResponse, _> = cx
+        .send_request(PromptRequest::new(session_id, content))
+        .block_task()
+        .await;
+
+    match response {
+        Ok(response) => {
+            log_undelivered(
+                response_tx.try_send(AcpUpdate::Complete(response.stop_reason, response.usage)),
+                AGENT_METHOD_NAMES.session_prompt,
+            );
+        }
+        Err(error) => {
+            log_undelivered(
+                response_tx.try_send(AcpUpdate::Error(error.to_string())),
+                AGENT_METHOD_NAMES.session_prompt,
+            );
+        }
+    }
+
+    *prompt_response_tx.lock().unwrap() = None;
+    Ok(())
+}
+
 async fn handle_requests(
     config: AcpProviderConfig,
     goose_mode: Arc<Mutex<GooseMode>>,
@@ -1250,6 +1296,7 @@ async fn handle_requests(
             ClientRequest::ClaudeSteer {
                 session_id,
                 content,
+                assistant_message_boundary_pending,
                 response_tx,
             } => {
                 let result: Result<ClaudeSteeringResponse> = cx
@@ -1257,6 +1304,12 @@ async fn handle_requests(
                     .block_task()
                     .await
                     .map_err(anyhow::Error::from);
+                if result
+                    .as_ref()
+                    .is_ok_and(claude_steering::delivery_confirmed)
+                {
+                    assistant_message_boundary_pending.store(true, Ordering::Release);
+                }
                 log_undelivered(response_tx.send(result), "_session/steering");
             }
             ClientRequest::Prompt {
@@ -1264,29 +1317,40 @@ async fn handle_requests(
                 content,
                 response_tx,
             } => {
-                *prompt_response_tx.lock().unwrap() = Some(response_tx.clone());
-
-                let response: Result<PromptResponse, _> = cx
-                    .send_request(PromptRequest::new(session_id, content))
-                    .block_task()
-                    .await;
-
-                match response {
-                    Ok(r) => {
-                        log_undelivered(
-                            response_tx.try_send(AcpUpdate::Complete(r.stop_reason, r.usage)),
-                            AGENT_METHOD_NAMES.session_prompt,
-                        );
+                let prompt_already_active = {
+                    let mut active_prompt_tx = prompt_response_tx.lock().unwrap();
+                    if active_prompt_tx.is_some() {
+                        true
+                    } else {
+                        *active_prompt_tx = Some(response_tx.clone());
+                        false
                     }
-                    Err(e) => {
-                        log_undelivered(
-                            response_tx.try_send(AcpUpdate::Error(e.to_string())),
-                            AGENT_METHOD_NAMES.session_prompt,
-                        );
-                    }
+                };
+                if prompt_already_active {
+                    log_undelivered(
+                        response_tx.try_send(AcpUpdate::Error(
+                            "ACP prompt already in progress".to_string(),
+                        )),
+                        AGENT_METHOD_NAMES.session_prompt,
+                    );
+                    continue;
                 }
 
-                *prompt_response_tx.lock().unwrap() = None;
+                let prompt_task = run_prompt_request(
+                    cx.clone(),
+                    session_id,
+                    content,
+                    response_tx.clone(),
+                    prompt_response_tx.clone(),
+                );
+                if let Err(error) = cx.spawn(prompt_task) {
+                    *prompt_response_tx.lock().unwrap() = None;
+                    log_undelivered(
+                        response_tx.try_send(AcpUpdate::Error(error.to_string())),
+                        AGENT_METHOD_NAMES.session_prompt,
+                    );
+                    return Err(error);
+                }
             }
         }
     }
@@ -1818,6 +1882,7 @@ mod tests {
             AcpProvider {
                 name: "acp-test".to_string(),
                 supports_native_steering: false,
+                assistant_message_boundary_pending: Arc::new(AtomicBool::new(false)),
                 goose_mode: Arc::new(Mutex::new(GooseMode::Auto)),
                 mode_mapping: HashMap::new(),
                 session: AcpSession {
