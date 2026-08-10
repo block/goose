@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
@@ -195,6 +196,7 @@ pub struct AgentConfig {
     pub mcp_host_info: Option<GooseMcpHostInfo>,
     pub session_name_update_tx: Option<mpsc::UnboundedSender<SessionNameUpdate>>,
     pub use_login_shell_path: Option<bool>,
+    pub is_subagent: bool,
 }
 
 impl AgentConfig {
@@ -216,6 +218,7 @@ impl AgentConfig {
             mcp_host_info: None,
             session_name_update_tx: None,
             use_login_shell_path: None,
+            is_subagent: false,
         }
     }
 
@@ -265,6 +268,7 @@ pub struct Agent {
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
     pub(super) hook_manager: crate::hooks::HookManager,
+    session_start_emitted: AtomicBool,
     #[cfg(test)]
     pub(super) stop_hook_block_cap_override: Option<u32>,
     container: Mutex<Option<Container>>,
@@ -399,6 +403,7 @@ impl Agent {
         let inspection_session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
         let use_login_shell_path = config.resolve_use_login_shell_path();
+        let is_subagent = config.is_subagent;
         Self {
             provider: provider.clone(),
             config,
@@ -425,10 +430,15 @@ impl Agent {
                 provider.clone(),
                 inspection_session_manager,
             ),
-            hook_manager: crate::hooks::HookManager::load(
-                std::env::current_dir().ok().as_deref(),
-                use_login_shell_path,
-            ),
+            hook_manager: if is_subagent {
+                crate::hooks::HookManager::default()
+            } else {
+                crate::hooks::HookManager::load(
+                    std::env::current_dir().ok().as_deref(),
+                    use_login_shell_path,
+                )
+            },
+            session_start_emitted: AtomicBool::new(false),
             #[cfg(test)]
             stop_hook_block_cap_override: None,
             container: Mutex::new(None),
@@ -468,6 +478,22 @@ impl Agent {
         self.hook_manager
             .emit(event, crate::hooks::HookContext::new(event, session_id))
             .await;
+    }
+
+    pub async fn emit_hook_with_banners(
+        &self,
+        event: crate::hooks::HookEvent,
+        session_id: &str,
+    ) -> Vec<String> {
+        if event == crate::hooks::HookEvent::SessionStart {
+            self.session_start_emitted.store(true, Ordering::Release);
+        }
+        if !self.hook_manager.has_hooks(event) {
+            return Vec::new();
+        }
+        self.hook_manager
+            .emit_collecting_banners(event, crate::hooks::HookContext::new(event, session_id))
+            .await
     }
 
     fn stop_hook_context(
@@ -1907,7 +1933,7 @@ impl Agent {
             return Ok(Box::pin(futures::stream::empty()));
         }
 
-        if is_first_agent_turn {
+        if is_first_agent_turn && !self.session_start_emitted.swap(true, Ordering::AcqRel) {
             self.emit_hook(crate::hooks::HookEvent::SessionStart, &session_config.id)
                 .await;
         }
