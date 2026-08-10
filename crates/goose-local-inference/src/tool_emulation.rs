@@ -4,18 +4,23 @@
 //! as `$ command` on a new line and code blocks as ```execute_typescript fenced blocks.
 //! The parser converts those patterns into Goose tool-call messages.
 
+#[cfg(feature = "mlx")]
 use goose_provider_types::conversation::message::{Message, MessageContent};
+#[cfg(feature = "mlx")]
 use rmcp::model::{CallToolRequestParams, Tool};
+#[cfg(feature = "mlx")]
 use serde_json::json;
+#[cfg(feature = "mlx")]
 use std::borrow::Cow;
+#[cfg(feature = "mlx")]
 use uuid::Uuid;
 
+#[cfg(feature = "mlx")]
 pub(crate) const SHELL_TOOL: &str = "developer__shell";
+#[cfg(feature = "mlx")]
 pub(crate) const CODE_EXECUTION_TOOL: &str = "code_execution__execute_typescript";
 
-const HOLD_BACK_CODE_MODE: usize = " ```execute_typescript\n".len();
-const HOLD_BACK_SHELL_ONLY: usize = "\n$".len();
-
+#[cfg(feature = "mlx")]
 pub(crate) fn load_tiny_model_prompt() -> String {
     use std::env;
 
@@ -48,6 +53,7 @@ pub(crate) fn load_tiny_model_prompt() -> String {
     })
 }
 
+#[cfg(feature = "mlx")]
 pub(crate) fn build_emulator_tool_description(tools: &[Tool], code_mode_enabled: bool) -> String {
     let mut tool_desc = String::new();
 
@@ -124,16 +130,107 @@ pub(crate) enum EmulatorAction {
     ExecuteCode(String),
 }
 
+#[derive(Clone, Copy)]
 enum ParserState {
     Normal,
     InCommand,
-    InExecuteBlock,
+    InExecuteBlock { fence_len: usize },
+    InMarkdownFence { marker: char, fence_len: usize },
 }
 
 pub(crate) struct StreamingEmulatorParser {
     buffer: String,
     state: ParserState,
     code_mode_enabled: bool,
+    at_line_start: bool,
+}
+
+struct Fence<'a> {
+    marker: char,
+    len: usize,
+    info: &'a str,
+}
+
+#[allow(clippy::string_slice)]
+fn parse_fence(line: &str) -> Option<Fence<'_>> {
+    let line = line.strip_suffix('\r').unwrap_or(line);
+    let indent = line.bytes().take_while(|byte| *byte == b' ').count();
+    if indent > 3 {
+        return None;
+    }
+
+    let rest = &line[indent..];
+    let marker = rest.chars().next()?;
+    if marker != '`' && marker != '~' {
+        return None;
+    }
+
+    let len = rest.chars().take_while(|ch| *ch == marker).count();
+    if len < 3 {
+        return None;
+    }
+
+    Some(Fence {
+        marker,
+        len,
+        info: rest[len..].trim(),
+    })
+}
+
+fn is_closing_fence(line: &str, marker: char, minimum_len: usize) -> bool {
+    parse_fence(line).is_some_and(|fence| {
+        fence.marker == marker && fence.len >= minimum_len && fence.info.is_empty()
+    })
+}
+
+#[allow(clippy::string_slice)]
+fn could_be_control_line(line: &str, marker: Option<char>) -> bool {
+    let indent = line.bytes().take_while(|byte| *byte == b' ').count();
+    if indent > 3 {
+        return false;
+    }
+
+    let rest = &line[indent..];
+    match marker {
+        Some(marker) => {
+            let marker_len = rest.chars().take_while(|ch| *ch == marker).count();
+            marker_len == rest.chars().count()
+                || (marker_len >= 3
+                    && rest[marker_len..]
+                        .chars()
+                        .all(|ch| ch == ' ' || ch == '\t' || ch == '\r'))
+        }
+        None => {
+            rest.is_empty()
+                || "$".starts_with(rest)
+                || rest.starts_with('`')
+                || rest.starts_with('~')
+        }
+    }
+}
+
+#[allow(clippy::string_slice)]
+fn closing_fence_range(input: &str, marker: char, minimum_len: usize) -> Option<(usize, usize)> {
+    let mut line_start = 0;
+    loop {
+        let remaining = &input[line_start..];
+        let line_end = remaining
+            .find('\n')
+            .map(|offset| line_start + offset)
+            .unwrap_or(input.len());
+        if is_closing_fence(&input[line_start..line_end], marker, minimum_len) {
+            let consumed = if line_end < input.len() {
+                line_end + 1
+            } else {
+                line_end
+            };
+            return Some((line_start, consumed));
+        }
+        if line_end == input.len() {
+            return None;
+        }
+        line_start = line_end + 1;
+    }
 }
 
 impl StreamingEmulatorParser {
@@ -142,9 +239,11 @@ impl StreamingEmulatorParser {
             buffer: String::new(),
             state: ParserState::Normal,
             code_mode_enabled,
+            at_line_start: true,
         }
     }
 
+    #[allow(clippy::string_slice)]
     pub(crate) fn process_chunk(&mut self, chunk: &str) -> Vec<EmulatorAction> {
         self.buffer.push_str(chunk);
         let mut results = Vec::new();
@@ -165,15 +264,21 @@ impl StreamingEmulatorParser {
                         break;
                     }
                 }
-                ParserState::InExecuteBlock => {
-                    if let Some(end_idx) = self.buffer.find("\n```") {
-                        #[allow(clippy::string_slice)]
-                        let code = self.buffer[..end_idx].to_string();
-                        #[allow(clippy::string_slice)]
-                        let rest = &self.buffer[end_idx + 4..];
-                        let rest = rest.strip_prefix('\n').unwrap_or(rest);
-                        self.buffer = rest.to_string();
+                ParserState::InExecuteBlock { fence_len } => {
+                    if let Some((closing_start, consumed)) =
+                        closing_fence_range(&self.buffer, '`', fence_len)
+                    {
+                        let code_end = closing_start
+                            .checked_sub(1)
+                            .filter(|index| self.buffer.as_bytes()[*index] == b'\n')
+                            .unwrap_or(closing_start);
+                        let code = self.buffer[..code_end]
+                            .strip_suffix('\r')
+                            .unwrap_or(&self.buffer[..code_end])
+                            .to_string();
+                        self.buffer = self.buffer[consumed..].to_string();
                         self.state = ParserState::Normal;
+                        self.at_line_start = true;
                         if !code.trim().is_empty() {
                             results.push(EmulatorAction::ExecuteCode(code));
                         }
@@ -181,57 +286,103 @@ impl StreamingEmulatorParser {
                         break;
                     }
                 }
-                ParserState::Normal => {
-                    if self.code_mode_enabled {
-                        if let Some((before, after)) =
-                            self.buffer.split_once("```execute_typescript\n")
-                        {
-                            if !before.trim().is_empty() {
-                                results.push(EmulatorAction::Text(before.to_string()));
-                            }
-                            self.buffer = after.to_string();
-                            self.state = ParserState::InExecuteBlock;
+                ParserState::InMarkdownFence { marker, fence_len } => {
+                    if !self.at_line_start {
+                        if let Some(end_idx) = self.buffer.find('\n') {
+                            results.push(EmulatorAction::Text(self.buffer[..=end_idx].to_string()));
+                            self.buffer = self.buffer[end_idx + 1..].to_string();
+                            self.at_line_start = true;
                             continue;
                         }
-                        if self.buffer.ends_with("```execute_typescript") {
-                            let before = self.buffer.trim_end_matches("```execute_typescript");
-                            if !before.trim().is_empty() {
-                                results.push(EmulatorAction::Text(before.to_string()));
-                            }
-                            self.buffer.clear();
-                            self.state = ParserState::InExecuteBlock;
-                            continue;
-                        }
-                    }
-
-                    if let Some((before_dollar, from_dollar)) = self.buffer.split_once("\n$") {
-                        let text = format!("{}\n", before_dollar);
-                        if !text.trim().is_empty() {
-                            results.push(EmulatorAction::Text(text));
-                        }
-                        self.buffer = format!("${}", from_dollar);
-                        self.state = ParserState::InCommand;
-                    } else if self.buffer.starts_with('$') && self.buffer.len() == chunk.len() {
-                        self.state = ParserState::InCommand;
-                    } else {
-                        let hold_back = if self.code_mode_enabled {
-                            HOLD_BACK_CODE_MODE
-                        } else {
-                            HOLD_BACK_SHELL_ONLY
-                        };
-                        let char_count = self.buffer.chars().count();
-                        if char_count > hold_back && !self.buffer.ends_with('\n') {
-                            let mut chars = self.buffer.chars();
-                            let emit_count = char_count - hold_back;
-                            let emit_text: String = chars.by_ref().take(emit_count).collect();
-                            let keep_text: String = chars.collect();
-                            if !emit_text.is_empty() {
-                                results.push(EmulatorAction::Text(emit_text));
-                            }
-                            self.buffer = keep_text;
+                        if !self.buffer.is_empty() {
+                            results.push(EmulatorAction::Text(std::mem::take(&mut self.buffer)));
                         }
                         break;
                     }
+
+                    if let Some(end_idx) = self.buffer.find('\n') {
+                        let line = self.buffer[..end_idx].to_string();
+                        let closes = is_closing_fence(&line, marker, fence_len);
+                        results.push(EmulatorAction::Text(self.buffer[..=end_idx].to_string()));
+                        self.buffer = self.buffer[end_idx + 1..].to_string();
+                        if closes {
+                            self.state = ParserState::Normal;
+                        }
+                        self.at_line_start = true;
+                        continue;
+                    }
+
+                    if could_be_control_line(&self.buffer, Some(marker)) {
+                        break;
+                    }
+                    if !self.buffer.is_empty() {
+                        results.push(EmulatorAction::Text(std::mem::take(&mut self.buffer)));
+                        self.at_line_start = false;
+                    }
+                    break;
+                }
+                ParserState::Normal => {
+                    if !self.at_line_start {
+                        if let Some(end_idx) = self.buffer.find('\n') {
+                            results.push(EmulatorAction::Text(self.buffer[..=end_idx].to_string()));
+                            self.buffer = self.buffer[end_idx + 1..].to_string();
+                            self.at_line_start = true;
+                            continue;
+                        }
+                        if !self.buffer.is_empty() {
+                            results.push(EmulatorAction::Text(std::mem::take(&mut self.buffer)));
+                        }
+                        break;
+                    }
+
+                    if let Some(end_idx) = self.buffer.find('\n') {
+                        let line = self.buffer[..end_idx].to_string();
+                        let line_with_newline = self.buffer[..=end_idx].to_string();
+                        self.buffer = self.buffer[end_idx + 1..].to_string();
+
+                        if self.code_mode_enabled {
+                            if let Some(fence) = parse_fence(&line) {
+                                if fence.marker == '`' && fence.info == "execute_typescript" {
+                                    self.state = ParserState::InExecuteBlock {
+                                        fence_len: fence.len,
+                                    };
+                                    self.at_line_start = true;
+                                    continue;
+                                }
+                                results.push(EmulatorAction::Text(line_with_newline));
+                                self.state = ParserState::InMarkdownFence {
+                                    marker: fence.marker,
+                                    fence_len: fence.len,
+                                };
+                                self.at_line_start = true;
+                                continue;
+                            }
+                        }
+
+                        if let Some(command) = line.strip_prefix('$') {
+                            let command = command.trim();
+                            if !command.is_empty() {
+                                results.push(EmulatorAction::ShellCommand(command.to_string()));
+                            }
+                        } else {
+                            results.push(EmulatorAction::Text(line_with_newline));
+                        }
+                        self.at_line_start = true;
+                        continue;
+                    }
+
+                    if self.buffer.starts_with('$') {
+                        self.state = ParserState::InCommand;
+                        continue;
+                    }
+                    if could_be_control_line(&self.buffer, None) {
+                        break;
+                    }
+                    if !self.buffer.is_empty() {
+                        results.push(EmulatorAction::Text(std::mem::take(&mut self.buffer)));
+                        self.at_line_start = false;
+                    }
+                    break;
                 }
             }
         }
@@ -255,24 +406,26 @@ impl StreamingEmulatorParser {
                         results.push(EmulatorAction::Text(self.buffer.clone()));
                     }
                 }
-                ParserState::InExecuteBlock => {
+                ParserState::InExecuteBlock { .. } => {
                     let code = self.buffer.trim();
                     if !code.is_empty() {
                         results.push(EmulatorAction::ExecuteCode(code.to_string()));
                     }
                 }
-                ParserState::Normal => {
+                ParserState::Normal | ParserState::InMarkdownFence { .. } => {
                     results.push(EmulatorAction::Text(self.buffer.clone()));
                 }
             }
             self.buffer.clear();
             self.state = ParserState::Normal;
+            self.at_line_start = true;
         }
 
         results
     }
 }
 
+#[cfg(feature = "mlx")]
 pub(crate) fn message_for_emulator_action(
     action: &EmulatorAction,
     message_id: &str,
@@ -436,6 +589,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "mlx")]
     fn tool_description_uses_parser_execute_fence() {
         let description = build_emulator_tool_description(&[], true);
 
@@ -497,6 +651,64 @@ mod tests {
         for action in &actions {
             assert!(matches!(action, EmulatorAction::Text(_)));
         }
+    }
+
+    #[test]
+    fn execute_fence_nested_in_longer_markdown_fence_remains_text() {
+        let input = "````markdown\nquoted output:\n```execute_typescript\nawait Developer.shell({ command: \"id\" });\n```\n````\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        let actions = parse_chunks(&chunk_refs, true);
+
+        assert!(actions
+            .iter()
+            .all(|action| matches!(action, EmulatorAction::Text(_))));
+        let text: String = actions
+            .iter()
+            .filter_map(|action| match action {
+                EmulatorAction::Text(text) => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(text, input);
+    }
+
+    #[test]
+    fn execute_fence_nested_in_tilde_fence_remains_text() {
+        let input = "~~~markdown\n```execute_typescript\nawait Developer.shell({ command: \"id\" });\n```\n~~~\n";
+        let actions = parse_all(input, true);
+
+        assert!(actions
+            .iter()
+            .all(|action| matches!(action, EmulatorAction::Text(_))));
+    }
+
+    #[test]
+    fn longer_top_level_execute_fence_is_recognized() {
+        let input = "````execute_typescript\nlet x = 1;\n````\n";
+        let actions = parse_all(input, true);
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+            .collect();
+
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "let x = 1;");
+    }
+
+    #[test]
+    fn closing_fence_with_split_trailing_spaces_is_recognized() {
+        let actions = parse_chunks(
+            &["```execute_typescript\nlet x = 1;\n```", "  ", "\n"],
+            true,
+        );
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+            .collect();
+
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "let x = 1;");
     }
 
     #[test]

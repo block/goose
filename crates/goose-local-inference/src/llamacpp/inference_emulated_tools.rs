@@ -31,12 +31,10 @@ use super::super::{finalize_usage, thinking_output::ThinkingOutputFilter, Stream
 use super::inference_engine::{
     generation_loop, prepare_generation, GenerationContext, StopSuffixTrimmer, TokenAction,
 };
+use crate::tool_emulation::{EmulatorAction, StreamingEmulatorParser};
 
 const SHELL_TOOL: &str = "developer__shell";
 const CODE_EXECUTION_TOOL: &str = "code_execution__execute_typescript";
-
-const HOLD_BACK_CODE_MODE: usize = " ```execute_typescript\n".len();
-const HOLD_BACK_SHELL_ONLY: usize = "\n$".len();
 
 pub(super) fn load_tiny_model_prompt() -> String {
     use std::env;
@@ -136,167 +134,6 @@ pub(super) fn build_emulator_tool_description(tools: &[Tool], code_mode_enabled:
     }
 
     tool_desc
-}
-
-enum EmulatorAction {
-    Text(String),
-    ShellCommand(String),
-    ExecuteCode(String),
-}
-
-enum ParserState {
-    Normal,
-    InCommand,
-    InExecuteBlock,
-}
-
-struct StreamingEmulatorParser {
-    buffer: String,
-    state: ParserState,
-    code_mode_enabled: bool,
-}
-
-impl StreamingEmulatorParser {
-    fn new(code_mode_enabled: bool) -> Self {
-        Self {
-            buffer: String::new(),
-            state: ParserState::Normal,
-            code_mode_enabled,
-        }
-    }
-
-    fn process_chunk(&mut self, chunk: &str) -> Vec<EmulatorAction> {
-        self.buffer.push_str(chunk);
-        let mut results = Vec::new();
-
-        loop {
-            match self.state {
-                ParserState::InCommand => {
-                    if let Some((command_line, rest)) = self.buffer.split_once('\n') {
-                        if let Some(command) = command_line.strip_prefix('$') {
-                            let command = command.trim();
-                            if !command.is_empty() {
-                                results.push(EmulatorAction::ShellCommand(command.to_string()));
-                            }
-                        }
-                        self.buffer = rest.to_string();
-                        self.state = ParserState::Normal;
-                    } else {
-                        break;
-                    }
-                }
-                ParserState::InExecuteBlock => {
-                    // Look for closing ``` to end the execute block
-                    if let Some(end_idx) = self.buffer.find("\n```") {
-                        #[allow(clippy::string_slice)]
-                        let code = self.buffer[..end_idx].to_string();
-                        // Skip past the closing ``` and any trailing newline
-                        #[allow(clippy::string_slice)]
-                        let rest = &self.buffer[end_idx + 4..];
-                        let rest = rest.strip_prefix('\n').unwrap_or(rest);
-                        self.buffer = rest.to_string();
-                        self.state = ParserState::Normal;
-                        if !code.trim().is_empty() {
-                            results.push(EmulatorAction::ExecuteCode(code));
-                        }
-                    } else {
-                        // Still accumulating code — wait for closing fence
-                        break;
-                    }
-                }
-                ParserState::Normal => {
-                    // Check for ```execute block (code mode)
-                    if self.code_mode_enabled {
-                        if let Some((before, after)) =
-                            self.buffer.split_once("```execute_typescript\n")
-                        {
-                            if !before.trim().is_empty() {
-                                results.push(EmulatorAction::Text(before.to_string()));
-                            }
-                            self.buffer = after.to_string();
-                            self.state = ParserState::InExecuteBlock;
-                            continue;
-                        }
-                        // Also handle without newline after tag (accumulating)
-                        if self.buffer.ends_with("```execute_typescript") {
-                            let before = self.buffer.trim_end_matches("```execute_typescript");
-                            if !before.trim().is_empty() {
-                                results.push(EmulatorAction::Text(before.to_string()));
-                            }
-                            self.buffer.clear();
-                            self.state = ParserState::InExecuteBlock;
-                            continue;
-                        }
-                    }
-
-                    // Check for $ command
-                    if let Some((before_dollar, from_dollar)) = self.buffer.split_once("\n$") {
-                        let text = format!("{}\n", before_dollar);
-                        if !text.trim().is_empty() {
-                            results.push(EmulatorAction::Text(text));
-                        }
-                        self.buffer = format!("${}", from_dollar);
-                        self.state = ParserState::InCommand;
-                    } else if self.buffer.starts_with('$') && self.buffer.len() == chunk.len() {
-                        self.state = ParserState::InCommand;
-                    } else {
-                        let hold_back = if self.code_mode_enabled {
-                            HOLD_BACK_CODE_MODE
-                        } else {
-                            HOLD_BACK_SHELL_ONLY
-                        };
-                        let char_count = self.buffer.chars().count();
-                        if char_count > hold_back && !self.buffer.ends_with('\n') {
-                            let mut chars = self.buffer.chars();
-                            let emit_count = char_count - hold_back;
-                            let emit_text: String = chars.by_ref().take(emit_count).collect();
-                            let keep_text: String = chars.collect();
-                            if !emit_text.is_empty() {
-                                results.push(EmulatorAction::Text(emit_text));
-                            }
-                            self.buffer = keep_text;
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-
-        results
-    }
-
-    fn flush(&mut self) -> Vec<EmulatorAction> {
-        let mut results = Vec::new();
-
-        if !self.buffer.is_empty() {
-            match self.state {
-                ParserState::InCommand => {
-                    let command_line = self.buffer.trim();
-                    if let Some(command) = command_line.strip_prefix('$') {
-                        let command = command.trim();
-                        if !command.is_empty() {
-                            results.push(EmulatorAction::ShellCommand(command.to_string()));
-                        }
-                    } else if !command_line.is_empty() {
-                        results.push(EmulatorAction::Text(self.buffer.clone()));
-                    }
-                }
-                ParserState::InExecuteBlock => {
-                    let code = self.buffer.trim();
-                    if !code.is_empty() {
-                        results.push(EmulatorAction::ExecuteCode(code.to_string()));
-                    }
-                }
-                ParserState::Normal => {
-                    results.push(EmulatorAction::Text(self.buffer.clone()));
-                }
-            }
-            self.buffer.clear();
-            self.state = ParserState::Normal;
-        }
-
-        results
-    }
 }
 
 fn send_emulator_action(
@@ -707,6 +544,64 @@ mod tests {
                 "regular code fence should be text"
             );
         }
+    }
+
+    #[test]
+    fn execute_fence_nested_in_longer_markdown_fence_remains_text() {
+        let input = "````markdown\nquoted output:\n```execute_typescript\nawait Developer.shell({ command: \"id\" });\n```\n````\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        let actions = parse_chunks(&chunk_refs, true);
+
+        assert!(actions
+            .iter()
+            .all(|action| matches!(action, EmulatorAction::Text(_))));
+        let text: String = actions
+            .iter()
+            .filter_map(|action| match action {
+                EmulatorAction::Text(text) => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(text, input);
+    }
+
+    #[test]
+    fn execute_fence_nested_in_tilde_fence_remains_text() {
+        let input = "~~~markdown\n```execute_typescript\nawait Developer.shell({ command: \"id\" });\n```\n~~~\n";
+        let actions = parse_all(input, true);
+
+        assert!(actions
+            .iter()
+            .all(|action| matches!(action, EmulatorAction::Text(_))));
+    }
+
+    #[test]
+    fn longer_top_level_execute_fence_is_recognized() {
+        let input = "````execute_typescript\nlet x = 1;\n````\n";
+        let actions = parse_all(input, true);
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+            .collect();
+
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "let x = 1;");
+    }
+
+    #[test]
+    fn closing_fence_with_split_trailing_spaces_is_recognized() {
+        let actions = parse_chunks(
+            &["```execute_typescript\nlet x = 1;\n```", "  ", "\n"],
+            true,
+        );
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+            .collect();
+
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "let x = 1;");
     }
 
     #[test]
