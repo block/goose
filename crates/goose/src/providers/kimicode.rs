@@ -9,7 +9,6 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::io;
 use std::time::Duration as StdDuration;
 use tokio::pin;
 use tokio_util::io::StreamReader;
@@ -25,7 +24,7 @@ use super::oauth_device_flow::{
     refresh_device_flow_token, run_device_flow, DeviceFlowConfig, DeviceFlowTokenRefreshError,
     DeviceFlowTokens, RequestEncoding,
 };
-use super::openai_compatible::handle_status;
+use super::openai_compatible::{body_stream_with_prefix, first_body_chunk, handle_status};
 use super::retry::ProviderRetry;
 use crate::conversation::message::Message;
 use futures::future::BoxFuture;
@@ -436,17 +435,18 @@ impl Provider for KimiCodeProvider {
         let mut log = start_log(model_config, &payload)
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
 
-        let response = self
+        let (response, first_chunk) = self
             .with_retry(|| async {
-                let resp = self.post(&payload).await?;
-                handle_status(resp).await
+                let mut response = handle_status(self.post(&payload).await?).await?;
+                let first_chunk = first_body_chunk(&mut response).await?;
+                Ok((response, Some(first_chunk)))
             })
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);
             })?;
 
-        let stream = response.bytes_stream().map_err(io::Error::other);
+        let stream = body_stream_with_prefix(response, first_chunk);
 
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);

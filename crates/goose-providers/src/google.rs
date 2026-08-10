@@ -2,7 +2,10 @@ use crate::api_client::{ApiClient, AuthMethod};
 use crate::base::MessageStream;
 use crate::conversation::message::Message;
 use crate::errors::ProviderError;
-use crate::openai_compatible::{handle_status, map_http_error_to_provider_error, sanitize_url};
+use crate::openai_compatible::{
+    body_stream_with_prefix, first_body_chunk, handle_status, map_http_error_to_provider_error,
+    sanitize_url,
+};
 use crate::retry::ProviderRetry;
 
 use crate::base::{ConfigKey, Provider, ProviderMetadata};
@@ -15,7 +18,6 @@ use async_trait::async_trait;
 use futures::TryStreamExt;
 use rmcp::model::Tool;
 use serde_json::Value;
-use std::io;
 use tokio::pin;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
@@ -192,14 +194,18 @@ impl Provider for GoogleProvider {
         )?;
         let mut log = start_log(model_config, &payload)?;
 
-        let response = self
-            .with_retry(|| async { self.post_stream(model_config, &payload).await })
+        let (response, first_chunk) = self
+            .with_retry(|| async {
+                let mut response = self.post_stream(model_config, &payload).await?;
+                let first_chunk = first_body_chunk(&mut response).await?;
+                Ok((response, Some(first_chunk)))
+            })
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);
             })?;
 
-        let stream = response.bytes_stream().map_err(io::Error::other);
+        let stream = body_stream_with_prefix(response, first_chunk);
 
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);

@@ -10,6 +10,7 @@ use crate::providers::google::GOOGLE_DOC_URL;
 use crate::providers::private_file::write_private_file;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
+use goose_providers::openai_compatible::{body_stream_with_prefix, first_body_chunk};
 use goose_providers::request_log::{start_log, LoggerHandleExt};
 
 const GEMINI_OAUTH_DEFAULT_MODEL: &str = "gemini-3-flash-preview";
@@ -27,7 +28,6 @@ use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::Digest;
-use std::io;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
@@ -992,14 +992,18 @@ impl Provider for GeminiOAuthProvider {
         let payload = create_request(model_config, system, messages, tools)?;
         let mut log = start_log(model_config, &payload)?;
 
-        let response = self
-            .with_retry(|| async { self.post_stream(&model_config.model_name, &payload).await })
+        let (response, first_chunk) = self
+            .with_retry(|| async {
+                let mut response = self.post_stream(&model_config.model_name, &payload).await?;
+                let first_chunk = first_body_chunk(&mut response).await?;
+                Ok((response, Some(first_chunk)))
+            })
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);
             })?;
 
-        let stream = response.bytes_stream().map_err(io::Error::other);
+        let stream = body_stream_with_prefix(response, first_chunk);
 
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);

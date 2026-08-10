@@ -5,7 +5,9 @@ use crate::providers::base::{
     ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_CONNECT_TIMEOUT_SECS, DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
-use crate::providers::openai_compatible::handle_status;
+use crate::providers::openai_compatible::{
+    body_stream_with_prefix, first_body_chunk, handle_status,
+};
 use crate::providers::private_file::write_private_file;
 use crate::providers::retry::ProviderRetry;
 use anyhow::{anyhow, Result};
@@ -1001,14 +1003,16 @@ impl Provider for ChatGptCodexProvider {
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
         payload["stream"] = serde_json::Value::Bool(true);
 
-        let response = self
+        let (response, first_chunk) = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post_streaming(&payload_clone).await
+                let mut response = self.post_streaming(&payload_clone).await?;
+                let first_chunk = first_body_chunk(&mut response).await?;
+                Ok((response, Some(first_chunk)))
             })
             .await?;
 
-        let stream = response.bytes_stream().map_err(io::Error::other);
+        let stream = body_stream_with_prefix(response, first_chunk);
 
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);
