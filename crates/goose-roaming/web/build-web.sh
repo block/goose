@@ -41,5 +41,27 @@ echo "using $("${WB}" --version)"
 mkdir -p "${OUT_DIR}"
 "${WB}" --target web --out-dir "${OUT_DIR}" --out-name goose_roaming_web "${WASM_FILE}"
 
-echo "ok: bindings in ${OUT_DIR}"
+# 3. make the output a proper npm package so any web project can consume the
+# transport (file: dep today, publishable later). Version tracks the crate.
+CRATE_VERSION="$(grep -m1 '^version' "${WASM_CRATE_DIR}/Cargo.toml" | sed 's/.*"\(.*\)"/\1/')"
+cat > "${OUT_DIR}/package.json" <<PKG
+{
+  "name": "@aaif/goose-roam-web",
+  "version": "${CRATE_VERSION}",
+  "description": "goose roam transport for browsers: iroh compiled to wasm (RoamClient/RoamConnection) with a roam handshake and byte duplex",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "goose_roaming_web.js",
+  "types": "goose_roaming_web.d.ts",
+  "sideEffects": ["./goose_roaming_web.js"],
+  "files": [
+    "goose_roaming_web.js",
+    "goose_roaming_web.d.ts",
+    "goose_roaming_web_bg.wasm",
+    "goose_roaming_web_bg.wasm.d.ts"
+  ]
+}
+PKG
+
+echo "ok: npm package in ${OUT_DIR}"
 ls -la "${OUT_DIR}"

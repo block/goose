@@ -149,10 +149,12 @@ built in, keeping iroh out of core.
 
 `web/` is the **official browser client for roam**: a pure-browser React app
 that connects to a `goose roam share` agent — iroh compiled to wasm runs
-*inside the browser tab*, relay-only, driving the agent over ACP. No Tauri, no
-local bridge; the tab is the roam peer. Proven end to end (real Chrome →
-managed relay → live agent response, streaming, tool calls, session
-list/load/new).
+*inside the browser tab*, driving the agent over ACP. No Tauri, no local
+bridge; the tab is the roam peer. The stock iroh wasm build tunnels QUIC over
+WebSocket to the relay (its UDP transport is compiled out in browsers; a
+WebRTC custom transport could add direct paths later). Proven end to end
+(real Chrome → managed relay → live agent response, streaming, tool calls,
+session list/load/new).
 
 It **reuses goose's reference clients**: `GooseClient` from `ui/sdk` as the
 protocol layer, and the desktop app's real components (`MarkdownContent`,

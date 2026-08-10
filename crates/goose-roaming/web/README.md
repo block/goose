@@ -2,8 +2,16 @@
 
 The **official browser client for goose roam**: a pure-browser web app that
 connects to a roaming goose agent — iroh compiled to wasm and run *inside the
-browser tab*, relay-only over WebSocket-to-relay. No Tauri, no local bridge
-process: the browser tab itself is the roam peer.
+browser tab*. No Tauri, no local bridge process: the browser tab itself is the
+roam peer.
+
+Transport note: this build rides the relay (QUIC tunneled over WebSocket).
+That is a property of the *stock* iroh wasm build — the IP/UDP transport is
+compiled out under `wasm_browser` — not a platform limit: iroh's custom
+transport slot (`unstable-custom-transports`) remains available in wasm, so a
+WebRTC-data-channel transport could give browsers direct hole-punched paths
+later. Until then, all browser traffic is end-to-end encrypted through the
+managed relays (relays see ciphertext only).
 
 The UI is a **React app that reuses goose's reference clients**: `GooseClient`
 from `ui/sdk` as the protocol layer, and the desktop app's real components
@@ -46,7 +54,7 @@ What's proven, in layers:
 web/
 ├── goose-roaming-web/   Rust cdylib: the wasm transport shim
 │                        (RoamClient / RoamConnection — identity, card decode,
-│                         relay-only dial, roam handshake, byte duplex)
+│                         relay dial, roam handshake, byte duplex)
 ├── webapp/              Vite + TS chat app (see webapp/README.md, webapp/TRYME.md)
 ├── build-wasm.sh        compile a wasm crate with the right toolchain
 └── build-web.sh         build-wasm.sh + wasm-bindgen → webapp/src/wasm/
@@ -113,7 +121,7 @@ Built here — everything on the main thread for simplicity:
 ```
 Browser tab
 ├─ goose-roaming-web (wasm): RoamClient / RoamConnection
-│     iroh endpoint (relay-only) + roam handshake
+│     iroh endpoint (QUIC-over-WebSocket relay) + roam handshake
 │     → RoamConnection.send(bytes) / .recv() → Uint8Array   (bounded channels)
 ├─ roamByteStreams(): wraps that duplex as Web Streams<Uint8Array>
 ├─ ndJsonStream(writable, readable) + ClientSideConnection  (ACP SDK 0.19.0)
