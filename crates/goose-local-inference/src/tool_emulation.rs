@@ -134,8 +134,14 @@ pub(crate) enum EmulatorAction {
 enum ParserState {
     Normal,
     InCommand,
-    InExecuteBlock { fence_len: usize },
-    InMarkdownFence { marker: char, fence_len: usize },
+    InExecuteBlock {
+        fence_len: usize,
+    },
+    InMarkdownFence {
+        marker: char,
+        fence_len: usize,
+        container_indent: Option<usize>,
+    },
 }
 
 pub(crate) struct StreamingEmulatorParser {
@@ -149,17 +155,25 @@ struct Fence<'a> {
     marker: char,
     len: usize,
     info: &'a str,
+    container_indent: Option<usize>,
+}
+
+fn leading_indent(line: &str) -> (usize, usize) {
+    let mut bytes = 0;
+    let mut columns = 0;
+    for byte in line.bytes() {
+        match byte {
+            b' ' => columns += 1,
+            b'\t' => columns += 4 - (columns % 4),
+            _ => break,
+        }
+        bytes += 1;
+    }
+    (bytes, columns)
 }
 
 #[allow(clippy::string_slice)]
-fn parse_fence(line: &str) -> Option<Fence<'_>> {
-    let line = line.strip_suffix('\r').unwrap_or(line);
-    let indent = line.bytes().take_while(|byte| *byte == b' ').count();
-    if indent > 3 {
-        return None;
-    }
-
-    let rest = &line[indent..];
+fn parse_fence_marker(rest: &str, container_indent: Option<usize>) -> Option<Fence<'_>> {
     let marker = rest.chars().next()?;
     if marker != '`' && marker != '~' {
         return None;
@@ -174,23 +188,132 @@ fn parse_fence(line: &str) -> Option<Fence<'_>> {
         marker,
         len,
         info: rest[len..].trim(),
-    })
-}
-
-fn is_closing_fence(line: &str, marker: char, minimum_len: usize) -> bool {
-    parse_fence(line).is_some_and(|fence| {
-        fence.marker == marker && fence.len >= minimum_len && fence.info.is_empty()
+        container_indent,
     })
 }
 
 #[allow(clippy::string_slice)]
-fn could_be_control_line(line: &str, marker: Option<char>) -> bool {
-    let indent = line.bytes().take_while(|byte| *byte == b' ').count();
-    if indent > 3 {
-        return false;
+fn parse_direct_fence(
+    line: &str,
+    minimum_indent: usize,
+    maximum_indent: usize,
+    container_indent: Option<usize>,
+) -> Option<Fence<'_>> {
+    let (indent_bytes, indent_columns) = leading_indent(line);
+    if indent_columns < minimum_indent || indent_columns > maximum_indent {
+        return None;
     }
 
-    let rest = &line[indent..];
+    parse_fence_marker(&line[indent_bytes..], container_indent)
+}
+
+fn list_marker_width(line: &str) -> Option<usize> {
+    let bytes = line.as_bytes();
+    let marker_end = match bytes.first()? {
+        b'-' | b'+' | b'*' => 1,
+        byte if byte.is_ascii_digit() => {
+            let digits = bytes
+                .iter()
+                .take_while(|byte| byte.is_ascii_digit())
+                .count();
+            if digits > 9 || !matches!(bytes.get(digits), Some(b'.' | b')')) {
+                return None;
+            }
+            digits + 1
+        }
+        _ => return None,
+    };
+
+    let whitespace = bytes[marker_end..]
+        .iter()
+        .take_while(|byte| **byte == b' ')
+        .count();
+    (1..=4)
+        .contains(&whitespace)
+        .then_some(marker_end + whitespace)
+}
+
+#[allow(clippy::string_slice)]
+fn parse_fence(line: &str) -> Option<Fence<'_>> {
+    let line = line.strip_suffix('\r').unwrap_or(line);
+    if let Some(fence) = parse_direct_fence(line, 0, 3, None) {
+        return Some(fence);
+    }
+
+    let (indent_bytes, indent_columns) = leading_indent(line);
+    if indent_columns > 3 {
+        return None;
+    }
+    let rest = &line[indent_bytes..];
+    let list_width = list_marker_width(rest)?;
+    let container_indent = indent_columns + list_width;
+    parse_fence_marker(&rest[list_width..], Some(container_indent))
+}
+
+fn is_closing_fence(
+    line: &str,
+    marker: char,
+    minimum_len: usize,
+    container_indent: Option<usize>,
+) -> bool {
+    let line = line.strip_suffix('\r').unwrap_or(line);
+    let minimum_indent = container_indent.unwrap_or(0);
+    parse_direct_fence(line, minimum_indent, minimum_indent + 3, container_indent).is_some_and(
+        |fence| fence.marker == marker && fence.len >= minimum_len && fence.info.is_empty(),
+    )
+}
+
+#[allow(clippy::string_slice)]
+fn could_be_list_fence(line: &str) -> bool {
+    let bytes = line.as_bytes();
+    let marker_end = match bytes.first() {
+        Some(b'-' | b'+' | b'*') => 1,
+        Some(byte) if byte.is_ascii_digit() => {
+            let digits = bytes
+                .iter()
+                .take_while(|byte| byte.is_ascii_digit())
+                .count();
+            if digits == bytes.len() {
+                return digits <= 9;
+            }
+            if digits > 9 || !matches!(bytes.get(digits), Some(b'.' | b')')) {
+                return false;
+            }
+            digits + 1
+        }
+        _ => return false,
+    };
+
+    if marker_end == bytes.len() {
+        return true;
+    }
+    let whitespace = bytes[marker_end..]
+        .iter()
+        .take_while(|byte| **byte == b' ')
+        .count();
+    if !(1..=4).contains(&whitespace) {
+        return false;
+    }
+    let rest = &line[marker_end + whitespace..];
+    rest.is_empty() || rest.starts_with('`') || rest.starts_with('~')
+}
+
+#[allow(clippy::string_slice)]
+fn could_be_control_line(
+    line: &str,
+    marker: Option<char>,
+    container_indent: Option<usize>,
+) -> bool {
+    let (indent_bytes, indent_columns) = leading_indent(line);
+    let minimum_indent = container_indent.unwrap_or(0);
+    if indent_columns > minimum_indent + 3 {
+        return false;
+    }
+    if indent_columns < minimum_indent {
+        return indent_bytes == line.len();
+    }
+
+    let rest = &line[indent_bytes..];
     match marker {
         Some(marker) => {
             let marker_len = rest.chars().take_while(|ch| *ch == marker).count();
@@ -205,6 +328,7 @@ fn could_be_control_line(line: &str, marker: Option<char>) -> bool {
                 || "$".starts_with(rest)
                 || rest.starts_with('`')
                 || rest.starts_with('~')
+                || could_be_list_fence(rest)
         }
     }
 }
@@ -214,6 +338,7 @@ fn closing_fence_range(
     input: &str,
     marker: char,
     minimum_len: usize,
+    container_indent: Option<usize>,
     allow_end_of_stream: bool,
 ) -> Option<(usize, usize)> {
     let mut line_start = 0;
@@ -226,7 +351,12 @@ fn closing_fence_range(
         let line_end = newline_offset
             .map(|offset| line_start + offset)
             .unwrap_or(input.len());
-        if is_closing_fence(&input[line_start..line_end], marker, minimum_len) {
+        if is_closing_fence(
+            &input[line_start..line_end],
+            marker,
+            minimum_len,
+            container_indent,
+        ) {
             let consumed = if line_end < input.len() {
                 line_end + 1
             } else {
@@ -274,7 +404,7 @@ impl StreamingEmulatorParser {
                 }
                 ParserState::InExecuteBlock { fence_len } => {
                     if let Some((closing_start, consumed)) =
-                        closing_fence_range(&self.buffer, '`', fence_len, false)
+                        closing_fence_range(&self.buffer, '`', fence_len, None, false)
                     {
                         let code_end = closing_start
                             .checked_sub(1)
@@ -294,7 +424,11 @@ impl StreamingEmulatorParser {
                         break;
                     }
                 }
-                ParserState::InMarkdownFence { marker, fence_len } => {
+                ParserState::InMarkdownFence {
+                    marker,
+                    fence_len,
+                    container_indent,
+                } => {
                     if !self.at_line_start {
                         if let Some(end_idx) = self.buffer.find('\n') {
                             results.push(EmulatorAction::Text(self.buffer[..=end_idx].to_string()));
@@ -310,7 +444,14 @@ impl StreamingEmulatorParser {
 
                     if let Some(end_idx) = self.buffer.find('\n') {
                         let line = self.buffer[..end_idx].to_string();
-                        let closes = is_closing_fence(&line, marker, fence_len);
+                        if container_indent.is_some_and(|minimum_indent| {
+                            let (_, indent_columns) = leading_indent(&line);
+                            !line.trim().is_empty() && indent_columns < minimum_indent
+                        }) {
+                            self.state = ParserState::Normal;
+                            continue;
+                        }
+                        let closes = is_closing_fence(&line, marker, fence_len, container_indent);
                         results.push(EmulatorAction::Text(self.buffer[..=end_idx].to_string()));
                         self.buffer = self.buffer[end_idx + 1..].to_string();
                         if closes {
@@ -320,7 +461,14 @@ impl StreamingEmulatorParser {
                         continue;
                     }
 
-                    if could_be_control_line(&self.buffer, Some(marker)) {
+                    if container_indent.is_some_and(|minimum_indent| {
+                        let (indent_bytes, indent_columns) = leading_indent(&self.buffer);
+                        indent_columns < minimum_indent && indent_bytes < self.buffer.len()
+                    }) {
+                        self.state = ParserState::Normal;
+                        continue;
+                    }
+                    if could_be_control_line(&self.buffer, Some(marker), container_indent) {
                         break;
                     }
                     if !self.buffer.is_empty() {
@@ -350,7 +498,10 @@ impl StreamingEmulatorParser {
 
                         if self.code_mode_enabled {
                             if let Some(fence) = parse_fence(&line) {
-                                if fence.marker == '`' && fence.info == "execute_typescript" {
+                                if fence.container_indent.is_none()
+                                    && fence.marker == '`'
+                                    && fence.info == "execute_typescript"
+                                {
                                     self.state = ParserState::InExecuteBlock {
                                         fence_len: fence.len,
                                     };
@@ -361,6 +512,7 @@ impl StreamingEmulatorParser {
                                 self.state = ParserState::InMarkdownFence {
                                     marker: fence.marker,
                                     fence_len: fence.len,
+                                    container_indent: fence.container_indent,
                                 };
                                 self.at_line_start = true;
                                 continue;
@@ -383,7 +535,7 @@ impl StreamingEmulatorParser {
                         self.state = ParserState::InCommand;
                         continue;
                     }
-                    if could_be_control_line(&self.buffer, None) {
+                    if could_be_control_line(&self.buffer, None, None) {
                         break;
                     }
                     if !self.buffer.is_empty() {
@@ -415,7 +567,7 @@ impl StreamingEmulatorParser {
                     }
                 }
                 ParserState::InExecuteBlock { fence_len } => {
-                    let code_end = closing_fence_range(&self.buffer, '`', fence_len, true)
+                    let code_end = closing_fence_range(&self.buffer, '`', fence_len, None, true)
                         .map(|(closing_start, _)| {
                             closing_start
                                 .checked_sub(1)
@@ -701,6 +853,97 @@ mod tests {
         assert!(actions
             .iter()
             .all(|action| matches!(action, EmulatorAction::Text(_))));
+    }
+
+    #[test]
+    fn execute_fence_nested_in_list_item_fence_remains_text() {
+        for input in [
+            "- ````markdown\n  ```execute_typescript\n  await Developer.shell({ command: \"id\" });\n  ```\n  ````\n```execute_typescript\nlet safe = 1;\n```\n",
+            "10. ````markdown\n    ```execute_typescript\n    await Developer.shell({ command: \"id\" });\n    ```\n    ````\n```execute_typescript\nlet safe = 1;\n```\n",
+        ] {
+            let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+            let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+            let actions = parse_chunks(&chunk_refs, true);
+            let executes: Vec<_> = actions
+                .iter()
+                .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                .collect();
+
+            assert_eq!(executes.len(), 1);
+            assert_execute(executes[0], "let safe = 1;");
+            assert!(!actions.iter().any(|action| {
+                matches!(action, EmulatorAction::ExecuteCode(code) if code.contains("Developer.shell"))
+            }));
+        }
+    }
+
+    #[test]
+    fn list_item_execute_fence_remains_text() {
+        let input =
+            "- ```execute_typescript\n  await Developer.shell({ command: \"id\" });\n  ```\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        let actions = parse_chunks(&chunk_refs, true);
+
+        assert!(actions
+            .iter()
+            .all(|action| matches!(action, EmulatorAction::Text(_))));
+    }
+
+    #[test]
+    fn tabbed_list_marker_cannot_reframe_nested_execute_fence() {
+        let input = "-\t````markdown\n  ````\n  ```execute_typescript\n  await Developer.shell({ command: \"id\" });\n  ```\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        let actions = parse_chunks(&chunk_refs, true);
+
+        assert!(actions
+            .iter()
+            .all(|action| matches!(action, EmulatorAction::Text(_))));
+    }
+
+    #[test]
+    fn tabbed_list_continuation_keeps_nested_execute_fence_inert() {
+        let input =
+            "- ````markdown\n\tquoted\n  ```execute_typescript\n  malicious()\n  ```\n  ````\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        let actions = parse_chunks(&chunk_refs, true);
+
+        assert!(actions
+            .iter()
+            .all(|action| matches!(action, EmulatorAction::Text(_))));
+    }
+
+    #[test]
+    fn list_fence_marker_padding_is_bounded() {
+        for line in [
+            "- ````markdown",
+            "+  ````markdown",
+            "*   ````markdown",
+            "1.    ````markdown",
+            "1) ````markdown",
+        ] {
+            assert!(parse_fence(line).is_some(), "expected list fence: {line}");
+        }
+        for line in ["-\t````markdown", "-     ````markdown"] {
+            assert!(parse_fence(line).is_none(), "unexpected list fence: {line}");
+        }
+    }
+
+    #[test]
+    fn outdented_execute_after_unclosed_list_fence_is_recognized() {
+        let input = "- ````markdown\n  quoted output\n```execute_typescript\nlet safe = 1;\n```\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        let actions = parse_chunks(&chunk_refs, true);
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+            .collect();
+
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "let safe = 1;");
     }
 
     #[test]

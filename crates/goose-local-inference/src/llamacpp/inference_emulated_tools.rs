@@ -577,6 +577,37 @@ mod tests {
     }
 
     #[test]
+    fn execute_fence_nested_in_list_item_fence_remains_text() {
+        let input = "- ````markdown\n  ```execute_typescript\n  await Developer.shell({ command: \"id\" });\n  ```\n  ````\n```execute_typescript\nlet safe = 1;\n```\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        let actions = parse_chunks(&chunk_refs, true);
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+            .collect();
+
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "let safe = 1;");
+        assert!(!actions.iter().any(|action| {
+            matches!(action, EmulatorAction::ExecuteCode(code) if code.contains("Developer.shell"))
+        }));
+    }
+
+    #[test]
+    fn list_item_execute_fence_remains_text() {
+        let input =
+            "- ```execute_typescript\n  await Developer.shell({ command: \"id\" });\n  ```\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        let actions = parse_chunks(&chunk_refs, true);
+
+        assert!(actions
+            .iter()
+            .all(|action| matches!(action, EmulatorAction::Text(_))));
+    }
+
+    #[test]
     fn longer_top_level_execute_fence_is_recognized() {
         let input = "````execute_typescript\nlet x = 1;\n````\n";
         let actions = parse_all(input, true);
