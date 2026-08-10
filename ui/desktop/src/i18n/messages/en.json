@@ -2330,6 +2330,9 @@
   "modelsBottomBar.localModelSettingsTitle": {
     "defaultMessage": "Local Model Settings — {modelName}"
   },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "Recent"
+  },
   "modelsBottomBar.resolvedModel": {
     "defaultMessage": "Resolved model"
   },
