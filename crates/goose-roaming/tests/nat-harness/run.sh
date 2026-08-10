@@ -184,8 +184,11 @@ for peer in host client; do
   bad_tcp=$(docker exec "$PREFIX-$peer" ss -Hltn | awk '$4 !~ /^127\.0\.0\.11:/' || true)
   bad_udp=$(docker exec "$PREFIX-$peer" ss -Hlun \
     | awk '$4 !~ /^127\.0\.0\.11:/ && $4 != "0.0.0.0:7777" && $4 !~ /^\[::\]:/' || true)
-  if [ -n "$bad_tcp" ] || [ -n "$bad_udp" ]; then
-    echo "port audit FAILED on $PREFIX-$peer:" >&2
+  # iroh's default v6 transport binds one wildcard socket on an ephemeral
+  # port, so the v6 allowance is bounded by count rather than port.
+  v6_udp=$(docker exec "$PREFIX-$peer" ss -Hlun | awk '$4 ~ /^\[::\]:/' | wc -l | tr -d ' ')
+  if [ -n "$bad_tcp" ] || [ -n "$bad_udp" ] || [ "$v6_udp" -gt 1 ]; then
+    echo "port audit FAILED on $PREFIX-$peer (wildcard v6 udp sockets: $v6_udp):" >&2
     printf '%s\n%s\n' "$bad_tcp" "$bad_udp" >&2
     exit 1
   fi

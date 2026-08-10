@@ -301,6 +301,10 @@ impl PathWatch {
 /// Stream one connection's path events into shared storage. `seq` labels
 /// events per connection so a reconnecting scenario yields one legible
 /// timeline across all the connections it went through.
+///
+/// The current path set is recorded (and the direct flag seeded) before the
+/// event subscription: an upgrade that completed during connect/handshake
+/// never emits a later event, so subscribing alone would miss it.
 fn watch_paths(
     conn: &iroh::endpoint::Connection,
     t0: Instant,
@@ -309,6 +313,15 @@ fn watch_paths(
     seq: usize,
 ) -> tokio::task::JoinHandle<()> {
     let mut stream = conn.path_events();
+    for path in conn.paths().iter() {
+        if path.is_selected() && matches!(path.remote_addr(), TransportAddr::Ip(_)) {
+            direct_selected.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+    events.lock().unwrap().push((
+        t0.elapsed().as_millis() as u64,
+        format!("c{seq} subscribed paths={:?}", paths_snapshot(conn)),
+    ));
     tokio::spawn(async move {
         while let Some(event) = futures::StreamExt::next(&mut stream).await {
             if matches!(
@@ -331,7 +344,10 @@ fn watch_paths(
 fn paths_snapshot(conn: &iroh::endpoint::Connection) -> Vec<String> {
     conn.paths()
         .iter()
-        .map(|p| format!("{:?}", p.remote_addr()))
+        .map(|p| {
+            let selected = if p.is_selected() { " selected" } else { "" };
+            format!("{:?}{selected}", p.remote_addr())
+        })
         .collect()
 }
 
@@ -516,7 +532,6 @@ async fn scenario_crash(
         direct_selected.clone(),
         seq,
     );
-    record_connected(&events, t0, seq, &stream.conn);
 
     // Prime with one frame so the data plane is provably live, then announce
     // it: the run script anchors its kill timer on this marker, so a slow
@@ -538,7 +553,6 @@ async fn scenario_crash(
             direct_selected.clone(),
             *seq,
         );
-        record_connected(&events, t0, *seq, &stream.conn);
     };
 
     while Instant::now() < end {
@@ -599,20 +613,6 @@ async fn scenario_crash(
     );
     stream.send.finish()?;
     Ok(())
-}
-
-/// Timeline marker for each (re)connection: the paths the fresh connection
-/// starts with, labeled with its sequence number.
-fn record_connected(
-    events: &Arc<std::sync::Mutex<Vec<(u64, String)>>>,
-    t0: Instant,
-    seq: usize,
-    conn: &iroh::endpoint::Connection,
-) {
-    events.lock().unwrap().push((
-        t0.elapsed().as_millis() as u64,
-        format!("c{seq} connected paths={:?}", paths_snapshot(conn)),
-    ));
 }
 
 fn atomic_write(path: &Path, bytes: &[u8]) -> anyhow::Result<()> {
