@@ -57,7 +57,7 @@ scenario) plus per-scenario logs.
 | `burst` | 8 parallel dials to one share across the NAT | all dials connect and echo independently |
 | `cold-1..8` | fresh process → relay online → dial → first frame | reports the cold-path latency split (`online_ms` / `connect_ms` / `first_frame_ms`) |
 | `soak-hairpin` | same soak after switching the router to NAT reflection | integrity as above; additionally reports whether a direct path was ever selected |
-| `crash` | host SIGKILLed mid-soak, restarted ~10 s later | client reconnects unaided; reports outage duration; data-plane liveness (not just an accepted dial) closes the outage window |
+| `crash` | host SIGKILLed mid-soak, restarted ~10 s later | client reconnects unaided; reports outage duration; data-plane liveness (not just an accepted dial) closes the outage window. The kill timer anchors on the client's data-plane-live marker, and the run fails unless at least one outage was actually measured |
 | port audit | `ss` on both peers | no TCP listeners; only the bound QUIC UDP socket |
 
 Every soak/crash result carries the connection's **path timeline**

@@ -126,9 +126,22 @@ run_scenario soak-hairpin client soak --frames 300
 
 crash_scenario() { # name victim-container
   local name=$1 victim=$2
-  log "scenario: $name (SIGKILL $victim at ~25s, restart at ~35s)"
+  log "scenario: $name (SIGKILL $victim 25s after the measured loop starts)"
   client crash --duration-secs 90 >"$RESULTS/$name.log" 2>&1 &
   local pid=$!
+  # Anchor the kill timer on the client's data-plane-live marker — killing
+  # during a slow setup would let the scenario pass without measuring anything.
+  local i
+  for ((i = 0; i < 240; i++)); do
+    grep -q CRASH_RUNNING "$RESULTS/$name.log" 2>/dev/null && break
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.5
+  done
+  if ! grep -q CRASH_RUNNING "$RESULTS/$name.log" 2>/dev/null; then
+    echo "$name: crash client never reached its measured loop" >&2
+    cat "$RESULTS/$name.log" >&2 || true
+    exit 1
+  fi
   sleep 25
   docker kill -s KILL "$victim" >/dev/null
   sleep 10
@@ -147,6 +160,11 @@ crash_scenario() { # name victim-container
   fi
   echo "$result" | sed 's/^RESULT //' \
     | sed "s/{/{\"name\":\"$name\",/" >>"$RESULTS/results.jsonl"
+  # A crash run whose kill window produced no outage measured nothing.
+  if ! echo "$result" | grep -q '"outage_ms"'; then
+    echo "$name: no outage recorded — the kill did not land inside the measured loop" >&2
+    exit 1
+  fi
 }
 
 crash_scenario crash "$PREFIX-host"

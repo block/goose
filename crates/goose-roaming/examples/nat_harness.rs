@@ -518,6 +518,14 @@ async fn scenario_crash(
     );
     record_connected(&events, t0, seq, &stream.conn);
 
+    // Prime with one frame so the data plane is provably live, then announce
+    // it: the run script anchors its kill timer on this marker, so a slow
+    // setup can't let the kill land before anything is under test.
+    exchange_frame(&mut stream, counter).await?;
+    frames_ok += 1;
+    counter += 1;
+    println!("CRASH_RUNNING");
+
     let reconnect = |stream: &mut RoamingClientStream,
                      watch: &mut tokio::task::JoinHandle<()>,
                      seq: &mut usize| {
