@@ -284,6 +284,21 @@ impl GooseAcpAgent {
                     .data(format!("Session not found: {}", session_id_str))
             })?;
 
+        // A prompt in flight (possibly on another connection) owns the
+        // session's shared agent: loading now would evict or rebind it
+        // mid-run. Reject before touching any shared state.
+        let _registration = self.run_registration_lock.lock().await;
+        if self
+            .active_prompt_runs
+            .lock()
+            .unwrap()
+            .contains_key(&session_id_str)
+        {
+            return Err(agent_client_protocol::Error::invalid_params().data(format!(
+                "session `{session_id_str}` has an active run; retry after it completes"
+            )));
+        }
+
         session = self
             .prepare_session_for_activation(session, args.cwd.clone(), args.mcp_servers, true)
             .await?;
@@ -294,7 +309,9 @@ impl GooseAcpAgent {
             self.supports_goose_custom_notifications(),
             self.requests_tool_call_label_enrichment(),
         )?;
-        let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
+        let (agent, extension_results) =
+            self.prepare_acp_session_agent_locked(cx, &session).await?;
+        drop(_registration);
         self.apply_session_recipe(&agent, &session).await?;
         self.register_acp_session(session_id_str.clone(), agent.clone())
             .await;
