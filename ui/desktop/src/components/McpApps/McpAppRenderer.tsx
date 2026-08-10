@@ -918,12 +918,11 @@ export default function McpAppRenderer({
       if (!data) {
         return { contents: [] };
       }
-      const resolvedUri = data.uri || uri;
-      if (resolvedUri.startsWith('ui://') && data.text) {
-        verifyResourceIntegrity(extensionName, resolvedUri, data.text);
+      if (uri.startsWith('ui://') && data.text) {
+        verifyResourceIntegrity(extensionName, uri, data.text);
       }
       return {
-        contents: [{ uri: resolvedUri, text: data.text, mimeType: data.mimeType || undefined }],
+        contents: [{ uri: data.uri || uri, text: data.text, mimeType: data.mimeType || undefined }],
       };
     },
     [sessionId, extensionName]
