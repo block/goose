@@ -288,13 +288,32 @@ impl PathWatch {
         }
     }
 
-    fn finish(self) -> (Vec<(u64, String)>, bool) {
+    /// Stop watching and return the timeline. The flag is finalized from the
+    /// connection's current path set: a selection that landed after the last
+    /// processed event must not be underreported.
+    fn finish(self, conn: &iroh::endpoint::Connection) -> (Vec<(u64, String)>, bool) {
         self.task.abort();
+        seed_direct_from_paths(conn, &self.direct_selected);
         let events = self.events.lock().unwrap().clone();
         let direct = self
             .direct_selected
             .load(std::sync::atomic::Ordering::Relaxed);
         (events, direct)
+    }
+}
+
+/// Set the direct flag if the current path set already holds a selected
+/// direct (IP) path. Run when subscribing (an upgrade completed during
+/// connect/handshake emits no later event) and at shutdown (one completed
+/// after the last processed event).
+fn seed_direct_from_paths(
+    conn: &iroh::endpoint::Connection,
+    direct_selected: &std::sync::atomic::AtomicBool,
+) {
+    for path in conn.paths().iter() {
+        if path.is_selected() && matches!(path.remote_addr(), TransportAddr::Ip(_)) {
+            direct_selected.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
     }
 }
 
@@ -313,11 +332,7 @@ fn watch_paths(
     seq: usize,
 ) -> tokio::task::JoinHandle<()> {
     let mut stream = conn.path_events();
-    for path in conn.paths().iter() {
-        if path.is_selected() && matches!(path.remote_addr(), TransportAddr::Ip(_)) {
-            direct_selected.store(true, std::sync::atomic::Ordering::Relaxed);
-        }
-    }
+    seed_direct_from_paths(conn, &direct_selected);
     events.lock().unwrap().push((
         t0.elapsed().as_millis() as u64,
         format!("c{seq} subscribed paths={:?}", paths_snapshot(conn)),
@@ -408,7 +423,7 @@ async fn scenario_soak(
     }
 
     let paths = paths_snapshot(&stream.conn);
-    let (events, direct) = watch.finish();
+    let (events, direct) = watch.finish(&stream.conn);
     println!(
         "RESULT {}",
         serde_json::json!({
@@ -601,6 +616,7 @@ async fn scenario_crash(
     }
 
     watch.abort();
+    seed_direct_from_paths(&stream.conn, &direct_selected);
     let path_events = events.lock().unwrap().clone();
     println!(
         "RESULT {}",
