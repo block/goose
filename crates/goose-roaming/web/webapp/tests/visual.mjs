@@ -19,7 +19,11 @@ let share = null, browserKey = null;
 
 function startShare() {
   return new Promise((resolve, reject) => {
-    share = spawn(GOOSE, ["roam", "share", "--cwd", hostCwd], { env: process.env, stdio: ["ignore", "pipe", "pipe"] });
+    share = spawn(GOOSE, ["roam", "share", "--cwd", hostCwd], {
+      // GOOSE_DISABLE_KEYRING: never trigger a macOS keychain popup from tests
+      env: { ...process.env, GOOSE_DISABLE_KEYRING: "1" },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     let card = null, live = false;
     const done = () => { if (live && card) resolve(card); };
     const t = setTimeout(() => reject(new Error("share timeout")), 40000);

@@ -40,7 +40,8 @@ function startShare() {
   return new Promise((resolve, reject) => {
     console.log(`\n[1] spawning: goose roam share --cwd ${hostCwd}`);
     share = spawn(GOOSE, ["roam", "share", "--cwd", hostCwd], {
-      env: process.env,
+      // GOOSE_DISABLE_KEYRING: never trigger a macOS keychain popup from tests
+      env: { ...process.env, GOOSE_DISABLE_KEYRING: "1" },
       stdio: ["ignore", "pipe", "pipe"],
     });
     let hostCard = null;

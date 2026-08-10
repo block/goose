@@ -6,7 +6,11 @@ import { chromium } from "playwright";
 const GOOSE = process.env.GOOSE_BIN ?? "goose";
 const URL = "http://localhost:5178/";
 
-const share = spawn(GOOSE, ["roam", "share", "--cwd", "/tmp"], { stdio: ["ignore", "pipe", "pipe"] });
+const share = spawn(GOOSE, ["roam", "share", "--cwd", "/tmp"], {
+  // GOOSE_DISABLE_KEYRING: never trigger a macOS keychain popup from tests
+  env: { ...process.env, GOOSE_DISABLE_KEYRING: "1" },
+  stdio: ["ignore", "pipe", "pipe"],
+});
 let hostCard = "";
 share.stderr.on("data", (d) => process.stderr.write(`   share| ${d}`.slice(0, 200)));
 const cardPromise = new Promise((res) => {
