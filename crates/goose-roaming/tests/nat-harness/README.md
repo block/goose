@@ -72,8 +72,8 @@ behavior across the NAT is a recorded measurement, not an assumption.
 | soak, `hairpin` NAT | 300/300, identical — no upgrade attempted (see below) |
 | burst | 8/8 parallel dials, connect p50 3 ms |
 | cold ×8 | relay online ~215 ms; accepted dial 43–51 ms; first frame <1 ms |
-| host SIGKILL + restart | no transport error surfaces — the in-flight frame hangs until the app echo timeout (10 s here), then reconnect + first frame in ~1.1 s |
-| relay SIGKILL + restart | full outage (relay-only path, as expected); recovered 1–3 s after the relay came back (varies with the reconnect backoff phase) |
+| host SIGKILL + restart | no transport error surfaces — the in-flight frame hangs until the app echo timeout (10 s here), then reconnect + first frame in ~1.1 s. `outage_ms` counts from when the data plane last worked, so it includes that blackout (~11 s total) |
+| relay SIGKILL + restart | full outage (relay-only path, as expected); reconnect completes 1–3 s after the relay came back (varies with the reconnect backoff phase), `outage_ms` ~11–13 s including the detection blackout |
 | port audit | no TCP listeners on either peer; only the bound QUIC UDP socket |
 
 Latencies are virtual-network numbers (all containers share one VM) — the

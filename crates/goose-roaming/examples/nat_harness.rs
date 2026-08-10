@@ -574,6 +574,11 @@ async fn scenario_crash(
     };
 
     while Instant::now() < end {
+        // A SIGKILLed remote surfaces no QUIC error — the frame just times
+        // out — so the user-visible blackout starts when the data plane last
+        // worked, at the top of the failed attempt, not after the echo
+        // timeout has already burned.
+        let attempt_start_ms = t0.elapsed().as_millis() as u64;
         match exchange_frame(&mut stream, counter).await {
             Ok(_) => {
                 frames_ok += 1;
@@ -581,7 +586,7 @@ async fn scenario_crash(
                 tokio::time::sleep(Duration::from_millis(args.pace_ms)).await;
             }
             Err(_) => {
-                let outage_start = t0.elapsed().as_millis() as u64;
+                let outage_start = attempt_start_ms;
                 // Bound the whole recovery: reconnects that keep being
                 // accepted while every frame still dies must fail the
                 // scenario, not hang the battery.
