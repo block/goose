@@ -94,6 +94,13 @@ export function buildInstanceEnv(
     delete env.GOOSE_OAUTH_CALLBACK_PORT
   }
 
+  // Avocado-provisioned instances must never carry the legacy shared OpenRouter key.
+  const avocadoProvisioned =
+    cfg.gooseProvider === 'avocado' || cfg.providerApiKeyEnv === 'AVOCADO_API_KEY'
+  if (avocadoProvisioned && 'OPENROUTER_API_KEY' in env) {
+    delete env.OPENROUTER_API_KEY
+  }
+
   return { env, pathRoot, secretKey }
 }
 

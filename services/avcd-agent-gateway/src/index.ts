@@ -21,6 +21,9 @@ async function main(): Promise<void> {
   }
   const gooseBin = process.env.GOOSE_BIN?.trim() || 'goose'
   const port = Number(process.env.PORT || process.env.GATEWAY_PORT || 3100)
+  const avocadoProvisionUrl = process.env.AVOCADO_PROVISION_URL?.trim() || undefined
+  const avocadoHost =
+    process.env.AVOCADO_HOST?.trim() || 'https://dev.avocado.tech/llm'
 
   const supervisor = new InstanceSupervisor({
     gooseBin,
@@ -31,6 +34,8 @@ async function main(): Promise<void> {
       providerApiKeyEnv: process.env.PROVIDER_API_KEY_ENV || 'OPENROUTER_API_KEY',
       providerApiKey: process.env.OPENROUTER_API_KEY,
     },
+    avocadoProvisionUrl,
+    avocadoHost,
     logger: (message) => console.log(`[gateway] ${message}`),
   })
 

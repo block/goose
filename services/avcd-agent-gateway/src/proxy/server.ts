@@ -3,6 +3,7 @@ import net from 'node:net'
 import { URL } from 'node:url'
 
 import type { InstanceSupervisor } from '../instance/supervisor.js'
+import { ProvisioningError } from '../instance/provisioning.js'
 import {
   BearerAuthError,
   ForbiddenError,
@@ -129,7 +130,7 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
       )
       const payload = await verifyBearerToken(token, settings)
       const instanceKey = resolveInstanceKey(payload, settings)
-      const instance = await supervisor.getOrStart(instanceKey)
+      const instance = await supervisor.getOrStart(instanceKey, token)
 
       const upstreamUrl = rewriteUpstreamUrl(req.url ?? '/', instance.baseUrl, instance.secretKey)
       // For non-WS HTTP, authenticate with header; do not put secret in query.
@@ -214,6 +215,13 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
         res.end(JSON.stringify({ error: error.message }))
         return
       }
+      if (error instanceof ProvisioningError) {
+        res.writeHead(error.statusCode, { 'content-type': 'application/json' })
+        res.end(
+          JSON.stringify({ error: 'provisioning_failed', detail: error.message })
+        )
+        return
+      }
       console.error('[gateway] request failed', error)
       res.writeHead(502, { 'content-type': 'application/json' })
       res.end(JSON.stringify({ error: 'Bad gateway' }))
@@ -238,7 +246,7 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
       )
       const payload = await verifyBearerToken(token, settings)
       const instanceKey = resolveInstanceKey(payload, settings)
-      const instance = await supervisor.getOrStart(instanceKey)
+      const instance = await supervisor.getOrStart(instanceKey, token)
 
       const upstreamUrl = new URL(instance.baseUrl)
       upstreamUrl.pathname = url.pathname
@@ -279,6 +287,20 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
         proxySocket.destroy()
       })
     } catch (error) {
+      if (error instanceof ProvisioningError) {
+        const reason =
+          error.statusCode === 403
+            ? 'Forbidden'
+            : error.statusCode === 401
+              ? 'Unauthorized'
+              : 'Service Unavailable'
+        socket.write(
+          `HTTP/1.1 ${error.statusCode} ${reason}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n` +
+            JSON.stringify({ error: 'provisioning_failed', detail: error.message })
+        )
+        socket.destroy()
+        return
+      }
       recordAuthFailure()
       const status =
         error instanceof ForbiddenError

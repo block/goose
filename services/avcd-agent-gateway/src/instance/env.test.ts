@@ -59,6 +59,43 @@ describe('buildInstanceEnv (covers AC-3 isolation env contract)', () => {
     expect(built.env).not.toHaveProperty('GOOSE_OAUTH_CALLBACK_PORT')
     expect(built.env.FOO).toBe('bar')
   })
+
+  it('GivenProvisioningReturnsKey_WhenBuildingInstanceEnv_ThenAvocadoKeyAndProviderAreSetAndOpenrouterKeyIsAbsent', () => {
+    const built = buildInstanceEnv(
+      key,
+      {
+        dataRoot: '/tmp/avcd-agent-data',
+        gooseProvider: 'avocado',
+        providerApiKeyEnv: 'AVOCADO_API_KEY',
+        providerApiKey: 'sk-user-a',
+        extraEnv: {
+          AVOCADO_HOST: 'https://dev.avocado.tech/llm',
+          OPENROUTER_API_KEY: 'sk-shared-must-not-leak',
+        },
+      },
+      {}
+    )
+    expect(built.env.AVOCADO_API_KEY).toBe('sk-user-a')
+    expect(built.env.GOOSE_PROVIDER).toBe('avocado')
+    expect(built.env.AVOCADO_HOST).toBe('https://dev.avocado.tech/llm')
+    expect(built.env).not.toHaveProperty('OPENROUTER_API_KEY')
+  })
+
+  it('GivenProvisionUrlUnset_WhenBuildingInstanceEnv_ThenLegacyOpenrouterKeyIsInjectedUnchanged', () => {
+    const built = buildInstanceEnv(
+      key,
+      {
+        dataRoot: '/tmp/avcd-agent-data',
+        gooseProvider: 'openrouter',
+        providerApiKeyEnv: 'OPENROUTER_API_KEY',
+        providerApiKey: 'sk-shared-legacy',
+      },
+      {}
+    )
+    expect(built.env.OPENROUTER_API_KEY).toBe('sk-shared-legacy')
+    expect(built.env.GOOSE_PROVIDER).toBe('openrouter')
+    expect(built.env).not.toHaveProperty('AVOCADO_API_KEY')
+  })
 })
 
 describe('buildInstanceArgs', () => {

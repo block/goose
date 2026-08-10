@@ -15,6 +15,9 @@ services:
       GOOSE_PROVIDER: ${GOOSE_PROVIDER:-openrouter}
       GOOSE_MODEL: ${GOOSE_MODEL:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # When set, gateway provisions per-user Avocado keys (AC-9: unset keeps OPENROUTER path)
+      AVOCADO_PROVISION_URL: ${AVOCADO_PROVISION_URL:-}
+      AVOCADO_HOST: ${AVOCADO_HOST:-https://dev.avocado.tech/llm}
     volumes:
       - avcd-agent-data:/var/lib/avcd-agent
     healthcheck:

@@ -9,6 +9,9 @@ import {
   buildInstanceEnv,
   type InstanceConfig,
 } from './env.js'
+import { ProvisioningError, provisionAvocadoKey } from './provisioning.js'
+
+export { ProvisioningError } from './provisioning.js'
 
 export type RunningInstance = {
   key: string
@@ -45,6 +48,10 @@ export type SupervisorOptions = {
   fetchImpl?: typeof fetch
   now?: () => number
   logger?: (message: string) => void
+  /** When set, provision a per-user Avocado key before each spawn (AC-1). */
+  avocadoProvisionUrl?: string
+  /** Host injected as AVOCADO_HOST; default https://dev.avocado.tech/llm */
+  avocadoHost?: string
 }
 
 async function findAvailablePort(): Promise<number> {
@@ -126,6 +133,7 @@ function spawnGoose(
 
 export class InstanceSupervisor {
   private readonly instances = new Map<string, InternalInstance>()
+  private readonly inFlight = new Map<string, Promise<RunningInstance>>()
   private readonly gooseBin: string
   private readonly instanceConfig: InstanceConfig
   private readonly idleTtlMs: number
@@ -135,6 +143,8 @@ export class InstanceSupervisor {
   private readonly fetchImpl: typeof fetch
   private readonly now: () => number
   private readonly logger: (message: string) => void
+  private readonly avocadoProvisionUrl?: string
+  private readonly avocadoHost: string
   private reapTimer?: NodeJS.Timeout
 
   constructor(opts: SupervisorOptions) {
@@ -147,22 +157,46 @@ export class InstanceSupervisor {
     this.fetchImpl = opts.fetchImpl ?? fetch
     this.now = opts.now ?? Date.now
     this.logger = opts.logger ?? (() => {})
+    this.avocadoProvisionUrl = opts.avocadoProvisionUrl?.trim() || undefined
+    this.avocadoHost = opts.avocadoHost?.trim() || 'https://dev.avocado.tech/llm'
     this.reapTimer = setInterval(() => {
       void this.reapIdle()
     }, Math.min(60_000, this.idleTtlMs))
     this.reapTimer.unref?.()
   }
 
-  async getOrStart(instanceKey: InstanceKey): Promise<RunningInstance> {
+  async getOrStart(
+    instanceKey: InstanceKey,
+    accessToken?: string
+  ): Promise<RunningInstance> {
     const existing = this.instances.get(instanceKey.key)
     if (existing && isAlive(existing)) {
       existing.lastUsedAt = this.now()
       return this.publicView(existing)
     }
-    if (existing) {
-      await this.stop(instanceKey.key)
+
+    const pending = this.inFlight.get(instanceKey.key)
+    if (pending) {
+      return pending
     }
-    return this.start(instanceKey)
+
+    // Register in-flight synchronously so concurrent callers share one start
+    // (including one provisioning call) even when we still need to stop a dead child.
+    const promise = (async () => {
+      const again = this.instances.get(instanceKey.key)
+      if (again && isAlive(again)) {
+        again.lastUsedAt = this.now()
+        return this.publicView(again)
+      }
+      if (again) {
+        await this.stop(instanceKey.key)
+      }
+      return this.start(instanceKey, accessToken)
+    })().finally(() => {
+      this.inFlight.delete(instanceKey.key)
+    })
+    this.inFlight.set(instanceKey.key, promise)
+    return promise
   }
 
   async stop(key: string): Promise<void> {
@@ -187,9 +221,56 @@ export class InstanceSupervisor {
     return view
   }
 
-  private async start(instanceKey: InstanceKey): Promise<RunningInstance> {
+  private async resolveInstanceConfig(
+    accessToken: string | undefined
+  ): Promise<InstanceConfig> {
+    if (!this.avocadoProvisionUrl) {
+      return this.instanceConfig
+    }
+    if (!accessToken) {
+      throw new ProvisioningError('missing access token for provisioning', 401)
+    }
+
+    const result = await provisionAvocadoKey(
+      this.avocadoProvisionUrl,
+      accessToken,
+      this.fetchImpl
+    )
+    if (!result.ok) {
+      throw new ProvisioningError(result.error, result.statusCode)
+    }
+
+    return {
+      ...this.instanceConfig,
+      gooseProvider: 'avocado',
+      providerApiKeyEnv: 'AVOCADO_API_KEY',
+      providerApiKey: result.apiKey,
+      extraEnv: {
+        ...this.instanceConfig.extraEnv,
+        AVOCADO_HOST: this.avocadoHost,
+      },
+    }
+  }
+
+  private async start(
+    instanceKey: InstanceKey,
+    accessToken?: string
+  ): Promise<RunningInstance> {
     const port = await findAvailablePort()
-    const built = buildInstanceEnv(instanceKey, this.instanceConfig)
+
+    let cfg: InstanceConfig
+    try {
+      cfg = await this.resolveInstanceConfig(accessToken)
+    } catch (error) {
+      // Provisioning happens before spawn — nothing to clean up in the map.
+      if (error instanceof ProvisioningError) throw error
+      throw new ProvisioningError(
+        error instanceof Error ? error.message : 'provisioning failed',
+        503
+      )
+    }
+
+    const built = buildInstanceEnv(instanceKey, cfg)
     await mkdir(built.pathRoot, { recursive: true })
     const args = buildInstanceArgs(port)
     // Ensure PATH exists for shebang `env node` resolution.
