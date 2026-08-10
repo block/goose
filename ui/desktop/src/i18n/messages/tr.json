@@ -4621,5 +4621,8 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "Görseli mesajdan kaldır"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "Son kullanılan"
   }
 }

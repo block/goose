@@ -4621,5 +4621,8 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "Удалить изображение из сообщения"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "Недавние"
   }
 }
