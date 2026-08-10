@@ -4,6 +4,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 pub const GEMINI_THOUGHT_SIGNATURE_KEY: &str = "thoughtSignature";
+const MAX_BUFFERED_THINK_TAG_BYTES: usize = 8 * 1024;
 
 pub fn split_think_blocks(text: &str) -> (String, String) {
     let mut filter = ThinkFilter::new();
@@ -107,6 +108,14 @@ impl ThinkFilter {
                             out.content.push_str(&prefix);
                         }
                         self.buffer.drain(..pos);
+                    }
+                    if self.buffer.len() > MAX_BUFFERED_THINK_TAG_BYTES {
+                        if self.inside_think {
+                            out.thinking.push_str(&self.buffer);
+                        } else {
+                            out.content.push_str(&self.buffer);
+                        }
+                        self.buffer.clear();
                     }
                     break;
                 }
@@ -582,5 +591,60 @@ mod tests {
 
         assert_eq!(out.content, "before visible");
         assert_eq!(out.thinking, "hidden1  hidden2");
+    }
+
+    #[test]
+    fn test_think_filter_bounds_unterminated_quoted_tag_candidates() {
+        for quote in ['"', '\''] {
+            let payload = format!(
+                "<think data={quote}{}",
+                "a".repeat(MAX_BUFFERED_THINK_TAG_BYTES * 2)
+            );
+            let mut filter = ThinkFilter::new();
+            let mut content = String::new();
+
+            for chunk in payload.as_bytes().chunks(17) {
+                let out = filter.push(std::str::from_utf8(chunk).unwrap());
+                content.push_str(&out.content);
+                assert!(filter.buffer.len() <= MAX_BUFFERED_THINK_TAG_BYTES);
+            }
+
+            content.push_str(&filter.finish().content);
+            assert_eq!(content, payload);
+        }
+    }
+
+    #[test]
+    fn test_think_filter_bounds_partial_close_tag_candidates() {
+        let payload = format!("</think{}", " ".repeat(MAX_BUFFERED_THINK_TAG_BYTES * 2));
+        let mut filter = ThinkFilter::new();
+        let mut content = String::new();
+
+        for chunk in payload.as_bytes().chunks(19) {
+            let out = filter.push(std::str::from_utf8(chunk).unwrap());
+            content.push_str(&out.content);
+            assert!(filter.buffer.len() <= MAX_BUFFERED_THINK_TAG_BYTES);
+        }
+
+        content.push_str(&filter.finish().content);
+        assert_eq!(content, payload);
+    }
+
+    #[test]
+    fn test_think_filter_accepts_bounded_streamed_attributes() {
+        let prefix = "<think data=\"";
+        let attribute = "a".repeat(MAX_BUFFERED_THINK_TAG_BYTES - prefix.len());
+        let mut filter = ThinkFilter::new();
+        let first = filter.push(&format!("{prefix}{attribute}"));
+
+        assert!(first.content.is_empty());
+        assert!(first.thinking.is_empty());
+        assert_eq!(filter.buffer.len(), MAX_BUFFERED_THINK_TAG_BYTES);
+
+        let second = filter.push("\">hidden</think>visible");
+        let final_out = filter.finish();
+        assert_eq!(second.content, "visible");
+        assert_eq!(second.thinking, "hidden");
+        assert_eq!(final_out, FilterOut::default());
     }
 }
