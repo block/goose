@@ -112,6 +112,21 @@ type ConfigOption = {
   options?: ConfigSelectOption[];
 };
 
+// "just now", "4m", "2h", "3d" — compact relative time for session rows.
+function relativeTime(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const secs = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  if (secs < 60) return "just now";
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+  return `${Math.floor(secs / 86400)}d ago`;
+}
+
+// Same liveness rule the constellation and hot chip use: updated <5 min ago.
+function isSessionLive(s: { updatedAt?: string | null }): boolean {
+  return !!s.updatedAt && Date.now() - new Date(s.updatedAt).getTime() < 5 * 60 * 1000;
+}
+
 // Ticking elapsed readout for the working indicator ("12s", "1m 04s").
 function LiveElapsed({ startedAt }: { startedAt: number }) {
   const [, tick] = useState(0);
@@ -1197,11 +1212,19 @@ export function App({ roam }: { roam: RoamClient }) {
                       }`}
                       onClick={() => { setSidebarOpen(false); void openSession(s._host, s.sessionId); }}
                     >
-                      <div className="text-[13px] whitespace-nowrap overflow-hidden text-ellipsis">
-                        {s.title || "(untitled session)"}
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {isSessionLive(s) && (
+                          <span
+                            className="shrink-0 inline-block w-1.5 h-1.5 rounded-full bg-text-info animate-pulse"
+                            title="active in the last 5 minutes"
+                          />
+                        )}
+                        <span className="text-[13px] whitespace-nowrap overflow-hidden text-ellipsis">
+                          {s.title || "(untitled session)"}
+                        </span>
                       </div>
-                      <div className="text-[11px] text-text-tertiary font-mono mt-0.5">
-                        {s.sessionId.slice(0, 8)}
+                      <div className="text-[11px] text-text-tertiary mt-0.5">
+                        {relativeTime(s.updatedAt)}
                         {hostsRef.current.size > 1 && (
                           <span className="text-text-info"> · {hostsRef.current.get(s._host)?.name ?? s._host.slice(0, 6)}</span>
                         )}
