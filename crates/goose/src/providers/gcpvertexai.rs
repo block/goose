@@ -1,4 +1,3 @@
-use std::io;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -27,7 +26,9 @@ use crate::providers::formats::gcpvertexai::{
     DEFAULT_MODEL, KNOWN_MODELS,
 };
 use crate::providers::gcpauth::GcpAuth;
-use crate::providers::openai_compatible::{map_http_error_to_provider_error, sanitize_url};
+use crate::providers::openai_compatible::{
+    body_stream_with_prefix, first_body_chunk, map_http_error_to_provider_error, sanitize_url,
+};
 use crate::providers::retry::RetryConfig;
 use goose_providers::errors::ProviderError;
 use goose_providers::http_status::read_error_body;
@@ -284,7 +285,7 @@ impl GcpVertexAIProvider {
         model: &ModelConfig,
         url: Url,
         payload: &Value,
-    ) -> Result<reqwest::Response, ProviderError> {
+    ) -> Result<(reqwest::Response, Option<bytes::Bytes>), ProviderError> {
         let mut rate_limit_attempts = 0;
         let mut overloaded_attempts = 0;
         let mut last_error = None;
@@ -376,7 +377,23 @@ impl GcpVertexAIProvider {
                 });
                 sleep(self.retry_config.delay_for_attempt(overloaded_attempts)).await;
             } else if status == StatusCode::OK {
-                return Ok(response);
+                // Pre-read the first body chunk inside the retry loop so a 200
+                // whose connection dies before any body bytes still retries.
+                let mut response = response;
+                match first_body_chunk(&mut response).await {
+                    Ok(first_chunk) => return Ok((response, Some(first_chunk))),
+                    Err(e) => {
+                        rate_limit_attempts += 1;
+                        if rate_limit_attempts > max_retries {
+                            return Err(e);
+                        }
+                        tracing::warn!(
+                            "pre-body stream failure (attempt {rate_limit_attempts}/{max_retries}): {e}"
+                        );
+                        last_error = Some(e);
+                        sleep(self.retry_config.delay_for_attempt(rate_limit_attempts)).await;
+                    }
+                }
             } else if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
                 if !retried_auth {
                     retried_auth = true;
@@ -407,7 +424,7 @@ impl GcpVertexAIProvider {
         payload: &Value,
         context: &RequestContext,
         location: &str,
-    ) -> Result<reqwest::Response, ProviderError> {
+    ) -> Result<(reqwest::Response, Option<bytes::Bytes>), ProviderError> {
         let url = self
             .build_request_url(model, context.provider(), location, true)
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
@@ -420,7 +437,7 @@ impl GcpVertexAIProvider {
         model: &ModelConfig,
         payload: &Value,
         context: &RequestContext,
-    ) -> Result<reqwest::Response, ProviderError> {
+    ) -> Result<(reqwest::Response, Option<bytes::Bytes>), ProviderError> {
         let result = self
             .post_stream_with_location(model, payload, context, &self.location)
             .await;
@@ -628,14 +645,14 @@ impl Provider for GcpVertexAIProvider {
 
         let mut log = start_log(model_config, &request)?;
 
-        let response = self
+        let (response, first_chunk) = self
             .post_stream(model_config, &request, &context)
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);
             })?;
 
-        let stream = response.bytes_stream().map_err(io::Error::other);
+        let stream = body_stream_with_prefix(response, first_chunk);
 
         let context_clone = context.clone();
         Ok(Box::pin(try_stream! {

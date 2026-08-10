@@ -1,6 +1,6 @@
 use super::api_client::ApiClient;
 use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata};
-use super::openai_compatible::handle_status;
+use super::openai_compatible::{body_stream_with_prefix, first_body_chunk, handle_status};
 use super::retry::{ProviderRetry, RetryConfig};
 use crate::api_client::{AuthMethod, TlsConfig};
 use crate::base::ProviderDescriptor;
@@ -422,22 +422,25 @@ impl Provider for OllamaProvider {
         apply_ollama_options(&mut payload, &self.options, model_config);
         let mut log = start_log(model_config, &payload)?;
 
-        let response = self
+        let (response, first_chunk) = self
             .with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .request("v1/chat/completions")
-                    .model_headers(model_config)?
-                    .streaming(true)
-                    .response_post(&payload)
-                    .await?;
-                handle_status(resp).await
+                let mut response = handle_status(
+                    self.api_client
+                        .request("v1/chat/completions")
+                        .model_headers(model_config)?
+                        .streaming(true)
+                        .response_post(&payload)
+                        .await?,
+                )
+                .await?;
+                let first_chunk = first_body_chunk(&mut response).await?;
+                Ok((response, Some(first_chunk)))
             })
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);
             })?;
-        stream_ollama(response, self.options.chunk_timeout_secs, log)
+        stream_ollama(response, first_chunk, self.options.chunk_timeout_secs, log)
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -513,10 +516,11 @@ fn with_line_timeout(
 /// buffering inside response_to_streaming_message_ollama does not cause false stalls.
 fn stream_ollama(
     response: Response,
+    first_chunk: Option<bytes::Bytes>,
     chunk_timeout: u64,
     mut log: Option<Box<dyn RequestLogHandle>>,
 ) -> Result<MessageStream, ProviderError> {
-    let stream = response.bytes_stream().map_err(std::io::Error::other);
+    let stream = body_stream_with_prefix(response, first_chunk);
 
     Ok(Box::pin(try_stream! {
         let stream_reader = StreamReader::new(stream);
