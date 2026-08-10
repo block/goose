@@ -184,8 +184,8 @@ a real deployment wants a goose/Block-owned relay namespace with an SLA.)
   `revocation_closes_live_connection` and
   `revocation_watcher_closes_live_connection_from_file` in
   `tests/end_to_end.rs`.
-- **Card fingerprint is 48-bit** (`card.rs`): bump toward 128-bit before relying
-  on it for out-of-band QR verification.
+- ~~**Card fingerprint is 48-bit**~~ Fixed: `card.rs` now derives a 128-bit
+  fingerprint (eight 4-hex groups) suitable for out-of-band verification.
 - **Version skew**: a CDN can serve an old client against an updated host — the
   roam handshake + ACP need a version-negotiation story.
 - **Reconnect semantics**: a dropped connection after `session/prompt` is

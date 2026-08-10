@@ -53,11 +53,14 @@ impl ConnectionCard {
     /// the public key, so it is stable and needs no secret.
     pub fn fingerprint(&self) -> String {
         let digest = Sha256::digest(self.endpoint_id.as_bytes());
-        // First 6 bytes -> three 4-hex-char groups, e.g. "3f9a-1c22-8d40".
-        format!(
-            "{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}",
-            digest[0], digest[1], digest[2], digest[3], digest[4], digest[5]
-        )
+        // First 16 bytes (128 bits) -> eight 4-hex-char groups. 48 bits was
+        // brute-forceable for a second-preimage against a human comparing
+        // out of band; 128 bits is not.
+        digest[..16]
+            .chunks(2)
+            .map(|pair| format!("{:02x}{:02x}", pair[0], pair[1]))
+            .collect::<Vec<_>>()
+            .join("-")
     }
 
     /// Encode to a compact, URL-safe string with the `goose+roam://` scheme.
@@ -130,8 +133,8 @@ mod tests {
         let card = ConnectionCard::new(id, vec![]);
         let fp = card.fingerprint();
         assert_eq!(fp, card.fingerprint());
-        assert_eq!(fp.len(), 14); // 4+1+4+1+4
-        assert_eq!(fp.matches('-').count(), 2);
+        assert_eq!(fp.len(), 39); // eight 4-hex groups + seven dashes
+        assert_eq!(fp.matches('-').count(), 7);
     }
 
     #[test]
