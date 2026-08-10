@@ -21,7 +21,7 @@ ignored = ["getrandom", "js-sys"]
 # Browser posture: no default features (drops native UDP/portmapper/metrics),
 # tls-ring (aws-lc-rs does not build for wasm here). Proven to compile in the
 # the browser transport stack (iroh + noq QUIC + tokio-websockets + web-sys).
-iroh = { version = "=1.0.2", default-features = false, features = ["tls-ring"] }
+iroh = { version = "=1.0.3", default-features = false, features = ["tls-ring"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
