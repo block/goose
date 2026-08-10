@@ -3278,6 +3278,39 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "विस्तृत"
   },
+  "roamSection.copied": {
+    "defaultMessage": "कॉपी हो गया"
+  },
+  "roamSection.copyCard": {
+    "defaultMessage": "कनेक्शन कार्ड कॉपी करें"
+  },
+  "roamSection.description": {
+    "defaultMessage": "अपने फ़ोन या किसी अन्य मशीन से इस goose तक पहुँचें, पीयर-टू-पीयर। कोई खाता नहीं और बीच में कोई सर्वर नहीं — डिवाइस सार्वजनिक कुंजियों का आदान-प्रदान करके जुड़ते हैं।"
+  },
+  "roamSection.enable": {
+    "defaultMessage": "रिमोट एक्सेस सक्षम करें"
+  },
+  "roamSection.enableDescription": {
+    "defaultMessage": "स्थानीय goose बैकएंड को goose roam (p2p) के माध्यम से भी उपलब्ध कराएँ।"
+  },
+  "roamSection.fingerprint": {
+    "defaultMessage": "फ़िंगरप्रिंट"
+  },
+  "roamSection.pairHelp": {
+    "defaultMessage": "अपने फ़ोन पर goose वेब क्लाइंट से यह कोड स्कैन करें, फिर टर्मिनल में `goose roam peers accept` चलाकर नए डिवाइस को स्वीकार करें।"
+  },
+  "roamSection.pairTitle": {
+    "defaultMessage": "डिवाइस जोड़ें"
+  },
+  "roamSection.restartNote": {
+    "defaultMessage": "लागू करने के लिए goose को पुनः प्रारंभ करें।"
+  },
+  "roamSection.title": {
+    "defaultMessage": "रिमोट एक्सेस (roam)"
+  },
+  "roamSection.waiting": {
+    "defaultMessage": "रोमिंग एंडपॉइंट के ऑनलाइन होने की प्रतीक्षा… (goose बैकएंड के साथ शुरू होता है)"
+  },
   "scheduleDetailView.actions": {
     "defaultMessage": "क्रियाएँ"
   },

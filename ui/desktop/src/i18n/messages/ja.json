@@ -3278,6 +3278,39 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "詳細"
   },
+  "roamSection.copied": {
+    "defaultMessage": "コピーしました"
+  },
+  "roamSection.copyCard": {
+    "defaultMessage": "接続カードをコピー"
+  },
+  "roamSection.description": {
+    "defaultMessage": "スマートフォンや別のマシンからこの goose にピアツーピアで接続できます。アカウントも中間サーバーも不要 — デバイスは公開鍵を交換してペアリングします。"
+  },
+  "roamSection.enable": {
+    "defaultMessage": "リモートアクセスを有効にする"
+  },
+  "roamSection.enableDescription": {
+    "defaultMessage": "ローカルの goose バックエンドを goose roam (p2p) 経由でも公開します。"
+  },
+  "roamSection.fingerprint": {
+    "defaultMessage": "フィンガープリント"
+  },
+  "roamSection.pairHelp": {
+    "defaultMessage": "スマートフォンの goose ウェブクライアントでこのコードをスキャンし、ターミナルで `goose roam peers accept` を実行して新しいデバイスを承認してください。"
+  },
+  "roamSection.pairTitle": {
+    "defaultMessage": "デバイスをペアリング"
+  },
+  "roamSection.restartNote": {
+    "defaultMessage": "適用するには goose を再起動してください。"
+  },
+  "roamSection.title": {
+    "defaultMessage": "リモートアクセス (roam)"
+  },
+  "roamSection.waiting": {
+    "defaultMessage": "ローミングエンドポイントがオンラインになるのを待っています…（goose バックエンドと共に起動します）"
+  },
   "scheduleDetailView.actions": {
     "defaultMessage": "操作"
   },

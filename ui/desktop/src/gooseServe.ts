@@ -32,6 +32,8 @@ export interface StartGooseServeOptions extends FindGooseBinaryOptions {
   dir?: string;
   serverSecret: string;
   tls?: boolean;
+  /** Pass --roam so the server is also reachable over goose-roaming (p2p). */
+  roam?: boolean;
   env?: Record<string, string | undefined>;
   /** PATH from the user's login shell, appended so goosed can find CLI providers. */
   loginShellPath?: string | null;
@@ -326,6 +328,7 @@ export const startGooseServe = async ({
   dir,
   serverSecret,
   tls = false,
+  roam = false,
   env: additionalEnv = {},
   loginShellPath,
   isPackaged,
@@ -364,6 +367,7 @@ export const startGooseServe = async ({
   const args = [
     'serve',
     ...(tls ? ['--tls'] : []),
+    ...(roam ? ['--roam'] : []),
     '--platform',
     'desktop',
     '--enable-scheduler',

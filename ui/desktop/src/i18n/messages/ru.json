@@ -3278,6 +3278,39 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "Подробный"
   },
+  "roamSection.copied": {
+    "defaultMessage": "Скопировано"
+  },
+  "roamSection.copyCard": {
+    "defaultMessage": "Скопировать карту подключения"
+  },
+  "roamSection.description": {
+    "defaultMessage": "Подключайтесь к этому goose с телефона или другого компьютера напрямую (peer-to-peer). Без аккаунтов и промежуточных серверов — устройства сопрягаются обменом открытыми ключами."
+  },
+  "roamSection.enable": {
+    "defaultMessage": "Включить удалённый доступ"
+  },
+  "roamSection.enableDescription": {
+    "defaultMessage": "Также открыть локальный бэкенд goose через goose roam (p2p)."
+  },
+  "roamSection.fingerprint": {
+    "defaultMessage": "Отпечаток"
+  },
+  "roamSection.pairHelp": {
+    "defaultMessage": "Отсканируйте этот код в веб-клиенте goose на телефоне, затем подтвердите новое устройство командой `goose roam peers accept` в терминале."
+  },
+  "roamSection.pairTitle": {
+    "defaultMessage": "Сопряжение устройства"
+  },
+  "roamSection.restartNote": {
+    "defaultMessage": "Перезапустите goose, чтобы применить."
+  },
+  "roamSection.title": {
+    "defaultMessage": "Удалённый доступ (roam)"
+  },
+  "roamSection.waiting": {
+    "defaultMessage": "Ожидание выхода конечной точки роуминга в сеть… (запускается вместе с бэкендом goose)"
+  },
   "scheduleDetailView.actions": {
     "defaultMessage": "Действия"
   },

@@ -3278,6 +3278,39 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "Dettagliato"
   },
+  "roamSection.copied": {
+    "defaultMessage": "Copiato"
+  },
+  "roamSection.copyCard": {
+    "defaultMessage": "Copia scheda di connessione"
+  },
+  "roamSection.description": {
+    "defaultMessage": "Raggiungi questo goose dal telefono o da un'altra macchina, peer-to-peer. Nessun account e nessun server intermediario — i dispositivi si accoppiano scambiando chiavi pubbliche."
+  },
+  "roamSection.enable": {
+    "defaultMessage": "Abilita accesso remoto"
+  },
+  "roamSection.enableDescription": {
+    "defaultMessage": "Esponi anche il backend locale di goose tramite goose roam (p2p)."
+  },
+  "roamSection.fingerprint": {
+    "defaultMessage": "Impronta"
+  },
+  "roamSection.pairHelp": {
+    "defaultMessage": "Scansiona questo codice dal client web goose sul tuo telefono, poi accetta il nuovo dispositivo eseguendo `goose roam peers accept` in un terminale."
+  },
+  "roamSection.pairTitle": {
+    "defaultMessage": "Accoppia un dispositivo"
+  },
+  "roamSection.restartNote": {
+    "defaultMessage": "Riavvia goose per applicare."
+  },
+  "roamSection.title": {
+    "defaultMessage": "Accesso remoto (roam)"
+  },
+  "roamSection.waiting": {
+    "defaultMessage": "In attesa che l'endpoint roaming sia online… (si avvia con il backend goose)"
+  },
   "scheduleDetailView.actions": {
     "defaultMessage": "Azioni"
   },

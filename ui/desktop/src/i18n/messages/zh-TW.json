@@ -3278,6 +3278,39 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "詳細"
   },
+  "roamSection.copied": {
+    "defaultMessage": "已複製"
+  },
+  "roamSection.copyCard": {
+    "defaultMessage": "複製連線卡片"
+  },
+  "roamSection.description": {
+    "defaultMessage": "透過手機或其他裝置以點對點方式存取此 goose。無需帳號，中間沒有伺服器 — 裝置透過交換公鑰進行配對。"
+  },
+  "roamSection.enable": {
+    "defaultMessage": "啟用遠端存取"
+  },
+  "roamSection.enableDescription": {
+    "defaultMessage": "同時透過 goose roam (p2p) 公開本機 goose 後端。"
+  },
+  "roamSection.fingerprint": {
+    "defaultMessage": "指紋"
+  },
+  "roamSection.pairHelp": {
+    "defaultMessage": "在手機上用 goose 網頁用戶端掃描此條碼，然後在終端機執行 `goose roam peers accept` 接受新裝置。"
+  },
+  "roamSection.pairTitle": {
+    "defaultMessage": "配對裝置"
+  },
+  "roamSection.restartNote": {
+    "defaultMessage": "重新啟動 goose 以套用。"
+  },
+  "roamSection.title": {
+    "defaultMessage": "遠端存取 (roam)"
+  },
+  "roamSection.waiting": {
+    "defaultMessage": "正在等待漫遊端點上線…（隨 goose 後端一同啟動）"
+  },
   "scheduleDetailView.actions": {
     "defaultMessage": "動作"
   },

@@ -3278,6 +3278,39 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "Terperinci"
   },
+  "roamSection.copied": {
+    "defaultMessage": "Disalin"
+  },
+  "roamSection.copyCard": {
+    "defaultMessage": "Salin kad sambungan"
+  },
+  "roamSection.description": {
+    "defaultMessage": "Capai goose ini dari telefon anda atau mesin lain, secara rakan ke rakan. Tiada akaun dan tiada pelayan perantara — peranti berpasangan dengan bertukar kunci awam."
+  },
+  "roamSection.enable": {
+    "defaultMessage": "Dayakan akses jauh"
+  },
+  "roamSection.enableDescription": {
+    "defaultMessage": "Turut dedahkan backend goose tempatan melalui goose roam (p2p)."
+  },
+  "roamSection.fingerprint": {
+    "defaultMessage": "Cap jari"
+  },
+  "roamSection.pairHelp": {
+    "defaultMessage": "Imbas kod ini dari klien web goose pada telefon anda, kemudian terima peranti baharu dengan menjalankan `goose roam peers accept` di terminal."
+  },
+  "roamSection.pairTitle": {
+    "defaultMessage": "Pasangkan peranti"
+  },
+  "roamSection.restartNote": {
+    "defaultMessage": "Mulakan semula goose untuk menerapkan."
+  },
+  "roamSection.title": {
+    "defaultMessage": "Akses jauh (roam)"
+  },
+  "roamSection.waiting": {
+    "defaultMessage": "Menunggu titik akhir roaming dalam talian… (bermula bersama backend goose)"
+  },
   "scheduleDetailView.actions": {
     "defaultMessage": "Tindakan"
   },

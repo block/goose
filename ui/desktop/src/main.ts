@@ -51,6 +51,7 @@ import {
   updateTrayMenu,
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
+import { readRoamServeStatus } from './roamStatus';
 import './utils/recipeHash';
 import type { GooseApp } from './types/apps';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
@@ -1164,6 +1165,7 @@ const createChat = async (
         serverSecret,
         dir: workingDir,
         tls: true,
+        roam: getSettings().roamEnabled,
         env: {
           GOOSE_PATH_ROOT: appConfig.GOOSE_PATH_ROOT as string | undefined,
         },
@@ -1946,6 +1948,7 @@ const validSettingKeys: Set<string> = new Set([
   'showPricing',
   'seenAnnouncementIds',
   'disableAutoDownload',
+  'roamEnabled',
 ]);
 
 ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
@@ -1977,6 +1980,11 @@ ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
   if (key === 'disableAutoDownload') {
     setAutoDownloadDisabled(value as boolean);
   }
+});
+
+ipcMain.handle('get-roam-status', () => {
+  const status = readRoamServeStatus(appConfig.GOOSE_PATH_ROOT as string | undefined);
+  return { enabled: getSettings().roamEnabled, status };
 });
 
 ipcMain.handle('get-secret-key', (event) => {

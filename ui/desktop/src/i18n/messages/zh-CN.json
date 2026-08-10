@@ -3278,6 +3278,39 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "详细"
   },
+  "roamSection.copied": {
+    "defaultMessage": "已复制"
+  },
+  "roamSection.copyCard": {
+    "defaultMessage": "复制连接卡片"
+  },
+  "roamSection.description": {
+    "defaultMessage": "通过手机或其他设备以点对点方式访问此 goose。无需账户，中间没有服务器 — 设备通过交换公钥进行配对。"
+  },
+  "roamSection.enable": {
+    "defaultMessage": "启用远程访问"
+  },
+  "roamSection.enableDescription": {
+    "defaultMessage": "同时通过 goose roam (p2p) 暴露本地 goose 后端。"
+  },
+  "roamSection.fingerprint": {
+    "defaultMessage": "指纹"
+  },
+  "roamSection.pairHelp": {
+    "defaultMessage": "在手机上用 goose 网页客户端扫描此二维码，然后在终端运行 `goose roam peers accept` 接受新设备。"
+  },
+  "roamSection.pairTitle": {
+    "defaultMessage": "配对设备"
+  },
+  "roamSection.restartNote": {
+    "defaultMessage": "重启 goose 以生效。"
+  },
+  "roamSection.title": {
+    "defaultMessage": "远程访问 (roam)"
+  },
+  "roamSection.waiting": {
+    "defaultMessage": "正在等待漫游端点上线…（随 goose 后端一起启动）"
+  },
   "scheduleDetailView.actions": {
     "defaultMessage": "操作"
   },

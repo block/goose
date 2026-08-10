@@ -3278,6 +3278,39 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "Chi tiết"
   },
+  "roamSection.copied": {
+    "defaultMessage": "Đã sao chép"
+  },
+  "roamSection.copyCard": {
+    "defaultMessage": "Sao chép thẻ kết nối"
+  },
+  "roamSection.description": {
+    "defaultMessage": "Truy cập goose này từ điện thoại hoặc máy khác, theo kiểu ngang hàng. Không tài khoản, không máy chủ trung gian — các thiết bị ghép nối bằng cách trao đổi khóa công khai."
+  },
+  "roamSection.enable": {
+    "defaultMessage": "Bật truy cập từ xa"
+  },
+  "roamSection.enableDescription": {
+    "defaultMessage": "Đồng thời mở backend goose cục bộ qua goose roam (p2p)."
+  },
+  "roamSection.fingerprint": {
+    "defaultMessage": "Vân tay"
+  },
+  "roamSection.pairHelp": {
+    "defaultMessage": "Quét mã này từ trình khách web goose trên điện thoại của bạn, sau đó chấp nhận thiết bị mới bằng cách chạy `goose roam peers accept` trong terminal."
+  },
+  "roamSection.pairTitle": {
+    "defaultMessage": "Ghép nối thiết bị"
+  },
+  "roamSection.restartNote": {
+    "defaultMessage": "Khởi động lại goose để áp dụng."
+  },
+  "roamSection.title": {
+    "defaultMessage": "Truy cập từ xa (roam)"
+  },
+  "roamSection.waiting": {
+    "defaultMessage": "Đang chờ điểm cuối roaming trực tuyến… (khởi động cùng backend goose)"
+  },
   "scheduleDetailView.actions": {
     "defaultMessage": "Hành động"
   },
