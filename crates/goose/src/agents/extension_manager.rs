@@ -199,7 +199,7 @@ pub struct ExtensionManager {
     tools_cache: Mutex<Option<Arc<Vec<Tool>>>>,
     tools_cache_version: AtomicU64,
     client_name: String,
-    capabilities: ExtensionManagerCapabilities,
+    capabilities: std::sync::RwLock<ExtensionManagerCapabilities>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -1367,12 +1367,19 @@ async fn create_unix_socket_http_client(
 
 impl ExtensionManager {
     fn mcp_client_capabilities(&self) -> GooseMcpClientCapabilities {
+        let capabilities = self.capabilities.read().unwrap();
         GooseMcpClientCapabilities {
-            mcpui: self.capabilities.mcpui,
-            host_info: self.capabilities.host_info.clone(),
-            elicitation_handler: self.capabilities.elicitation_handler.clone(),
-            protocol_version: self.capabilities.protocol_version.clone(),
+            mcpui: capabilities.mcpui,
+            host_info: capabilities.host_info.clone(),
+            elicitation_handler: capabilities.elicitation_handler.clone(),
+            protocol_version: capabilities.protocol_version.clone(),
         }
+    }
+
+    /// Refresh the ACP host identity/capabilities, e.g. when a cached agent is
+    /// activated by a connection that advertised different MCP UI support.
+    pub fn set_mcp_host_info(&self, host_info: Option<GooseMcpHostInfo>) {
+        self.capabilities.write().unwrap().host_info = host_info;
     }
 
     pub fn new(
@@ -1396,7 +1403,7 @@ impl ExtensionManager {
             tools_cache: Mutex::new(None),
             tools_cache_version: AtomicU64::new(0),
             client_name,
-            capabilities,
+            capabilities: std::sync::RwLock::new(capabilities),
         }
     }
 
@@ -1896,13 +1903,14 @@ impl ExtensionManager {
     }
 
     fn host_supports_mcp_apps(&self) -> bool {
-        if let Some(host_info) = &self.capabilities.host_info {
+        let capabilities = self.capabilities.read().unwrap();
+        if let Some(host_info) = &capabilities.host_info {
             if host_info.explicit_extensions {
                 return host_info.mcpui_enabled();
             }
         }
 
-        self.capabilities.mcpui
+        capabilities.mcpui
     }
 
     async fn hydrate_mcp_app_attachment(

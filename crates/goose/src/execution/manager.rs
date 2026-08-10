@@ -346,6 +346,11 @@ impl AgentManager {
         self.sessions.read().await.contains(session_id)
     }
 
+    /// Look up a cached agent without promoting it in the LRU or creating it.
+    pub async fn peek_agent(&self, session_id: &str) -> Option<Arc<Agent>> {
+        self.sessions.read().await.peek(session_id).map(Arc::clone)
+    }
+
     pub async fn session_count(&self) -> usize {
         self.sessions.read().await.len()
     }

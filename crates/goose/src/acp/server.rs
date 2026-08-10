@@ -231,6 +231,27 @@ pub struct ActivePromptRun {
     pub cancel_token: CancellationToken,
 }
 
+/// Removes the active-run entry when the prompt future is dropped before
+/// `clear_active_run` runs (e.g. the WebSocket disconnects mid-prompt and a
+/// notification send returns early via `?`). Without this, a stale entry in
+/// the registry — shared across connections — would reject every future
+/// prompt for the session as already running.
+struct ActiveRunGuard {
+    active_prompt_runs: Arc<std::sync::Mutex<HashMap<String, ActivePromptRun>>>,
+    session_id: String,
+    run_id: String,
+}
+
+impl Drop for ActiveRunGuard {
+    fn drop(&mut self) {
+        if let Ok(mut runs) = self.active_prompt_runs.lock() {
+            if matches!(runs.get(&self.session_id), Some(run) if run.run_id == self.run_id) {
+                runs.remove(&self.session_id);
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct AcpBuiltinSelection {
     pub defaults: Vec<String>,
@@ -270,12 +291,12 @@ pub struct GooseAcpAgentOptions {
     pub agent_manager: Arc<AgentManager>,
     pub session_manager: Arc<SessionManager>,
     pub permission_manager: Arc<PermissionManager>,
-    pub active_prompt_runs: Arc<Mutex<HashMap<String, ActivePromptRun>>>,
+    pub active_prompt_runs: Arc<std::sync::Mutex<HashMap<String, ActivePromptRun>>>,
 }
 
 pub struct GooseAcpAgent {
     sessions: Arc<Mutex<HashMap<String, GooseAcpSession>>>,
-    active_prompt_runs: Arc<Mutex<HashMap<String, ActivePromptRun>>>,
+    active_prompt_runs: Arc<std::sync::Mutex<HashMap<String, ActivePromptRun>>>,
     closed_session_ids: Arc<Mutex<HashSet<String>>>,
     agent_manager: Arc<AgentManager>,
     provider_factory: AcpProviderFactory,
@@ -927,12 +948,18 @@ impl GooseAcpAgent {
             )
             .await
             .map_err(|error| agent_creation_error(error, "Failed to create agent"))?;
-        if !result.agent_created && !self.disable_session_naming {
-            // Cached agent activated by this connection: point name updates at
-            // this connection's notifier instead of the creator's.
+        if !result.agent_created {
+            // Cached agent activated by this connection: rebind the
+            // connection-scoped runtime context (name updates, advertised
+            // MCP host capabilities) from the creator's connection to this one.
+            if !self.disable_session_naming {
+                result
+                    .agent
+                    .set_session_name_update_tx(spawn_session_name_update_notifier(cx.clone()));
+            }
             result
                 .agent
-                .set_session_name_update_tx(spawn_session_name_update_notifier(cx.clone()));
+                .set_mcp_host_info(self.client_mcp_host_info.get().cloned());
         }
         Ok(result)
     }
@@ -1728,7 +1755,18 @@ impl GooseAcpAgent {
         {
             let sessions = self.sessions.lock().await;
             if let Some(session) = sessions.get(session_id) {
-                return Ok(session.agent.clone());
+                // Another connection may have invalidated the shared manager
+                // entry (session close/reload). If our cached agent is no
+                // longer the shared one, drop it and re-activate below so
+                // both connections converge on a single agent per session.
+                let is_current = self
+                    .agent_manager
+                    .peek_agent(session_id)
+                    .await
+                    .is_some_and(|shared| Arc::ptr_eq(&shared, &session.agent));
+                if is_current {
+                    return Ok(session.agent.clone());
+                }
             }
         }
 
@@ -1761,7 +1799,7 @@ impl GooseAcpAgent {
             .data(format!("Session not found: {}", session_id)));
         }
 
-        let mut active_prompt_runs = self.active_prompt_runs.lock().await;
+        let mut active_prompt_runs = self.active_prompt_runs.lock().unwrap();
         if let Some(active_run) = active_prompt_runs.get(session_id) {
             return Err(agent_client_protocol::Error::invalid_params().data(format!(
                 "session already has active run `{}`; use _goose/unstable/session/steer",
@@ -1781,7 +1819,7 @@ impl GooseAcpAgent {
 
     async fn clear_active_run(&self, session_id: &str, run_id: &str) {
         {
-            let mut active_prompt_runs = self.active_prompt_runs.lock().await;
+            let mut active_prompt_runs = self.active_prompt_runs.lock().unwrap();
             let Some(active_run) = active_prompt_runs.get(session_id) else {
                 return;
             };
@@ -1829,7 +1867,7 @@ impl GooseAcpAgent {
                 .data("expectedRunId must not be empty"));
         }
 
-        let active_prompt_runs = self.active_prompt_runs.lock().await;
+        let active_prompt_runs = self.active_prompt_runs.lock().unwrap();
         let active_run = active_prompt_runs.get(session_id).ok_or_else(|| {
             agent_client_protocol::Error::invalid_params().data("no active run to steer")
         })?;
@@ -1956,6 +1994,11 @@ impl GooseAcpAgent {
         let cancel_token = CancellationToken::new();
         self.start_active_run(&session_id, run_id.clone(), cancel_token.clone())
             .await?;
+        let _run_guard = ActiveRunGuard {
+            active_prompt_runs: Arc::clone(&self.active_prompt_runs),
+            session_id: session_id.clone(),
+            run_id: run_id.clone(),
+        };
 
         let agent = match self.get_session_agent(&session_id).await {
             Ok(agent) => agent,
@@ -2211,7 +2254,7 @@ impl GooseAcpAgent {
 
         let session_id = args.session_id.0.to_string();
         let token = {
-            let active_prompt_runs = self.active_prompt_runs.lock().await;
+            let active_prompt_runs = self.active_prompt_runs.lock().unwrap();
             active_prompt_runs
                 .get(&session_id)
                 .map(|active_run| active_run.cancel_token.clone())
@@ -2428,7 +2471,7 @@ impl GooseAcpAgent {
             .insert(session_id.to_string());
 
         let active_run_token = {
-            let active_prompt_runs = self.active_prompt_runs.lock().await;
+            let active_prompt_runs = self.active_prompt_runs.lock().unwrap();
             active_prompt_runs
                 .get(session_id)
                 .map(|active_run| active_run.cancel_token.clone())

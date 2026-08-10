@@ -10,7 +10,7 @@ use crate::source_roots::SourceRoot;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{Mutex, OnceCell};
+use tokio::sync::OnceCell;
 use tracing::info;
 
 pub struct AcpServerFactoryConfig {
@@ -26,7 +26,7 @@ struct SharedAgentState {
     session_manager: Arc<SessionManager>,
     permission_manager: Arc<PermissionManager>,
     agent_manager: Arc<AgentManager>,
-    active_prompt_runs: Arc<Mutex<HashMap<String, ActivePromptRun>>>,
+    active_prompt_runs: Arc<std::sync::Mutex<HashMap<String, ActivePromptRun>>>,
 }
 
 pub struct AcpServer {
@@ -106,7 +106,7 @@ impl AcpServer {
                     session_manager,
                     permission_manager,
                     agent_manager,
-                    active_prompt_runs: Arc::new(Mutex::new(HashMap::new())),
+                    active_prompt_runs: Arc::new(std::sync::Mutex::new(HashMap::new())),
                 }))
             })
             .await

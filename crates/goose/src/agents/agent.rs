@@ -3550,6 +3550,12 @@ impl Agent {
         *self.config.session_name_update_tx.lock().unwrap() = Some(tx);
     }
 
+    /// Refresh the ACP host identity/capabilities when a cached agent is
+    /// activated by a connection that advertised different MCP UI support.
+    pub fn set_mcp_host_info(&self, host_info: Option<GooseMcpHostInfo>) {
+        self.extension_manager.set_mcp_host_info(host_info);
+    }
+
     pub async fn update_provider(
         &self,
         provider: Arc<dyn Provider>,
