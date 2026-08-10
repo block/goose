@@ -229,8 +229,10 @@ function sessionProjectId(s: SessionInfo): string | null {
   return typeof pid === "string" && pid ? pid : null;
 }
 
-// Bucket sessions under their project (server order preserved within each
-// bucket); projectless sessions lead, so the everyday case reads unchanged.
+// Bucket sessions under their project (server order — most recent first —
+// preserved within each bucket). Projectless sessions form a global "chats"
+// group that leads (recency matters most), then projects follow sorted
+// alphabetically. Every group folds, including "chats".
 // Project titles are looked up per host — slugs are only unique per machine.
 type SessionGroup = { key: string; label: string | null; sessions: TaggedSession[] };
 
@@ -252,14 +254,14 @@ function groupSessions(
     }
   }
   const out: SessionGroup[] = [];
-  if (loose.length) out.push({ key: "~", label: null, sessions: loose });
-  for (const [key, group] of byProject) {
-    out.push({
-      key,
-      label: projects[key] ?? key.split(":").slice(1).join(":"),
-      sessions: group,
-    });
-  }
+  if (loose.length) out.push({ key: "~", label: "chats", sessions: loose });
+  const named = [...byProject.entries()].map(([key, group]) => ({
+    key,
+    label: projects[key] ?? key.split(":").slice(1).join(":"),
+    sessions: group,
+  }));
+  named.sort((a, b) => a.label.localeCompare(b.label));
+  out.push(...named);
   return out;
 }
 
