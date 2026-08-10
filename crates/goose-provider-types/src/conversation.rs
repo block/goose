@@ -1856,6 +1856,7 @@ mod tests {
             provider: "test-provider".to_string(),
             requested_model: "test-model".to_string(),
             resolved_model: None,
+            provider_session_id: None,
         };
         let mut limited = Message::assistant()
             .with_id("turn-1")
