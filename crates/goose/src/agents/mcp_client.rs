@@ -15,6 +15,7 @@ use rmcp::model::{
     ElicitationAction, ErrorCode, ExtensionCapabilities, Extensions, JsonObject, MetaObject,
 };
 use rmcp::{
+    ClientHandler, ErrorData, Peer, RoleClient, ServiceError, ServiceExt,
     model::{
         CallToolRequestParams, CallToolResult, CancelledNotificationParam, ClientCapabilities,
         ClientInfo, ClientRequest, GetPromptRequestParams, GetPromptResult, Implementation,
@@ -28,7 +29,6 @@ use rmcp::{
         ServiceRole,
     },
     transport::IntoTransport,
-    ClientHandler, ErrorData, Peer, RoleClient, ServiceError, ServiceExt,
 };
 use serde_json::Value;
 use std::{
@@ -38,8 +38,8 @@ use std::{
     time::Duration,
 };
 use tokio::sync::{
-    mpsc::{self, Sender},
     Mutex,
+    mpsc::{self, Sender},
 };
 use tokio_util::sync::CancellationToken;
 
@@ -49,6 +49,49 @@ pub type Error = rmcp::ServiceError;
 
 const MCP_APPS_UI_EXTENSION_ID: &str = "io.modelcontextprotocol/ui";
 const MCP_APPS_UI_MIME_TYPE: &str = "text/html;profile=mcp-app";
+
+fn extract_sampling_text(
+    content: &[crate::conversation::message::MessageContent],
+) -> Option<String> {
+    let text = content
+        .iter()
+        .filter_map(|content| match content {
+            crate::conversation::message::MessageContent::Text(text)
+                if !text.text.trim().is_empty() =>
+            {
+                Some(text.text.as_str())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    (!text.is_empty()).then_some(text)
+}
+
+fn extract_structured_sampling_fallback(
+    content: &[crate::conversation::message::MessageContent],
+) -> Option<String> {
+    let candidate = content
+        .iter()
+        .filter_map(|content| match content {
+            crate::conversation::message::MessageContent::Thinking(thinking) => {
+                Some(thinking.thinking.as_str())
+            }
+            _ => None,
+        })
+        .collect::<String>();
+    let candidate = candidate.trim();
+
+    if candidate.is_empty() {
+        return None;
+    }
+
+    match serde_json::from_str::<Value>(candidate) {
+        Ok(Value::Object(_) | Value::Array(_)) => Some(candidate.to_string()),
+        _ => None,
+    }
+}
 
 fn resolve_sampling_model_config() -> anyhow::Result<goose_providers::model::ModelConfig> {
     let config = crate::config::Config::global();
@@ -464,26 +507,32 @@ impl ClientHandler for GooseClient {
             )
         })?;
 
+        let sampling_content = if let Some(text) = extract_sampling_text(&response.content) {
+            SamplingMessageContentBlock::text(text)
+        } else if let Some(crate::conversation::message::MessageContent::Image(img)) =
+            response.content.iter().find(|content| {
+                matches!(
+                    content,
+                    crate::conversation::message::MessageContent::Image(_)
+                )
+            })
+        {
+            SamplingMessageContentBlock::Image(rmcp::model::ImageContent::new(
+                img.data.clone(),
+                img.mime_type.clone(),
+            ))
+        } else if let Some(text) = extract_structured_sampling_fallback(&response.content) {
+            SamplingMessageContentBlock::text(text)
+        } else {
+            return Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                "Provider returned no usable text or image content for sampling",
+                None,
+            ));
+        };
+
         Ok(CreateMessageResult::new(
-            SamplingMessage::new(
-                Role::Assistant,
-                if let Some(content) = response.content.first() {
-                    match content {
-                        crate::conversation::message::MessageContent::Text(text) => {
-                            SamplingMessageContentBlock::text(&text.text)
-                        }
-                        crate::conversation::message::MessageContent::Image(img) => {
-                            SamplingMessageContentBlock::Image(rmcp::model::ImageContent::new(
-                                img.data.clone(),
-                                img.mime_type.clone(),
-                            ))
-                        }
-                        _ => SamplingMessageContentBlock::text(""),
-                    }
-                } else {
-                    SamplingMessageContentBlock::text("")
-                },
-            ),
+            SamplingMessage::new(Role::Assistant, sampling_content),
             usage.model,
         )
         .with_stop_reason(CreateMessageResult::STOP_REASON_END_TURN))
@@ -1036,8 +1085,87 @@ fn inject_session_context_into_request(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agents::extension::ExtensionConfig;
+
+    #[test]
+    fn sampling_text_preserves_text_first_provider_responses() {
+        let response = crate::conversation::message::Message::assistant().with_text("answer");
+
+        assert_eq!(
+            extract_sampling_text(&response.content).as_deref(),
+            Some("answer")
+        );
+    }
+
+    #[test]
+    fn sampling_text_skips_thinking_before_final_text() {
+        let response = crate::conversation::message::Message::assistant()
+            .with_thinking("internal reasoning", "signature")
+            .with_text("final answer");
+
+        assert_eq!(
+            extract_sampling_text(&response.content).as_deref(),
+            Some("final answer")
+        );
+    }
+
+    #[test]
+    fn sampling_text_joins_multiple_text_blocks_without_exposing_thinking() {
+        let response = crate::conversation::message::Message::assistant()
+            .with_text("first")
+            .with_thinking("internal reasoning", "signature")
+            .with_text("second");
+
+        assert_eq!(
+            extract_sampling_text(&response.content).as_deref(),
+            Some("first\nsecond")
+        );
+    }
+
+    #[test]
+    fn sampling_text_rejects_thinking_only_responses() {
+        let response = crate::conversation::message::Message::assistant()
+            .with_thinking("internal reasoning", "signature");
+
+        assert_eq!(extract_sampling_text(&response.content), None);
+    }
+
+    #[test]
+    fn structured_sampling_fallback_accepts_json_from_thinking_only_response() {
+        let response = crate::conversation::message::Message::assistant()
+            .with_thinking("{\"verdict\":\"pass\"}", "signature");
+
+        assert_eq!(
+            extract_structured_sampling_fallback(&response.content).as_deref(),
+            Some("{\"verdict\":\"pass\"}")
+        );
+    }
+
+    #[test]
+    fn structured_sampling_fallback_joins_streamed_json_fragments() {
+        let response = crate::conversation::message::Message::assistant()
+            .with_thinking("{\"verdict\":", "signature-1")
+            .with_thinking("\"pass\"}", "signature-2");
+
+        assert_eq!(
+            extract_structured_sampling_fallback(&response.content).as_deref(),
+            Some("{\"verdict\":\"pass\"}")
+        );
+    }
+
+    #[test]
+    fn structured_sampling_fallback_rejects_natural_language_reasoning() {
+        let response = crate::conversation::message::Message::assistant().with_thinking(
+            "I should inspect the request before answering.",
+            "signature",
+        );
+
+        assert_eq!(
+            extract_structured_sampling_fallback(&response.content),
+            None
+        );
+    }
     use crate::agents::GoosePlatform;
+    use crate::agents::extension::ExtensionConfig;
     use rmcp::model::Tool;
     use serde_json::json;
     use std::sync::atomic::{AtomicUsize, Ordering};
