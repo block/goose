@@ -24,7 +24,7 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 iroh = { workspace = true, features = ["test-utils"] }
-iroh-relay = { version = "1.0.3", default-features = false, features = ["server"] }
+iroh-relay = { version = "1.0.3", default-features = false, features = ["server", "test-utils"] }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "test-util"] }
 

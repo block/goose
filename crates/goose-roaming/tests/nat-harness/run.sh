@@ -124,8 +124,8 @@ sleep 10
 
 run_scenario soak-hairpin client soak --frames 300
 
-crash_scenario() { # name victim-container
-  local name=$1 victim=$2
+crash_scenario() { # name victim-container require-outage(yes|no)
+  local name=$1 victim=$2 require_outage=${3:-yes}
   log "scenario: $name (SIGKILL $victim 25s after the measured loop starts)"
   client crash --duration-secs 90 >"$RESULTS/$name.log" 2>&1 &
   local pid=$!
@@ -160,15 +160,30 @@ crash_scenario() { # name victim-container
   fi
   echo "$result" | sed 's/^RESULT //' \
     | sed "s/{/{\"name\":\"$name\",/" >>"$RESULTS/results.jsonl"
-  # A crash run whose kill window produced no outage measured nothing.
+  # A host crash must always produce an outage — the host is an endpoint, so
+  # killing it breaks the connection on any path; zero outages there means the
+  # kill missed the measured loop. A relay crash is different: once the
+  # connection has upgraded to a direct path (QAD, fix 3ea6c8b8), the relay is
+  # no longer on the data path, so killing it produces NO outage. That is the
+  # desired result, not a failure — record it instead of asserting.
   if ! echo "$result" | grep -q '"outage_ms"'; then
-    echo "$name: no outage recorded — the kill did not land inside the measured loop" >&2
-    exit 1
+    if [ "$require_outage" = yes ]; then
+      echo "$name: no outage recorded — the kill did not land inside the measured loop" >&2
+      exit 1
+    fi
+    local direct
+    direct=$(echo "$result" | grep -o '"direct_path_selected": *true' || true)
+    if [ -n "$direct" ]; then
+      log "$name: no outage — connection was on a direct path, relay not on the data plane (expected post-QAD)"
+    else
+      echo "$name: no outage but path was not direct — relay death should have caused an outage" >&2
+      exit 1
+    fi
   fi
 }
 
-crash_scenario crash "$PREFIX-host"
-crash_scenario relay-crash "$PREFIX-relay"
+crash_scenario crash "$PREFIX-host" yes
+crash_scenario relay-crash "$PREFIX-relay" no
 
 log "NAT rule counters (evidence the QUIC flows traversed the router mappings)"
 docker exec "$PREFIX-router" iptables -t nat -vnL | tee "$RESULTS/nat-counters.log"

@@ -104,22 +104,42 @@ impl Args {
     }
 }
 
-/// Plain-HTTP relay (WebSocket transport, no TLS) bound publicly so the
-/// peer namespaces can reach it — `iroh::test_utils::run_relay_server` binds
-/// loopback-only, which is exactly what this harness must not do.
+/// Relay bound publicly so the peer namespaces can reach it
+/// (`iroh::test_utils::run_relay_server` binds loopback-only, which this
+/// harness must not do). The WebSocket relay transport is plain HTTP for easy
+/// reach; the QUIC address-discovery (QAD) endpoint runs alongside on the
+/// default QAD port with a self-signed cert (peers trust it via
+/// `relay_tls: insecure_skip_verify`). QAD is what lets a NAT'd peer learn its
+/// reflexive address — without it the QAD fix (3ea6c8b8) has nothing to query.
 async fn run_relay(args: &Args) -> anyhow::Result<()> {
-    let mut relay =
-        iroh_relay::server::RelayConfig::new(args.bind.parse::<std::net::SocketAddr>()?);
+    let bind: std::net::SocketAddr = args.bind.parse()?;
+    let mut relay = iroh_relay::server::RelayConfig::new(bind);
     relay.key_cache_capacity = Some(1024);
+
+    // The QUIC server needs its own TLS; the plain-HTTP relay has none, so
+    // supply a self-signed server config explicitly (otherwise the QUIC
+    // server fails to spawn). Bind QAD on the default port so peers with
+    // qad_port=None reach it.
+    let (_certs, server_config) = iroh_relay::server::testing::self_signed_tls_certs_and_config();
+    let quic_bind =
+        std::net::SocketAddr::new(bind.ip(), iroh_relay::defaults::DEFAULT_RELAY_QUIC_PORT);
+    let mut quic = iroh_relay::server::QuicConfig::new(quic_bind);
+    quic.server_config = Some(server_config);
+
     let mut config = iroh_relay::server::ServerConfig::default();
     config.relay = Some(relay);
+    config.quic = Some(quic);
     let server = iroh_relay::server::Server::spawn(config).await?;
     println!(
-        "RELAY_READY {}",
+        "RELAY_READY http={} quic={}",
         server
             .http_addr()
             .map(|a| a.to_string())
-            .unwrap_or_default()
+            .unwrap_or_default(),
+        server
+            .quic_addr()
+            .map(|a| a.to_string())
+            .unwrap_or_default(),
     );
     std::future::pending::<()>().await;
     unreachable!()
@@ -225,10 +245,15 @@ async fn run_client(args: &Args) -> anyhow::Result<()> {
 }
 
 async fn bind_node(identity: RoamingIdentity, relay_url: &str) -> anyhow::Result<Arc<RoamingNode>> {
+    // qad_port=None uses iroh's default QAD port (7842), which the harness
+    // relay binds. The peer must trust the relay's self-signed QAD cert, so
+    // relay_tls skips verification (harness-only; production uses system roots
+    // against a real relay cert).
     let mut config = RoamingConfig::new(identity)
         .with_relay(RelaySettings::Custom(vec![RelayEntry::new(relay_url)]))
         .with_bind_addr(std::net::SocketAddr::from(([0, 0, 0, 0], QUIC_PORT)));
     config.trust = TrustBook::new();
+    config.relay_tls = Some(iroh::tls::CaTlsConfig::insecure_skip_verify());
     Ok(RoamingNode::bind(config).await?)
 }
 

@@ -57,47 +57,59 @@ scenario) plus per-scenario logs.
 | `burst` | 8 parallel dials to one share across the NAT | all dials connect and echo independently |
 | `cold-1..8` | fresh process → relay online → dial → first frame | reports the cold-path latency split (`online_ms` / `connect_ms` / `first_frame_ms`) |
 | `soak-hairpin` | same soak after switching the router to NAT reflection | integrity as above; additionally reports whether a direct path was ever selected |
-| `crash` | host SIGKILLed mid-soak, restarted ~10 s later | client reconnects unaided; reports outage duration; data-plane liveness (not just an accepted dial) closes the outage window. The kill timer anchors on the client's data-plane-live marker, and the run fails unless at least one outage was actually measured |
+| `crash` | host SIGKILLed mid-soak, restarted ~10 s later | client reconnects unaided; reports outage duration; data-plane liveness closes the outage window. The kill anchors on the data-plane-live marker; a host crash must always produce an outage |
+| `relay-crash` | relay SIGKILLed mid-soak | if the connection has upgraded to a direct path, killing the relay produces **no** outage (relay off the data plane) — recorded as the expected result; a relay crash with no direct path and no outage fails the run |
 | port audit | `ss` on both peers, run while a client data plane is live | no TCP listeners; the bound QUIC UDP socket must be present on both peers and nothing else may listen |
 
 Every soak/crash result carries the connection's **path timeline**
 (`PathEvent`s with timestamps) and a `direct_path_selected` flag, so upgrade
 behavior across the NAT is a recorded measurement, not an assumption.
 
-## Measured battery (2026-08-10, branch head f9c2268, apple-silicon docker VM)
+## Measured battery (2026-08-10, branch head 3ea6c8b8 = QAD fix, apple-silicon docker VM)
+
+The harness relay runs a QUIC address-discovery (QAD) endpoint on the default
+port alongside the plain-HTTP relay, so peers behind the NAT can learn their
+reflexive addresses — which is what the QAD fix (`3ea6c8b8`) needs to have
+anything to query.
 
 | scenario | result |
 |---|---|
-| soak, `nohairpin` NAT | 300/300 frames verbatim in order; only path: `Relay(...)`; zero path events |
-| soak, `hairpin` NAT | 300/300, identical — no upgrade attempted (see below) |
-| burst | 8/8 parallel dials, connect p50 3 ms |
-| cold ×8 | relay online ~215 ms; accepted dial 43–51 ms; first frame <1 ms |
-| host SIGKILL + restart | no transport error surfaces — the in-flight frame hangs until the app echo timeout (10 s here), then reconnect + first frame in ~1.1 s. `outage_ms` counts from when the data plane last worked, so it includes that blackout (~11 s total) |
-| relay SIGKILL + restart | full outage (relay-only path, as expected); reconnect completes 1–3 s after the relay came back (varies with the reconnect backoff phase), `outage_ms` ~11–13 s including the detection blackout |
+| soak, `nohairpin` NAT | 300/300 frames verbatim in order; stays on `Relay(...)` (no reflection + AP-isolation ⇒ no reachable direct candidate) |
+| soak, `hairpin` NAT | 300/300; **upgrades to a direct path** — `paths_final` shows `Ip(10.99.0.2:17777) selected`, `direct_path_selected: true`. Upgrade lands within ~3 ms of connect once QAD supplies the reflexive address |
+| burst | 8/8 parallel dials |
+| cold ×8 | relay online ~215 ms; accepted dial ~45 ms; first frame <1 ms |
+| host SIGKILL + restart | connection is on the direct path; killing the host still breaks it (host is an endpoint). No QUIC error surfaces, so `outage_ms` counts the app echo timeout + reconnect (~11 s) |
+| relay SIGKILL + restart | **no outage** — the connection had upgraded to the direct path, so the relay is no longer on the data plane. Relay death is invisible to an already-direct connection |
 | port audit | no TCP listeners on either peer; only the bound QUIC UDP socket |
 
 Latencies are virtual-network numbers (all containers share one VM) — the
-harness measures topology behavior and integrity, not internet RTTs. The
-crash rows record a real client-UX property: a SIGKILLed remote produces no
-QUIC error, so failure detection falls to the application's own timeout.
+harness measures topology behavior and integrity, not internet RTTs.
 
-## What to expect on current code (and why that's the point)
+## What this verifies (QAD fix `3ea6c8b8`)
 
-`RelaySettings::Custom` builds client relay configs with `quic: None`
-(`relay.rs` → `RelayConfig::new(url, None)`), which per iroh's docs disables
-QUIC address discovery against that relay. Without address discovery the
-peers never learn their reflexive (post-NAT) addresses, so behind a real NAT
-there are no usable direct candidates — local candidates are unroutable
-(blocked LAN-to-LAN here; different sites in the field) and reflexive ones
-are unknown. Since every production relay path (including the default
-managed relays) goes through `RelaySettings::Custom`, the expected
-measurement today is: **connections stay on the relay path in both router
-modes, and the soak asserts that the relay path holds sustained traffic
-without loss** — which is the availability property that actually matters
-until address discovery is wired (e.g. a `RelayEntry` field for the relay's
-QUIC address-discovery port). The localhost upgrade test stays green through
-all of this because localhost candidates are directly reachable; that gap is
-what this harness exists to close.
+Before the fix, `RelaySettings::Custom` built `RelayConfig::new(url, None)` —
+`quic: None` disables QUIC address discovery, so a NAT'd peer never learned
+its reflexive address and no direct candidate ever existed: the connection
+stayed relay-only in **both** router modes, `path_events` empty. Every
+production relay path (including the default managed relays) goes through
+`Custom`, so direct upgrade only worked where local candidates were directly
+reachable (same LAN / localhost) — which is exactly why the localhost
+`path_upgrade.rs` test stayed green through the gap.
+
+After the fix (`RelayEntry.qad_port` + `RelayConfig::new(url, Some(quic))`),
+this harness confirms the real-NAT behavior end to end:
+
+- **hairpin mode: the direct upgrade now lands.** QAD gives each peer its
+  reflexive address; the reflection path lets the hole punch complete; the
+  connection selects `Ip(...)` within milliseconds and carries traffic
+  directly, relay off the data plane.
+- **relay independence: killing the relay after the upgrade causes no
+  outage** — the direct path is unaffected, so the relay is no longer a
+  single point of failure once a connection has upgraded.
+- **nohairpin mode still stays relay**, correctly: with AP-isolation blocking
+  the LAN-direct path and a non-reflecting NAT blocking the reflexive path,
+  there is genuinely no reachable direct candidate. This is the honest hard
+  case, not a regression.
 
 ## Caveats
 
