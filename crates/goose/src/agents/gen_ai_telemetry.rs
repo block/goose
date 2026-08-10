@@ -208,6 +208,11 @@ fn message_part_json(content: &MessageContent) -> Value {
             "type": "system_notification",
             "content": notification.msg,
         }),
+        MessageContent::Error(error) => json!({
+            "type": "error",
+            "kind": error.kind,
+            "content": error.message,
+        }),
     }
 }
 

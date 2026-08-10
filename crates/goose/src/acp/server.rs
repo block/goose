@@ -613,6 +613,23 @@ impl GooseAcpAgent {
         )
     }
 
+    pub(super) async fn prepare_session_setup_by_id(
+        &self,
+        session_id: &str,
+    ) -> Result<(Session, SessionUsageTotals), agent_client_protocol::Error> {
+        let session = self
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .internal_err_ctx("Failed to load session for setup notifications")?;
+        let totals = self
+            .session_manager
+            .get_session_usage_totals(session_id)
+            .await
+            .unwrap_or_default();
+        Ok((session, totals))
+    }
+
     pub(super) fn supports_recipe_param_requests(&self) -> bool {
         self.client_supports_recipe_param_requests
             .get()
@@ -1105,6 +1122,7 @@ impl GooseAcpAgent {
                     .await?;
                 }
                 ActionRequiredData::ElicitationResponse { .. } => {}
+                ActionRequiredData::ToolConfirmationResponse { .. } => {}
             },
             MessageContent::Image(image) => {
                 let mut image_content =
@@ -1139,6 +1157,16 @@ impl GooseAcpAgent {
                     session_id.0.as_ref(),
                     notification,
                 )?;
+            }
+            MessageContent::Error(error) => {
+                let chunk = content_chunk_for_message(
+                    message,
+                    ContentBlock::Text(TextContent::new(error.message.clone())),
+                );
+                cx.send_notification(SessionNotification::new(
+                    session_id.clone(),
+                    SessionUpdate::AgentMessageChunk(chunk),
+                ))?;
             }
             _ => {}
         }
@@ -1316,6 +1344,19 @@ fn prompt_error_from_message_content(
             if notification.notification_type == SystemNotificationType::CreditsExhausted =>
         {
             Some(credits_exhausted_prompt_error(notification))
+        }
+        MessageContent::Error(error)
+            if error.kind == crate::conversation::message::MessageErrorKind::CreditsExhausted =>
+        {
+            let mut data = serde_json::Map::new();
+            data.insert(
+                "reason".to_string(),
+                serde_json::Value::String("credits_exhausted".to_string()),
+            );
+            Some(
+                agent_client_protocol::Error::new(-32603, error.message.clone())
+                    .data(serde_json::Value::Object(data)),
+            )
         }
         _ => None,
     }

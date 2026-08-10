@@ -257,6 +257,9 @@ pub fn render_message(message: &Message, debug: bool) {
                 ActionRequiredData::ElicitationResponse { id, .. } => {
                     println!("action_required(elicitation_response): {}", id)
                 }
+                ActionRequiredData::ToolConfirmationResponse { id, .. } => {
+                    println!("action_required(tool_confirmation_response): {}", id)
+                }
             },
             MessageContent::Text(text) => print_markdown(&text.text, theme),
             MessageContent::ToolRequest(req) => render_tool_request(req, theme, debug),
@@ -284,6 +287,10 @@ pub fn render_message(message: &Message, debug: bool) {
                         render_credits_exhausted_notification(notification);
                     }
                 }
+            }
+            MessageContent::Error(error) => {
+                hide_thinking();
+                println!("\n{} {}", danger("error:").bold(), &error.message);
             }
             _ => {
                 eprintln!("WARNING: Message content type could not be rendered");
@@ -345,6 +352,9 @@ pub fn render_message_streaming(
                     ActionRequiredData::ElicitationResponse { id, .. } => {
                         println!("action_required(elicitation_response): {}", id)
                     }
+                    ActionRequiredData::ToolConfirmationResponse { id, .. } => {
+                        println!("action_required(tool_confirmation_response): {}", id)
+                    }
                 }
             }
             MessageContent::Image(image) => {
@@ -376,6 +386,11 @@ pub fn render_message_streaming(
                         render_credits_exhausted_notification(notification);
                     }
                 }
+            }
+            MessageContent::Error(error) => {
+                flush_markdown_buffer(buffer, theme);
+                hide_thinking();
+                println!("\n{} {}", danger("error:").bold(), &error.message);
             }
             _ => {
                 flush_markdown_buffer(buffer, theme);
@@ -1418,6 +1433,14 @@ fn set_terminal_title() {
     // OSC 0 sets the terminal window/tab title
     print!("\x1b]0;🪿 {}\x07", sanitized);
     let _ = std::io::stdout().flush();
+}
+
+pub fn display_banner(banners: &[String]) {
+    for banner in banners {
+        for line in banner.lines() {
+            println!("{}", line);
+        }
+    }
 }
 
 pub fn display_context_usage(total_tokens: usize, context_limit: usize) {

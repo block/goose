@@ -1226,6 +1226,15 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Conéctate a un servidor goose que se ejecuta en otro lugar (requiere reiniciar la app)"
   },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "Directorio de trabajo remoto (opcional)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "Ruta absoluta en el backend externo. Déjelo vacío para enviar el directorio de trabajo local."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
+  },
   "goosehintsModal.close": {
     "defaultMessage": "Cerrar"
   },

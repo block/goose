@@ -75,7 +75,7 @@ fn extract_short_title(text: &str) -> String {
 fn get_initial_user_messages(messages: &Conversation) -> Vec<String> {
     messages
         .iter()
-        .filter(|m| m.role == rmcp::model::Role::User)
+        .filter(|m| m.role == rmcp::model::Role::User && m.is_user_visible())
         .take(MSG_COUNT_FOR_SESSION_NAME_GENERATION)
         .map(|m| {
             m.content
