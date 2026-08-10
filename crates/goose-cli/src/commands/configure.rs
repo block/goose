@@ -20,7 +20,9 @@ use goose::config::{
     PermissionManager,
 };
 #[cfg(feature = "telemetry")]
-use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
+use goose::posthog::{
+    get_telemetry_choice, ONBOARDING_TELEMETRY_PENDING_KEY, TELEMETRY_ENABLED_KEY,
+};
 use goose::providers::base::ConfigKey;
 use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::{create, providers, retry_operation, RetryConfig};
@@ -161,6 +163,18 @@ pub async fn handle_configure() -> anyhow::Result<()> {
 }
 
 #[cfg(feature = "telemetry")]
+fn persist_telemetry_choice(config: &Config, enabled: bool) -> anyhow::Result<()> {
+    config.set_param_values(&[
+        (TELEMETRY_ENABLED_KEY.to_string(), Value::Bool(enabled)),
+        (
+            ONBOARDING_TELEMETRY_PENDING_KEY.to_string(),
+            Value::Bool(false),
+        ),
+    ])?;
+    Ok(())
+}
+
+#[cfg(feature = "telemetry")]
 pub fn configure_telemetry_consent_dialog() -> anyhow::Result<bool> {
     let config = Config::global();
 
@@ -211,7 +225,7 @@ pub fn configure_telemetry_consent_dialog() -> anyhow::Result<bool> {
         .initial_value(true)
         .interact()?;
 
-    config.set_param(TELEMETRY_ENABLED_KEY, enabled)?;
+    persist_telemetry_choice(config, enabled)?;
 
     if enabled {
         let _ = cliclack::log::success("Thank you for helping improve goose!");
@@ -1561,7 +1575,7 @@ pub fn configure_telemetry_dialog() -> anyhow::Result<()> {
         .initial_value(current_choice.unwrap_or(true))
         .interact()?;
 
-    config.set_param(TELEMETRY_ENABLED_KEY, enabled)?;
+    persist_telemetry_choice(config, enabled)?;
 
     if enabled {
         cliclack::outro("Telemetry enabled - thank you for helping improve goose!")?;
@@ -2375,5 +2389,26 @@ mod tests {
         let filtered = fuzzy_filter_provider_items(&items, "open ai");
 
         assert_eq!(filtered.first().map(|item| item.0.as_str()), Some("openai"));
+    }
+
+    #[cfg(feature = "telemetry")]
+    #[test]
+    fn telemetry_choice_completes_pending_desktop_consent() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config::new_with_file_secrets(
+            dir.path().join("config.yaml"),
+            dir.path().join("secrets.yaml"),
+        )
+        .unwrap();
+        config
+            .set_param(ONBOARDING_TELEMETRY_PENDING_KEY, true)
+            .unwrap();
+
+        persist_telemetry_choice(&config, false).unwrap();
+
+        assert!(!config.get_param::<bool>(TELEMETRY_ENABLED_KEY).unwrap());
+        assert!(!config
+            .get_param::<bool>(ONBOARDING_TELEMETRY_PENDING_KEY)
+            .unwrap());
     }
 }
