@@ -46,7 +46,7 @@ fn get_telemetry_choice_from_config(config: &Config) -> Option<bool> {
     config.get_param::<bool>(TELEMETRY_ENABLED_KEY).ok()
 }
 
-fn onboarding_telemetry_is_pending(config: &Config) -> bool {
+pub fn onboarding_telemetry_is_pending(config: &Config) -> bool {
     match config.get_param_from_files::<bool>(ONBOARDING_TELEMETRY_PENDING_KEY) {
         Ok(true) => true,
         Ok(false) | Err(ConfigError::NotFound(_)) => false,

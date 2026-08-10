@@ -21,7 +21,8 @@ use goose::config::{
 };
 #[cfg(feature = "telemetry")]
 use goose::posthog::{
-    get_telemetry_choice, ONBOARDING_TELEMETRY_PENDING_KEY, TELEMETRY_ENABLED_KEY,
+    get_telemetry_choice, onboarding_telemetry_is_pending, ONBOARDING_TELEMETRY_PENDING_KEY,
+    TELEMETRY_ENABLED_KEY,
 };
 use goose::providers::base::ConfigKey;
 use goose::providers::provider_test::test_provider_configuration;
@@ -180,6 +181,15 @@ fn telemetry_consent_initial_value(config: &Config) -> bool {
         Ok(enabled) => enabled,
         Err(ConfigError::NotFound(_)) => true,
         Err(_) => false,
+    }
+}
+
+#[cfg(feature = "telemetry")]
+fn telemetry_settings_initial_value(config: &Config, current_choice: Option<bool>) -> bool {
+    if onboarding_telemetry_is_pending(config) {
+        telemetry_consent_initial_value(config)
+    } else {
+        current_choice.unwrap_or_else(|| telemetry_consent_initial_value(config))
     }
 }
 
@@ -1581,7 +1591,7 @@ pub fn configure_telemetry_dialog() -> anyhow::Result<()> {
     let _ = cliclack::log::info(format!("Current telemetry status: {}", current_status));
 
     let enabled = cliclack::confirm("Share anonymous usage data to help improve goose?")
-        .initial_value(telemetry_consent_initial_value(config))
+        .initial_value(telemetry_settings_initial_value(config, current_choice))
         .interact()?;
 
     persist_telemetry_choice(config, enabled)?;
@@ -2440,5 +2450,36 @@ mod tests {
             .set_param(TELEMETRY_ENABLED_KEY, "not-a-boolean")
             .unwrap();
         assert!(!telemetry_consent_initial_value(&config));
+    }
+
+    #[cfg(feature = "telemetry")]
+    #[test]
+    fn telemetry_settings_uses_effective_choice_when_consent_is_not_pending() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config::new_with_file_secrets(
+            dir.path().join("config.yaml"),
+            dir.path().join("secrets.yaml"),
+        )
+        .unwrap();
+
+        assert!(!telemetry_settings_initial_value(&config, Some(false)));
+        assert!(telemetry_settings_initial_value(&config, Some(true)));
+    }
+
+    #[cfg(feature = "telemetry")]
+    #[test]
+    fn telemetry_settings_uses_stored_choice_when_consent_is_pending() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config::new_with_file_secrets(
+            dir.path().join("config.yaml"),
+            dir.path().join("secrets.yaml"),
+        )
+        .unwrap();
+        config.set_param(TELEMETRY_ENABLED_KEY, false).unwrap();
+        config
+            .set_param(ONBOARDING_TELEMETRY_PENDING_KEY, true)
+            .unwrap();
+
+        assert!(!telemetry_settings_initial_value(&config, None));
     }
 }
