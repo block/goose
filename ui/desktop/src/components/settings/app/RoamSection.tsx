@@ -194,7 +194,7 @@ export default function RoamSection() {
                 {intl.formatMessage(i18n.enableDescription)}
               </div>
             </div>
-            <Switch checked={enabled} onCheckedChange={handleToggle} />
+            <Switch checked={enabled} onCheckedChange={handleToggle} variant="mono" />
           </div>
 
           {enabled !== savedEnabled && (
