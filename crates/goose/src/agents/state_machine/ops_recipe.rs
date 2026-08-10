@@ -2,20 +2,20 @@
 
 use std::collections::{HashMap, HashSet};
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use rmcp::model::Tool;
 use tracing_futures::Instrument;
 
 use crate::agents::final_output_tool::{
-    FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME, FinalOutputTool,
+    FinalOutputTool, FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
 };
 use crate::agents::state_machine::operation::{
-    Emitter, Operation, OperationResult, SlashCommand, StateEffect, applied, ends_turn,
-    last_effective_role, messages_since_kickoff, not_applicable, yielded_with,
+    applied, ends_turn, last_effective_role, messages_since_kickoff, not_applicable, yielded_with,
+    Emitter, Operation, OperationResult, SlashCommand, StateEffect,
 };
 use crate::agents::state_machine::ops_toolcalling::{
-    ToolDisposition, pending_tool_requests, tool_span,
+    pending_tool_requests, tool_span, ToolDisposition,
 };
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{Conversation, EffectiveRole};
