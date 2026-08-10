@@ -37,7 +37,9 @@ use anyhow::{Context, Result};
 use completion::GooseCompleter;
 use goose::agents::extension::{Envs, ExtensionConfig, PLATFORM_EXTENSIONS};
 use goose::agents::types::RetryConfig;
-use goose::agents::{Agent, SessionConfig, COMPACT_TRIGGERS};
+use goose::agents::{
+    context_management_unsupported_message, Agent, SessionConfig, COMPACT_TRIGGERS,
+};
 use goose::config::extensions::name_to_key;
 use goose::config::{Config, GooseMode};
 use input::InputResult;
@@ -1035,6 +1037,15 @@ impl CliSession {
     }
 
     async fn handle_clear(&mut self) -> Result<()> {
+        let provider = self.agent.provider().await?;
+        if provider.manages_own_context() {
+            output::render_error(&context_management_unsupported_message(
+                "clear",
+                provider.get_name(),
+            ));
+            return Ok(());
+        }
+
         if let Err(e) = self
             .agent
             .config
@@ -1165,6 +1176,15 @@ impl CliSession {
     }
 
     async fn handle_compact(&mut self) -> Result<()> {
+        let provider = self.agent.provider().await?;
+        if provider.manages_own_context() {
+            output::render_error(&context_management_unsupported_message(
+                "compact",
+                provider.get_name(),
+            ));
+            return Ok(());
+        }
+
         let prompt = "Are you sure you want to compact this conversation? This will condense the message history.";
         let should_summarize = match cliclack::confirm(prompt).initial_value(true).interact() {
             Ok(choice) => choice,

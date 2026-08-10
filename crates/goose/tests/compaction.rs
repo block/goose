@@ -21,12 +21,21 @@ use tempfile::TempDir;
 struct MockCompactionProvider {
     /// Tracks whether compaction has occurred (for context limit recovery case)
     has_compacted: Arc<AtomicBool>,
+    manages_own_context: bool,
 }
 
 impl MockCompactionProvider {
     fn new() -> Self {
         Self {
             has_compacted: Arc::new(AtomicBool::new(false)),
+            manages_own_context: false,
+        }
+    }
+
+    fn context_owning() -> Self {
+        Self {
+            has_compacted: Arc::new(AtomicBool::new(false)),
+            manages_own_context: true,
         }
     }
 
@@ -98,6 +107,10 @@ impl MockCompactionProvider {
 
 #[async_trait]
 impl Provider for MockCompactionProvider {
+    fn manages_own_context(&self) -> bool {
+        self.manages_own_context
+    }
+
     async fn stream(
         &self,
         _model_config: &ModelConfig,
@@ -238,6 +251,53 @@ async fn setup_test_session(
         .await?;
 
     Ok(session)
+}
+
+#[tokio::test]
+async fn context_owning_provider_rejects_clear_and_compact_without_changing_session() -> Result<()>
+{
+    let temp_dir = TempDir::new()?;
+    let agent = Agent::new();
+    let messages = vec![
+        Message::user().with_text("Remember this"),
+        Message::assistant().with_text("I will"),
+    ];
+    let session = setup_test_session(
+        &agent,
+        &temp_dir,
+        "context-owning-provider",
+        messages.clone(),
+    )
+    .await?;
+    let provider = Arc::new(MockCompactionProvider::context_owning());
+    agent
+        .update_provider(provider, ModelConfig::new("mock-model"), &session.id)
+        .await?;
+
+    for command in ["clear", "compact"] {
+        let error = agent
+            .execute_command(&format!("/{command}"), &session.id)
+            .await
+            .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            format!(
+                "/{command} is not available for provider 'mock-compaction' because it manages its own conversation context"
+            )
+        );
+    }
+
+    let unchanged = agent
+        .config
+        .session_manager
+        .get_session(&session.id, true)
+        .await?;
+    assert_eq!(unchanged.conversation.unwrap().messages(), messages);
+    assert_eq!(unchanged.usage.input_tokens, Some(600));
+    assert_eq!(unchanged.usage.output_tokens, Some(400));
+    assert_eq!(unchanged.usage.total_tokens, Some(1000));
+
+    Ok(())
 }
 
 /// Helper: Assert conversation has been compacted with proper message visibility
