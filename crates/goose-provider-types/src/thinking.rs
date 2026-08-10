@@ -110,12 +110,12 @@ impl ThinkFilter {
                         self.buffer.drain(..pos);
                     }
                     if self.buffer.len() > MAX_BUFFERED_THINK_TAG_BYTES {
+                        let oversized = std::mem::take(&mut self.buffer);
                         if self.inside_think {
-                            out.thinking.push_str(&self.buffer);
+                            out.thinking.push_str(&oversized);
                         } else {
-                            out.content.push_str(&self.buffer);
+                            out.content.push_str(&oversized);
                         }
-                        self.buffer.clear();
                     }
                     break;
                 }
@@ -628,6 +628,21 @@ mod tests {
 
         content.push_str(&filter.finish().content);
         assert_eq!(content, payload);
+    }
+
+    #[test]
+    fn test_think_filter_releases_single_oversized_candidate_allocation() {
+        let payload = format!(
+            "<think data=\"{}",
+            "a".repeat(MAX_BUFFERED_THINK_TAG_BYTES * 16)
+        );
+        let mut filter = ThinkFilter::new();
+        let out = filter.push(&payload);
+
+        assert_eq!(out.content, payload);
+        assert!(out.thinking.is_empty());
+        assert!(filter.buffer.is_empty());
+        assert_eq!(filter.buffer.capacity(), 0);
     }
 
     #[test]
