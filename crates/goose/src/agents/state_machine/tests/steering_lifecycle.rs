@@ -1,120 +1,26 @@
-use std::collections::VecDeque;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
-use async_trait::async_trait;
 use futures::stream;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
-use goose_providers::model::ModelConfig;
-use rmcp::model::{CallToolRequestParams, Tool};
-use tokio::sync::{mpsc, Mutex as AsyncMutex, Notify};
+use rmcp::model::CallToolRequestParams;
+use tokio::sync::mpsc;
 use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
 use super::pipeline::{self, test_pipeline, MessageKind::Agent};
-use crate::agents::provider_stream_coordinator::ProviderStreamItem;
 use crate::agents::state_machine::Emitter;
+use crate::agents::steering::was_native_steer_delivered;
+use crate::agents::test_support::{controlled_stream, NativeSteeringTestProvider};
 use crate::agents::AgentEvent;
 use crate::conversation::message::Message;
-use crate::providers::base::{MessageStream, Provider};
+use crate::providers::base::MessageStream;
 
 const SUMMARIZE_HISTORY: &str = "Please summarize the conversation history";
 const TEST_TIMEOUT: Duration = Duration::from_secs(2);
-
-struct NativeTestProvider {
-    streams: AsyncMutex<VecDeque<MessageStream>>,
-    native_results: Mutex<VecDeque<Result<bool, ProviderError>>>,
-    prompts: Mutex<Vec<Vec<Message>>>,
-    stream_calls: AtomicUsize,
-    native_calls: AtomicUsize,
-    stream_called: Notify,
-    native_called: Notify,
-}
-
-impl NativeTestProvider {
-    fn new(
-        streams: impl IntoIterator<Item = MessageStream>,
-        native_results: impl IntoIterator<Item = Result<bool, ProviderError>>,
-    ) -> Arc<Self> {
-        Arc::new(Self {
-            streams: AsyncMutex::new(streams.into_iter().collect()),
-            native_results: Mutex::new(native_results.into_iter().collect()),
-            prompts: Mutex::new(Vec::new()),
-            stream_calls: AtomicUsize::new(0),
-            native_calls: AtomicUsize::new(0),
-            stream_called: Notify::new(),
-            native_called: Notify::new(),
-        })
-    }
-
-    async fn wait_for_stream_calls(&self, expected: usize) {
-        while self.stream_calls.load(Ordering::SeqCst) < expected {
-            self.stream_called.notified().await;
-        }
-    }
-
-    async fn wait_for_native_calls(&self, expected: usize) {
-        while self.native_calls.load(Ordering::SeqCst) < expected {
-            self.native_called.notified().await;
-        }
-    }
-
-    fn prompts(&self) -> Vec<Vec<Message>> {
-        self.prompts.lock().expect("prompts lock").clone()
-    }
-}
-
-#[async_trait]
-impl Provider for NativeTestProvider {
-    fn get_name(&self) -> &str {
-        "native-test"
-    }
-
-    async fn stream(
-        &self,
-        _model_config: &ModelConfig,
-        _system: &str,
-        messages: &[Message],
-        _tools: &[Tool],
-    ) -> Result<MessageStream, ProviderError> {
-        self.stream_calls.fetch_add(1, Ordering::SeqCst);
-        self.prompts
-            .lock()
-            .expect("prompts lock")
-            .push(messages.to_vec());
-        self.stream_called.notify_one();
-        self.streams
-            .lock()
-            .await
-            .pop_front()
-            .ok_or_else(|| ProviderError::ExecutionError("unexpected provider prompt".to_string()))
-    }
-
-    async fn steer_natively(
-        &self,
-        _session_id: &str,
-        _message: &Message,
-    ) -> Result<bool, ProviderError> {
-        self.native_calls.fetch_add(1, Ordering::SeqCst);
-        self.native_called.notify_one();
-        self.native_results
-            .lock()
-            .expect("native results lock")
-            .pop_front()
-            .expect("native steering result")
-    }
-}
-
-fn controlled_stream() -> (mpsc::UnboundedSender<ProviderStreamItem>, MessageStream) {
-    let (tx, rx) = mpsc::unbounded_channel();
-    let stream = stream::unfold(rx, |mut rx| async move {
-        rx.recv().await.map(|item| (item, rx))
-    });
-    (tx, Box::pin(stream))
-}
 
 fn completed_stream(message: Message) -> MessageStream {
     Box::pin(stream::iter([Ok((Some(message), None))]))
@@ -142,7 +48,7 @@ async fn next_message(
 #[tokio::test]
 async fn native_steering_cancels_unstarted_tool_request() -> Result<()> {
     let (stream_tx, provider_stream) = controlled_stream();
-    let provider = NativeTestProvider::new([provider_stream], [Ok(true)]);
+    let provider = NativeSteeringTestProvider::new([provider_stream], [Ok(true)]);
     let (pipeline, _) = test_pipeline().await?;
     let pipeline = pipeline.with_provider(provider.clone());
     pipeline
@@ -252,7 +158,7 @@ async fn native_steering_cancels_unstarted_tool_request() -> Result<()> {
 #[tokio::test]
 async fn native_delivery_preserves_order_estimated_usage_and_prompt_boundary() -> Result<()> {
     let (stream_tx, provider_stream) = controlled_stream();
-    let provider = NativeTestProvider::new([provider_stream], [Ok(true)]);
+    let provider = NativeSteeringTestProvider::new([provider_stream], [Ok(true)]);
     let (pipeline, _) = test_pipeline().await?;
     let pipeline = pipeline.with_provider(provider.clone());
     pipeline
@@ -315,13 +221,7 @@ async fn native_delivery_preserves_order_estimated_usage_and_prompt_boundary() -
     assert!(messages[assistant].metadata.usage.is_some());
     assert_eq!(messages[steer].id.as_deref(), Some("native-order-steer"));
     assert!(messages[steer].metadata.steer);
-    assert_eq!(
-        messages[steer]
-            .metadata
-            .operation_note("llm", "native_steer_delivered")
-            .and_then(serde_json::Value::as_bool),
-        Some(true)
-    );
+    assert!(was_native_steer_delivered(&messages[steer]));
     assert!(!messages.iter().any(|message| {
         message
             .as_concat_text()
@@ -338,7 +238,7 @@ async fn native_delivery_preserves_order_estimated_usage_and_prompt_boundary() -
 #[tokio::test]
 async fn usage_reported_after_native_delivery_updates_the_flushed_assistant() -> Result<()> {
     let (stream_tx, provider_stream) = controlled_stream();
-    let provider = NativeTestProvider::new([provider_stream], [Ok(true)]);
+    let provider = NativeSteeringTestProvider::new([provider_stream], [Ok(true)]);
     let (pipeline, _) = test_pipeline().await?;
     let pipeline = pipeline.with_provider(provider.clone());
     pipeline
@@ -401,7 +301,7 @@ async fn usage_reported_after_native_delivery_updates_the_flushed_assistant() ->
 async fn native_steering_error_uses_one_next_prompt_fallback() -> Result<()> {
     let (first_stream_tx, first_stream) = controlled_stream();
     let second_stream = completed_stream(Message::assistant().with_text("fallback complete"));
-    let provider = NativeTestProvider::new(
+    let provider = NativeSteeringTestProvider::new(
         [first_stream, second_stream],
         [Err(ProviderError::ExecutionError(
             "native delivery failed".to_string(),
@@ -444,10 +344,7 @@ async fn native_steering_error_uses_one_next_prompt_fallback() -> Result<()> {
     assert_eq!(steers.len(), 1);
     assert_eq!(steers[0].id.as_deref(), Some("fallback-steer"));
     assert!(steers[0].metadata.steer);
-    assert!(steers[0]
-        .metadata
-        .operation_note("llm", "native_steer_delivered")
-        .is_none());
+    assert!(!was_native_steer_delivered(steers[0]));
     assert_eq!(provider.stream_calls.load(Ordering::SeqCst), 2);
     assert_eq!(provider.native_calls.load(Ordering::SeqCst), 1);
     assert!(provider.prompts()[1]

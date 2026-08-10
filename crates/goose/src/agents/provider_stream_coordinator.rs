@@ -151,100 +151,40 @@ impl ProviderStreamCoordinator {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::VecDeque;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::{Arc, Mutex};
+    use std::sync::atomic::Ordering;
+    use std::sync::Arc;
     use std::task::Poll;
     use std::time::Duration;
 
-    use async_trait::async_trait;
     use futures::{stream, StreamExt};
-    use goose_providers::model::ModelConfig;
-    use rmcp::model::Tool;
-    use tokio::sync::{oneshot, Mutex as AsyncMutex, Notify};
+    use tokio::sync::{oneshot, Notify};
     use tokio::time::timeout;
     use tokio_util::sync::CancellationToken;
 
     use super::{
-        MessageStream, Provider, ProviderError, ProviderStreamCoordinator, ProviderStreamEvent,
+        MessageStream, ProviderError, ProviderStreamCoordinator, ProviderStreamEvent,
         ProviderStreamItem,
     };
     use crate::agents::steering::SteeringQueue;
+    use crate::agents::test_support::{NativeSteeringBehavior, NativeSteeringTestProvider};
     use crate::conversation::message::Message;
 
     const TEST_TIMEOUT: Duration = Duration::from_secs(2);
 
-    enum NativeSteerBehavior {
-        Immediate(Result<bool, ProviderError>),
-        Blocked {
-            started: Arc<Notify>,
-            release: Arc<Notify>,
-            result: Result<bool, ProviderError>,
-        },
+    fn immediate_provider(result: Result<bool, ProviderError>) -> Arc<NativeSteeringTestProvider> {
+        NativeSteeringTestProvider::with_behaviors([NativeSteeringBehavior::Immediate(result)])
     }
 
-    struct TestProvider {
-        behaviors: AsyncMutex<VecDeque<NativeSteerBehavior>>,
-        calls: AtomicUsize,
-        messages: Mutex<Vec<String>>,
-    }
-
-    impl TestProvider {
-        fn new(behaviors: impl IntoIterator<Item = NativeSteerBehavior>) -> Arc<Self> {
-            Arc::new(Self {
-                behaviors: AsyncMutex::new(behaviors.into_iter().collect()),
-                calls: AtomicUsize::new(0),
-                messages: Mutex::new(Vec::new()),
-            })
-        }
-    }
-
-    #[async_trait]
-    impl Provider for TestProvider {
-        fn get_name(&self) -> &str {
-            "test"
-        }
-
-        async fn stream(
-            &self,
-            _model_config: &ModelConfig,
-            _system: &str,
-            _messages: &[Message],
-            _tools: &[Tool],
-        ) -> Result<MessageStream, ProviderError> {
-            unreachable!("coordinator tests provide the stream directly")
-        }
-
-        async fn steer_natively(
-            &self,
-            _session_id: &str,
-            message: &Message,
-        ) -> Result<bool, ProviderError> {
-            self.calls.fetch_add(1, Ordering::SeqCst);
-            self.messages
-                .lock()
-                .expect("message lock")
-                .push(message.as_concat_text());
-
-            match self
-                .behaviors
-                .lock()
-                .await
-                .pop_front()
-                .expect("test behavior")
-            {
-                NativeSteerBehavior::Immediate(result) => result,
-                NativeSteerBehavior::Blocked {
-                    started,
-                    release,
-                    result,
-                } => {
-                    started.notify_one();
-                    release.notified().await;
-                    result
-                }
-            }
-        }
+    fn blocked_provider(
+        started: Arc<Notify>,
+        release: Arc<Notify>,
+        result: Result<bool, ProviderError>,
+    ) -> Arc<NativeSteeringTestProvider> {
+        NativeSteeringTestProvider::with_behaviors([NativeSteeringBehavior::Blocked {
+            started,
+            release,
+            result,
+        }])
     }
 
     async fn enqueue_ready(queue: &SteeringQueue, text: &str) -> u64 {
@@ -291,7 +231,7 @@ mod tests {
     #[tokio::test]
     async fn ready_steer_wakes_the_stream_and_is_committed_after_delivery() {
         let queue = Arc::new(SteeringQueue::default());
-        let provider = TestProvider::new([NativeSteerBehavior::Immediate(Ok(true))]);
+        let provider = immediate_provider(Ok(true));
         let mut stream = ProviderStreamCoordinator::new(
             pending_stream(),
             provider.clone(),
@@ -313,7 +253,7 @@ mod tests {
         assert_eq!(message.as_concat_text(), "steer");
         assert!(message.metadata.steer);
         assert!(!queue.has_pending().await);
-        assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
+        assert_eq!(provider.native_calls.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]
@@ -321,9 +261,9 @@ mod tests {
         let queue = Arc::new(SteeringQueue::default());
         enqueue_ready(&queue, "first").await;
         enqueue_ready(&queue, "second").await;
-        let provider = TestProvider::new([
-            NativeSteerBehavior::Immediate(Ok(true)),
-            NativeSteerBehavior::Immediate(Ok(true)),
+        let provider = NativeSteeringTestProvider::with_behaviors([
+            NativeSteeringBehavior::Immediate(Ok(true)),
+            NativeSteeringBehavior::Immediate(Ok(true)),
         ]);
         let mut stream = ProviderStreamCoordinator::new(
             pending_stream(),
@@ -337,10 +277,7 @@ mod tests {
 
         assert_eq!(first.as_concat_text(), "first");
         assert_eq!(second.as_concat_text(), "second");
-        assert_eq!(
-            *provider.messages.lock().expect("message lock"),
-            ["first", "second"]
-        );
+        assert_eq!(provider.native_messages(), ["first", "second"]);
     }
 
     #[tokio::test]
@@ -349,11 +286,7 @@ mod tests {
         enqueue_ready(&queue, "steer").await;
         let started = Arc::new(Notify::new());
         let release = Arc::new(Notify::new());
-        let provider = TestProvider::new([NativeSteerBehavior::Blocked {
-            started: Arc::clone(&started),
-            release: Arc::clone(&release),
-            result: Ok(true),
-        }]);
+        let provider = blocked_provider(Arc::clone(&started), Arc::clone(&release), Ok(true));
         let mut stream = ProviderStreamCoordinator::new(
             output_stream(&["one", "two"]),
             provider,
@@ -390,7 +323,7 @@ mod tests {
             let queue = Arc::new(SteeringQueue::default());
             enqueue_ready(&queue, "first").await;
             enqueue_ready(&queue, "second").await;
-            let provider = TestProvider::new([NativeSteerBehavior::Immediate(result)]);
+            let provider = immediate_provider(result);
             let provider_stream: MessageStream = Box::pin(stream::iter([Ok((
                 Some(Message::assistant().with_text("output")),
                 None,
@@ -408,7 +341,7 @@ mod tests {
                 "output"
             );
             assert!(stream.next_event(&CancellationToken::new()).await.is_none());
-            assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
+            assert_eq!(provider.native_calls.load(Ordering::SeqCst), 1);
             assert_eq!(
                 queue
                     .drain_available()
@@ -426,11 +359,7 @@ mod tests {
         let queue = Arc::new(SteeringQueue::default());
         let entry_id = enqueue_ready(&queue, "steer").await;
         let started = Arc::new(Notify::new());
-        let provider = TestProvider::new([NativeSteerBehavior::Blocked {
-            started: Arc::clone(&started),
-            release: Arc::new(Notify::new()),
-            result: Ok(true),
-        }]);
+        let provider = blocked_provider(Arc::clone(&started), Arc::new(Notify::new()), Ok(true));
         let (provider_stream, stream_dropped) = pending_stream_with_drop_signal();
         let mut stream = ProviderStreamCoordinator::new(
             provider_stream,
@@ -464,11 +393,7 @@ mod tests {
         enqueue_ready(&queue, "steer").await;
         let started = Arc::new(Notify::new());
         let release = Arc::new(Notify::new());
-        let provider = TestProvider::new([NativeSteerBehavior::Blocked {
-            started: Arc::clone(&started),
-            release: Arc::clone(&release),
-            result: Ok(true),
-        }]);
+        let provider = blocked_provider(Arc::clone(&started), Arc::clone(&release), Ok(true));
         let provider_stream: MessageStream = Box::pin(stream::empty());
         let mut stream = ProviderStreamCoordinator::new(
             provider_stream,
@@ -499,11 +424,7 @@ mod tests {
         enqueue_ready(&queue, "steer").await;
         let started = Arc::new(Notify::new());
         let release = Arc::new(Notify::new());
-        let provider = TestProvider::new([NativeSteerBehavior::Blocked {
-            started: Arc::clone(&started),
-            release: Arc::clone(&release),
-            result: Ok(true),
-        }]);
+        let provider = blocked_provider(Arc::clone(&started), Arc::clone(&release), Ok(true));
         let provider_stream: MessageStream = Box::pin(stream::iter([Err(
             ProviderError::ExecutionError("stream failed".to_string()),
         )]));
@@ -545,11 +466,7 @@ mod tests {
             let entry_id = enqueue_ready(&queue, "steer").await;
             let started = Arc::new(Notify::new());
             let release = Arc::new(Notify::new());
-            let provider = TestProvider::new([NativeSteerBehavior::Blocked {
-                started: Arc::clone(&started),
-                release: Arc::clone(&release),
-                result,
-            }]);
+            let provider = blocked_provider(Arc::clone(&started), Arc::clone(&release), result);
             let provider_stream: MessageStream = Box::pin(stream::empty());
             let mut stream = ProviderStreamCoordinator::new(
                 provider_stream,
@@ -571,7 +488,7 @@ mod tests {
 
             assert!(event.is_none());
             assert_eq!(queue.peek_next_ready().await.unwrap().0, entry_id);
-            assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
+            assert_eq!(provider.native_calls.load(Ordering::SeqCst), 1);
         }
     }
 
@@ -581,11 +498,7 @@ mod tests {
         enqueue_ready(&queue, "steer").await;
         let started = Arc::new(Notify::new());
         let release = Arc::new(Notify::new());
-        let provider = TestProvider::new([NativeSteerBehavior::Blocked {
-            started: Arc::clone(&started),
-            release: Arc::clone(&release),
-            result: Ok(true),
-        }]);
+        let provider = blocked_provider(Arc::clone(&started), Arc::clone(&release), Ok(true));
         let mut stream = ProviderStreamCoordinator::new(
             pending_stream(),
             provider,
@@ -613,11 +526,7 @@ mod tests {
     async fn dropping_the_coordinator_retains_a_pending_steer() {
         let queue = Arc::new(SteeringQueue::default());
         let entry_id = enqueue_ready(&queue, "steer").await;
-        let provider = TestProvider::new([NativeSteerBehavior::Blocked {
-            started: Arc::new(Notify::new()),
-            release: Arc::new(Notify::new()),
-            result: Ok(true),
-        }]);
+        let provider = blocked_provider(Arc::new(Notify::new()), Arc::new(Notify::new()), Ok(true));
         let mut stream = ProviderStreamCoordinator::new(
             output_stream(&["output"]),
             provider,

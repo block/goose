@@ -40,76 +40,86 @@ fn supported_initialize_response(
         .meta(meta)
 }
 
+macro_rules! test_agent {
+    ($adapter_version:expr) => {{
+        let adapter_version = $adapter_version.to_string();
+        Agent::builder()
+            .on_receive_request(
+                async move |request: InitializeRequest, responder, _cx| {
+                    responder.respond(supported_initialize_response(request, &adapter_version))
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
+            .on_receive_request(
+                async |_request: NewSessionRequest, responder, _cx| {
+                    responder.respond(NewSessionResponse::new(ACP_SESSION_ID))
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
+    }};
+}
+
+async fn connect_provider(
+    provider_name: &str,
+    transport: impl agent_client_protocol::ConnectTo<Client> + 'static,
+) -> AcpProvider {
+    AcpProvider::connect_with_transport(
+        provider_name.to_string(),
+        GooseMode::Auto,
+        test_config(),
+        transport,
+    )
+    .await
+    .unwrap()
+}
+
+async fn receive<T>(receiver: &mut mpsc::UnboundedReceiver<T>, expectation: &str) -> T {
+    timeout(TEST_TIMEOUT, receiver.recv())
+        .await
+        .expect(expectation)
+        .expect("test channel should remain open")
+}
+
 async fn connect_test_provider(
     provider_name: &str,
     adapter_version: &str,
     steer_response: Option<ClaudeSteeringResponse>,
 ) -> (AcpProvider, mpsc::UnboundedReceiver<serde_json::Value>) {
     let (request_tx, request_rx) = mpsc::unbounded_channel();
-    let adapter_version = adapter_version.to_string();
-    let agent = Agent
-        .builder()
-        .on_receive_request(
-            async move |request: InitializeRequest, responder, _cx| {
-                responder.respond(supported_initialize_response(request, &adapter_version))
-            },
-            agent_client_protocol::on_receive_request!(),
-        )
-        .on_receive_request(
-            async |_request: NewSessionRequest, responder, _cx| {
-                responder.respond(NewSessionResponse::new(ACP_SESSION_ID))
-            },
-            agent_client_protocol::on_receive_request!(),
-        )
-        .on_receive_request(
-            async move |request: ClaudeSteeringRequest, responder, _cx| {
-                request_tx
-                    .send(serde_json::to_value(request).unwrap())
-                    .unwrap();
-                match &steer_response {
-                    Some(response) => responder.respond(response.clone()),
-                    None => Err(agent_client_protocol::Error::internal_error()),
-                }
-            },
-            agent_client_protocol::on_receive_request!(),
-        );
+    let agent = test_agent!(adapter_version).on_receive_request(
+        async move |request: ClaudeSteeringRequest, responder, _cx| {
+            request_tx
+                .send(serde_json::to_value(request).unwrap())
+                .unwrap();
+            match &steer_response {
+                Some(response) => responder.respond(response.clone()),
+                None => Err(agent_client_protocol::Error::internal_error()),
+            }
+        },
+        agent_client_protocol::on_receive_request!(),
+    );
 
-    let provider = AcpProvider::connect_with_transport(
-        provider_name.to_string(),
-        GooseMode::Auto,
-        test_config(),
-        agent,
-    )
-    .await
-    .unwrap();
+    let provider = connect_provider(provider_name, agent).await;
     (provider, request_rx)
 }
 
-async fn connect_prompt_test_provider() -> (
-    AcpProvider,
-    mpsc::UnboundedReceiver<()>,
-    mpsc::UnboundedReceiver<CancelNotification>,
-    mpsc::UnboundedReceiver<()>,
-    Arc<Notify>,
-) {
+struct PromptTestHarness {
+    provider: AcpProvider,
+    prompt_started: mpsc::UnboundedReceiver<()>,
+    cancellations: mpsc::UnboundedReceiver<CancelNotification>,
+    prompt_responded: mpsc::UnboundedReceiver<()>,
+    release_prompt: Arc<Notify>,
+}
+
+async fn connect_prompt_test_provider(
+    provider_name: &str,
+    prompt_update: Option<&'static str>,
+) -> PromptTestHarness {
     let (prompt_started_tx, prompt_started_rx) = mpsc::unbounded_channel();
     let (cancel_tx, cancel_rx) = mpsc::unbounded_channel();
     let (prompt_responded_tx, prompt_responded_rx) = mpsc::unbounded_channel();
     let release_prompt = Arc::new(Notify::new());
-    let agent = Agent
-        .builder()
-        .on_receive_request(
-            async move |request: InitializeRequest, responder, _cx| {
-                responder.respond(supported_initialize_response(request, "0.65.0"))
-            },
-            agent_client_protocol::on_receive_request!(),
-        )
-        .on_receive_request(
-            async |_request: NewSessionRequest, responder, _cx| {
-                responder.respond(NewSessionResponse::new(ACP_SESSION_ID))
-            },
-            agent_client_protocol::on_receive_request!(),
-        )
+    let agent = test_agent!("0.65.0")
         .on_receive_request(
             {
                 let release_prompt = Arc::clone(&release_prompt);
@@ -117,8 +127,17 @@ async fn connect_prompt_test_provider() -> (
                     let release_prompt = Arc::clone(&release_prompt);
                     let prompt_responded_tx = prompt_responded_tx.clone();
                     prompt_started_tx.send(()).unwrap();
+                    let prompt_cx = cx.clone();
                     cx.spawn(async move {
                         release_prompt.notified().await;
+                        if let Some(text) = prompt_update {
+                            prompt_cx.send_notification(SessionNotification::new(
+                                ACP_SESSION_ID,
+                                SessionUpdate::AgentMessageChunk(ContentChunk::new(
+                                    ContentBlock::Text(TextContent::new(text)),
+                                )),
+                            ))?;
+                        }
                         let result = responder.respond(PromptResponse::new(StopReason::EndTurn));
                         let _ = prompt_responded_tx.send(());
                         result
@@ -133,24 +152,23 @@ async fn connect_prompt_test_provider() -> (
                 Ok(())
             },
             agent_client_protocol::on_receive_notification!(),
+        )
+        .on_receive_request(
+            async |_request: ClaudeSteeringRequest, responder, _cx| {
+                responder.respond(ClaudeSteeringResponse::Injected)
+            },
+            agent_client_protocol::on_receive_request!(),
         );
 
-    let provider = AcpProvider::connect_with_transport(
-        "test-acp".to_string(),
-        GooseMode::Auto,
-        test_config(),
-        agent,
-    )
-    .await
-    .unwrap();
+    let provider = connect_provider(provider_name, agent).await;
 
-    (
+    PromptTestHarness {
         provider,
-        prompt_started_rx,
-        cancel_rx,
-        prompt_responded_rx,
+        prompt_started: prompt_started_rx,
+        cancellations: cancel_rx,
+        prompt_responded: prompt_responded_rx,
         release_prompt,
-    )
+    }
 }
 
 fn boundary_test_provider() -> (Arc<AcpProvider>, mpsc::Receiver<ClientRequest>) {
@@ -250,110 +268,63 @@ async fn complete_native_steer_with(
 }
 
 #[tokio::test]
-async fn injected_response_confirms_delivery_and_preserves_request_shape() {
-    let (provider, mut requests) = connect_test_provider(
-        CLAUDE_ACP_PROVIDER_NAME,
-        "0.65.0",
-        Some(ClaudeSteeringResponse::Injected),
-    )
-    .await;
+async fn steering_outcome_controls_delivery_and_message_boundary() {
+    for (response, expected_delivery) in [
+        (ClaudeSteeringResponse::Injected, true),
+        (ClaudeSteeringResponse::PromptRequired, false),
+    ] {
+        let (provider, mut requests) =
+            connect_test_provider(CLAUDE_ACP_PROVIDER_NAME, "0.65.0", Some(response)).await;
 
-    let delivered = provider
-        .steer_natively(
-            "goose-session",
-            &Message::user().with_text("focus on tests"),
-        )
-        .await
-        .unwrap();
+        let delivered = provider
+            .steer_natively(
+                "goose-session",
+                &Message::user().with_text("focus on tests"),
+            )
+            .await
+            .unwrap();
 
-    assert!(delivered);
-    assert!(provider
-        .assistant_message_boundary_pending
-        .load(Ordering::Acquire));
-    assert_eq!(
-        requests.recv().await.unwrap(),
-        serde_json::json!({
-            "sessionId": ACP_SESSION_ID,
-            "prompt": [{ "type": "text", "text": "focus on tests" }],
-            "_meta": {
-                "steering": {
-                    "idleBehavior": "promptRequired"
-                }
-            }
-        })
-    );
+        assert_eq!(delivered, expected_delivery);
+        assert_eq!(
+            provider
+                .assistant_message_boundary_pending
+                .load(Ordering::Acquire),
+            expected_delivery
+        );
+        requests
+            .recv()
+            .await
+            .expect("steering request should be sent");
+    }
 }
 
 #[tokio::test]
-async fn prompt_required_returns_fallback() {
-    let (provider, mut requests) = connect_test_provider(
-        CLAUDE_ACP_PROVIDER_NAME,
-        "0.65.0",
-        Some(ClaudeSteeringResponse::PromptRequired),
-    )
-    .await;
-
-    let delivered = provider
-        .steer_natively(
-            "goose-session",
-            &Message::user().with_text("focus on tests"),
+async fn unsupported_acp_providers_do_not_send_a_steering_request() {
+    for (provider_name, version) in [
+        ("other-acp", "0.65.0"),
+        (CLAUDE_ACP_PROVIDER_NAME, "0.64.2"),
+    ] {
+        let (provider, mut requests) = connect_test_provider(
+            provider_name,
+            version,
+            Some(ClaudeSteeringResponse::Injected),
         )
-        .await
-        .unwrap();
+        .await;
 
-    assert!(!delivered);
-    assert!(!provider
-        .assistant_message_boundary_pending
-        .load(Ordering::Acquire));
-    assert!(requests.recv().await.is_some());
-}
+        let delivered = provider
+            .steer_natively(
+                "goose-session",
+                &Message::user().with_text("focus on tests"),
+            )
+            .await
+            .unwrap();
 
-#[tokio::test]
-async fn non_claude_provider_does_not_send_a_steering_request() {
-    let (provider, mut requests) = connect_test_provider(
-        "other-acp",
-        "0.65.0",
-        Some(ClaudeSteeringResponse::Injected),
-    )
-    .await;
-
-    let delivered = provider
-        .steer_natively(
-            "goose-session",
-            &Message::user().with_text("focus on tests"),
-        )
-        .await
-        .unwrap();
-
-    assert!(!delivered);
-    assert!(matches!(
-        requests.try_recv(),
-        Err(mpsc::error::TryRecvError::Empty)
-    ));
-}
-
-#[tokio::test]
-async fn old_claude_adapter_does_not_send_a_steering_request() {
-    let (provider, mut requests) = connect_test_provider(
-        CLAUDE_ACP_PROVIDER_NAME,
-        "0.64.2",
-        Some(ClaudeSteeringResponse::Injected),
-    )
-    .await;
-
-    let delivered = provider
-        .steer_natively(
-            "goose-session",
-            &Message::user().with_text("focus on tests"),
-        )
-        .await
-        .unwrap();
-
-    assert!(!delivered);
-    assert!(matches!(
-        requests.try_recv(),
-        Err(mpsc::error::TryRecvError::Empty)
-    ));
+        assert!(!delivered);
+        assert!(matches!(
+            requests.try_recv(),
+            Err(mpsc::error::TryRecvError::Empty)
+        ));
+    }
 }
 
 #[tokio::test]
@@ -410,53 +381,30 @@ async fn dropping_steering_caller_cancels_acp_request_and_releases_loop() {
     let (request_started_tx, mut request_started) = mpsc::unbounded_channel();
     let (request_cancelled_tx, mut request_cancelled) = mpsc::unbounded_channel();
     let steering_requests = Arc::new(AtomicUsize::new(0));
-    let agent = Agent
-        .builder()
-        .on_receive_request(
-            async move |request: InitializeRequest, responder, _cx| {
-                responder.respond(supported_initialize_response(request, "0.65.0"))
-            },
-            agent_client_protocol::on_receive_request!(),
-        )
-        .on_receive_request(
-            async |_request: NewSessionRequest, responder, _cx| {
-                responder.respond(NewSessionResponse::new(ACP_SESSION_ID))
-            },
-            agent_client_protocol::on_receive_request!(),
-        )
-        .on_receive_request(
-            {
-                let steering_requests = Arc::clone(&steering_requests);
-                async move |_request: ClaudeSteeringRequest, responder, cx| {
-                    if steering_requests.fetch_add(1, Ordering::SeqCst) == 0 {
-                        let cancellation = responder.cancellation();
-                        let request_cancelled_tx = request_cancelled_tx.clone();
-                        request_started_tx.send(()).unwrap();
-                        cx.spawn(async move {
-                            cancellation.cancelled().await;
-                            request_cancelled_tx.send(()).unwrap();
-                            responder.respond_with_result(Err(
-                                agent_client_protocol::Error::request_cancelled(),
-                            ))
-                        })
-                    } else {
-                        responder.respond(ClaudeSteeringResponse::PromptRequired)
-                    }
+    let agent = test_agent!("0.65.0").on_receive_request(
+        {
+            let steering_requests = Arc::clone(&steering_requests);
+            async move |_request: ClaudeSteeringRequest, responder, cx| {
+                if steering_requests.fetch_add(1, Ordering::SeqCst) == 0 {
+                    let cancellation = responder.cancellation();
+                    let request_cancelled_tx = request_cancelled_tx.clone();
+                    request_started_tx.send(()).unwrap();
+                    cx.spawn(async move {
+                        cancellation.cancelled().await;
+                        request_cancelled_tx.send(()).unwrap();
+                        responder.respond_with_result(Err(
+                            agent_client_protocol::Error::request_cancelled(),
+                        ))
+                    })
+                } else {
+                    responder.respond(ClaudeSteeringResponse::PromptRequired)
                 }
-            },
-            agent_client_protocol::on_receive_request!(),
-        );
-
-    let provider = Arc::new(
-        AcpProvider::connect_with_transport(
-            CLAUDE_ACP_PROVIDER_NAME.to_string(),
-            GooseMode::Auto,
-            test_config(),
-            agent,
-        )
-        .await
-        .unwrap(),
+            }
+        },
+        agent_client_protocol::on_receive_request!(),
     );
+
+    let provider = Arc::new(connect_provider(CLAUDE_ACP_PROVIDER_NAME, agent).await);
     let first_request = tokio::spawn({
         let provider = Arc::clone(&provider);
         async move {
@@ -466,16 +414,14 @@ async fn dropping_steering_caller_cancels_acp_request_and_releases_loop() {
         }
     });
 
-    timeout(TEST_TIMEOUT, request_started.recv())
-        .await
-        .expect("steering request should start")
-        .expect("request-start channel should remain open");
+    receive(&mut request_started, "steering request should start").await;
     first_request.abort();
     assert!(first_request.await.unwrap_err().is_cancelled());
-    timeout(TEST_TIMEOUT, request_cancelled.recv())
-        .await
-        .expect("dropping the steering caller should cancel the ACP request")
-        .expect("request-cancellation channel should remain open");
+    receive(
+        &mut request_cancelled,
+        "dropping the steering caller should cancel the ACP request",
+    )
+    .await;
 
     let delivered = timeout(
         TEST_TIMEOUT,
@@ -490,29 +436,29 @@ async fn dropping_steering_caller_cancels_acp_request_and_releases_loop() {
 
 #[tokio::test]
 async fn dropping_prompt_stream_sends_session_cancel() {
-    let (provider, mut prompt_started, mut cancellations, mut prompt_responded, release_prompt) =
-        connect_prompt_test_provider().await;
+    let PromptTestHarness {
+        provider,
+        mut prompt_started,
+        mut cancellations,
+        mut prompt_responded,
+        release_prompt,
+    } = connect_prompt_test_provider("test-acp", None).await;
     let model = ModelConfig::new("test-model");
     let prompt = Message::user().with_text("start a long task");
     let stream = provider.stream(&model, "", &[prompt], &[]).await.unwrap();
 
-    timeout(TEST_TIMEOUT, prompt_started.recv())
-        .await
-        .expect("prompt should start")
-        .expect("prompt-start channel should remain open");
+    receive(&mut prompt_started, "prompt should start").await;
     drop(stream);
 
-    let cancellation = timeout(TEST_TIMEOUT, cancellations.recv())
-        .await
-        .expect("dropping the stream should cancel the ACP prompt")
-        .expect("cancellation channel should remain open");
+    let cancellation = receive(
+        &mut cancellations,
+        "dropping the stream should cancel the ACP prompt",
+    )
+    .await;
     assert_eq!(cancellation.session_id, SessionId::new(ACP_SESSION_ID));
 
     release_prompt.notify_one();
-    timeout(TEST_TIMEOUT, prompt_responded.recv())
-        .await
-        .expect("prompt should respond after release")
-        .expect("prompt-response channel should remain open");
+    receive(&mut prompt_responded, "prompt should respond after release").await;
     assert!(matches!(
         cancellations.try_recv(),
         Err(mpsc::error::TryRecvError::Empty)
@@ -521,21 +467,20 @@ async fn dropping_prompt_stream_sends_session_cancel() {
 
 #[tokio::test]
 async fn completed_prompt_does_not_send_session_cancel() {
-    let (provider, mut prompt_started, mut cancellations, mut prompt_responded, release_prompt) =
-        connect_prompt_test_provider().await;
+    let PromptTestHarness {
+        provider,
+        mut prompt_started,
+        mut cancellations,
+        mut prompt_responded,
+        release_prompt,
+    } = connect_prompt_test_provider("test-acp", None).await;
     let model = ModelConfig::new("test-model");
     let prompt = Message::user().with_text("complete this task");
     let mut stream = provider.stream(&model, "", &[prompt], &[]).await.unwrap();
 
-    timeout(TEST_TIMEOUT, prompt_started.recv())
-        .await
-        .expect("prompt should start")
-        .expect("prompt-start channel should remain open");
+    receive(&mut prompt_started, "prompt should start").await;
     release_prompt.notify_one();
-    timeout(TEST_TIMEOUT, prompt_responded.recv())
-        .await
-        .expect("prompt should respond after release")
-        .expect("prompt-response channel should remain open");
+    receive(&mut prompt_responded, "prompt should respond after release").await;
     assert!(timeout(TEST_TIMEOUT, stream.next())
         .await
         .expect("provider stream should finish")
@@ -548,63 +493,14 @@ async fn completed_prompt_does_not_send_session_cancel() {
 
 #[tokio::test]
 async fn steering_completes_while_original_prompt_remains_active() {
-    let (prompt_started_tx, mut prompt_started) = mpsc::unbounded_channel();
-    let (prompt_responded_tx, mut prompt_responded) = mpsc::unbounded_channel();
-    let release_prompt = Arc::new(Notify::new());
-    let adapter_version = "0.65.0".to_string();
-    let agent = Agent
-        .builder()
-        .on_receive_request(
-            async move |request: InitializeRequest, responder, _cx| {
-                responder.respond(supported_initialize_response(request, &adapter_version))
-            },
-            agent_client_protocol::on_receive_request!(),
-        )
-        .on_receive_request(
-            async |_request: NewSessionRequest, responder, _cx| {
-                responder.respond(NewSessionResponse::new(ACP_SESSION_ID))
-            },
-            agent_client_protocol::on_receive_request!(),
-        )
-        .on_receive_request(
-            {
-                let release_prompt = Arc::clone(&release_prompt);
-                async move |_request: PromptRequest, responder, cx| {
-                    let release_prompt = Arc::clone(&release_prompt);
-                    let prompt_responded_tx = prompt_responded_tx.clone();
-                    prompt_started_tx.send(()).unwrap();
-                    let prompt_cx = cx.clone();
-                    cx.spawn(async move {
-                        release_prompt.notified().await;
-                        prompt_cx.send_notification(SessionNotification::new(
-                            ACP_SESSION_ID,
-                            SessionUpdate::AgentMessageChunk(ContentChunk::new(
-                                ContentBlock::Text(TextContent::new("original prompt update")),
-                            )),
-                        ))?;
-                        let result = responder.respond(PromptResponse::new(StopReason::EndTurn));
-                        prompt_responded_tx.send(()).unwrap();
-                        result
-                    })
-                }
-            },
-            agent_client_protocol::on_receive_request!(),
-        )
-        .on_receive_request(
-            async |_request: ClaudeSteeringRequest, responder, _cx| {
-                responder.respond(ClaudeSteeringResponse::Injected)
-            },
-            agent_client_protocol::on_receive_request!(),
-        );
-
-    let provider = AcpProvider::connect_with_transport(
-        CLAUDE_ACP_PROVIDER_NAME.to_string(),
-        GooseMode::Auto,
-        test_config(),
-        agent,
-    )
-    .await
-    .unwrap();
+    let PromptTestHarness {
+        provider,
+        mut prompt_started,
+        cancellations: _cancellations,
+        mut prompt_responded,
+        release_prompt,
+    } = connect_prompt_test_provider(CLAUDE_ACP_PROVIDER_NAME, Some("original prompt update"))
+        .await;
     let model = ModelConfig::new("test-model");
     let prompt = Message::user().with_text("start a long task");
     let mut original_stream = provider
@@ -612,10 +508,7 @@ async fn steering_completes_while_original_prompt_remains_active() {
         .await
         .unwrap();
 
-    timeout(TEST_TIMEOUT, prompt_started.recv())
-        .await
-        .expect("prompt should start")
-        .expect("prompt-start channel should remain open");
+    receive(&mut prompt_started, "prompt should start").await;
 
     let delivered = timeout(
         TEST_TIMEOUT,
@@ -654,10 +547,7 @@ async fn steering_completes_while_original_prompt_remains_active() {
         .load(Ordering::Acquire));
 
     release_prompt.notify_one();
-    timeout(TEST_TIMEOUT, prompt_responded.recv())
-        .await
-        .expect("prompt should respond after release")
-        .expect("prompt-response channel should remain open");
+    receive(&mut prompt_responded, "prompt should respond after release").await;
     let original_update = timeout(TEST_TIMEOUT, original_stream.next())
         .await
         .expect("original stream should receive its update")

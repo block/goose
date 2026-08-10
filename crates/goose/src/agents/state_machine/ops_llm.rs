@@ -178,6 +178,14 @@ fn ends_with_provider_turn(messages: &[Message]) -> bool {
     })
 }
 
+fn ends_with_native_steer(conversation: &Conversation) -> bool {
+    conversation
+        .iter()
+        .rev()
+        .find(|message| !message.is_turn_context())
+        .is_some_and(was_native_steer_delivered)
+}
+
 impl<'a> InferenceRunner<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -391,7 +399,7 @@ impl Inference for InferenceRunner<'_> {
             return false;
         };
         trailing_error(conversation).is_none()
-            && !conversation.last().is_some_and(was_native_steer_delivered)
+            && !ends_with_native_steer(conversation)
             && ends_with_provider_turn(&messages_for_provider(conversation, turn))
     }
 
@@ -403,9 +411,7 @@ impl Inference for InferenceRunner<'_> {
         emit: &Emitter,
     ) -> Result<OperationResult> {
         let messages = messages_since_kickoff(conversation)?;
-        if trailing_error(conversation).is_some()
-            || conversation.last().is_some_and(was_native_steer_delivered)
-        {
+        if trailing_error(conversation).is_some() || ends_with_native_steer(conversation) {
             return not_applicable();
         }
 

@@ -133,7 +133,9 @@ mod tests {
     }
 
     #[test]
-    fn accepts_prompt_required_with_unknown_or_missing_reason() {
+    fn response_outcomes_control_delivery() {
+        assert!(delivery_confirmed(&ClaudeSteeringResponse::Injected));
+
         for response in [
             serde_json::json!({
                 "outcome": "promptRequired",
@@ -141,23 +143,16 @@ mod tests {
             }),
             serde_json::json!({ "outcome": "promptRequired" }),
         ] {
-            assert!(matches!(
-                serde_json::from_value(response).unwrap(),
-                ClaudeSteeringResponse::PromptRequired
-            ));
+            let response = serde_json::from_value(response).unwrap();
+            assert!(matches!(response, ClaudeSteeringResponse::PromptRequired));
+            assert!(!delivery_confirmed(&response));
         }
-    }
 
-    #[test]
-    fn rejects_unknown_delivery_outcome() {
-        let response = serde_json::json!({ "outcome": "futureOutcome" });
-
-        assert!(serde_json::from_value::<ClaudeSteeringResponse>(response).is_err());
-    }
-
-    #[test]
-    fn confirms_only_injected_delivery() {
-        assert!(delivery_confirmed(&ClaudeSteeringResponse::Injected));
-        assert!(!delivery_confirmed(&ClaudeSteeringResponse::PromptRequired));
+        assert!(
+            serde_json::from_value::<ClaudeSteeringResponse>(serde_json::json!({
+                "outcome": "futureOutcome"
+            }))
+            .is_err()
+        );
     }
 }

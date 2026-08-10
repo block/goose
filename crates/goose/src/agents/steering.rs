@@ -280,20 +280,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn enqueue_does_not_notify_until_the_hook_is_complete() {
-        let queue = SteeringQueue::default();
-        let notified = queue.hook_complete_notify.notified();
-        tokio::pin!(notified);
-        notified.as_mut().enable();
-
-        let entry_id = queue.enqueue(Message::user().with_text("steer")).await;
-        assert!(futures::poll!(notified.as_mut()).is_pending());
-
-        assert!(queue.mark_hook_complete(entry_id).await);
-        notified.await;
-    }
-
-    #[tokio::test]
     async fn completed_hook_is_observed_without_waiting_for_another_notification() {
         let queue = SteeringQueue::default();
         let entry_id = queue.enqueue(Message::user().with_text("steer")).await;

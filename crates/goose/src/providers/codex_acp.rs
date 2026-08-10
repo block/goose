@@ -29,9 +29,9 @@ impl goose_providers::base::ProviderDescriptor for CodexAcpProvider {
             vec![],
         )
         .with_setup_steps(vec![
-            "Verify `codex-acp --version` shows `@agentclientprotocol/codex-acp`",
-            "If `--version` is rejected, remove `@zed-industries/codex-acp`: `npm uninstall -g @zed-industries/codex-acp`",
-            "If `codex-acp` is missing or was removed, install `@agentclientprotocol/codex-acp`: `npm install -g @agentclientprotocol/codex-acp`",
+            "Check the installed adapter: `codex-acp --version` should report `@agentclientprotocol/codex-acp`",
+            "If `--version` is rejected, remove the incompatible legacy adapter: `npm uninstall -g @zed-industries/codex-acp`",
+            "Install or update the Codex ACP adapter: `npm install -g @agentclientprotocol/codex-acp@latest`",
             "Authenticate with OpenAI: run `codex` and follow the prompts",
             "Configure goose in `~/.config/goose/config.yaml`:\n  GOOSE_PROVIDER: codex-acp\n  GOOSE_MODEL: current",
             "Restart goose",

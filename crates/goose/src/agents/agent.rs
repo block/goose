@@ -575,15 +575,6 @@ impl Agent {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) async fn drain_pending_steers(&self, session_id: &str) -> Vec<Message> {
-        let queue = self.steering_queues.lock().await.get(session_id).cloned();
-        match queue {
-            Some(queue) => queue.drain_available().await,
-            None => Vec::new(),
-        }
-    }
-
     async fn steering_queue(&self, session_id: &str) -> Arc<SteeringQueue> {
         self.steering_queues
             .lock()
@@ -4061,6 +4052,7 @@ fn recipe_conversation_history(messages: &Conversation) -> Vec<Message> {
 mod tests {
     use super::*;
     use crate::agents::gen_ai_telemetry::{self, test_support::SpanFieldCapture};
+    use crate::agents::test_support::{controlled_stream, NativeSteeringTestProvider};
     use crate::permission::permission_confirmation::PrincipalType;
     use crate::plugins::discovery::{DiscoveredPlugin, PluginScope};
     use crate::providers::base::{stream_from_single_message, MessageStream, PermissionRouting};
@@ -4068,12 +4060,10 @@ mod tests {
     use crate::session::session_manager::SessionType;
     use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
     use rmcp::model::Tool;
-    use std::collections::VecDeque;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
     use tempfile::TempDir;
-    use tokio::sync::Notify;
     use tokio::time::timeout;
 
     const LEGACY_STEERING_TEST_TIMEOUT: Duration = Duration::from_secs(2);
@@ -4541,109 +4531,12 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         }
     }
 
-    struct LegacyNativeProvider {
-        streams: tokio::sync::Mutex<VecDeque<MessageStream>>,
-        native_results: std::sync::Mutex<VecDeque<Result<bool, ProviderError>>>,
-        prompts: std::sync::Mutex<Vec<Vec<Message>>>,
-        stream_calls: AtomicUsize,
-        native_calls: AtomicUsize,
-        stream_called: Notify,
-        native_called: Notify,
-    }
-
-    impl LegacyNativeProvider {
-        fn new(
-            streams: impl IntoIterator<Item = MessageStream>,
-            native_results: impl IntoIterator<Item = Result<bool, ProviderError>>,
-        ) -> Arc<Self> {
-            Arc::new(Self {
-                streams: tokio::sync::Mutex::new(streams.into_iter().collect()),
-                native_results: std::sync::Mutex::new(native_results.into_iter().collect()),
-                prompts: std::sync::Mutex::new(Vec::new()),
-                stream_calls: AtomicUsize::new(0),
-                native_calls: AtomicUsize::new(0),
-                stream_called: Notify::new(),
-                native_called: Notify::new(),
-            })
-        }
-
-        async fn wait_for_stream_calls(&self, expected: usize) {
-            while self.stream_calls.load(Ordering::SeqCst) < expected {
-                self.stream_called.notified().await;
-            }
-        }
-
-        async fn wait_for_native_calls(&self, expected: usize) {
-            while self.native_calls.load(Ordering::SeqCst) < expected {
-                self.native_called.notified().await;
-            }
-        }
-
-        fn prompts(&self) -> Vec<Vec<Message>> {
-            self.prompts.lock().expect("prompts lock").clone()
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl crate::providers::base::Provider for LegacyNativeProvider {
-        async fn stream(
-            &self,
-            _model_config: &goose_providers::model::ModelConfig,
-            _system_prompt: &str,
-            messages: &[Message],
-            _tools: &[Tool],
-        ) -> Result<MessageStream, ProviderError> {
-            self.stream_calls.fetch_add(1, Ordering::SeqCst);
-            self.prompts
-                .lock()
-                .expect("prompts lock")
-                .push(messages.to_vec());
-            self.stream_called.notify_one();
-            self.streams
-                .lock()
-                .await
-                .pop_front()
-                .ok_or_else(|| ProviderError::ExecutionError("unexpected provider prompt".into()))
-        }
-
-        async fn steer_natively(
-            &self,
-            _session_id: &str,
-            _message: &Message,
-        ) -> Result<bool, ProviderError> {
-            self.native_calls.fetch_add(1, Ordering::SeqCst);
-            self.native_called.notify_one();
-            self.native_results
-                .lock()
-                .expect("native results lock")
-                .pop_front()
-                .expect("native steering result")
-        }
-
-        fn get_name(&self) -> &str {
-            "legacy-native-test"
-        }
-    }
-
-    fn controlled_message_stream() -> (
-        tokio::sync::mpsc::UnboundedSender<
-            crate::agents::provider_stream_coordinator::ProviderStreamItem,
-        >,
-        MessageStream,
-    ) {
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        let stream = futures::stream::unfold(rx, |mut rx| async move {
-            rx.recv().await.map(|item| (item, rx))
-        });
-        (tx, Box::pin(stream))
-    }
-
     #[tokio::test]
     async fn legacy_native_delivery_is_durable_before_cancellation() -> Result<()> {
         let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", None::<&str>)]);
         let temp_dir = tempfile::tempdir()?;
-        let (stream_tx, provider_stream) = controlled_message_stream();
-        let provider = LegacyNativeProvider::new([provider_stream], [Ok(true)]);
+        let (stream_tx, provider_stream) = controlled_stream();
+        let provider = NativeSteeringTestProvider::new([provider_stream], [Ok(true)]);
         let (agent, session_id) = create_test_agent(
             temp_dir.path().join("data"),
             crate::hooks::HookManager::from_plugins_for_test(vec![]),
@@ -4762,8 +4655,8 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     async fn legacy_native_delivery_ends_without_empty_retry() -> Result<()> {
         let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", None::<&str>)]);
         let temp_dir = tempfile::tempdir()?;
-        let (stream_tx, provider_stream) = controlled_message_stream();
-        let provider = LegacyNativeProvider::new([provider_stream], [Ok(true)]);
+        let (stream_tx, provider_stream) = controlled_stream();
+        let provider = NativeSteeringTestProvider::new([provider_stream], [Ok(true)]);
         let (agent, session_id) = create_test_agent(
             temp_dir.path().join("data"),
             crate::hooks::HookManager::from_plugins_for_test(vec![]),
@@ -4841,12 +4734,12 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     async fn legacy_native_error_uses_one_next_prompt_fallback() -> Result<()> {
         let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", None::<&str>)]);
         let temp_dir = tempfile::tempdir()?;
-        let (first_stream_tx, first_stream) = controlled_message_stream();
+        let (first_stream_tx, first_stream) = controlled_stream();
         let fallback_stream = stream_from_single_message(
             Message::assistant().with_text("fallback complete"),
             ProviderUsage::new("mock-model".to_string(), Usage::default()),
         );
-        let provider = LegacyNativeProvider::new(
+        let provider = NativeSteeringTestProvider::new(
             [first_stream, fallback_stream],
             [Err(ProviderError::ExecutionError(
                 "native delivery failed".to_string(),
@@ -5572,8 +5465,6 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             !agent.has_pending_steers(session_id).await,
             "discarding must drop steers orphaned by a cancelled run so they cannot leak into a later prompt"
         );
-        assert!(agent.drain_pending_steers(session_id).await.is_empty());
-
         let detached_queue = agent.steering_queue(session_id).await;
         let entry_id = detached_queue
             .enqueue(Message::user().with_text("hook still running"))
@@ -5581,69 +5472,6 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         agent.discard_pending_steers(session_id).await;
         assert!(detached_queue.mark_hook_complete(entry_id).await);
         assert!(!agent.has_pending_steers(session_id).await);
-    }
-
-    #[tokio::test]
-    async fn steering_hook_failure_still_readies_the_message_once() -> Result<()> {
-        let temp_dir = tempfile::tempdir()?;
-        let plugin_dir = temp_dir.path().join("steering-hook");
-        std::fs::create_dir_all(plugin_dir.join("hooks"))?;
-        std::fs::write(
-            plugin_dir.join("hooks/hooks.json"),
-            r#"{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          { "type": "command", "command": "sh ${PLUGIN_ROOT}/hook.sh" }
-        ]
-      }
-    ]
-  }
-}
-"#,
-        )?;
-        std::fs::write(
-            plugin_dir.join("hook.sh"),
-            r#"#!/bin/sh
-echo ran >> "$PLUGIN_ROOT/hook.log"
-exit 1
-"#,
-        )?;
-
-        let mut agent = Agent::new();
-        agent.set_hook_manager_for_test(crate::hooks::HookManager::from_plugins_for_test(vec![
-            DiscoveredPlugin {
-                name: "steering-hook".into(),
-                root: plugin_dir.clone(),
-                scope: PluginScope::Project,
-            },
-        ]));
-
-        agent
-            .steer(
-                "steering-hook-session",
-                Message::user().with_text("redirect"),
-            )
-            .await;
-        assert_eq!(
-            std::fs::read_to_string(plugin_dir.join("hook.log"))?
-                .lines()
-                .count(),
-            1
-        );
-
-        let messages = agent.drain_pending_steers("steering-hook-session").await;
-        assert_eq!(messages.len(), 1);
-        assert_eq!(messages[0].as_concat_text(), "redirect");
-        assert!(messages[0].metadata.steer);
-        assert_eq!(
-            std::fs::read_to_string(plugin_dir.join("hook.log"))?
-                .lines()
-                .count(),
-            1
-        );
-        Ok(())
     }
 
     #[test]

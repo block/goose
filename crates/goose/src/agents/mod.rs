@@ -21,6 +21,8 @@ mod steering;
 pub mod subagent_execution_tool;
 pub(crate) mod subagent_handler;
 pub(crate) mod subagent_task_config;
+#[cfg(test)]
+mod test_support;
 mod tool_confirmation_router;
 mod tool_execution;
 mod tool_schema_normalize;
