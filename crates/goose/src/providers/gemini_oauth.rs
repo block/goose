@@ -307,8 +307,8 @@ async fn refresh_access_token(refresh_token: &str) -> Result<TokenResponse> {
 struct LoadCodeAssistResponse {
     cloudaicompanion_project: Option<String>,
     current_tier: Option<TierInfo>,
-    onboard_tiers: Option<Vec<TierInfo>>,
     allowed_tiers: Option<Vec<TierInfo>>,
+    ineligible_tiers: Option<Vec<IneligibleTier>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -317,6 +317,14 @@ struct TierInfo {
     id: Option<String>,
     #[serde(default)]
     is_default: Option<bool>,
+    #[serde(default)]
+    user_defined_cloudaicompanion_project: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct IneligibleTier {
+    reason_message: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -338,11 +346,13 @@ struct CloudaiProject {
     id: Option<String>,
 }
 
-async fn code_assist_request(access_token: &str, method: &str, body: &Value) -> Result<Value> {
-    let url = format!(
-        "{}/{}:{}",
-        CODE_ASSIST_ENDPOINT, CODE_ASSIST_API_VERSION, method
-    );
+async fn code_assist_request(
+    endpoint: &str,
+    access_token: &str,
+    method: &str,
+    body: &Value,
+) -> Result<Value> {
+    let url = format!("{}/{}:{}", endpoint, CODE_ASSIST_API_VERSION, method);
     let client = &*HTTP_CLIENT;
     let resp = client
         .post(&url)
@@ -367,11 +377,8 @@ async fn code_assist_request(access_token: &str, method: &str, body: &Value) -> 
     Ok(resp.json().await?)
 }
 
-async fn code_assist_get(access_token: &str, path: &str) -> Result<Value> {
-    let url = format!(
-        "{}/{}/{}",
-        CODE_ASSIST_ENDPOINT, CODE_ASSIST_API_VERSION, path
-    );
+async fn code_assist_get(endpoint: &str, access_token: &str, path: &str) -> Result<Value> {
+    let url = format!("{}/{}/{}", endpoint, CODE_ASSIST_API_VERSION, path);
     let client = &*HTTP_CLIENT;
     let resp = client
         .get(&url)
@@ -394,18 +401,65 @@ async fn code_assist_get(access_token: &str, path: &str) -> Result<Value> {
     Ok(resp.json().await?)
 }
 
-/// Calls loadCodeAssist and optionally onboardUser to get a project ID.
-async fn setup_code_assist(access_token: &str) -> Result<String> {
-    let load_body = json!({
-        "metadata": {
-            "ideType": "IDE_UNSPECIFIED",
-            "platform": "PLATFORM_UNSPECIFIED",
-            "pluginType": "GEMINI"
-        }
+/// Project ID configured via environment, matching gemini-cli's behavior.
+///
+/// Only Workspace / Code Assist-licensed tiers require this; personal accounts
+/// onboard with no project and Google returns a managed one. All-numeric values
+/// are rejected because those are project *numbers*, not project IDs.
+fn configured_project() -> Option<String> {
+    ["GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_PROJECT_ID"]
+        .iter()
+        .find_map(|key| std::env::var(key).ok())
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty() && !v.chars().all(|c| c.is_ascii_digit()))
+}
+
+fn client_metadata(project: Option<&str>) -> Value {
+    let mut metadata = json!({
+        "ideType": "IDE_UNSPECIFIED",
+        "platform": "PLATFORM_UNSPECIFIED",
+        "pluginType": "GEMINI"
     });
+    if let Some(project) = project {
+        metadata["duetProject"] = json!(project);
+    }
+    metadata
+}
+
+fn onboard_project_id(resp: &OnboardUserResponse) -> Option<String> {
+    resp.response
+        .as_ref()
+        .and_then(|r| r.cloudaicompanion_project.as_ref())
+        .and_then(|p| p.id.clone())
+}
+
+#[cfg(not(test))]
+const ONBOARD_DEADLINE: Duration = Duration::from_secs(60);
+#[cfg(not(test))]
+const ONBOARD_LRO_POLL_INTERVAL: Duration = Duration::from_secs(2);
+#[cfg(not(test))]
+const ONBOARD_RETRY_INTERVAL: Duration = Duration::from_secs(5);
+
+#[cfg(test)]
+const ONBOARD_DEADLINE: Duration = Duration::from_millis(200);
+#[cfg(test)]
+const ONBOARD_LRO_POLL_INTERVAL: Duration = Duration::from_millis(10);
+#[cfg(test)]
+const ONBOARD_RETRY_INTERVAL: Duration = Duration::from_millis(10);
+
+/// Calls loadCodeAssist and optionally onboardUser to get a project ID.
+async fn setup_code_assist(endpoint: &str, access_token: &str) -> Result<String> {
+    let env_project = configured_project();
+
+    let mut load_body = json!({
+        "metadata": client_metadata(env_project.as_deref()),
+    });
+    if let Some(ref project) = env_project {
+        load_body["cloudaicompanionProject"] = json!(project);
+    }
 
     let load_resp: LoadCodeAssistResponse = serde_json::from_value(
-        code_assist_request(access_token, "loadCodeAssist", &load_body).await?,
+        code_assist_request(endpoint, access_token, "loadCodeAssist", &load_body).await?,
     )?;
 
     // If the user already has a project, use it
@@ -419,81 +473,107 @@ async fn setup_code_assist(access_token: &str) -> Result<String> {
         }
     }
 
-    // User is already onboarded with a tier but no project returned at top-level
+    // Already onboarded with a tier but no top-level project: the configured
+    // project applies for licensed tiers; otherwise there is nothing to use.
     if let Some(ref tier) = load_resp.current_tier {
         if tier.id.is_some() {
-            return Err(anyhow!(
-                "Your Google account is set up for Gemini but no project was returned. \
-                 Please verify your Gemini and Google Cloud project configuration and try again."
-            ));
+            return env_project.ok_or_else(|| {
+                anyhow!(
+                    "Your Google account is set up for Gemini but no project was returned. \
+                     If your account requires a Google Cloud project (Workspace / Code Assist \
+                     license), set GOOGLE_CLOUD_PROJECT to its project ID and try again."
+                )
+            });
         }
     }
 
-    // Need to onboard - determine tier
-    let tier_id = load_resp
-        .onboard_tiers
+    // Need to onboard: pick the default allowed tier, like current gemini-cli
+    let tier = load_resp
+        .allowed_tiers
         .as_ref()
-        .and_then(|tiers| tiers.first())
+        .and_then(|tiers| tiers.iter().find(|t| t.is_default.unwrap_or(false)));
+    let tier_id = tier
         .and_then(|t| t.id.clone())
-        .or_else(|| {
-            load_resp
-                .allowed_tiers
-                .as_ref()
-                .and_then(|tiers| tiers.iter().find(|t| t.is_default.unwrap_or(false)))
-                .or_else(|| load_resp.allowed_tiers.as_ref().and_then(|t| t.first()))
-                .and_then(|t| t.id.clone())
-        })
-        .unwrap_or_else(|| "free-tier".to_string());
+        .unwrap_or_else(|| "legacy-tier".to_string());
+
+    let tier_needs_project = tier
+        .and_then(|t| t.user_defined_cloudaicompanion_project)
+        .unwrap_or(false);
+    if tier_needs_project && env_project.is_none() {
+        let reasons = load_resp
+            .ineligible_tiers
+            .as_ref()
+            .map(|tiers| {
+                tiers
+                    .iter()
+                    .filter_map(|t| t.reason_message.clone())
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            })
+            .filter(|r| !r.is_empty())
+            .map(|r| format!(" ({})", r))
+            .unwrap_or_default();
+        return Err(anyhow!(
+            "This Google account requires a Google Cloud project for Gemini Code Assist{}. \
+             Set GOOGLE_CLOUD_PROJECT to its project ID and try again.",
+            reasons
+        ));
+    }
 
     tracing::info!("Onboarding user with tier: {}", tier_id);
 
-    let onboard_body = json!({
+    // Free tier onboarding must NOT carry a project (Google rejects it with
+    // Precondition Failed); licensed tiers require the configured one.
+    let onboard_project = if tier_id == "free-tier" {
+        None
+    } else {
+        env_project.clone()
+    };
+    let mut onboard_body = json!({
         "tierId": tier_id,
-        "metadata": {
-            "ideType": "IDE_UNSPECIFIED",
-            "platform": "PLATFORM_UNSPECIFIED",
-            "pluginType": "GEMINI"
-        }
+        "metadata": client_metadata(onboard_project.as_deref()),
     });
+    if let Some(ref project) = onboard_project {
+        onboard_body["cloudaicompanionProject"] = json!(project);
+    }
 
-    let onboard_resp: OnboardUserResponse = serde_json::from_value(
-        code_assist_request(access_token, "onboardUser", &onboard_body).await?,
+    let deadline = tokio::time::Instant::now() + ONBOARD_DEADLINE;
+    let mut onboard_resp: OnboardUserResponse = serde_json::from_value(
+        code_assist_request(endpoint, access_token, "onboardUser", &onboard_body).await?,
     )?;
 
-    // If the operation completed immediately
-    if onboard_resp.done.unwrap_or(false) {
-        if let Some(project_id) = onboard_resp
-            .response
-            .and_then(|r| r.cloudaicompanion_project)
-            .and_then(|p| p.id)
-        {
-            return Ok(project_id);
+    loop {
+        if onboard_resp.done.unwrap_or(false) {
+            return onboard_project_id(&onboard_resp)
+                .or(onboard_project)
+                .ok_or_else(|| anyhow!("Onboarding completed but no project ID returned"));
         }
-    }
 
-    // Poll the long-running operation
-    if let Some(op_name) = onboard_resp.name {
-        for _ in 0..30 {
-            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-            let op: OnboardUserResponse =
-                serde_json::from_value(code_assist_get(access_token, &op_name).await?)?;
-            if op.done.unwrap_or(false) {
-                if let Some(project_id) = op
-                    .response
-                    .and_then(|r| r.cloudaicompanion_project)
-                    .and_then(|p| p.id)
-                {
-                    return Ok(project_id);
-                }
-                return Err(anyhow!("Onboarding completed but no project ID returned"));
+        if tokio::time::Instant::now() >= deadline {
+            return Err(anyhow!(
+                "Onboarding timed out after {} seconds",
+                ONBOARD_DEADLINE.as_secs()
+            ));
+        }
+
+        onboard_resp = match &onboard_resp.name {
+            // A named long-running operation: poll it
+            Some(op_name) => {
+                tokio::time::sleep(ONBOARD_LRO_POLL_INTERVAL).await;
+                serde_json::from_value(code_assist_get(endpoint, access_token, op_name).await?)?
             }
-        }
-        return Err(anyhow!("Onboarding timed out after 60 seconds"));
+            // Pending but unnamed: Google sometimes returns these during free-tier
+            // onboarding. gemini-cli's long-standing behavior is to re-POST the
+            // identical onboardUser until it reports done.
+            None => {
+                tokio::time::sleep(ONBOARD_RETRY_INTERVAL).await;
+                serde_json::from_value(
+                    code_assist_request(endpoint, access_token, "onboardUser", &onboard_body)
+                        .await?,
+                )?
+            }
+        };
     }
-
-    Err(anyhow!(
-        "Onboarding failed: no operation name or project ID returned"
-    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -716,7 +796,7 @@ async fn perform_oauth_flow(auth_state: &GeminiOAuthAuthState) -> Result<SetupDa
     };
 
     // Run Code Assist setup to get a project ID
-    let project_id = setup_code_assist(&tokens.access_token).await?;
+    let project_id = setup_code_assist(CODE_ASSIST_ENDPOINT, &tokens.access_token).await?;
     tracing::info!("Code Assist setup complete, project: {}", project_id);
 
     Ok(SetupData {
@@ -1130,6 +1210,282 @@ mod tests {
         cache.clear();
         assert!(cache.load().is_none());
         assert!(!cache.has_token());
+    }
+
+    #[test]
+    fn test_configured_project_rejects_numeric_and_empty() {
+        {
+            let _guard = env_lock::lock_env([
+                ("GOOGLE_CLOUD_PROJECT", Some("123456789")),
+                ("GOOGLE_CLOUD_PROJECT_ID", None),
+            ]);
+            assert_eq!(configured_project(), None, "project numbers are not IDs");
+        }
+        {
+            let _guard = env_lock::lock_env([
+                ("GOOGLE_CLOUD_PROJECT", Some("  ")),
+                ("GOOGLE_CLOUD_PROJECT_ID", None),
+            ]);
+            assert_eq!(configured_project(), None, "blank values are ignored");
+        }
+        {
+            let _guard = env_lock::lock_env([
+                ("GOOGLE_CLOUD_PROJECT", None),
+                ("GOOGLE_CLOUD_PROJECT_ID", Some("my-project-1")),
+            ]);
+            assert_eq!(configured_project(), Some("my-project-1".to_string()));
+        }
+    }
+
+    mod setup_code_assist_tests {
+        use super::super::*;
+        use wiremock::matchers::{body_partial_json, method, path};
+        use wiremock::{Mock, MockServer, Request, ResponseTemplate};
+
+        fn no_project_env() -> env_lock::EnvGuard<'static> {
+            env_lock::lock_env([
+                ("GOOGLE_CLOUD_PROJECT", None::<&str>),
+                ("GOOGLE_CLOUD_PROJECT_ID", None),
+            ])
+        }
+
+        fn mock_load(server_body: Value) -> Mock {
+            Mock::given(method("POST"))
+                .and(path("/v1internal:loadCodeAssist"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(server_body))
+        }
+
+        #[tokio::test]
+        async fn free_tier_onboard_completes_immediately() {
+            let _guard = no_project_env();
+            let server = MockServer::start().await;
+            mock_load(json!({
+                "allowedTiers": [
+                    {"id": "standard-tier", "isDefault": false},
+                    {"id": "free-tier", "isDefault": true}
+                ]
+            }))
+            .mount(&server)
+            .await;
+            Mock::given(method("POST"))
+                .and(path("/v1internal:onboardUser"))
+                .and(body_partial_json(json!({"tierId": "free-tier"})))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "done": true,
+                    "response": {"cloudaicompanionProject": {"id": "managed-project"}}
+                })))
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            let project = setup_code_assist(&server.uri(), "tok").await.unwrap();
+            assert_eq!(project, "managed-project");
+
+            let onboard_requests: Vec<Request> = server
+                .received_requests()
+                .await
+                .unwrap()
+                .into_iter()
+                .filter(|r| r.url.path().ends_with(":onboardUser"))
+                .collect();
+            let body: Value = serde_json::from_slice(&onboard_requests[0].body).unwrap();
+            assert!(
+                body.get("cloudaicompanionProject").is_none(),
+                "free-tier onboarding must not carry a project: {body}"
+            );
+        }
+
+        #[tokio::test]
+        async fn unnamed_pending_onboard_is_retried_until_done() {
+            // The reported bug (#11045): a valid-but-incomplete onboardUser response
+            // with no `done` and no operation `name` was treated as terminal:
+            // "Onboarding failed: no operation name or project ID returned".
+            let _guard = no_project_env();
+            let server = MockServer::start().await;
+            mock_load(json!({
+                "allowedTiers": [{"id": "free-tier", "isDefault": true}]
+            }))
+            .mount(&server)
+            .await;
+            Mock::given(method("POST"))
+                .and(path("/v1internal:onboardUser"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+                .up_to_n_times(2)
+                .expect(2)
+                .mount(&server)
+                .await;
+            Mock::given(method("POST"))
+                .and(path("/v1internal:onboardUser"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "done": true,
+                    "response": {"cloudaicompanionProject": {"id": "managed-project"}}
+                })))
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            let project = setup_code_assist(&server.uri(), "tok").await.unwrap();
+            assert_eq!(project, "managed-project");
+        }
+
+        #[tokio::test]
+        async fn named_operation_is_polled_to_completion() {
+            let _guard = no_project_env();
+            let server = MockServer::start().await;
+            mock_load(json!({
+                "allowedTiers": [{"id": "free-tier", "isDefault": true}]
+            }))
+            .mount(&server)
+            .await;
+            Mock::given(method("POST"))
+                .and(path("/v1internal:onboardUser"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "done": false,
+                    "name": "operations/op-1"
+                })))
+                .expect(1)
+                .mount(&server)
+                .await;
+            Mock::given(method("GET"))
+                .and(path("/v1internal/operations/op-1"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "done": true,
+                    "response": {"cloudaicompanionProject": {"id": "polled-project"}}
+                })))
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            let project = setup_code_assist(&server.uri(), "tok").await.unwrap();
+            assert_eq!(project, "polled-project");
+        }
+
+        #[tokio::test]
+        async fn unnamed_pending_onboard_times_out() {
+            let _guard = no_project_env();
+            let server = MockServer::start().await;
+            mock_load(json!({
+                "allowedTiers": [{"id": "free-tier", "isDefault": true}]
+            }))
+            .mount(&server)
+            .await;
+            Mock::given(method("POST"))
+                .and(path("/v1internal:onboardUser"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+                .mount(&server)
+                .await;
+
+            let err = setup_code_assist(&server.uri(), "tok").await.unwrap_err();
+            assert!(err.to_string().contains("timed out"), "got: {err}");
+        }
+
+        #[tokio::test]
+        async fn licensed_tier_without_project_gives_actionable_error() {
+            let _guard = no_project_env();
+            let server = MockServer::start().await;
+            mock_load(json!({
+                "allowedTiers": [{
+                    "id": "standard-tier",
+                    "isDefault": true,
+                    "userDefinedCloudaicompanionProject": true
+                }],
+                "ineligibleTiers": [{"reasonMessage": "account has a Code Assist license"}]
+            }))
+            .mount(&server)
+            .await;
+
+            let err = setup_code_assist(&server.uri(), "tok").await.unwrap_err();
+            let msg = err.to_string();
+            assert!(msg.contains("GOOGLE_CLOUD_PROJECT"), "got: {msg}");
+            assert!(
+                msg.contains("account has a Code Assist license"),
+                "got: {msg}"
+            );
+        }
+
+        #[tokio::test]
+        async fn licensed_tier_with_project_sends_it_and_uses_it() {
+            let _guard = env_lock::lock_env([
+                ("GOOGLE_CLOUD_PROJECT", Some("workspace-project")),
+                ("GOOGLE_CLOUD_PROJECT_ID", None),
+            ]);
+            let server = MockServer::start().await;
+            mock_load(json!({
+                "allowedTiers": [{
+                    "id": "standard-tier",
+                    "isDefault": true,
+                    "userDefinedCloudaicompanionProject": true
+                }]
+            }))
+            .mount(&server)
+            .await;
+            Mock::given(method("POST"))
+                .and(path("/v1internal:onboardUser"))
+                .and(body_partial_json(json!({
+                    "tierId": "standard-tier",
+                    "cloudaicompanionProject": "workspace-project",
+                    "metadata": {"duetProject": "workspace-project"}
+                })))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "done": true
+                })))
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            // done without a project in the response: the configured project applies
+            let project = setup_code_assist(&server.uri(), "tok").await.unwrap();
+            assert_eq!(project, "workspace-project");
+
+            let load_requests: Vec<Request> = server
+                .received_requests()
+                .await
+                .unwrap()
+                .into_iter()
+                .filter(|r| r.url.path().ends_with(":loadCodeAssist"))
+                .collect();
+            let body: Value = serde_json::from_slice(&load_requests[0].body).unwrap();
+            assert_eq!(body["cloudaicompanionProject"], "workspace-project");
+        }
+
+        #[tokio::test]
+        async fn no_default_tier_falls_back_to_legacy_tier() {
+            let _guard = no_project_env();
+            let server = MockServer::start().await;
+            mock_load(json!({
+                "allowedTiers": [{"id": "some-tier", "isDefault": false}]
+            }))
+            .mount(&server)
+            .await;
+            Mock::given(method("POST"))
+                .and(path("/v1internal:onboardUser"))
+                .and(body_partial_json(json!({"tierId": "legacy-tier"})))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "done": true,
+                    "response": {"cloudaicompanionProject": {"id": "legacy-project"}}
+                })))
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            let project = setup_code_assist(&server.uri(), "tok").await.unwrap();
+            assert_eq!(project, "legacy-project");
+        }
+
+        #[tokio::test]
+        async fn existing_project_short_circuits() {
+            let _guard = no_project_env();
+            let server = MockServer::start().await;
+            mock_load(json!({
+                "cloudaicompanionProject": "existing-project",
+                "currentTier": {"id": "free-tier"}
+            }))
+            .mount(&server)
+            .await;
+
+            let project = setup_code_assist(&server.uri(), "tok").await.unwrap();
+            assert_eq!(project, "existing-project");
+        }
     }
 
     #[cfg(unix)]
