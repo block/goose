@@ -3,13 +3,13 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::mcp_utils::ToolResult;
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use aws_sdk_bedrockruntime::types as bedrock;
 use aws_smithy_types::{Document, Number};
 use base64::Engine;
 use chrono::Utc;
 use rmcp::model::{
-    object, CallToolRequestParams, ContentBlock, ErrorCode, ErrorData, ResourceContents, Role, Tool,
+    CallToolRequestParams, ContentBlock, ErrorCode, ErrorData, ResourceContents, Role, Tool, object,
 };
 use serde_json::Value;
 
@@ -17,9 +17,9 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::providers::bedrock::BEDROCK_PROVIDER_NAME;
 use crate::providers::canonical::maybe_get_canonical_model;
 use crate::providers::formats::anthropic::{
-    adaptive_output_effort, model_supports_temperature, thinking_block_is_stale,
-    thinking_budget_tokens, thinking_type_for_provider, ThinkingType, ANTHROPIC_PROVIDER_NAME,
-    MIN_ANSWER_TOKENS,
+    ANTHROPIC_PROVIDER_NAME, MIN_ANSWER_TOKENS, ThinkingType, adaptive_output_effort,
+    model_supports_temperature, thinking_block_is_stale, thinking_budget_tokens,
+    thinking_type_for_provider,
 };
 use crate::utils::sanitize_unicode_tags;
 use goose_providers::conversation::token_usage::Usage;
@@ -384,6 +384,7 @@ pub fn to_bedrock_tool(tool: &Tool) -> Result<bedrock::Tool> {
     if !input_schema.contains_key("type") {
         input_schema.insert("type".to_string(), Value::String("object".to_string()));
     }
+    let input_schema = sanitize_json_unicode_tags(Value::Object(input_schema))?;
 
     Ok(bedrock::Tool::ToolSpec(
         bedrock::ToolSpecification::builder()
@@ -391,14 +392,38 @@ pub fn to_bedrock_tool(tool: &Tool) -> Result<bedrock::Tool> {
             .description(
                 tool.description
                     .as_ref()
-                    .map(|d| d.to_string())
+                    .map(|d| sanitize_unicode_tags(d))
                     .unwrap_or_default(),
             )
             .input_schema(bedrock::ToolInputSchema::Json(to_bedrock_json(
-                &Value::Object(input_schema),
+                &input_schema,
             )))
             .build()?,
     ))
+}
+
+pub(crate) fn sanitize_json_unicode_tags(value: Value) -> Result<Value> {
+    Ok(match value {
+        Value::String(text) => Value::String(sanitize_unicode_tags(&text)),
+        Value::Array(values) => Value::Array(
+            values
+                .into_iter()
+                .map(sanitize_json_unicode_tags)
+                .collect::<Result<_>>()?,
+        ),
+        Value::Object(values) => {
+            let mut sanitized = serde_json::Map::new();
+            for (key, value) in values {
+                let key = sanitize_unicode_tags(&key);
+                if sanitized.contains_key(&key) {
+                    bail!("JSON contains a duplicate key after Unicode tag sanitization");
+                }
+                sanitized.insert(key, sanitize_json_unicode_tags(value)?);
+            }
+            Value::Object(sanitized)
+        }
+        value => value,
+    })
 }
 
 fn args_to_value(args: Option<serde_json::Map<String, Value>>) -> Value {
@@ -490,11 +515,15 @@ pub fn from_bedrock_message(message: &bedrock::Message) -> Result<Message> {
 pub fn from_bedrock_content_block(block: &bedrock::ContentBlock) -> Result<MessageContent> {
     Ok(match block {
         bedrock::ContentBlock::Text(text) => MessageContent::text(text),
-        bedrock::ContentBlock::ToolUse(tool_use) => MessageContent::tool_request(
-            tool_use.tool_use_id.to_string(),
-            Ok(CallToolRequestParams::new(tool_use.name.clone())
-                .with_arguments(object(from_bedrock_json(&tool_use.input.clone())?))),
-        ),
+        bedrock::ContentBlock::ToolUse(tool_use) => {
+            let arguments =
+                sanitize_json_unicode_tags(from_bedrock_json(&tool_use.input.clone())?)?;
+            MessageContent::tool_request(
+                tool_use.tool_use_id.to_string(),
+                Ok(CallToolRequestParams::new(tool_use.name.clone())
+                    .with_arguments(object(arguments))),
+            )
+        }
         bedrock::ContentBlock::ToolResult(tool_res) => MessageContent::tool_response(
             tool_res.tool_use_id.to_string(),
             if tool_res.content.is_empty() {
@@ -818,6 +847,70 @@ mod tests {
     }
 
     #[test]
+    fn test_to_bedrock_tool_sanitizes_description_and_schema_metadata() -> Result<()> {
+        let tool = Tool::new(
+            "lookup",
+            "検索\u{E0041} ツール",
+            serde_json::Map::from_iter([
+                ("type".to_string(), json!("object")),
+                (
+                    "properties".to_string(),
+                    json!({
+                        "pro\u{E0042}mpt": {
+                            "type": "string",
+                            "description": "都市🌍\u{E0043}"
+                        }
+                    }),
+                ),
+            ]),
+        );
+
+        let bedrock_tool = to_bedrock_tool(&tool)?;
+        let spec = bedrock_tool
+            .as_tool_spec()
+            .expect("expected Bedrock tool specification");
+        assert_eq!(spec.description(), Some("検索 ツール"));
+
+        let schema = spec
+            .input_schema()
+            .expect("expected input schema")
+            .as_json()
+            .expect("expected JSON input schema");
+        assert_eq!(
+            from_bedrock_json(schema)?,
+            json!({
+                "type": "object",
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "description": "都市🌍"
+                    }
+                }
+            })
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_bedrock_tool_rejects_schema_key_collision_after_sanitization() {
+        let mut properties = serde_json::Map::new();
+        properties.insert("prompt".to_string(), json!({"type": "string"}));
+        properties.insert("pro\u{E0041}mpt".to_string(), json!({"type": "string"}));
+        let tool = Tool::new(
+            "lookup",
+            "Lookup",
+            serde_json::Map::from_iter([
+                ("type".to_string(), json!("object")),
+                ("properties".to_string(), Value::Object(properties)),
+            ]),
+        );
+
+        let error = to_bedrock_tool(&tool).expect_err("sanitized keys must remain unique");
+        assert!(error.to_string().contains("duplicate key"));
+    }
+
+    #[test]
     fn test_to_bedrock_message_content_image() -> Result<()> {
         let image = ImageContent::new(TEST_IMAGE_B64.to_string(), "image/png".to_string());
 
@@ -826,6 +919,34 @@ mod tests {
 
         // Verify we get an Image content block
         assert!(matches!(result, bedrock::ContentBlock::Image(_)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_from_bedrock_tool_use_sanitizes_nested_arguments() -> Result<()> {
+        let original = bedrock::ContentBlock::ToolUse(
+            bedrock::ToolUseBlock::builder()
+                .tool_use_id("tool-1")
+                .name("lookup")
+                .input(to_bedrock_json(&json!({
+                    "query": "visible\u{E0041}text",
+                    "nested": [{"cit\u{E0042}y": "東京🌍\u{E0043}"}]
+                })))
+                .build()?,
+        );
+
+        let MessageContent::ToolRequest(request) = from_bedrock_content_block(&original)? else {
+            panic!("expected tool request");
+        };
+        let call = request.tool_call.expect("expected valid tool call");
+        assert_eq!(
+            call.arguments,
+            Some(object(json!({
+                "query": "visibletext",
+                "nested": [{"city": "東京🌍"}]
+            })))
+        );
 
         Ok(())
     }
@@ -992,10 +1113,12 @@ mod tests {
         // Verify that converting a cache point results in an error
         let result = from_bedrock_content_block(&content_block);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("CachePoint blocks should have been filtered out"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("CachePoint blocks should have been filtered out")
+        );
     }
 
     #[test]

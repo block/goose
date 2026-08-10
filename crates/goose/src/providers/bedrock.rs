@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
-    DEFAULT_CONNECT_TIMEOUT_SECS, DEFAULT_PROVIDER_TIMEOUT_SECS,
+    ConfigKey, DEFAULT_CONNECT_TIMEOUT_SECS, DEFAULT_PROVIDER_TIMEOUT_SECS, MessageStream,
+    Provider, ProviderDef, ProviderMetadata,
 };
 use super::openai_compatible::{handle_status, stream_responses_compat};
 use super::retry::{ProviderRetry, RetryConfig};
@@ -15,7 +15,7 @@ use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
 use aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamError;
 use aws_sdk_bedrockruntime::types::error::ConverseStreamOutputError;
-use aws_sdk_bedrockruntime::{types as bedrock, Client};
+use aws_sdk_bedrockruntime::{Client, types as bedrock};
 use base64::Engine;
 use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
@@ -23,15 +23,16 @@ use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::extract_reasoning_effort;
 use goose_providers::formats::openai_responses::create_responses_request;
 use goose_providers::model::ModelConfig;
-use goose_providers::request_log::{start_log, LoggerHandleExt};
-use reqwest::header::{HeaderName, HeaderValue, AUTHORIZATION};
-use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, Tool};
+use goose_providers::request_log::{LoggerHandleExt, start_log};
+use reqwest::header::{AUTHORIZATION, HeaderName, HeaderValue};
+use rmcp::model::{CallToolRequestParams, ErrorCode, ErrorData, Tool, object};
 use serde_json::Value;
 use smithy_transport_reqwest::ReqwestHttpClient;
 
 use super::formats::bedrock::{
     bedrock_anthropic_thinking_fields, bedrock_inference_config, from_bedrock_message,
-    from_bedrock_usage, to_bedrock_message_with_caching, to_bedrock_tool_config,
+    from_bedrock_usage, sanitize_json_unicode_tags, to_bedrock_message_with_caching,
+    to_bedrock_tool_config,
 };
 
 pub(crate) const BEDROCK_PROVIDER_NAME: &str = "aws_bedrock";
@@ -112,11 +113,7 @@ impl BedrockProvider {
         let bearer_token = match config.get_secret::<String>("AWS_BEARER_TOKEN_BEDROCK") {
             Ok(token) => {
                 let token = token.trim().to_string();
-                if token.is_empty() {
-                    None
-                } else {
-                    Some(token)
-                }
+                if token.is_empty() { None } else { Some(token) }
             }
             Err(_) => None,
         };
@@ -683,9 +680,13 @@ fn process_stream_event(
                         .with_arguments(object(serde_json::json!({}))))
                 } else {
                     match serde_json::from_str::<Value>(&input_json) {
-                        Ok(parsed) => {
-                            Ok(CallToolRequestParams::new(name).with_arguments(object(parsed)))
-                        }
+                        Ok(parsed) => sanitize_json_unicode_tags(parsed)
+                            .map(|arguments| {
+                                CallToolRequestParams::new(name).with_arguments(object(arguments))
+                            })
+                            .map_err(|error| {
+                                ErrorData::new(ErrorCode::INVALID_PARAMS, error.to_string(), None)
+                            }),
                         Err(_) => Err(ErrorData::new(
                             ErrorCode::INVALID_PARAMS,
                             format!("Could not parse tool arguments: {}", input_json),
@@ -1310,6 +1311,41 @@ mod tests {
             }
             other => panic!("expected ToolRequest, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn test_stream_tool_use_sanitizes_nested_arguments() {
+        let mut state = StreamBlockState::default();
+
+        process_stream_event(
+            tool_start_event(1, "tool-1", "lookup"),
+            &mut state,
+            TEST_MESSAGE_ID,
+        );
+        process_stream_event(
+            tool_delta_event(
+                1,
+                "{\"query\":\"visible\u{E0041}text\",\"nested\":[{\"cit\u{E0042}y\":\"東京🌍\u{E0043}\"}]}",
+            ),
+            &mut state,
+            TEST_MESSAGE_ID,
+        );
+
+        let (messages, _) = process_stream_event(stop_event(1), &mut state, TEST_MESSAGE_ID);
+        let MessageContent::ToolRequest(request) = &messages[0].content[0] else {
+            panic!("expected tool request");
+        };
+        let call = request
+            .tool_call
+            .as_ref()
+            .expect("expected valid tool call");
+        assert_eq!(
+            call.arguments,
+            Some(object(serde_json::json!({
+                "query": "visibletext",
+                "nested": [{"city": "東京🌍"}]
+            })))
+        );
     }
 
     #[test]
