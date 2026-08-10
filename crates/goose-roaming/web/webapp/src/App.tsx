@@ -273,6 +273,9 @@ export function App({ roam }: { roam: RoamClient }) {
   const [activeHostId, setActiveHostId] = useState<string | null>(null);
   const [logWindow, setLogWindow] = useState(80);
   const [busy, setBusy] = useState(false);
+  // True while re-dialing a known host (boot restore or dropped connection).
+  // Shows a quiet "connecting…" screen instead of flashing the hosts page.
+  const [reconnecting, setReconnecting] = useState(false);
   // When the current turn started (ours or a steered one) — drives the live
   // elapsed readout in the working indicator, paseo-style.
   const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
@@ -410,6 +413,9 @@ export function App({ roam }: { roam: RoamClient }) {
     const saved = localStorage.getItem(HOST_CARD_KEY);
     if (!saved) return;
     setCard(saved);
+    // Known host: this is a resume, not a first visit — show "connecting"
+    // instead of flashing the hosts page while the dial lands.
+    setReconnecting(true);
     const last = localStorage.getItem(SESSION_KEY);
     if (last) {
       const [hostId, sessionId] = last.split("|");
@@ -779,10 +785,12 @@ export function App({ roam }: { roam: RoamClient }) {
         reconnectAttempts.current.set(eid, attempt + 1);
         if (attempt < 8) {
           const delay = Math.min(20000, 1500 * 2 ** attempt);
+          if (hostsRef.current.size === 0) setReconnecting(true);
           setStatus(`${name}: connection lost — reconnecting…`);
           setStatusKind("err");
           setTimeout(() => void connect(text), delay);
         } else {
+          setReconnecting(false);
           setStatus(`${name}: connection lost — press connect`);
           setStatusKind("err");
         }
@@ -800,6 +808,7 @@ export function App({ roam }: { roam: RoamClient }) {
       }
       setAgentId(eid);
       setConnected(true);
+      setReconnecting(false);
       setStatus("connected");
       setStatusKind("ok");
       await refreshSessions();
@@ -825,6 +834,9 @@ export function App({ roam }: { roam: RoamClient }) {
         setStatusKind("err");
         setTimeout(() => void connect(text), delay);
       } else {
+        // Out of retries (or a first-time connect failed): fall back to the
+        // hosts page so the user can act.
+        setReconnecting(false);
         setStatus(`connect failed: ${err}`);
         setStatusKind("err");
       }
@@ -1008,7 +1020,22 @@ export function App({ roam }: { roam: RoamClient }) {
         </div>
       </div>
 
-      {!connected || showHosts ? (
+      {!connected && reconnecting ? (
+        // Re-dialing a known host (boot restore / dropped connection): a
+        // quiet holding screen instead of flashing the hosts page.
+        <section id="reconnect-panel" className="flex-1 grid place-items-center p-6">
+          <div className="flex flex-col items-center gap-3 text-text-secondary">
+            <span className="inline-block w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+            <div className="text-sm">connecting…</div>
+            <button
+              className="text-xs underline underline-offset-2 hover:text-text-primary"
+              onClick={() => setReconnecting(false)}
+            >
+              choose a different host
+            </button>
+          </div>
+        </section>
+      ) : !connected || showHosts ? (
         <section id="connect-panel" className="flex-1 grid place-items-center p-3 md:p-6 overflow-auto">
           <div className="w-full max-w-[480px] min-w-0 overflow-hidden bg-background-primary border rounded-xl shadow-sm p-5 md:p-7">
             {hosts.length > 0 && !addingHost ? (
