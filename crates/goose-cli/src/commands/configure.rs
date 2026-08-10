@@ -1581,7 +1581,7 @@ pub fn configure_telemetry_dialog() -> anyhow::Result<()> {
     let _ = cliclack::log::info(format!("Current telemetry status: {}", current_status));
 
     let enabled = cliclack::confirm("Share anonymous usage data to help improve goose?")
-        .initial_value(current_choice.unwrap_or(true))
+        .initial_value(telemetry_consent_initial_value(config))
         .interact()?;
 
     persist_telemetry_choice(config, enabled)?;
