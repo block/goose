@@ -50,6 +50,7 @@ const DEFAULT_HOOK_TIMEOUT_SECS: u64 = 30;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum HookEvent {
     PreToolUse,
+    PreToolUseResult,
     PostToolUse,
     PostToolUseFailure,
     SessionStart,
@@ -66,6 +67,7 @@ impl HookEvent {
     fn name(&self) -> &'static str {
         match self {
             HookEvent::PreToolUse => "PreToolUse",
+            HookEvent::PreToolUseResult => "PreToolUseResult",
             HookEvent::PostToolUse => "PostToolUse",
             HookEvent::PostToolUseFailure => "PostToolUseFailure",
             HookEvent::SessionStart => "SessionStart",
@@ -82,6 +84,7 @@ impl HookEvent {
     fn from_name(name: &str) -> Option<Self> {
         Some(match name {
             "PreToolUse" => HookEvent::PreToolUse,
+            "PreToolUseResult" => HookEvent::PreToolUseResult,
             "PostToolUse" => HookEvent::PostToolUse,
             "PostToolUseFailure" => HookEvent::PostToolUseFailure,
             "SessionStart" => HookEvent::SessionStart,
@@ -158,6 +161,11 @@ pub struct HookContext {
     pub event: String,
     pub session_id: String,
     pub matcher_context: Option<String>,
+    /// Stable identifier for one tool call, the same value goose records as
+    /// `gen_ai.tool.call.id`. Correlates the pre and post events of a single
+    /// call, which tool name plus input cannot do when a call repeats.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -170,6 +178,19 @@ pub struct HookContext {
     pub last_assistant_message: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub working_dir: Option<String>,
+    /// `PreToolUseResult` only: "allow" or "deny". There is no third value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decision: Option<String>,
+    /// `PreToolUseResult` only: true when at least one matching `PreToolUse`
+    /// hook ran to completion for this call.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_evaluated: Option<bool>,
+    /// `PreToolUseResult` on deny only: the plugin that denied.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocked_by: Option<String>,
+    /// `PreToolUseResult` on deny only: the reason the plugin gave.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 impl HookContext {
@@ -178,12 +199,17 @@ impl HookContext {
             event: event.to_string(),
             session_id: session_id.into(),
             matcher_context: None,
+            tool_call_id: None,
             tool_name: None,
             tool_input: None,
             tool_output: None,
             message: None,
             last_assistant_message: None,
             working_dir: None,
+            decision: None,
+            policy_evaluated: None,
+            blocked_by: None,
+            reason: None,
         }
     }
 
@@ -219,12 +245,38 @@ impl HookContext {
         self.working_dir = Some(dir.into());
         self
     }
+
+    pub fn with_tool_call_id(mut self, tool_call_id: impl Into<String>) -> Self {
+        self.tool_call_id = Some(tool_call_id.into());
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HookDecision {
     Allow,
     Deny { reason: String, plugin: String },
+}
+
+/// Result of running a blocking hook chain: the decision, plus whether any
+/// matching hook actually ran to completion for this event. A hook that failed
+/// to spawn, timed out, or was never reached does not count as evaluated.
+///
+/// Crate-internal: the public [`HookManager::emit_blocking`] contract is
+/// unchanged and still returns a [`HookDecision`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct HookChainOutcome {
+    pub decision: HookDecision,
+    pub policy_evaluated: bool,
+}
+
+impl HookChainOutcome {
+    pub(crate) fn allow(policy_evaluated: bool) -> Self {
+        Self {
+            decision: HookDecision::Allow,
+            policy_evaluated,
+        }
+    }
 }
 
 /// Loads and executes plugin hooks.
@@ -477,17 +529,29 @@ impl HookManager {
     /// to stdout. All other failures (spawn, timeout, other non-zero exits)
     /// are logged and treated as Allow — a misbehaving hook MUST NOT block.
     pub async fn emit_blocking(&self, event: HookEvent, ctx: HookContext) -> HookDecision {
+        self.emit_blocking_with_outcome(event, ctx).await.decision
+    }
+
+    /// Like [`Self::emit_blocking`], but also reports whether any matching hook
+    /// ran to completion, which `PreToolUseResult` needs for `policy_evaluated`.
+    pub(crate) async fn emit_blocking_with_outcome(
+        &self,
+        event: HookEvent,
+        ctx: HookContext,
+    ) -> HookChainOutcome {
         let Some(rules) = self.rules.get(&event) else {
-            return HookDecision::Allow;
+            return HookChainOutcome::allow(false);
         };
 
         let payload = match serde_json::to_string(&ctx) {
             Ok(s) => s,
             Err(err) => {
                 warn!(event = %event, error = %err, "Failed to serialize hook context");
-                return HookDecision::Allow;
+                return HookChainOutcome::allow(false);
             }
         };
+
+        let mut policy_evaluated = false;
 
         for rule in rules {
             if let Some(matcher) = &rule.matcher {
@@ -503,7 +567,10 @@ impl HookManager {
                     .run_action(event, &ctx.session_id, rule, command, &payload, *timeout)
                     .await
                 {
-                    Ok(o) => o,
+                    Ok(o) => {
+                        policy_evaluated = true;
+                        o
+                    }
                     Err(err) => {
                         warn!(
                             plugin = %rule.plugin_name,
@@ -524,15 +591,18 @@ impl HookManager {
                         reason = %reason,
                         "Plugin hook denied tool call",
                     );
-                    return HookDecision::Deny {
-                        reason,
-                        plugin: rule.plugin_name.clone(),
+                    return HookChainOutcome {
+                        decision: HookDecision::Deny {
+                            reason,
+                            plugin: rule.plugin_name.clone(),
+                        },
+                        policy_evaluated,
                     };
                 }
             }
         }
 
-        HookDecision::Allow
+        HookChainOutcome::allow(policy_evaluated)
     }
 }
 
