@@ -123,6 +123,15 @@ pub enum RoamCommand {
         qr: bool,
     },
 
+    /// Pair a new device interactively: shows this node's card as a QR code,
+    /// then reads the device's card from stdin and accepts it in one step
+    /// (the equivalent of `roam peers add` + `roam peers accept`).
+    Pair {
+        /// Nickname to save the device under (defaults to `device-<short id>`).
+        #[arg(long)]
+        name: Option<String>,
+    },
+
     /// Serve this node's agent to accepted peers over ACP.
     ///
     /// Only peers whose key you have accepted (`roam peers accept`) can connect.
@@ -247,6 +256,7 @@ pub enum PeersCommand {
 pub async fn handle_roam_command(command: RoamCommand) -> Result<()> {
     match command {
         RoamCommand::Id { qr } => handle_id(qr).await,
+        RoamCommand::Pair { name } => handle_pair(name).await,
         RoamCommand::Share { builtins, cwd, qr } => handle_share(builtins, cwd, qr).await,
         RoamCommand::Connect { target, label } => handle_connect(target, label).await,
         RoamCommand::Delegate {
@@ -311,6 +321,80 @@ async fn handle_id(qr: bool) -> Result<()> {
     eprintln!("and accepts you with:   goose roam peers accept <name>");
     node.shutdown().await?;
     Ok(())
+}
+
+/// Interactive one-shot pairing: show this node's card + QR, read the device's
+/// card from stdin, confirm its fingerprint, then save and accept it — the
+/// same PeerBook/TrustBook writes as `peers add` + `peers accept`.
+async fn handle_pair(name: Option<String>) -> Result<()> {
+    let identity = load_identity()?;
+    let node = RoamingNode::bind(RoamingConfig {
+        identity,
+        relay: resolve_relay_settings(),
+        trust: TrustBook::new(),
+        trust_path: None,
+        directory: Directory::new(),
+        bind_addr: None,
+        relay_tls: None,
+    })
+    .await?;
+    eprintln!("contacting relay so the card carries a reachable address...");
+    node.wait_online(std::time::Duration::from_secs(15)).await;
+    let card = node.card();
+    let encoded = card.encode()?;
+    eprintln!("your connection card:");
+    println!("{encoded}");
+    eprintln!();
+    print_qr(&encoded);
+    eprintln!();
+    eprintln!("  endpoint id : {}", card.endpoint_id);
+    eprintln!("  fingerprint : {}", card.fingerprint());
+    node.shutdown().await?;
+    eprintln!();
+    eprintln!("on the new device: scan the QR with the goose web client (or paste the card),");
+    eprintln!("then copy the card from its pairing screen back here.");
+    eprintln!();
+
+    eprint!("paste the device's card (from its pairing screen): ");
+    let device_card = read_stdin_line()?;
+    let device_card = device_card.trim();
+    if device_card.is_empty() {
+        anyhow::bail!("no card entered; pairing cancelled");
+    }
+    let decoded = ConnectionCard::decode(device_card)
+        .context("that does not look like a goose+roam:// connection card")?;
+    let name =
+        name.unwrap_or_else(|| format!("device-{}", short_id(&decoded.endpoint_id.to_string())));
+
+    eprintln!();
+    eprintln!("  endpoint id : {}", decoded.endpoint_id);
+    eprintln!("  fingerprint : {}", decoded.fingerprint());
+    eprintln!("verify the fingerprint matches the one shown on the device.");
+    eprint!("accept this device as `{name}`? [y/N] ");
+    let answer = read_stdin_line()?;
+    if !matches!(answer.trim().to_lowercase().as_str(), "y" | "yes") {
+        eprintln!("pairing cancelled; nothing was saved");
+        return Ok(());
+    }
+
+    let mut book = goose_roaming::PeerBook::load(peerbook_path())?;
+    book.save(&name, device_card, now_ms())?;
+    let path = trust_path();
+    let mut trust = TrustBook::load(&path).unwrap_or_default();
+    trust.accept(&decoded.endpoint_id);
+    trust.save(&path)?;
+
+    eprintln!("saved and accepted `{name}` ({})", decoded.endpoint_id);
+    eprintln!("done — the device can now connect to any share/serve on this machine");
+    Ok(())
+}
+
+fn read_stdin_line() -> Result<String> {
+    let mut line = String::new();
+    std::io::stdin()
+        .read_line(&mut line)
+        .context("failed to read from stdin")?;
+    Ok(line)
 }
 
 async fn handle_peers(command: PeersCommand) -> Result<()> {
