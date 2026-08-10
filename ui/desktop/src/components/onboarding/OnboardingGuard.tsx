@@ -17,7 +17,7 @@ import {
 import { defineMessages, useIntl } from '../../i18n';
 import {
   ONBOARDING_TELEMETRY_PENDING_CONFIG_KEY,
-  readOnboardingTelemetryPending,
+  readOnboardingTelemetryState,
   TELEMETRY_CONFIG_KEY,
 } from './telemetryConfig';
 
@@ -63,6 +63,7 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
     null
   );
   const [configuredModel, setConfiguredModel] = useState<string | null>(null);
+  const [initialTelemetryEnabled, setInitialTelemetryEnabled] = useState(true);
   const hasTrackedOnboardingStart = useRef(false);
 
   const checkProvider = async (retries = 3, delay = 1000) => {
@@ -70,7 +71,8 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
     setCheckProviderError(false);
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const telemetryPending = await readOnboardingTelemetryPending();
+        const { pending: telemetryPending, persistedPreference } =
+          await readOnboardingTelemetryState();
         const { providerId: provider, modelId: model } = await acpReadDefaults();
         if (telemetryPending !== null && telemetryPending !== false) {
           if (provider?.trim()) {
@@ -78,6 +80,7 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
             const matchedProvider = providers.find((candidate) => candidate.name === provider);
             setConfiguredProvider(provider);
             setConfiguredModel(model ?? null);
+            setInitialTelemetryEnabled(persistedPreference === true);
             setConfiguredProviderDisplayName(
               matchedProvider?.metadata.display_name || provider
             );
@@ -190,7 +193,11 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
 
   if (configuredProviderDisplayName) {
     return (
-      <OnboardingSuccess providerName={configuredProviderDisplayName} onFinish={finishOnboarding} />
+      <OnboardingSuccess
+        providerName={configuredProviderDisplayName}
+        initialTelemetryEnabled={initialTelemetryEnabled}
+        onFinish={finishOnboarding}
+      />
     );
   }
 

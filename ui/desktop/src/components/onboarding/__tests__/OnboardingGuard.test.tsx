@@ -59,10 +59,19 @@ vi.mock('../ProviderSelector', () => ({
 }));
 
 vi.mock('../OnboardingSuccess', () => ({
-  default: ({ onFinish }: { onFinish: (enabled: boolean) => void }) => (
+  default: ({
+    initialTelemetryEnabled,
+    onFinish,
+  }: {
+    initialTelemetryEnabled?: boolean;
+    onFinish: (enabled: boolean) => void;
+  }) => (
     <>
       <button onClick={() => onFinish(false)}>Decline telemetry</button>
       <button onClick={() => onFinish(true)}>Accept telemetry</button>
+      <button onClick={() => onFinish(initialTelemetryEnabled ?? true)}>
+        Resume saved telemetry choice
+      </button>
     </>
   ),
 }));
@@ -228,6 +237,35 @@ describe('OnboardingGuard telemetry preference', () => {
     expect(mocks.navigate).not.toHaveBeenCalled();
     expect(mocks.trackTelemetryPreference).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Decline telemetry' })).toBeInTheDocument();
+  });
+
+  it('preserves a stored opt-out when resuming after marker removal failed', async () => {
+    mocks.readAll.mockResolvedValue({
+      GOOSE_ONBOARDING_TELEMETRY_PENDING: true,
+      GOOSE_TELEMETRY_ENABLED: false,
+    });
+    mocks.acpReadDefaults.mockResolvedValue({
+      providerId: 'test-provider',
+      modelId: 'test-model',
+    });
+
+    const user = userEvent.setup();
+    render(
+      <IntlTestWrapper>
+        <OnboardingGuard>
+          <div>Protected application</div>
+        </OnboardingGuard>
+      </IntlTestWrapper>
+    );
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Resume saved telemetry choice' })
+    );
+
+    await waitFor(() =>
+      expect(mocks.upsert).toHaveBeenCalledWith('GOOSE_TELEMETRY_ENABLED', false, false)
+    );
+    expect(await screen.findByText('Protected application')).toBeInTheDocument();
   });
 
   it('enters the application for an existing provider with no pending marker', async () => {

@@ -42,13 +42,18 @@ const i18n = defineMessages({
 
 interface OnboardingSuccessProps {
   providerName: string;
+  initialTelemetryEnabled?: boolean;
   onFinish: (telemetryEnabled: boolean) => void;
 }
 
-export default function OnboardingSuccess({ providerName, onFinish }: OnboardingSuccessProps) {
+export default function OnboardingSuccess({
+  providerName,
+  initialTelemetryEnabled = true,
+  onFinish,
+}: OnboardingSuccessProps) {
   const intl = useIntl();
   const [showPrivacyInfo, setShowPrivacyInfo] = useState(false);
-  const [telemetryOptIn, setTelemetryOptIn] = useState(true);
+  const [telemetryOptIn, setTelemetryOptIn] = useState(initialTelemetryEnabled);
 
   return (
     <div className="h-screen w-full bg-background-default overflow-hidden">
