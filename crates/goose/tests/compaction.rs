@@ -269,6 +269,13 @@ async fn context_owning_provider_rejects_clear_and_compact_without_changing_sess
         messages.clone(),
     )
     .await?;
+    let before = agent
+        .config
+        .session_manager
+        .get_session(&session.id, true)
+        .await?;
+    let conversation_before = before.conversation.unwrap();
+    let usage_before = before.usage;
     let provider = Arc::new(MockCompactionProvider::context_owning());
     agent
         .update_provider(provider, ModelConfig::new("mock-model"), &session.id)
@@ -292,10 +299,8 @@ async fn context_owning_provider_rejects_clear_and_compact_without_changing_sess
         .session_manager
         .get_session(&session.id, true)
         .await?;
-    assert_eq!(unchanged.conversation.unwrap().messages(), &messages);
-    assert_eq!(unchanged.usage.input_tokens, Some(600));
-    assert_eq!(unchanged.usage.output_tokens, Some(400));
-    assert_eq!(unchanged.usage.total_tokens, Some(1000));
+    assert_eq!(unchanged.conversation.unwrap(), conversation_before);
+    assert_eq!(unchanged.usage, usage_before);
 
     Ok(())
 }
