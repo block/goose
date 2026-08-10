@@ -2,21 +2,22 @@
 
 use std::sync::Arc;
 
+use crate::agents::provider_stream_coordinator::{ProviderStreamCoordinator, ProviderStreamEvent};
 use crate::agents::state_machine::operation::{
     applied, messages_since_kickoff, not_applicable, trailing_error, yielded_with, Emitter,
     Inference, InferenceInput, Operation, OperationResult, SlashCommand, StateEffect,
 };
 use crate::agents::state_machine::ops_unknown_tool::UNCLAIMED_TOOL_ERROR;
-use crate::agents::{ExtensionManager, PromptManager};
+use crate::agents::steering::SteeringQueue;
+use crate::agents::{AgentEvent, ExtensionManager, PromptManager};
 use crate::config::GooseMode;
-use crate::conversation::message::{InferenceMetadata, Message, MessageContent};
+use crate::conversation::message::{InferenceMetadata, Message, MessageContent, MessageUsage};
 use crate::conversation::{effective_role, Conversation, EffectiveRole};
 use crate::providers::base::{Provider, ProviderUsage};
-use crate::session::Session;
+use crate::session::{Session, SessionManager};
 use crate::tool_inspection::ToolInspectionManager;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use futures::StreamExt;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
 use tokio::sync::Mutex;
@@ -25,6 +26,17 @@ use tracing_futures::Instrument;
 const EMPTY_RESPONSE_MESSAGE: &str =
     "The model returned an empty response. Please resend your message to continue.";
 const CANCELLED_TOOL_RESPONSE: &str = "Tool call was cancelled before execution";
+const SUPERSEDED_TOOL_RESPONSE: &str = "Tool call was superseded by steering before execution";
+const OPERATION_NAME: &str = "llm";
+const NATIVE_STEER_DELIVERED: &str = "native_steer_delivered";
+
+pub(super) fn was_native_steer_delivered(message: &Message) -> bool {
+    message
+        .metadata
+        .operation_note(OPERATION_NAME, NATIVE_STEER_DELIVERED)
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+}
 
 fn is_thinking(content: &MessageContent) -> bool {
     matches!(
@@ -79,6 +91,42 @@ fn normalize_tool_call_thinking(accumulator: &mut Conversation, chunk: &mut Mess
     }
 }
 
+fn is_empty_provider_response(messages: &Conversation) -> bool {
+    !messages
+        .iter()
+        .any(|message| message.metadata.output_token_limit_reached)
+        && messages.iter().all(|message| {
+            message.content.iter().all(|content| match content {
+                MessageContent::Text(text) => text.text.trim().is_empty(),
+                MessageContent::Thinking(thinking) => thinking.thinking.trim().is_empty(),
+                _ => false,
+            })
+        })
+}
+
+fn superseded_tool_response(messages: &Conversation) -> Option<Message> {
+    let answered = messages
+        .iter()
+        .flat_map(Message::get_tool_response_ids)
+        .collect::<std::collections::HashSet<_>>();
+    let mut response = Message::user();
+    for content in messages.iter().flat_map(|message| &message.content) {
+        if let MessageContent::ToolRequest(request) = content {
+            if request.was_executed_externally() || answered.contains(request.id.as_str()) {
+                continue;
+            }
+            response.add_tool_response_with_metadata(
+                request.id.clone(),
+                Ok(rmcp::model::CallToolResult::error(vec![
+                    rmcp::model::ContentBlock::text(SUPERSEDED_TOOL_RESPONSE),
+                ])),
+                request.metadata.as_ref(),
+            );
+        }
+    }
+    (!response.get_tool_response_ids().is_empty()).then_some(response)
+}
+
 pub(super) fn chat_span(
     provider: &dyn Provider,
     model_config: &ModelConfig,
@@ -113,6 +161,8 @@ pub(super) fn record_chat_usage(span: &tracing::Span, usage: &ProviderUsage) {
 pub struct InferenceRunner<'a> {
     provider: Arc<dyn Provider>,
     model_config: ModelConfig,
+    session_manager: Arc<SessionManager>,
+    steering_queue: Arc<SteeringQueue>,
     #[cfg(feature = "code-mode")]
     extension_manager: Arc<ExtensionManager>,
     goose_mode: &'a Mutex<GooseMode>,
@@ -163,6 +213,8 @@ impl<'a> InferenceRunner<'a> {
     pub fn new(
         provider: Arc<dyn Provider>,
         model_config: ModelConfig,
+        session_manager: Arc<SessionManager>,
+        steering_queue: Arc<SteeringQueue>,
         #[cfg(feature = "code-mode")] extension_manager: Arc<ExtensionManager>,
         #[cfg(not(feature = "code-mode"))] _extension_manager: Arc<ExtensionManager>,
         goose_mode: &'a Mutex<GooseMode>,
@@ -173,6 +225,8 @@ impl<'a> InferenceRunner<'a> {
         Self {
             provider,
             model_config,
+            session_manager,
+            steering_queue,
             #[cfg(feature = "code-mode")]
             extension_manager,
             goose_mode,
@@ -191,12 +245,42 @@ impl<'a> InferenceRunner<'a> {
         let message = emit.message(message).await;
         vec![message.into()]
     }
+
+    async fn persist_message_usage(
+        &self,
+        session: &Session,
+        message: &Message,
+        usage: &ProviderUsage,
+        emit: &Emitter,
+    ) -> Result<()> {
+        let message_id = message
+            .id
+            .as_deref()
+            .ok_or_else(|| anyhow!("persisted assistant message has no id"))?;
+        let usage = crate::agents::state_machine::usage::enrich_provider_usage(session, usage);
+        let message_usage = MessageUsage::from_provider_usage(&usage, false);
+        let persisted_usage = message_usage.clone();
+        self.session_manager
+            .update_message_metadata(&session.id, message_id, move |mut metadata| {
+                metadata.usage = Some(Box::new(persisted_usage));
+                metadata
+            })
+            .await?;
+        if !message.user_visible_content().content.is_empty() {
+            emit.emit(AgentEvent::MessageUsage {
+                message_id: message.id.clone(),
+                usage: message_usage,
+            })
+            .await;
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
 impl Operation for InferenceRunner<'_> {
     fn name(&self) -> &'static str {
-        "llm"
+        OPERATION_NAME
     }
 
     async fn cancel(
@@ -337,6 +421,7 @@ impl Inference for InferenceRunner<'_> {
             return false;
         };
         trailing_error(conversation).is_none()
+            && !conversation.last().is_some_and(was_native_steer_delivered)
             && ends_with_provider_turn(&messages_for_provider(conversation, turn))
     }
 
@@ -458,10 +543,16 @@ impl Inference for InferenceRunner<'_> {
             )
             .await;
 
-            let mut stream = match stream {
+            let stream = match stream {
                 Ok(stream) => stream,
                 Err(err) => return applied(self.error_outcome(&err, emit).await),
             };
+            let mut stream = ProviderStreamCoordinator::new(
+                stream,
+                Arc::clone(&self.provider),
+                Arc::clone(&self.steering_queue),
+                &session.id,
+            );
 
             let requested_model = self.model_config.model_name.clone();
             let inference = self
@@ -479,16 +570,37 @@ impl Inference for InferenceRunner<'_> {
             let mut accumulator = Conversation::empty();
             let mut usage_effects = Vec::new();
             let mut tool_request_ids = std::collections::HashSet::new();
+            let mut native_steer_delivered = false;
+            let mut last_flushed_assistant = None;
             loop {
-                tokio::select! {
-                    biased;
-                    _ = emit.cancelled() => break,
-                    next = stream.next() => {
-                        let Some(result) = next else { break };
+                let Some(event) = stream.next_event(emit.cancel_token()).await else {
+                    break;
+                };
+                match event {
+                    ProviderStreamEvent::ProviderOutput(result) => {
                         let (msg_opt, usage_opt) = match result {
                             Ok(chunk) => chunk,
                             Err(err) => {
-                                usage_effects.extend(accumulator.into_iter().map(StateEffect::from));
+                                let has_unflushed_assistant = accumulator.iter().any(|message| {
+                                    message.role == rmcp::model::Role::Assistant
+                                        && message.error_kind().is_none()
+                                });
+                                if !has_unflushed_assistant {
+                                    if let (Some(message), Some(usage)) = (
+                                        last_flushed_assistant.as_ref(),
+                                        usage_effects.iter().rev().find_map(
+                                            |effect| match effect {
+                                                StateEffect::RecordUsage(usage) => Some(usage),
+                                                _ => None,
+                                            },
+                                        ),
+                                    ) {
+                                        self.persist_message_usage(session, message, usage, emit)
+                                            .await?;
+                                    }
+                                }
+                                usage_effects
+                                    .extend(accumulator.into_iter().map(StateEffect::from));
                                 usage_effects.extend(self.error_outcome(&err, emit).await);
                                 return applied(usage_effects);
                             }
@@ -520,24 +632,59 @@ impl Inference for InferenceRunner<'_> {
                             accumulator.push(chunk);
                         }
                     }
+                    ProviderStreamEvent::NativeSteerDelivered(mut message) => {
+                        let superseded_response = superseded_tool_response(&accumulator);
+                        if is_empty_provider_response(&accumulator) {
+                            accumulator = Conversation::empty();
+                        } else {
+                            let flushed =
+                                std::mem::replace(&mut accumulator, Conversation::empty());
+                            for message in flushed {
+                                let message = message.with_generated_id_if_missing();
+                                if message.role == rmcp::model::Role::Assistant
+                                    && message.error_kind().is_none()
+                                {
+                                    last_flushed_assistant = Some(message.clone());
+                                }
+                                self.session_manager
+                                    .add_message(&session.id, &message)
+                                    .await?;
+                            }
+                        }
+
+                        if let Some(response) = superseded_response {
+                            let response = response.with_generated_id_if_missing();
+                            self.session_manager
+                                .add_message(&session.id, &response)
+                                .await?;
+                            emit.emit(AgentEvent::Message(response)).await;
+                        }
+
+                        message.metadata.steer = true;
+                        message.metadata.set_operation_note(
+                            self.name(),
+                            NATIVE_STEER_DELIVERED,
+                            true.into(),
+                        );
+                        let message = message.with_generated_id_if_missing();
+                        self.session_manager
+                            .add_message(&session.id, &message)
+                            .await?;
+                        emit.emit(AgentEvent::Message(message)).await;
+                        native_steer_delivered = true;
+                    }
                 }
             }
 
-            let empty_response = !accumulator
-                .iter()
-                .any(|message| message.metadata.output_token_limit_reached)
-                && accumulator.iter().all(|message| {
-                    message.content.iter().all(|content| match content {
-                        MessageContent::Text(text) => text.text.trim().is_empty(),
-                        MessageContent::Thinking(thinking) => thinking.thinking.trim().is_empty(),
-                        _ => false,
-                    })
-                });
-            if empty_response {
+            let empty_response = is_empty_provider_response(&accumulator);
+            if empty_response && !native_steer_delivered {
                 let message = Message::assistant().with_text(EMPTY_RESPONSE_MESSAGE);
                 let message = emit.message(message).await;
                 usage_effects.push(message.into());
                 return yielded_with(usage_effects);
+            }
+            if empty_response {
+                accumulator = Conversation::empty();
             }
 
             if usage_effects.is_empty() {
@@ -545,7 +692,7 @@ impl Inference for InferenceRunner<'_> {
                     self.model_config.model_name.clone(),
                     goose_providers::conversation::token_usage::Usage::default(),
                 );
-                if let Some(response) = accumulator.last() {
+                if let Some(response) = accumulator.last().or(last_flushed_assistant.as_ref()) {
                     crate::providers::usage_estimator::ensure_usage_tokens(
                         &mut usage,
                         &system_prompt,
@@ -556,6 +703,22 @@ impl Inference for InferenceRunner<'_> {
                     .await?;
                     record_chat_usage(&tracing::Span::current(), &usage);
                     usage_effects.push(StateEffect::RecordUsage(usage));
+                }
+            }
+
+            let has_unflushed_assistant = accumulator.iter().any(|message| {
+                message.role == rmcp::model::Role::Assistant && message.error_kind().is_none()
+            });
+            if !has_unflushed_assistant {
+                if let (Some(message), Some(usage)) = (
+                    last_flushed_assistant.as_ref(),
+                    usage_effects.iter().rev().find_map(|effect| match effect {
+                        StateEffect::RecordUsage(usage) => Some(usage),
+                        _ => None,
+                    }),
+                ) {
+                    self.persist_message_usage(session, message, usage, emit)
+                        .await?;
                 }
             }
 

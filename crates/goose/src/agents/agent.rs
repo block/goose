@@ -1640,7 +1640,7 @@ impl Agent {
             && !provider.manages_own_context();
 
         let operations: Vec<Arc<dyn Operation + '_>> = vec![
-            Arc::new(SteerOperation::new(steering_queue)),
+            Arc::new(SteerOperation::new(Arc::clone(&steering_queue))),
             Arc::new(MaxTurnsOperation::new(max_turns)),
             Arc::new(BangShellOperation::new()),
             Arc::new(CompactionOperation::new(
@@ -1684,6 +1684,8 @@ impl Agent {
         let inference = Arc::new(InferenceRunner::new(
             provider,
             model_config,
+            Arc::clone(&self.session_manager),
+            steering_queue,
             self.extension_manager.clone(),
             &self.current_goose_mode,
             &self.prompt_manager,

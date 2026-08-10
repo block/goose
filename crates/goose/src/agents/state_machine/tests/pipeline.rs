@@ -105,6 +105,11 @@ pub(super) struct TestPipeline {
 }
 
 impl TestPipeline {
+    pub(super) fn with_provider(mut self, provider: Arc<dyn Provider>) -> Self {
+        self.provider = provider;
+        self
+    }
+
     pub(super) fn machine(&self, cancel: CancellationToken) -> StateMachine<'_> {
         let provider = self.provider.clone();
         let tool_call_cutoff = crate::context_mgmt::compute_tool_call_cutoff(
@@ -156,6 +161,8 @@ impl TestPipeline {
         let inference = Arc::new(InferenceRunner::new(
             provider,
             self.model_config.clone(),
+            Arc::clone(&self.session_manager),
+            Arc::clone(&self.steering_queue),
             self.extension_manager.clone(),
             &self.goose_mode,
             &self.prompt_manager,

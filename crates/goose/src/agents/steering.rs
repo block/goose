@@ -63,7 +63,6 @@ impl SteeringQueue {
         !self.state.lock().await.items.is_empty()
     }
 
-    #[allow(dead_code)]
     pub(crate) async fn peek_next_ready(&self) -> Option<(u64, Message)> {
         self.state
             .lock()
@@ -74,7 +73,6 @@ impl SteeringQueue {
             .map(|entry| (entry.entry_id, entry.message.clone()))
     }
 
-    #[allow(dead_code)]
     pub(crate) async fn remove_next_ready(&self, entry_id: u64) -> Option<Message> {
         let mut state = self.state.lock().await;
         let matches = state
@@ -125,7 +123,6 @@ impl SteeringQueue {
         }
     }
 
-    #[allow(dead_code)]
     pub(crate) async fn wait_for_next_ready(&self) {
         loop {
             let notified = self.hook_complete_notify.notified();

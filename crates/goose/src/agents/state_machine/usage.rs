@@ -20,6 +20,29 @@ fn attach_to_last_assistant(effects: &mut [StateEffect], usage: &ProviderUsage) 
     message.metadata.usage = Some(Box::new(MessageUsage::from_provider_usage(usage, false)));
 }
 
+pub(super) fn enrich_provider_usage(session: &Session, usage: &ProviderUsage) -> ProviderUsage {
+    let (cost, cost_source) = if let Some(cost) = usage.cost {
+        (Some(cost), Some(CostSource::ProviderReported))
+    } else {
+        match session
+            .provider_name
+            .as_deref()
+            .and_then(|provider| {
+                crate::providers::canonical::maybe_get_canonical_model(provider, &usage.model)
+            })
+            .and_then(|canonical| canonical.cost.estimate_cost(&usage.usage))
+        {
+            Some(cost) => (Some(cost), Some(CostSource::Estimated)),
+            None => (None, None),
+        }
+    };
+
+    let mut enriched = usage.clone();
+    enriched.cost = cost;
+    enriched.cost_source = cost_source;
+    enriched
+}
+
 pub(super) fn enrich(session: &Session, effects: &mut [StateEffect]) {
     for index in 0..effects.len() {
         let (usage, replaces_conversation) = match &effects[index] {
@@ -29,25 +52,7 @@ pub(super) fn enrich(session: &Session, effects: &mut [StateEffect]) {
             } => (usage.clone(), true),
             _ => continue,
         };
-        let (cost, cost_source) = if let Some(cost) = usage.cost {
-            (Some(cost), Some(CostSource::ProviderReported))
-        } else {
-            match session
-                .provider_name
-                .as_deref()
-                .and_then(|provider| {
-                    crate::providers::canonical::maybe_get_canonical_model(provider, &usage.model)
-                })
-                .and_then(|canonical| canonical.cost.estimate_cost(&usage.usage))
-            {
-                Some(cost) => (Some(cost), Some(CostSource::Estimated)),
-                None => (None, None),
-            }
-        };
-
-        let mut enriched = usage.clone();
-        enriched.cost = cost;
-        enriched.cost_source = cost_source;
+        let enriched = enrich_provider_usage(session, &usage);
 
         if !replaces_conversation {
             attach_to_last_assistant(effects, &enriched);
