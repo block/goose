@@ -79,7 +79,6 @@ impl GooseAcpAgent {
         let response = self
             .build_new_session_response(&reloaded_session, &extension_results)
             .await?;
-        self.notify_session_setup(cx, &reloaded_session).await?;
         Ok(response)
     }
 

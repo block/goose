@@ -1226,6 +1226,15 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Başka bir yerde çalışan bir goose sunucusuna bağlanın (uygulamanın yeniden başlatılmasını gerektirir)"
   },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "Uzak çalışma dizini (isteğe bağlı)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "Harici arka uçtaki mutlak yol. Yerel çalışma dizinini göndermek için boş bırakın."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
+  },
   "goosehintsModal.close": {
     "defaultMessage": "Kapat"
   },
