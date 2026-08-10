@@ -648,6 +648,8 @@ impl Operation for ToolExecutionOperation<'_> {
         if extensions.is_empty() {
             return Ok(prompt_parts);
         }
+        // HashMap order shuffles across restarts and would bust the prompt cache.
+        extensions.sort_by(|a, b| a.name.cmp(&b.name));
 
         let mut lines = vec![
             "# Extensions".to_string(),

@@ -100,9 +100,13 @@ pub async fn compact_messages(
         has_text && !has_tool_content
     };
 
-    let (preserved_user_message, is_most_recent) = if !manual_compact {
+    // Turn-context events are agent-appended, never the message to preserve.
+    let (preserved_user_message, preserved_idx, is_most_recent) = if !manual_compact {
         let found_msg = messages.iter().enumerate().rev().find_map(|(idx, msg)| {
-            if !msg.is_agent_visible() || !matches!(msg.role, rmcp::model::Role::User) {
+            if !msg.is_agent_visible()
+                || msg.is_turn_context()
+                || !matches!(msg.role, rmcp::model::Role::User)
+            {
                 return None;
             }
 
@@ -123,13 +127,13 @@ pub async fn compact_messages(
         });
 
         if let Some((idx, msg)) = found_msg {
-            let is_last = idx == messages.len() - 1;
-            (Some(msg), is_last)
+            let is_last = messages[idx + 1..].iter().all(Message::is_turn_context);
+            (Some(msg), Some(idx), is_last)
         } else {
-            (None, false)
+            (None, None, false)
         }
     } else {
-        (None, false)
+        (None, None, false)
     };
 
     let messages_to_compact = messages.as_slice();
@@ -173,6 +177,25 @@ pub async fn compact_messages(
     if let Some(mut user_msg) = preserved_user_message {
         user_msg.created = continuation_created;
         final_messages.push(user_msg);
+    }
+
+    // Carry the turn's own context event (it follows the preserved prompt) so
+    // a mid-turn retry keeps it; anything earlier belongs to a previous turn.
+    if let Some(carry_from) = preserved_idx.map(|idx| idx + 1) {
+        if let Some(turn_context) = messages_to_compact[carry_from..]
+            .iter()
+            .rev()
+            .find(|msg| msg.is_turn_context() && msg.is_agent_visible())
+        {
+            let mut carried = turn_context.clone();
+            carried.id = None;
+            // Storage reloads order by created_timestamp; the copy must keep
+            // its appended position, not resurface at the original event's time.
+            if let Some(latest) = final_messages.iter().map(|msg| msg.created).max() {
+                carried.created = carried.created.max(latest);
+            }
+            final_messages.push(carried);
+        }
     }
 
     let conversation = Conversation::new_unvalidated(final_messages);
@@ -317,8 +340,14 @@ async fn do_compact(
     session_id: &str,
     messages: &[Message],
 ) -> Result<(Message, ProviderUsage), anyhow::Error> {
-    let agent_visible_messages =
-        Conversation::new_unvalidated(messages.iter().cloned()).agent_visible_messages();
+    // Keep stale per-turn state out of the summary.
+    let agent_visible_messages = Conversation::new_unvalidated(
+        messages
+            .iter()
+            .filter(|msg| !msg.is_turn_context())
+            .cloned(),
+    )
+    .agent_visible_messages();
 
     // Try progressively removing more tool response messages from the middle to reduce context length
     let removal_percentages = [0, 10, 20, 50, 100];
@@ -697,6 +726,7 @@ mod tests {
         message: Message,
         config: ModelConfig,
         max_tool_responses: Option<usize>,
+        captured_system: std::sync::Mutex<Option<String>>,
     }
 
     impl MockProvider {
@@ -715,6 +745,7 @@ mod tests {
                     request_headers: None,
                 },
                 max_tool_responses: None,
+                captured_system: std::sync::Mutex::new(None),
             }
         }
 
@@ -733,10 +764,11 @@ mod tests {
         async fn stream(
             &self,
             _model_config: &ModelConfig,
-            _system: &str,
+            system: &str,
             messages: &[Message],
             _tools: &[Tool],
         ) -> Result<MessageStream, ProviderError> {
+            *self.captured_system.lock().unwrap() = Some(system.to_string());
             // If max_tool_responses is set, fail if we have too many
             if let Some(max) = self.max_tool_responses {
                 let tool_response_count = messages
@@ -954,6 +986,198 @@ mod tests {
             .join("\n");
         assert!(user_text.contains("user-only secret"));
         assert!(!user_text.contains("assistant-only preprompt"));
+    }
+
+    #[tokio::test]
+    async fn preserved_user_message_skips_turn_context_events() {
+        let conversation = Conversation::new_unvalidated([
+            Message::user().with_text("earlier request"),
+            Message::assistant().with_text("earlier response"),
+            Message::user().with_text("the real current request"),
+            Message::user()
+                .with_text("<turn-context>frozen block</turn-context>")
+                .with_metadata(MessageMetadata::agent_only().with_turn_context()),
+        ]);
+        let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
+
+        let compacted = compact_messages(
+            &provider,
+            &provider.config,
+            "test-session-id",
+            &conversation,
+            false,
+        )
+        .await
+        .unwrap()
+        .conversation;
+
+        let preserved: Vec<_> = compacted
+            .messages()
+            .iter()
+            .filter(|message| message.is_agent_visible() && message.role == Role::User)
+            .collect();
+        let turn_context_events: Vec<_> = preserved
+            .iter()
+            .filter(|message| message.is_turn_context())
+            .collect();
+        let [carried_block] = turn_context_events.as_slice() else {
+            panic!("expected exactly one carried turn-context event");
+        };
+        assert!(
+            carried_block.as_concat_text().contains("frozen block"),
+            "the turn's context event must be carried forward for the mid-turn retry"
+        );
+        let last = compacted.messages().last().unwrap();
+        assert!(
+            last.is_turn_context() && last.is_agent_visible(),
+            "the carried event must trail the preserved user message"
+        );
+        let user_prompt = preserved[preserved.len() - 2];
+        assert!(
+            user_prompt
+                .as_concat_text()
+                .contains("the real current request"),
+            "the user's prompt must survive compaction verbatim"
+        );
+        assert!(!user_prompt.is_turn_context());
+
+        let continuation = compacted
+            .messages()
+            .iter()
+            .find(|message| message.role == Role::Assistant && message.is_agent_visible())
+            .unwrap()
+            .as_concat_text();
+        assert!(
+            continuation.contains(CONVERSATION_CONTINUATION_TEXT),
+            "a trailing turn-context event must not demote the compaction to a tool-loop continuation"
+        );
+    }
+
+    #[tokio::test]
+    async fn stale_turn_context_from_an_earlier_turn_is_not_carried() {
+        let conversation = Conversation::new_unvalidated([
+            Message::user().with_text("earlier request"),
+            Message::user()
+                .with_text("<turn-context>stale block</turn-context>")
+                .with_metadata(MessageMetadata::agent_only().with_turn_context()),
+            Message::assistant().with_text("earlier response"),
+            Message::user().with_text("the new prompt"),
+        ]);
+        let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
+
+        let compacted = compact_messages(
+            &provider,
+            &provider.config,
+            "test-session-id",
+            &conversation,
+            false,
+        )
+        .await
+        .unwrap()
+        .conversation;
+
+        assert!(
+            !compacted
+                .messages()
+                .iter()
+                .any(|message| message.is_agent_visible() && message.is_turn_context()),
+            "pre-turn compaction must not resurrect a previous turn's context event"
+        );
+        let last = compacted.messages().last().unwrap();
+        assert_eq!(last.as_concat_text(), "the new prompt");
+    }
+
+    #[tokio::test]
+    async fn carried_turn_context_stays_last_after_persist_and_reload() {
+        let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
+        let mut prompt = Message::user().with_text("the real current request");
+        prompt.created -= 3600;
+        let mut block = Message::user()
+            .with_text("<turn-context>frozen block</turn-context>")
+            .with_metadata(MessageMetadata::agent_only().with_turn_context());
+        block.created -= 3600;
+        let conversation = Conversation::new_unvalidated([prompt, block]);
+
+        let compacted = compact_messages(
+            &provider,
+            &provider.config,
+            "test-session-id",
+            &conversation,
+            false,
+        )
+        .await
+        .unwrap()
+        .conversation;
+        assert!(compacted.messages().last().unwrap().is_turn_context());
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let manager = crate::session::SessionManager::new(temp_dir.path().to_path_buf());
+        let session = manager
+            .create_session(
+                std::path::PathBuf::from("/tmp/test"),
+                "carry order".to_string(),
+                crate::session::session_manager::SessionType::User,
+                crate::config::GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        manager
+            .replace_conversation(&session.id, &compacted)
+            .await
+            .unwrap();
+
+        let reloaded = manager
+            .get_session(&session.id, true)
+            .await
+            .unwrap()
+            .conversation
+            .unwrap();
+        assert_eq!(reloaded.messages().len(), compacted.messages().len());
+        let last = reloaded.messages().last().unwrap();
+        assert!(
+            last.is_turn_context(),
+            "the carried event must not resurface at its original timestamp on reload"
+        );
+    }
+
+    #[tokio::test]
+    async fn summarizer_input_excludes_turn_context_events() {
+        let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
+        let turn_context = |text: &str| {
+            Message::user()
+                .with_text(text)
+                .with_metadata(MessageMetadata::agent_only().with_turn_context())
+        };
+        let conversation = Conversation::new_unvalidated([
+            Message::user().with_text("please refactor the parser"),
+            turn_context("<turn-context>cwd /old/dir</turn-context>"),
+            Message::assistant().with_text("working on it"),
+            turn_context("<turn-context>cwd /new/dir</turn-context>"),
+        ]);
+
+        let compacted = compact_messages(
+            &provider,
+            &provider.config,
+            "test-session-id",
+            &conversation,
+            false,
+        )
+        .await
+        .unwrap()
+        .conversation;
+
+        let system = provider.captured_system.lock().unwrap().clone().unwrap();
+        assert!(system.contains("please refactor the parser"));
+        assert!(
+            !system.contains("/old/dir") && !system.contains("/new/dir"),
+            "turn-context events must not reach the summarizer as dialogue"
+        );
+
+        let carried = compacted.messages().last().unwrap();
+        assert!(
+            carried.is_turn_context() && carried.as_concat_text().contains("/new/dir"),
+            "the newest turn-context event must still be carried forward"
+        );
     }
 
     #[tokio::test]

@@ -2158,7 +2158,7 @@ impl ExtensionManager {
     }
 
     pub async fn collect_moim_parts(&self, session_id: &str) -> Vec<String> {
-        let platform_clients: Vec<(String, McpClientBox)> = {
+        let mut platform_clients: Vec<(String, McpClientBox)> = {
             let extensions = self.extensions.lock().await;
             extensions
                 .iter()
@@ -2178,6 +2178,9 @@ impl ExtensionManager {
                 })
                 .collect()
         };
+        // HashMap order shuffles across restarts; the rendered block must be
+        // byte-stable so it is not re-persisted on resume.
+        platform_clients.sort_by(|a, b| a.0.cmp(&b.0));
 
         let mut parts = Vec::new();
         for (name, client) in platform_clients {

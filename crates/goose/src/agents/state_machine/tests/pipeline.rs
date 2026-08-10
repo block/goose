@@ -985,6 +985,7 @@ impl TestRun {
             .conversation()
             .messages()
             .iter()
+            .filter(|message| !message.is_turn_context())
             .flat_map(|message| {
                 message
                     .content

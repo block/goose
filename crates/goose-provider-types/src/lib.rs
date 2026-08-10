@@ -1,4 +1,5 @@
 pub mod base;
+pub mod cache_semantics;
 pub mod canonical;
 pub mod conversation;
 pub mod errors;

@@ -67,10 +67,6 @@ pub fn is_reserved_request_param_key(key: &str) -> bool {
 pub struct OpenAiFormatOptions {
     pub preserve_thinking_context: bool,
     pub thinking_preservation_format: Option<ThinkingPreservationFormat>,
-    /// Keep the turn-context block on its source user message. The implicit
-    /// cache behind OpenAI's Responses-stack models only extends append-only
-    /// prompts, so the relocated tail would cap hits at the static prefix.
-    pub turn_context_in_place: bool,
 }
 
 fn merge_reasoning_text(prefix: &str, suffix: &str) -> String {
@@ -213,15 +209,6 @@ pub fn format_messages_with_options(
     image_format: &ImageFormat,
     options: OpenAiFormatOptions,
 ) -> Vec<Value> {
-    let extracted = if options.turn_context_in_place {
-        None
-    } else {
-        extract_turn_context(messages)
-    };
-    let (messages, turn_context) = match &extracted {
-        Some((stripped, text)) => (stripped.as_slice(), Some(text.as_str())),
-        None => (messages, None),
-    };
     let mut messages_spec = Vec::new();
     let mut pending_assistant_reasoning = String::new();
     // Reasoning to propagate across consecutive tool-call messages in the same turn.
@@ -531,58 +518,7 @@ pub fn format_messages_with_options(
         inline_reasoning_content(&mut messages_spec, format);
     }
 
-    if let Some(text) = turn_context {
-        append_turn_context_tail(&mut messages_spec, text);
-    }
-
     messages_spec
-}
-
-/// The volatile turn-context block busts implicit prefix caching from
-/// mid-history; re-emitted at the request tail instead. Mirrors formats/anthropic.rs.
-fn extract_turn_context(messages: &[Message]) -> Option<(Vec<Message>, String)> {
-    let (mi, bi) = messages.iter().enumerate().rev().find_map(|(mi, m)| {
-        if m.role != Role::User {
-            return None;
-        }
-        m.content
-            .iter()
-            .position(|block| {
-                matches!(block, MessageContentBlock::Text(t)
-                    if crate::conversation::is_turn_context_text(&t.text))
-            })
-            .map(|bi| (mi, bi))
-    })?;
-    if mi + 1 != messages.len() && messages[mi].content.len() <= 1 {
-        return None;
-    }
-    let mut messages = messages.to_vec();
-    let MessageContentBlock::Text(text) = messages[mi].content.remove(bi) else {
-        return None;
-    };
-    Some((messages, text.text))
-}
-
-/// Merges into a trailing user message when one exists; strict chat templates
-/// reject consecutive user messages.
-fn append_turn_context_tail(messages_spec: &mut Vec<Value>, text: &str) {
-    if let Some(last) = messages_spec.last_mut() {
-        if last["role"] == json!("user") {
-            match last.get_mut("content") {
-                Some(Value::String(existing)) => {
-                    existing.push('\n');
-                    existing.push_str(text);
-                    return;
-                }
-                Some(Value::Array(blocks)) => {
-                    blocks.push(json!({"type": "text", "text": text}));
-                    return;
-                }
-                _ => {}
-            }
-        }
-    }
-    messages_spec.push(json!({"role": "user", "content": text}));
 }
 
 /// Rewrites `reasoning_content` into the message `content` for models that reject a
@@ -1120,7 +1056,101 @@ fn strip_data_prefix(line: &str) -> Option<&str> {
         .map(|s| s.trim())
 }
 
-fn parse_streaming_chunk(line: &str) -> Result<StreamingChunk, ProviderError> {
+/// Longest error text pulled out of a stream frame, so a pathological payload cannot be
+/// pasted wholesale into a user-facing message.
+const MAX_STREAM_ERROR_LEN: usize = 500;
+
+/// Best-effort human-readable text for an error payload that may not be a plain string.
+///
+/// FastAPI reports `HTTPException` as `{"detail": "..."}` but `RequestValidationError` as
+/// `{"detail": [{"loc": [...], "msg": "field required", ...}]}`, so a string-only read would
+/// drop the commoner validation shape entirely.
+fn stream_error_text(value: &Value) -> Option<String> {
+    fn one(value: &Value) -> Option<String> {
+        match value {
+            Value::String(s) => Some(s.clone()),
+            Value::Object(_) => value
+                .get("msg")
+                .or_else(|| value.get("message"))
+                .and_then(|m| m.as_str().map(String::from))
+                .or_else(|| Some(value.to_string())),
+            Value::Null => None,
+            other => Some(other.to_string()),
+        }
+    }
+
+    let text = match value {
+        Value::Array(items) => {
+            let parts: Vec<String> = items.iter().filter_map(one).collect();
+            if parts.is_empty() {
+                return None;
+            }
+            parts.join("; ")
+        }
+        other => one(other)?,
+    };
+    if text.is_empty() {
+        return None;
+    }
+    if text.chars().count() > MAX_STREAM_ERROR_LEN {
+        let truncated: String = text.chars().take(MAX_STREAM_ERROR_LEN).collect();
+        return Some(format!("{truncated}…"));
+    }
+    Some(text)
+}
+
+/// Decide whether a choice-less SSE frame reports an in-stream failure.
+///
+/// Returns `Some(err)` when it does, `None` when it is gateway metadata that can be skipped.
+///
+/// Requires an actual error *signal* — a `status`/`statusCode`/`code` of 400 or above, a
+/// `type` of `"error"`, or a `detail` field, which has no benign meaning in this position.
+/// Mere prose is not enough: gateways also emit informational frames, and treating
+/// `{"message": "processing"}` as a failure would kill a healthy stream, which is the very
+/// bug this skip exists to avoid. The converse matters just as much — a gateway that
+/// rate-limits with a bare `{"statusCode": 429, "message": …}` on an HTTP 200 must not be
+/// silently skipped, or a failed turn is reported as an empty successful one.
+fn classify_choiceless_frame(value: &Value) -> Option<ProviderError> {
+    let status = ["status", "statusCode", "code"].iter().find_map(|key| {
+        let raw = value.get(*key)?;
+        raw.as_i64()
+            .or_else(|| raw.as_str().and_then(|s| s.parse::<i64>().ok()))
+    });
+
+    let has_error_signal = status.is_some_and(|s| s >= 400)
+        || value.get("type").and_then(|t| t.as_str()) == Some("error")
+        || value.get("detail").is_some_and(|d| !d.is_null());
+    if !has_error_signal {
+        return None;
+    }
+
+    let details = value
+        .get("message")
+        .and_then(stream_error_text)
+        .or_else(|| value.get("detail").and_then(stream_error_text))
+        .or_else(|| value.get("error").and_then(stream_error_text))
+        // A status with no recoverable text must still be loud rather than vanish.
+        .unwrap_or_else(|| match status {
+            Some(s) => format!("Gateway returned status {s} mid-stream"),
+            None => "Unknown server error".to_string(),
+        });
+    Some(ProviderError::ServerError(details))
+}
+
+/// Parse one SSE `data:` payload.
+///
+/// Returns `Ok(None)` for a metadata-only frame — a JSON object with no `choices` key at
+/// all. Gateways interleave these with the real chunks: Portkey/Azure APIM and friends
+/// emit trace/guardrail objects such as `{"hook_results": {...}}` before the first token.
+/// They carry nothing this parser consumes, so they are skipped rather than failed on;
+/// treating them as decode errors kills the whole turn on an otherwise healthy stream.
+///
+/// A frame with `"choices": []` is NOT metadata — that is the standard usage-only chunk,
+/// so it still deserializes and flows through the empty-choices paths below.
+///
+/// A choice-less frame that reports an in-stream failure is NOT metadata either — see
+/// `classify_choiceless_frame`.
+fn parse_streaming_chunk(line: &str) -> Result<Option<StreamingChunk>, ProviderError> {
     let value: Value = serde_json::from_str(line).map_err(|e| {
         ProviderError::stream_decode_error(format!(
             "Failed to parse streaming chunk: {e}: {line:?}"
@@ -1143,7 +1173,17 @@ fn parse_streaming_chunk(line: &str) -> Result<StreamingChunk, ProviderError> {
         return Err(ProviderError::ServerError(message.to_string()));
     }
 
-    serde_json::from_value(value).map_err(|e| {
+    if value
+        .as_object()
+        .is_some_and(|o| !o.contains_key("choices"))
+    {
+        if let Some(err) = classify_choiceless_frame(&value) {
+            return Err(err);
+        }
+        return Ok(None);
+    }
+
+    serde_json::from_value(value).map(Some).map_err(|e| {
         ProviderError::stream_decode_error(format!(
             "Failed to parse streaming chunk: {e}: {line:?}"
         ))
@@ -1195,9 +1235,11 @@ where
                 continue
             }
 
-            let chunk: StreamingChunk = parse_streaming_chunk(
+            let Some(chunk) = parse_streaming_chunk(
                 line.ok_or_else(|| anyhow!("unexpected stream format"))?
-            )?;
+            )? else {
+                continue  // metadata-only frame
+            };
             if let Some(model) = &chunk.model {
                 last_seen_model = Some(model.clone());
             }
@@ -1254,7 +1296,12 @@ where
                                     break 'outer;
                                 }
 
-                                let tool_chunk: StreamingChunk = parse_streaming_chunk(line)?;
+                                // A metadata frame here must NOT fall through to the
+                                // empty-choices branch below, which ends accumulation and
+                                // would truncate this tool call's arguments.
+                                let Some(tool_chunk) = parse_streaming_chunk(line)? else {
+                                    continue
+                                };
                                 if let Some(model) = &tool_chunk.model {
                                     last_seen_model = Some(model.clone());
                                 }
@@ -1628,8 +1675,6 @@ pub fn create_request_for_model_with_options(
         "content": system
     });
 
-    let mut format_options = format_options;
-    format_options.turn_context_in_place |= is_reasoning_model;
     let messages_spec = format_messages_with_options(messages, image_format, format_options);
     let mut tools_spec = format_tools(tools)?;
 
@@ -4301,6 +4346,224 @@ data: [DONE]"#;
         Ok(())
     }
 
+    // ---- metadata-only SSE frames (gateway trace/guardrail objects) -----------------------
+    //
+    // Some OpenAI-compatible gateways interleave objects that have no `choices` key at all
+    // with the real chunks. A Portkey gateway sends a `hook_results` guardrail trace as the
+    // FIRST frame whenever strict-openai-compliance is off. Failing on such a frame killed
+    // the whole turn.
+
+    /// A guardrail trace frame, in the shape a Portkey gateway emits it.
+    const METADATA_FRAME: &str = concat!(
+        r#"data: {"hook_results":{"before_request_hooks":[{"verdict":true,"#,
+        r#""id":"guardrail-1","type":"guardrail","deny":false}]}}"#
+    );
+
+    fn content_chunk(content: &str) -> String {
+        format!(
+            concat!(
+                r#"data: {{"id":"x","object":"chat.completion.chunk","created":1,"model":"m","#,
+                r#""choices":[{{"index":0,"delta":{{"content":"{}"}},"finish_reason":null}}]}}"#
+            ),
+            content
+        )
+    }
+
+    #[tokio::test]
+    async fn test_metadata_only_first_frame_does_not_abort_stream() -> anyhow::Result<()> {
+        // The reported bug: a metadata-only opening frame made the whole turn fail with
+        // "Failed to parse streaming chunk: missing field `choices`".
+        let response_lines = format!("{METADATA_FRAME}\n{}\ndata: [DONE]", content_chunk("hello"));
+        assert_eq!(run_streaming_test(&response_lines).await?.text, "hello");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_metadata_only_frame_interleaved_mid_stream_is_skipped() -> anyhow::Result<()> {
+        let response_lines = format!(
+            "{}\n{METADATA_FRAME}\n{}\ndata: [DONE]",
+            content_chunk("hel"),
+            content_chunk("lo")
+        );
+        assert_eq!(run_streaming_test(&response_lines).await?.text, "hello");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_metadata_only_frame_mid_tool_call_keeps_arguments_intact() -> anyhow::Result<()> {
+        // A metadata frame arriving between two tool_calls argument deltas must not end
+        // argument accumulation. Merely defaulting `choices` to an empty vec would route this
+        // frame into the inner loop's empty-choices branch (`done = true`) and silently
+        // truncate the arguments to `{"city":"Pa` — a quiet corruption instead of a loud error.
+        let response_lines = concat!(
+            r#"data: {"id":"x","object":"chat.completion.chunk","model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"get_weather","arguments":"{\"city\":\"Pa"}}]},"finish_reason":null}]}"#,
+            "\n",
+            r#"data: {"hook_results":{"before_request_hooks":[{"verdict":true,"type":"guardrail","deny":false}]}}"#,
+            "\n",
+            r#"data: {"id":"x","object":"chat.completion.chunk","model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"ris\"}"}}]},"finish_reason":null}]}"#,
+            "\n",
+            r#"data: {"id":"x","object":"chat.completion.chunk","model":"m","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}"#,
+            "\n",
+            "data: [DONE]"
+        );
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+
+        let mut tool_calls = Vec::new();
+        while let Some(result) = messages.next().await {
+            let (message, _usage) = result?;
+            if let Some(msg) = message {
+                for content in &msg.content {
+                    if let MessageContentBlock::ToolRequest(req) = content {
+                        if let Ok(call) = &req.tool_call {
+                            tool_calls.push(call.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        assert_eq!(tool_calls.len(), 1, "expected exactly one tool call");
+        assert_eq!(tool_calls[0].name, "get_weather");
+        assert_eq!(
+            tool_calls[0]
+                .arguments
+                .as_ref()
+                .and_then(|a| a.get("city"))
+                .and_then(Value::as_str),
+            Some("Paris"),
+            "arguments must survive the interleaved metadata frame intact"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_empty_choices_array_is_not_treated_as_metadata() -> anyhow::Result<()> {
+        // `"choices": []` is the standard usage-only chunk, NOT a metadata frame: it must
+        // still deserialize and still surface its usage.
+        let response_lines = concat!(
+            r#"data: {"id":"x","object":"chat.completion.chunk","model":"m","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}]}"#,
+            "\n",
+            r#"data: {"id":"x","object":"chat.completion.chunk","model":"m","choices":[],"usage":{"prompt_tokens":7,"completion_tokens":3,"total_tokens":10}}"#,
+            "\n",
+            "data: [DONE]"
+        );
+        let result = run_streaming_test(response_lines).await?;
+        assert_eq!(result.usage_count, 1, "the usage-only chunk must be kept");
+        let usage = result.usage.expect("usage should be reported");
+        assert_eq!(usage.usage.output_tokens, Some(3));
+        assert!(result.has_text_content);
+        Ok(())
+    }
+
+    #[test]
+    fn test_error_frames_still_surface_as_server_error() {
+        // Skipping choice-less frames must not swallow gateway error frames, which are also
+        // choice-less. Every one of these is handled ahead of the metadata skip.
+        for line in [
+            r#"{"error":{"message":"upstream exploded"}}"#,
+            r#"{"object":"error","message":"upstream exploded"}"#,
+            // No `error` key and no `object`: the shape Azure APIM rate-limits with, on an
+            // HTTP 200. Skipping this would report the failed turn as an empty success.
+            r#"{"statusCode":429,"message":"upstream exploded"}"#,
+            // Some gateways stringify the status.
+            r#"{"status":"503","message":"upstream exploded"}"#,
+            // FastAPI's HTTPException shape.
+            r#"{"detail":"upstream exploded"}"#,
+            // FastAPI's RequestValidationError shape: `detail` is a LIST, so a string-only
+            // read would drop it and silently skip the frame.
+            r#"{"detail":[{"loc":["body"],"msg":"upstream exploded","type":"value_error"}]}"#,
+            // A non-string `message` must not be dropped either.
+            r#"{"statusCode":500,"message":{"text":"upstream exploded"}}"#,
+            // `type: "error"` is a third error marker some gateways use.
+            r#"{"type":"error","message":"upstream exploded"}"#,
+        ] {
+            match parse_streaming_chunk(line) {
+                Err(ProviderError::ServerError(msg)) => assert!(
+                    msg.contains("upstream exploded"),
+                    "message preserved for {line}, got {msg:?}"
+                ),
+                other => panic!("expected ServerError for {line}, got {other:?}"),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_informational_choiceless_frame_is_still_skipped() -> anyhow::Result<()> {
+        // Prose alone is not an error signal. A keepalive/progress frame carrying a message
+        // but no status must NOT abort the turn — doing so would reintroduce exactly the bug
+        // the metadata skip exists to fix.
+        let response_lines = format!(
+            "{}\n{}\ndata: [DONE]",
+            r#"data: {"message":"processing"}"#,
+            content_chunk("hello")
+        );
+        assert_eq!(run_streaming_test(&response_lines).await?.text, "hello");
+        Ok(())
+    }
+
+    #[test]
+    fn test_status_only_error_frame_still_fails_loudly() {
+        // No message text anywhere: the frame must still surface rather than vanish.
+        match parse_streaming_chunk(r#"{"statusCode":503}"#) {
+            Err(ProviderError::ServerError(msg)) => {
+                assert!(msg.contains("503"), "status should reach the caller: {msg}")
+            }
+            other => panic!("expected ServerError, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_choiceless_frame_error_text_is_capped() {
+        let long = "x".repeat(5_000);
+        let line = format!(r#"{{"statusCode":500,"message":"{long}"}}"#);
+        match parse_streaming_chunk(&line) {
+            Err(ProviderError::ServerError(msg)) => assert!(
+                msg.chars().count() <= MAX_STREAM_ERROR_LEN + 1,
+                "error text should be truncated, got {} chars",
+                msg.chars().count()
+            ),
+            other => panic!("expected ServerError, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_in_stream_error_frame_aborts_rather_than_ending_empty() {
+        // End-to-end counterpart: the turn must fail, not complete with no content. A silent
+        // skip here tells the user to resend — the worst possible advice into a 429.
+        let response_lines = concat!(
+            r#"data: {"statusCode":429,"message":"rate limited"}"#,
+            "\n",
+            "data: [DONE]"
+        );
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+
+        let first = messages.next().await.expect("stream should yield an item");
+        let err = first.expect_err("an in-stream error frame must not be skipped");
+        assert!(
+            err.to_string().contains("rate limited"),
+            "the gateway's message must reach the caller: {err}"
+        );
+    }
+
+    #[test]
+    fn test_parse_streaming_chunk_returns_none_for_metadata_frames() {
+        // Unit-level counterpart to the streaming tests above.
+        let metadata = parse_streaming_chunk(r#"{"hook_results":{"before_request_hooks":[]}}"#)
+            .expect("metadata frame must not be an error");
+        assert!(metadata.is_none(), "metadata frame should be skipped");
+
+        let real = parse_streaming_chunk(r#"{"choices":[],"usage":{"completion_tokens":1}}"#)
+            .expect("usage-only chunk must parse");
+        assert!(
+            real.is_some(),
+            "`choices: []` is a real chunk, not metadata"
+        );
+    }
+
     #[tokio::test]
     async fn test_streaming_chunk_with_only_reasoning_content() -> anyhow::Result<()> {
         let response_lines = "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"hi\"},\"finish_reason\":null}]}\ndata: [DONE]";
@@ -4849,7 +5112,6 @@ data: [DONE]"#;
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
                 thinking_preservation_format: Some(format),
-                ..Default::default()
             },
         )
     }
@@ -4965,8 +5227,8 @@ data: [DONE]"#;
                 Message::user().with_text("What does the main entrypoint do?"),
                 Message::assistant().with_text("Let me read it."),
                 Message::user()
-                    .with_text(turn_context_block)
-                    .with_text("Now add error handling to it."),
+                    .with_text("Now add error handling to it.")
+                    .with_text(turn_context_block),
                 Message::assistant().with_tool_request(
                     "tool_1",
                     Ok(CallToolRequestParams::new("read_file")
@@ -4981,182 +5243,26 @@ data: [DONE]"#;
             ]
         }
 
-        fn prefix(spec: &[Value]) -> String {
-            json!(spec[..spec.len() - 1]).to_string()
-        }
-
         #[test]
-        fn formatted_prefix_is_invariant_to_turn_context_changes() {
-            let spec_a = format_messages(
-                &tool_loop_conversation(&turn_context("2026-08-03 12:00:00", "14/40 used")),
-                &ImageFormat::OpenAi,
-            );
-            let spec_b = format_messages(
-                &tool_loop_conversation(&turn_context("2026-08-03 13:47:00", "31/40 used")),
-                &ImageFormat::OpenAi,
-            );
-
-            assert_ne!(
-                json!(spec_a).to_string(),
-                json!(spec_b).to_string(),
-                "test setup is vacuous: the turn-context never reached the request body"
-            );
-            assert_eq!(
-                prefix(&spec_a),
-                prefix(&spec_b),
-                "the formatted prefix changed when only the volatile turn-context changed; \
-                 implicit prefix caching will re-prefill the conversation tail every request"
-            );
-        }
-
-        #[test]
-        fn turn_context_is_relocated_to_a_trailing_user_message() {
+        fn turn_context_stays_on_its_source_message() {
             let block = turn_context("2026-08-03 12:00:00", "14/40 used");
             let spec = format_messages(&tool_loop_conversation(&block), &ImageFormat::OpenAi);
 
-            let last = spec.last().unwrap();
-            assert_eq!(last["role"], "user");
-            assert_eq!(last["content"], json!(block));
-
-            let occurrences = spec
+            let occurrences: Vec<usize> = spec
                 .iter()
-                .filter(|m| {
+                .enumerate()
+                .filter_map(|(i, m)| {
                     m["content"]
                         .as_str()
                         .is_some_and(|c| c.contains("<turn-context>"))
+                        .then_some(i)
                 })
-                .count();
-            assert_eq!(occurrences, 1, "turn-context must appear exactly once");
-
+                .collect();
             assert_eq!(
-                spec[2]["content"],
-                json!("Now add error handling to it."),
-                "the source user message must keep its genuine text untouched"
+                occurrences,
+                vec![2],
+                "turn-context must appear exactly once, on its source message"
             );
-        }
-
-        #[test]
-        fn first_request_of_a_turn_keeps_turn_context_inside_the_user_message() {
-            let block = turn_context("2026-08-03 12:00:00", "1/40 used");
-            let messages = vec![Message::user()
-                .with_text(&block)
-                .with_text("What does the main entrypoint do?")];
-            let spec = format_messages(&messages, &ImageFormat::OpenAi);
-
-            assert_eq!(spec.len(), 1);
-            assert_eq!(
-                spec[0]["content"],
-                json!(format!("What does the main entrypoint do?\n{block}"))
-            );
-        }
-
-        #[test]
-        fn mid_history_sole_turn_context_is_left_in_place() {
-            let block = turn_context("2026-08-03 12:00:00", "14/40 used");
-            let messages = vec![
-                Message::user().with_text(&block),
-                Message::assistant().with_text("Understood."),
-                Message::user().with_text("Please refactor the argument parser."),
-            ];
-            let spec = format_messages(&messages, &ImageFormat::OpenAi);
-
-            assert_eq!(spec.len(), 3);
-            assert_eq!(spec[0]["content"], json!(block));
-            assert_eq!(
-                spec[2]["content"],
-                json!("Please refactor the argument parser.")
-            );
-        }
-
-        #[test]
-        fn turn_context_merges_into_the_synthetic_image_message() {
-            let block = turn_context("2026-08-03 12:00:00", "14/40 used");
-            let mut messages = tool_loop_conversation(&block);
-            messages.pop();
-            messages.push(Message::user().with_tool_response(
-                "tool_1",
-                Ok(CallToolResult::success(vec![ContentBlock::image(
-                    "aGVsbG8=",
-                    "image/png",
-                )])),
-            ));
-            let spec = format_messages(&messages, &ImageFormat::OpenAi);
-
-            let last = spec.last().unwrap();
-            assert_eq!(last["role"], "user");
-            let blocks = last["content"].as_array().unwrap();
-            assert!(blocks.iter().any(|b| b["type"] == json!("image_url")));
-            assert_eq!(blocks.last().unwrap()["text"], json!(block));
-            for pair in spec.windows(2) {
-                assert!(
-                    !(pair[0]["role"] == json!("user") && pair[1]["role"] == json!("user")),
-                    "consecutive user messages reached the wire: {pair:?}"
-                );
-            }
-        }
-
-        fn responses_stack_request(messages: &[Message]) -> Vec<Value> {
-            let request = create_request(
-                &test_model_config("openai/gpt-5.6-terra"),
-                "system",
-                messages,
-                &[],
-                &ImageFormat::OpenAi,
-                false,
-            )
-            .unwrap();
-            request["messages"].as_array().unwrap().clone()
-        }
-
-        #[test]
-        fn responses_stack_tool_loop_requests_are_append_only() {
-            let block = turn_context("2026-08-03 12:00:00", "14/40 used");
-            let earlier = tool_loop_conversation(&block);
-            let mut later = earlier.clone();
-            later.push(
-                Message::assistant().with_tool_request(
-                    "tool_2",
-                    Ok(CallToolRequestParams::new("read_file")
-                        .with_arguments(object!({"path": "src/lib.rs"}))),
-                ),
-            );
-            later.push(Message::user().with_tool_response(
-                "tool_2",
-                Ok(CallToolResult::success(vec![ContentBlock::text(
-                    "pub fn run() {}",
-                )])),
-            ));
-
-            let spec_earlier = responses_stack_request(&earlier);
-            let spec_later = responses_stack_request(&later);
-
-            assert!(spec_later.len() > spec_earlier.len());
-            for (i, earlier_msg) in spec_earlier.iter().enumerate() {
-                assert_eq!(
-                    json!(earlier_msg).to_string(),
-                    json!(spec_later[i]).to_string(),
-                    "request N must be a byte prefix of request N+1 at index {i}"
-                );
-            }
-        }
-
-        #[test]
-        fn chat_stack_models_still_relocate_turn_context_to_the_tail() {
-            let block = turn_context("2026-08-03 12:00:00", "14/40 used");
-            let request = create_request(
-                &test_model_config("openai/gpt-4.1-mini"),
-                "system",
-                &tool_loop_conversation(&block),
-                &[],
-                &ImageFormat::OpenAi,
-                false,
-            )
-            .unwrap();
-            let spec = request["messages"].as_array().unwrap();
-
-            let last = spec.last().unwrap();
-            assert_eq!(last["role"], "user");
-            assert_eq!(last["content"], json!(block));
         }
     }
 }

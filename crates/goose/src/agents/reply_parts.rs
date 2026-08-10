@@ -14,7 +14,7 @@ use super::gen_ai_telemetry;
 use crate::agents::platform_extensions::code_execution;
 use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent, MessageUsage, ToolRequest};
-use crate::conversation::{fix_conversation, Conversation};
+use crate::conversation::{fix_conversation, merge_consecutive_messages_for_request, Conversation};
 #[cfg(test)]
 use crate::providers::base::stream_from_single_message;
 use crate::providers::base::{MessageStream, Provider};
@@ -341,6 +341,9 @@ pub(crate) async fn stream_response_from_provider(
         Conversation::new_unvalidated(messages.iter().cloned()).agent_visible_messages();
     let (filtered_messages, _) =
         fix_conversation(Conversation::new_unvalidated(projected_messages));
+    let filtered_messages = Conversation::new_unvalidated(merge_consecutive_messages_for_request(
+        filtered_messages.messages().clone(),
+    ));
 
     // Convert tool messages to text if toolshim is enabled
     let messages_for_provider = if config.toolshim {
