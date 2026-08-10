@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
-use super::openai_compatible::{handle_status, stream_openai_compat};
+use super::openai_compatible::{first_body_chunk, handle_status, stream_openai_compat_with_prefix};
 use super::retry::ProviderRetry;
 use crate::conversation::message::Message;
 use crate::providers::formats::openrouter as openrouter_format;
@@ -79,16 +79,19 @@ impl OpenRouterProvider {
         &self,
         model_config: &ModelConfig,
         payload: &Value,
-    ) -> Result<reqwest::Response, ProviderError> {
+    ) -> Result<(reqwest::Response, Option<bytes::Bytes>), ProviderError> {
         self.with_retry(|| async {
-            let resp = self
-                .api_client
-                .request("api/v1/chat/completions")
-                .model_headers(model_config)?
-                .streaming(true)
-                .response_post(payload)
-                .await?;
-            handle_status(resp).await
+            let mut response = handle_status(
+                self.api_client
+                    .request("api/v1/chat/completions")
+                    .model_headers(model_config)?
+                    .streaming(true)
+                    .response_post(payload)
+                    .await?,
+            )
+            .await?;
+            let first_chunk = first_body_chunk(&mut response).await?;
+            Ok((response, Some(first_chunk)))
         })
         .await
     }
@@ -296,22 +299,23 @@ impl Provider for OpenRouterProvider {
 
         let mut log = start_log(model_config, &payload)?;
 
-        let response = match self.post_chat_completions(model_config, &payload).await {
-            // Mandatory-reasoning endpoints reject the disable request, so
-            // downgrade to the lowest effort they all accept and retry once.
-            Err(error) if sent_reasoning_disable && is_mandatory_reasoning_error(&error) => {
-                let _ = log.error(&error);
-                payload["reasoning"] = json!({ "effort": "low" });
-                log = start_log(model_config, &payload)?;
-                self.post_chat_completions(model_config, &payload).await
+        let (response, first_chunk) =
+            match self.post_chat_completions(model_config, &payload).await {
+                // Mandatory-reasoning endpoints reject the disable request, so
+                // downgrade to the lowest effort they all accept and retry once.
+                Err(error) if sent_reasoning_disable && is_mandatory_reasoning_error(&error) => {
+                    let _ = log.error(&error);
+                    payload["reasoning"] = json!({ "effort": "low" });
+                    log = start_log(model_config, &payload)?;
+                    self.post_chat_completions(model_config, &payload).await
+                }
+                result => result,
             }
-            result => result,
-        }
-        .inspect_err(|e| {
-            let _ = log.error(e);
-        })?;
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
 
-        stream_openai_compat(response, log)
+        stream_openai_compat_with_prefix(response, first_chunk, log)
     }
 }
 

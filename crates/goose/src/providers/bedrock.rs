@@ -4,7 +4,9 @@ use super::base::{
     ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_CONNECT_TIMEOUT_SECS, DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
-use super::openai_compatible::{handle_status, stream_responses_compat};
+use super::openai_compatible::{
+    first_body_chunk, handle_status, stream_responses_compat_with_prefix,
+};
 use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
 use crate::session_context::SESSION_ID_HEADER;
@@ -244,7 +246,7 @@ impl BedrockProvider {
         &self,
         session_id: Option<&str>,
         payload: &Value,
-    ) -> Result<reqwest::Response, ProviderError> {
+    ) -> Result<(reqwest::Response, Option<bytes::Bytes>), ProviderError> {
         let region = self.region.as_deref().ok_or_else(|| {
             ProviderError::Authentication(
                 "AWS region is required for Bedrock mantle endpoint".to_string(),
@@ -284,7 +286,9 @@ impl BedrockProvider {
         )
         .await?;
 
-        handle_status(response).await
+        let mut response = handle_status(response).await?;
+        let first_chunk = first_body_chunk(&mut response).await?;
+        Ok((response, Some(first_chunk)))
     }
 
     /// Build the request inputs shared by [`Self::converse`] and
@@ -808,14 +812,14 @@ impl Provider for BedrockProvider {
             payload["stream"] = Value::Bool(true);
             let mut log = start_log(model_config, &payload).map_err(anyhow::Error::from)?;
 
-            let response = self
+            let (response, first_chunk) = self
                 .with_retry(|| self.post_mantle_streaming(session_id_opt, &payload))
                 .await
                 .inspect_err(|e| {
                     let _ = log.error(e);
                 })?;
 
-            return stream_responses_compat(response, log);
+            return stream_responses_compat_with_prefix(response, first_chunk, log);
         }
 
         let model_name = model_config.model_name.clone();

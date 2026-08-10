@@ -1,8 +1,8 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::openai_compatible::{
-    handle_response_openai_compat, handle_status, map_http_error_to_provider_error,
-    stream_openai_compat,
+    first_body_chunk, handle_response_openai_compat, handle_status,
+    map_http_error_to_provider_error, stream_openai_compat_with_prefix,
 };
 use super::retry::ProviderRetry;
 use crate::config::signup_tetrate::TETRATE_DEFAULT_MODEL;
@@ -148,20 +148,20 @@ impl Provider for TetrateProvider {
 
         let mut log = start_log(model_config, &payload)?;
 
-        let response = self
+        let (response, first_chunk) = self
             .with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .request("v1/chat/completions")
-                    .model_headers(model_config)?
-                    .streaming(true)
-                    .response_post(&payload)
-                    .await?;
-                let resp = handle_status(resp)
-                    .await
-                    .map_err(Self::enrich_credits_error)?;
+                let mut response = handle_status(
+                    self.api_client
+                        .request("v1/chat/completions")
+                        .model_headers(model_config)?
+                        .streaming(true)
+                        .response_post(&payload)
+                        .await?,
+                )
+                .await
+                .map_err(Self::enrich_credits_error)?;
 
-                let is_json = resp
+                let is_json = response
                     .headers()
                     .get(reqwest::header::CONTENT_TYPE)
                     .and_then(|v| v.to_str().ok())
@@ -169,7 +169,7 @@ impl Provider for TetrateProvider {
                     .is_some_and(|v| v.contains("json"));
 
                 if is_json {
-                    let body = goose_providers::http_status::read_error_body(resp)
+                    let body = goose_providers::http_status::read_error_body(response)
                         .await
                         .unwrap_or_default();
                     if let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body) {
@@ -186,14 +186,15 @@ impl Provider for TetrateProvider {
                     )));
                 }
 
-                Ok(resp)
+                let first_chunk = first_body_chunk(&mut response).await?;
+                Ok((response, Some(first_chunk)))
             })
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);
             })?;
 
-        stream_openai_compat(response, log)
+        stream_openai_compat_with_prefix(response, first_chunk, log)
     }
 
     /// Fetch supported models from Tetrate Agent Router Service API

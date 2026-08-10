@@ -1,6 +1,6 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
-use super::openai_compatible::{handle_status, stream_openai_compat};
+use super::openai_compatible::{first_body_chunk, handle_status, stream_openai_compat_with_prefix};
 use super::retry::ProviderRetry;
 use crate::conversation::message::Message;
 use anyhow::Result;
@@ -192,23 +192,26 @@ impl Provider for NanoGptProvider {
 
         let mut log = start_log(model_config, &payload)?;
 
-        let response = self
+        let (response, first_chunk) = self
             .with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .request("chat/completions")
-                    .model_headers(model_config)?
-                    .streaming(true)
-                    .response_post(&payload)
-                    .await?;
-                handle_status(resp).await
+                let mut response = handle_status(
+                    self.api_client
+                        .request("chat/completions")
+                        .model_headers(model_config)?
+                        .streaming(true)
+                        .response_post(&payload)
+                        .await?,
+                )
+                .await?;
+                let first_chunk = first_body_chunk(&mut response).await?;
+                Ok((response, Some(first_chunk)))
             })
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);
             })?;
 
-        stream_openai_compat(response, log)
+        stream_openai_compat_with_prefix(response, first_chunk, log)
     }
 }
 

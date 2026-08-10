@@ -2,7 +2,8 @@ use crate::config::paths::Paths;
 use crate::providers::api_client::{ApiClient, AuthMethod};
 use crate::providers::oauth_device_flow::{run_device_flow, DeviceFlowConfig, RequestEncoding};
 use crate::providers::openai_compatible::{
-    handle_status, stream_openai_compat, stream_responses_compat,
+    first_body_chunk, handle_status, stream_openai_compat_with_prefix,
+    stream_responses_compat_with_prefix,
 };
 use crate::providers::private_file::write_private_file;
 use anyhow::{anyhow, Result};
@@ -423,11 +424,11 @@ impl GithubCopilotProvider {
 
         let mut log = start_log(model_config, &payload)?;
 
-        let response = self
+        let (response, first_chunk) = self
             .with_retry(|| async {
                 let mut payload_clone = payload.clone();
-                let resp = self
-                    .post(
+                let mut response = handle_status(
+                    self.post(
                         model_config,
                         "responses",
                         is_user_initiated,
@@ -435,15 +436,18 @@ impl GithubCopilotProvider {
                         has_images,
                         true,
                     )
-                    .await?;
-                handle_status(resp).await
+                    .await?,
+                )
+                .await?;
+                let first_chunk = first_body_chunk(&mut response).await?;
+                Ok((response, Some(first_chunk)))
             })
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);
             })?;
 
-        stream_responses_compat(response, log)
+        stream_responses_compat_with_prefix(response, first_chunk, log)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -471,11 +475,11 @@ impl GithubCopilotProvider {
             )?;
             let mut log = start_log(model_config, &payload)?;
 
-            let response = self
+            let (response, first_chunk) = self
                 .with_retry(|| async {
                     let mut payload_clone = payload.clone();
-                    let resp = self
-                        .post(
+                    let mut response = handle_status(
+                        self.post(
                             model_config,
                             "chat/completions",
                             is_user_initiated,
@@ -483,15 +487,18 @@ impl GithubCopilotProvider {
                             has_images,
                             true,
                         )
-                        .await?;
-                    handle_status(resp).await
+                        .await?,
+                    )
+                    .await?;
+                    let first_chunk = first_body_chunk(&mut response).await?;
+                    Ok((response, Some(first_chunk)))
                 })
                 .await
                 .inspect_err(|e| {
                     let _ = log.error(e);
                 })?;
 
-            stream_openai_compat(response, log)
+            stream_openai_compat_with_prefix(response, first_chunk, log)
         } else {
             let payload = create_request(
                 model_config,

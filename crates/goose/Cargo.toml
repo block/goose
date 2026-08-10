@@ -98,6 +98,7 @@ thiserror = { workspace = true }
 futures = { workspace = true }
 dirs = { workspace = true }
 reqwest = { workspace = true, features = ["json", "cookies", "gzip", "brotli", "deflate", "zstd", "charset", "http2", "stream", "blocking", "multipart", "system-proxy"] }
+bytes = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "fs", "process", "net", "signal", "io-std", "io-util"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

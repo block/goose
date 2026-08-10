@@ -25,7 +25,10 @@ use crate::errors::ProviderError;
 use crate::formats::anthropic;
 use crate::formats::openai_responses;
 use crate::model::ModelConfig;
-use crate::openai_compatible::{handle_status, stream_openai_compat, stream_responses_compat};
+use crate::openai_compatible::{
+    first_body_chunk, handle_status, stream_openai_compat_with_prefix,
+    stream_responses_compat_with_prefix,
+};
 use crate::request_log::{start_log, LoggerHandleExt};
 use crate::retry::ProviderRetry;
 use crate::retry::{
@@ -201,23 +204,26 @@ impl DatabricksV2Provider {
         payload["stream"] = Value::Bool(true);
         let mut log = start_log(model_config, &payload)?;
 
-        let response = self
+        let (response, first_chunk) = self
             .with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .request("ai-gateway/openai/v1/responses")
-                    .model_headers(model_config)?
-                    .streaming(true)
-                    .response_post(&payload)
-                    .await?;
-                handle_status(resp).await
+                let mut response = handle_status(
+                    self.api_client
+                        .request("ai-gateway/openai/v1/responses")
+                        .model_headers(model_config)?
+                        .streaming(true)
+                        .response_post(&payload)
+                        .await?,
+                )
+                .await?;
+                let first_chunk = first_body_chunk(&mut response).await?;
+                Ok((response, Some(first_chunk)))
             })
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);
             })?;
 
-        stream_responses_compat(response, log)
+        stream_responses_compat_with_prefix(response, first_chunk, log)
     }
 
     async fn stream_mlflow_chat_completions(
@@ -240,23 +246,26 @@ impl DatabricksV2Provider {
         }
         let mut log = start_log(model_config, &payload)?;
 
-        let response = self
+        let (response, first_chunk) = self
             .with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .request("ai-gateway/mlflow/v1/chat/completions")
-                    .model_headers(model_config)?
-                    .streaming(true)
-                    .response_post(&payload)
-                    .await?;
-                handle_status(resp).await
+                let mut response = handle_status(
+                    self.api_client
+                        .request("ai-gateway/mlflow/v1/chat/completions")
+                        .model_headers(model_config)?
+                        .streaming(true)
+                        .response_post(&payload)
+                        .await?,
+                )
+                .await?;
+                let first_chunk = first_body_chunk(&mut response).await?;
+                Ok((response, Some(first_chunk)))
             })
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);
             })?;
 
-        stream_openai_compat(response, log)
+        stream_openai_compat_with_prefix(response, first_chunk, log)
     }
 
     async fn stream_anthropic_messages(

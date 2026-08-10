@@ -24,8 +24,8 @@ pub use crate::formats::databricks::DATABRICKS_PROVIDER_NAME;
 use crate::formats::openai_responses::create_responses_request;
 use crate::model::ModelConfig;
 use crate::openai_compatible::{
-    handle_status, map_http_error_to_provider_error, sanitize_url, stream_openai_compat,
-    stream_responses_compat,
+    first_body_chunk, handle_status, map_http_error_to_provider_error, sanitize_url,
+    stream_openai_compat_with_prefix, stream_responses_compat_with_prefix,
 };
 use crate::request_log::{start_log, LoggerHandleExt};
 use crate::retry::ProviderRetry;
@@ -594,24 +594,27 @@ impl Provider for DatabricksProvider {
 
             let mut log = start_log(model_config, &payload)?;
 
-            let response = self
+            let (response, first_chunk) = self
                 .with_retry(|| async {
                     let payload_clone = payload.clone();
-                    let resp = self
-                        .api_client
-                        .request(&path)
-                        .model_headers(model_config)?
-                        .streaming(true)
-                        .response_post(&payload_clone)
-                        .await?;
-                    handle_status(resp).await
+                    let mut response = handle_status(
+                        self.api_client
+                            .request(&path)
+                            .model_headers(model_config)?
+                            .streaming(true)
+                            .response_post(&payload_clone)
+                            .await?,
+                    )
+                    .await?;
+                    let first_chunk = first_body_chunk(&mut response).await?;
+                    Ok((response, Some(first_chunk)))
                 })
                 .await
                 .inspect_err(|e| {
                     let _ = log.error(e);
                 })?;
 
-            stream_responses_compat(response, log)
+            stream_responses_compat_with_prefix(response, first_chunk, log)
         } else {
             let format_model_config;
             let request_model_config = if Self::is_claude_model(effective_model_name)
@@ -663,31 +666,7 @@ impl Provider for DatabricksProvider {
             let mut log = start_log(model_config, &payload)?;
             let response = self
                 .with_retry(|| async {
-                    let resp = self
-                        .api_client
-                        .request(&path)
-                        .model_headers(model_config)?
-                        .streaming(true)
-                        .response_post(&payload)
-                        .await?;
-                    if !resp.status().is_success() {
-                        let status = resp.status();
-                        let url = sanitize_url(resp.url().as_str());
-                        let error_text = crate::http_status::read_error_body(resp)
-                            .await
-                            .unwrap_or_default();
-
-                        let json_payload = serde_json::from_str::<Value>(&error_text).ok();
-                        return Err(map_http_error_to_provider_error(status, json_payload, &url));
-                    }
-                    Ok(resp)
-                })
-                .await;
-
-            let response = match response {
-                Err(e) if e.to_string().contains("stream_options") => {
-                    payload.as_object_mut().unwrap().remove("stream_options");
-                    self.with_retry(|| async {
+                    let mut response = {
                         let resp = self
                             .api_client
                             .request(&path)
@@ -701,6 +680,7 @@ impl Provider for DatabricksProvider {
                             let error_text = crate::http_status::read_error_body(resp)
                                 .await
                                 .unwrap_or_default();
+
                             let json_payload = serde_json::from_str::<Value>(&error_text).ok();
                             return Err(map_http_error_to_provider_error(
                                 status,
@@ -708,7 +688,42 @@ impl Provider for DatabricksProvider {
                                 &url,
                             ));
                         }
-                        Ok(resp)
+                        resp
+                    };
+                    let first_chunk = first_body_chunk(&mut response).await?;
+                    Ok((response, Some(first_chunk)))
+                })
+                .await;
+
+            let (response, first_chunk) = match response {
+                Err(e) if e.to_string().contains("stream_options") => {
+                    payload.as_object_mut().unwrap().remove("stream_options");
+                    self.with_retry(|| async {
+                        let mut response = {
+                            let resp = self
+                                .api_client
+                                .request(&path)
+                                .model_headers(model_config)?
+                                .streaming(true)
+                                .response_post(&payload)
+                                .await?;
+                            if !resp.status().is_success() {
+                                let status = resp.status();
+                                let url = sanitize_url(resp.url().as_str());
+                                let error_text = crate::http_status::read_error_body(resp)
+                                    .await
+                                    .unwrap_or_default();
+                                let json_payload = serde_json::from_str::<Value>(&error_text).ok();
+                                return Err(map_http_error_to_provider_error(
+                                    status,
+                                    json_payload,
+                                    &url,
+                                ));
+                            }
+                            resp
+                        };
+                        let first_chunk = first_body_chunk(&mut response).await?;
+                        Ok((response, Some(first_chunk)))
                     })
                     .await
                     .inspect_err(|e| {
@@ -722,7 +737,7 @@ impl Provider for DatabricksProvider {
                 Ok(resp) => resp,
             };
 
-            stream_openai_compat(response, log)
+            stream_openai_compat_with_prefix(response, first_chunk, log)
         }
     }
 
