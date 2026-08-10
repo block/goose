@@ -3278,6 +3278,21 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "자세히"
   },
+  "roamSection.acceptButton": {
+    "defaultMessage": "수락"
+  },
+  "roamSection.acceptNamePlaceholder": {
+    "defaultMessage": "이름 (선택) — 예: 휴대폰"
+  },
+  "roamSection.acceptPlaceholder": {
+    "defaultMessage": "goose+roam://…  (기기의 카드)"
+  },
+  "roamSection.acceptTitle": {
+    "defaultMessage": "기기 수락"
+  },
+  "roamSection.acceptedAs": {
+    "defaultMessage": "{name} 수락됨 — 기기에서 지문이 일치하는지 확인하세요: {fingerprint}"
+  },
   "roamSection.copied": {
     "defaultMessage": "복사됨"
   },
@@ -3306,7 +3321,7 @@
     "defaultMessage": "아직 페어링된 기기가 없습니다."
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "휴대폰 카메라로 이 코드를 스캔하면 이 컴퓨터를 가리키는 goose 웹 클라이언트가 열립니다. 그런 다음 터미널에서 `goose roam pair`를 실행하여 새 기기를 수락하세요."
+    "defaultMessage": "휴대폰 카메라로 이 코드를 스캔하면 이 컴퓨터를 가리키는 goose 웹 클라이언트가 열립니다. 기기에 표시되는 카드를 아래에 붙여넣어 페어링을 완료하세요."
   },
   "roamSection.pairTitle": {
     "defaultMessage": "기기 페어링"
@@ -4128,7 +4143,7 @@
     "defaultMessage": "채팅"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "외부 백엔드"
+    "defaultMessage": "원격 접속"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "키보드"

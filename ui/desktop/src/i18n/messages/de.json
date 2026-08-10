@@ -3278,6 +3278,21 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "Ausführlich"
   },
+  "roamSection.acceptButton": {
+    "defaultMessage": "Akzeptieren"
+  },
+  "roamSection.acceptNamePlaceholder": {
+    "defaultMessage": "Name (optional) — z. B. Handy"
+  },
+  "roamSection.acceptPlaceholder": {
+    "defaultMessage": "goose+roam://…  (die Karte des Geräts)"
+  },
+  "roamSection.acceptTitle": {
+    "defaultMessage": "Gerät akzeptieren"
+  },
+  "roamSection.acceptedAs": {
+    "defaultMessage": "{name} akzeptiert — prüfe, dass der Fingerabdruck auf dem Gerät übereinstimmt: {fingerprint}"
+  },
   "roamSection.copied": {
     "defaultMessage": "Kopiert"
   },
@@ -3306,7 +3321,7 @@
     "defaultMessage": "Noch keine Geräte gekoppelt."
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "Scanne diesen Code mit der Handykamera — er öffnet den goose-Webclient bereits auf diese Maschine ausgerichtet. Akzeptiere dann das neue Gerät mit `goose roam pair` im Terminal."
+    "defaultMessage": "Scanne diesen Code mit der Handykamera — er öffnet den goose-Webclient bereits auf diese Maschine ausgerichtet. Das Gerät zeigt seine eigene Karte; füge sie unten ein, um die Kopplung abzuschließen."
   },
   "roamSection.pairTitle": {
     "defaultMessage": "Gerät koppeln"
@@ -4128,7 +4143,7 @@
     "defaultMessage": "Chat"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "Externes Backend"
+    "defaultMessage": "Fernzugriff"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Tastatur"

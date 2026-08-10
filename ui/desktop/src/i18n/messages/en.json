@@ -3278,6 +3278,21 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "Detailed"
   },
+  "roamSection.acceptButton": {
+    "defaultMessage": "Accept"
+  },
+  "roamSection.acceptNamePlaceholder": {
+    "defaultMessage": "name (optional) — e.g. phone"
+  },
+  "roamSection.acceptPlaceholder": {
+    "defaultMessage": "goose+roam://… (the device’s card)"
+  },
+  "roamSection.acceptTitle": {
+    "defaultMessage": "Accept a device"
+  },
+  "roamSection.acceptedAs": {
+    "defaultMessage": "Accepted {name} — verify the fingerprint matches on the device: {fingerprint}"
+  },
   "roamSection.copied": {
     "defaultMessage": "Copied"
   },
@@ -3306,7 +3321,7 @@
     "defaultMessage": "No devices paired yet."
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "Scan this code with your phone camera — it opens the goose web client already pointed at this machine. Then accept the new device by running `goose roam pair` in a terminal."
+    "defaultMessage": "Scan this code with your phone camera — it opens the goose web client already pointed at this machine. The device shows its own card; paste it below to finish pairing."
   },
   "roamSection.pairTitle": {
     "defaultMessage": "Pair a device"
@@ -4128,7 +4143,7 @@
     "defaultMessage": "Chat"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "External Backend"
+    "defaultMessage": "Remote Access"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Keyboard"

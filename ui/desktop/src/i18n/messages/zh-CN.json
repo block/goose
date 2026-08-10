@@ -3278,6 +3278,21 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "详细"
   },
+  "roamSection.acceptButton": {
+    "defaultMessage": "接受"
+  },
+  "roamSection.acceptNamePlaceholder": {
+    "defaultMessage": "名称（可选）— 例如：手机"
+  },
+  "roamSection.acceptPlaceholder": {
+    "defaultMessage": "goose+roam://…（设备的卡片）"
+  },
+  "roamSection.acceptTitle": {
+    "defaultMessage": "接受设备"
+  },
+  "roamSection.acceptedAs": {
+    "defaultMessage": "已接受 {name} — 请确认设备上的指纹一致：{fingerprint}"
+  },
   "roamSection.copied": {
     "defaultMessage": "已复制"
   },
@@ -3306,7 +3321,7 @@
     "defaultMessage": "尚未配对任何设备。"
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "用手机相机扫描此二维码 — 它会打开已指向本机的 goose 网页客户端。然后在终端运行 `goose roam pair` 接受新设备。"
+    "defaultMessage": "用手机相机扫描此二维码 — 它会打开已指向本机的 goose 网页客户端。设备会显示自己的卡片；将其粘贴到下方即可完成配对。"
   },
   "roamSection.pairTitle": {
     "defaultMessage": "配对设备"
@@ -4128,7 +4143,7 @@
     "defaultMessage": "聊天"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "外部后端"
+    "defaultMessage": "远程访问"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "键盘"

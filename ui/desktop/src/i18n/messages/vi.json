@@ -3278,6 +3278,21 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "Chi tiết"
   },
+  "roamSection.acceptButton": {
+    "defaultMessage": "Chấp nhận"
+  },
+  "roamSection.acceptNamePlaceholder": {
+    "defaultMessage": "tên (tùy chọn) — ví dụ: điện thoại"
+  },
+  "roamSection.acceptPlaceholder": {
+    "defaultMessage": "goose+roam://…  (thẻ của thiết bị)"
+  },
+  "roamSection.acceptTitle": {
+    "defaultMessage": "Chấp nhận thiết bị"
+  },
+  "roamSection.acceptedAs": {
+    "defaultMessage": "Đã chấp nhận {name} — kiểm tra dấu vân tay khớp trên thiết bị: {fingerprint}"
+  },
   "roamSection.copied": {
     "defaultMessage": "Đã sao chép"
   },
@@ -3306,7 +3321,7 @@
     "defaultMessage": "Chưa có thiết bị nào được ghép nối."
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "Quét mã này bằng camera điện thoại — nó mở trình khách web goose đã trỏ sẵn vào máy này. Sau đó chấp nhận thiết bị mới bằng cách chạy `goose roam pair` trong terminal."
+    "defaultMessage": "Quét mã này bằng camera điện thoại — nó mở trình khách web goose đã trỏ sẵn vào máy này. Thiết bị hiển thị thẻ của chính nó; dán vào bên dưới để hoàn tất ghép nối."
   },
   "roamSection.pairTitle": {
     "defaultMessage": "Ghép nối thiết bị"
@@ -4128,7 +4143,7 @@
     "defaultMessage": "Trò chuyện"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "Backend bên ngoài"
+    "defaultMessage": "Truy cập từ xa"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Bàn phím"

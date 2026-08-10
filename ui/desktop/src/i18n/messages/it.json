@@ -3278,6 +3278,21 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "Dettagliato"
   },
+  "roamSection.acceptButton": {
+    "defaultMessage": "Accetta"
+  },
+  "roamSection.acceptNamePlaceholder": {
+    "defaultMessage": "nome (facoltativo) — es. telefono"
+  },
+  "roamSection.acceptPlaceholder": {
+    "defaultMessage": "goose+roam://…  (la scheda del dispositivo)"
+  },
+  "roamSection.acceptTitle": {
+    "defaultMessage": "Accetta un dispositivo"
+  },
+  "roamSection.acceptedAs": {
+    "defaultMessage": "{name} accettato — verifica che l'impronta corrisponda sul dispositivo: {fingerprint}"
+  },
   "roamSection.copied": {
     "defaultMessage": "Copiato"
   },
@@ -3306,7 +3321,7 @@
     "defaultMessage": "Nessun dispositivo associato per ora."
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "Scansiona questo codice con la fotocamera del telefono: apre il client web di goose già puntato su questa macchina. Poi accetta il nuovo dispositivo eseguendo `goose roam pair` in un terminale."
+    "defaultMessage": "Scansiona questo codice con la fotocamera del telefono: apre il client web di goose già puntato su questa macchina. Il dispositivo mostra la propria scheda; incollala qui sotto per completare l'associazione."
   },
   "roamSection.pairTitle": {
     "defaultMessage": "Accoppia un dispositivo"
@@ -4128,7 +4143,7 @@
     "defaultMessage": "Chat"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "Backend esterno"
+    "defaultMessage": "Accesso remoto"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Tastiera"

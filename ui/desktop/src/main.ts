@@ -52,7 +52,7 @@ import {
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
 import { readRoamServeStatus } from './roamStatus';
-import { listRoamPeers, revokeRoamPeer } from './roamPeers';
+import { acceptRoamPeer, listRoamPeers, revokeRoamPeer } from './roamPeers';
 import './utils/recipeHash';
 import type { GooseApp } from './types/apps';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
@@ -1995,6 +1995,15 @@ ipcMain.handle('list-roam-peers', () =>
 ipcMain.handle('revoke-roam-peer', (_event, endpointId: string) => {
   if (typeof endpointId !== 'string') return false;
   return revokeRoamPeer(endpointId, appConfig.GOOSE_PATH_ROOT as string | undefined);
+});
+
+ipcMain.handle('accept-roam-peer', (_event, cardText: string, name?: string) => {
+  if (typeof cardText !== 'string') return { error: 'invalid card' };
+  return acceptRoamPeer(
+    cardText,
+    typeof name === 'string' ? name : undefined,
+    appConfig.GOOSE_PATH_ROOT as string | undefined
+  );
 });
 
 ipcMain.handle('get-secret-key', (event) => {

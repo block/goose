@@ -3278,6 +3278,21 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "विस्तृत"
   },
+  "roamSection.acceptButton": {
+    "defaultMessage": "स्वीकार करें"
+  },
+  "roamSection.acceptNamePlaceholder": {
+    "defaultMessage": "नाम (वैकल्पिक) — जैसे फ़ोन"
+  },
+  "roamSection.acceptPlaceholder": {
+    "defaultMessage": "goose+roam://…  (डिवाइस का कार्ड)"
+  },
+  "roamSection.acceptTitle": {
+    "defaultMessage": "डिवाइस स्वीकार करें"
+  },
+  "roamSection.acceptedAs": {
+    "defaultMessage": "{name} स्वीकृत — जाँचें कि फ़िंगरप्रिंट डिवाइस पर मेल खाता है: {fingerprint}"
+  },
   "roamSection.copied": {
     "defaultMessage": "कॉपी हो गया"
   },
@@ -3306,7 +3321,7 @@
     "defaultMessage": "अभी तक कोई डिवाइस युग्मित नहीं है।"
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "इस कोड को फ़ोन कैमरे से स्कैन करें — यह goose वेब क्लाइंट को इस मशीन की ओर पहले से इंगित करके खोलता है। फिर टर्मिनल में `goose roam pair` चलाकर नए डिवाइस को स्वीकार करें।"
+    "defaultMessage": "इस कोड को फ़ोन कैमरे से स्कैन करें — यह goose वेब क्लाइंट को इस मशीन की ओर पहले से इंगित करके खोलता है। डिवाइस अपना कार्ड दिखाता है; युग्मन पूरा करने के लिए उसे नीचे चिपकाएँ।"
   },
   "roamSection.pairTitle": {
     "defaultMessage": "डिवाइस जोड़ें"
@@ -4128,7 +4143,7 @@
     "defaultMessage": "बातचीत"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "बाहरी बैकएंड"
+    "defaultMessage": "रिमोट एक्सेस"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "कीबोर्ड"

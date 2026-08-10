@@ -145,3 +145,87 @@ export const revokeRoamPeer = (endpointId: string, goosePathRoot?: string): bool
   saveTrust(trust, goosePathRoot);
   return true;
 };
+
+/** Must match CARD_VERSION in crates/goose-roaming/src/card.rs. */
+const CARD_VERSION = 1;
+
+/** Mirror of ConnectionCard::decode — goose+roam://<base64url(JSON)>. */
+export const decodeRoamCard = (
+  text: string
+): { endpointId: string; relayUrls: string[]; fingerprint: string } | { error: string } => {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('goose+roam://')) {
+    return { error: 'not a goose+roam:// card' };
+  }
+  try {
+    const json = Buffer.from(trimmed.slice('goose+roam://'.length), 'base64url').toString('utf8');
+    const parsed = JSON.parse(json) as {
+      version?: number;
+      endpoint_id?: string;
+      relay_urls?: string[];
+    };
+    if (parsed.version !== CARD_VERSION) {
+      return { error: `unsupported card version ${parsed.version}` };
+    }
+    if (!isString(parsed.endpoint_id) || !/^[0-9a-f]{64}$/.test(parsed.endpoint_id)) {
+      return { error: 'card has no valid endpoint id' };
+    }
+    const relayUrls = (parsed.relay_urls ?? []).filter(isString);
+    for (const url of relayUrls) {
+      if (!url.startsWith('https://') && !url.startsWith('http://')) {
+        return { error: `relay url must be http(s): ${url}` };
+      }
+    }
+    return {
+      endpointId: parsed.endpoint_id,
+      relayUrls,
+      fingerprint: roamFingerprint(parsed.endpoint_id),
+    };
+  } catch {
+    return { error: 'malformed card' };
+  }
+};
+
+/**
+ * Mirror of `goose roam peers accept '<card>' <name>`: save the card to the
+ * address book (roaming_peers.json, PeerBook shape) and put its key on the
+ * allowlist. The running share picks it up on the peer's next connection —
+ * same file seam as revoke, no IPC to the backend.
+ */
+export const acceptRoamPeer = (
+  cardText: string,
+  name: string | undefined,
+  goosePathRoot?: string
+): { name: string; endpointId: string; fingerprint: string } | { error: string } => {
+  const card = decodeRoamCard(cardText);
+  if ('error' in card) return card;
+
+  const peerName = (name ?? '').trim() || `device-${card.endpointId.slice(0, 12)}`;
+
+  const file = peersPath(goosePathRoot);
+  const book = (readJson(file) as { peers?: Record<string, unknown> } | null) ?? {};
+  const peers = (book.peers ?? {}) as Record<string, unknown>;
+  peers[peerName] = {
+    name: peerName,
+    card: {
+      version: CARD_VERSION,
+      endpoint_id: card.endpointId,
+      relay_urls: card.relayUrls,
+    },
+    endpoint_id: card.endpointId,
+    fingerprint: card.fingerprint,
+    added_ms: Date.now(),
+  };
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.tmp-${process.pid}`;
+  fs.writeFileSync(tmp, JSON.stringify({ peers }, null, 2));
+  fs.renameSync(tmp, file);
+
+  // TrustBook::accept semantics: clear any prior revocation, then allow.
+  const trust = loadTrust(goosePathRoot);
+  trust.revoked_keys = trust.revoked_keys.filter((k) => k !== card.endpointId);
+  trust.allowed.push(card.endpointId);
+  saveTrust(trust, goosePathRoot);
+
+  return { name: peerName, endpointId: card.endpointId, fingerprint: card.fingerprint };
+};

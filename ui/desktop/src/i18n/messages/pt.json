@@ -3278,6 +3278,21 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "Detalhado"
   },
+  "roamSection.acceptButton": {
+    "defaultMessage": "Aceitar"
+  },
+  "roamSection.acceptNamePlaceholder": {
+    "defaultMessage": "nome (opcional) — ex. celular"
+  },
+  "roamSection.acceptPlaceholder": {
+    "defaultMessage": "goose+roam://…  (o cartão do dispositivo)"
+  },
+  "roamSection.acceptTitle": {
+    "defaultMessage": "Aceitar um dispositivo"
+  },
+  "roamSection.acceptedAs": {
+    "defaultMessage": "{name} aceito — confirme que a impressão digital confere no dispositivo: {fingerprint}"
+  },
   "roamSection.copied": {
     "defaultMessage": "Copiado"
   },
@@ -3306,7 +3321,7 @@
     "defaultMessage": "Nenhum dispositivo pareado ainda."
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "Escaneie este código com a câmera do celular — ele abre o cliente web do goose já apontado para esta máquina. Depois, aceite o novo dispositivo executando `goose roam pair` em um terminal."
+    "defaultMessage": "Escaneie este código com a câmera do celular — ele abre o cliente web do goose já apontado para esta máquina. O dispositivo mostra o próprio cartão; cole-o abaixo para concluir o pareamento."
   },
   "roamSection.pairTitle": {
     "defaultMessage": "Parear um dispositivo"
@@ -4128,7 +4143,7 @@
     "defaultMessage": "Conversa"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "Backend externo"
+    "defaultMessage": "Acesso remoto"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Teclado"

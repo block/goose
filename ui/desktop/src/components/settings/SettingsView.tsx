@@ -48,7 +48,7 @@ const i18n = defineMessages({
   },
   tabExternalBackend: {
     id: 'settingsView.tabExternalBackend',
-    defaultMessage: 'External Backend',
+    defaultMessage: 'Remote Access',
   },
   tabPrompts: {
     id: 'settingsView.tabPrompts',

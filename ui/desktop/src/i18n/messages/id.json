@@ -3278,6 +3278,21 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "Terperinci"
   },
+  "roamSection.acceptButton": {
+    "defaultMessage": "Terima"
+  },
+  "roamSection.acceptNamePlaceholder": {
+    "defaultMessage": "nama (opsional) — mis. ponsel"
+  },
+  "roamSection.acceptPlaceholder": {
+    "defaultMessage": "goose+roam://…  (kartu perangkat)"
+  },
+  "roamSection.acceptTitle": {
+    "defaultMessage": "Terima perangkat"
+  },
+  "roamSection.acceptedAs": {
+    "defaultMessage": "{name} diterima — pastikan sidik jarinya cocok di perangkat: {fingerprint}"
+  },
   "roamSection.copied": {
     "defaultMessage": "Tersalin"
   },
@@ -3306,7 +3321,7 @@
     "defaultMessage": "Belum ada perangkat yang dipasangkan."
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "Pindai kode ini dengan kamera ponsel — kode ini membuka klien web goose yang sudah mengarah ke mesin ini. Lalu terima perangkat baru dengan menjalankan `goose roam pair` di terminal."
+    "defaultMessage": "Pindai kode ini dengan kamera ponsel — kode ini membuka klien web goose yang sudah mengarah ke mesin ini. Perangkat menampilkan kartunya sendiri; tempel di bawah untuk menyelesaikan pemasangan."
   },
   "roamSection.pairTitle": {
     "defaultMessage": "Pasangkan perangkat"
@@ -4128,7 +4143,7 @@
     "defaultMessage": "Obrolan"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "Backend Eksternal"
+    "defaultMessage": "Akses jarak jauh"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Keyboard"

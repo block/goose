@@ -3278,6 +3278,21 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "Terperinci"
   },
+  "roamSection.acceptButton": {
+    "defaultMessage": "Terima"
+  },
+  "roamSection.acceptNamePlaceholder": {
+    "defaultMessage": "nama (pilihan) — cth. telefon"
+  },
+  "roamSection.acceptPlaceholder": {
+    "defaultMessage": "goose+roam://…  (kad peranti)"
+  },
+  "roamSection.acceptTitle": {
+    "defaultMessage": "Terima peranti"
+  },
+  "roamSection.acceptedAs": {
+    "defaultMessage": "{name} diterima — sahkan cap jari sepadan pada peranti: {fingerprint}"
+  },
   "roamSection.copied": {
     "defaultMessage": "Disalin"
   },
@@ -3306,7 +3321,7 @@
     "defaultMessage": "Belum ada peranti berpasangan."
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "Imbas kod ini dengan kamera telefon — ia membuka klien web goose yang sudah menghala ke mesin ini. Kemudian terima peranti baharu dengan menjalankan `goose roam pair` di terminal."
+    "defaultMessage": "Imbas kod ini dengan kamera telefon — ia membuka klien web goose yang sudah menghala ke mesin ini. Peranti memaparkan kadnya sendiri; tampal di bawah untuk melengkapkan pemasangan."
   },
   "roamSection.pairTitle": {
     "defaultMessage": "Pasangkan peranti"
@@ -4128,7 +4143,7 @@
     "defaultMessage": "Sembang"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "Backend Luaran"
+    "defaultMessage": "Akses jauh"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Papan Kekunci"

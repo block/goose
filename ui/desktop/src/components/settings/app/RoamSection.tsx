@@ -35,7 +35,27 @@ const i18n = defineMessages({
   pairHelp: {
     id: 'roamSection.pairHelp',
     defaultMessage:
-      'Scan this code with your phone camera — it opens the goose web client already pointed at this machine. Then accept the new device by running `goose roam pair` in a terminal.',
+      'Scan this code with your phone camera — it opens the goose web client already pointed at this machine. The device shows its own card; paste it below to finish pairing.',
+  },
+  acceptTitle: {
+    id: 'roamSection.acceptTitle',
+    defaultMessage: 'Accept a device',
+  },
+  acceptPlaceholder: {
+    id: 'roamSection.acceptPlaceholder',
+    defaultMessage: 'goose+roam://…  (the device’s card)',
+  },
+  acceptNamePlaceholder: {
+    id: 'roamSection.acceptNamePlaceholder',
+    defaultMessage: 'name (optional) — e.g. phone',
+  },
+  acceptButton: {
+    id: 'roamSection.acceptButton',
+    defaultMessage: 'Accept',
+  },
+  acceptedAs: {
+    id: 'roamSection.acceptedAs',
+    defaultMessage: 'Accepted {name} — verify the fingerprint matches on the device: {fingerprint}',
   },
   fingerprint: {
     id: 'roamSection.fingerprint',
@@ -112,6 +132,11 @@ export default function RoamSection() {
   const [copied, setCopied] = useState(false);
   const [peers, setPeers] = useState<RoamPeer[]>([]);
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
+  const [acceptCard, setAcceptCard] = useState('');
+  const [acceptName, setAcceptName] = useState('');
+  const [acceptResult, setAcceptResult] = useState<
+    { ok: true; name: string; fingerprint: string } | { ok: false; error: string } | null
+  >(null);
 
   const refresh = useCallback(async () => {
     const res = await window.electron.getRoamStatus();
@@ -131,6 +156,18 @@ export default function RoamSection() {
     },
     [confirmRevoke]
   );
+
+  const accept = useCallback(async () => {
+    const res = await window.electron.acceptRoamPeer(acceptCard, acceptName || undefined);
+    if ('error' in res) {
+      setAcceptResult({ ok: false, error: res.error });
+      return;
+    }
+    setAcceptResult({ ok: true, name: res.name, fingerprint: res.fingerprint });
+    setAcceptCard('');
+    setAcceptName('');
+    setPeers(await window.electron.listRoamPeers());
+  }, [acceptCard, acceptName]);
 
   useEffect(() => {
     const load = async () => {
@@ -230,6 +267,51 @@ export default function RoamSection() {
                 {intl.formatMessage(i18n.waiting)}
               </div>
             ))}
+
+          {showPairing && (
+            <div className="space-y-2 border-t border-border-subtle pt-4">
+              <div className="text-sm font-medium">{intl.formatMessage(i18n.acceptTitle)}</div>
+              <input
+                type="text"
+                className="w-full bg-background-default border border-border-subtle rounded-md px-3 py-2 text-sm focus:outline-none"
+                placeholder={intl.formatMessage(i18n.acceptNamePlaceholder)}
+                value={acceptName}
+                onChange={(e) => setAcceptName(e.target.value)}
+              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  className="flex-1 min-w-0 bg-background-default border border-border-subtle rounded-md px-3 py-2 text-sm font-mono focus:outline-none"
+                  placeholder={intl.formatMessage(i18n.acceptPlaceholder)}
+                  value={acceptCard}
+                  onChange={(e) => {
+                    setAcceptCard(e.target.value);
+                    setAcceptResult(null);
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 self-center"
+                  disabled={!acceptCard.trim()}
+                  onClick={() => void accept()}
+                >
+                  {intl.formatMessage(i18n.acceptButton)}
+                </Button>
+              </div>
+              {acceptResult &&
+                (acceptResult.ok ? (
+                  <div className="text-xs text-text-muted">
+                    {intl.formatMessage(i18n.acceptedAs, {
+                      name: acceptResult.name,
+                      fingerprint: acceptResult.fingerprint,
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-xs text-text-danger">{acceptResult.error}</div>
+                ))}
+            </div>
+          )}
 
           {showPairing && (
             <div className="space-y-2 border-t border-border-subtle pt-4">

@@ -3278,6 +3278,21 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "Detaylı"
   },
+  "roamSection.acceptButton": {
+    "defaultMessage": "Kabul et"
+  },
+  "roamSection.acceptNamePlaceholder": {
+    "defaultMessage": "ad (isteğe bağlı) — örn. telefon"
+  },
+  "roamSection.acceptPlaceholder": {
+    "defaultMessage": "goose+roam://…  (cihazın kartı)"
+  },
+  "roamSection.acceptTitle": {
+    "defaultMessage": "Cihaz kabul et"
+  },
+  "roamSection.acceptedAs": {
+    "defaultMessage": "{name} kabul edildi — parmak izinin cihazda eşleştiğini doğrulayın: {fingerprint}"
+  },
   "roamSection.copied": {
     "defaultMessage": "Kopyalandı"
   },
@@ -3306,7 +3321,7 @@
     "defaultMessage": "Henüz eşleştirilmiş cihaz yok."
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "Bu kodu telefon kamerasıyla tarayın — goose web istemcisini bu makineye zaten yönlendirilmiş olarak açar. Ardından terminalde `goose roam pair` çalıştırarak yeni cihazı kabul edin."
+    "defaultMessage": "Bu kodu telefon kamerasıyla tarayın — goose web istemcisini bu makineye zaten yönlendirilmiş olarak açar. Cihaz kendi kartını gösterir; eşleştirmeyi tamamlamak için aşağıya yapıştırın."
   },
   "roamSection.pairTitle": {
     "defaultMessage": "Cihaz eşleştir"
@@ -4128,7 +4143,7 @@
     "defaultMessage": "Sohbet"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "Harici Arka Uç"
+    "defaultMessage": "Uzaktan erişim"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Klavye"

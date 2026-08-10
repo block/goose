@@ -3278,6 +3278,21 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "詳細"
   },
+  "roamSection.acceptButton": {
+    "defaultMessage": "承認"
+  },
+  "roamSection.acceptNamePlaceholder": {
+    "defaultMessage": "名前（任意）— 例: スマホ"
+  },
+  "roamSection.acceptPlaceholder": {
+    "defaultMessage": "goose+roam://…（デバイスのカード）"
+  },
+  "roamSection.acceptTitle": {
+    "defaultMessage": "デバイスを承認"
+  },
+  "roamSection.acceptedAs": {
+    "defaultMessage": "{name} を承認しました — デバイス側でフィンガープリントが一致することを確認してください: {fingerprint}"
+  },
   "roamSection.copied": {
     "defaultMessage": "コピーしました"
   },
@@ -3306,7 +3321,7 @@
     "defaultMessage": "まだペアリングされたデバイスはありません。"
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "このコードをスマートフォンのカメラでスキャンすると、このマシンに接続済みの goose ウェブクライアントが開きます。その後、ターミナルで `goose roam pair` を実行して新しいデバイスを承認してください。"
+    "defaultMessage": "このコードをスマートフォンのカメラでスキャンすると、このマシンに接続済みの goose ウェブクライアントが開きます。デバイスに表示される自身のカードを下に貼り付けてペアリングを完了してください。"
   },
   "roamSection.pairTitle": {
     "defaultMessage": "デバイスをペアリング"
@@ -4128,7 +4143,7 @@
     "defaultMessage": "チャット"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "外部バックエンド"
+    "defaultMessage": "リモートアクセス"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "キーボード"

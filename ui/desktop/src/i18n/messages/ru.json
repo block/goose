@@ -3278,6 +3278,21 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "Подробный"
   },
+  "roamSection.acceptButton": {
+    "defaultMessage": "Принять"
+  },
+  "roamSection.acceptNamePlaceholder": {
+    "defaultMessage": "имя (необязательно) — напр. телефон"
+  },
+  "roamSection.acceptPlaceholder": {
+    "defaultMessage": "goose+roam://…  (карта устройства)"
+  },
+  "roamSection.acceptTitle": {
+    "defaultMessage": "Принять устройство"
+  },
+  "roamSection.acceptedAs": {
+    "defaultMessage": "{name} принято — убедитесь, что отпечаток совпадает на устройстве: {fingerprint}"
+  },
   "roamSection.copied": {
     "defaultMessage": "Скопировано"
   },
@@ -3306,7 +3321,7 @@
     "defaultMessage": "Пока нет сопряжённых устройств."
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "Отсканируйте этот код камерой телефона — он откроет веб-клиент goose, уже нацеленный на эту машину. Затем примите новое устройство, выполнив `goose roam pair` в терминале."
+    "defaultMessage": "Отсканируйте этот код камерой телефона — он откроет веб-клиент goose, уже нацеленный на эту машину. Устройство покажет свою карту; вставьте её ниже, чтобы завершить сопряжение."
   },
   "roamSection.pairTitle": {
     "defaultMessage": "Сопряжение устройства"
@@ -4128,7 +4143,7 @@
     "defaultMessage": "Чат"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "Внешний бэкенд"
+    "defaultMessage": "Удалённый доступ"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Клавиатура"

@@ -3278,6 +3278,21 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "Détaillé"
   },
+  "roamSection.acceptButton": {
+    "defaultMessage": "Accepter"
+  },
+  "roamSection.acceptNamePlaceholder": {
+    "defaultMessage": "nom (facultatif) — p. ex. téléphone"
+  },
+  "roamSection.acceptPlaceholder": {
+    "defaultMessage": "goose+roam://…  (la carte de l'appareil)"
+  },
+  "roamSection.acceptTitle": {
+    "defaultMessage": "Accepter un appareil"
+  },
+  "roamSection.acceptedAs": {
+    "defaultMessage": "{name} accepté — vérifiez que l'empreinte correspond sur l'appareil : {fingerprint}"
+  },
   "roamSection.copied": {
     "defaultMessage": "Copié"
   },
@@ -3306,7 +3321,7 @@
     "defaultMessage": "Aucun appareil appairé pour le moment."
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "Scannez ce code avec l'appareil photo du téléphone — il ouvre le client web goose déjà pointé vers cette machine. Acceptez ensuite le nouvel appareil en exécutant `goose roam pair` dans un terminal."
+    "defaultMessage": "Scannez ce code avec l'appareil photo du téléphone — il ouvre le client web goose déjà pointé vers cette machine. L'appareil affiche sa propre carte ; collez-la ci-dessous pour terminer l'appairage."
   },
   "roamSection.pairTitle": {
     "defaultMessage": "Appairer un appareil"
@@ -4128,7 +4143,7 @@
     "defaultMessage": "Discussion"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "Backend externe"
+    "defaultMessage": "Accès à distance"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Clavier"
