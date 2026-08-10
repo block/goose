@@ -1,5 +1,5 @@
 use crate::config::paths::Paths;
-use crate::config::{get_enabled_extensions, Config};
+use crate::config::{get_enabled_extensions, Config, ConfigError};
 use crate::session::session_manager::CURRENT_SCHEMA_VERSION;
 use crate::session::SessionManager;
 #[cfg(target_os = "windows")]
@@ -37,11 +37,10 @@ pub fn get_telemetry_choice() -> Option<bool> {
     }
 
     let config = Config::global();
-    if config
-        .get_param::<bool>(ONBOARDING_TELEMETRY_PENDING_KEY)
-        .unwrap_or(false)
-    {
-        return Some(false);
+    match config.get_param::<bool>(ONBOARDING_TELEMETRY_PENDING_KEY) {
+        Ok(true) => return Some(false),
+        Ok(false) | Err(ConfigError::NotFound(_)) => {}
+        Err(_) => return Some(false),
     }
     config.get_param::<bool>(TELEMETRY_ENABLED_KEY).ok()
 }
@@ -636,5 +635,17 @@ mod tests {
 
         assert_eq!(get_telemetry_choice(), Some(true));
         assert!(is_telemetry_enabled());
+    }
+
+    #[test]
+    fn malformed_pending_marker_overrides_stale_enabled_telemetry() {
+        let _env = env_lock::lock_env([
+            ("GOOSE_TELEMETRY_OFF", Some("false")),
+            (TELEMETRY_ENABLED_KEY, Some("true")),
+            (ONBOARDING_TELEMETRY_PENDING_KEY, Some("not-a-boolean")),
+        ]);
+
+        assert_eq!(get_telemetry_choice(), Some(false));
+        assert!(!is_telemetry_enabled());
     }
 }
