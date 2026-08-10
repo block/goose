@@ -19,7 +19,7 @@ import {
 import { GooseClient } from "@aaif/goose-sdk";
 import jsQR from "jsqr";
 import { Button } from "@desktop/components/ui/button";
-import { Camera, ChevronLeft, ChevronRight, Menu, SlidersHorizontal } from "lucide-react";
+import { Camera, ChevronLeft, ChevronRight, Menu, SlidersHorizontal, Square } from "lucide-react";
 import { SessionMatrix } from "./SessionMatrix";
 import MarkdownContent from "@desktop/components/MarkdownContent";
 import { Goose } from "@desktop/components/icons/Goose";
@@ -111,6 +111,23 @@ type ConfigOption = {
   currentValue?: string | boolean;
   options?: ConfigSelectOption[];
 };
+
+// Ticking elapsed readout for the working indicator ("12s", "1m 04s").
+function LiveElapsed({ startedAt }: { startedAt: number }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const secs = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+  const label =
+    secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${String(secs % 60).padStart(2, "0")}s`;
+  return (
+    <span className="font-mono tabular-nums text-text-tertiary" id="turn-elapsed">
+      {label}
+    </span>
+  );
+}
 
 function flatSelectOptions(opt: ConfigOption): ConfigSelectOption[] {
   return (opt.options ?? []).flatMap((x) => (x.options ? x.options : [x]));
@@ -241,6 +258,10 @@ export function App({ roam }: { roam: RoamClient }) {
   const [activeHostId, setActiveHostId] = useState<string | null>(null);
   const [logWindow, setLogWindow] = useState(80);
   const [busy, setBusy] = useState(false);
+  // When the current turn started (ours or a steered one) — drives the live
+  // elapsed readout in the working indicator, paseo-style.
+  const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
+  const [cancelling, setCancelling] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [modelName, setModelName] = useState<string | null>(null);
   // Full config option set for the open session (provider/model/mode/…),
@@ -861,6 +882,8 @@ export function App({ roam }: { roam: RoamClient }) {
     setItems((xs) => [...xs, { kind: "msg", id: nextId++, role: "user", text }]);
     streamRole.current = null;
     setBusy(true);
+    setTurnStartedAt(Date.now());
+    setCancelling(false);
     setStatus("thinking…");
     setStatusKind("busy");
     try {
@@ -887,11 +910,27 @@ export function App({ roam }: { roam: RoamClient }) {
       activeRunRef.current = null;
       setActiveRun(null);
       setBusy(false);
+      setTurnStartedAt(null);
+      setCancelling(false);
       setStatus("connected");
       setStatusKind("ok");
       inputRef.current?.focus();
     }
   }, [busy, push, refreshSessions, steer, activeAgent, externalActive, externalOverride]);
+
+  // Stop the running turn. ACP cancel is a notification: the prompt call
+  // itself returns (stopReason: cancelled), which runs send()'s cleanup.
+  const cancelTurn = useCallback(async () => {
+    const agent = activeAgent();
+    const sid = sessionRef.current;
+    if (!agent || !sid) return;
+    setCancelling(true);
+    try {
+      await agent.cancel({ sessionId: sid });
+    } catch {
+      setCancelling(false);
+    }
+  }, [activeAgent]);
 
   const statusColor =
     statusKind === "ok"
@@ -1402,9 +1441,22 @@ export function App({ roam }: { roam: RoamClient }) {
                 }
               })}
               {busy && (
-                <div className="msg system self-center flex items-center gap-2 text-text-secondary text-xs">
+                <div className="msg system self-center flex items-center gap-2.5 text-text-secondary text-xs">
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-                  {activeRun ? "goose is working — you can steer" : "goose is working…"}
+                  <span>{activeRun ? "goose is working — you can steer" : "goose is working…"}</span>
+                  {turnStartedAt && <LiveElapsed startedAt={turnStartedAt} />}
+                  {turnStartedAt && (
+                    <button
+                      id="stop-turn"
+                      type="button"
+                      disabled={cancelling}
+                      onClick={() => void cancelTurn()}
+                      className="inline-flex items-center gap-1 border border-border-secondary rounded-md px-2 py-0.5 text-[11px] hover:border-border-warning hover:text-text-warning transition-colors disabled:opacity-50"
+                    >
+                      <Square className="w-2.5 h-2.5 fill-current" />
+                      {cancelling ? "stopping…" : "stop"}
+                    </button>
+                  )}
                 </div>
               )}
               </div>
