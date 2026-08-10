@@ -66,6 +66,10 @@ vi.mock('./acp/providers', () => ({
   acpListProviderDetails: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock('./acp/config', () => ({
+  acpReadAllConfig: vi.fn().mockResolvedValue({}),
+}));
+
 // Mock the ConfigContext module
 vi.mock('./components/ConfigContext', () => ({
   useConfig: () => ({
