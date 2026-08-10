@@ -19,7 +19,7 @@ import {
 import { GooseClient } from "@aaif/goose-sdk";
 import jsQR from "jsqr";
 import { Button } from "@desktop/components/ui/button";
-import { Camera, ChevronLeft, ChevronRight, Menu } from "lucide-react";
+import { Camera, ChevronLeft, ChevronRight, Menu, SlidersHorizontal } from "lucide-react";
 import { SessionMatrix } from "./SessionMatrix";
 import MarkdownContent from "@desktop/components/MarkdownContent";
 import { Goose } from "@desktop/components/icons/Goose";
@@ -97,14 +97,30 @@ function contentText(content: unknown): string {
   return c.type === "text" ? (c.text ?? "") : `[${c.type}]`;
 }
 
-// goose surfaces model selection via ACP's generic session config options.
-// Find the "model" select option and resolve its currentValue to a name.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function modelFromConfigOptions(opts: any[] | null | undefined): string | null {
+// goose surfaces session configuration (provider, model, mode, thinking
+// effort) via ACP's generic session config options — selects the client
+// renders and sets back with session/set_config_option. Keep the raw array
+// so the settings panel can render all of them, plus a helper to resolve
+// the current model's display name for the header badge.
+type ConfigSelectOption = { id: string; name: string; options?: ConfigSelectOption[] };
+type ConfigOption = {
+  type: string;
+  id: string;
+  name: string;
+  description?: string | null;
+  currentValue?: string | boolean;
+  options?: ConfigSelectOption[];
+};
+
+function flatSelectOptions(opt: ConfigOption): ConfigSelectOption[] {
+  return (opt.options ?? []).flatMap((x) => (x.options ? x.options : [x]));
+}
+
+function modelFromConfigOptions(opts: ConfigOption[] | null | undefined): string | null {
   const opt = opts?.find((o) => o.type === "select" && /model/i.test(o.id));
   if (!opt) return null;
-  const flat = (opt.options ?? []).flatMap((x: any) => (x.options ? x.options : [x]));
-  return flat.find((x: any) => x.id === opt.currentValue)?.name ?? opt.currentValue ?? null;
+  const current = typeof opt.currentValue === "string" ? opt.currentValue : null;
+  return flatSelectOptions(opt).find((x) => x.id === current)?.name ?? current;
 }
 
 const HOST_CARD_KEY = "goose-roam-last-host-card";
@@ -227,6 +243,10 @@ export function App({ roam }: { roam: RoamClient }) {
   const [busy, setBusy] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [modelName, setModelName] = useState<string | null>(null);
+  // Full config option set for the open session (provider/model/mode/…),
+  // rendered in the session settings sheet and set back over ACP.
+  const [configOptions, setConfigOptions] = useState<ConfigOption[]>([]);
+  const [showConfig, setShowConfig] = useState(false);
   const [relay, setRelay] = useState<string | null>(null);
   const [projects, setProjects] = useState<Record<string, string>>({});
   const [activeRun, setActiveRun] = useState<string | null>(null);
@@ -344,16 +364,26 @@ export function App({ roam }: { roam: RoamClient }) {
     if (atBottom.current) logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [items]);
 
-  // Remember the last host across refreshes: prefill and reconnect once.
+  // Remember where the user was across refreshes: reconnect the last host
+  // and reopen the last session. Without the session half, every reload
+  // dumped the user back on the front page (issue #10906 feedback).
   const bootTried = useRef(false);
   useEffect(() => {
     if (bootTried.current) return;
     bootTried.current = true;
     const saved = localStorage.getItem(HOST_CARD_KEY);
-    if (saved) {
-      setCard(saved);
-      void connect(saved);
+    if (!saved) return;
+    setCard(saved);
+    const last = localStorage.getItem(SESSION_KEY);
+    if (last) {
+      const [hostId, sessionId] = last.split("|");
+      if (hostId && sessionId && cardEndpointHint(saved) === hostId) {
+        // connect() resumes this session once the dial lands (same path a
+        // mid-conversation reconnect takes).
+        resumeAfterDrop.current = sessionId;
+      }
     }
+    void connect(saved);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -439,7 +469,9 @@ export function App({ roam }: { roam: RoamClient }) {
             break;
           }
           case "config_option_update": {
-            const m = modelFromConfigOptions((u as { configOptions?: unknown[] }).configOptions);
+            const opts = ((u as { configOptions?: unknown[] }).configOptions ?? []) as ConfigOption[];
+            setConfigOptions(opts);
+            const m = modelFromConfigOptions(opts);
             if (m) setModelName(m);
             break;
           }
@@ -561,7 +593,9 @@ export function App({ roam }: { roam: RoamClient }) {
     setBusy(true);
     try {
       const res = await host.agent.newSession({ cwd: "/", mcpServers: [] });
-      const m = modelFromConfigOptions((res as { configOptions?: unknown[] }).configOptions);
+      const opts = ((res as { configOptions?: unknown[] }).configOptions ?? []) as ConfigOption[];
+      setConfigOptions(opts);
+      const m = modelFromConfigOptions(opts);
       if (m) setModelName(m);
       localStorage.setItem(SESSION_KEY, `${host.endpointId}|${res.sessionId}`);
       activeHostRef.current = host.endpointId;
@@ -592,6 +626,8 @@ export function App({ roam }: { roam: RoamClient }) {
         setActiveRun(null);
         setExternalActive(false);
         setExternalOverride(false);
+        setConfigOptions([]);
+        setShowConfig(false);
         const info = sessions.find((x) => x._host === hostId && x.sessionId === id);
         document.title = info?.title ? `${info.title} · goose remote` : "goose remote";
         lastSeenUpdate.current = null;
@@ -764,6 +800,28 @@ export function App({ roam }: { roam: RoamClient }) {
   // live: our own connection saw activeRunId (session_info_update), or a plain
   // prompt bounces with "already has active run `<id>`" — e.g. a loop started
   // by another device on this same share process.
+  // Change a session config option (provider/model/mode/…) over ACP. The
+  // response carries the full refreshed option set — mirror it locally so the
+  // sheet and the model badge update immediately.
+  const setConfigOption = useCallback(async (configId: string, value: string) => {
+    const agent = activeAgent();
+    const sid = sessionRef.current;
+    if (!agent || !sid) return;
+    try {
+      const res = await agent.setSessionConfigOption({
+        sessionId: sid,
+        configId,
+        value,
+      });
+      const opts = (res.configOptions ?? []) as ConfigOption[];
+      setConfigOptions(opts);
+      const m = modelFromConfigOptions(opts);
+      if (m) setModelName(m);
+    } catch (err) {
+      push({ kind: "system", text: `could not set ${configId}: ${err}` } as Omit<Item, "id">);
+    }
+  }, [activeAgent, push]);
+
   const steer = useCallback(async (sid: string, text: string, runId: string) => {
     const agent = activeAgent();
     if (!agent) return;
@@ -1169,7 +1227,53 @@ export function App({ roam }: { roam: RoamClient }) {
                   </span>
                 ) : null;
               })()}
+              <span className="flex-1" />
+              {configOptions.length > 0 && (
+                <button
+                  id="session-config-btn"
+                  aria-label="session settings"
+                  title="session settings — model, mode, provider"
+                  className={`shrink-0 p-1 rounded-md transition-colors ${
+                    showConfig
+                      ? "text-text-primary bg-background-tertiary"
+                      : "text-text-secondary hover:text-text-primary"
+                  }`}
+                  onClick={() => setShowConfig((v) => !v)}
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
+            {showConfig && (
+              <div
+                id="session-config"
+                className="shrink-0 border-b border-border-primary bg-background-secondary px-3 md:px-6 py-3"
+              >
+                <div className="max-w-3xl mx-auto w-full grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5">
+                  {configOptions
+                    .filter((o) => o.type === "select")
+                    .map((o) => (
+                      <label key={o.id} className="flex flex-col gap-1 min-w-0">
+                        <span className="text-[10px] uppercase tracking-wide text-text-tertiary">
+                          {o.name}
+                        </span>
+                        <select
+                          className="w-full bg-background-primary border border-border-primary rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-border-info disabled:opacity-50"
+                          value={typeof o.currentValue === "string" ? o.currentValue : ""}
+                          disabled={busy && !activeRun}
+                          onChange={(e) => void setConfigOption(o.id, e.target.value)}
+                        >
+                          {flatSelectOptions(o).map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
+                </div>
+              </div>
+            )}
             <div ref={logRef} id="log" className="flex-1 overflow-y-auto px-3 md:px-6 py-4 md:py-5">
               <div className="max-w-3xl mx-auto w-full flex flex-col gap-4 pb-2">
               {items.length > logWindow && (
