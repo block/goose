@@ -4,8 +4,8 @@
 //! cannot be established. We use a *custom* relay map rather than iroh's default
 //! n0 relays so a deployment can point at its own zero-trust relays.
 //!
-//! Per security review: relay URLs travel in invites, but relay *auth
-//! credentials* never do — each endpoint must obtain its own.
+//! Per security review: relay URLs travel in connection cards, but relay
+//! *auth credentials* never do — each endpoint must obtain its own.
 
 use iroh::{RelayConfig, RelayMap, RelayMode, RelayUrl};
 
@@ -49,7 +49,7 @@ impl RelayEntry {
 }
 
 impl RelaySettings {
-    /// The relay URLs advertised to peers in invites (auth tokens stripped).
+    /// The relay URLs advertised to peers in connection cards (auth tokens stripped).
     pub fn advertised_urls(&self) -> Vec<String> {
         match self {
             RelaySettings::Custom(entries) => entries.iter().map(|e| e.url.clone()).collect(),

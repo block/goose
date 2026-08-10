@@ -69,18 +69,13 @@ impl RoamingIdentity {
     }
 
     /// The iroh secret key.
-    pub fn secret_key(&self) -> &SecretKey {
+    pub(crate) fn secret_key(&self) -> &SecretKey {
         &self.secret
     }
 
     /// The node's public key / [`iroh::EndpointId`].
     pub fn public_key(&self) -> PublicKey {
         self.secret.public()
-    }
-
-    /// Sign a message with the node's secret key.
-    pub fn sign(&self, msg: &[u8]) -> iroh::Signature {
-        self.secret.sign(msg)
     }
 }
 

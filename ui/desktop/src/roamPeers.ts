@@ -52,16 +52,27 @@ interface TrustFile {
   revoked_keys: string[];
 }
 
+/**
+ * Read a JSON state file. A missing file is `null` (empty state); a file that
+ * exists but does not parse is a hard error — mirroring TrustBook::load's
+ * fail-closed contract so a corrupt trust file is never silently replaced.
+ */
 const readJson = (file: string): unknown => {
+  let raw: string;
   try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {
-    return null;
+    raw = fs.readFileSync(file, 'utf8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw err;
   }
+  return JSON.parse(raw);
 };
 
 const loadTrust = (goosePathRoot?: string): TrustFile => {
   const parsed = readJson(trustPath(goosePathRoot)) as Partial<TrustFile> | null;
+  if (parsed !== null && (!Array.isArray(parsed.allowed) || !parsed.allowed.every(isString))) {
+    throw new Error('trust file is malformed; refusing to modify it');
+  }
   return {
     allowed: Array.isArray(parsed?.allowed) ? parsed.allowed.filter(isString) : [],
     revoked_keys: Array.isArray(parsed?.revoked_keys) ? parsed.revoked_keys.filter(isString) : [],
@@ -150,19 +161,32 @@ export const revokeRoamPeer = (endpointId: string, goosePathRoot?: string): bool
 const CARD_VERSION = 1;
 
 /** Mirror of ConnectionCard::decode — goose+roam://<base64url(JSON)>. */
+/** Decode bounds — must match card.rs (the card-decoding contract). */
+const MAX_CARD_TEXT_BYTES = 8 * 1024;
+const MAX_RELAY_URLS = 16;
+const MAX_RELAY_URL_BYTES = 512;
+
 export const decodeRoamCard = (
   text: string
 ): { endpointId: string; relayUrls: string[]; fingerprint: string } | { error: string } => {
   const trimmed = text.trim();
+  if (trimmed.length > MAX_CARD_TEXT_BYTES) {
+    return { error: 'card too large' };
+  }
   if (!trimmed.startsWith('goose+roam://')) {
     return { error: 'not a goose+roam:// card' };
   }
   try {
-    const json = Buffer.from(trimmed.slice('goose+roam://'.length), 'base64url').toString('utf8');
-    const parsed = JSON.parse(json) as {
+    const b64 = trimmed.slice('goose+roam://'.length);
+    // Node's base64url decoding is permissive (ignores junk); reject anything
+    // outside the alphabet up front so decode matches card.rs strictness.
+    if (!/^[A-Za-z0-9_-]+$/.test(b64)) {
+      return { error: 'malformed card' };
+    }
+    const parsed = JSON.parse(Buffer.from(b64, 'base64url').toString('utf8')) as {
       version?: number;
       endpoint_id?: string;
-      relay_urls?: string[];
+      relay_urls?: unknown;
     };
     if (parsed.version !== CARD_VERSION) {
       return { error: `unsupported card version ${parsed.version}` };
@@ -170,8 +194,17 @@ export const decodeRoamCard = (
     if (!isString(parsed.endpoint_id) || !/^[0-9a-f]{64}$/.test(parsed.endpoint_id)) {
       return { error: 'card has no valid endpoint id' };
     }
-    const relayUrls = (parsed.relay_urls ?? []).filter(isString);
+    if (!Array.isArray(parsed.relay_urls) || !parsed.relay_urls.every(isString)) {
+      return { error: 'card has no valid relay url list' };
+    }
+    const relayUrls = parsed.relay_urls;
+    if (relayUrls.length > MAX_RELAY_URLS) {
+      return { error: 'too many relay urls' };
+    }
     for (const url of relayUrls) {
+      if (url.length > MAX_RELAY_URL_BYTES) {
+        return { error: 'relay url too long' };
+      }
       if (!url.startsWith('https://') && !url.startsWith('http://')) {
         return { error: `relay url must be http(s): ${url}` };
       }
@@ -202,8 +235,19 @@ export const acceptRoamPeer = (
 
   const peerName = (name ?? '').trim() || `device-${card.endpointId.slice(0, 12)}`;
 
+  // Fail closed: a peers/trust file that exists but does not parse aborts the
+  // accept (readJson/loadTrust throw) rather than being overwritten. Both are
+  // loaded before either write so a corrupt trust file can't strand a
+  // half-done accept.
   const file = peersPath(goosePathRoot);
-  const book = (readJson(file) as { peers?: Record<string, unknown> } | null) ?? {};
+  let book: { peers?: Record<string, unknown> };
+  let trust: TrustFile;
+  try {
+    book = (readJson(file) as { peers?: Record<string, unknown> } | null) ?? {};
+    trust = loadTrust(goosePathRoot);
+  } catch {
+    return { error: 'trust or address book file is unreadable or corrupt; refusing to modify it' };
+  }
   const peers = (book.peers ?? {}) as Record<string, unknown>;
   peers[peerName] = {
     name: peerName,
@@ -222,7 +266,6 @@ export const acceptRoamPeer = (
   fs.renameSync(tmp, file);
 
   // TrustBook::accept semantics: clear any prior revocation, then allow.
-  const trust = loadTrust(goosePathRoot);
   trust.revoked_keys = trust.revoked_keys.filter((k) => k !== card.endpointId);
   trust.allowed.push(card.endpointId);
   saveTrust(trust, goosePathRoot);

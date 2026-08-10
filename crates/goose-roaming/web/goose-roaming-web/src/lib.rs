@@ -57,10 +57,18 @@ struct OwnCard {
     relay_urls: Vec<String>,
 }
 
+/// Decode bounds — must match card.rs (the card-decoding contract).
+const MAX_CARD_TEXT_BYTES: usize = 8 * 1024;
+const MAX_RELAY_URLS: usize = 16;
+const MAX_RELAY_URL_BYTES: usize = 512;
+
 fn decode_card(text: &str) -> Result<ConnectionCard, String> {
     use base64::Engine;
+    let text = text.trim();
+    if text.len() > MAX_CARD_TEXT_BYTES {
+        return Err("card too large".into());
+    }
     let b64 = text
-        .trim()
         .strip_prefix(CARD_SCHEME)
         .ok_or_else(|| format!("missing {CARD_SCHEME} scheme"))?;
     // Same engine goose-roaming's card.rs encodes with, so decode is symmetric.
@@ -72,9 +80,15 @@ fn decode_card(text: &str) -> Result<ConnectionCard, String> {
     if card.version != CARD_VERSION {
         return Err(format!("unsupported card version {}", card.version));
     }
+    if card.relay_urls.len() > MAX_RELAY_URLS {
+        return Err("too many relay urls".into());
+    }
     // Relay URLs come from an untrusted card; constrain the scheme like the
     // native decoder does so a malicious card can't smuggle another scheme.
     for url in &card.relay_urls {
+        if url.len() > MAX_RELAY_URL_BYTES {
+            return Err("relay url too long".into());
+        }
         if !(url.starts_with("https://") || url.starts_with("http://")) {
             return Err(format!("relay url must be http(s): {url}"));
         }

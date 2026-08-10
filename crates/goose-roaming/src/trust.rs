@@ -51,18 +51,13 @@ impl TrustBook {
         !self.revoked_keys.contains(&s) && self.allowed.contains(&s)
     }
 
-    pub fn is_key_revoked(&self, key: &EndpointId) -> bool {
+    pub(crate) fn is_key_revoked(&self, key: &EndpointId) -> bool {
         self.revoked_keys.contains(&key_str(key))
     }
 
     /// Allowed peer keys, sorted.
     pub fn allowed_keys(&self) -> Vec<String> {
         self.allowed.iter().cloned().collect()
-    }
-
-    /// Revoked peer keys, sorted.
-    pub fn revoked_key_list(&self) -> Vec<String> {
-        self.revoked_keys.iter().cloned().collect()
     }
 
     /// Load the trust book. A missing file is an empty book; a *malformed*
@@ -142,5 +137,20 @@ mod tests {
         }
         let reloaded = TrustBook::load(&path).unwrap();
         assert!(reloaded.is_allowed(&key));
+    }
+
+    #[test]
+    fn corrupt_file_is_a_hard_error_not_an_empty_book() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("trust.json");
+        std::fs::write(&path, b"{ not json").unwrap();
+        assert!(TrustBook::load(&path).is_err());
+    }
+
+    #[test]
+    fn missing_file_is_an_empty_book() {
+        let dir = tempfile::tempdir().unwrap();
+        let book = TrustBook::load(&dir.path().join("nope.json")).unwrap();
+        assert!(book.allowed_keys().is_empty());
     }
 }

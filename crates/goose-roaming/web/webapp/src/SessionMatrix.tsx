@@ -50,13 +50,13 @@ function isLive(s: MatrixSession): boolean {
 
 export function SessionMatrix({
   sessions,
-  selectedId,
+
   onOpen,
   onNew,
   busy,
 }: {
   sessions: MatrixSession[];
-  selectedId: string | null;
+
   onOpen: (s: MatrixSession) => void;
   onNew: () => void;
   busy: boolean;
@@ -139,7 +139,6 @@ export function SessionMatrix({
         {points.map(({ s, x, y }) => {
           const count = messageCount(s);
           const size = 10 + Math.min(1, count / 60) * 8;
-          const selected = s.sessionId === selectedId;
           const previewed = preview !== null && matrixKey(preview) === matrixKey(s);
           const live = isLive(s);
           return (
@@ -159,7 +158,7 @@ export function SessionMatrix({
               )}
               <span
                 className={`rounded-full transition-transform group-hover:scale-125 ${
-                  selected || previewed
+                  previewed
                     ? "bg-background-inverse ring-2 ring-border-info"
                     : live
                       ? "bg-text-info"

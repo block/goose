@@ -1985,16 +1985,26 @@ ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
 
 ipcMain.handle('get-roam-status', () => {
   const status = readRoamServeStatus(appConfig.GOOSE_PATH_ROOT as string | undefined);
-  return { enabled: getSettings().roamEnabled, status };
+  return { status };
 });
 
-ipcMain.handle('list-roam-peers', () =>
-  listRoamPeers(appConfig.GOOSE_PATH_ROOT as string | undefined)
-);
+ipcMain.handle('list-roam-peers', () => {
+  try {
+    return listRoamPeers(appConfig.GOOSE_PATH_ROOT as string | undefined);
+  } catch (err) {
+    console.error('list-roam-peers failed (corrupt trust/peers file?):', err);
+    return [];
+  }
+});
 
 ipcMain.handle('revoke-roam-peer', (_event, endpointId: string) => {
   if (typeof endpointId !== 'string') return false;
-  return revokeRoamPeer(endpointId, appConfig.GOOSE_PATH_ROOT as string | undefined);
+  try {
+    return revokeRoamPeer(endpointId, appConfig.GOOSE_PATH_ROOT as string | undefined);
+  } catch (err) {
+    console.error('revoke-roam-peer failed (corrupt trust file?):', err);
+    return false;
+  }
 });
 
 ipcMain.handle('accept-roam-peer', (_event, cardText: string, name?: string) => {

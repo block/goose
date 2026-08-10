@@ -22,10 +22,8 @@ use agent_client_protocol::{Agent, Client, ConnectionTo};
 use anyhow::Result;
 use goose_roaming::RoamingClientStream;
 
-/// Run an interactive ACP session over an authorized roaming stream.
-///
-/// The provided `read_prompt` closure supplies successive user prompts; it
-/// returns `None` when the user wants to end the session (EOF / quit).
+/// Run an interactive ACP session over an authorized roaming stream, reading
+/// prompts from stdin until EOF / quit.
 pub async fn run_interactive(stream: RoamingClientStream, agent_label: String) -> Result<()> {
     let (send, recv, conn) = stream.into_futures_io();
     let transport = agent_client_protocol::ByteStreams::new(send, recv);

@@ -250,7 +250,7 @@ pub enum PeersCommand {
         name: Option<String>,
     },
     /// Stop accepting a peer: a saved nickname, a card, or a raw endpoint id.
-    /// A live session continues until it disconnects.
+    /// A running share force-closes the peer's live connections within seconds.
     Revoke { target: String },
     /// Remove a saved peer from the address book (does not change acceptance).
     Remove { name: String },

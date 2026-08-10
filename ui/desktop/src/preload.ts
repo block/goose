@@ -133,7 +133,6 @@ type ElectronAPI = {
   getSecretKey: () => Promise<string | null>;
   getAcpUrl: () => Promise<string | null>;
   getRoamStatus: () => Promise<{
-    enabled: boolean;
     status: { card: string; endpointId: string; fingerprint: string; startedAt: number } | null;
   }>;
   listRoamPeers: () => Promise<

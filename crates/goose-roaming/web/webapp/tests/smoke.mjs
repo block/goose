@@ -52,8 +52,8 @@ try {
     const id = client.endpointId();
 
     // Build a goose+roam:// card the same way goose-roaming encodes: URL-safe
-    // base64 (no pad) of JSON { endpoint_id, relay_urls }.
-    const json = JSON.stringify({ endpoint_id: id, relay_urls: [relayUrl] });
+    // base64 (no pad) of JSON { version, endpoint_id, relay_urls }.
+    const json = JSON.stringify({ version: 1, endpoint_id: id, relay_urls: [relayUrl] });
     const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(json)))
       .replace(/\+/g, "-")
       .replace(/\//g, "_")

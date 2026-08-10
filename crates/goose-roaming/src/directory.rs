@@ -90,7 +90,7 @@ impl Directory {
     }
 
     /// Record the start of a connection, creating or updating the entry.
-    pub async fn record_connect(
+    pub(crate) async fn record_connect(
         &self,
         endpoint_id: EndpointId,
         label: Option<String>,
@@ -124,7 +124,7 @@ impl Directory {
     }
 
     /// Record that a connection with a peer has ended.
-    pub async fn record_disconnect(&self, endpoint_id: EndpointId, now_ms: u64) {
+    pub(crate) async fn record_disconnect(&self, endpoint_id: EndpointId, now_ms: u64) {
         let key = endpoint_id.to_string();
         let mut map = self.inner.lock().await;
         if let Some(entry) = map.get_mut(&key) {
@@ -140,16 +140,6 @@ impl Directory {
         let mut entries: Vec<PeerEntry> = map.values().cloned().collect();
         entries.sort_by_key(|e| std::cmp::Reverse(e.last_seen_ms));
         entries
-    }
-
-    /// Number of peers currently connected.
-    pub async fn connected_count(&self) -> usize {
-        self.inner
-            .lock()
-            .await
-            .values()
-            .filter(|e| e.connected)
-            .count()
     }
 }
 
@@ -175,10 +165,10 @@ mod tests {
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].label.as_deref(), Some("laptop"));
         assert!(list[0].connected);
-        assert_eq!(dir.connected_count().await, 1);
 
         dir.record_disconnect(peer, 2_000).await;
-        assert_eq!(dir.connected_count().await, 0);
-        assert_eq!(dir.list().await[0].last_seen_ms, 2_000);
+        let after = dir.list().await;
+        assert!(!after[0].connected);
+        assert_eq!(after[0].last_seen_ms, 2_000);
     }
 }

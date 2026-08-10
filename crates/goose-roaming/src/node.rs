@@ -54,8 +54,8 @@ pub trait AcpStreamServer: Send + Sync + 'static {
 /// Configuration for binding a roaming node.
 ///
 /// For the common case use [`RoamingConfig::new`] and the `with_*` chainers,
-/// which default to iroh's public relays, a bearer trust policy, and an
-/// in-memory directory:
+/// which default to iroh's public relays, an empty allowlist (accepts no
+/// one), and an in-memory directory:
 ///
 /// ```no_run
 /// use goose_roaming::{RoamingConfig, RoamingIdentity, RoamingNode};
@@ -108,25 +108,6 @@ impl RoamingConfig {
     /// Use a specific relay configuration (default: iroh's public relays).
     pub fn with_relay(mut self, relay: RelaySettings) -> Self {
         self.relay = relay;
-        self
-    }
-
-    /// Use a specific trust allowlist (default: empty — accepts no one).
-    pub fn with_trust(mut self, trust: TrustBook) -> Self {
-        self.trust = trust;
-        self
-    }
-
-    /// Re-read the trust allowlist from `path` on every inbound connection so
-    /// out-of-band `accept`/`revoke` take effect without restarting a share.
-    pub fn with_trust_path(mut self, path: std::path::PathBuf) -> Self {
-        self.trust_path = Some(path);
-        self
-    }
-
-    /// Track observed connections in `directory` (default: in-memory).
-    pub fn with_directory(mut self, directory: Directory) -> Self {
-        self.directory = directory;
         self
     }
 
@@ -203,12 +184,6 @@ impl RoamingNode {
     /// Shared trust book (for CLI commands to inspect/mutate).
     pub fn trust(&self) -> Arc<Mutex<TrustBook>> {
         self.trust.clone()
-    }
-
-    /// The connected-peers directory, built out of band from observed
-    /// connections (no gossip).
-    pub fn directory(&self) -> &Directory {
-        &self.directory
     }
 
     /// Start accepting inbound ACP connections, serving each authorized stream
@@ -463,16 +438,6 @@ pub struct RoamingClientStream {
 }
 
 impl RoamingClientStream {
-    /// The host-facing id of the agent on the other end.
-    pub fn agent_id(&self) -> &str {
-        &self.agent_id
-    }
-
-    /// The authenticated remote endpoint id (the host's public key).
-    pub fn peer_id(&self) -> EndpointId {
-        self.conn.remote_id()
-    }
-
     /// Consume the stream into `futures::io` read/write halves ready to feed to
     /// an ACP client transport (e.g. `ByteStreams::new(send, recv)`), plus the
     /// live [`Connection`] which the caller must keep alive for the duration of

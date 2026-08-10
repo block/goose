@@ -28,6 +28,13 @@ use crate::error::RoamingError;
 const CARD_VERSION: u32 = 1;
 const CARD_SCHEME: &str = "goose+roam://";
 
+/// Decode bounds, shared by the wasm and desktop decoders. A card is a tiny
+/// identity+relay-list blob; anything near these limits is garbage or an
+/// attack, and the caps stop allocation before it starts.
+const MAX_CARD_TEXT_BYTES: usize = 8 * 1024;
+const MAX_RELAY_URLS: usize = 16;
+const MAX_RELAY_URL_BYTES: usize = 512;
+
 /// A shareable, non-secret identity-plus-reachability card for a node.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConnectionCard {
@@ -72,9 +79,18 @@ impl ConnectionCard {
     }
 
     /// Decode a card produced by [`Self::encode`].
+    ///
+    /// This is the card-decoding contract, applied identically by the wasm
+    /// and desktop decoders: bounded input (text/relay count/URL length caps
+    /// before allocation), required `version == 1`, and http(s)-only relay
+    /// URLs validated at decode time — a malformed card is rejected here, not
+    /// when dialing.
     pub fn decode(text: &str) -> Result<Self, RoamingError> {
+        let text = text.trim();
+        if text.len() > MAX_CARD_TEXT_BYTES {
+            return Err(RoamingError::Card("card too large".into()));
+        }
         let b64 = text
-            .trim()
             .strip_prefix(CARD_SCHEME)
             .ok_or_else(|| RoamingError::Card(format!("missing {CARD_SCHEME} scheme")))?;
         let json = base64::engine::general_purpose::URL_SAFE_NO_PAD
@@ -88,11 +104,24 @@ impl ConnectionCard {
                 card.version
             )));
         }
+        if card.relay_urls.len() > MAX_RELAY_URLS {
+            return Err(RoamingError::Card("too many relay urls".into()));
+        }
+        for url in &card.relay_urls {
+            if url.len() > MAX_RELAY_URL_BYTES {
+                return Err(RoamingError::Card("relay url too long".into()));
+            }
+            if !(url.starts_with("https://") || url.starts_with("http://")) {
+                return Err(RoamingError::Card(format!(
+                    "relay url must be http(s): {url}"
+                )));
+            }
+        }
         Ok(card)
     }
 
     /// Build a dialable [`EndpointAddr`] from the card (id + relay URLs).
-    pub fn endpoint_addr(&self) -> Result<EndpointAddr, RoamingError> {
+    pub(crate) fn endpoint_addr(&self) -> Result<EndpointAddr, RoamingError> {
         let mut addr = EndpointAddr::new(self.endpoint_id);
         for url in &self.relay_urls {
             // Relay URLs come from an untrusted card. Constrain the scheme to
@@ -140,6 +169,54 @@ mod tests {
     #[test]
     fn rejects_foreign_scheme() {
         assert!(ConnectionCard::decode("https://example./abc").is_err());
+    }
+
+    fn encode_raw(json: &serde_json::Value) -> String {
+        use base64::Engine;
+        let b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(serde_json::to_vec(json).unwrap());
+        format!("{CARD_SCHEME}{b64}")
+    }
+
+    #[test]
+    fn decode_enforces_bounds_and_version() {
+        let id = SecretKey::generate().public().to_string();
+
+        // Wrong version.
+        let bad_version = encode_raw(&serde_json::json!({
+            "version": 2, "endpoint_id": id, "relay_urls": []
+        }));
+        assert!(ConnectionCard::decode(&bad_version).is_err());
+
+        // Non-http(s) relay scheme is rejected at decode, not just at dial.
+        let bad_scheme = encode_raw(&serde_json::json!({
+            "version": 1, "endpoint_id": id, "relay_urls": ["file:///etc/passwd"]
+        }));
+        assert!(ConnectionCard::decode(&bad_scheme).is_err());
+
+        // Too many relay URLs.
+        let urls: Vec<String> = (0..MAX_RELAY_URLS + 1)
+            .map(|i| format!("https://r{i}.example/"))
+            .collect();
+        let too_many = encode_raw(&serde_json::json!({
+            "version": 1, "endpoint_id": id, "relay_urls": urls
+        }));
+        assert!(ConnectionCard::decode(&too_many).is_err());
+
+        // One overlong relay URL.
+        let long_url = format!("https://{}.example/", "x".repeat(MAX_RELAY_URL_BYTES));
+        let too_long = encode_raw(&serde_json::json!({
+            "version": 1, "endpoint_id": id, "relay_urls": [long_url]
+        }));
+        assert!(ConnectionCard::decode(&too_long).is_err());
+
+        // Oversized card text is rejected before any base64/JSON allocation.
+        let huge = format!("{CARD_SCHEME}{}", "A".repeat(MAX_CARD_TEXT_BYTES + 1));
+        assert!(ConnectionCard::decode(&huge).is_err());
+
+        // Missing fields fail to deserialize.
+        let missing = encode_raw(&serde_json::json!({ "version": 1 }));
+        assert!(ConnectionCard::decode(&missing).is_err());
     }
 
     #[test]

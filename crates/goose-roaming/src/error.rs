@@ -19,7 +19,4 @@ pub enum RoamingError {
 
     #[error("transport error: {0}")]
     Transport(String),
-
-    #[error(transparent)]
-    Other(#[from] anyhow::Error),
 }

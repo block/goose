@@ -45,7 +45,6 @@ pub fn parse_endpoint_id(s: &str) -> Result<EndpointId, RoamingError> {
         .map_err(|e| RoamingError::Identity(format!("invalid endpoint id `{s}`: {e}")))
 }
 pub use error::RoamingError;
-pub use handshake::{ClientHello, HostAck};
 pub use identity::{default_key_path, RoamingIdentity};
 pub use node::{
     AcpStreamServer, RoamingClientStream, RoamingConfig, RoamingNode, ROAMING_ACP_ALPN,

@@ -90,7 +90,7 @@ async fn main() -> anyhow::Result<()> {
     let stream = client
         .connect_with_addr(host.endpoint().addr(), Some("example".into()))
         .await?;
-    println!("connected to `{}`", stream.agent_id());
+    println!("connected to `{}`", stream.agent_id);
 
     // Use the ergonomic helper: no manual tokio-compat dance.
     let (mut send, mut recv, _conn) = stream.into_futures_io();

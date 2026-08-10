@@ -158,15 +158,16 @@ function modelFromConfigOptions(opts: ConfigOption[] | null | undefined): string
 const HOST_CARD_KEY = "goose-roam-last-host-card";
 const HOSTS_KEY = "goose-roam-hosts";
 
-type SavedHost = { name: string; card: string; endpointId: string; lastUsed: number };
+// Kept most-recently-used-first by the connect path (unshift on reconnect).
+type SavedHost = { name: string; card: string; endpointId: string };
 
 // One live roam connection. The tab holds several at once — each saved host
 // gets its own iroh duplex + GooseClient, and the session list is the merge.
 type HostConn = {
   endpointId: string;
   name: string;
-  card: string;
   agent: GooseClient;
+  /** Held to keep the QUIC connection alive for the life of the entry. */
   conn: RoamConnection;
   relay: string | null;
 };
@@ -175,19 +176,6 @@ type HostConn = {
 // per host, so every lookup carries (_host, sessionId).
 type TaggedSession = SessionInfo & { _host: string };
 
-function groupByHost(sessions: TaggedSession[]): [string, TaggedSession[]][] {
-  const order: string[] = [];
-  const byHost = new Map<string, TaggedSession[]>();
-  for (const s of sessions) {
-    const g = byHost.get(s._host);
-    if (g) g.push(s);
-    else {
-      byHost.set(s._host, [s]);
-      order.push(s._host);
-    }
-  }
-  return order.map((h) => [h, byHost.get(h) ?? []]);
-}
 
 function relayRegion(cardText: string): string | null {
   try {
@@ -351,7 +339,6 @@ export function App({ roam }: { roam: RoamClient }) {
   // the same consolidated workspace.
   const [showHosts, setShowHosts] = useState(false);
   const [hostName, setHostName] = useState("");
-  const reconnectAttempt = useRef(0);
   const resumeAfterDrop = useRef<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const scanStop = useRef<(() => void) | null>(null);
@@ -808,7 +795,9 @@ export function App({ roam }: { roam: RoamClient }) {
     setBusy(true);
     try {
       const conn = await roam.connect(text, "web");
-      const eid = conn.agentId();
+      // Key host state by the AUTHENTICATED endpoint id (QUIC-TLS-proven),
+      // not agentId() — that's a host-chosen display label and could collide.
+      const eid = conn.peerId();
       const bytes = roamByteStreams(conn);
       const stream = ndJsonStream(bytes.writable, bytes.readable);
       const agent = new GooseClient(() => makeClient(), stream);
@@ -819,7 +808,7 @@ export function App({ roam }: { roam: RoamClient }) {
       localStorage.setItem(HOST_CARD_KEY, text);
       const prior = loadHosts().find((h) => h.endpointId === eid);
       const name = hostName.trim() || prior?.name || `host ${eid.slice(0, 8)}`;
-      const entry: HostConn = { endpointId: eid, name, card: text, agent, conn, relay: relayRegion(text) };
+      const entry: HostConn = { endpointId: eid, name, agent, conn, relay: relayRegion(text) };
       hostsRef.current.set(eid, entry);
       if (!activeHostRef.current) {
         activeHostRef.current = eid;
@@ -856,7 +845,7 @@ export function App({ roam }: { roam: RoamClient }) {
       setRelay(entry.relay);
       {
         const next = loadHosts().filter((h) => h.endpointId !== eid);
-        next.unshift({ name, card: text, endpointId: eid, lastUsed: Date.now() });
+        next.unshift({ name, card: text, endpointId: eid });
         localStorage.setItem(HOSTS_KEY, JSON.stringify(next.slice(0, 12)));
         setHosts(next.slice(0, 12));
         setHostName("");
@@ -1369,7 +1358,6 @@ export function App({ roam }: { roam: RoamClient }) {
             {sessionId === null ? (
               <SessionMatrix
                 sessions={sessions}
-                selectedId={sessionId}
                 onOpen={(s) => { if (s._host) void openSession(s._host, s.sessionId); }}
                 onNew={() => void newSession()}
                 busy={busy}

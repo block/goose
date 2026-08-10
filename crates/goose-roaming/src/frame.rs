@@ -1,6 +1,6 @@
 //! Minimal length-prefixed framing used for the roaming handshake.
 //!
-//! Only the handshake (invite presentation + accept/reject) is framed this way.
+//! Only the handshake (hello + accept/reject) is framed this way.
 //! Once the handshake succeeds the raw stream is handed to the ACP protocol,
 //! which does its own JSON-RPC framing.
 
@@ -58,5 +58,22 @@ mod tests {
         let got = read_frame(&mut server).await.unwrap();
         writer.await.unwrap();
         assert_eq!(got, payload);
+    }
+
+    #[tokio::test]
+    async fn write_rejects_oversized_frame() {
+        let (mut client, _server) = tokio::io::duplex(1024);
+        let body = vec![0u8; MAX_FRAME_BYTES as usize + 1];
+        assert!(write_frame(&mut client, &body).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn read_rejects_oversized_announcement() {
+        // A peer announcing a huge frame must be rejected before allocation.
+        let (mut client, mut server) = tokio::io::duplex(64);
+        tokio::io::AsyncWriteExt::write_all(&mut client, &(MAX_FRAME_BYTES + 1).to_le_bytes())
+            .await
+            .unwrap();
+        assert!(read_frame(&mut server).await.is_err());
     }
 }
