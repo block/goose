@@ -1,21 +1,21 @@
 //! Applies recipe commands and enforces their structured final output.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use rmcp::model::Tool;
 use tracing_futures::Instrument;
 
 use crate::agents::final_output_tool::{
-    FinalOutputTool, FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
+    FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME, FinalOutputTool,
 };
 use crate::agents::state_machine::operation::{
-    applied, ends_turn, last_effective_role, messages_since_kickoff, not_applicable, yielded_with,
-    Emitter, Operation, OperationResult, SlashCommand, StateEffect,
+    Emitter, Operation, OperationResult, SlashCommand, StateEffect, applied, ends_turn,
+    last_effective_role, messages_since_kickoff, not_applicable, yielded_with,
 };
 use crate::agents::state_machine::ops_toolcalling::{
-    pending_tool_requests, tool_span, ToolDisposition,
+    ToolDisposition, pending_tool_requests, tool_span,
 };
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{Conversation, EffectiveRole};
@@ -35,6 +35,18 @@ impl RecipeOperation {
     }
 
     fn successful_final_output(messages: &[Message]) -> Option<String> {
+        let mut request_id_counts = HashMap::new();
+        for request in messages
+            .iter()
+            .flat_map(|message| &message.content)
+            .filter_map(|content| match content {
+                MessageContent::ToolRequest(request) => Some(request),
+                _ => None,
+            })
+        {
+            *request_id_counts.entry(request.id.as_str()).or_insert(0) += 1;
+        }
+
         let successful_responses: HashSet<&str> = messages
             .iter()
             .flat_map(|message| &message.content)
@@ -57,7 +69,8 @@ impl RecipeOperation {
             .flat_map(|message| message.content.iter().rev())
             .find_map(|content| match content {
                 MessageContent::ToolRequest(request)
-                    if successful_responses.contains(request.id.as_str()) =>
+                    if request_id_counts.get(request.id.as_str()) == Some(&1)
+                        && successful_responses.contains(request.id.as_str()) =>
                 {
                     request.tool_call.as_ref().ok().and_then(|tool_call| {
                         (tool_call.name == FINAL_OUTPUT_TOOL_NAME).then(|| {
@@ -238,5 +251,55 @@ impl Operation for RecipeOperation {
         }
 
         not_applicable()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rmcp::model::{CallToolRequestParams, CallToolResult};
+    use serde_json::json;
+
+    use super::*;
+
+    fn final_output_request(id: &str, arguments: serde_json::Value) -> Message {
+        Message::assistant().with_tool_request(
+            id,
+            Ok(
+                CallToolRequestParams::new(FINAL_OUTPUT_TOOL_NAME).with_arguments(
+                    arguments
+                        .as_object()
+                        .expect("final output arguments must be an object")
+                        .clone(),
+                ),
+            ),
+        )
+    }
+
+    fn successful_response(id: &str) -> Message {
+        Message::user().with_tool_response(id, Ok(CallToolResult::success(Vec::new())))
+    }
+
+    #[test]
+    fn duplicate_request_id_cannot_rebind_validated_final_output() {
+        let messages = [
+            final_output_request("reused-id", json!({ "result": "validated" })),
+            final_output_request("reused-id", json!({ "unvalidated": true })),
+            successful_response("reused-id"),
+        ];
+
+        assert_eq!(RecipeOperation::successful_final_output(&messages), None);
+    }
+
+    #[test]
+    fn unique_request_id_preserves_final_output() {
+        let messages = [
+            final_output_request("unique-id", json!({ "result": "validated" })),
+            successful_response("unique-id"),
+        ];
+
+        assert_eq!(
+            RecipeOperation::successful_final_output(&messages),
+            Some(r#"{"result":"validated"}"#.to_string())
+        );
     }
 }
