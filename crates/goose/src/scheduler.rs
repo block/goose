@@ -286,6 +286,31 @@ async fn claim_cron_execution(
     true
 }
 
+async fn claim_manual_execution(
+    jobs: &Arc<Mutex<JobsMap>>,
+    running_tasks: &Arc<Mutex<RunningTasksMap>>,
+    job_id: &str,
+    current_time: DateTime<Utc>,
+    cancel_token: CancellationToken,
+) -> Result<ScheduledJob, SchedulerError> {
+    let mut jobs_guard = jobs.lock().await;
+    let Some((_, job)) = jobs_guard.get_mut(job_id) else {
+        return Err(SchedulerError::JobNotFound(job_id.to_string()));
+    };
+    if job.currently_running {
+        return Err(SchedulerError::AnyhowError(anyhow!(
+            "Job '{}' is already running",
+            job_id
+        )));
+    }
+
+    let mut tasks_guard = running_tasks.lock().await;
+    job.currently_running = true;
+    job.process_start_time = Some(current_time);
+    tasks_guard.insert(job_id.to_string(), cancel_token);
+    Ok(job.clone())
+}
+
 pub struct Scheduler {
     tokio_scheduler: TokioJobScheduler,
     jobs: Arc<Mutex<JobsMap>>,
@@ -808,31 +833,17 @@ impl Scheduler {
     }
 
     pub async fn run_now(&self, sched_id: &str) -> Result<String, SchedulerError> {
-        let job_to_run = {
-            let mut jobs_guard = self.jobs.lock().await;
-            match jobs_guard.get_mut(sched_id) {
-                Some((_, job)) => {
-                    if job.currently_running {
-                        return Err(SchedulerError::AnyhowError(anyhow!(
-                            "Job '{}' is already running",
-                            sched_id
-                        )));
-                    }
-                    job.currently_running = true;
-                    job.process_start_time = Some(Utc::now());
-                    job.clone()
-                }
-                None => return Err(SchedulerError::JobNotFound(sched_id.to_string())),
-            }
-        };
+        let cancel_token = CancellationToken::new();
+        let job_to_run = claim_manual_execution(
+            &self.jobs,
+            &self.running_tasks,
+            sched_id,
+            Utc::now(),
+            cancel_token.clone(),
+        )
+        .await?;
 
         persist_jobs(&self.storage_path, &self.jobs).await?;
-
-        let cancel_token = CancellationToken::new();
-        {
-            let mut tasks = self.running_tasks.lock().await;
-            tasks.insert(sched_id.to_string(), cancel_token.clone());
-        }
 
         let result = execute_job(
             job_to_run,
@@ -1777,6 +1788,73 @@ mod tests {
         let tasks_guard = scheduler.running_tasks.lock().await;
         assert!(tasks_guard.get("active_cron_job").unwrap().is_cancelled());
         assert!(!second_token.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn manual_claim_serializes_with_kill() {
+        let temp_dir = tempdir().unwrap();
+        let storage_path = temp_dir.path().join("schedule.json");
+        let recipe_path = create_test_recipe(temp_dir.path(), "manual_claim_job");
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let scheduler = Scheduler::new(storage_path, session_manager).await.unwrap();
+
+        let job = ScheduledJob {
+            id: "manual_claim_job".to_string(),
+            source: recipe_path.to_string_lossy().to_string(),
+            cron: "0 0 0 1 1 *".to_string(),
+            last_run: None,
+            currently_running: false,
+            paused: false,
+            current_session_id: None,
+            process_start_time: None,
+            parameters: vec![],
+            recipe_base_dir: None,
+        };
+        scheduler.add_scheduled_job(job, false).await.unwrap();
+
+        let running_tasks_guard = scheduler.running_tasks.lock().await;
+        let claim_scheduler = scheduler.clone();
+        let cancel_token = CancellationToken::new();
+        let claim_token = cancel_token.clone();
+        let claim = tokio::spawn(async move {
+            claim_manual_execution(
+                &claim_scheduler.jobs,
+                &claim_scheduler.running_tasks,
+                "manual_claim_job",
+                Utc::now(),
+                claim_token,
+            )
+            .await
+        });
+
+        timeout(Duration::from_secs(1), async {
+            while scheduler.jobs.try_lock().is_ok() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("manual claim should lock jobs while registering its cancellation token");
+
+        let kill_scheduler = scheduler.clone();
+        let kill =
+            tokio::spawn(async move { kill_scheduler.kill_running_job("manual_claim_job").await });
+        drop(running_tasks_guard);
+
+        claim.await.unwrap().unwrap();
+        kill.await.unwrap().unwrap();
+
+        let jobs_guard = scheduler.jobs.lock().await;
+        let (_, claimed_job) = jobs_guard.get("manual_claim_job").unwrap();
+        assert!(!claimed_job.currently_running);
+        assert!(claimed_job.process_start_time.is_none());
+        drop(jobs_guard);
+
+        assert!(cancel_token.is_cancelled());
+        assert!(!scheduler
+            .running_tasks
+            .lock()
+            .await
+            .contains_key("manual_claim_job"));
     }
 
     #[tokio::test]
