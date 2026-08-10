@@ -40,6 +40,9 @@ enum BufferEvent {
         end: usize,
         kind: ThinkTag,
     },
+    OversizedTag {
+        end: usize,
+    },
     Partial(usize),
 }
 
@@ -99,6 +102,15 @@ impl ThinkFilter {
                         ThinkTag::SelfClosing => {}
                     }
                 }
+                Some(BufferEvent::OversizedTag { end }) => {
+                    let malformed = self.buffer.get(..end).unwrap_or_default().to_string();
+                    if self.inside_think {
+                        out.thinking.push_str(&malformed);
+                    } else {
+                        out.content.push_str(&malformed);
+                    }
+                    self.buffer.drain(..end);
+                }
                 Some(BufferEvent::Partial(pos)) => {
                     if pos > 0 {
                         let prefix = self.buffer.get(..pos).unwrap_or_default().to_string();
@@ -133,6 +145,12 @@ impl ThinkFilter {
             }
         }
 
+        if self.buffer.capacity() > MAX_BUFFERED_THINK_TAG_BYTES {
+            let mut bounded = String::with_capacity(self.buffer.len());
+            bounded.push_str(&self.buffer);
+            self.buffer = bounded;
+        }
+
         out
     }
 }
@@ -151,6 +169,9 @@ fn next_buffer_event(buffer: &str, inside_think: bool) -> Option<BufferEvent> {
         let suffix = buffer.get(pos..).unwrap_or_default();
 
         if let Some((kind, end)) = parse_think_tag(buffer, pos) {
+            if end - pos > MAX_BUFFERED_THINK_TAG_BYTES {
+                return Some(BufferEvent::OversizedTag { end });
+            }
             if inside_think || matches!(kind, ThinkTag::Open | ThinkTag::SelfClosing) {
                 return Some(BufferEvent::Tag { pos, end, kind });
             }
@@ -646,15 +667,43 @@ mod tests {
     }
 
     #[test]
+    fn test_think_filter_preserves_and_releases_completed_oversized_tag() {
+        let payload = format!(
+            "<think data=\"{}\"/>",
+            "a".repeat(MAX_BUFFERED_THINK_TAG_BYTES * 16)
+        );
+        let mut filter = ThinkFilter::new();
+        let out = filter.push(&payload);
+
+        assert_eq!(out.content, payload);
+        assert!(out.thinking.is_empty());
+        assert!(filter.buffer.is_empty());
+        assert_eq!(filter.buffer.capacity(), 0);
+    }
+
+    #[test]
+    fn test_think_filter_releases_oversized_prefix_capacity() {
+        let prefix = "a".repeat(MAX_BUFFERED_THINK_TAG_BYTES * 16);
+        let payload = format!("{prefix}<thi");
+        let mut filter = ThinkFilter::new();
+        let out = filter.push(&payload);
+
+        assert_eq!(out.content, prefix);
+        assert!(out.thinking.is_empty());
+        assert_eq!(filter.buffer, "<thi");
+        assert!(filter.buffer.capacity() <= MAX_BUFFERED_THINK_TAG_BYTES);
+    }
+
+    #[test]
     fn test_think_filter_accepts_bounded_streamed_attributes() {
         let prefix = "<think data=\"";
-        let attribute = "a".repeat(MAX_BUFFERED_THINK_TAG_BYTES - prefix.len());
+        let attribute = "a".repeat(MAX_BUFFERED_THINK_TAG_BYTES - prefix.len() - 2);
         let mut filter = ThinkFilter::new();
         let first = filter.push(&format!("{prefix}{attribute}"));
 
         assert!(first.content.is_empty());
         assert!(first.thinking.is_empty());
-        assert_eq!(filter.buffer.len(), MAX_BUFFERED_THINK_TAG_BYTES);
+        assert_eq!(filter.buffer.len(), MAX_BUFFERED_THINK_TAG_BYTES - 2);
 
         let second = filter.push("\">hidden</think>visible");
         let final_out = filter.finish();
