@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 #[allow(dead_code)]
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
@@ -7,8 +8,12 @@ use agent_client_protocol::schema::v1::{
     SetSessionConfigOptionRequest,
 };
 use agent_client_protocol::ErrorCode;
-use common_tests::fixtures::server::AcpServerConnection;
-use common_tests::fixtures::{run_test, Connection, OpenAiFixture, Session, TestConnectionConfig};
+use common_tests::fixtures::server::{
+    assert_session_response_precedes_available_commands, AcpServerConnection,
+};
+use common_tests::fixtures::{
+    run_test, spawn_acp_server_in_process, Connection, OpenAiFixture, Session, TestConnectionConfig,
+};
 #[cfg(feature = "code-mode")]
 use common_tests::run_prompt_codemode;
 use common_tests::{
@@ -628,6 +633,38 @@ fn test_new_session_returns_initial_config() {
 #[test]
 fn test_new_session_uses_current_config_mode() {
     run_test(async { run_new_session_uses_current_config_mode::<AcpServerConnection>().await });
+}
+
+#[test]
+fn test_new_session_response_precedes_available_commands() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let work_dir = tempfile::tempdir().unwrap();
+        let openai = OpenAiFixture::new(
+            vec![],
+            <AcpServerConnection as Connection>::expected_session_id(),
+        )
+        .await;
+        let (transport, _handle, _permission_manager) = spawn_acp_server_in_process(
+            openai.uri(),
+            &[],
+            data_root.path(),
+            GooseMode::default(),
+            None,
+            goose_test_support::TEST_MODEL,
+            true,
+        )
+        .await;
+        assert_session_response_precedes_available_commands(
+            transport,
+            "session/new",
+            serde_json::json!({
+                "cwd": work_dir.path(),
+                "mcpServers": []
+            }),
+        )
+        .await;
+    });
 }
 
 #[test]

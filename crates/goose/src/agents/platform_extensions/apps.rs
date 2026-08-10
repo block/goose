@@ -722,6 +722,7 @@ mod tests {
             context: PlatformExtensionContext {
                 extension_manager: None,
                 session_manager: Arc::new(SessionManager::new(apps_dir.join("sessions"))),
+                scheduler: None,
                 session: None,
                 use_login_shell_path: false,
             },

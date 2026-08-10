@@ -365,12 +365,14 @@ fn message_keyword_clause(keyword_count: usize) -> String {
         .collect::<Vec<_>>()
         .join(" OR ");
 
+    let visible = user_visible_message_sql("mq.metadata_json");
     format!(
         r#"
         EXISTS (
             SELECT 1
             FROM messages mq
             WHERE mq.session_id = s.id
+              AND {visible}
               AND EXISTS (
                   SELECT 1
                   FROM json_each(mq.content_json)
@@ -406,6 +408,12 @@ impl SessionManager {
 
     pub fn storage(&self) -> &Arc<SessionStorage> {
         &self.storage
+    }
+
+    pub(crate) fn action_required(
+        &self,
+    ) -> Arc<crate::action_required_manager::ActionRequiredManager> {
+        self.storage.action_required.clone()
     }
 
     pub async fn create_session(
@@ -549,6 +557,24 @@ impl SessionManager {
         })
     }
 
+    pub async fn update_name_from_provider(
+        &self,
+        id: &str,
+        name: String,
+    ) -> Result<Option<SessionNameUpdate>> {
+        let name = name.trim().to_string();
+        if name.is_empty() {
+            return Ok(None);
+        }
+
+        let session = self.get_session(id, false).await?;
+        if session.user_set_name || session.name == name {
+            return Ok(None);
+        }
+
+        Ok(Some(self.system_generated_name_update(id, name).await?))
+    }
+
     pub async fn maybe_update_name(
         &self,
         id: &str,
@@ -595,10 +621,16 @@ impl SessionManager {
         let user_message_count = conversation
             .messages()
             .iter()
-            .filter(|m| matches!(m.role, Role::User))
+            .filter(|m| matches!(m.role, Role::User) && m.is_user_visible())
             .count();
 
-        if user_message_count <= MSG_COUNT_FOR_SESSION_NAME_GENERATION {
+        let should_generate_name = if provider.manages_own_context() {
+            user_message_count == 1
+        } else {
+            user_message_count <= MSG_COUNT_FOR_SESSION_NAME_GENERATION
+        };
+
+        if should_generate_name {
             let name =
                 generate_session_name(provider.as_ref(), &model_config, id, &conversation).await?;
             return Ok(Some(self.system_generated_name_update(id, name).await?));
@@ -659,6 +691,7 @@ pub struct SessionStorage {
     pool: Pool<Sqlite>,
     initialized: tokio::sync::OnceCell<()>,
     session_dir: PathBuf,
+    action_required: Arc<crate::action_required_manager::ActionRequiredManager>,
 }
 
 pub(crate) fn role_to_string(role: &Role) -> &'static str {
@@ -681,6 +714,10 @@ fn normalized_message_timestamp_sql(column: &str) -> String {
     format!(
         "CASE WHEN {column} > {MILLISECOND_TIMESTAMP_THRESHOLD} THEN {column} / 1000 ELSE {column} END"
     )
+}
+
+fn user_visible_message_sql(column: &str) -> String {
+    format!("COALESCE(json_extract({column}, '$.userVisible'), 1) != 0")
 }
 
 fn session_sort_at(session: &Session) -> DateTime<Utc> {
@@ -897,6 +934,7 @@ impl SessionStorage {
             pool: Self::create_pool(&db_path),
             initialized: tokio::sync::OnceCell::new(),
             session_dir,
+            action_required: Arc::new(crate::action_required_manager::ActionRequiredManager::new()),
         }
     }
 
@@ -1597,7 +1635,11 @@ impl SessionStorage {
 
         if include_messages {
             let conv = self.get_conversation(&session.id).await?;
-            session.message_count = conv.messages().len();
+            session.message_count = conv
+                .messages()
+                .iter()
+                .filter(|m| m.is_user_visible())
+                .count();
             session.last_message_at = conv
                 .messages()
                 .iter()
@@ -1606,7 +1648,8 @@ impl SessionStorage {
             session.conversation = Some(conv);
         } else {
             let sql = format!(
-                "SELECT COUNT(*), MAX({}) FROM messages WHERE session_id = ?",
+                "SELECT COUNT(*) FILTER (WHERE {}), MAX({}) FROM messages WHERE session_id = ?",
+                user_visible_message_sql("metadata_json"),
                 normalized_message_timestamp_sql("created_timestamp")
             );
             let (count, last_message_timestamp): (i64, Option<i64>) = sqlx::query_as(&sql)
@@ -1801,6 +1844,16 @@ impl SessionStorage {
         let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
 
         let metadata_json = serde_json::to_string(&message.metadata)?;
+        // Messages are read back ordered by (created_timestamp, id), so one built
+        // before the messages it is appended after would sort ahead of them —
+        // operations do that whenever they prepare a reply and fill it in while a
+        // tool runs. Never move a message ahead of what is already stored.
+        let latest: Option<i64> =
+            sqlx::query_scalar("SELECT MAX(created_timestamp) FROM messages WHERE session_id = ?")
+                .bind(session_id)
+                .fetch_one(&mut *tx)
+                .await?;
+        let created = message.created.max(latest.unwrap_or(message.created));
 
         let message_id = message
             .id
@@ -1817,7 +1870,7 @@ impl SessionStorage {
         .bind(session_id)
         .bind(role_to_string(&message.role))
         .bind(serde_json::to_string(&message.content)?)
-        .bind(message.created)
+        .bind(created)
         .bind(metadata_json)
         .execute(&mut *tx)
         .await?;
@@ -1937,7 +1990,7 @@ impl SessionStorage {
                    s.schedule_id, s.recipe_json, s.user_recipe_values_json,
                    s.provider_name, s.model_config_json, s.goose_mode,
                    s.archived_at, s.project_id, s.parent_session_id,
-                   COUNT(m.id) as message_count,
+                   COUNT(m.id) FILTER (WHERE {}) as message_count,
                    MAX({}) as last_message_timestamp,
                    {} as sort_timestamp
             FROM sessions s
@@ -1948,6 +2001,7 @@ impl SessionStorage {
             {}
             {}
             "#,
+            user_visible_message_sql("m.metadata_json"),
             normalized_message_timestamp,
             sort_timestamp_sql,
             message_join,
@@ -2678,6 +2732,8 @@ mod tests {
 
     struct NamingTestProvider;
 
+    struct StatefulNamingTestProvider;
+
     #[async_trait::async_trait]
     impl Provider for NamingTestProvider {
         fn get_name(&self) -> &str {
@@ -2705,6 +2761,27 @@ mod tests {
                 Message::assistant().with_text(GENERATED_SESSION_NAME),
                 ProviderUsage::new("test".to_string(), Default::default()),
             ))
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl Provider for StatefulNamingTestProvider {
+        fn get_name(&self) -> &str {
+            "stateful-naming-test"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            panic!("stateful session naming must not call the provider")
+        }
+
+        fn manages_own_context(&self) -> bool {
+            true
         }
     }
 
@@ -2850,6 +2927,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn messages_read_back_in_the_order_they_arrived() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "Arrival order".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        // A message built well before the one it is appended after: operations do
+        // this whenever they prepare a reply and fill it in while a tool runs.
+        let mut held = Message::user().with_text("built first");
+        held.created -= 5;
+        sm.add_message(&session.id, &Message::user().with_text("appended first"))
+            .await
+            .unwrap();
+        sm.add_message(&session.id, &held).await.unwrap();
+
+        let conversation = sm
+            .get_session(&session.id, true)
+            .await
+            .unwrap()
+            .conversation
+            .expect("session has a conversation");
+        let texts: Vec<_> = conversation
+            .messages()
+            .iter()
+            .map(Message::as_concat_text)
+            .collect();
+        assert_eq!(texts, ["appended first", "built first"]);
+    }
+
+    #[tokio::test]
     async fn test_last_message_at_is_derived_from_messages() {
         let temp_dir = TempDir::new().unwrap();
         let sm = SessionManager::new(temp_dir.path().to_path_buf());
@@ -2881,6 +2995,44 @@ mod tests {
         let with_messages = sm.get_session(&session.id, true).await.unwrap();
         assert_eq!(with_messages.message_count, 2);
         assert_eq!(with_messages.last_message_at, Some(expected));
+    }
+
+    #[tokio::test]
+    async fn test_message_count_excludes_agent_only_messages() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "Hidden events".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        add_user_message(&sm, &session.id).await;
+        sm.add_message(
+            &session.id,
+            &Message::user()
+                .with_text("<turn-context>frozen</turn-context>")
+                .with_visibility(false, true),
+        )
+        .await
+        .unwrap();
+        sm.add_message(&session.id, &Message::assistant().with_text("hi"))
+            .await
+            .unwrap();
+
+        let counted = sm.get_session(&session.id, false).await.unwrap();
+        assert_eq!(counted.message_count, 2);
+
+        let with_messages = sm.get_session(&session.id, true).await.unwrap();
+        assert_eq!(with_messages.message_count, 2);
+
+        let listed = sm.list_sessions().await.unwrap();
+        let listed_session = listed.iter().find(|s| s.id == session.id).unwrap();
+        assert_eq!(listed_session.message_count, 2);
     }
 
     #[tokio::test]
@@ -2974,6 +3126,95 @@ mod tests {
         let reloaded = sm.get_session(&session.id, false).await.unwrap();
         assert_eq!(reloaded.name, GENERATED_SESSION_NAME);
         assert!(!reloaded.user_set_name);
+    }
+
+    #[tokio::test]
+    async fn test_maybe_update_name_uses_local_name_for_stateful_provider() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "New Chat".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        sm.update(&session.id)
+            .model_config(ModelConfig::new("test-model"))
+            .apply()
+            .await
+            .unwrap();
+        sm.add_message(
+            &session.id,
+            &Message::user().with_text("investigate session naming with ACP providers"),
+        )
+        .await
+        .unwrap();
+
+        let update = sm
+            .maybe_update_name(&session.id, Arc::new(StatefulNamingTestProvider))
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(update.name, "investigate session naming with");
+    }
+
+    #[tokio::test]
+    async fn test_provider_name_replaces_generated_name_but_not_user_name() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "Local fallback".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let update = sm
+            .update_name_from_provider(&session.id, "  Better ACP title  ".to_string())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(update.name, "Better ACP title");
+
+        sm.update(&session.id)
+            .model_config(ModelConfig::new("test-model"))
+            .apply()
+            .await
+            .unwrap();
+        add_user_message(&sm, &session.id).await;
+        add_user_message(&sm, &session.id).await;
+        assert!(sm
+            .maybe_update_name(&session.id, Arc::new(StatefulNamingTestProvider))
+            .await
+            .unwrap()
+            .is_none());
+        assert_eq!(
+            sm.get_session(&session.id, false).await.unwrap().name,
+            "Better ACP title"
+        );
+
+        sm.update(&session.id)
+            .user_provided_name("Manual title")
+            .apply()
+            .await
+            .unwrap();
+        assert!(sm
+            .update_name_from_provider(&session.id, "Another ACP title".to_string())
+            .await
+            .unwrap()
+            .is_none());
+        assert_eq!(
+            sm.get_session(&session.id, false).await.unwrap().name,
+            "Manual title"
+        );
     }
 
     #[tokio::test]

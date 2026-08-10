@@ -1,7 +1,7 @@
 import { AppEvents } from '../constants/events';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { defineMessages, useIntl } from '../i18n';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
 import ProgressiveMessageList from './ProgressiveMessageList';
