@@ -3287,6 +3287,12 @@
   "roamSection.description": {
     "defaultMessage": "透過手機或其他裝置以點對點方式存取此 goose。無需帳號，中間沒有伺服器 — 裝置透過交換公鑰進行配對。"
   },
+  "roamSection.devicesHelp": {
+    "defaultMessage": "此 goose 接受其金鑰的裝置。撤銷裝置後，它會在幾秒內中斷連線，且無法再連線。"
+  },
+  "roamSection.devicesTitle": {
+    "defaultMessage": "已配對裝置"
+  },
   "roamSection.enable": {
     "defaultMessage": "啟用遠端存取"
   },
@@ -3295,6 +3301,9 @@
   },
   "roamSection.fingerprint": {
     "defaultMessage": "指紋"
+  },
+  "roamSection.noDevices": {
+    "defaultMessage": "尚未配對任何裝置。"
   },
   "roamSection.pairHelp": {
     "defaultMessage": "在手機上用 goose 網頁用戶端掃描此條碼，然後在終端機執行 `goose roam peers accept` 接受新裝置。"
@@ -3305,8 +3314,17 @@
   "roamSection.restartNote": {
     "defaultMessage": "重新啟動 goose 以套用。"
   },
+  "roamSection.revoke": {
+    "defaultMessage": "撤銷"
+  },
+  "roamSection.revokeConfirm": {
+    "defaultMessage": "確定撤銷？"
+  },
   "roamSection.title": {
     "defaultMessage": "遠端存取 (roam)"
+  },
+  "roamSection.unnamedDevice": {
+    "defaultMessage": "未命名裝置"
   },
   "roamSection.waiting": {
     "defaultMessage": "正在等待漫遊端點上線…（隨 goose 後端一同啟動）"

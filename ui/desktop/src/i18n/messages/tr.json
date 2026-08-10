@@ -3287,6 +3287,12 @@
   "roamSection.description": {
     "defaultMessage": "Bu goose'a telefonunuzdan veya başka bir makineden eşler arası (p2p) erişin. Hesap yok, arada sunucu yok — cihazlar açık anahtar alışverişiyle eşleşir."
   },
+  "roamSection.devicesHelp": {
+    "defaultMessage": "Bu goose'un anahtarlarını kabul ettiği cihazlar. Bir cihazı iptal etmek, onu saniyeler içinde bağlantıdan düşürür ve bir daha bağlanamaz."
+  },
+  "roamSection.devicesTitle": {
+    "defaultMessage": "Eşleştirilmiş cihazlar"
+  },
   "roamSection.enable": {
     "defaultMessage": "Uzaktan erişimi etkinleştir"
   },
@@ -3295,6 +3301,9 @@
   },
   "roamSection.fingerprint": {
     "defaultMessage": "Parmak izi"
+  },
+  "roamSection.noDevices": {
+    "defaultMessage": "Henüz eşleştirilmiş cihaz yok."
   },
   "roamSection.pairHelp": {
     "defaultMessage": "Bu kodu telefonunuzdaki goose web istemcisinden tarayın, ardından terminalde `goose roam peers accept` komutunu çalıştırarak yeni cihazı kabul edin."
@@ -3305,8 +3314,17 @@
   "roamSection.restartNote": {
     "defaultMessage": "Uygulamak için goose'u yeniden başlatın."
   },
+  "roamSection.revoke": {
+    "defaultMessage": "İptal et"
+  },
+  "roamSection.revokeConfirm": {
+    "defaultMessage": "Gerçekten iptal edilsin mi?"
+  },
   "roamSection.title": {
     "defaultMessage": "Uzaktan erişim (roam)"
+  },
+  "roamSection.unnamedDevice": {
+    "defaultMessage": "Adsız cihaz"
   },
   "roamSection.waiting": {
     "defaultMessage": "Roaming uç noktasının çevrimiçi olması bekleniyor… (goose arka ucuyla birlikte başlar)"

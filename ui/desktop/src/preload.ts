@@ -136,6 +136,16 @@ type ElectronAPI = {
     enabled: boolean;
     status: { card: string; endpointId: string; fingerprint: string; startedAt: number } | null;
   }>;
+  listRoamPeers: () => Promise<
+    {
+      name: string | null;
+      endpointId: string;
+      fingerprint: string;
+      accepted: boolean;
+      addedMs: number | null;
+    }[]
+  >;
+  revokeRoamPeer: (endpointId: string) => Promise<boolean>;
   setWakelock: (enable: boolean) => Promise<boolean>;
   getWakelockState: () => Promise<boolean>;
   setSpellcheck: (enable: boolean) => Promise<boolean>;
@@ -259,6 +269,8 @@ const electronAPI: ElectronAPI = {
   getSecretKey: () => ipcRenderer.invoke('get-secret-key'),
   getAcpUrl: () => ipcRenderer.invoke('get-acp-url'),
   getRoamStatus: () => ipcRenderer.invoke('get-roam-status'),
+  listRoamPeers: () => ipcRenderer.invoke('list-roam-peers'),
+  revokeRoamPeer: (endpointId: string) => ipcRenderer.invoke('revoke-roam-peer', endpointId),
   setWakelock: (enable: boolean) => ipcRenderer.invoke('set-wakelock', enable),
   getWakelockState: () => ipcRenderer.invoke('get-wakelock-state'),
   setSpellcheck: (enable: boolean) => ipcRenderer.invoke('set-spellcheck', enable),

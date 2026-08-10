@@ -3287,6 +3287,12 @@
   "roamSection.description": {
     "defaultMessage": "Truy cập goose này từ điện thoại hoặc máy khác, theo kiểu ngang hàng. Không tài khoản, không máy chủ trung gian — các thiết bị ghép nối bằng cách trao đổi khóa công khai."
   },
+  "roamSection.devicesHelp": {
+    "defaultMessage": "Các thiết bị mà goose này chấp nhận khóa. Thu hồi một thiết bị sẽ ngắt kết nối nó trong vài giây và nó không thể kết nối lại."
+  },
+  "roamSection.devicesTitle": {
+    "defaultMessage": "Thiết bị đã ghép nối"
+  },
   "roamSection.enable": {
     "defaultMessage": "Bật truy cập từ xa"
   },
@@ -3295,6 +3301,9 @@
   },
   "roamSection.fingerprint": {
     "defaultMessage": "Vân tay"
+  },
+  "roamSection.noDevices": {
+    "defaultMessage": "Chưa có thiết bị nào được ghép nối."
   },
   "roamSection.pairHelp": {
     "defaultMessage": "Quét mã này từ trình khách web goose trên điện thoại của bạn, sau đó chấp nhận thiết bị mới bằng cách chạy `goose roam peers accept` trong terminal."
@@ -3305,8 +3314,17 @@
   "roamSection.restartNote": {
     "defaultMessage": "Khởi động lại goose để áp dụng."
   },
+  "roamSection.revoke": {
+    "defaultMessage": "Thu hồi"
+  },
+  "roamSection.revokeConfirm": {
+    "defaultMessage": "Thu hồi thật chứ?"
+  },
   "roamSection.title": {
     "defaultMessage": "Truy cập từ xa (roam)"
+  },
+  "roamSection.unnamedDevice": {
+    "defaultMessage": "Thiết bị chưa đặt tên"
   },
   "roamSection.waiting": {
     "defaultMessage": "Đang chờ điểm cuối roaming trực tuyến… (khởi động cùng backend goose)"

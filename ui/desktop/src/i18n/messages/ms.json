@@ -3287,6 +3287,12 @@
   "roamSection.description": {
     "defaultMessage": "Capai goose ini dari telefon anda atau mesin lain, secara rakan ke rakan. Tiada akaun dan tiada pelayan perantara — peranti berpasangan dengan bertukar kunci awam."
   },
+  "roamSection.devicesHelp": {
+    "defaultMessage": "Peranti yang kuncinya diterima oleh goose ini. Membatalkan peranti akan memutuskan sambungannya dalam beberapa saat dan ia tidak lagi boleh bersambung."
+  },
+  "roamSection.devicesTitle": {
+    "defaultMessage": "Peranti berpasangan"
+  },
   "roamSection.enable": {
     "defaultMessage": "Dayakan akses jauh"
   },
@@ -3295,6 +3301,9 @@
   },
   "roamSection.fingerprint": {
     "defaultMessage": "Cap jari"
+  },
+  "roamSection.noDevices": {
+    "defaultMessage": "Belum ada peranti berpasangan."
   },
   "roamSection.pairHelp": {
     "defaultMessage": "Imbas kod ini dari klien web goose pada telefon anda, kemudian terima peranti baharu dengan menjalankan `goose roam peers accept` di terminal."
@@ -3305,8 +3314,17 @@
   "roamSection.restartNote": {
     "defaultMessage": "Mulakan semula goose untuk menerapkan."
   },
+  "roamSection.revoke": {
+    "defaultMessage": "Batalkan"
+  },
+  "roamSection.revokeConfirm": {
+    "defaultMessage": "Betul nak batalkan?"
+  },
   "roamSection.title": {
     "defaultMessage": "Akses jauh (roam)"
+  },
+  "roamSection.unnamedDevice": {
+    "defaultMessage": "Peranti tanpa nama"
   },
   "roamSection.waiting": {
     "defaultMessage": "Menunggu titik akhir roaming dalam talian… (bermula bersama backend goose)"

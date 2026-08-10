@@ -3287,6 +3287,12 @@
   "roamSection.description": {
     "defaultMessage": "Accede a este goose desde tu teléfono u otra máquina, de igual a igual. Sin cuentas ni servidores intermedios: los dispositivos se emparejan intercambiando claves públicas."
   },
+  "roamSection.devicesHelp": {
+    "defaultMessage": "Dispositivos cuyas claves acepta este goose. Revocar un dispositivo lo desconecta en segundos y ya no podrá conectarse."
+  },
+  "roamSection.devicesTitle": {
+    "defaultMessage": "Dispositivos emparejados"
+  },
   "roamSection.enable": {
     "defaultMessage": "Habilitar acceso remoto"
   },
@@ -3295,6 +3301,9 @@
   },
   "roamSection.fingerprint": {
     "defaultMessage": "Huella digital"
+  },
+  "roamSection.noDevices": {
+    "defaultMessage": "Aún no hay dispositivos emparejados."
   },
   "roamSection.pairHelp": {
     "defaultMessage": "Escanea este código desde el cliente web de goose en tu teléfono y luego acepta el nuevo dispositivo ejecutando `goose roam peers accept` en una terminal."
@@ -3305,8 +3314,17 @@
   "roamSection.restartNote": {
     "defaultMessage": "Reinicia goose para aplicar los cambios."
   },
+  "roamSection.revoke": {
+    "defaultMessage": "Revocar"
+  },
+  "roamSection.revokeConfirm": {
+    "defaultMessage": "¿Revocar de verdad?"
+  },
   "roamSection.title": {
     "defaultMessage": "Acceso remoto (roam)"
+  },
+  "roamSection.unnamedDevice": {
+    "defaultMessage": "Dispositivo sin nombre"
   },
   "roamSection.waiting": {
     "defaultMessage": "Esperando a que el punto de conexión de roaming esté en línea… (se inicia con el backend de goose)"

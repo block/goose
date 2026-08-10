@@ -3287,6 +3287,12 @@
   "roamSection.description": {
     "defaultMessage": "Reach this goose from your phone or another machine, peer to peer. No accounts and no servers in between — devices pair by exchanging public keys."
   },
+  "roamSection.devicesHelp": {
+    "defaultMessage": "Devices whose keys this goose accepts. Revoking a device disconnects it within seconds and it can no longer connect."
+  },
+  "roamSection.devicesTitle": {
+    "defaultMessage": "Paired devices"
+  },
   "roamSection.enable": {
     "defaultMessage": "Enable remote access"
   },
@@ -3295,6 +3301,9 @@
   },
   "roamSection.fingerprint": {
     "defaultMessage": "Fingerprint"
+  },
+  "roamSection.noDevices": {
+    "defaultMessage": "No devices paired yet."
   },
   "roamSection.pairHelp": {
     "defaultMessage": "Scan this code from the goose web client on your phone, then accept the new device by running `goose roam peers accept` in a terminal."
@@ -3305,8 +3314,17 @@
   "roamSection.restartNote": {
     "defaultMessage": "Restart goose to apply."
   },
+  "roamSection.revoke": {
+    "defaultMessage": "Revoke"
+  },
+  "roamSection.revokeConfirm": {
+    "defaultMessage": "Really revoke?"
+  },
   "roamSection.title": {
     "defaultMessage": "Remote access (roam)"
+  },
+  "roamSection.unnamedDevice": {
+    "defaultMessage": "Unnamed device"
   },
   "roamSection.waiting": {
     "defaultMessage": "Waiting for the roaming endpoint to come online… (starts with the goose backend)"

@@ -3287,6 +3287,12 @@
   "roamSection.description": {
     "defaultMessage": "Akses goose ini dari ponsel atau mesin lain, secara peer-to-peer. Tanpa akun dan tanpa server perantara — perangkat berpasangan dengan bertukar kunci publik."
   },
+  "roamSection.devicesHelp": {
+    "defaultMessage": "Perangkat yang kuncinya diterima oleh goose ini. Mencabut perangkat akan memutuskannya dalam hitungan detik dan perangkat itu tidak dapat terhubung lagi."
+  },
+  "roamSection.devicesTitle": {
+    "defaultMessage": "Perangkat yang dipasangkan"
+  },
   "roamSection.enable": {
     "defaultMessage": "Aktifkan akses jarak jauh"
   },
@@ -3295,6 +3301,9 @@
   },
   "roamSection.fingerprint": {
     "defaultMessage": "Sidik jari"
+  },
+  "roamSection.noDevices": {
+    "defaultMessage": "Belum ada perangkat yang dipasangkan."
   },
   "roamSection.pairHelp": {
     "defaultMessage": "Pindai kode ini dari klien web goose di ponsel Anda, lalu terima perangkat baru dengan menjalankan `goose roam peers accept` di terminal."
@@ -3305,8 +3314,17 @@
   "roamSection.restartNote": {
     "defaultMessage": "Mulai ulang goose untuk menerapkan."
   },
+  "roamSection.revoke": {
+    "defaultMessage": "Cabut"
+  },
+  "roamSection.revokeConfirm": {
+    "defaultMessage": "Yakin mencabut?"
+  },
   "roamSection.title": {
     "defaultMessage": "Akses jarak jauh (roam)"
+  },
+  "roamSection.unnamedDevice": {
+    "defaultMessage": "Perangkat tanpa nama"
   },
   "roamSection.waiting": {
     "defaultMessage": "Menunggu endpoint roaming online… (dimulai bersama backend goose)"

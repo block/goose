@@ -3287,6 +3287,12 @@
   "roamSection.description": {
     "defaultMessage": "通过手机或其他设备以点对点方式访问此 goose。无需账户，中间没有服务器 — 设备通过交换公钥进行配对。"
   },
+  "roamSection.devicesHelp": {
+    "defaultMessage": "此 goose 接受其密钥的设备。吊销设备后，它会在几秒内断开连接，并且无法再连接。"
+  },
+  "roamSection.devicesTitle": {
+    "defaultMessage": "已配对设备"
+  },
   "roamSection.enable": {
     "defaultMessage": "启用远程访问"
   },
@@ -3295,6 +3301,9 @@
   },
   "roamSection.fingerprint": {
     "defaultMessage": "指纹"
+  },
+  "roamSection.noDevices": {
+    "defaultMessage": "尚未配对任何设备。"
   },
   "roamSection.pairHelp": {
     "defaultMessage": "在手机上用 goose 网页客户端扫描此二维码，然后在终端运行 `goose roam peers accept` 接受新设备。"
@@ -3305,8 +3314,17 @@
   "roamSection.restartNote": {
     "defaultMessage": "重启 goose 以生效。"
   },
+  "roamSection.revoke": {
+    "defaultMessage": "吊销"
+  },
+  "roamSection.revokeConfirm": {
+    "defaultMessage": "确定吊销？"
+  },
   "roamSection.title": {
     "defaultMessage": "远程访问 (roam)"
+  },
+  "roamSection.unnamedDevice": {
+    "defaultMessage": "未命名设备"
   },
   "roamSection.waiting": {
     "defaultMessage": "正在等待漫游端点上线…（随 goose 后端一起启动）"

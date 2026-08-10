@@ -3287,6 +3287,12 @@
   "roamSection.description": {
     "defaultMessage": "スマートフォンや別のマシンからこの goose にピアツーピアで接続できます。アカウントも中間サーバーも不要 — デバイスは公開鍵を交換してペアリングします。"
   },
+  "roamSection.devicesHelp": {
+    "defaultMessage": "この goose が鍵を受け入れているデバイスです。デバイスを取り消すと数秒以内に切断され、以後接続できなくなります。"
+  },
+  "roamSection.devicesTitle": {
+    "defaultMessage": "ペアリング済みデバイス"
+  },
   "roamSection.enable": {
     "defaultMessage": "リモートアクセスを有効にする"
   },
@@ -3295,6 +3301,9 @@
   },
   "roamSection.fingerprint": {
     "defaultMessage": "フィンガープリント"
+  },
+  "roamSection.noDevices": {
+    "defaultMessage": "まだペアリングされたデバイスはありません。"
   },
   "roamSection.pairHelp": {
     "defaultMessage": "スマートフォンの goose ウェブクライアントでこのコードをスキャンし、ターミナルで `goose roam peers accept` を実行して新しいデバイスを承認してください。"
@@ -3305,8 +3314,17 @@
   "roamSection.restartNote": {
     "defaultMessage": "適用するには goose を再起動してください。"
   },
+  "roamSection.revoke": {
+    "defaultMessage": "取り消す"
+  },
+  "roamSection.revokeConfirm": {
+    "defaultMessage": "本当に取り消しますか？"
+  },
   "roamSection.title": {
     "defaultMessage": "リモートアクセス (roam)"
+  },
+  "roamSection.unnamedDevice": {
+    "defaultMessage": "名前のないデバイス"
   },
   "roamSection.waiting": {
     "defaultMessage": "ローミングエンドポイントがオンラインになるのを待っています…（goose バックエンドと共に起動します）"

@@ -52,6 +52,7 @@ import {
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
 import { readRoamServeStatus } from './roamStatus';
+import { listRoamPeers, revokeRoamPeer } from './roamPeers';
 import './utils/recipeHash';
 import type { GooseApp } from './types/apps';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
@@ -1985,6 +1986,15 @@ ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
 ipcMain.handle('get-roam-status', () => {
   const status = readRoamServeStatus(appConfig.GOOSE_PATH_ROOT as string | undefined);
   return { enabled: getSettings().roamEnabled, status };
+});
+
+ipcMain.handle('list-roam-peers', () =>
+  listRoamPeers(appConfig.GOOSE_PATH_ROOT as string | undefined)
+);
+
+ipcMain.handle('revoke-roam-peer', (_event, endpointId: string) => {
+  if (typeof endpointId !== 'string') return false;
+  return revokeRoamPeer(endpointId, appConfig.GOOSE_PATH_ROOT as string | undefined);
 });
 
 ipcMain.handle('get-secret-key', (event) => {

@@ -3287,6 +3287,12 @@
   "roamSection.description": {
     "defaultMessage": "अपने फ़ोन या किसी अन्य मशीन से इस goose तक पहुँचें, पीयर-टू-पीयर। कोई खाता नहीं और बीच में कोई सर्वर नहीं — डिवाइस सार्वजनिक कुंजियों का आदान-प्रदान करके जुड़ते हैं।"
   },
+  "roamSection.devicesHelp": {
+    "defaultMessage": "वे डिवाइस जिनकी कुंजियाँ यह goose स्वीकार करता है। किसी डिवाइस को निरस्त करने पर वह कुछ सेकंड में डिस्कनेक्ट हो जाता है और फिर कनेक्ट नहीं हो सकता।"
+  },
+  "roamSection.devicesTitle": {
+    "defaultMessage": "युग्मित डिवाइस"
+  },
   "roamSection.enable": {
     "defaultMessage": "रिमोट एक्सेस सक्षम करें"
   },
@@ -3295,6 +3301,9 @@
   },
   "roamSection.fingerprint": {
     "defaultMessage": "फ़िंगरप्रिंट"
+  },
+  "roamSection.noDevices": {
+    "defaultMessage": "अभी तक कोई डिवाइस युग्मित नहीं है।"
   },
   "roamSection.pairHelp": {
     "defaultMessage": "अपने फ़ोन पर goose वेब क्लाइंट से यह कोड स्कैन करें, फिर टर्मिनल में `goose roam peers accept` चलाकर नए डिवाइस को स्वीकार करें।"
@@ -3305,8 +3314,17 @@
   "roamSection.restartNote": {
     "defaultMessage": "लागू करने के लिए goose को पुनः प्रारंभ करें।"
   },
+  "roamSection.revoke": {
+    "defaultMessage": "निरस्त करें"
+  },
+  "roamSection.revokeConfirm": {
+    "defaultMessage": "वाकई निरस्त करें?"
+  },
   "roamSection.title": {
     "defaultMessage": "रिमोट एक्सेस (roam)"
+  },
+  "roamSection.unnamedDevice": {
+    "defaultMessage": "अनाम डिवाइस"
   },
   "roamSection.waiting": {
     "defaultMessage": "रोमिंग एंडपॉइंट के ऑनलाइन होने की प्रतीक्षा… (goose बैकएंड के साथ शुरू होता है)"

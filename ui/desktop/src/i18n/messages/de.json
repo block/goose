@@ -3287,6 +3287,12 @@
   "roamSection.description": {
     "defaultMessage": "Erreiche dieses goose von deinem Telefon oder einem anderen Rechner, peer-to-peer. Keine Konten und keine Server dazwischen — Geräte koppeln sich durch den Austausch öffentlicher Schlüssel."
   },
+  "roamSection.devicesHelp": {
+    "defaultMessage": "Geräte, deren Schlüssel dieser goose akzeptiert. Das Widerrufen eines Geräts trennt es innerhalb von Sekunden und es kann sich nicht mehr verbinden."
+  },
+  "roamSection.devicesTitle": {
+    "defaultMessage": "Gekoppelte Geräte"
+  },
   "roamSection.enable": {
     "defaultMessage": "Fernzugriff aktivieren"
   },
@@ -3295,6 +3301,9 @@
   },
   "roamSection.fingerprint": {
     "defaultMessage": "Fingerabdruck"
+  },
+  "roamSection.noDevices": {
+    "defaultMessage": "Noch keine Geräte gekoppelt."
   },
   "roamSection.pairHelp": {
     "defaultMessage": "Scanne diesen Code mit dem goose-Web-Client auf deinem Telefon und akzeptiere das neue Gerät anschließend mit `goose roam peers accept` im Terminal."
@@ -3305,8 +3314,17 @@
   "roamSection.restartNote": {
     "defaultMessage": "goose neu starten, um die Änderung zu übernehmen."
   },
+  "roamSection.revoke": {
+    "defaultMessage": "Widerrufen"
+  },
+  "roamSection.revokeConfirm": {
+    "defaultMessage": "Wirklich widerrufen?"
+  },
   "roamSection.title": {
     "defaultMessage": "Fernzugriff (roam)"
+  },
+  "roamSection.unnamedDevice": {
+    "defaultMessage": "Unbenanntes Gerät"
   },
   "roamSection.waiting": {
     "defaultMessage": "Warte, bis der Roaming-Endpunkt online ist… (startet mit dem goose-Backend)"

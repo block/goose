@@ -54,7 +54,40 @@ const i18n = defineMessages({
     defaultMessage:
       'Waiting for the roaming endpoint to come online… (starts with the goose backend)',
   },
+  devicesTitle: {
+    id: 'roamSection.devicesTitle',
+    defaultMessage: 'Paired devices',
+  },
+  devicesHelp: {
+    id: 'roamSection.devicesHelp',
+    defaultMessage:
+      'Devices whose keys this goose accepts. Revoking a device disconnects it within seconds and it can no longer connect.',
+  },
+  noDevices: {
+    id: 'roamSection.noDevices',
+    defaultMessage: 'No devices paired yet.',
+  },
+  revoke: {
+    id: 'roamSection.revoke',
+    defaultMessage: 'Revoke',
+  },
+  revokeConfirm: {
+    id: 'roamSection.revokeConfirm',
+    defaultMessage: 'Really revoke?',
+  },
+  unnamedDevice: {
+    id: 'roamSection.unnamedDevice',
+    defaultMessage: 'Unnamed device',
+  },
 });
+
+type RoamPeer = {
+  name: string | null;
+  endpointId: string;
+  fingerprint: string;
+  accepted: boolean;
+  addedMs: number | null;
+};
 
 type RoamStatus = {
   card: string;
@@ -70,11 +103,27 @@ export default function RoamSection() {
   const [status, setStatus] = useState<RoamStatus>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [peers, setPeers] = useState<RoamPeer[]>([]);
+  const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const res = await window.electron.getRoamStatus();
     setStatus(res.status);
+    setPeers(await window.electron.listRoamPeers());
   }, []);
+
+  const revoke = useCallback(
+    async (endpointId: string) => {
+      if (confirmRevoke !== endpointId) {
+        setConfirmRevoke(endpointId);
+        return;
+      }
+      setConfirmRevoke(null);
+      await window.electron.revokeRoamPeer(endpointId);
+      setPeers(await window.electron.listRoamPeers());
+    },
+    [confirmRevoke]
+  );
 
   useEffect(() => {
     const load = async () => {
@@ -169,6 +218,49 @@ export default function RoamSection() {
                 {intl.formatMessage(i18n.waiting)}
               </div>
             ))}
+
+          {showPairing && (
+            <div className="space-y-2 border-t border-border-subtle pt-4">
+              <div className="text-sm font-medium">{intl.formatMessage(i18n.devicesTitle)}</div>
+              <div className="text-xs text-text-muted">{intl.formatMessage(i18n.devicesHelp)}</div>
+              {peers.filter((p) => p.accepted).length === 0 ? (
+                <div className="text-xs text-text-muted">{intl.formatMessage(i18n.noDevices)}</div>
+              ) : (
+                <div className="space-y-1">
+                  {peers
+                    .filter((p) => p.accepted)
+                    .map((p) => (
+                      <div
+                        key={p.endpointId}
+                        className="flex items-center justify-between gap-2 rounded-md border border-border-subtle px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-sm truncate">
+                            {p.name ?? intl.formatMessage(i18n.unnamedDevice)}
+                          </div>
+                          <div className="text-[11px] text-text-muted font-mono truncate">
+                            {p.fingerprint}
+                          </div>
+                        </div>
+                        <Button
+                          variant={confirmRevoke === p.endpointId ? 'destructive' : 'outline'}
+                          size="sm"
+                          className="shrink-0"
+                          onClick={() => void revoke(p.endpointId)}
+                          onBlur={() =>
+                            setConfirmRevoke((c) => (c === p.endpointId ? null : c))
+                          }
+                        >
+                          {confirmRevoke === p.endpointId
+                            ? intl.formatMessage(i18n.revokeConfirm)
+                            : intl.formatMessage(i18n.revoke)}
+                        </Button>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </section>
