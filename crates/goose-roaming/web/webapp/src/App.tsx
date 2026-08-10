@@ -13,19 +13,32 @@ import {
   type SessionNotification,
   type RequestPermissionRequest,
   type RequestPermissionResponse,
-  type SessionInfo,
   type PlanEntry,
 } from "@agentclientprotocol/sdk";
 import { GooseClient } from "@aaif/goose-sdk";
 import jsQR from "jsqr";
 import { Button } from "@desktop/components/ui/button";
-import { Camera, ChevronDown, ChevronLeft, ChevronRight, Menu, SlidersHorizontal, Square } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Menu, SlidersHorizontal, Square } from "lucide-react";
 import { SessionMatrix } from "./SessionMatrix";
 import MarkdownContent from "@desktop/components/MarkdownContent";
 import { Goose } from "@desktop/components/icons/Goose";
 import { ToolCallStatusIndicator, type ToolCallStatus } from "@desktop/components/ToolCallStatusIndicator";
-import type { RoamClient, RoamConnection } from "./wasm/goose_roaming_web.js";
+import type { RoamClient } from "./wasm/goose_roaming_web.js";
 import { roamByteStreams } from "./roam-stream.js";
+import {
+  HOST_CARD_KEY,
+  HOSTS_KEY,
+  SESSION_KEY,
+  COLLAPSED_KEY,
+  type SavedHost,
+  type HostConn,
+  loadHosts,
+  cardEndpointHint,
+  relayRegion,
+  loadCollapsed,
+} from "./hosts";
+import { groupSessions, type TaggedSession } from "./sessions";
+import { ConnectPanel } from "./ConnectPanel";
 
 type PermOption = { optionId: string; name: string; kind: string };
 
@@ -153,117 +166,6 @@ function modelFromConfigOptions(opts: ConfigOption[] | null | undefined): string
   if (!opt) return null;
   const current = typeof opt.currentValue === "string" ? opt.currentValue : null;
   return flatSelectOptions(opt).find((x) => x.id === current)?.name ?? current;
-}
-
-const HOST_CARD_KEY = "goose-roam-last-host-card";
-const HOSTS_KEY = "goose-roam-hosts";
-
-// Kept most-recently-used-first by the connect path (unshift on reconnect).
-type SavedHost = { name: string; card: string; endpointId: string };
-
-// One live roam connection. The tab holds several at once — each saved host
-// gets its own iroh duplex + GooseClient, and the session list is the merge.
-type HostConn = {
-  endpointId: string;
-  name: string;
-  agent: GooseClient;
-  /** Held to keep the QUIC connection alive for the life of the entry. */
-  conn: RoamConnection;
-  relay: string | null;
-};
-
-// A session tagged with the host it lives on. Session ids are only unique
-// per host, so every lookup carries (_host, sessionId).
-type TaggedSession = SessionInfo & { _host: string };
-
-
-function relayRegion(cardText: string): string | null {
-  try {
-    const b64 = cardText.trim().replace(/^goose\+roam:\/\//, "");
-    const json = JSON.parse(atob(b64.replace(/-/g, "+").replace(/_/g, "/")));
-    const url: string | undefined = json.relay_urls?.[0];
-    const m = url?.match(/^https?:\/\/([a-z0-9-]+)\./i);
-    return m ? m[1] : null;
-  } catch {
-    return null;
-  }
-}
-
-function loadHosts(): SavedHost[] {
-  try {
-    return JSON.parse(localStorage.getItem(HOSTS_KEY) ?? "[]");
-  } catch {
-    return [];
-  }
-}
-
-// Endpoint id straight out of the card JSON — for keying reconnect attempts
-// when the dial itself failed (no RoamConnection to ask).
-function cardEndpointHint(cardText: string): string | null {
-  try {
-    const b64 = cardText.trim().replace(/^goose\+roam:\/\//, "");
-    const json = JSON.parse(atob(b64.replace(/-/g, "+").replace(/_/g, "/")));
-    return typeof json.endpoint_id === "string" ? json.endpoint_id : null;
-  } catch {
-    return null;
-  }
-}
-// Last-open session is remembered per host: "<endpointId>|<sessionId>".
-const SESSION_KEY = "goose-roam-last-session";
-
-function sessionProjectId(s: SessionInfo): string | null {
-  const meta = (s as { _meta?: Record<string, unknown> })._meta;
-  const pid = meta?.["projectId"] ?? meta?.["project_id"];
-  return typeof pid === "string" && pid ? pid : null;
-}
-
-// Bucket sessions under their project (server order — most recent first —
-// preserved within each bucket). Projectless sessions form a global "chats"
-// group that leads (recency matters most), then projects follow sorted
-// alphabetically. Every group folds, including "chats".
-// Project titles are looked up per host — slugs are only unique per machine.
-type SessionGroup = { key: string; label: string | null; sessions: TaggedSession[] };
-
-function groupSessions(
-  sessions: TaggedSession[],
-  projects: Record<string, string>,
-): SessionGroup[] {
-  const loose: TaggedSession[] = [];
-  const byProject = new Map<string, TaggedSession[]>();
-  for (const s of sessions) {
-    const pid = sessionProjectId(s);
-    if (!pid) {
-      loose.push(s);
-    } else {
-      const key = `${s._host}:${pid}`;
-      const g = byProject.get(key);
-      if (g) g.push(s);
-      else byProject.set(key, [s]);
-    }
-  }
-  const out: SessionGroup[] = [];
-  if (loose.length) out.push({ key: "~", label: "chats", sessions: loose });
-  const named = [...byProject.entries()].map(([key, group]) => ({
-    key,
-    label: projects[key] ?? key.split(":").slice(1).join(":"),
-    sessions: group,
-  }));
-  named.sort((a, b) => a.label.localeCompare(b.label));
-  out.push(...named);
-  return out;
-}
-
-// Collapsed project groups persist per device.
-const COLLAPSED_KEY = "goose-roam-collapsed-projects";
-
-function loadCollapsed(): Set<string> {
-  try {
-    const raw = localStorage.getItem(COLLAPSED_KEY);
-    if (raw) return new Set(JSON.parse(raw) as string[]);
-  } catch {
-    // ignore malformed state
-  }
-  return new Set();
 }
 
 declare const __BUILD_STAMP__: string;
@@ -1088,205 +990,29 @@ export function App({ roam }: { roam: RoamClient }) {
           </div>
         </section>
       ) : !connected || showHosts ? (
-        <section id="connect-panel" className="flex-1 grid place-items-center p-3 md:p-6 overflow-auto">
-          <div className="w-full max-w-[480px] min-w-0 overflow-hidden bg-background-primary border rounded-xl shadow-sm p-5 md:p-7">
-            {hosts.length > 0 && !addingHost ? (
-              <>
-                <div className="flex items-center gap-2 mb-1">
-                  {connected && (
-                    <button
-                      aria-label="back to sessions"
-                      className="text-text-secondary hover:text-text-primary -ml-1 p-0.5"
-                      onClick={() => setShowHosts(false)}
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                  )}
-                  <h2 className="text-lg font-semibold">Your hosts</h2>
-                </div>
-                <p className="text-xs text-text-tertiary mb-4">
-                  {connected
-                    ? "connected hosts share one session list — tap to add another"
-                    : "tap to connect"}
-                </p>
-                <div className="flex flex-col gap-1.5">
-                  {hosts.map((h) => {
-                    const live = hostsRef.current.has(h.endpointId);
-                    return (
-                    <button
-                      key={h.endpointId}
-                      className="host-row w-full text-left rounded-lg px-3 py-2.5 hover:bg-background-secondary hover:shadow-default transition-all flex items-center gap-3 disabled:opacity-50"
-                      disabled={busy || live}
-                      onClick={() => {
-                        setCard(h.card);
-                        void connect(h.card);
-                      }}
-                    >
-                      <Goose className="w-4 h-4 shrink-0 opacity-70" />
-                      <span className="flex-1 min-w-0">
-                        <span className="block text-sm font-medium truncate">{h.name}</span>
-                        <span className="block text-[10px] text-text-tertiary font-mono truncate">
-                          {h.endpointId.slice(0, 16)}
-                        </span>
-                      </span>
-                      {live ? (
-                        <span className="shrink-0 inline-flex items-center gap-1 text-[10px] text-text-success">
-                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-current" />
-                          connected
-                        </span>
-                      ) : (
-                        <ChevronRight className="w-4 h-4 shrink-0 text-text-tertiary" />
-                      )}
-                    </button>
-                  );})}
-                </div>
-                <div className="mt-4 flex justify-center">
-                  <button
-                    id="add-host"
-                    className="text-xs text-text-secondary border border-border-secondary rounded-lg px-3 py-1.5 hover:border-border-info transition-colors"
-                    onClick={() => setAddingHost(true)}
-                  >
-                    add another host
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="flex items-center gap-2 mb-1">
-                  {hosts.length > 0 && (
-                    <button
-                      aria-label="back to hosts"
-                      className="text-text-secondary hover:text-text-primary -ml-1 p-0.5"
-                      onClick={() => setAddingHost(false)}
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                  )}
-                  <h2 className="text-lg font-semibold">
-                    {hosts.length === 0 ? "goose remote" : "Add a host"}
-                  </h2>
-                </div>
-                {hosts.length === 0 ? (
-                  <div className="text-xs text-text-secondary leading-relaxed mb-4 space-y-1.5">
-                    <p>
-                      Chat with a goose agent on your own machine, from this browser —
-                      peer to peer, no accounts, nothing in between.
-                    </p>
-                    <ol className="list-decimal ml-4 space-y-1 text-text-tertiary">
-                      <li>
-                        on your machine: <code className="font-mono">goose roam share --qr</code>
-                      </li>
-                      <li>scan or paste its card below</li>
-                      <li>
-                        accept this browser once:{" "}
-                        <code className="font-mono">goose roam pair</code> (or{" "}
-                        <code className="font-mono">peers accept</code>) with the card under
-                        “first time?”
-                      </li>
-                    </ol>
-                  </div>
-                ) : (
-                  <p className="text-xs text-text-tertiary mb-4">
-                    a machine running <code className="font-mono">goose roam share</code>
-                  </p>
-                )}
-                <input
-                  id="host-name"
-                  type="text"
-                  className="w-full bg-background-primary border border-border-primary rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-border-info mb-2"
-                  placeholder="name (optional) — e.g. laptop"
-                  value={hostName}
-                  onChange={(e) => setHostName(e.target.value)}
-                />
-                <textarea
-                  id="card-input"
-                  rows={3}
-                  className="w-full bg-background-primary border border-border-primary rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-border-info resize-none"
-                  placeholder="goose+roam://…  (the host's card)"
-                  value={card}
-                  onChange={(e) => setCard(e.target.value)}
-                />
-                <div className="mt-2.5 flex items-center gap-2">
-                  {canScan && (
-                    <button
-                      id="scan-card"
-                      type="button"
-                      className="inline-flex items-center gap-1.5 text-text-secondary border border-border-secondary rounded-lg px-3 py-1.5 text-xs hover:border-border-info"
-                      onClick={() => void startScan()}
-                    >
-                      <Camera className="w-3.5 h-3.5" /> scan QR
-                    </button>
-                  )}
-                  <span className="flex-1" />
-                  <button
-                    id="connect-btn"
-                    disabled={busy}
-                    onClick={() => void connect()}
-                    className="bg-background-inverse text-text-inverse text-sm font-medium rounded-lg px-4 py-1.5 hover:brightness-110 disabled:opacity-50"
-                  >
-                    connect
-                  </button>
-                </div>
-                <details
-                  className="mt-5 border-t border-border-primary pt-3"
-                  open={pairOpen}
-                  onToggle={(e) => setPairOpen((e.target as HTMLDetailsElement).open)}
-                >
-                  <summary className="text-xs text-text-secondary cursor-pointer select-none">
-                    first time? pair this browser with the host
-                  </summary>
-                  <div className="mt-2.5 text-xs text-text-secondary leading-relaxed">
-                    Send this browser's card to the host and accept it once:
-                    <div className="flex gap-2 items-center my-2 min-w-0">
-                      <code
-                        id="my-card"
-                        className="flex-1 min-w-0 font-mono text-[11px] bg-background-secondary rounded-lg px-2.5 py-1.5 overflow-hidden text-ellipsis whitespace-nowrap"
-                      >
-                        {myCard}
-                      </code>
-                      <button
-                        id="copy-card"
-                        className="shrink-0 text-text-secondary border border-border-secondary rounded-lg px-2.5 py-1 text-xs hover:border-border-info"
-                        onClick={() => navigator.clipboard?.writeText(myCard)}
-                      >
-                        copy
-                      </button>
-                      {"share" in navigator && (
-                        <button
-                          id="share-card"
-                          className="shrink-0 text-text-secondary border border-border-secondary rounded-lg px-2.5 py-1 text-xs hover:border-border-info"
-                          onClick={() => void navigator.share({ text: myCard }).catch(() => {})}
-                        >
-                          share
-                        </button>
-                      )}
-                    </div>
-                    <code className="block font-mono text-[11px] text-text-info bg-background-secondary rounded-lg px-2.5 py-2 break-all">
-                      goose roam peers accept '&lt;card&gt;'
-                    </code>
-                    <div className="text-[10px] text-text-tertiary mt-1.5">
-                      key <code id="my-endpoint-id" className="font-mono break-all">{myId}</code>
-                    </div>
-                  </div>
-                </details>
-              </>
-            )}
-          </div>
-          {scanning && (
-            <div
-              className="fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center gap-3"
-              onClick={() => scanStop.current?.()}
-            >
-              <video
-                ref={videoRef}
-                className="w-[90vw] max-w-[480px] rounded-xl"
-                playsInline
-                muted
-              />
-              <div className="text-white text-sm">point at the host QR — tap to cancel</div>
-            </div>
-          )}
-        </section>
+        <ConnectPanel
+          hosts={hosts}
+          addingHost={addingHost}
+          connected={connected}
+          busy={busy}
+          card={card}
+          hostName={hostName}
+          canScan={canScan}
+          pairOpen={pairOpen}
+          scanning={scanning}
+          myCard={myCard}
+          myId={myId}
+          isHostLive={(eid) => hostsRef.current.has(eid)}
+          setShowHosts={setShowHosts}
+          setAddingHost={setAddingHost}
+          setCard={setCard}
+          setHostName={setHostName}
+          setPairOpen={setPairOpen}
+          connect={connect}
+          startScan={startScan}
+          stopScan={() => scanStop.current?.()}
+          videoRef={videoRef}
+        />
       ) : (
         <section id="workspace" className="flex-1 relative md:grid md:grid-cols-[240px_1fr] flex min-h-0">
           <aside
