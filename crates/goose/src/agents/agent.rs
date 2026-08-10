@@ -419,6 +419,7 @@ impl Agent {
             });
         let capabilities = ExtensionManagerCapabilities {
             mcpui,
+            mcpui_default: matches!(config.goose_platform, GoosePlatform::GooseDesktop),
             host_info: explicit_mcp_host_info.clone(),
             elicitation_handler: config.elicitation_handler.clone(),
             protocol_version: config.mcp_protocol_version.clone(),
@@ -1808,12 +1809,13 @@ impl Agent {
 
         if !self.config.disable_session_naming {
             let manager = session_manager.clone();
-            let tx = self.config.session_name_update_tx.lock().unwrap().clone();
+            let tx = Arc::clone(&self.config.session_name_update_tx);
             let id = session_id.clone();
             let provider = provider.clone();
             tokio::spawn(async move {
                 match manager.maybe_update_name(&id, provider).await {
                     Ok(Some(update)) => {
+                        let tx = tx.lock().unwrap().clone();
                         if let Some(tx) = tx {
                             if tx.send(update).is_err() {
                                 tracing::warn!("Failed to publish generated session name");
@@ -2323,13 +2325,14 @@ impl Agent {
         if !self.config.disable_session_naming {
             let provider = provider.clone();
             let manager_for_spawn = session_manager.clone();
-            let session_name_update_tx = self.config.session_name_update_tx.lock().unwrap().clone();
+            let session_name_update_tx = Arc::clone(&self.config.session_name_update_tx);
             tokio::spawn(async move {
                 match manager_for_spawn
                     .maybe_update_name(&session_id, provider)
                     .await
                 {
                     Ok(Some(update)) => {
+                        let session_name_update_tx = session_name_update_tx.lock().unwrap().clone();
                         if let Some(tx) = session_name_update_tx {
                             if tx.send(update).is_err() {
                                 warn!("Failed to publish generated session name");
@@ -3554,6 +3557,13 @@ impl Agent {
     /// activated by a connection that advertised different MCP UI support.
     pub fn set_mcp_host_info(&self, host_info: Option<GooseMcpHostInfo>) {
         self.extension_manager.set_mcp_host_info(host_info);
+    }
+
+    /// Refresh the login-shell PATH behavior when a cached agent is activated
+    /// by a connection that requested a different setting.
+    pub fn set_use_login_shell_path(&self, use_login_shell_path: bool) {
+        self.extension_manager
+            .set_use_login_shell_path(use_login_shell_path);
     }
 
     pub async fn update_provider(

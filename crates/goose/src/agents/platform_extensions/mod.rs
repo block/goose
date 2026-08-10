@@ -233,7 +233,7 @@ pub struct PlatformExtensionContext {
     pub session_manager: std::sync::Arc<crate::session::SessionManager>,
     pub scheduler: Option<std::sync::Arc<dyn crate::scheduler_trait::SchedulerTrait>>,
     pub session: Option<std::sync::Arc<Session>>,
-    pub use_login_shell_path: bool,
+    pub use_login_shell_path: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl PlatformExtensionContext {

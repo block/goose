@@ -169,6 +169,10 @@ impl Extension {
 
 pub struct ExtensionManagerCapabilities {
     pub mcpui: bool,
+    /// Platform-derived MCP UI fallback. `set_mcp_host_info` recomputes
+    /// `mcpui` from the new host info, falling back to this when the host
+    /// does not advertise an explicit extension list.
+    pub mcpui_default: bool,
     pub host_info: Option<GooseMcpHostInfo>,
     pub elicitation_handler: Option<crate::agents::mcp_client::ElicitationHandler>,
     pub protocol_version: Option<rmcp::model::ProtocolVersion>,
@@ -1379,7 +1383,21 @@ impl ExtensionManager {
     /// Refresh the ACP host identity/capabilities, e.g. when a cached agent is
     /// activated by a connection that advertised different MCP UI support.
     pub fn set_mcp_host_info(&self, host_info: Option<GooseMcpHostInfo>) {
-        self.capabilities.write().unwrap().host_info = host_info;
+        let mut capabilities = self.capabilities.write().unwrap();
+        capabilities.mcpui = host_info
+            .as_ref()
+            .filter(|host_info| host_info.explicit_extensions)
+            .map(GooseMcpHostInfo::mcpui_enabled)
+            .unwrap_or(capabilities.mcpui_default);
+        capabilities.host_info = host_info;
+    }
+
+    /// Refresh the login-shell PATH behavior when a cached agent is activated
+    /// by a connection that requested a different setting.
+    pub fn set_use_login_shell_path(&self, use_login_shell_path: bool) {
+        self.context
+            .use_login_shell_path
+            .store(use_login_shell_path, std::sync::atomic::Ordering::Relaxed);
     }
 
     pub fn new(
@@ -1397,7 +1415,9 @@ impl ExtensionManager {
                 session_manager,
                 scheduler,
                 session: None,
-                use_login_shell_path,
+                use_login_shell_path: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(
+                    use_login_shell_path,
+                )),
             },
             provider,
             tools_cache: Mutex::new(None),
@@ -1416,6 +1436,7 @@ impl ExtensionManager {
             "goose-cli".to_string(),
             ExtensionManagerCapabilities {
                 mcpui: false,
+                mcpui_default: false,
                 host_info: None,
                 elicitation_handler: None,
                 protocol_version: None,

@@ -261,6 +261,7 @@ async fn test_replayed_session(
         GoosePlatform::GooseDesktop.to_string(),
         ExtensionManagerCapabilities {
             mcpui: true,
+            mcpui_default: true,
             host_info: None,
             elicitation_handler: None,
             protocol_version: Some(MCP_PROTOCOL_VERSION),

@@ -81,7 +81,11 @@ impl DeveloperClient {
 
         Ok(Self {
             info,
-            shell_tool: Arc::new(ShellTool::new(context.use_login_shell_path)?),
+            shell_tool: Arc::new(ShellTool::new(
+                context
+                    .use_login_shell_path
+                    .load(std::sync::atomic::Ordering::Relaxed),
+            )?),
             edit_tools: Arc::new(EditTools::new()),
             tree_tool: Arc::new(TreeTool::new()),
             image_tool: Arc::new(ImageTool::new()),
@@ -291,7 +295,7 @@ mod tests {
             session_manager: Arc::new(SessionManager::new(data_dir)),
             scheduler: None,
             session: None,
-            use_login_shell_path: false,
+            use_login_shell_path: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
 

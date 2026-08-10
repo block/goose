@@ -528,7 +528,7 @@ mod tests {
             session_manager,
             scheduler: Some(scheduler),
             session: Some(Arc::new(session)),
-            use_login_shell_path: false,
+            use_login_shell_path: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         };
 
         let mut extensions: Vec<ExtensionInfo> = PLATFORM_EXTENSIONS

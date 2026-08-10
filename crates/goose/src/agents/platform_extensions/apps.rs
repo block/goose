@@ -724,7 +724,9 @@ mod tests {
                 session_manager: Arc::new(SessionManager::new(apps_dir.join("sessions"))),
                 scheduler: None,
                 session: None,
-                use_login_shell_path: false,
+                use_login_shell_path: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(
+                    false,
+                )),
             },
             apps_dir,
         }

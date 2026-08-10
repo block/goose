@@ -1018,7 +1018,9 @@ mod tests {
                 )),
                 scheduler: None,
                 session: None,
-                use_login_shell_path: false,
+                use_login_shell_path: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(
+                    false,
+                )),
             },
             ToolDisclosure::Filesystem,
         )

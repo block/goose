@@ -1381,7 +1381,11 @@ impl SummonClient {
             true, // disable session naming for subagents
             crate::agents::GoosePlatform::GooseCli,
         )
-        .with_use_login_shell_path(self.context.use_login_shell_path);
+        .with_use_login_shell_path(
+            self.context
+                .use_login_shell_path
+                .load(std::sync::atomic::Ordering::Relaxed),
+        );
         agent_config.is_subagent = true;
 
         let subagent_session = self
@@ -1981,7 +1985,11 @@ impl SummonClient {
             true, // disable session naming for subagents
             crate::agents::GoosePlatform::GooseCli,
         )
-        .with_use_login_shell_path(self.context.use_login_shell_path);
+        .with_use_login_shell_path(
+            self.context
+                .use_login_shell_path
+                .load(std::sync::atomic::Ordering::Relaxed),
+        );
         agent_config.is_subagent = true;
 
         let subagent_session = self
@@ -2244,7 +2252,7 @@ mod tests {
             session_manager: Arc::new(crate::session::SessionManager::instance()),
             scheduler: None,
             session: None,
-            use_login_shell_path: false,
+            use_login_shell_path: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
 

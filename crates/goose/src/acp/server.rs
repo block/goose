@@ -240,6 +240,7 @@ struct ActiveRunGuard {
     active_prompt_runs: Arc<std::sync::Mutex<HashMap<String, ActivePromptRun>>>,
     session_id: String,
     run_id: String,
+    agent: Option<Arc<Agent>>,
 }
 
 impl Drop for ActiveRunGuard {
@@ -247,6 +248,16 @@ impl Drop for ActiveRunGuard {
         if let Ok(mut runs) = self.active_prompt_runs.lock() {
             if matches!(runs.get(&self.session_id), Some(run) if run.run_id == self.run_id) {
                 runs.remove(&self.session_id);
+                if let (Some(agent), Ok(runtime)) =
+                    (self.agent.take(), tokio::runtime::Handle::try_current())
+                {
+                    // Mirror clear_active_run: a disconnect must not leave
+                    // queued steers on the shared agent for the next run.
+                    let session_id = self.session_id.clone();
+                    runtime.spawn(async move {
+                        agent.discard_pending_steers(&session_id).await;
+                    });
+                }
             }
         }
     }
@@ -960,6 +971,9 @@ impl GooseAcpAgent {
             result
                 .agent
                 .set_mcp_host_info(self.client_mcp_host_info.get().cloned());
+            if let Some(use_login_shell_path) = self.use_login_shell_path.get().copied() {
+                result.agent.set_use_login_shell_path(use_login_shell_path);
+            }
         }
         Ok(result)
     }
@@ -1035,8 +1049,20 @@ impl GooseAcpAgent {
             .get_or_create_session_agent_with_results(cx, session.id.clone())
             .await?;
         let agent = agent_result.agent.clone();
-        self.apply_acp_extension_overrides(cx, &agent, session)
-            .await;
+        if self
+            .active_prompt_runs
+            .lock()
+            .unwrap()
+            .contains_key(&session.id)
+        {
+            // A run is in flight (possibly on another connection): rebinding
+            // the connection-scoped tool clients now would hijack its fs and
+            // terminal calls. The running connection rebound them at prompt
+            // start; leave them until the run ends.
+        } else {
+            self.apply_acp_extension_overrides(cx, &agent, session)
+                .await;
+        }
         self.maybe_refresh_provider_inventory_with_agent(session, &agent)
             .await;
 
@@ -1994,10 +2020,11 @@ impl GooseAcpAgent {
         let cancel_token = CancellationToken::new();
         self.start_active_run(&session_id, run_id.clone(), cancel_token.clone())
             .await?;
-        let _run_guard = ActiveRunGuard {
+        let mut run_guard = ActiveRunGuard {
             active_prompt_runs: Arc::clone(&self.active_prompt_runs),
             session_id: session_id.clone(),
             run_id: run_id.clone(),
+            agent: None,
         };
 
         let agent = match self.get_session_agent(&session_id).await {
@@ -2007,6 +2034,7 @@ impl GooseAcpAgent {
                 return Err(error);
             }
         };
+        run_guard.agent = Some(Arc::clone(&agent));
 
         // The agent may have been activated by a different connection: rebind
         // connection-scoped tool clients (developer fs/terminal) to this one
