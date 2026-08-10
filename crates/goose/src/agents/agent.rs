@@ -218,6 +218,12 @@ impl fmt::Display for GoosePlatform {
     }
 }
 
+/// Shared, rebindable sender for session-name updates. ACP connections hold
+/// the receiving end, so when a cached agent is activated by a new connection
+/// the sender must be replaceable through the shared `Arc<Agent>`.
+pub type SharedSessionNameUpdateTx =
+    Arc<std::sync::Mutex<Option<mpsc::UnboundedSender<SessionNameUpdate>>>>;
+
 #[derive(Clone)]
 pub struct AgentConfig {
     pub session_manager: Arc<SessionManager>,
@@ -229,7 +235,7 @@ pub struct AgentConfig {
     pub mcp_host_info: Option<GooseMcpHostInfo>,
     pub elicitation_handler: Option<crate::agents::mcp_client::ElicitationHandler>,
     pub mcp_protocol_version: Option<rmcp::model::ProtocolVersion>,
-    pub session_name_update_tx: Option<mpsc::UnboundedSender<SessionNameUpdate>>,
+    pub session_name_update_tx: SharedSessionNameUpdateTx,
     pub use_login_shell_path: Option<bool>,
     pub is_subagent: bool,
 }
@@ -253,7 +259,7 @@ impl AgentConfig {
             mcp_host_info: None,
             elicitation_handler: None,
             mcp_protocol_version: Some(MCP_PROTOCOL_VERSION),
-            session_name_update_tx: None,
+            session_name_update_tx: Arc::new(std::sync::Mutex::new(None)),
             use_login_shell_path: None,
             is_subagent: false,
         }
@@ -261,14 +267,6 @@ impl AgentConfig {
 
     pub fn with_mcp_host_info(mut self, mcp_host_info: Option<GooseMcpHostInfo>) -> Self {
         self.mcp_host_info = mcp_host_info;
-        self
-    }
-
-    pub fn with_session_name_update_tx(
-        mut self,
-        tx: Option<mpsc::UnboundedSender<SessionNameUpdate>>,
-    ) -> Self {
-        self.session_name_update_tx = tx;
         self
     }
 
@@ -1810,7 +1808,7 @@ impl Agent {
 
         if !self.config.disable_session_naming {
             let manager = session_manager.clone();
-            let tx = self.config.session_name_update_tx.clone();
+            let tx = self.config.session_name_update_tx.lock().unwrap().clone();
             let id = session_id.clone();
             let provider = provider.clone();
             tokio::spawn(async move {
@@ -2325,7 +2323,7 @@ impl Agent {
         if !self.config.disable_session_naming {
             let provider = provider.clone();
             let manager_for_spawn = session_manager.clone();
-            let session_name_update_tx = self.config.session_name_update_tx.clone();
+            let session_name_update_tx = self.config.session_name_update_tx.lock().unwrap().clone();
             tokio::spawn(async move {
                 match manager_for_spawn
                     .maybe_update_name(&session_id, provider)
@@ -3543,6 +3541,13 @@ impl Agent {
 
     pub async fn get_grind(&self) -> Option<String> {
         self.grind.lock().await.clone()
+    }
+
+    /// Replace the session-name update sender, e.g. when a cached agent is
+    /// activated by a new ACP connection. Dropping the previous sender ends
+    /// the old connection's notifier task.
+    pub fn set_session_name_update_tx(&self, tx: mpsc::UnboundedSender<SessionNameUpdate>) {
+        *self.config.session_name_update_tx.lock().unwrap() = Some(tx);
     }
 
     pub async fn update_provider(

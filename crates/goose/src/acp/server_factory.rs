@@ -1,5 +1,5 @@
 use crate::acp::server::{
-    AcpBuiltinSelection, AcpProviderFactory, GooseAcpAgent, GooseAcpAgentOptions,
+    AcpBuiltinSelection, AcpProviderFactory, ActivePromptRun, GooseAcpAgent, GooseAcpAgentOptions,
 };
 use crate::agents::{AgentConfig, GoosePlatform};
 use crate::config::PermissionManager;
@@ -8,8 +8,9 @@ use crate::scheduler_trait::SchedulerTrait;
 use crate::session::SessionManager;
 use crate::source_roots::SourceRoot;
 use anyhow::Result;
+use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::OnceCell;
+use tokio::sync::{Mutex, OnceCell};
 use tracing::info;
 
 pub struct AcpServerFactoryConfig {
@@ -25,6 +26,7 @@ struct SharedAgentState {
     session_manager: Arc<SessionManager>,
     permission_manager: Arc<PermissionManager>,
     agent_manager: Arc<AgentManager>,
+    active_prompt_runs: Arc<Mutex<HashMap<String, ActivePromptRun>>>,
 }
 
 pub struct AcpServer {
@@ -104,6 +106,7 @@ impl AcpServer {
                     session_manager,
                     permission_manager,
                     agent_manager,
+                    active_prompt_runs: Arc::new(Mutex::new(HashMap::new())),
                 }))
             })
             .await
@@ -155,6 +158,7 @@ impl AcpServer {
             agent_manager: Arc::clone(&shared.agent_manager),
             session_manager: Arc::clone(&shared.session_manager),
             permission_manager: Arc::clone(&shared.permission_manager),
+            active_prompt_runs: Arc::clone(&shared.active_prompt_runs),
         })
         .await?;
         info!("Created new ACP agent");

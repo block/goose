@@ -226,9 +226,9 @@ struct GooseAcpSession {
     agent: Arc<Agent>,
 }
 
-struct ActivePromptRun {
-    run_id: String,
-    cancel_token: CancellationToken,
+pub struct ActivePromptRun {
+    pub run_id: String,
+    pub cancel_token: CancellationToken,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -264,10 +264,13 @@ pub struct GooseAcpAgentOptions {
     /// the in-memory cache instead of re-initializing every extension.
     /// `session_manager`/`permission_manager` must be the instances the
     /// `agent_manager` was built with: the agent and the ACP layer share
-    /// their in-memory state.
+    /// their in-memory state. `active_prompt_runs` must be shared at the
+    /// same scope so two connections cannot drive the same session's agent
+    /// concurrently.
     pub agent_manager: Arc<AgentManager>,
     pub session_manager: Arc<SessionManager>,
     pub permission_manager: Arc<PermissionManager>,
+    pub active_prompt_runs: Arc<Mutex<HashMap<String, ActivePromptRun>>>,
 }
 
 pub struct GooseAcpAgent {
@@ -825,7 +828,7 @@ impl GooseAcpAgent {
 
         Ok(Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
-            active_prompt_runs: Arc::new(Mutex::new(HashMap::new())),
+            active_prompt_runs: options.active_prompt_runs,
             closed_session_ids: Arc::new(Mutex::new(HashSet::new())),
             agent_manager,
             provider_factory: options.provider_factory,
@@ -911,7 +914,8 @@ impl GooseAcpAgent {
         cx: &ConnectionTo<Client>,
         session_id: String,
     ) -> Result<AgentManagerGetResult, agent_client_protocol::Error> {
-        self.agent_manager
+        let result = self
+            .agent_manager
             .get_or_create_agent_with_runtime_context(
                 session_id,
                 RuntimeContext {
@@ -922,7 +926,15 @@ impl GooseAcpAgent {
                 },
             )
             .await
-            .map_err(|error| agent_creation_error(error, "Failed to create agent"))
+            .map_err(|error| agent_creation_error(error, "Failed to create agent"))?;
+        if !result.agent_created && !self.disable_session_naming {
+            // Cached agent activated by this connection: point name updates at
+            // this connection's notifier instead of the creator's.
+            result
+                .agent
+                .set_session_name_update_tx(spawn_session_name_update_notifier(cx.clone()));
+        }
+        Ok(result)
     }
 
     async fn apply_acp_extension_overrides(
@@ -1952,6 +1964,14 @@ impl GooseAcpAgent {
                 return Err(error);
             }
         };
+
+        // The agent may have been activated by a different connection: rebind
+        // connection-scoped tool clients (developer fs/terminal) to this one
+        // for the duration of the run.
+        if let Ok(session) = self.session_manager.get_session(&session_id, false).await {
+            self.apply_acp_extension_overrides(cx, &agent, &session)
+                .await;
+        }
 
         if cancel_token.is_cancelled() {
             self.clear_active_run(&session_id, &run_id).await;
@@ -3381,6 +3401,7 @@ print(\"hello, world\")
                 agent_manager,
                 session_manager,
                 permission_manager,
+                active_prompt_runs: Arc::new(Mutex::new(HashMap::new())),
             })
             .await
             .unwrap(),

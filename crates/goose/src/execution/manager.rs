@@ -199,7 +199,9 @@ impl AgentManager {
         config.goose_mode = mode;
         config.mcp_host_info = runtime_context.mcp_host_info;
         config.use_login_shell_path = runtime_context.use_login_shell_path;
-        config.session_name_update_tx = runtime_context.session_name_update_tx;
+        config.session_name_update_tx = Arc::new(std::sync::Mutex::new(
+            runtime_context.session_name_update_tx,
+        ));
         let agent = Arc::new(Agent::with_config(config));
         let mut extension_results = Vec::new();
 
