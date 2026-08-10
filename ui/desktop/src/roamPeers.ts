@@ -62,7 +62,7 @@ const readJson = (file: string): unknown => {
   try {
     raw = fs.readFileSync(file, 'utf8');
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    if ((err as { code?: string }).code === 'ENOENT') return null;
     throw err;
   }
   return JSON.parse(raw);
