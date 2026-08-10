@@ -140,7 +140,7 @@ async fn next_message(
 }
 
 #[tokio::test]
-async fn native_delivery_supersedes_pending_tool_before_cancellation() -> Result<()> {
+async fn native_steering_cancels_unstarted_tool_request() -> Result<()> {
     let (stream_tx, provider_stream) = controlled_stream();
     let provider = NativeTestProvider::new([provider_stream], [Ok(true)]);
     let (pipeline, _) = test_pipeline().await?;
@@ -243,7 +243,7 @@ async fn native_delivery_supersedes_pending_tool_before_cancellation() -> Result
     assert!(responses[0].1.content.iter().any(|content| {
         content
             .as_tool_response_text()
-            .is_some_and(|text| text.contains("superseded by steering before execution"))
+            .is_some_and(|text| text.contains("steering arrived before execution"))
     }));
     assert!(!pipeline.has_pending_steers().await);
     Ok(())
@@ -452,7 +452,7 @@ async fn native_steering_error_uses_one_next_prompt_fallback() -> Result<()> {
     assert_eq!(provider.native_calls.load(Ordering::SeqCst), 1);
     assert!(provider.prompts()[1]
         .iter()
-        .any(|message| message.as_concat_text() == "fallback direction"));
+        .any(|message| message.as_concat_text().contains("fallback direction")));
     assert!(!pipeline.has_pending_steers().await);
     assert!(!result
         .conversation()

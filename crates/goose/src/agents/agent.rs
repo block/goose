@@ -24,6 +24,7 @@ use crate::agents::extension_manager::{
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
 use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::prompt_manager::PromptManager;
+use crate::agents::provider_stream_coordinator::{ProviderStreamCoordinator, ProviderStreamEvent};
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::state_machine::{
     BangShellOperation, CompactionOperation, DoctorOperation, Emitter, ExitOnErrorOperation,
@@ -32,7 +33,9 @@ use crate::agents::state_machine::{
     StopHookOperation, ToolApprovalOperation, ToolExecutionOperation, ToolPairCompactionOperation,
     UnknownToolOperation, MAX_TURNS_MESSAGE,
 };
-use crate::agents::steering::SteeringQueue;
+use crate::agents::steering::{
+    mark_native_steer_delivered, tool_cancellation_response_for_steering, SteeringQueue,
+};
 use crate::agents::types::{
     FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver,
     DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
@@ -350,6 +353,20 @@ fn attach_turn_usage(
     let message_usage = MessageUsage::from_provider_usage(usage, false);
     message.metadata.usage = Some(Box::new(message_usage.clone()));
     has_user_visible_content.then(|| (message.id.clone(), message_usage))
+}
+
+fn apply_inference_metadata(
+    messages: Conversation,
+    inference: Option<&InferenceMetadata>,
+) -> Conversation {
+    match inference {
+        Some(inference) => Conversation::new_unvalidated(
+            messages
+                .into_iter()
+                .map(|message| message.with_inference_if_assistant(inference.clone())),
+        ),
+        None => messages,
+    }
 }
 
 impl Default for Agent {
@@ -1684,7 +1701,7 @@ impl Agent {
         let inference = Arc::new(InferenceRunner::new(
             provider,
             model_config,
-            Arc::clone(&self.session_manager),
+            Arc::clone(&self.config.session_manager),
             steering_queue,
             self.extension_manager.clone(),
             &self.current_goose_mode,
@@ -2204,7 +2221,7 @@ impl Agent {
             });
         let session_manager = self.config.session_manager.clone();
         let steering_queue = self.steering_queue(&session_config.id).await;
-        let steering_wait_cancel = cancel_token.clone().unwrap_or_default();
+        let reply_cancel = cancel_token.clone().unwrap_or_default();
         let session_id = session_config.id.clone();
         if !self.config.disable_session_naming {
             let provider = provider.clone();
@@ -2286,7 +2303,7 @@ impl Agent {
             let mut retrying_after_stop_hook_denial = false;
             let mut consecutive_stop_hook_blocks = 0u32;
             let stop_hook_block_cap = self.stop_hook_block_cap();
-            let mut can_drain_pending_steers = false;
+            let mut provider_response_ended = false;
             let turn_start = chrono::Local::now();
             let turn_start_compaction_info =
                 super::moim::compute_compaction_info(&session_config.id, &self.extension_manager)
@@ -2298,7 +2315,7 @@ impl Agent {
                     break;
                 }
 
-                if can_drain_pending_steers {
+                if provider_response_ended {
                     for message in steering_queue.drain_available().await {
                         let message = persist_and_push_message_with_id(
                             &session_manager,
@@ -2383,8 +2400,8 @@ impl Agent {
                 )
                 .await;
 
-                let mut stream = crate::agents::reply_parts::stream_response_from_provider(
-                    self.provider().await?,
+                let stream = crate::agents::reply_parts::stream_response_from_provider(
+                    Arc::clone(&provider),
                     model_config.clone(),
                     &session_config.id,
                     &system_prompt,
@@ -2392,6 +2409,12 @@ impl Agent {
                     &tools,
                     &toolshim_tools,
                 ).await?;
+                let mut stream = ProviderStreamCoordinator::new(
+                    stream,
+                    Arc::clone(&provider),
+                    Arc::clone(&steering_queue),
+                    &session_config.id,
+                );
                 last_assistant_text.clear();
 
                 let current_turn_tool_count = conversation.messages().iter()
@@ -2420,6 +2443,8 @@ impl Agent {
                 let mut exit_chat = false;
                 let mut provider_errored = false;
                 let mut provider_produced_content = false;
+                let mut native_steer_delivered = false;
+                let mut last_flushed_assistant = None;
                 let mut provider_reached_output_token_limit = false;
                 let mut pending_final_output: Option<String> = None;
                 let mut pending_turn_usage: Option<ProviderUsage> = None;
@@ -2430,10 +2455,75 @@ impl Agent {
                 // reasoning without hiding final-only non-streaming thoughts.
                 let mut surfaced_thinking_in_turn = false;
 
-                while let Some(next) = stream.next().await {
-                    if is_token_cancelled(&cancel_token) || exit_chat {
-                        break;
-                    }
+                while let Some(event) = stream.next_event(&reply_cancel).await {
+                    let next = match event {
+                        ProviderStreamEvent::ProviderOutput(next) => {
+                            if is_token_cancelled(&cancel_token) || exit_chat {
+                                break;
+                            }
+                            next
+                        }
+                        ProviderStreamEvent::NativeSteerDelivered(mut message) => {
+                            native_steer_delivered = true;
+                            messages_to_add = apply_inference_metadata(
+                                messages_to_add,
+                                inference.as_ref(),
+                            );
+
+                            if let Some(usage) = pending_turn_usage.take() {
+                                if let Some((message_id, usage)) = attach_turn_usage(
+                                    &mut messages_to_add,
+                                    &usage,
+                                    preferred_turn_usage_message_id.as_deref(),
+                                ) {
+                                    yield AgentEvent::MessageUsage { message_id, usage };
+                                } else {
+                                    pending_turn_usage = Some(usage);
+                                }
+                            }
+
+                            let cancelled_tool_response =
+                                tool_cancellation_response_for_steering(&messages_to_add);
+                            let flushed = std::mem::take(&mut messages_to_add);
+                            for message in flushed {
+                                let message = persist_and_push_message_with_id(
+                                    &session_manager,
+                                    &session_config.id,
+                                    &mut conversation,
+                                    message,
+                                )
+                                .await?;
+                                if message.role == rmcp::model::Role::Assistant
+                                    && message.error_kind().is_none()
+                                {
+                                    last_flushed_assistant = Some(message);
+                                }
+                            }
+
+                            if let Some(response) = cancelled_tool_response {
+                                let response = persist_and_push_message_with_id(
+                                    &session_manager,
+                                    &session_config.id,
+                                    &mut conversation,
+                                    response,
+                                )
+                                .await?;
+                                yield AgentEvent::Message(response);
+                            }
+
+                            mark_native_steer_delivered(&mut message);
+                            let message = persist_and_push_message_with_id(
+                                &session_manager,
+                                &session_config.id,
+                                &mut conversation,
+                                message,
+                            )
+                            .await?;
+                            yield AgentEvent::Message(message);
+                            preferred_turn_usage_message_id = None;
+                            continue;
+                        }
+                    };
 
                     match next {
                         Ok((response, usage)) => {
@@ -3037,9 +3127,9 @@ impl Agent {
                         }
                     }
                 }
-                can_drain_pending_steers = true;
+                provider_response_ended = true;
                 steering_queue
-                    .wait_until_steer_can_be_used(&steering_wait_cancel)
+                    .wait_until_steer_can_be_used(&reply_cancel)
                     .await;
 
                 if tools_updated {
@@ -3072,14 +3162,17 @@ impl Agent {
                     && !provider_reached_output_token_limit
                     && !provider_produced_content
                     && last_assistant_text.is_empty();
+                let should_finish_after_native_steer = empty_response
+                    && native_steer_delivered
+                    && !steering_queue.has_pending().await;
 
-                if empty_response {
+                if empty_response && !native_steer_delivered {
                     messages_to_add = Conversation::default();
                 } else {
                     empty_turn_retries = 0;
                 }
 
-                if no_tools_called && !exit_chat {
+                if no_tools_called && !exit_chat && !should_finish_after_native_steer {
                     // Lock, extract state, drop guard before branching — handle_retry_logic
                     // also locks final_output_tool and tokio::sync::Mutex is not reentrant.
                     let final_output = {
@@ -3253,15 +3346,8 @@ impl Agent {
                     yield AgentEvent::Message(message);
                 }
 
-                let mut messages_to_add = if let Some(ref inference) = inference {
-                    Conversation::new_unvalidated(
-                        messages_to_add
-                            .into_iter()
-                            .map(|message| message.with_inference_if_assistant(inference.clone())),
-                    )
-                } else {
-                    messages_to_add
-                };
+                let mut messages_to_add =
+                    apply_inference_metadata(messages_to_add, inference.as_ref());
 
                 if let Some(usage) = pending_turn_usage.take() {
                     if let Some((message_id, usage)) = attach_turn_usage(
@@ -3270,6 +3356,29 @@ impl Agent {
                         preferred_turn_usage_message_id.as_deref(),
                     ) {
                         yield AgentEvent::MessageUsage { message_id, usage };
+                    } else if let Some(message) = last_flushed_assistant.as_ref() {
+                        let message_id = message
+                            .id
+                            .clone()
+                            .ok_or_else(|| anyhow!("persisted assistant message has no id"))?;
+                        let message_usage = MessageUsage::from_provider_usage(&usage, false);
+                        let persisted_usage = message_usage.clone();
+                        session_manager
+                            .update_message_metadata(
+                                &session_config.id,
+                                &message_id,
+                                move |mut metadata| {
+                                    metadata.usage = Some(Box::new(persisted_usage));
+                                    metadata
+                                },
+                            )
+                            .await?;
+                        if !message.user_visible_content().content.is_empty() {
+                            yield AgentEvent::MessageUsage {
+                                message_id: Some(message_id),
+                                usage: message_usage,
+                            };
+                        }
                     }
                 }
 
@@ -3277,6 +3386,12 @@ impl Agent {
                     session_manager.add_message(&session_config.id, msg).await?;
                 }
                 conversation.extend(messages_to_add);
+
+                if should_finish_after_native_steer
+                    && !steering_queue.has_pending().await
+                {
+                    break;
+                }
 
                 if exit_chat && steering_queue.has_pending().await {
                     exit_chat = false;
@@ -3935,9 +4050,15 @@ mod tests {
     use crate::session::session_manager::SessionType;
     use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
     use rmcp::model::Tool;
+    use std::collections::VecDeque;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
     use tempfile::TempDir;
+    use tokio::sync::Notify;
+    use tokio::time::timeout;
+
+    const LEGACY_STEERING_TEST_TIMEOUT: Duration = Duration::from_secs(2);
 
     async fn tracing_test_agent_and_session() -> (Agent, Session, TempDir) {
         let data_dir = TempDir::new().unwrap();
@@ -4381,6 +4502,397 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 .lines()
                 .count()
         }
+    }
+
+    struct LegacyNativeProvider {
+        streams: tokio::sync::Mutex<VecDeque<MessageStream>>,
+        native_results: std::sync::Mutex<VecDeque<Result<bool, ProviderError>>>,
+        prompts: std::sync::Mutex<Vec<Vec<Message>>>,
+        stream_calls: AtomicUsize,
+        native_calls: AtomicUsize,
+        stream_called: Notify,
+        native_called: Notify,
+    }
+
+    impl LegacyNativeProvider {
+        fn new(
+            streams: impl IntoIterator<Item = MessageStream>,
+            native_results: impl IntoIterator<Item = Result<bool, ProviderError>>,
+        ) -> Arc<Self> {
+            Arc::new(Self {
+                streams: tokio::sync::Mutex::new(streams.into_iter().collect()),
+                native_results: std::sync::Mutex::new(native_results.into_iter().collect()),
+                prompts: std::sync::Mutex::new(Vec::new()),
+                stream_calls: AtomicUsize::new(0),
+                native_calls: AtomicUsize::new(0),
+                stream_called: Notify::new(),
+                native_called: Notify::new(),
+            })
+        }
+
+        async fn wait_for_stream_calls(&self, expected: usize) {
+            while self.stream_calls.load(Ordering::SeqCst) < expected {
+                self.stream_called.notified().await;
+            }
+        }
+
+        async fn wait_for_native_calls(&self, expected: usize) {
+            while self.native_calls.load(Ordering::SeqCst) < expected {
+                self.native_called.notified().await;
+            }
+        }
+
+        fn prompts(&self) -> Vec<Vec<Message>> {
+            self.prompts.lock().expect("prompts lock").clone()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for LegacyNativeProvider {
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system_prompt: &str,
+            messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            self.stream_calls.fetch_add(1, Ordering::SeqCst);
+            self.prompts
+                .lock()
+                .expect("prompts lock")
+                .push(messages.to_vec());
+            self.stream_called.notify_one();
+            self.streams
+                .lock()
+                .await
+                .pop_front()
+                .ok_or_else(|| ProviderError::ExecutionError("unexpected provider prompt".into()))
+        }
+
+        async fn steer_natively(
+            &self,
+            _session_id: &str,
+            _message: &Message,
+        ) -> Result<bool, ProviderError> {
+            self.native_calls.fetch_add(1, Ordering::SeqCst);
+            self.native_called.notify_one();
+            self.native_results
+                .lock()
+                .expect("native results lock")
+                .pop_front()
+                .expect("native steering result")
+        }
+
+        fn get_name(&self) -> &str {
+            "legacy-native-test"
+        }
+    }
+
+    fn controlled_message_stream() -> (
+        tokio::sync::mpsc::UnboundedSender<
+            crate::agents::provider_stream_coordinator::ProviderStreamItem,
+        >,
+        MessageStream,
+    ) {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let stream = futures::stream::unfold(rx, |mut rx| async move {
+            rx.recv().await.map(|item| (item, rx))
+        });
+        (tx, Box::pin(stream))
+    }
+
+    #[tokio::test]
+    async fn legacy_native_delivery_is_durable_before_cancellation() -> Result<()> {
+        let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", None::<&str>)]);
+        let temp_dir = tempfile::tempdir()?;
+        let (stream_tx, provider_stream) = controlled_message_stream();
+        let provider = LegacyNativeProvider::new([provider_stream], [Ok(true)]);
+        let (agent, session_id) = create_test_agent(
+            temp_dir.path().join("data"),
+            crate::hooks::HookManager::from_plugins_for_test(vec![]),
+            provider.clone(),
+        )
+        .await?;
+        let cancel = CancellationToken::new();
+        let reply = agent
+            .reply(
+                Message::user().with_text("start legacy work"),
+                SessionConfig {
+                    id: session_id.clone(),
+                    schedule_id: None,
+                    max_turns: Some(10),
+                    retry_config: None,
+                },
+                Some(cancel.clone()),
+            )
+            .await?;
+        let (prefix_seen_tx, prefix_seen_rx) = tokio::sync::oneshot::channel();
+
+        let observe = async {
+            tokio::pin!(reply);
+            let mut prefix_seen_tx = Some(prefix_seen_tx);
+            let mut emitted = Vec::new();
+            while let Some(event) = reply.next().await {
+                if let AgentEvent::Message(message) = event? {
+                    if message.as_concat_text() == "before steer" {
+                        if let Some(tx) = prefix_seen_tx.take() {
+                            tx.send(()).expect("prefix observer");
+                        }
+                    }
+                    if message.as_concat_text() == "change direction" {
+                        let persisted = agent
+                            .config
+                            .session_manager
+                            .get_session(&session_id, true)
+                            .await?
+                            .conversation
+                            .expect("persisted conversation");
+                        assert!(persisted.messages().iter().any(|persisted| {
+                            persisted.id == message.id
+                                && persisted.as_concat_text() == "change direction"
+                        }));
+                        cancel.cancel();
+                    }
+                    emitted.push(message);
+                }
+            }
+            Ok::<_, anyhow::Error>(emitted)
+        };
+        let drive = async {
+            provider.wait_for_stream_calls(1).await;
+            stream_tx
+                .send(Ok((
+                    Some(Message::assistant().with_text("before steer")),
+                    None,
+                )))
+                .expect("provider stream receiver");
+            prefix_seen_rx.await.expect("prefix event");
+            agent
+                .steer(
+                    &session_id,
+                    Message::user()
+                        .with_id("legacy-native-steer")
+                        .with_text("change direction"),
+                )
+                .await;
+            provider.wait_for_native_calls(1).await;
+            Ok::<_, anyhow::Error>(())
+        };
+
+        let (emitted, ()) = timeout(LEGACY_STEERING_TEST_TIMEOUT, async {
+            tokio::try_join!(observe, drive)
+        })
+        .await
+        .expect("legacy native delivery should settle")?;
+        let session = agent
+            .config
+            .session_manager
+            .get_session(&session_id, true)
+            .await?;
+        let messages = session
+            .conversation
+            .as_ref()
+            .expect("final conversation")
+            .messages();
+        let prefix = messages
+            .iter()
+            .position(|message| message.as_concat_text() == "before steer")
+            .expect("persisted prefix");
+        let steers = messages
+            .iter()
+            .enumerate()
+            .filter(|(_, message)| message.as_concat_text() == "change direction")
+            .collect::<Vec<_>>();
+        assert_eq!(steers.len(), 1);
+        assert!(prefix < steers[0].0);
+        assert_eq!(steers[0].1.id.as_deref(), Some("legacy-native-steer"));
+        assert!(crate::agents::steering::was_native_steer_delivered(
+            steers[0].1
+        ));
+        assert_eq!(
+            emitted
+                .iter()
+                .filter(|message| message.as_concat_text() == "change direction")
+                .count(),
+            1
+        );
+        assert_eq!(provider.stream_calls.load(Ordering::SeqCst), 1);
+        assert!(!agent.has_pending_steers(&session_id).await);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn legacy_native_delivery_ends_without_empty_retry() -> Result<()> {
+        let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", None::<&str>)]);
+        let temp_dir = tempfile::tempdir()?;
+        let (stream_tx, provider_stream) = controlled_message_stream();
+        let provider = LegacyNativeProvider::new([provider_stream], [Ok(true)]);
+        let (agent, session_id) = create_test_agent(
+            temp_dir.path().join("data"),
+            crate::hooks::HookManager::from_plugins_for_test(vec![]),
+            provider.clone(),
+        )
+        .await?;
+        let reply = agent
+            .reply(
+                Message::user().with_text("start legacy work"),
+                SessionConfig {
+                    id: session_id.clone(),
+                    schedule_id: None,
+                    max_turns: Some(10),
+                    retry_config: None,
+                },
+                None,
+            )
+            .await?;
+        let (steer_seen_tx, steer_seen_rx) = tokio::sync::oneshot::channel();
+
+        let observe = async {
+            tokio::pin!(reply);
+            let mut steer_seen_tx = Some(steer_seen_tx);
+            let mut emitted = Vec::new();
+            while let Some(event) = reply.next().await {
+                if let AgentEvent::Message(message) = event? {
+                    if message.as_concat_text() == "change direction" {
+                        if let Some(tx) = steer_seen_tx.take() {
+                            tx.send(()).expect("steer observer");
+                        }
+                    }
+                    emitted.push(message);
+                }
+            }
+            Ok::<_, anyhow::Error>(emitted)
+        };
+        let drive = async {
+            provider.wait_for_stream_calls(1).await;
+            agent
+                .steer(
+                    &session_id,
+                    Message::user()
+                        .with_id("legacy-native-empty-steer")
+                        .with_text("change direction"),
+                )
+                .await;
+            provider.wait_for_native_calls(1).await;
+            steer_seen_rx.await.expect("steer event");
+            drop(stream_tx);
+            Ok::<_, anyhow::Error>(())
+        };
+
+        let (emitted, ()) = timeout(LEGACY_STEERING_TEST_TIMEOUT, async {
+            tokio::try_join!(observe, drive)
+        })
+        .await
+        .expect("legacy native empty completion should settle")?;
+        assert_eq!(provider.stream_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(provider.native_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            emitted
+                .iter()
+                .filter(|message| message.as_concat_text() == "change direction")
+                .count(),
+            1
+        );
+        assert!(!emitted
+            .iter()
+            .any(|message| message.as_concat_text() == EMPTY_TURN_MESSAGE));
+        assert!(!agent.has_pending_steers(&session_id).await);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn legacy_native_error_uses_one_next_prompt_fallback() -> Result<()> {
+        let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", None::<&str>)]);
+        let temp_dir = tempfile::tempdir()?;
+        let (first_stream_tx, first_stream) = controlled_message_stream();
+        let fallback_stream = stream_from_single_message(
+            Message::assistant().with_text("fallback complete"),
+            ProviderUsage::new("mock-model".to_string(), Usage::default()),
+        );
+        let provider = LegacyNativeProvider::new(
+            [first_stream, fallback_stream],
+            [Err(ProviderError::ExecutionError(
+                "native delivery failed".to_string(),
+            ))],
+        );
+        let (agent, session_id) = create_test_agent(
+            temp_dir.path().join("data"),
+            crate::hooks::HookManager::from_plugins_for_test(vec![]),
+            provider.clone(),
+        )
+        .await?;
+        let reply = agent
+            .reply(
+                Message::user().with_text("start fallback work"),
+                SessionConfig {
+                    id: session_id.clone(),
+                    schedule_id: None,
+                    max_turns: Some(10),
+                    retry_config: None,
+                },
+                None,
+            )
+            .await?;
+
+        let observe = async {
+            tokio::pin!(reply);
+            let mut emitted = Vec::new();
+            while let Some(event) = reply.next().await {
+                if let AgentEvent::Message(message) = event? {
+                    emitted.push(message);
+                }
+            }
+            Ok::<_, anyhow::Error>(emitted)
+        };
+        let drive = async {
+            provider.wait_for_stream_calls(1).await;
+            agent
+                .steer(
+                    &session_id,
+                    Message::user()
+                        .with_id("legacy-fallback-steer")
+                        .with_text("fallback direction"),
+                )
+                .await;
+            provider.wait_for_native_calls(1).await;
+            drop(first_stream_tx);
+            Ok::<_, anyhow::Error>(())
+        };
+
+        let (emitted, ()) = timeout(LEGACY_STEERING_TEST_TIMEOUT, async {
+            tokio::try_join!(observe, drive)
+        })
+        .await
+        .expect("legacy fallback should settle")?;
+        let session = agent
+            .config
+            .session_manager
+            .get_session(&session_id, true)
+            .await?;
+        let steers = session
+            .conversation
+            .as_ref()
+            .expect("final conversation")
+            .messages()
+            .iter()
+            .filter(|message| message.as_concat_text() == "fallback direction")
+            .collect::<Vec<_>>();
+        assert_eq!(steers.len(), 1);
+        assert_eq!(steers[0].id.as_deref(), Some("legacy-fallback-steer"));
+        assert!(steers[0].metadata.steer);
+        assert!(!crate::agents::steering::was_native_steer_delivered(
+            steers[0]
+        ));
+        assert_eq!(provider.stream_calls.load(Ordering::SeqCst), 2);
+        assert_eq!(provider.native_calls.load(Ordering::SeqCst), 1);
+        assert!(provider.prompts()[1]
+            .iter()
+            .any(|message| message.as_concat_text().contains("fallback direction")));
+        assert!(!emitted
+            .iter()
+            .any(|message| message.as_concat_text().contains("native delivery failed")));
+        assert!(!agent.has_pending_steers(&session_id).await);
+        Ok(())
     }
 
     struct CountingTextProvider {

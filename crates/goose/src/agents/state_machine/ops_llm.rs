@@ -8,7 +8,10 @@ use crate::agents::state_machine::operation::{
     Inference, InferenceInput, Operation, OperationResult, SlashCommand, StateEffect,
 };
 use crate::agents::state_machine::ops_unknown_tool::UNCLAIMED_TOOL_ERROR;
-use crate::agents::steering::SteeringQueue;
+use crate::agents::steering::{
+    mark_native_steer_delivered, tool_cancellation_response_for_steering,
+    was_native_steer_delivered, SteeringQueue,
+};
 use crate::agents::{AgentEvent, ExtensionManager, PromptManager};
 use crate::config::GooseMode;
 use crate::conversation::message::{InferenceMetadata, Message, MessageContent, MessageUsage};
@@ -26,17 +29,7 @@ use tracing_futures::Instrument;
 const EMPTY_RESPONSE_MESSAGE: &str =
     "The model returned an empty response. Please resend your message to continue.";
 const CANCELLED_TOOL_RESPONSE: &str = "Tool call was cancelled before execution";
-const SUPERSEDED_TOOL_RESPONSE: &str = "Tool call was superseded by steering before execution";
 const OPERATION_NAME: &str = "llm";
-const NATIVE_STEER_DELIVERED: &str = "native_steer_delivered";
-
-pub(super) fn was_native_steer_delivered(message: &Message) -> bool {
-    message
-        .metadata
-        .operation_note(OPERATION_NAME, NATIVE_STEER_DELIVERED)
-        .and_then(serde_json::Value::as_bool)
-        .unwrap_or(false)
-}
 
 fn is_thinking(content: &MessageContent) -> bool {
     matches!(
@@ -102,29 +95,6 @@ fn is_empty_provider_response(messages: &Conversation) -> bool {
                 _ => false,
             })
         })
-}
-
-fn superseded_tool_response(messages: &Conversation) -> Option<Message> {
-    let answered = messages
-        .iter()
-        .flat_map(Message::get_tool_response_ids)
-        .collect::<std::collections::HashSet<_>>();
-    let mut response = Message::user();
-    for content in messages.iter().flat_map(|message| &message.content) {
-        if let MessageContent::ToolRequest(request) = content {
-            if request.was_executed_externally() || answered.contains(request.id.as_str()) {
-                continue;
-            }
-            response.add_tool_response_with_metadata(
-                request.id.clone(),
-                Ok(rmcp::model::CallToolResult::error(vec![
-                    rmcp::model::ContentBlock::text(SUPERSEDED_TOOL_RESPONSE),
-                ])),
-                request.metadata.as_ref(),
-            );
-        }
-    }
-    (!response.get_tool_response_ids().is_empty()).then_some(response)
 }
 
 pub(super) fn chat_span(
@@ -433,7 +403,9 @@ impl Inference for InferenceRunner<'_> {
         emit: &Emitter,
     ) -> Result<OperationResult> {
         let messages = messages_since_kickoff(conversation)?;
-        if trailing_error(conversation).is_some() {
+        if trailing_error(conversation).is_some()
+            || conversation.last().is_some_and(was_native_steer_delivered)
+        {
             return not_applicable();
         }
 
@@ -633,7 +605,8 @@ impl Inference for InferenceRunner<'_> {
                         }
                     }
                     ProviderStreamEvent::NativeSteerDelivered(mut message) => {
-                        let superseded_response = superseded_tool_response(&accumulator);
+                        let cancelled_tool_response =
+                            tool_cancellation_response_for_steering(&accumulator);
                         if is_empty_provider_response(&accumulator) {
                             accumulator = Conversation::empty();
                         } else {
@@ -652,7 +625,7 @@ impl Inference for InferenceRunner<'_> {
                             }
                         }
 
-                        if let Some(response) = superseded_response {
+                        if let Some(response) = cancelled_tool_response {
                             let response = response.with_generated_id_if_missing();
                             self.session_manager
                                 .add_message(&session.id, &response)
@@ -660,12 +633,7 @@ impl Inference for InferenceRunner<'_> {
                             emit.emit(AgentEvent::Message(response)).await;
                         }
 
-                        message.metadata.steer = true;
-                        message.metadata.set_operation_note(
-                            self.name(),
-                            NATIVE_STEER_DELIVERED,
-                            true.into(),
-                        );
+                        mark_native_steer_delivered(&mut message);
                         let message = message.with_generated_id_if_missing();
                         self.session_manager
                             .add_message(&session.id, &message)

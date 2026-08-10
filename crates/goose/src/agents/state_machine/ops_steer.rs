@@ -9,8 +9,7 @@ use crate::agents::state_machine::operation::{
     applied, ends_turn, last_effective_role, messages_since_kickoff, not_applicable, Emitter,
     Operation, OperationResult,
 };
-use crate::agents::state_machine::ops_llm::was_native_steer_delivered;
-use crate::agents::steering::SteeringQueue;
+use crate::agents::steering::{was_native_steer_delivered, SteeringQueue};
 use crate::conversation::{Conversation, EffectiveRole};
 use crate::session::Session;
 

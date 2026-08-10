@@ -3,7 +3,53 @@ use std::collections::VecDeque;
 use tokio::sync::{Mutex, Notify};
 use tokio_util::sync::CancellationToken;
 
-use crate::conversation::message::Message;
+use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::Conversation;
+
+const NATIVE_STEER_OPERATION: &str = "llm";
+const NATIVE_STEER_DELIVERED: &str = "native_steer_delivered";
+const STEERING_CANCELLED_TOOL_RESPONSE: &str =
+    "Tool call was cancelled because steering arrived before execution";
+
+pub(crate) fn mark_native_steer_delivered(message: &mut Message) {
+    message.metadata.steer = true;
+    message.metadata.set_operation_note(
+        NATIVE_STEER_OPERATION,
+        NATIVE_STEER_DELIVERED,
+        true.into(),
+    );
+}
+
+pub(crate) fn was_native_steer_delivered(message: &Message) -> bool {
+    message
+        .metadata
+        .operation_note(NATIVE_STEER_OPERATION, NATIVE_STEER_DELIVERED)
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+}
+
+pub(crate) fn tool_cancellation_response_for_steering(messages: &Conversation) -> Option<Message> {
+    let answered = messages
+        .iter()
+        .flat_map(Message::get_tool_response_ids)
+        .collect::<std::collections::HashSet<_>>();
+    let mut response = Message::user();
+    for content in messages.iter().flat_map(|message| &message.content) {
+        if let MessageContent::ToolRequest(request) = content {
+            if request.was_executed_externally() || answered.contains(request.id.as_str()) {
+                continue;
+            }
+            response.add_tool_response_with_metadata(
+                request.id.clone(),
+                Ok(rmcp::model::CallToolResult::error(vec![
+                    rmcp::model::ContentBlock::text(STEERING_CANCELLED_TOOL_RESPONSE),
+                ])),
+                request.metadata.as_ref(),
+            );
+        }
+    }
+    (!response.get_tool_response_ids().is_empty()).then_some(response)
+}
 
 struct QueuedSteer {
     entry_id: u64,
