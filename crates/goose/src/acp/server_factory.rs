@@ -10,7 +10,7 @@ use crate::source_roots::SourceRoot;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::OnceCell;
+use tokio::sync::{Mutex, OnceCell};
 use tracing::info;
 
 pub struct AcpServerFactoryConfig {
@@ -27,6 +27,7 @@ struct SharedAgentState {
     permission_manager: Arc<PermissionManager>,
     agent_manager: Arc<AgentManager>,
     active_prompt_runs: Arc<std::sync::Mutex<HashMap<String, ActivePromptRun>>>,
+    run_registration_lock: Arc<Mutex<()>>,
 }
 
 pub struct AcpServer {
@@ -107,6 +108,7 @@ impl AcpServer {
                     permission_manager,
                     agent_manager,
                     active_prompt_runs: Arc::new(std::sync::Mutex::new(HashMap::new())),
+                    run_registration_lock: Arc::new(Mutex::new(())),
                 }))
             })
             .await
@@ -159,6 +161,7 @@ impl AcpServer {
             session_manager: Arc::clone(&shared.session_manager),
             permission_manager: Arc::clone(&shared.permission_manager),
             active_prompt_runs: Arc::clone(&shared.active_prompt_runs),
+            run_registration_lock: Arc::clone(&shared.run_registration_lock),
         })
         .await?;
         info!("Created new ACP agent");

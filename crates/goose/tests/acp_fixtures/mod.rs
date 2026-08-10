@@ -422,6 +422,7 @@ pub async fn spawn_acp_server_in_process(
         session_manager,
         permission_manager,
         active_prompt_runs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+        run_registration_lock: Arc::new(tokio::sync::Mutex::new(())),
     })
     .await
     .unwrap();

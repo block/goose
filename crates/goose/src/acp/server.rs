@@ -240,7 +240,7 @@ struct ActiveRunGuard {
     active_prompt_runs: Arc<std::sync::Mutex<HashMap<String, ActivePromptRun>>>,
     session_id: String,
     run_id: String,
-    agent: Option<Arc<Agent>>,
+    agent: Arc<Agent>,
 }
 
 impl Drop for ActiveRunGuard {
@@ -248,11 +248,10 @@ impl Drop for ActiveRunGuard {
         if let Ok(mut runs) = self.active_prompt_runs.lock() {
             if matches!(runs.get(&self.session_id), Some(run) if run.run_id == self.run_id) {
                 runs.remove(&self.session_id);
-                if let (Some(agent), Ok(runtime)) =
-                    (self.agent.take(), tokio::runtime::Handle::try_current())
-                {
+                if let Ok(runtime) = tokio::runtime::Handle::try_current() {
                     // Mirror clear_active_run: a disconnect must not leave
                     // queued steers on the shared agent for the next run.
+                    let agent = Arc::clone(&self.agent);
                     let session_id = self.session_id.clone();
                     runtime.spawn(async move {
                         agent.discard_pending_steers(&session_id).await;
@@ -303,11 +302,15 @@ pub struct GooseAcpAgentOptions {
     pub session_manager: Arc<SessionManager>,
     pub permission_manager: Arc<PermissionManager>,
     pub active_prompt_runs: Arc<std::sync::Mutex<HashMap<String, ActivePromptRun>>>,
+    /// Serializes prompt run registration and connection-scoped tool
+    /// rebinding against session activation on other connections.
+    pub run_registration_lock: Arc<Mutex<()>>,
 }
 
 pub struct GooseAcpAgent {
     sessions: Arc<Mutex<HashMap<String, GooseAcpSession>>>,
     active_prompt_runs: Arc<std::sync::Mutex<HashMap<String, ActivePromptRun>>>,
+    run_registration_lock: Arc<Mutex<()>>,
     closed_session_ids: Arc<Mutex<HashSet<String>>>,
     agent_manager: Arc<AgentManager>,
     provider_factory: AcpProviderFactory,
@@ -861,6 +864,7 @@ impl GooseAcpAgent {
         Ok(Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
             active_prompt_runs: options.active_prompt_runs,
+            run_registration_lock: options.run_registration_lock,
             closed_session_ids: Arc::new(Mutex::new(HashSet::new())),
             agent_manager,
             provider_factory: options.provider_factory,
@@ -941,6 +945,19 @@ impl GooseAcpAgent {
             .await;
     }
 
+    /// Rebind a shared agent's connection-scoped runtime context — the
+    /// session-name notifier, advertised MCP host capabilities, and
+    /// login-shell behavior — to this connection.
+    fn rebind_connection_context(&self, cx: &ConnectionTo<Client>, agent: &Arc<Agent>) {
+        if !self.disable_session_naming {
+            agent.set_session_name_update_tx(spawn_session_name_update_notifier(cx.clone()));
+        }
+        agent.set_mcp_host_info(self.client_mcp_host_info.get().cloned());
+        if let Some(use_login_shell_path) = self.use_login_shell_path.get().copied() {
+            agent.set_use_login_shell_path(use_login_shell_path);
+        }
+    }
+
     async fn get_or_create_session_agent_with_results(
         &self,
         cx: &ConnectionTo<Client>,
@@ -961,19 +978,9 @@ impl GooseAcpAgent {
             .map_err(|error| agent_creation_error(error, "Failed to create agent"))?;
         if !result.agent_created {
             // Cached agent activated by this connection: rebind the
-            // connection-scoped runtime context (name updates, advertised
-            // MCP host capabilities) from the creator's connection to this one.
-            if !self.disable_session_naming {
-                result
-                    .agent
-                    .set_session_name_update_tx(spawn_session_name_update_notifier(cx.clone()));
-            }
-            result
-                .agent
-                .set_mcp_host_info(self.client_mcp_host_info.get().cloned());
-            if let Some(use_login_shell_path) = self.use_login_shell_path.get().copied() {
-                result.agent.set_use_login_shell_path(use_login_shell_path);
-            }
+            // connection-scoped runtime context from the creator's
+            // connection to this one.
+            self.rebind_connection_context(cx, &result.agent);
         }
         Ok(result)
     }
@@ -990,12 +997,6 @@ impl GooseAcpAgent {
             .cloned()
             .unwrap_or_default();
         let client_terminal = self.client_terminal.get().copied().unwrap_or(false);
-        if !client_fs_capabilities.read_text_file
-            && !client_fs_capabilities.write_text_file
-            && !client_terminal
-        {
-            return;
-        }
 
         if !agent
             .extension_manager
@@ -1014,16 +1015,26 @@ impl GooseAcpAgent {
             }
         };
 
-        let session_id = SessionId::new(session.id.clone());
-        let client: Arc<dyn McpClientTrait> = Arc::new(AcpTools {
-            inner: Arc::new(dev_client),
-            cx: cx.clone(),
-            session_id: session_id.clone(),
-            tool_call_notifier: ToolCallNotifier::new(cx, &session_id),
-            fs_read: client_fs_capabilities.read_text_file,
-            fs_write: client_fs_capabilities.write_text_file,
-            terminal: client_terminal,
-        });
+        let client: Arc<dyn McpClientTrait> = if !client_fs_capabilities.read_text_file
+            && !client_fs_capabilities.write_text_file
+            && !client_terminal
+        {
+            // This connection cannot serve fs/terminal requests: install the
+            // local client, replacing any AcpTools proxy left bound to a
+            // previous (possibly disconnected) client.
+            Arc::new(dev_client)
+        } else {
+            let session_id = SessionId::new(session.id.clone());
+            Arc::new(AcpTools {
+                inner: Arc::new(dev_client),
+                cx: cx.clone(),
+                session_id: session_id.clone(),
+                tool_call_notifier: ToolCallNotifier::new(cx, &session_id),
+                fs_read: client_fs_capabilities.read_text_file,
+                fs_write: client_fs_capabilities.write_text_file,
+                terminal: client_terminal,
+            })
+        };
         let info = client.get_info().cloned();
 
         let developer_config = agent
@@ -1049,20 +1060,20 @@ impl GooseAcpAgent {
             .get_or_create_session_agent_with_results(cx, session.id.clone())
             .await?;
         let agent = agent_result.agent.clone();
-        if self
+        // Serialize with prompt-time run registration on other connections:
+        // skip rebinding while a run owns the session, since the running
+        // connection rebound the tool clients at prompt start.
+        let _registration = self.run_registration_lock.lock().await;
+        if !self
             .active_prompt_runs
             .lock()
             .unwrap()
             .contains_key(&session.id)
         {
-            // A run is in flight (possibly on another connection): rebinding
-            // the connection-scoped tool clients now would hijack its fs and
-            // terminal calls. The running connection rebound them at prompt
-            // start; leave them until the run ends.
-        } else {
             self.apply_acp_extension_overrides(cx, &agent, session)
                 .await;
         }
+        drop(_registration);
         self.maybe_refresh_provider_inventory_with_agent(session, &agent)
             .await;
 
@@ -2018,31 +2029,32 @@ impl GooseAcpAgent {
 
         let run_id = format!("run_{}", Uuid::new_v4());
         let cancel_token = CancellationToken::new();
-        self.start_active_run(&session_id, run_id.clone(), cancel_token.clone())
-            .await?;
-        let mut run_guard = ActiveRunGuard {
-            active_prompt_runs: Arc::clone(&self.active_prompt_runs),
-            session_id: session_id.clone(),
-            run_id: run_id.clone(),
-            agent: None,
-        };
 
         let agent = match self.get_session_agent(&session_id).await {
             Ok(agent) => agent,
-            Err(error) => {
-                self.clear_active_run(&session_id, &run_id).await;
-                return Err(error);
-            }
+            Err(error) => return Err(error),
         };
-        run_guard.agent = Some(Arc::clone(&agent));
 
-        // The agent may have been activated by a different connection: rebind
-        // connection-scoped tool clients (developer fs/terminal) to this one
-        // for the duration of the run.
+        // Serialize run registration and connection rebinding against session
+        // activation on other connections (checked under the same lock).
+        let _registration = self.run_registration_lock.lock().await;
+        self.start_active_run(&session_id, run_id.clone(), cancel_token.clone())
+            .await?;
+        let _run_guard = ActiveRunGuard {
+            active_prompt_runs: Arc::clone(&self.active_prompt_runs),
+            session_id: session_id.clone(),
+            run_id: run_id.clone(),
+            agent: Arc::clone(&agent),
+        };
+
+        // Prompt ownership: refresh every connection-scoped field on the
+        // shared agent for the connection driving this run.
+        self.rebind_connection_context(cx, &agent);
         if let Ok(session) = self.session_manager.get_session(&session_id, false).await {
             self.apply_acp_extension_overrides(cx, &agent, &session)
                 .await;
         }
+        drop(_registration);
 
         if cancel_token.is_cancelled() {
             self.clear_active_run(&session_id, &run_id).await;
