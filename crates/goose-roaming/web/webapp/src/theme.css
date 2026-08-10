@@ -65,3 +65,18 @@ body {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
+
+/* --- view swaps (matrix <-> chat, connect <-> workspace) fade in instead of
+   hard-cutting; 150ms, opacity only, so it never feels laggy --- */
+@keyframes roam-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+#chat > *, #connect-panel {
+  animation: roam-fade-in 150ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  #chat > *, #connect-panel {
+    animation: none;
+  }
+}
