@@ -29,6 +29,7 @@ import Model, {
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 import type { ProviderDetails, ProviderType, ThinkingEffort } from '../../../../types/providers';
 import { trackModelChanged } from '../../../../utils/analytics';
+import { addToRecentModels } from '../../../../utils/recentModels';
 
 const i18n = defineMessages({
   thinkingEffortOff: {
@@ -427,6 +428,14 @@ export const SwitchModelModal = ({
       if (success) {
         onModelSelected?.(modelObj.name, modelObj.provider || '');
         trackModelChanged(modelObj.provider || '', modelObj.name);
+        const provider = modelObj.provider || '';
+        if (provider && modelObj.name) {
+          const current = (await window.electron.getSetting('recentModels')) ?? [];
+          await window.electron.setSetting(
+            'recentModels',
+            addToRecentModels(current, provider, modelObj.name)
+          );
+        }
       }
 
       onClose();
