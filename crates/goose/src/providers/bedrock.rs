@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use super::base::{
-    ConfigKey, DEFAULT_CONNECT_TIMEOUT_SECS, DEFAULT_PROVIDER_TIMEOUT_SECS, MessageStream,
-    Provider, ProviderDef, ProviderMetadata,
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
+    DEFAULT_CONNECT_TIMEOUT_SECS, DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
 use super::openai_compatible::{handle_status, stream_responses_compat};
 use super::retry::{ProviderRetry, RetryConfig};
@@ -15,7 +15,7 @@ use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
 use aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamError;
 use aws_sdk_bedrockruntime::types::error::ConverseStreamOutputError;
-use aws_sdk_bedrockruntime::{Client, types as bedrock};
+use aws_sdk_bedrockruntime::{types as bedrock, Client};
 use base64::Engine;
 use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
@@ -23,9 +23,9 @@ use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::extract_reasoning_effort;
 use goose_providers::formats::openai_responses::create_responses_request;
 use goose_providers::model::ModelConfig;
-use goose_providers::request_log::{LoggerHandleExt, start_log};
-use reqwest::header::{AUTHORIZATION, HeaderName, HeaderValue};
-use rmcp::model::{CallToolRequestParams, ErrorCode, ErrorData, Tool, object};
+use goose_providers::request_log::{start_log, LoggerHandleExt};
+use reqwest::header::{HeaderName, HeaderValue, AUTHORIZATION};
+use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, Tool};
 use serde_json::Value;
 use smithy_transport_reqwest::ReqwestHttpClient;
 
@@ -113,7 +113,11 @@ impl BedrockProvider {
         let bearer_token = match config.get_secret::<String>("AWS_BEARER_TOKEN_BEDROCK") {
             Ok(token) => {
                 let token = token.trim().to_string();
-                if token.is_empty() { None } else { Some(token) }
+                if token.is_empty() {
+                    None
+                } else {
+                    Some(token)
+                }
             }
             Err(_) => None,
         };
