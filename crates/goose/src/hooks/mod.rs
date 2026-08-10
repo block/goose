@@ -250,6 +250,21 @@ impl HookContext {
         self.tool_call_id = Some(tool_call_id.into());
         self
     }
+
+    /// Populate the `PreToolUseResult` outcome fields. `blocked_by` and `reason`
+    /// are set only on deny, so an allow payload omits them entirely.
+    pub(crate) fn with_pre_tool_use_outcome(mut self, outcome: &HookChainOutcome) -> Self {
+        self.policy_evaluated = Some(outcome.policy_evaluated);
+        match &outcome.decision {
+            HookDecision::Allow => self.decision = Some("allow".to_string()),
+            HookDecision::Deny { reason, plugin } => {
+                self.decision = Some("deny".to_string());
+                self.blocked_by = Some(plugin.clone());
+                self.reason = Some(reason.clone());
+            }
+        }
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -865,6 +880,58 @@ mod tests {
 
     fn make_manager(plugins: Vec<DiscoveredPlugin>) -> HookManager {
         HookManager::from_plugins(plugins, false)
+    }
+
+    /// `decision` is "allow" or "deny" and nothing else, and `blocked_by` and
+    /// `reason` appear only on the deny arm — absent from an allow payload
+    /// rather than present as null or an empty string.
+    #[test]
+    fn pre_tool_use_result_payload_reports_decision_and_denies_alone_carry_the_plugin() {
+        let payload = |outcome: &HookChainOutcome| -> Value {
+            let ctx = HookContext::new(HookEvent::PreToolUseResult, "session-1")
+                .with_tool("developer__shell", None)
+                .with_tool_call_id("call-1")
+                .with_pre_tool_use_outcome(outcome);
+            serde_json::from_str(&serde_json::to_string(&ctx).unwrap()).unwrap()
+        };
+
+        let allow = payload(&HookChainOutcome::allow(true));
+        assert_eq!(allow["decision"], "allow");
+        assert_eq!(allow["policy_evaluated"], true);
+        assert_eq!(allow["tool_call_id"], "call-1");
+        assert!(
+            allow.get("blocked_by").is_none(),
+            "allow payload must omit blocked_by entirely, got {:?}",
+            allow.get("blocked_by")
+        );
+        assert!(
+            allow.get("reason").is_none(),
+            "allow payload must omit reason entirely, got {:?}",
+            allow.get("reason")
+        );
+
+        let deny = payload(&HookChainOutcome {
+            decision: HookDecision::Deny {
+                reason: "blocked by test policy".to_string(),
+                plugin: "test-plugin".to_string(),
+            },
+            policy_evaluated: true,
+        });
+        assert_eq!(deny["decision"], "deny");
+        assert_eq!(deny["blocked_by"], "test-plugin");
+        assert_eq!(deny["reason"], "blocked by test policy");
+
+        for value in [&allow, &deny] {
+            let decision = value["decision"].as_str().unwrap();
+            assert!(
+                matches!(decision, "allow" | "deny"),
+                "decision must be allow or deny, got {decision}"
+            );
+        }
+
+        let unevaluated = payload(&HookChainOutcome::allow(false));
+        assert_eq!(unevaluated["decision"], "allow");
+        assert_eq!(unevaluated["policy_evaluated"], false);
     }
 
     #[test]

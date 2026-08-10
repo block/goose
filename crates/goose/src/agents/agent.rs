@@ -633,16 +633,45 @@ impl Agent {
         self.hook_manager.emit(event, ctx).await;
     }
 
+    /// Observation-only record of what the `PreToolUse` chain decided. Carries
+    /// no veto: the decision has already been made by the time this runs.
+    async fn emit_pre_tool_use_result(
+        &self,
+        session: &Session,
+        tool_call_id: &str,
+        tool_name: &str,
+        tool_input: Option<&Value>,
+        outcome: &crate::hooks::HookChainOutcome,
+    ) {
+        if !self
+            .hook_manager
+            .has_hooks(crate::hooks::HookEvent::PreToolUseResult)
+        {
+            return;
+        }
+        let ctx =
+            crate::hooks::HookContext::new(crate::hooks::HookEvent::PreToolUseResult, &session.id)
+                .with_tool(tool_name.to_string(), tool_input.cloned())
+                .with_tool_call_id(tool_call_id)
+                .with_working_dir(session.working_dir.to_string_lossy().to_string())
+                .with_pre_tool_use_outcome(outcome);
+        self.hook_manager
+            .emit(crate::hooks::HookEvent::PreToolUseResult, ctx)
+            .await;
+    }
+
     fn with_post_tool_hook(
         &self,
         result: ToolCallResult,
         tool_call: &CallToolRequestParams,
         session: &Session,
+        tool_call_id: &str,
     ) -> ToolCallResult {
         let hook_manager = self.hook_manager.clone();
         let session_id = session.id.clone();
         let working_dir = session.working_dir.to_string_lossy().to_string();
         let tool_name = tool_call.name.to_string();
+        let tool_call_id = tool_call_id.to_string();
         let tool_input = tool_call
             .arguments
             .as_ref()
@@ -673,6 +702,7 @@ impl Agent {
             if hook_manager.has_hooks(event) {
                 let ctx = crate::hooks::HookContext::new(event, &session_id)
                     .with_tool(tool_name.clone(), tool_input.clone())
+                    .with_tool_call_id(tool_call_id.as_str())
                     .with_working_dir(working_dir.clone());
                 hook_manager.emit(event, ctx).await;
             }
@@ -1143,57 +1173,61 @@ impl Agent {
             .await
             .record_tool_arguments(&tool_call.arguments, &session.working_dir);
 
-        if self
+        let tool_input_for_hooks = tool_call
+            .arguments
+            .as_ref()
+            .map(|a| serde_json::Value::Object(a.clone()));
+
+        let pre_tool_outcome = if self
             .hook_manager
             .has_hooks(crate::hooks::HookEvent::PreToolUse)
         {
             let ctx =
                 crate::hooks::HookContext::new(crate::hooks::HookEvent::PreToolUse, &session.id)
-                    .with_tool(
-                        tool_call.name.to_string(),
-                        tool_call
-                            .arguments
-                            .as_ref()
-                            .map(|a| serde_json::Value::Object(a.clone())),
-                    )
+                    .with_tool(tool_call.name.to_string(), tool_input_for_hooks.clone())
+                    .with_tool_call_id(request_id.as_str())
                     .with_working_dir(session.working_dir.to_string_lossy().to_string());
-            if let crate::hooks::HookDecision::Deny { reason, plugin } = self
-                .hook_manager
-                .emit_blocking(crate::hooks::HookEvent::PreToolUse, ctx)
+            self.hook_manager
+                .emit_blocking_with_outcome(crate::hooks::HookEvent::PreToolUse, ctx)
                 .await
-            {
-                return (
-                    request_id,
-                    Err(ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!(
-                            "Tool call denied by policy hook `{plugin}`: {reason}. \
-                             Do not retry; this is a policy denial, not a transient failure."
-                        ),
-                        None,
-                    )),
-                );
-            }
-        }
+        } else {
+            crate::hooks::HookChainOutcome::allow(false)
+        };
 
-        let tool_input_for_extended = tool_call
-            .arguments
-            .as_ref()
-            .map(|a| serde_json::Value::Object(a.clone()));
-        self.emit_pre_tool_extended_hooks(
-            &tool_call.name,
-            tool_input_for_extended.as_ref(),
+        // Emitted before the denial returns, so an observer sees the denial
+        // before the model receives the refusal. Best effort, like every other
+        // hook emission: a subscriber that fails or is absent changes nothing.
+        self.emit_pre_tool_use_result(
             session,
+            request_id.as_str(),
+            &tool_call.name,
+            tool_input_for_hooks.as_ref(),
+            &pre_tool_outcome,
         )
         .await;
+
+        if let crate::hooks::HookDecision::Deny { reason, plugin } = pre_tool_outcome.decision {
+            return (
+                request_id,
+                Err(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!(
+                        "Tool call denied by policy hook `{plugin}`: {reason}. \
+                         Do not retry; this is a policy denial, not a transient failure."
+                    ),
+                    None,
+                )),
+            );
+        }
+
+        self.emit_pre_tool_extended_hooks(&tool_call.name, tool_input_for_hooks.as_ref(), session)
+            .await;
 
         if tool_call.name == FINAL_OUTPUT_TOOL_NAME {
             return if let Some(final_output_tool) = self.final_output_tool.lock().await.as_mut() {
                 let result = final_output_tool.execute_tool_call(tool_call.clone()).await;
-                (
-                    request_id,
-                    Ok(self.with_post_tool_hook(result, &tool_call, session)),
-                )
+                let result = self.with_post_tool_hook(result, &tool_call, session, &request_id);
+                (request_id, Ok(result))
             } else {
                 (
                     request_id,
@@ -1240,10 +1274,8 @@ impl Agent {
 
         debug!("WAITING_TOOL_END: {}", tool_call.name);
 
-        (
-            request_id,
-            Ok(self.with_post_tool_hook(result, &tool_call, session)),
-        )
+        let result = self.with_post_tool_hook(result, &tool_call, session, &request_id);
+        (request_id, Ok(result))
     }
 
     /// Save current extension state to session metadata
@@ -4140,6 +4172,7 @@ mod tests {
             )]))),
             &tool_call,
             &session,
+            "call-post-hook",
         );
         drop(entered);
         drop(span);
@@ -5244,5 +5277,256 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             .expect("usage must remain stored on the hidden assistant message");
         assert_eq!(stored.input_tokens, Some(1200));
         assert_eq!(stored.output_tokens, Some(340));
+    }
+
+    /// Plugin fixture that can register several events at once, each with its
+    /// own matcher and script, and read back the JSON payloads a script recorded.
+    struct RecordingHookEnv {
+        _temp_dir: TempDir,
+        plugin_dir: PathBuf,
+    }
+
+    /// (event name, matcher or "" for none, script file name, script body)
+    type HookSpec<'a> = (&'a str, &'a str, &'a str, &'a str);
+
+    impl RecordingHookEnv {
+        fn new(specs: &[HookSpec<'_>]) -> Self {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let plugin_dir = temp_dir.path().join("test-plugin");
+            std::fs::create_dir_all(plugin_dir.join("hooks")).unwrap();
+            let entries: Vec<String> = specs
+                .iter()
+                .map(|(event, matcher, script, _)| {
+                    let matcher = if matcher.is_empty() {
+                        String::new()
+                    } else {
+                        format!(r#""matcher": "{matcher}", "#)
+                    };
+                    format!(
+                        r#""{event}": [{{{matcher}"hooks": [{{"type": "command", "command": "sh ${{PLUGIN_ROOT}}/{script}"}}]}}]"#
+                    )
+                })
+                .collect();
+            std::fs::write(
+                plugin_dir.join("hooks/hooks.json"),
+                format!(r#"{{"hooks": {{{}}}}}"#, entries.join(", ")),
+            )
+            .unwrap();
+            for (_, _, script, script_body) in specs {
+                std::fs::write(plugin_dir.join(script), script_body).unwrap();
+            }
+            Self {
+                _temp_dir: temp_dir,
+                plugin_dir,
+            }
+        }
+
+        fn hook_manager(&self) -> crate::hooks::HookManager {
+            crate::hooks::HookManager::from_plugins_for_test(vec![DiscoveredPlugin {
+                name: "test-plugin".into(),
+                root: self.plugin_dir.clone(),
+                scope: PluginScope::Project,
+            }])
+        }
+
+        fn payloads(&self, log: &str) -> Vec<Value> {
+            std::fs::read_to_string(self.plugin_dir.join(log))
+                .unwrap_or_default()
+                .lines()
+                .filter(|line| !line.trim().is_empty())
+                .map(|line| serde_json::from_str(line).unwrap())
+                .collect()
+        }
+    }
+
+    const RECORD_PRE_SCRIPT: &str =
+        "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/pre.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/pre.log\"\nexit 0\n";
+    const RECORD_RESULT_SCRIPT: &str =
+        "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/result.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/result.log\"\nexit 0\n";
+    const RECORD_POST_SCRIPT: &str =
+        "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/post.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/post.log\"\nexit 0\n";
+    const RECORD_POST_FAILURE_SCRIPT: &str =
+        "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/postfail.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/postfail.log\"\nexit 0\n";
+    const DENY_AND_RECORD_SCRIPT: &str =
+        "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/pre.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/pre.log\"\necho \"blocked by test policy\" >&2\nexit 2\n";
+
+    async fn agent_with_hooks(
+        hook_manager: crate::hooks::HookManager,
+    ) -> (Agent, Session, TempDir) {
+        let data_dir = TempDir::new().unwrap();
+        let data_path = data_dir.path().to_path_buf();
+        let session_manager = Arc::new(SessionManager::new(data_path.clone()));
+        let mut agent = Agent::with_config(AgentConfig::new(
+            Arc::clone(&session_manager),
+            Arc::new(PermissionManager::new(data_path)),
+            None,
+            GooseMode::default(),
+            false,
+            GoosePlatform::GooseCli,
+        ));
+        agent.set_hook_manager_for_test(hook_manager);
+        let session = session_manager
+            .create_session(
+                std::env::current_dir().unwrap(),
+                "pre-tool-use-result".to_string(),
+                SessionType::Hidden,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        (agent, session, data_dir)
+    }
+
+    fn shell_call() -> CallToolRequestParams {
+        use rmcp::object;
+        CallToolRequestParams::new("developer__shell")
+            .with_arguments(object!({ "command": "echo hi" }))
+    }
+
+    /// deny-invisible: the tool never dispatches, neither post event fires, and a
+    /// PreToolUseResult subscriber still sees the denial with blocked_by and reason.
+    #[tokio::test]
+    async fn pre_tool_use_result_observes_denial_that_post_hooks_never_see() {
+        let env = RecordingHookEnv::new(&[
+            ("PreToolUse", "", "pre.sh", DENY_AND_RECORD_SCRIPT),
+            ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+            ("PostToolUse", "", "post.sh", RECORD_POST_SCRIPT),
+            (
+                "PostToolUseFailure",
+                "",
+                "postfail.sh",
+                RECORD_POST_FAILURE_SCRIPT,
+            ),
+        ]);
+        let (agent, session, _data_dir) = agent_with_hooks(env.hook_manager()).await;
+
+        let (request_id, result) = agent
+            .dispatch_tool_call(shell_call(), "call-deny-1".to_string(), None, &session)
+            .await;
+
+        assert_eq!(request_id, "call-deny-1");
+        let Err(error) = result else {
+            panic!("a denied call must not dispatch");
+        };
+        assert!(error.message.contains("denied by policy hook"));
+
+        assert!(
+            env.payloads("post.log").is_empty(),
+            "PostToolUse must not fire for a denied call"
+        );
+        assert!(
+            env.payloads("postfail.log").is_empty(),
+            "PostToolUseFailure must not fire for a denied call"
+        );
+
+        let results = env.payloads("result.log");
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0]["event"], "PreToolUseResult");
+        assert_eq!(results[0]["decision"], "deny");
+        assert_eq!(results[0]["policy_evaluated"], true);
+        assert_eq!(results[0]["blocked_by"], "test-plugin");
+        assert_eq!(results[0]["reason"], "blocked by test policy");
+        assert_eq!(results[0]["tool_call_id"], "call-deny-1");
+    }
+
+    /// repeated identical calls: two calls with the same name and input in one
+    /// session correlate to their outcomes by tool_call_id, not by name plus input.
+    #[tokio::test]
+    async fn repeated_identical_calls_correlate_by_tool_call_id() {
+        let env = RecordingHookEnv::new(&[
+            ("PreToolUse", "", "pre.sh", RECORD_PRE_SCRIPT),
+            ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+            ("PostToolUse", "", "post.sh", RECORD_POST_SCRIPT),
+            (
+                "PostToolUseFailure",
+                "",
+                "postfail.sh",
+                RECORD_POST_FAILURE_SCRIPT,
+            ),
+        ]);
+        let (agent, session, _data_dir) = agent_with_hooks(env.hook_manager()).await;
+
+        for id in ["call-1", "call-2"] {
+            let (_, result) = agent
+                .dispatch_tool_call(shell_call(), id.to_string(), None, &session)
+                .await;
+            let Ok(handle) = result else {
+                panic!("dispatch must return a result handle");
+            };
+            let _ = handle.result.await;
+        }
+
+        let pres = env.payloads("pre.log");
+        let results = env.payloads("result.log");
+        let outcomes = env.payloads("postfail.log");
+        assert_eq!(pres.len(), 2);
+        assert_eq!(results.len(), 2);
+        assert_eq!(outcomes.len(), 2);
+
+        for payloads in [&pres, &results, &outcomes] {
+            assert_eq!(payloads[0]["tool_name"], payloads[1]["tool_name"]);
+            assert_eq!(payloads[0]["tool_input"], payloads[1]["tool_input"]);
+        }
+
+        let ids: Vec<&str> = results
+            .iter()
+            .map(|payload| payload["tool_call_id"].as_str().unwrap())
+            .collect();
+        assert_eq!(ids, vec!["call-1", "call-2"]);
+        assert_ne!(
+            ids[0], ids[1],
+            "identical name and input must still carry distinct ids"
+        );
+
+        for (index, id) in ids.iter().enumerate() {
+            assert_eq!(
+                pres[index]["tool_call_id"], results[index]["tool_call_id"],
+                "PreToolUse and PreToolUseResult must carry one id per call"
+            );
+            assert_eq!(
+                outcomes
+                    .iter()
+                    .filter(|payload| payload["tool_call_id"] == *id)
+                    .count(),
+                1,
+                "each call must pair with exactly one outcome by id"
+            );
+        }
+    }
+
+    /// no matching hook: a PreToolUse rule is registered but its matcher does not
+    /// match, so nothing runs and the event reports allow with policy_evaluated false.
+    #[tokio::test]
+    async fn pre_tool_use_result_reports_allow_and_unevaluated_when_no_hook_matches() {
+        let env = RecordingHookEnv::new(&[
+            (
+                "PreToolUse",
+                "a_tool_name_that_never_matches",
+                "pre.sh",
+                DENY_AND_RECORD_SCRIPT,
+            ),
+            ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+        ]);
+        let (agent, session, _data_dir) = agent_with_hooks(env.hook_manager()).await;
+
+        let (_, result) = agent
+            .dispatch_tool_call(shell_call(), "call-allow-1".to_string(), None, &session)
+            .await;
+        let Ok(handle) = result else {
+            panic!("dispatch must return a result handle");
+        };
+        let _ = handle.result.await;
+
+        assert!(
+            env.payloads("pre.log").is_empty(),
+            "the non-matching rule must not run"
+        );
+        let results = env.payloads("result.log");
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0]["decision"], "allow");
+        assert_eq!(results[0]["policy_evaluated"], false);
+        assert!(results[0].get("blocked_by").is_none());
+        assert!(results[0].get("reason").is_none());
+        assert_eq!(results[0]["tool_call_id"], "call-allow-1");
     }
 }
