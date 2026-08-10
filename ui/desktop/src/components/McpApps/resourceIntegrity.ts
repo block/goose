@@ -1,28 +1,7 @@
-/**
- * Integrity verification for MCP App UI resources.
- *
- * When Goose renders an MCP App it fetches HTML from a `ui://` resource served
- * by the MCP server and runs it inside a sandboxed iframe. There is no
- * server-provided hash or signature to verify that HTML against, so a
- * compromised or malicious server can silently swap the UI a user already
- * trusts.
- *
- * As a first line of defense this module implements trust-on-first-use (TOFU)
- * integrity tracking: it records the SHA-256 of the HTML served for each
- * (extension, resource) pair the first time it is seen, and flags any later
- * fetch whose content differs. That surfaces tampering of a previously-seen
- * app UI. Persisted audit logging and a trusted-source allowlist (also part of
- * issue #8014) are intentionally left as follow-ups.
- */
-
 export interface IntegrityCheckResult {
-  /** Hex-encoded SHA-256 of the fetched HTML. */
   hash: string;
-  /** True the first time this (extension, resource) pair is seen. */
   firstSeen: boolean;
-  /** True when the content hash differs from the first-seen baseline. */
   changed: boolean;
-  /** The first-seen hash for this resource, when one exists. */
   previousHash?: string;
 }
 

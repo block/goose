@@ -134,14 +134,20 @@ const DEFAULT_IFRAME_HEIGHT = 200;
 const FULLSCREEN_HEADER_HEIGHT = 48;
 const DEFAULT_SANDBOX_PERMISSIONS = 'allow-scripts allow-same-origin allow-forms';
 
-// Trust-on-first-use integrity tracking for fetched ui:// resources, shared
-// across renders and app instances so a tampered UI is detected even when the
-// same resource is loaded in a later message. Verification never blocks render.
 const resourceIntegrityTracker = new ResourceIntegrityTracker();
+const resourceIntegrityChecks = new Map<string, Promise<void>>();
 
 function verifyResourceIntegrity(extensionName: string, resourceUri: string, html: string): void {
-  void checkResourceIntegrity(resourceIntegrityTracker, extensionName, resourceUri, html)
-    .then((result) => {
+  const key = `${extensionName}\u0000${resourceUri}`;
+  const previousCheck = resourceIntegrityChecks.get(key) ?? Promise.resolve();
+  const check = previousCheck
+    .then(async () => {
+      const result = await checkResourceIntegrity(
+        resourceIntegrityTracker,
+        extensionName,
+        resourceUri,
+        html
+      );
       if (result.changed) {
         console.warn(
           '[McpAppRenderer] MCP App resource content changed since it was first loaded; ' +
@@ -158,6 +164,12 @@ function verifyResourceIntegrity(extensionName: string, resourceUri: string, htm
     .catch((error) => {
       console.warn('[McpAppRenderer] Failed to verify MCP App resource integrity:', error);
     });
+  resourceIntegrityChecks.set(key, check);
+  void check.then(() => {
+    if (resourceIntegrityChecks.get(key) === check) {
+      resourceIntegrityChecks.delete(key);
+    }
+  });
 }
 
 const DISPLAY_MODE_LAYOUTS: Record<GooseDisplayMode, DimensionLayout> = {
@@ -906,8 +918,12 @@ export default function McpAppRenderer({
       if (!data) {
         return { contents: [] };
       }
+      const resolvedUri = data.uri || uri;
+      if (resolvedUri.startsWith('ui://') && data.text) {
+        verifyResourceIntegrity(extensionName, resolvedUri, data.text);
+      }
       return {
-        contents: [{ uri: data.uri || uri, text: data.text, mimeType: data.mimeType || undefined }],
+        contents: [{ uri: resolvedUri, text: data.text, mimeType: data.mimeType || undefined }],
       };
     },
     [sessionId, extensionName]

@@ -8,7 +8,6 @@ import {
 
 describe('computeResourceHash', () => {
   it('produces the known SHA-256 for a fixed input', async () => {
-    // SHA-256("abc")
     expect(await computeResourceHash('abc')).toBe(
       'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
     );
@@ -24,7 +23,7 @@ describe('computeResourceHash', () => {
 describe('resourceIntegrityKey', () => {
   it('does not collide across different extension/uri pairs', () => {
     expect(resourceIntegrityKey('ext', 'ui://a')).not.toBe(resourceIntegrityKey('ext', 'ui://ab'));
-    expect(resourceIntegrityKey('ext', 'ui://a')).not.toBe(resourceIntegrityKey('exta', 'ui://')); // NUL guard
+    expect(resourceIntegrityKey('ext', 'ui://a')).not.toBe(resourceIntegrityKey('exta', 'ui://'));
   });
 });
 
@@ -103,12 +102,7 @@ describe('checkResourceIntegrity', () => {
   it('detects tampering when cached HTML differs from a later fetch', async () => {
     const tracker = new ResourceIntegrityTracker();
 
-    const cached = await checkResourceIntegrity(
-      tracker,
-      'ext',
-      'ui://app',
-      '<html>cached</html>'
-    );
+    const cached = await checkResourceIntegrity(tracker, 'ext', 'ui://app', '<html>cached</html>');
     expect(cached.firstSeen).toBe(true);
 
     const fresh = await checkResourceIntegrity(tracker, 'ext', 'ui://app', '<html>fresh</html>');
