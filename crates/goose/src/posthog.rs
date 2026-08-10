@@ -36,8 +36,11 @@ pub fn get_telemetry_choice() -> Option<bool> {
         return Some(false);
     }
 
-    let config = Config::global();
-    match config.get_param::<bool>(ONBOARDING_TELEMETRY_PENDING_KEY) {
+    get_telemetry_choice_from_config(Config::global())
+}
+
+fn get_telemetry_choice_from_config(config: &Config) -> Option<bool> {
+    match config.get_param_from_files::<bool>(ONBOARDING_TELEMETRY_PENDING_KEY) {
         Ok(true) => return Some(false),
         Ok(false) | Err(ConfigError::NotFound(_)) => {}
         Err(_) => return Some(false),
@@ -613,39 +616,52 @@ pub async fn emit_event(
 mod tests {
     use super::*;
 
+    fn test_config() -> (tempfile::TempDir, Config) {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config::new_with_file_secrets(
+            dir.path().join("config.yaml"),
+            dir.path().join("secrets.yaml"),
+        )
+        .unwrap();
+        (dir, config)
+    }
+
     #[test]
     fn pending_onboarding_consent_overrides_stale_enabled_telemetry() {
-        let _env = env_lock::lock_env([
-            ("GOOSE_TELEMETRY_OFF", Some("false")),
-            (TELEMETRY_ENABLED_KEY, Some("true")),
-            (ONBOARDING_TELEMETRY_PENDING_KEY, Some("true")),
-        ]);
+        let _env = env_lock::lock_env([("GOOSE_TELEMETRY_OFF", Some("false"))]);
+        let (_dir, config) = test_config();
+        config.set_param(TELEMETRY_ENABLED_KEY, true).unwrap();
+        config
+            .set_param(ONBOARDING_TELEMETRY_PENDING_KEY, true)
+            .unwrap();
 
-        assert_eq!(get_telemetry_choice(), Some(false));
-        assert!(!is_telemetry_enabled());
+        assert_eq!(get_telemetry_choice_from_config(&config), Some(false));
     }
 
     #[test]
     fn completed_onboarding_preserves_enabled_telemetry() {
         let _env = env_lock::lock_env([
             ("GOOSE_TELEMETRY_OFF", Some("false")),
-            (TELEMETRY_ENABLED_KEY, Some("true")),
-            (ONBOARDING_TELEMETRY_PENDING_KEY, Some("false")),
+            (ONBOARDING_TELEMETRY_PENDING_KEY, Some("true")),
         ]);
+        let (_dir, config) = test_config();
+        config.set_param(TELEMETRY_ENABLED_KEY, true).unwrap();
+        config
+            .set_param(ONBOARDING_TELEMETRY_PENDING_KEY, false)
+            .unwrap();
 
-        assert_eq!(get_telemetry_choice(), Some(true));
-        assert!(is_telemetry_enabled());
+        assert_eq!(get_telemetry_choice_from_config(&config), Some(true));
     }
 
     #[test]
     fn malformed_pending_marker_overrides_stale_enabled_telemetry() {
-        let _env = env_lock::lock_env([
-            ("GOOSE_TELEMETRY_OFF", Some("false")),
-            (TELEMETRY_ENABLED_KEY, Some("true")),
-            (ONBOARDING_TELEMETRY_PENDING_KEY, Some("not-a-boolean")),
-        ]);
+        let _env = env_lock::lock_env([("GOOSE_TELEMETRY_OFF", Some("false"))]);
+        let (_dir, config) = test_config();
+        config.set_param(TELEMETRY_ENABLED_KEY, true).unwrap();
+        config
+            .set_param(ONBOARDING_TELEMETRY_PENDING_KEY, "not-a-boolean")
+            .unwrap();
 
-        assert_eq!(get_telemetry_choice(), Some(false));
-        assert!(!is_telemetry_enabled());
+        assert_eq!(get_telemetry_choice_from_config(&config), Some(false));
     }
 }

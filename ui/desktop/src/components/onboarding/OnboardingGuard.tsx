@@ -17,6 +17,7 @@ import {
 import { defineMessages, useIntl } from '../../i18n';
 import {
   ONBOARDING_TELEMETRY_PENDING_CONFIG_KEY,
+  readOnboardingTelemetryPending,
   TELEMETRY_CONFIG_KEY,
 } from './telemetryConfig';
 
@@ -50,7 +51,7 @@ interface OnboardingGuardProps {
 export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   const intl = useIntl();
   const navigate = useNavigate();
-  const { read, remove, upsert } = useConfig();
+  const { remove, upsert } = useConfig();
   const { getFallbackModelAndProvider, refreshCurrentModelAndProvider } = useModelAndProvider();
 
   const [isCheckingProvider, setIsCheckingProvider] = useState(true);
@@ -69,11 +70,7 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
     setCheckProviderError(false);
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const telemetryPending = await read(
-          ONBOARDING_TELEMETRY_PENDING_CONFIG_KEY,
-          false,
-          { throwOnError: true }
-        );
+        const telemetryPending = await readOnboardingTelemetryPending();
         const { providerId: provider, modelId: model } = await acpReadDefaults();
         if (telemetryPending !== null && telemetryPending !== false) {
           if (provider?.trim()) {

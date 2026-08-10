@@ -10,7 +10,7 @@ import {
 import PrivacyInfoModal from './onboarding/PrivacyInfoModal';
 import { defineMessages, useIntl } from '../i18n';
 import {
-  ONBOARDING_TELEMETRY_PENDING_CONFIG_KEY,
+  readOnboardingTelemetryPending,
   TELEMETRY_CONFIG_KEY,
 } from './onboarding/telemetryConfig';
 
@@ -50,11 +50,7 @@ export default function TelemetryConsentPrompt() {
 
     (async () => {
       try {
-        const onboardingTelemetryPending = await read(
-          ONBOARDING_TELEMETRY_PENDING_CONFIG_KEY,
-          false,
-          { throwOnError: true }
-        );
+        const onboardingTelemetryPending = await readOnboardingTelemetryPending();
         if (onboardingTelemetryPending !== null && onboardingTelemetryPending !== false) return;
 
         const provider = await read('GOOSE_PROVIDER', false);

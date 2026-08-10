@@ -7,6 +7,7 @@ import OnboardingGuard from '../OnboardingGuard';
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   read: vi.fn(),
+  readAll: vi.fn(),
   remove: vi.fn(),
   upsert: vi.fn(),
   acpReadDefaults: vi.fn(),
@@ -24,6 +25,10 @@ vi.mock('react-router', () => ({
 
 vi.mock('../../ConfigContext', () => ({
   useConfig: () => ({ read: mocks.read, remove: mocks.remove, upsert: mocks.upsert }),
+}));
+
+vi.mock('../../../acp/config', () => ({
+  acpReadAllConfig: mocks.readAll,
 }));
 
 vi.mock('../../ModelAndProviderContext', () => ({
@@ -79,6 +84,7 @@ describe('OnboardingGuard telemetry preference', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.read.mockResolvedValue(null);
+    mocks.readAll.mockResolvedValue({});
     mocks.remove.mockResolvedValue(undefined);
     mocks.upsert.mockResolvedValue(undefined);
     mocks.acpReadDefaults.mockResolvedValue({ providerId: null, modelId: null });
@@ -149,7 +155,7 @@ describe('OnboardingGuard telemetry preference', () => {
   });
 
   it('restores pending consent after provider defaults were persisted', async () => {
-    mocks.read.mockResolvedValue(true);
+    mocks.readAll.mockResolvedValue({ GOOSE_ONBOARDING_TELEMETRY_PENDING: true });
     mocks.acpReadDefaults.mockResolvedValue({
       providerId: 'test-provider',
       modelId: 'test-model',
@@ -169,7 +175,9 @@ describe('OnboardingGuard telemetry preference', () => {
   });
 
   it('repairs a malformed pending marker before entering the application', async () => {
-    mocks.read.mockResolvedValue('not-a-boolean');
+    mocks.readAll.mockResolvedValue({
+      GOOSE_ONBOARDING_TELEMETRY_PENDING: 'not-a-boolean',
+    });
     mocks.acpReadDefaults.mockResolvedValue({
       providerId: 'test-provider',
       modelId: 'test-model',
@@ -191,7 +199,7 @@ describe('OnboardingGuard telemetry preference', () => {
   });
 
   it('does not save fallback defaults while consent is pending without a provider', async () => {
-    mocks.read.mockResolvedValue(true);
+    mocks.readAll.mockResolvedValue({ GOOSE_ONBOARDING_TELEMETRY_PENDING: true });
     mocks.getFallbackModelAndProvider.mockResolvedValue({
       provider: 'fallback-provider',
       model: 'fallback-model',

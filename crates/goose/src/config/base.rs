@@ -737,6 +737,13 @@ impl Config {
             return Ok(serde_json::from_value(value)?);
         }
 
+        self.get_param_from_files(key)
+    }
+
+    pub fn get_param_from_files<T: for<'de> Deserialize<'de>>(
+        &self,
+        key: &str,
+    ) -> Result<T, ConfigError> {
         let values = self.load()?;
         let value = values
             .get(key)
