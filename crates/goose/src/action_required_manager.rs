@@ -81,22 +81,6 @@ impl ActionRequiredManager {
             ));
         };
 
-        let permit = match sender.try_reserve_owned() {
-            Ok(permit) => permit,
-            Err(mpsc::error::TrySendError::Full(_)) => {
-                return Err(anyhow::anyhow!(
-                    "Tool call action-required stream is full: {}",
-                    tool_call_request_id
-                ));
-            }
-            Err(mpsc::error::TrySendError::Closed(_)) => {
-                return Err(anyhow::anyhow!(
-                    "Tool call action-required stream closed: {}",
-                    tool_call_request_id
-                ));
-            }
-        };
-
         let id = Uuid::new_v4().to_string();
         let (tx, rx) = tokio::sync::oneshot::channel();
         let pending_request = PendingRequest {
@@ -113,7 +97,16 @@ impl ActionRequiredManager {
         let action_required_message = Message::assistant().with_content(
             MessageContent::action_required_elicitation(id.clone(), message, schema),
         );
-        permit.send(action_required_message);
+        if let Err(error) = sender.try_send(action_required_message) {
+            self.pending.write().await.remove(&id);
+            let message = match error {
+                mpsc::error::TrySendError::Full(_) => "stream is full",
+                mpsc::error::TrySendError::Closed(_) => "stream closed",
+            };
+            return Err(anyhow::anyhow!(
+                "Tool call action-required {message}: {tool_call_request_id}"
+            ));
+        }
 
         let result = self
             .wait_for_response(&id, pending_request, rx, timeout_duration)
