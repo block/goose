@@ -23,6 +23,26 @@ and nothing in a `ConnectionCard` grants access by possession.
 | Steals a *device's* secret key | Full impersonation of that device. If the key was accepted by a host, they get that host's full ACP surface until revoked. This is the crown jewel; see key storage. |
 | Local process as the host user | Can edit `roaming_trust.json` to accept any key — the same trust boundary as `~/.ssh/authorized_keys`. Not defended, by design: local user compromise is out of scope. |
 
+## Control is one-way by construction
+
+Although the transport is p2p, **control is never symmetric**. A node only
+exposes an ACP surface by calling `RoamingNode::share()`, which is what
+registers the `goose-acp/1` protocol handler — and the only callers are
+`goose roam share` and `goose serve --roam`. Pure clients (the browser
+webapp, `roam client`/`bridge`/`delegate`) bind an endpoint but never share:
+they register no accept handler, so a host dialing back at them finds no
+protocol to connect to. There is nothing to authorize or block — the surface
+does not exist on the client side.
+
+Relatedly, the allowlist gates **inbound only**: a host accepting a client's
+key grants the client access to the host, and grants the host nothing in
+return. "Mutual trust" in the docs means mutual *consent* (host authorizes
+the key; client chooses whom to dial and verifies the fingerprint), not
+mutual control — the same asymmetry as SSH's `authorized_keys` vs
+`known_hosts`. Two machines that each want to drive the other run two
+independent shares with two independent allowlists, so A→B without B→A is
+the natural configuration, not a special mode.
+
 ## The blunt truth about authorization granularity
 
 An accepted peer gets goose's **full ACP surface** with a fresh agent per
