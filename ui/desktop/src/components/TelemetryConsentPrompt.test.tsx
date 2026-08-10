@@ -31,6 +31,20 @@ describe('TelemetryConsentPrompt', () => {
     expect(mocks.read).toHaveBeenCalledTimes(1);
   });
 
+  it('does not overlap onboarding while a malformed pending marker is repaired', async () => {
+    mocks.read.mockResolvedValueOnce('not-a-boolean');
+
+    render(
+      <IntlTestWrapper>
+        <TelemetryConsentPrompt />
+      </IntlTestWrapper>
+    );
+
+    await waitFor(() => expect(mocks.read).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('button', { name: 'No thanks' })).not.toBeInTheDocument();
+    expect(mocks.read).toHaveBeenCalledTimes(1);
+  });
+
   it('still prompts configured users with no telemetry preference', async () => {
     mocks.read
       .mockResolvedValueOnce(null)

@@ -55,7 +55,7 @@ export default function TelemetryConsentPrompt() {
           false,
           { throwOnError: true }
         );
-        if (onboardingTelemetryPending === true) return;
+        if (onboardingTelemetryPending !== null && onboardingTelemetryPending !== false) return;
 
         const provider = await read('GOOSE_PROVIDER', false);
         if (!provider || provider === '') return;
