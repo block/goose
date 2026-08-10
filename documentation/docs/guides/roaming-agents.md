@@ -7,7 +7,7 @@ sidebar_label: Roaming Agents
 Roaming agents let you reach a running goose agent from another machine over a
 peer-to-peer connection — no open ports, no VPN, no server to host. It's built
 on [iroh](https://iroh.computer) (QUIC), so two machines can connect directly or
-via a public relay, typically without any firewall changes.
+via a relay, typically without any firewall changes.
 
 Use it to drive your laptop's agent from another device, hand a one-shot task to
 a remote agent, or expose a remote agent to any local ACP client (like the goose
@@ -52,6 +52,11 @@ To let a peer reach you, you each:
 
 1. **Swap cards** (`goose roam id` prints yours; send it over any channel).
 2. **Accept the other's key** (`goose roam peers accept …`).
+
+Since a card is just a string, it can travel however is convenient — including
+as a QR code: `goose roam id --qr` and `goose roam share --qr` also render the
+card as a QR code in the terminal, which you can scan from a phone camera (or
+directly from the web client's camera, see below) instead of copy-pasting.
 
 A connection only succeeds when the **host has accepted the dialer's key**. The
 transport (iroh QUIC-TLS) proves each side holds the private key for the identity
@@ -166,6 +171,31 @@ A bridge serves one client connection. The remote host still runs the agent,
 imposes its own working directory, and authorizes the connection.
 :::
 
+## The web client
+
+There is also a browser client, hosted at
+[aaif-goose.github.io/goose-mobile](https://aaif-goose.github.io/goose-mobile/).
+The browser tab is itself a roam peer: iroh compiled to WebAssembly runs inside
+the tab and connects through the same relays with the same mutual key trust —
+there is no server in between, and no traffic goes through the site's origin.
+
+Pairing works exactly like any other peer. The tab generates its own identity
+and shows its card; you accept it once on the host:
+
+```bash
+goose roam peers accept 'goose+roam://…tab…' phone
+```
+
+To get the host's card into the browser, paste it — or run
+`goose roam share --qr` and scan the QR code with the web client's camera.
+
+Once connected, the tab can list and open the host's sessions, start new ones,
+stream responses, steer a running turn, and group sessions by project. You can
+connect several hosts at once; their sessions appear in one merged list.
+
+The source lives in `crates/goose-roaming/web/` — the README there has build
+details if you want to host it yourself (it builds to a static site).
+
 ## Saved peers
 
 Save a peer's card under a nickname so you don't paste cards each time. A saved
@@ -201,9 +231,10 @@ sessions on this machine (new/list/load/prompt), which is effectively remote
 shell access. There are no finer-grained roles: acceptance is all-or-nothing.
 
 Acceptance is **durable** and **live**: it is stored on disk, and a running
-`share` re-reads it on each connection — so `accept`/`revoke` take effect against
-a live share without a restart. Revoking takes effect on the next connection (an
-already-open session continues until it disconnects).
+`share` re-reads it on each connection *and* polls the trust file (about every
+two seconds) to enforce it against connections that are already open. Revoking
+a peer therefore takes effect within seconds even against a live peer — the
+share force-closes any of its open connections. No restart on either side.
 
 Because trust is keyed on the peer's public key and the transport authenticates
 that key cryptographically, a card can be shared over any channel — it is not a
@@ -230,10 +261,16 @@ so this composes into multi-machine workflows without any shared state.
 
 ## Notes and limits
 
-- Peers connect directly when NAT hole-punching succeeds and fall back to
-  iroh's public relays otherwise. The default relays are rate-limited and
-  best-effort; self-hosting relays is possible but not covered here.
+- Peers connect directly when NAT hole-punching succeeds and fall back to a
+  relay otherwise. By default roaming uses a set of goose-managed iroh relays
+  (one per region — not iroh's shared public relays); override them with the
+  `GOOSE_ROAM_RELAYS` config key or environment variable to point at your own
+  deployment.
 - `connect`, `delegate`, and `bridge` all accept either a saved peer name or a
   raw `goose+roam://…` card. Remember the peer must also have accepted your key.
+- A message sent to a session that has a run in flight **in the share process**
+  becomes a steer of that run. A loop running in a *different* process on the
+  host (the desktop app, another CLI) can't be steered remotely — the web
+  client detects this and warns before sending.
 - On macOS, if a session still appears to hang on connect, set
   `GOOSE_DISABLE_KEYRING=1` to skip the keychain entirely.
