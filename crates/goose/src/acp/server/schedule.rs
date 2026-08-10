@@ -46,6 +46,8 @@ fn schedule_not_found_or_internal(error: SchedulerError) -> agent_client_protoco
         SchedulerError::JobNotFound(id) => {
             agent_client_protocol::Error::resource_not_found(Some(id))
         }
+        SchedulerError::JobRunning(id) => agent_client_protocol::Error::invalid_params()
+            .data(format!("Schedule is currently running: {id}")),
         error => agent_client_protocol::Error::internal_error().data(error.to_string()),
     }
 }

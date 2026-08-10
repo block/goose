@@ -157,6 +157,7 @@ pub fn get_default_scheduled_recipes_dir() -> Result<PathBuf, SchedulerError> {
 pub enum SchedulerError {
     JobIdExists(String),
     JobNotFound(String),
+    JobRunning(String),
     StorageError(io::Error),
     RecipeLoadError(String),
     AgentSetupError(String),
@@ -171,6 +172,9 @@ impl std::fmt::Display for SchedulerError {
         match self {
             SchedulerError::JobIdExists(id) => write!(f, "Job ID '{}' already exists.", id),
             SchedulerError::JobNotFound(id) => write!(f, "Job ID '{}' not found.", id),
+            SchedulerError::JobRunning(id) => {
+                write!(f, "Job ID '{}' cannot be removed while it is running.", id)
+            }
             SchedulerError::StorageError(e) => write!(f, "Storage error: {}", e),
             SchedulerError::RecipeLoadError(e) => write!(f, "Recipe load error: {}", e),
             SchedulerError::AgentSetupError(e) => write!(f, "Agent setup error: {}", e),
@@ -744,10 +748,15 @@ impl Scheduler {
     ) -> Result<(), SchedulerError> {
         let (job_uuid, recipe_path) = {
             let mut jobs_guard = self.jobs.lock().await;
-            match jobs_guard.remove(id) {
-                Some((uuid, job)) => (uuid, job.source.clone()),
+            match jobs_guard.get(id) {
+                Some((_, job)) if job.currently_running => {
+                    return Err(SchedulerError::JobRunning(id.to_string()));
+                }
                 None => return Err(SchedulerError::JobNotFound(id.to_string())),
+                _ => {}
             }
+            let (uuid, job) = jobs_guard.remove(id).expect("job was checked above");
+            (uuid, job.source)
         };
 
         self.tokio_scheduler
@@ -1581,6 +1590,62 @@ mod tests {
             !recipe_path.exists(),
             "Recipe should be deleted when remove_recipe is true"
         );
+    }
+
+    #[tokio::test]
+    async fn test_remove_scheduled_job_rejects_running_job() {
+        let temp_dir = tempdir().unwrap();
+        let storage_path = temp_dir.path().join("schedule.json");
+        let recipe_path = create_test_recipe(temp_dir.path(), "running_removal_job");
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let scheduler = Scheduler::new(storage_path.clone(), session_manager)
+            .await
+            .unwrap();
+
+        let job = ScheduledJob {
+            id: "running_removal_job".to_string(),
+            source: recipe_path.to_string_lossy().to_string(),
+            cron: "0 0 0 1 1 *".to_string(),
+            last_run: None,
+            currently_running: true,
+            paused: false,
+            current_session_id: Some("session-id".to_string()),
+            process_start_time: Some(Utc::now()),
+            parameters: vec![],
+            recipe_base_dir: None,
+        };
+
+        scheduler.add_scheduled_job(job, false).await.unwrap();
+        let token = CancellationToken::new();
+        scheduler
+            .running_tasks
+            .lock()
+            .await
+            .insert("running_removal_job".to_string(), token.clone());
+
+        let error = scheduler
+            .remove_scheduled_job("running_removal_job", false)
+            .await
+            .unwrap_err();
+
+        assert!(matches!(error, SchedulerError::JobRunning(id) if id == "running_removal_job"));
+        assert!(scheduler
+            .jobs
+            .lock()
+            .await
+            .contains_key("running_removal_job"));
+        assert!(scheduler
+            .running_tasks
+            .lock()
+            .await
+            .contains_key("running_removal_job"));
+        assert!(!token.is_cancelled());
+
+        let persisted_jobs: Vec<ScheduledJob> =
+            serde_json::from_str(&fs::read_to_string(storage_path).unwrap()).unwrap();
+        assert!(persisted_jobs
+            .iter()
+            .any(|job| job.id == "running_removal_job" && job.currently_running));
     }
 
     #[tokio::test]
