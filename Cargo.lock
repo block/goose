@@ -5208,6 +5208,7 @@ dependencies = [
  "futures",
  "gethostname",
  "goose-acp-macros",
+ "goose-context-management",
  "goose-download-manager",
  "goose-mcp",
  "goose-providers",
@@ -5370,6 +5371,22 @@ dependencies = [
  "webbrowser",
  "winapi",
  "zip 8.6.0",
+]
+
+[[package]]
+name = "goose-context-management"
+version = "0.1.0-alpha.5"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "goose-providers",
+ "include_dir",
+ "minijinja",
+ "rmcp 3.0.0",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -5538,6 +5555,7 @@ dependencies = [
  "anyhow",
  "base64 0.23.0",
  "futures",
+ "goose-context-management",
  "goose-providers",
  "goose-sdk-types",
  "rmcp 3.0.0",

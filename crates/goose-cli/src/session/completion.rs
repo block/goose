@@ -244,6 +244,7 @@ impl GooseCompleter {
             "/mode".to_string(),
             "/model".to_string(),
             "/recipe".to_string(),
+            "/new".to_string(),
         ];
         commands.extend(
             list_commands()
@@ -692,6 +693,18 @@ mod tests {
         // Test no match
         let (_pos, candidates) = completer.complete_slash_commands("/nonexistent").unwrap();
         assert_eq!(candidates.len(), 0);
+    }
+
+    #[test]
+    fn test_complete_slash_commands_new() {
+        let cache = create_test_cache();
+        let completer = GooseCompleter::new(cache);
+
+        let (pos, candidates) = completer.complete_slash_commands("/new").unwrap();
+        assert_eq!(pos, 0);
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].display, "/new");
+        assert_eq!(candidates[0].replacement, "/new ");
     }
 
     #[test]

@@ -334,6 +334,57 @@ mod tests {
     }
 
     #[test]
+    fn sanitizes_unicode_tags_in_tool_result() {
+        let jsonl = serde_json::json!({
+            "type": "user",
+            "sessionId": "s",
+            "uuid": "u1",
+            "timestamp": "2026-01-01T00:00:00Z",
+            "cwd": "/tmp",
+            "message": {
+                "role": "user",
+                "content": [{
+                    "type": "tool_result",
+                    "tool_use_id": "toolu_1",
+                    "content": [{"type": "text", "text": "visible\u{E0041}世界"}]
+                }]
+            }
+        })
+        .to_string();
+
+        let json = convert(&jsonl).unwrap();
+
+        assert!(json.contains("visible世界"));
+        assert!(!json.contains('\u{E0041}'));
+    }
+
+    #[test]
+    fn sanitizes_unicode_tags_in_tool_result_error() {
+        let jsonl = serde_json::json!({
+            "type": "user",
+            "sessionId": "s",
+            "uuid": "u1",
+            "timestamp": "2026-01-01T00:00:00Z",
+            "cwd": "/tmp",
+            "message": {
+                "role": "user",
+                "content": [{
+                    "type": "tool_result",
+                    "tool_use_id": "toolu_1",
+                    "is_error": true,
+                    "content": "failed\u{E0041}café"
+                }]
+            }
+        })
+        .to_string();
+
+        let json = convert(&jsonl).unwrap();
+
+        assert!(json.contains("failedcafé"));
+        assert!(!json.contains('\u{E0041}'));
+    }
+
+    #[test]
     fn emits_cache_token_breakdown() {
         let jsonl = r#"{"type":"user","sessionId":"s","uuid":"u1","timestamp":"2026-01-01T00:00:01Z","cwd":"/tmp","message":{"role":"user","content":"hi"}}
 {"type":"assistant","sessionId":"s","uuid":"u2","timestamp":"2026-01-01T00:00:02Z","message":{"role":"assistant","content":[{"type":"text","text":"hello"}],"usage":{"input_tokens":7,"cache_creation_input_tokens":1000,"cache_read_input_tokens":5000,"output_tokens":50}}}"#;
