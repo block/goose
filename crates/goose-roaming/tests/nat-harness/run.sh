@@ -124,6 +124,20 @@ sleep 10
 
 run_scenario soak-hairpin client soak --frames 300
 
+# The core QAD assertion: with reflection on and a live QAD endpoint, the
+# connection MUST upgrade to a direct path. If it stays relay-only the fix has
+# regressed — fail loudly here rather than letting relay-crash's "no outage is
+# fine" branch mask it (a regressed upgrade makes relay-crash look like a
+# normal relay-only outage, which would otherwise pass).
+hairpin_direct=$(grep '"name":"soak-hairpin"' "$RESULTS/results.jsonl" \
+  | grep -o '"direct_path_selected": *true' || true)
+if [ -z "$hairpin_direct" ]; then
+  echo "soak-hairpin did NOT select a direct path — the QAD direct-upgrade has regressed" >&2
+  grep '"name":"soak-hairpin"' "$RESULTS/results.jsonl" >&2 || true
+  exit 1
+fi
+log "soak-hairpin selected a direct path (QAD upgrade verified)"
+
 crash_scenario() { # name victim-container require-outage(yes|no)
   local name=$1 victim=$2 require_outage=${3:-yes}
   log "scenario: $name (SIGKILL $victim 25s after the measured loop starts)"
