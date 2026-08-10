@@ -165,8 +165,7 @@ export default function ModelsBottomBar({
     const success = await changeModel(sessionId, { name: recent.model, provider: recent.provider });
     if (success) {
       trackModelChanged(recent.provider, recent.model);
-      const current = (await window.electron.getSetting('recentModels')) ?? [];
-      const updated = addToRecentModels(current, recent.provider, recent.model);
+      const updated = addToRecentModels(recentModels, recent.provider, recent.model);
       await window.electron.setSetting('recentModels', updated);
       setRecentModels(updated);
       onModelChanged({ model: recent.model, provider: recent.provider });

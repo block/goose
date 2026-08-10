@@ -426,16 +426,13 @@ export const SwitchModelModal = ({
 
       const success = await changeModel(sessionId, modelObj);
       if (success) {
-        onModelSelected?.(modelObj.name, modelObj.provider || '');
         trackModelChanged(modelObj.provider || '', modelObj.name);
-        const provider = modelObj.provider || '';
-        if (provider && modelObj.name) {
-          const current = (await window.electron.getSetting('recentModels')) ?? [];
-          await window.electron.setSetting(
-            'recentModels',
-            addToRecentModels(current, provider, modelObj.name)
-          );
-        }
+        const current = (await window.electron.getSetting('recentModels')) ?? [];
+        await window.electron.setSetting(
+          'recentModels',
+          addToRecentModels(current, modelObj.provider || '', modelObj.name)
+        );
+        onModelSelected?.(modelObj.name, modelObj.provider || '');
       }
 
       onClose();
