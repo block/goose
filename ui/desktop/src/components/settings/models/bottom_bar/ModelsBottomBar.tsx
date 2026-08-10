@@ -228,10 +228,7 @@ export default function ModelsBottomBar({
                   onClick={() => void handleRecentModelClick(recent)}
                 >
                   <History className="mr-2 h-3.5 w-3.5 flex-shrink-0 text-text-secondary" />
-                  <div className="flex flex-col min-w-0">
-                    <span className="truncate">{getModelDisplayName(recent.model)}</span>
-                    <span className="truncate text-xs text-text-secondary">{recent.provider}</span>
-                  </div>
+                  <span className="truncate">{getModelDisplayName(recent.model)} — {recent.provider}</span>
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator />
