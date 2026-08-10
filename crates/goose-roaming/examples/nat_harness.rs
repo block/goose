@@ -280,26 +280,7 @@ impl PathWatch {
     fn start(conn: &iroh::endpoint::Connection, t0: Instant) -> Self {
         let events = Arc::new(std::sync::Mutex::new(Vec::new()));
         let direct_selected = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let mut stream = conn.path_events();
-        let events_task = events.clone();
-        let direct_task = direct_selected.clone();
-        let task = tokio::spawn(async move {
-            while let Some(event) = futures::StreamExt::next(&mut stream).await {
-                if matches!(
-                    event,
-                    PathEvent::Selected {
-                        remote_addr: TransportAddr::Ip(_),
-                        ..
-                    }
-                ) {
-                    direct_task.store(true, std::sync::atomic::Ordering::Relaxed);
-                }
-                events_task
-                    .lock()
-                    .unwrap()
-                    .push((t0.elapsed().as_millis() as u64, format!("{event:?}")));
-            }
-        });
+        let task = watch_paths(conn, t0, events.clone(), direct_selected.clone(), 0);
         Self {
             events,
             direct_selected,
@@ -315,6 +296,36 @@ impl PathWatch {
             .load(std::sync::atomic::Ordering::Relaxed);
         (events, direct)
     }
+}
+
+/// Stream one connection's path events into shared storage. `seq` labels
+/// events per connection so a reconnecting scenario yields one legible
+/// timeline across all the connections it went through.
+fn watch_paths(
+    conn: &iroh::endpoint::Connection,
+    t0: Instant,
+    events: Arc<std::sync::Mutex<Vec<(u64, String)>>>,
+    direct_selected: Arc<std::sync::atomic::AtomicBool>,
+    seq: usize,
+) -> tokio::task::JoinHandle<()> {
+    let mut stream = conn.path_events();
+    tokio::spawn(async move {
+        while let Some(event) = futures::StreamExt::next(&mut stream).await {
+            if matches!(
+                event,
+                PathEvent::Selected {
+                    remote_addr: TransportAddr::Ip(_),
+                    ..
+                }
+            ) {
+                direct_selected.store(true, std::sync::atomic::Ordering::Relaxed);
+            }
+            events
+                .lock()
+                .unwrap()
+                .push((t0.elapsed().as_millis() as u64, format!("c{seq} {event:?}")));
+        }
+    })
 }
 
 fn paths_snapshot(conn: &iroh::endpoint::Connection) -> Vec<String> {
@@ -492,6 +503,36 @@ async fn scenario_crash(
     let mut frames_ok: u64 = 0;
     let mut outages: Vec<(u64, u64)> = Vec::new();
 
+    // One shared path timeline across every connection the scenario goes
+    // through: which path was in use when the victim died, and which path the
+    // recovered connection landed on, are part of the result.
+    let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let direct_selected = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let mut seq = 0usize;
+    let mut watch = watch_paths(
+        &stream.conn,
+        t0,
+        events.clone(),
+        direct_selected.clone(),
+        seq,
+    );
+    record_connected(&events, t0, seq, &stream.conn);
+
+    let reconnect = |stream: &mut RoamingClientStream,
+                     watch: &mut tokio::task::JoinHandle<()>,
+                     seq: &mut usize| {
+        watch.abort();
+        *seq += 1;
+        *watch = watch_paths(
+            &stream.conn,
+            t0,
+            events.clone(),
+            direct_selected.clone(),
+            *seq,
+        );
+        record_connected(&events, t0, *seq, &stream.conn);
+    };
+
     while Instant::now() < end {
         match exchange_frame(&mut stream, counter).await {
             Ok(_) => {
@@ -503,6 +544,7 @@ async fn scenario_crash(
                 let outage_start = t0.elapsed().as_millis() as u64;
                 drop(stream);
                 stream = connect_trusted(node, card, "crash", Duration::from_secs(120)).await?;
+                reconnect(&mut stream, &mut watch, &mut seq);
                 // Confirm the link actually carries data again before closing
                 // the outage window — an accepted dial with a dead data plane
                 // must keep counting as downtime.
@@ -514,6 +556,7 @@ async fn scenario_crash(
                             drop(stream);
                             stream = connect_trusted(node, card, "crash", Duration::from_secs(120))
                                 .await?;
+                            reconnect(&mut stream, &mut watch, &mut seq);
                         }
                     }
                 }
@@ -524,11 +567,14 @@ async fn scenario_crash(
         }
     }
 
+    watch.abort();
+    let path_events = events.lock().unwrap().clone();
     println!(
         "RESULT {}",
         serde_json::json!({
             "scenario": "crash",
             "frames_ok": frames_ok,
+            "connections": seq + 1,
             "outages": outages
                 .iter()
                 .map(|(start, end)| serde_json::json!({
@@ -537,11 +583,28 @@ async fn scenario_crash(
                     "outage_ms": end - start,
                 }))
                 .collect::<Vec<_>>(),
+            "direct_path_selected": direct_selected.load(std::sync::atomic::Ordering::Relaxed),
+            "paths_final": paths_snapshot(&stream.conn),
+            "path_events": path_events.iter().map(|(ms, e)| format!("{ms}ms {e}")).collect::<Vec<_>>(),
             "duration_ms": t0.elapsed().as_millis() as u64,
         })
     );
     stream.send.finish()?;
     Ok(())
+}
+
+/// Timeline marker for each (re)connection: the paths the fresh connection
+/// starts with, labeled with its sequence number.
+fn record_connected(
+    events: &Arc<std::sync::Mutex<Vec<(u64, String)>>>,
+    t0: Instant,
+    seq: usize,
+    conn: &iroh::endpoint::Connection,
+) {
+    events.lock().unwrap().push((
+        t0.elapsed().as_millis() as u64,
+        format!("c{seq} connected paths={:?}", paths_snapshot(conn)),
+    ));
 }
 
 fn atomic_write(path: &Path, bytes: &[u8]) -> anyhow::Result<()> {
