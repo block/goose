@@ -188,6 +188,7 @@ impl goose::providers::base::ProviderDescriptor for MockCompactionProvider {
             model_selection_hint: None,
             fast_model: None,
             setup: None,
+            hidden_from_setup: false,
             deprecated: None,
         }
     }

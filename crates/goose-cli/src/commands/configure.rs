@@ -811,11 +811,8 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
 
     let current_provider: Option<String> = config.get_goose_provider().ok();
     let mut available_providers = providers().await;
-    available_providers.retain(|(provider, provider_type)| {
-        provider.setup.is_some()
-            || *provider_type == goose::providers::base::ProviderType::Custom
-            || current_provider.as_deref() == Some(&provider.name)
-    });
+    available_providers
+        .retain(|(provider, _)| !provider.hidden_from_setup && provider.deprecated.is_none());
 
     // Sort providers alphabetically by display name
     available_providers.sort_by(|a, b| a.0.display_name.cmp(&b.0.display_name));
@@ -849,7 +846,13 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
         })
         .collect();
 
-    let default_provider = current_provider.unwrap_or_default();
+    let default_provider = current_provider
+        .filter(|current_provider| {
+            available_providers
+                .iter()
+                .any(|(provider, _)| &provider.name == current_provider)
+        })
+        .unwrap_or_default();
 
     // cliclack 0.5.5 does not reset its private list offset when filtering a
     // paginated select, so use a separate fuzzy-search step for long lists.

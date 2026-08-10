@@ -46,9 +46,12 @@ pub struct ProviderMetadata {
     /// compaction). When set, fast-path callers prefer this model over the main model.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fast_model: Option<String>,
-    /// Setup information exposed to clients. Providers without this are hidden from setup UIs.
+    /// Setup information exposed to clients.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub setup: Option<ProviderSetupMetadata>,
+    /// Whether this provider should be omitted from setup UIs.
+    #[serde(default)]
+    pub hidden_from_setup: bool,
     /// Structured deprecation information for providers kept for compatibility.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deprecated: Option<ProviderDeprecation>,
@@ -84,6 +87,7 @@ impl ProviderMetadata {
             model_selection_hint: None,
             fast_model: None,
             setup: None,
+            hidden_from_setup: false,
             deprecated: None,
         }
     }
@@ -109,6 +113,7 @@ impl ProviderMetadata {
             model_selection_hint: None,
             fast_model: None,
             setup: None,
+            hidden_from_setup: false,
             deprecated: None,
         }
     }
@@ -126,6 +131,7 @@ impl ProviderMetadata {
             model_selection_hint: None,
             fast_model: None,
             setup: None,
+            hidden_from_setup: false,
             deprecated: None,
         }
     }
@@ -154,6 +160,11 @@ impl ProviderMetadata {
         self.deprecated = Some(ProviderDeprecation {
             replacement: replacement.map(str::to_string),
         });
+        self
+    }
+
+    pub fn hidden_from_setup(mut self) -> Self {
+        self.hidden_from_setup = true;
         self
     }
 }

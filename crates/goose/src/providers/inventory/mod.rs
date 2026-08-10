@@ -731,8 +731,7 @@ impl ProviderInventoryService {
                 .as_ref()
                 .map(|setup| setup.category)
                 .unwrap_or(ProviderSetupCategory::Model),
-            visible_in_setup: metadata.setup.is_some()
-                || entry.provider_type() == ProviderType::Custom,
+            visible_in_setup: !metadata.hidden_from_setup && metadata.deprecated.is_none(),
             deprecated: metadata.deprecated.is_some(),
             replacement: metadata
                 .deprecated
