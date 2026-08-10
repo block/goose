@@ -29,6 +29,10 @@ pub const ROAMING_ACP_ALPN: &[u8] = b"goose-acp/1";
 /// rather than parking the accept task indefinitely (Slowloris guard).
 const HANDSHAKE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
+/// How often a sharing node re-checks the persisted allowlist to force-close
+/// connections for revoked keys. Armed automatically by [`RoamingNode::share`].
+const DEFAULT_REVOCATION_POLL: std::time::Duration = std::time::Duration::from_secs(2);
+
 /// Serves an accepted, authorized ACP byte stream. Implemented by the
 /// integration layer (e.g. `goose-cli`) so this crate does not depend on the
 /// concrete agent/session machinery.
@@ -210,6 +214,12 @@ impl RoamingNode {
     /// Start accepting inbound ACP connections, serving each authorized stream
     /// via `server`. Returns once the router is spawned; it runs in the
     /// background until [`Self::shutdown`].
+    ///
+    /// If a `trust_path` is configured, live revocation is armed automatically:
+    /// a watcher force-closes existing connections when their key leaves the
+    /// allowlist. This is a crate invariant, not something callers opt into —
+    /// a share that only checked trust at connect time would let a revoked
+    /// peer keep an already-open session.
     pub async fn share(
         self: &Arc<Self>,
         server: Arc<dyn AcpStreamServer>,
@@ -222,6 +232,7 @@ impl RoamingNode {
             .accept(ROAMING_ACP_ALPN, handler)
             .spawn();
         *self.router.lock().await = Some(router);
+        self.watch_revocations(DEFAULT_REVOCATION_POLL).await;
         Ok(())
     }
 
@@ -347,9 +358,12 @@ impl RoamingNode {
                 if modified == last_modified {
                     continue;
                 }
-                last_modified = modified;
                 match TrustBook::load(&path) {
                     Ok(book) => {
+                        // Only advance the watermark on a successful load so a
+                        // transient failure is retried on the next poll rather
+                        // than leaving revoked connections open.
+                        last_modified = modified;
                         node.enforce_trust(&book).await;
                     }
                     Err(e) => {
@@ -392,19 +406,29 @@ impl RoamingNode {
             .connect(addr, ROAMING_ACP_ALPN)
             .await
             .map_err(|e| RoamingError::Transport(format!("connect failed: {e}")))?;
-        let (mut send, mut recv) = conn
-            .open_bi()
+
+        // Bound the client side of the handshake too: a host that accepts the
+        // connection but never acks (or stalls mid-frame) must not park the
+        // dialer forever. Mirrors the host-side Slowloris guard.
+        let handshake = async {
+            let (mut send, mut recv) = conn
+                .open_bi()
+                .await
+                .map_err(|e| RoamingError::Transport(format!("open_bi failed: {e}")))?;
+
+            let hello = ClientHello::new(label);
+            let hello_bytes = serde_json::to_vec(&hello)
+                .map_err(|e| RoamingError::Transport(format!("encode hello: {e}")))?;
+            write_frame(&mut send, &hello_bytes).await?;
+
+            let ack_bytes = read_frame(&mut recv).await?;
+            let ack: HostAck = serde_json::from_slice(&ack_bytes)
+                .map_err(|e| RoamingError::Transport(format!("decode ack: {e}")))?;
+            Ok::<_, RoamingError>((send, recv, ack))
+        };
+        let (send, recv, ack) = tokio::time::timeout(HANDSHAKE_TIMEOUT, handshake)
             .await
-            .map_err(|e| RoamingError::Transport(format!("open_bi failed: {e}")))?;
-
-        let hello = ClientHello::new(label);
-        let hello_bytes = serde_json::to_vec(&hello)
-            .map_err(|e| RoamingError::Transport(format!("encode hello: {e}")))?;
-        write_frame(&mut send, &hello_bytes).await?;
-
-        let ack_bytes = read_frame(&mut recv).await?;
-        let ack: HostAck = serde_json::from_slice(&ack_bytes)
-            .map_err(|e| RoamingError::Transport(format!("decode ack: {e}")))?;
+            .map_err(|_| RoamingError::Transport("handshake timed out".into()))??;
 
         match ack {
             HostAck::Accepted { agent_id } => {

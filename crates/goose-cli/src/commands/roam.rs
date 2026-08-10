@@ -202,9 +202,16 @@ pub enum RoamCommand {
         target: String,
 
         /// Listen for one ACP client on this TCP address (e.g. `127.0.0.1:8900`)
-        /// instead of using stdio.
+        /// instead of using stdio. Loopback only: the TCP side carries the
+        /// remote agent's full ACP surface with no authentication of its own.
         #[arg(long, value_name = "ADDR")]
         listen: Option<String>,
+
+        /// Allow `--listen` on a non-loopback address. Anyone who can reach
+        /// the socket gets the remote agent — put real authentication or a
+        /// private network in front of it.
+        #[arg(long, requires = "listen")]
+        allow_remote_clients: bool,
 
         /// Optional label reported to the host's directory.
         #[arg(long)]
@@ -268,8 +275,9 @@ pub async fn handle_roam_command(command: RoamCommand) -> Result<()> {
         RoamCommand::Bridge {
             target,
             listen,
+            allow_remote_clients,
             label,
-        } => handle_bridge(target, listen, label).await,
+        } => handle_bridge(target, listen, allow_remote_clients, label).await,
         RoamCommand::Peers { command } => handle_peers(command.unwrap_or(PeersCommand::List)).await,
         RoamCommand::Connections => handle_list().await,
     }
@@ -380,7 +388,12 @@ async fn handle_pair(name: Option<String>) -> Result<()> {
     let mut book = goose_roaming::PeerBook::load(peerbook_path())?;
     book.save(&name, device_card, now_ms())?;
     let path = trust_path();
-    let mut trust = TrustBook::load(&path).unwrap_or_default();
+    let mut trust = TrustBook::load(&path).with_context(|| {
+        format!(
+            "trust file {} is unreadable or corrupt; refusing to modify it",
+            path.display()
+        )
+    })?;
     trust.accept(&decoded.endpoint_id);
     trust.save(&path)?;
 
@@ -434,7 +447,12 @@ async fn handle_peers(command: PeersCommand) -> Result<()> {
                 }
             };
             let path = trust_path();
-            let mut trust = TrustBook::load(&path).unwrap_or_default();
+            let mut trust = TrustBook::load(&path).with_context(|| {
+                format!(
+                    "trust file {} is unreadable or corrupt; refusing to modify it",
+                    path.display()
+                )
+            })?;
             trust.accept(&card.endpoint_id);
             trust.save(&path)?;
             eprintln!("accepting connections from {}", card.endpoint_id);
@@ -445,7 +463,12 @@ async fn handle_peers(command: PeersCommand) -> Result<()> {
         PeersCommand::Revoke { target } => {
             let key = resolve_key(&book, &target)?;
             let path = trust_path();
-            let mut trust = TrustBook::load(&path).unwrap_or_default();
+            let mut trust = TrustBook::load(&path).with_context(|| {
+                format!(
+                    "trust file {} is unreadable or corrupt; refusing to modify it",
+                    path.display()
+                )
+            })?;
             trust.revoke_key(&key);
             trust.save(&path)?;
             eprintln!("revoked {key}; it can no longer connect");
@@ -466,7 +489,8 @@ async fn handle_peers(command: PeersCommand) -> Result<()> {
             Ok(())
         }
         PeersCommand::List => {
-            let trust = TrustBook::load(&trust_path()).unwrap_or_default();
+            let trust =
+                TrustBook::load(&trust_path()).context("trust file is unreadable or corrupt")?;
             let accepted: std::collections::HashSet<String> =
                 trust.allowed_keys().into_iter().collect();
             let peers = book.list();
@@ -568,7 +592,8 @@ async fn handle_share(
 
     // Load the accepted-peer allowlist. Peers are accepted out of band with
     // `roam peers accept`; this serve loop re-reads it per connection.
-    let trust = TrustBook::load(&trust_path()).unwrap_or_default();
+    let trust = TrustBook::load(&trust_path())
+        .context("trust file is unreadable or corrupt; no peer can connect until it is fixed")?;
     let accepted_count = trust.allowed_keys().len();
     if accepted_count == 0 {
         eprintln!(
@@ -609,8 +634,6 @@ async fn handle_share(
     let agent_id = node.endpoint_id().to_string();
     let bridge = Arc::new(FullAcpBridge::new(acp_server, agent_id));
     node.share(bridge).await?;
-    node.watch_revocations(std::time::Duration::from_secs(2))
-        .await;
 
     eprintln!("contacting relay...");
     if !node.wait_online(std::time::Duration::from_secs(15)).await {
@@ -738,9 +761,25 @@ async fn handle_delegate(
 async fn handle_bridge(
     target: String,
     listen: Option<String>,
+    allow_remote_clients: bool,
     label: Option<String>,
 ) -> Result<()> {
     use tokio::io::AsyncWriteExt;
+
+    // Refuse a non-loopback --listen unless explicitly overridden: the TCP
+    // side is an unauthenticated door to the remote agent's full ACP surface.
+    if let Some(addr) = &listen {
+        let parsed: std::net::SocketAddr = addr
+            .parse()
+            .with_context(|| format!("invalid --listen address `{addr}`"))?;
+        if !parsed.ip().is_loopback() && !allow_remote_clients {
+            anyhow::bail!(
+                "--listen {addr} is not a loopback address; anyone who can reach it gets the \
+                 remote agent with no authentication. Use 127.0.0.1/[::1], or pass \
+                 --allow-remote-clients if you really mean to expose it."
+            );
+        }
+    }
 
     let label = label.or_else(|| Some("bridge".to_string()));
     let (node, stream) = dial_target(&target, label).await?;

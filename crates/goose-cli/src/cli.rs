@@ -1436,8 +1436,6 @@ async fn start_roam_share(
     let agent_id = node.endpoint_id().to_string();
     node.share(Arc::new(FullAcpBridge::new(server, agent_id)))
         .await?;
-    node.watch_revocations(std::time::Duration::from_secs(2))
-        .await;
 
     if !node.wait_online(std::time::Duration::from_secs(15)).await {
         tracing::warn!(

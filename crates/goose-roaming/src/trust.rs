@@ -65,22 +65,27 @@ impl TrustBook {
         self.revoked_keys.iter().cloned().collect()
     }
 
+    /// Load the trust book. A missing file is an empty book; a *malformed*
+    /// file is a hard error — silently treating corruption as "no one is
+    /// allowed" would strand peers, and treating it as "keep going" would be
+    /// worse. Callers on the authorization path fail closed on this error.
     pub fn load(path: &std::path::Path) -> Result<Self, std::io::Error> {
         match std::fs::read(path) {
-            Ok(bytes) => Ok(serde_json::from_slice(&bytes).unwrap_or_default()),
+            Ok(bytes) => serde_json::from_slice(&bytes).map_err(std::io::Error::other),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Self::default()),
             Err(e) => Err(e),
         }
     }
 
-    /// Persist atomically (temp file + rename) so a concurrent reader on the
-    /// authorization path never observes a half-written file.
+    /// Persist atomically (unique temp file + rename) so a concurrent reader
+    /// on the authorization path never observes a half-written file, and
+    /// concurrent writers never truncate each other's in-flight temp file.
     pub fn save(&self, path: &std::path::Path) -> Result<(), std::io::Error> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
         let json = serde_json::to_vec_pretty(self).map_err(std::io::Error::other)?;
-        let tmp = path.with_extension("json.tmp");
+        let tmp = path.with_extension(format!("json.tmp-{}", std::process::id()));
         std::fs::write(&tmp, json)?;
         std::fs::rename(&tmp, path)
     }

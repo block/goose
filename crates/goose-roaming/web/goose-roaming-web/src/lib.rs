@@ -40,9 +40,13 @@ macro_rules! console_log {
 /// `EndpointId` type) so we decode exactly what `goose roam id` produced.
 #[derive(Deserialize)]
 struct ConnectionCard {
+    version: u32,
     endpoint_id: EndpointId,
     relay_urls: Vec<String>,
 }
+
+/// Must match `CARD_VERSION` in goose-roaming's card.rs.
+const CARD_VERSION: u32 = 1;
 
 /// Encode-side mirror of goose-roaming's `ConnectionCard` (same field order and
 /// types) so the host decodes our card natively.
@@ -65,6 +69,16 @@ fn decode_card(text: &str) -> Result<ConnectionCard, String> {
         .map_err(|e| format!("decode card base64: {e}"))?;
     let mut card: ConnectionCard =
         serde_json::from_slice(&json).map_err(|e| format!("decode card: {e}"))?;
+    if card.version != CARD_VERSION {
+        return Err(format!("unsupported card version {}", card.version));
+    }
+    // Relay URLs come from an untrusted card; constrain the scheme like the
+    // native decoder does so a malicious card can't smuggle another scheme.
+    for url in &card.relay_urls {
+        if !(url.starts_with("https://") || url.starts_with("http://")) {
+            return Err(format!("relay url must be http(s): {url}"));
+        }
+    }
     // The native card emits relay URLs in FQDN form (`https://host./`). Browsers
     // reject a trailing-dot host in the TLS SNI, so `wss://host./relay` fails
     // with ERR_CONNECTION_CLOSED even though the relay is fine. Normalize here so
