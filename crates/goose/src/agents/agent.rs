@@ -2463,8 +2463,21 @@ impl Agent {
                 // reasoning without hiding final-only non-streaming thoughts.
                 let mut surfaced_thinking_in_turn = false;
 
-                while let Some(next) = stream.next().await {
-                    if is_token_cancelled(&cancel_token) || exit_chat {
+                loop {
+                    let next = if let Some(cancel_token) = &cancel_token {
+                        tokio::select! {
+                            biased;
+                            _ = cancel_token.cancelled() => break,
+                            next = stream.next() => next,
+                        }
+                    } else {
+                        stream.next().await
+                    };
+                    let Some(next) = next else {
+                        break;
+                    };
+
+                    if exit_chat {
                         break;
                     }
 
