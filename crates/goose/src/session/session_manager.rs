@@ -24,7 +24,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
 use tracing::{info, warn};
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 15;
+pub const CURRENT_SCHEMA_VERSION: i32 = 16;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 const MILLISECOND_TIMESTAMP_THRESHOLD: i64 = 10_000_000_000;
@@ -365,12 +365,14 @@ fn message_keyword_clause(keyword_count: usize) -> String {
         .collect::<Vec<_>>()
         .join(" OR ");
 
+    let visible = user_visible_message_sql("mq.metadata_json");
     format!(
         r#"
         EXISTS (
             SELECT 1
             FROM messages mq
             WHERE mq.session_id = s.id
+              AND {visible}
               AND EXISTS (
                   SELECT 1
                   FROM json_each(mq.content_json)
@@ -406,6 +408,12 @@ impl SessionManager {
 
     pub fn storage(&self) -> &Arc<SessionStorage> {
         &self.storage
+    }
+
+    pub(crate) fn action_required(
+        &self,
+    ) -> Arc<crate::action_required_manager::ActionRequiredManager> {
+        self.storage.action_required.clone()
     }
 
     pub async fn create_session(
@@ -613,7 +621,7 @@ impl SessionManager {
         let user_message_count = conversation
             .messages()
             .iter()
-            .filter(|m| matches!(m.role, Role::User))
+            .filter(|m| matches!(m.role, Role::User) && m.is_user_visible())
             .count();
 
         let should_generate_name = if provider.manages_own_context() {
@@ -683,6 +691,7 @@ pub struct SessionStorage {
     pool: Pool<Sqlite>,
     initialized: tokio::sync::OnceCell<()>,
     session_dir: PathBuf,
+    action_required: Arc<crate::action_required_manager::ActionRequiredManager>,
 }
 
 pub(crate) fn role_to_string(role: &Role) -> &'static str {
@@ -705,6 +714,10 @@ fn normalized_message_timestamp_sql(column: &str) -> String {
     format!(
         "CASE WHEN {column} > {MILLISECOND_TIMESTAMP_THRESHOLD} THEN {column} / 1000 ELSE {column} END"
     )
+}
+
+fn user_visible_message_sql(column: &str) -> String {
+    format!("COALESCE(json_extract({column}, '$.userVisible'), 1) != 0")
 }
 
 fn session_sort_at(session: &Session) -> DateTime<Utc> {
@@ -921,6 +934,7 @@ impl SessionStorage {
             pool: Self::create_pool(&db_path),
             initialized: tokio::sync::OnceCell::new(),
             session_dir,
+            action_required: Arc::new(crate::action_required_manager::ActionRequiredManager::new()),
         }
     }
 
@@ -1065,6 +1079,11 @@ impl SessionStorage {
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_messages_message_id ON messages(message_id)")
             .execute(&mut *tx)
             .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_messages_session_created ON messages(session_id, created_timestamp, id)",
+        )
+        .execute(&mut *tx)
+        .await?;
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC)")
             .execute(&mut *tx)
             .await?;
@@ -1544,6 +1563,13 @@ impl SessionStorage {
                 .execute(&mut **tx)
                 .await?;
             }
+            16 => {
+                sqlx::query(
+                    "CREATE INDEX IF NOT EXISTS idx_messages_session_created ON messages(session_id, created_timestamp, id)",
+                )
+                .execute(&mut **tx)
+                .await?;
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -1621,7 +1647,11 @@ impl SessionStorage {
 
         if include_messages {
             let conv = self.get_conversation(&session.id).await?;
-            session.message_count = conv.messages().len();
+            session.message_count = conv
+                .messages()
+                .iter()
+                .filter(|m| m.is_user_visible())
+                .count();
             session.last_message_at = conv
                 .messages()
                 .iter()
@@ -1630,7 +1660,8 @@ impl SessionStorage {
             session.conversation = Some(conv);
         } else {
             let sql = format!(
-                "SELECT COUNT(*), MAX({}) FROM messages WHERE session_id = ?",
+                "SELECT COUNT(*) FILTER (WHERE {}), MAX({}) FROM messages WHERE session_id = ?",
+                user_visible_message_sql("metadata_json"),
                 normalized_message_timestamp_sql("created_timestamp")
             );
             let (count, last_message_timestamp): (i64, Option<i64>) = sqlx::query_as(&sql)
@@ -1825,6 +1856,16 @@ impl SessionStorage {
         let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
 
         let metadata_json = serde_json::to_string(&message.metadata)?;
+        // Messages are read back ordered by (created_timestamp, id), so one built
+        // before the messages it is appended after would sort ahead of them —
+        // operations do that whenever they prepare a reply and fill it in while a
+        // tool runs. Never move a message ahead of what is already stored.
+        let latest: Option<i64> =
+            sqlx::query_scalar("SELECT MAX(created_timestamp) FROM messages WHERE session_id = ?")
+                .bind(session_id)
+                .fetch_one(&mut *tx)
+                .await?;
+        let created = message.created.max(latest.unwrap_or(message.created));
 
         let message_id = message
             .id
@@ -1841,7 +1882,7 @@ impl SessionStorage {
         .bind(session_id)
         .bind(role_to_string(&message.role))
         .bind(serde_json::to_string(&message.content)?)
-        .bind(message.created)
+        .bind(created)
         .bind(metadata_json)
         .execute(&mut *tx)
         .await?;
@@ -1961,7 +2002,7 @@ impl SessionStorage {
                    s.schedule_id, s.recipe_json, s.user_recipe_values_json,
                    s.provider_name, s.model_config_json, s.goose_mode,
                    s.archived_at, s.project_id, s.parent_session_id,
-                   COUNT(m.id) as message_count,
+                   COUNT(m.id) FILTER (WHERE {}) as message_count,
                    MAX({}) as last_message_timestamp,
                    {} as sort_timestamp
             FROM sessions s
@@ -1972,6 +2013,7 @@ impl SessionStorage {
             {}
             {}
             "#,
+            user_visible_message_sql("m.metadata_json"),
             normalized_message_timestamp,
             sort_timestamp_sql,
             message_join,
@@ -2897,6 +2939,86 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn messages_read_back_in_the_order_they_arrived() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "Arrival order".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        // A message built well before the one it is appended after: operations do
+        // this whenever they prepare a reply and fill it in while a tool runs.
+        let mut held = Message::user().with_text("built first");
+        held.created -= 5;
+        sm.add_message(&session.id, &Message::user().with_text("appended first"))
+            .await
+            .unwrap();
+        sm.add_message(&session.id, &held).await.unwrap();
+
+        let conversation = sm
+            .get_session(&session.id, true)
+            .await
+            .unwrap()
+            .conversation
+            .expect("session has a conversation");
+        let texts: Vec<_> = conversation
+            .messages()
+            .iter()
+            .map(Message::as_concat_text)
+            .collect();
+        assert_eq!(texts, ["appended first", "built first"]);
+    }
+
+    #[tokio::test]
+    async fn test_messages_session_created_index_avoids_disk_sort() {
+        use sqlx::Row;
+
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let pool = sm.storage.pool().await.unwrap();
+
+        let index_exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_messages_session_created')",
+        )
+        .fetch_one(pool)
+        .await
+        .unwrap();
+        assert!(
+            index_exists,
+            "idx_messages_session_created should exist after schema init"
+        );
+
+        let plan_rows = sqlx::query(
+            "EXPLAIN QUERY PLAN \
+             SELECT content_json FROM messages WHERE session_id = ? ORDER BY created_timestamp, id",
+        )
+        .bind("nonexistent_session")
+        .fetch_all(pool)
+        .await
+        .unwrap();
+        let plan_text: String = plan_rows
+            .iter()
+            .map(|r| r.try_get::<String, _>("detail").unwrap_or_default())
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(
+            plan_text.contains("idx_messages_session_created"),
+            "loading a session's messages should use idx_messages_session_created, got: {plan_text}"
+        );
+        assert!(
+            !plan_text.contains("TEMP B-TREE"),
+            "loading a session's messages must not require an on-disk sort, got: {plan_text}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_last_message_at_is_derived_from_messages() {
         let temp_dir = TempDir::new().unwrap();
         let sm = SessionManager::new(temp_dir.path().to_path_buf());
@@ -2928,6 +3050,44 @@ mod tests {
         let with_messages = sm.get_session(&session.id, true).await.unwrap();
         assert_eq!(with_messages.message_count, 2);
         assert_eq!(with_messages.last_message_at, Some(expected));
+    }
+
+    #[tokio::test]
+    async fn test_message_count_excludes_agent_only_messages() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "Hidden events".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        add_user_message(&sm, &session.id).await;
+        sm.add_message(
+            &session.id,
+            &Message::user()
+                .with_text("<turn-context>frozen</turn-context>")
+                .with_visibility(false, true),
+        )
+        .await
+        .unwrap();
+        sm.add_message(&session.id, &Message::assistant().with_text("hi"))
+            .await
+            .unwrap();
+
+        let counted = sm.get_session(&session.id, false).await.unwrap();
+        assert_eq!(counted.message_count, 2);
+
+        let with_messages = sm.get_session(&session.id, true).await.unwrap();
+        assert_eq!(with_messages.message_count, 2);
+
+        let listed = sm.list_sessions().await.unwrap();
+        let listed_session = listed.iter().find(|s| s.id == session.id).unwrap();
+        assert_eq!(listed_session.message_count, 2);
     }
 
     #[tokio::test]

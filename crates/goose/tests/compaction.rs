@@ -320,7 +320,12 @@ fn assert_conversation_compacted(conversation: &Conversation) {
                 "Message after compaction at index {} should be agent visible",
                 idx
             );
-            if idx == continuation_end && matches!(msg.role, rmcp::model::Role::User) {
+            if msg.is_turn_context() {
+                assert!(
+                    !msg.is_user_visible(),
+                    "Carried turn-context event should be user-invisible"
+                );
+            } else if idx == continuation_end && matches!(msg.role, rmcp::model::Role::User) {
                 assert!(
                     !msg.is_user_visible(),
                     "Projected preserved user message should be user-invisible"

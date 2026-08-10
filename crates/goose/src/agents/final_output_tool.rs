@@ -19,22 +19,27 @@ pub struct FinalOutputTool {
 
 impl FinalOutputTool {
     pub fn new(response: Response) -> Self {
-        if response.json_schema.is_none() {
-            panic!("Cannot create FinalOutputTool: json_schema is required");
-        }
-        let schema = response.json_schema.as_ref().unwrap();
+        Self::try_new(response)
+            .unwrap_or_else(|error| panic!("Cannot create FinalOutputTool: {error}"))
+    }
 
-        if let Some(obj) = schema.as_object() {
-            if obj.is_empty() {
-                panic!("Cannot create FinalOutputTool: empty json_schema is not allowed");
-            }
+    pub fn try_new(response: Response) -> Result<Self, String> {
+        let schema_value = response
+            .json_schema
+            .as_ref()
+            .ok_or_else(|| "json_schema is required".to_string())?;
+        let schema = schema_value
+            .as_object()
+            .ok_or_else(|| "json_schema must be an object".to_string())?;
+        if schema.is_empty() {
+            return Err("empty json_schema is not allowed".to_string());
         }
+        jsonschema::meta::validate(schema_value).map_err(|error| error.to_string())?;
 
-        jsonschema::meta::validate(schema).unwrap();
-        Self {
+        Ok(Self {
             response,
             final_output: None,
-        }
+        })
     }
 
     pub fn tool(&self) -> Tool {

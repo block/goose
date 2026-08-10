@@ -1,8 +1,8 @@
 use agent_client_protocol::schema::v1::{
     Annotations as AcpAnnotations, ClientCapabilities, CloseSessionRequest, ContentBlock,
     ContentChunk, EnvVariable, HttpHeader, ImageContent, InitializeRequest, InitializeResponse,
-    McpCapabilities, McpServer, McpServerHttp, McpServerStdio, NewSessionRequest,
-    NewSessionResponse, PromptRequest, PromptResponse, RequestPermissionOutcome,
+    LoadSessionRequest, McpCapabilities, McpServer, McpServerHttp, McpServerStdio,
+    NewSessionRequest, NewSessionResponse, PromptRequest, PromptResponse, RequestPermissionOutcome,
     RequestPermissionRequest, RequestPermissionResponse, Role as AcpRole, SessionConfigKind,
     SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOptions, SessionId,
     SessionModeState, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
@@ -68,6 +68,13 @@ pub struct AcpProviderConfig {
 enum ClientRequest {
     NewSession {
         response_tx: oneshot::Sender<Result<NewSessionResponse>>,
+    },
+    LoadSession {
+        session_id: SessionId,
+        response_tx: oneshot::Sender<Result<NewSessionResponse>>,
+    },
+    CloseSession {
+        session_id: SessionId,
     },
     SetMode {
         session_id: SessionId,
@@ -171,7 +178,7 @@ pub struct AcpProvider {
     goose_mode: Arc<Mutex<GooseMode>>,
     mode_mapping: HashMap<GooseMode, Vec<String>>,
 
-    session: AcpSession,
+    session: Mutex<AcpSession>,
 
     pending_confirmations:
         Arc<TokioMutex<HashMap<String, oneshot::Sender<PermissionConfirmation>>>>,
@@ -304,7 +311,7 @@ impl AcpProvider {
             name,
             goose_mode: goose_mode_shared,
             mode_mapping,
-            session,
+            session: Mutex::new(session),
             pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
             pending_tool_updates,
             handoff_context_sent: AtomicBool::new(false),
@@ -318,7 +325,25 @@ impl AcpProvider {
     }
 
     fn acp_session_id(&self) -> SessionId {
-        self.session.id.clone()
+        self.session.lock().unwrap().id.clone()
+    }
+
+    async fn load_session(&self, session_id: SessionId) -> Result<AcpSession> {
+        let (response_tx, response_rx) = oneshot::channel();
+        self.tx
+            .as_ref()
+            .unwrap()
+            .send(ClientRequest::LoadSession {
+                session_id,
+                response_tx,
+            })
+            .await
+            .context("ACP client is unavailable")?;
+        let response = response_rx.await.context("ACP session load cancelled")??;
+        Ok(AcpSession {
+            id: response.session_id.clone(),
+            response,
+        })
     }
 
     pub(crate) async fn send_set_mode(&self, _goose_id: &str, mode_id: String) -> Result<()> {
@@ -413,6 +438,8 @@ impl AcpProvider {
 
     fn session_has_config_option(&self, category: SessionConfigOptionCategory) -> bool {
         self.session
+            .lock()
+            .unwrap()
             .response
             .config_options
             .as_ref()
@@ -441,6 +468,33 @@ impl Provider for AcpProvider {
         &self.name
     }
 
+    fn provider_session_id(&self) -> Option<String> {
+        Some(self.acp_session_id().to_string())
+    }
+
+    async fn resume(&self, session_id: &str) -> Result<(), ProviderError> {
+        if self.acp_session_id().0.as_ref() == session_id {
+            return Ok(());
+        }
+
+        let previous_session_id = self.acp_session_id();
+        let loaded = self
+            .load_session(SessionId::new(session_id))
+            .await
+            .map_err(|error| ProviderError::RequestFailed(error.to_string()))?;
+        *self.session.lock().unwrap() = loaded;
+        self.handoff_context_sent.store(true, Ordering::Release);
+        let _ = self
+            .tx
+            .as_ref()
+            .unwrap()
+            .send(ClientRequest::CloseSession {
+                session_id: previous_session_id,
+            })
+            .await;
+        Ok(())
+    }
+
     async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
         let size = self.context_size.load(Ordering::Relaxed);
         if size > 0 {
@@ -451,8 +505,9 @@ impl Provider for AcpProvider {
 
     async fn update_mode(&self, session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
         if let Some(candidates) = self.mode_mapping.get(&mode) {
-            let mode_str = select_mode_id(candidates, self.session.response.modes.as_ref())
-                .ok_or_else(|| {
+            let session = self.session.lock().unwrap().clone();
+            let mode_str =
+                select_mode_id(candidates, session.response.modes.as_ref()).ok_or_else(|| {
                     ProviderError::RequestFailed(format!(
                         "None of the mode ids [{}] are offered by the agent",
                         candidates.join(", ")
@@ -708,7 +763,8 @@ impl Provider for AcpProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        let (_, available) = resolve_model_info(&self.name, &self.session.response)?;
+        let session = self.session.lock().unwrap().clone();
+        let (_, available) = resolve_model_info(&self.name, &session.response)?;
         Ok(available)
     }
 }
@@ -1125,6 +1181,7 @@ async fn handle_requests(
         .session_capabilities
         .close
         .is_some();
+    let supports_load = init_response.agent_capabilities.load_session;
     let mcp_capabilities = init_response.agent_capabilities.mcp_capabilities.clone();
     if let Some(tx) = init_tx.take() {
         log_undelivered(tx.send(Ok(init_response)), AGENT_METHOD_NAMES.initialize);
@@ -1155,6 +1212,52 @@ async fn handle_requests(
                     )),
                 };
                 log_undelivered(response_tx.send(result), AGENT_METHOD_NAMES.session_new);
+            }
+            ClientRequest::LoadSession {
+                session_id,
+                response_tx,
+            } => {
+                let result = if supports_load {
+                    let mcp_servers =
+                        filter_supported_servers(&config.mcp_servers, &mcp_capabilities);
+                    cx.send_request(
+                        LoadSessionRequest::new(session_id.clone(), config.work_dir.clone())
+                            .mcp_servers(mcp_servers),
+                    )
+                    .block_task()
+                    .await
+                    .map(|response| {
+                        NewSessionResponse::new(session_id.clone())
+                            .modes(response.modes)
+                            .config_options(response.config_options)
+                            .meta(response.meta)
+                    })
+                    .map_err(anyhow::Error::from)
+                } else {
+                    Err(anyhow::anyhow!("ACP agent does not support session/load"))
+                };
+                let result = match result {
+                    Ok(session) => {
+                        session_ids.push(session.session_id.clone());
+                        apply_session_config_options(&config, &cx, session.session_id.clone())
+                            .await?;
+                        apply_session_mode(&config, &goose_mode, &cx, session).await
+                    }
+                    Err(error) => Err(error),
+                };
+                log_undelivered(response_tx.send(result), AGENT_METHOD_NAMES.session_load);
+            }
+            ClientRequest::CloseSession { session_id } => {
+                if supports_close {
+                    if let Err(error) = cx
+                        .send_request(CloseSessionRequest::new(session_id.clone()))
+                        .block_task()
+                        .await
+                    {
+                        tracing::debug!(method = AGENT_METHOD_NAMES.session_close, session_id = %session_id, %error, "failed to close replaced ACP session");
+                    }
+                }
+                session_ids.retain(|id| id != &session_id);
             }
             ClientRequest::SetMode {
                 session_id,
@@ -1223,7 +1326,7 @@ async fn handle_requests(
         }
     }
 
-    if supports_close {
+    if supports_close && !supports_load {
         for session_id in session_ids {
             if let Err(e) = cx
                 .send_request(CloseSessionRequest::new(session_id.clone()))
@@ -1442,14 +1545,14 @@ fn messages_to_prompt(messages: &[Message], include_handoff_context: bool) -> Ve
 fn last_user_message_index(messages: &[Message]) -> Option<usize> {
     messages
         .iter()
-        .rposition(|m| m.role == Role::User && m.is_agent_visible())
+        .rposition(|m| m.role == Role::User && m.is_agent_visible() && !m.is_turn_context())
 }
 
 fn has_handoff_context(messages: &[Message]) -> bool {
     last_user_message_index(messages).is_some_and(|last_user_index| {
         messages[..last_user_index]
             .iter()
-            .any(Message::is_agent_visible)
+            .any(|m| m.is_agent_visible() && !m.is_turn_context())
     })
 }
 
@@ -1458,6 +1561,7 @@ fn build_handoff_context_memo(prior_messages: &[Message]) -> Option<String> {
         Conversation::new_unvalidated(prior_messages.iter().cloned())
             .agent_visible_messages()
             .iter()
+            .filter(|message| !message.is_turn_context())
             .map(|message| format_message_for_compacting(&message.agent_visible_content()))
             .collect();
 
@@ -1751,10 +1855,10 @@ mod tests {
                 name: "acp-test".to_string(),
                 goose_mode: Arc::new(Mutex::new(GooseMode::Auto)),
                 mode_mapping: HashMap::new(),
-                session: AcpSession {
+                session: Mutex::new(AcpSession {
                     id: SessionId::new("test-session"),
                     response: NewSessionResponse::new("test-session"),
-                },
+                }),
                 pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
                 pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
                 handoff_context_sent: AtomicBool::new(false),
@@ -1808,6 +1912,37 @@ mod tests {
         assert!(memo.contains("tool_response: file contents"));
         assert!(memo.contains("Current user request follows."));
         assert_eq!(prompt_text(&blocks[1]), "continue from there");
+    }
+
+    #[test]
+    fn messages_to_prompt_skips_turn_context_events() {
+        use crate::conversation::message::MessageMetadata;
+
+        let turn_context = |text: &str| {
+            Message::user()
+                .with_text(text)
+                .with_metadata(MessageMetadata::agent_only().with_turn_context())
+        };
+        let messages = vec![
+            Message::user().with_text("inspect src/lib.rs"),
+            turn_context("<turn-context>old cwd /repo</turn-context>"),
+            Message::assistant().with_text("I found the file"),
+            Message::user().with_text("continue from there"),
+            turn_context("<turn-context>new cwd /repo</turn-context>"),
+        ];
+
+        let blocks = messages_to_prompt(&messages, true);
+
+        assert_eq!(blocks.len(), 2);
+        assert!(
+            !prompt_text(&blocks[0]).contains("turn-context"),
+            "handoff memo must not include turn-context events"
+        );
+        assert_eq!(
+            prompt_text(&blocks[1]),
+            "continue from there",
+            "the current prompt must be the user's request, not a trailing turn-context event"
+        );
     }
 
     #[test]
@@ -2047,6 +2182,50 @@ mod tests {
         let later_claim = provider.claim_handoff_context(&later_prompt_with_history);
         assert!(!later_claim.first_prompt);
         assert!(!later_claim.include_context);
+    }
+
+    #[tokio::test]
+    async fn resume_replaces_session_and_skips_handoff() {
+        let (tx, mut rx) = mpsc::channel(2);
+        let (provider, _) = test_provider_with_tx(Some(tx));
+
+        let handle = tokio::spawn(async move {
+            provider.resume("saved-session").await.unwrap();
+            provider
+        });
+
+        let ClientRequest::LoadSession {
+            session_id,
+            response_tx,
+        } = rx.recv().await.expect("expected session/load")
+        else {
+            panic!("expected session/load");
+        };
+        assert_eq!(session_id.to_string(), "saved-session");
+        response_tx
+            .send(Ok(NewSessionResponse::new("saved-session")))
+            .unwrap();
+
+        let ClientRequest::CloseSession { session_id } =
+            rx.recv().await.expect("expected temporary session close")
+        else {
+            panic!("expected temporary session close");
+        };
+        assert_eq!(session_id.to_string(), "test-session");
+
+        let provider = handle.await.unwrap();
+        assert_eq!(
+            provider.provider_session_id().as_deref(),
+            Some("saved-session")
+        );
+
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        let claim = provider.claim_handoff_context(&messages);
+        assert!(!claim.first_prompt);
+        assert!(!claim.include_context);
     }
 
     #[tokio::test]
@@ -2292,10 +2471,9 @@ mod tests {
             GooseMode::Auto,
             vec!["full-access".to_string(), "agent-full-access".to_string()],
         )]);
-        provider.session.response = NewSessionResponse::new("test-session").modes(mode_state(
-            "read-only",
-            &["read-only", "agent", "agent-full-access"],
-        ));
+        provider.session.lock().unwrap().response = NewSessionResponse::new("test-session").modes(
+            mode_state("read-only", &["read-only", "agent", "agent-full-access"]),
+        );
 
         let handle = tokio::spawn(async move {
             provider
@@ -2326,7 +2504,7 @@ mod tests {
         let (tx, mut rx) = mpsc::channel(1);
         let (mut provider, _) = test_provider_with_tx(Some(tx));
         provider.mode_mapping = HashMap::from([(GooseMode::Chat, vec!["read-only".to_string()])]);
-        provider.session.response = NewSessionResponse::new("test-session")
+        provider.session.lock().unwrap().response = NewSessionResponse::new("test-session")
             .modes(mode_state("agent", &["agent", "agent-full-access"]));
 
         let result = provider.update_mode("session", GooseMode::Chat).await;
