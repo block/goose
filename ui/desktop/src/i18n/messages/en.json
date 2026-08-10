@@ -3306,7 +3306,7 @@
     "defaultMessage": "No devices paired yet."
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "Scan this code from the goose web client on your phone, then accept the new device by running `goose roam peers accept` in a terminal."
+    "defaultMessage": "Scan this code with your phone camera — it opens the goose web client already pointed at this machine. Then accept the new device by running `goose roam pair` in a terminal."
   },
   "roamSection.pairTitle": {
     "defaultMessage": "Pair a device"

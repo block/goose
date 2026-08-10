@@ -35,7 +35,7 @@ const i18n = defineMessages({
   pairHelp: {
     id: 'roamSection.pairHelp',
     defaultMessage:
-      'Scan this code from the goose web client on your phone, then accept the new device by running `goose roam peers accept` in a terminal.',
+      'Scan this code with your phone camera — it opens the goose web client already pointed at this machine. Then accept the new device by running `goose roam pair` in a terminal.',
   },
   fingerprint: {
     id: 'roamSection.fingerprint',
@@ -96,6 +96,13 @@ type RoamStatus = {
   startedAt: number;
 } | null;
 
+/**
+ * Hosted goose roam web client. The pairing QR deep-links here with the card
+ * in the URL fragment (see crates/goose-roaming/web/webapp/src/App.tsx boot
+ * effect) — fragments are never sent to the web server.
+ */
+const ROAM_WEB_URL = 'https://aaif-goose.github.io/goose-mobile/';
+
 export default function RoamSection() {
   const intl = useIntl();
   const [enabled, setEnabled] = useState(false);
@@ -143,12 +150,17 @@ export default function RoamSection() {
     return () => clearInterval(t);
   }, [savedEnabled, status, refresh]);
 
+  // The QR encodes the hosted web client URL with this machine's card in the
+  // fragment, so a phone camera scan opens the browser app already pointed at
+  // this goose (the fragment never reaches the web server). The raw card is
+  // still available via the copy button for manual/CLI pairing.
   useEffect(() => {
     if (!status?.card) {
       setQrDataUrl(null);
       return;
     }
-    QRCode.toDataURL(status.card, { margin: 1, width: 220 })
+    const link = `${ROAM_WEB_URL}#card=${status.card}`;
+    QRCode.toDataURL(link, { margin: 1, width: 220 })
       .then(setQrDataUrl)
       .catch(() => setQrDataUrl(null));
   }, [status?.card]);

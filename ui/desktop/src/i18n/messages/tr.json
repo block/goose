@@ -3306,7 +3306,7 @@
     "defaultMessage": "Henüz eşleştirilmiş cihaz yok."
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "Bu kodu telefonunuzdaki goose web istemcisinden tarayın, ardından terminalde `goose roam peers accept` komutunu çalıştırarak yeni cihazı kabul edin."
+    "defaultMessage": "Bu kodu telefon kamerasıyla tarayın — goose web istemcisini bu makineye zaten yönlendirilmiş olarak açar. Ardından terminalde `goose roam pair` çalıştırarak yeni cihazı kabul edin."
   },
   "roamSection.pairTitle": {
     "defaultMessage": "Cihaz eşleştir"

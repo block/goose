@@ -3306,7 +3306,7 @@
     "defaultMessage": "Belum ada perangkat yang dipasangkan."
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "Pindai kode ini dari klien web goose di ponsel Anda, lalu terima perangkat baru dengan menjalankan `goose roam peers accept` di terminal."
+    "defaultMessage": "Pindai kode ini dengan kamera ponsel — kode ini membuka klien web goose yang sudah mengarah ke mesin ini. Lalu terima perangkat baru dengan menjalankan `goose roam pair` di terminal."
   },
   "roamSection.pairTitle": {
     "defaultMessage": "Pasangkan perangkat"

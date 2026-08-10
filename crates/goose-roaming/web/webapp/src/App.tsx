@@ -342,6 +342,9 @@ export function App({ roam }: { roam: RoamClient }) {
   const [scanning, setScanning] = useState(false);
   const [hosts, setHosts] = useState<SavedHost[]>(loadHosts);
   const [addingHost, setAddingHost] = useState(false);
+  // Auto-expanded when a dial is rejected as not-paired (e.g. first scan of
+  // the desktop QR): the very next thing the user needs is their own card.
+  const [pairOpen, setPairOpen] = useState(false);
   // Reopens the connect panel while connected, to dial additional hosts into
   // the same consolidated workspace.
   const [showHosts, setShowHosts] = useState(false);
@@ -444,6 +447,24 @@ export function App({ roam }: { roam: RoamClient }) {
   useEffect(() => {
     if (bootTried.current) return;
     bootTried.current = true;
+    // Deep link: the desktop QR encodes <app-url>#card=goose+roam://… so
+    // scanning it opens this app with the host already filled in. The card
+    // rides the fragment (never sent to the server) and is scrubbed from the
+    // address bar immediately.
+    const hash = window.location.hash;
+    if (hash.includes("goose+roam://")) {
+      const linked = decodeURIComponent(
+        hash.slice(hash.indexOf("goose+roam://")),
+      ).trim();
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      setCard(linked);
+      setAddingHost(true);
+      // Try connecting right away: if this browser is already paired we land
+      // in sessions; if not, the host rejects us and the connect panel (with
+      // the "first time? pair this browser" card) is already on screen.
+      void connect(linked);
+      return;
+    }
     const saved = localStorage.getItem(HOST_CARD_KEY);
     if (!saved) return;
     setCard(saved);
@@ -873,6 +894,12 @@ export function App({ roam }: { roam: RoamClient }) {
         setReconnecting(false);
         setStatus(`connect failed: ${err}`);
         setStatusKind("err");
+        // Not paired yet (fresh QR scan): open the pairing card — the user's
+        // next step is sending their own card to the host.
+        if (String(err).includes("not_allowlisted")) {
+          setAddingHost(true);
+          setPairOpen(true);
+        }
       }
     }
   }, [card, hostName, roam, makeClient, refreshSessions, refreshProjects, openSession]);
@@ -1209,7 +1236,11 @@ export function App({ roam }: { roam: RoamClient }) {
                     connect
                   </button>
                 </div>
-                <details className="mt-5 border-t border-border-primary pt-3">
+                <details
+                  className="mt-5 border-t border-border-primary pt-3"
+                  open={pairOpen}
+                  onToggle={(e) => setPairOpen((e.target as HTMLDetailsElement).open)}
+                >
                   <summary className="text-xs text-text-secondary cursor-pointer select-none">
                     first time? pair this browser with the host
                   </summary>

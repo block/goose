@@ -3306,7 +3306,7 @@
     "defaultMessage": "Belum ada peranti berpasangan."
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "Imbas kod ini dari klien web goose pada telefon anda, kemudian terima peranti baharu dengan menjalankan `goose roam peers accept` di terminal."
+    "defaultMessage": "Imbas kod ini dengan kamera telefon — ia membuka klien web goose yang sudah menghala ke mesin ini. Kemudian terima peranti baharu dengan menjalankan `goose roam pair` di terminal."
   },
   "roamSection.pairTitle": {
     "defaultMessage": "Pasangkan peranti"

@@ -3306,7 +3306,7 @@
     "defaultMessage": "Chưa có thiết bị nào được ghép nối."
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "Quét mã này từ trình khách web goose trên điện thoại của bạn, sau đó chấp nhận thiết bị mới bằng cách chạy `goose roam peers accept` trong terminal."
+    "defaultMessage": "Quét mã này bằng camera điện thoại — nó mở trình khách web goose đã trỏ sẵn vào máy này. Sau đó chấp nhận thiết bị mới bằng cách chạy `goose roam pair` trong terminal."
   },
   "roamSection.pairTitle": {
     "defaultMessage": "Ghép nối thiết bị"

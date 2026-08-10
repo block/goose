@@ -3306,7 +3306,7 @@
     "defaultMessage": "Aún no hay dispositivos emparejados."
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "Escanea este código desde el cliente web de goose en tu teléfono y luego acepta el nuevo dispositivo ejecutando `goose roam peers accept` en una terminal."
+    "defaultMessage": "Escanea este código con la cámara del teléfono: abre el cliente web de goose ya apuntando a esta máquina. Luego acepta el nuevo dispositivo ejecutando `goose roam pair` en una terminal."
   },
   "roamSection.pairTitle": {
     "defaultMessage": "Emparejar un dispositivo"

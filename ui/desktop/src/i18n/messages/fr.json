@@ -3306,7 +3306,7 @@
     "defaultMessage": "Aucun appareil appairé pour le moment."
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "Scannez ce code depuis le client web goose sur votre téléphone, puis acceptez le nouvel appareil en exécutant `goose roam peers accept` dans un terminal."
+    "defaultMessage": "Scannez ce code avec l'appareil photo du téléphone — il ouvre le client web goose déjà pointé vers cette machine. Acceptez ensuite le nouvel appareil en exécutant `goose roam pair` dans un terminal."
   },
   "roamSection.pairTitle": {
     "defaultMessage": "Appairer un appareil"

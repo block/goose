@@ -3306,7 +3306,7 @@
     "defaultMessage": "अभी तक कोई डिवाइस युग्मित नहीं है।"
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "अपने फ़ोन पर goose वेब क्लाइंट से यह कोड स्कैन करें, फिर टर्मिनल में `goose roam peers accept` चलाकर नए डिवाइस को स्वीकार करें।"
+    "defaultMessage": "इस कोड को फ़ोन कैमरे से स्कैन करें — यह goose वेब क्लाइंट को इस मशीन की ओर पहले से इंगित करके खोलता है। फिर टर्मिनल में `goose roam pair` चलाकर नए डिवाइस को स्वीकार करें।"
   },
   "roamSection.pairTitle": {
     "defaultMessage": "डिवाइस जोड़ें"

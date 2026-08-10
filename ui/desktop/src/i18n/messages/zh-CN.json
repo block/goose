@@ -3306,7 +3306,7 @@
     "defaultMessage": "尚未配对任何设备。"
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "在手机上用 goose 网页客户端扫描此二维码，然后在终端运行 `goose roam peers accept` 接受新设备。"
+    "defaultMessage": "用手机相机扫描此二维码 — 它会打开已指向本机的 goose 网页客户端。然后在终端运行 `goose roam pair` 接受新设备。"
   },
   "roamSection.pairTitle": {
     "defaultMessage": "配对设备"

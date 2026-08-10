@@ -3306,7 +3306,7 @@
     "defaultMessage": "Noch keine Geräte gekoppelt."
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "Scanne diesen Code mit dem goose-Web-Client auf deinem Telefon und akzeptiere das neue Gerät anschließend mit `goose roam peers accept` im Terminal."
+    "defaultMessage": "Scanne diesen Code mit der Handykamera — er öffnet den goose-Webclient bereits auf diese Maschine ausgerichtet. Akzeptiere dann das neue Gerät mit `goose roam pair` im Terminal."
   },
   "roamSection.pairTitle": {
     "defaultMessage": "Gerät koppeln"

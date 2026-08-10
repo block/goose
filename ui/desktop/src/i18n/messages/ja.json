@@ -3306,7 +3306,7 @@
     "defaultMessage": "まだペアリングされたデバイスはありません。"
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "スマートフォンの goose ウェブクライアントでこのコードをスキャンし、ターミナルで `goose roam peers accept` を実行して新しいデバイスを承認してください。"
+    "defaultMessage": "このコードをスマートフォンのカメラでスキャンすると、このマシンに接続済みの goose ウェブクライアントが開きます。その後、ターミナルで `goose roam pair` を実行して新しいデバイスを承認してください。"
   },
   "roamSection.pairTitle": {
     "defaultMessage": "デバイスをペアリング"

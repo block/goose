@@ -552,6 +552,15 @@ impl ProtocolHandler for RoamingAcpHandler {
                     code: reason.to_string(),
                 };
                 let _ = send_ack(&mut send, &ack).await;
+                // Returning drops the connection, and a QUIC close can beat
+                // the ack to the peer — which would turn a precise "rejected:
+                // not_allowlisted" into a generic "connection lost" on the
+                // client. Finish the stream and give the client a moment to
+                // read the ack and close first.
+                let _ = send.finish();
+                let _ =
+                    tokio::time::timeout(std::time::Duration::from_secs(3), connection.closed())
+                        .await;
                 tracing::info!(%client, reason = %reason, "roaming: rejected connection");
             }
         }

@@ -3306,7 +3306,7 @@
     "defaultMessage": "아직 페어링된 기기가 없습니다."
   },
   "roamSection.pairHelp": {
-    "defaultMessage": "휴대폰의 goose 웹 클라이언트로 이 코드를 스캔한 다음, 터미널에서 `goose roam peers accept`를 실행하여 새 기기를 승인하세요."
+    "defaultMessage": "휴대폰 카메라로 이 코드를 스캔하면 이 컴퓨터를 가리키는 goose 웹 클라이언트가 열립니다. 그런 다음 터미널에서 `goose roam pair`를 실행하여 새 기기를 수락하세요."
   },
   "roamSection.pairTitle": {
     "defaultMessage": "기기 페어링"
