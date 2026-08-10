@@ -7,7 +7,6 @@ use async_trait::async_trait;
 use futures::TryStreamExt;
 use serde::Serialize;
 use serde_json::Value;
-use std::io;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::pin;
@@ -26,7 +25,7 @@ use crate::formats::anthropic;
 use crate::formats::openai_responses;
 use crate::model::ModelConfig;
 use crate::openai_compatible::{
-    first_body_chunk, handle_status, stream_openai_compat_with_prefix,
+    body_stream_with_prefix, first_body_chunk, handle_status, stream_openai_compat_with_prefix,
     stream_responses_compat_with_prefix,
 };
 use crate::request_log::{start_log, LoggerHandleExt};
@@ -286,23 +285,26 @@ impl DatabricksV2Provider {
         payload["stream"] = Value::Bool(true);
         let mut log = start_log(model_config, &payload)?;
 
-        let response = self
+        let (response, first_chunk) = self
             .with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .request("ai-gateway/anthropic/v1/messages")
-                    .model_headers(model_config)?
-                    .streaming(true)
-                    .response_post(&payload)
-                    .await?;
-                handle_status(resp).await
+                let mut response = handle_status(
+                    self.api_client
+                        .request("ai-gateway/anthropic/v1/messages")
+                        .model_headers(model_config)?
+                        .streaming(true)
+                        .response_post(&payload)
+                        .await?,
+                )
+                .await?;
+                let first_chunk = first_body_chunk(&mut response).await?;
+                Ok((response, Some(first_chunk)))
             })
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);
             })?;
 
-        let stream = response.bytes_stream().map_err(io::Error::other);
+        let stream = body_stream_with_prefix(response, first_chunk);
 
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);

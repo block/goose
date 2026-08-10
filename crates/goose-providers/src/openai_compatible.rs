@@ -261,7 +261,7 @@ pub async fn first_body_chunk(response: &mut Response) -> Result<Bytes, Provider
         })
 }
 
-fn body_stream_with_prefix(
+pub fn body_stream_with_prefix(
     response: Response,
     first_chunk: Option<Bytes>,
 ) -> Pin<Box<dyn Stream<Item = std::io::Result<Bytes>> + Send>> {

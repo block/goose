@@ -9,7 +9,6 @@ use async_trait::async_trait;
 use futures::TryStreamExt;
 use reqwest::StatusCode;
 use serde_json::Value;
-use std::io;
 use tokio::pin;
 use tokio_util::io::StreamReader;
 
@@ -19,7 +18,7 @@ use super::formats::anthropic::{
     create_request_for_model, response_to_streaming_message, AnthropicFormatOptions,
     ANTHROPIC_PROVIDER_NAME,
 };
-use super::openai_compatible::handle_status;
+use super::openai_compatible::{body_stream_with_prefix, first_body_chunk, handle_status};
 use super::retry::ProviderRetry;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -182,9 +181,9 @@ impl AnthropicProvider {
         )?;
         payload["stream"] = Value::Bool(true);
         let mut log = start_log(model_config, &payload)?;
-        let response = self
+        let (response, first_chunk) = self
             .with_retry(|| async {
-                handle_status(
+                let mut response = handle_status(
                     self.api_client
                         .request("v1/messages")
                         .model_headers(model_config)?
@@ -192,13 +191,15 @@ impl AnthropicProvider {
                         .response_post(&payload)
                         .await?,
                 )
-                .await
+                .await?;
+                let first_chunk = first_body_chunk(&mut response).await?;
+                Ok((response, Some(first_chunk)))
             })
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);
             })?;
-        let stream = response.bytes_stream().map_err(io::Error::other);
+        let stream = body_stream_with_prefix(response, first_chunk);
         Ok(Box::pin(try_stream! {
             let reader = StreamReader::new(stream);
             let framed = tokio_util::codec::FramedRead::new(reader, tokio_util::codec::LinesCodec::new()).map_err(anyhow::Error::from);
