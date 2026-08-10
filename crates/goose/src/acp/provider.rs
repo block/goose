@@ -94,9 +94,30 @@ type ClientLoopFn = Box<
             AcpClientLoop,
             mpsc::Receiver<ClientRequest>,
             oneshot::Sender<Result<InitializeResponse>>,
+            oneshot::Receiver<()>,
         ) -> BoxFuture<'static, ()>
         + Send,
 >;
+
+struct ClientLoopGuard {
+    tx: Option<mpsc::Sender<ClientRequest>>,
+    cancel_tx: Option<oneshot::Sender<()>>,
+    thread: Option<JoinHandle<()>>,
+}
+
+impl Drop for ClientLoopGuard {
+    fn drop(&mut self) {
+        if let Some(cancel_tx) = self.cancel_tx.take() {
+            let _ = cancel_tx.send(());
+        }
+        self.tx.take();
+        if let Some(thread) = self.thread.take() {
+            if let Err(error) = thread.join() {
+                tracing::debug!("AcpClientLoop thread panicked: {error:?}");
+            }
+        }
+    }
+}
 
 #[derive(Debug)]
 enum AcpUpdate {
@@ -166,6 +187,7 @@ pub struct AcpProvider {
     applied_model: Arc<Mutex<Option<String>>>,
 
     tx: Option<mpsc::Sender<ClientRequest>>,
+    cancel_tx: Option<oneshot::Sender<()>>,
     loop_thread: Option<JoinHandle<()>>,
 }
 
@@ -197,7 +219,15 @@ impl AcpProvider {
             name,
             goose_mode,
             config,
-            Box::new(|cl, rx, init_tx| Box::pin(cl.spawn(rx, init_tx))),
+            Box::new(|cl, rx, init_tx, mut cancel_rx| {
+                Box::pin(async move {
+                    tokio::select! {
+                        biased;
+                        _ = &mut cancel_rx => {}
+                        _ = cl.spawn(rx, init_tx) => {}
+                    }
+                })
+            }),
         )
         .await
     }
@@ -213,10 +243,16 @@ impl AcpProvider {
             name,
             goose_mode,
             config,
-            Box::new(move |cl, mut rx, init_tx| {
+            Box::new(move |cl, mut rx, init_tx, mut cancel_rx| {
                 Box::pin(async move {
-                    if let Err(e) = cl.run(transport, &mut rx, init_tx).await {
-                        tracing::error!("ACP protocol error: {e}");
+                    tokio::select! {
+                        biased;
+                        _ = &mut cancel_rx => {}
+                        result = cl.run(transport, &mut rx, init_tx) => {
+                            if let Err(e) = result {
+                                tracing::error!("ACP protocol error: {e}");
+                            }
+                        }
                     }
                 })
             }),
@@ -251,7 +287,13 @@ impl AcpProvider {
             pending_tool_updates.clone(),
             context_size.clone(),
         );
-        let loop_thread = spawn_client_loop(run(client_loop, rx, init_tx));
+        let (cancel_tx, cancel_rx) = oneshot::channel();
+        let loop_thread = spawn_client_loop(run(client_loop, rx, init_tx, cancel_rx));
+        let mut client_loop_guard = ClientLoopGuard {
+            tx: Some(tx),
+            cancel_tx: Some(cancel_tx),
+            thread: Some(loop_thread),
+        };
 
         let _init_response = init_rx
             .await
@@ -259,11 +301,15 @@ impl AcpProvider {
 
         // Create the ACP session eagerly during connect.
         let (session_tx, session_rx) = oneshot::channel();
-        tx.send(ClientRequest::NewSession {
-            response_tx: session_tx,
-        })
-        .await
-        .context("ACP client is unavailable")?;
+        client_loop_guard
+            .tx
+            .as_ref()
+            .unwrap()
+            .send(ClientRequest::NewSession {
+                response_tx: session_tx,
+            })
+            .await
+            .context("ACP client is unavailable")?;
         let response = session_rx
             .await
             .context("ACP session creation cancelled")??;
@@ -284,8 +330,9 @@ impl AcpProvider {
             context_size,
             model_config_option_id,
             applied_model: Arc::new(Mutex::new(applied_model)),
-            tx: Some(tx),
-            loop_thread: Some(loop_thread),
+            tx: client_loop_guard.tx.take(),
+            cancel_tx: client_loop_guard.cancel_tx.take(),
+            loop_thread: client_loop_guard.thread.take(),
         })
     }
 
@@ -683,6 +730,9 @@ impl Provider for AcpProvider {
 
 impl Drop for AcpProvider {
     fn drop(&mut self) {
+        if let Some(cancel_tx) = self.cancel_tx.take() {
+            let _ = cancel_tx.send(());
+        }
         self.tx.take();
         if let Some(h) = self.loop_thread.take() {
             if let Err(e) = h.join() {
@@ -1705,6 +1755,7 @@ mod tests {
                 model_config_option_id: None,
                 applied_model: Arc::new(Mutex::new(None)),
                 tx,
+                cancel_tx: None,
                 loop_thread: None,
             },
             ModelConfig::new("test-model"),
@@ -2106,6 +2157,31 @@ mod tests {
             mode_mapping,
             notification_callback: None,
         }
+    }
+
+    #[tokio::test]
+    async fn cancelling_start_stops_client_loop() {
+        let stopped = Arc::new(AtomicBool::new(false));
+        let stopped_in_loop = stopped.clone();
+        let start = AcpProvider::start(
+            "acp-test".to_string(),
+            GooseMode::Auto,
+            test_acp_config(HashMap::new(), None),
+            Box::new(move |_, _, init_tx, cancel_rx| {
+                Box::pin(async move {
+                    let _init_tx = init_tx;
+                    let _ = cancel_rx.await;
+                    stopped_in_loop.store(true, Ordering::SeqCst);
+                })
+            }),
+        );
+
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(10), start)
+                .await
+                .is_err()
+        );
+        assert!(stopped.load(Ordering::SeqCst));
     }
 
     #[test_case(GooseMode::Auto)]
