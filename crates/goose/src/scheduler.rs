@@ -25,7 +25,7 @@ use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::session_manager::SessionType;
-use crate::session::{Session, SessionManager};
+use crate::session::{Session, SessionCompletionStatus, SessionManager};
 
 type RunningTasksMap = HashMap<String, CancellationToken>;
 type JobsMap = HashMap<String, (JobId, ScheduledJob)>;
@@ -990,6 +990,33 @@ impl Scheduler {
     }
 }
 
+/// Drains an agent event stream into the running conversation, returning the
+/// conversation and the first stream error encountered (if any). Extracted so
+/// the error-vs-success decision is unit-testable without a live provider.
+async fn drain_agent_stream(
+    mut stream: impl futures::Stream<Item = Result<AgentEvent>> + Unpin,
+    mut conversation: Conversation,
+) -> (Conversation, Option<anyhow::Error>) {
+    use futures::StreamExt;
+
+    let mut stream_error: Option<anyhow::Error> = None;
+    while let Some(message_result) = stream.next().await {
+        tokio::task::yield_now().await;
+
+        match message_result {
+            Ok(AgentEvent::Message(msg)) => conversation.push(msg),
+            Ok(AgentEvent::HistoryReplaced(updated)) => conversation = updated,
+            Ok(_) => {}
+            Err(e) => {
+                stream_error = Some(e);
+                break;
+            }
+        }
+    }
+
+    (conversation, stream_error)
+}
+
 #[allow(clippy::too_many_lines)]
 async fn execute_job(
     job: ScheduledJob,
@@ -1124,7 +1151,7 @@ async fn execute_job(
         })?;
 
     let user_message = Message::user().with_text(prompt_text);
-    let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
+    let conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
 
     agent
         .config
@@ -1146,32 +1173,36 @@ async fn execute_job(
         .reply(user_message, session_config, Some(cancel_token))
         .await?;
 
-    use futures::StreamExt;
-    let mut stream = std::pin::pin!(stream);
+    let stream = std::pin::pin!(stream);
 
-    let mut stream_error = false;
-    while let Some(message_result) = stream.next().await {
-        tokio::task::yield_now().await;
+    let (_, stream_error) = drain_agent_stream(stream, conversation).await;
+    let failed = stream_error.is_some();
+    if let Some(ref e) = stream_error {
+        tracing::error!("Error in agent stream: {}", e);
+    }
 
-        match message_result {
-            Ok(AgentEvent::Message(msg)) => {
-                conversation.push(msg);
-            }
-            Ok(AgentEvent::HistoryReplaced(updated)) => {
-                conversation = updated;
-            }
-            Ok(_) => {}
-            Err(e) => {
-                tracing::error!("Error in agent stream: {}", e);
-                stream_error = true;
-                break;
-            }
-        }
+    // Persist the partial session's terminal outcome so that a run which
+    // terminated on a stream error stays discoverable from the session
+    // listing rather than only from log scraping.
+    let completion_status = if failed {
+        SessionCompletionStatus::Failed
+    } else {
+        SessionCompletionStatus::Completed
+    };
+    if let Err(e) = agent
+        .config
+        .session_manager
+        .update(&session.id)
+        .completion_status(completion_status)
+        .apply()
+        .await
+    {
+        tracing::error!("Failed to persist session completion status: {}", e);
     }
 
     {
         let session_duration = start_time.elapsed();
-        let exit_type = if stream_error { "error" } else { "normal" };
+        let exit_type = if failed { "error" } else { "normal" };
         let (total_tokens, message_count) = agent
             .config
             .session_manager
@@ -1211,6 +1242,7 @@ async fn execute_job(
     #[cfg(feature = "telemetry")]
     {
         let duration_secs = start_time.elapsed().as_secs();
+        let telemetry_status = if failed { "failed" } else { "completed" };
         tokio::spawn(async move {
             let mut props = HashMap::new();
             props.insert(
@@ -1219,7 +1251,7 @@ async fn execute_job(
             );
             props.insert(
                 "status".to_string(),
-                serde_json::Value::String("completed".to_string()),
+                serde_json::Value::String(telemetry_status.to_string()),
             );
             props.insert(
                 "duration_seconds".to_string(),
@@ -1231,6 +1263,9 @@ async fn execute_job(
         });
     }
 
+    if let Some(e) = stream_error {
+        return Err(e);
+    }
     Ok(session.id)
 }
 
@@ -1732,5 +1767,53 @@ mod tests {
             jobs[0].last_run.is_some(),
             "Job should have attempted to run without panicking"
         );
+    }
+
+    #[tokio::test]
+    async fn drain_agent_stream_propagates_first_error_and_keeps_partial_work() {
+        use futures::stream;
+
+        let conversation = Conversation::new_unvalidated(vec![Message::user().with_text("hi")]);
+        let events: Vec<Result<AgentEvent>> = vec![
+            Ok(AgentEvent::Message(
+                Message::assistant().with_text("partial reply"),
+            )),
+            Err(anyhow!("provider stream failed mid-turn")),
+            Ok(AgentEvent::Message(
+                Message::assistant().with_text("never seen"),
+            )),
+        ];
+
+        let (conversation, stream_error) =
+            drain_agent_stream(stream::iter(events), conversation).await;
+
+        let error = stream_error.expect("stream error should be captured");
+        assert!(
+            error
+                .to_string()
+                .contains("provider stream failed mid-turn"),
+            "expected the original error message, got: {error}"
+        );
+        // The user seed plus the assistant message drained before the error.
+        assert_eq!(conversation.messages().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn drain_agent_stream_completes_without_error_on_clean_termination() {
+        use futures::stream;
+
+        let conversation = Conversation::new_unvalidated(vec![Message::user().with_text("hi")]);
+        let events: Vec<Result<AgentEvent>> = vec![Ok(AgentEvent::Message(
+            Message::assistant().with_text("done"),
+        ))];
+
+        let (conversation, stream_error) =
+            drain_agent_stream(stream::iter(events), conversation).await;
+
+        assert!(
+            stream_error.is_none(),
+            "a clean stream must not surface an error"
+        );
+        assert_eq!(conversation.messages().len(), 2);
     }
 }

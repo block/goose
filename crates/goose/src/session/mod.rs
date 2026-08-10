@@ -21,5 +21,6 @@ pub use export_markdown::{
 };
 pub use extension_data::{EnabledExtensionsState, ExtensionData, ExtensionState, TodoState};
 pub use session_manager::{
-    Session, SessionInsights, SessionManager, SessionNameUpdate, SessionType, SessionUpdateBuilder,
+    Session, SessionCompletionStatus, SessionInsights, SessionManager, SessionNameUpdate,
+    SessionType, SessionUpdateBuilder,
 };

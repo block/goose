@@ -219,12 +219,13 @@ pub async fn handle_schedule_sessions(schedule_id: String, limit: Option<usize>)
                 println!("Sessions for schedule ID '{}':", schedule_id);
                 for (session_name, metadata) in sessions {
                     println!(
-                        "  - Session ID: {}, Messages: {}, Working Dir: {}, Description: \"{}\", Schedule ID: {:?}",
+                        "  - Session ID: {}, Messages: {}, Working Dir: {}, Description: \"{}\", Schedule ID: {:?}, Status: {}",
                         session_name,
                         metadata.message_count,
                         metadata.working_dir.display(),
                         metadata.name,
-                        metadata.schedule_id.as_deref().unwrap_or("N/A")
+                        metadata.schedule_id.as_deref().unwrap_or("N/A"),
+                        metadata.completion_status,
                     );
                 }
             }

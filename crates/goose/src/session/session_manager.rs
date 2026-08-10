@@ -24,7 +24,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
 use tracing::{info, warn};
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 16;
+pub const CURRENT_SCHEMA_VERSION: i32 = 17;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 const MILLISECOND_TIMESTAMP_THRESHOLD: i64 = 10_000_000_000;
@@ -52,6 +52,29 @@ pub enum SessionType {
     Terminal,
     Gateway,
     Acp,
+}
+
+/// Terminal outcome of a session's execution, persisted so that runs which
+/// terminated abnormally (e.g. a scheduled recipe whose provider stream
+/// errored mid-turn) remain discoverable without log scraping.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    PartialEq,
+    Eq,
+    Default,
+    strum::Display,
+    strum::EnumString,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+pub enum SessionCompletionStatus {
+    #[default]
+    Completed,
+    Failed,
 }
 
 static SESSION_STORAGE: LazyLock<Arc<SessionStorage>> =
@@ -94,6 +117,10 @@ pub struct Session {
     pub parent_session_id: Option<String>,
     #[serde(default)]
     pub last_message_snippet: Option<String>,
+    /// Terminal outcome of the run. Defaults to `Completed` so that sessions
+    /// created outside the scheduler (or before this field existed) stay green.
+    #[serde(default)]
+    pub completion_status: SessionCompletionStatus,
 }
 
 impl From<&Session> for TokenState {
@@ -166,6 +193,7 @@ pub struct SessionUpdateBuilder<'a> {
 
     project_id: Option<Option<String>>,
     parent_session_id: Option<Option<String>>,
+    completion_status: Option<SessionCompletionStatus>,
 }
 
 #[derive(Serialize, Debug)]
@@ -203,6 +231,7 @@ impl<'a> SessionUpdateBuilder<'a> {
             archived_at: None,
             project_id: None,
             parent_session_id: None,
+            completion_status: None,
         }
     }
 
@@ -308,6 +337,11 @@ impl<'a> SessionUpdateBuilder<'a> {
 
     pub fn parent_session_id(mut self, parent_session_id: Option<String>) -> Self {
         self.parent_session_id = Some(parent_session_id);
+        self
+    }
+
+    pub fn completion_status(mut self, completion_status: SessionCompletionStatus) -> Self {
+        self.completion_status = Some(completion_status);
         self
     }
 }
@@ -751,6 +785,7 @@ impl Default for Session {
             project_id: None,
             parent_session_id: None,
             last_message_snippet: None,
+            completion_status: SessionCompletionStatus::default(),
         }
     }
 }
@@ -870,6 +905,11 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             project_id: row.try_get("project_id").ok().flatten(),
             parent_session_id: row.try_get("parent_session_id").ok().flatten(),
             last_message_snippet: None,
+            completion_status: row
+                .try_get::<String, _>("completion_status")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or_default(),
         })
     }
 }
@@ -1024,7 +1064,8 @@ impl SessionStorage {
                 goose_mode TEXT NOT NULL DEFAULT 'auto',
                 archived_at TIMESTAMP,
                 project_id TEXT,
-                parent_session_id TEXT
+                parent_session_id TEXT,
+                completion_status TEXT NOT NULL DEFAULT 'completed'
             )
         "#,
         )
@@ -1570,6 +1611,27 @@ impl SessionStorage {
                 .execute(&mut **tx)
                 .await?;
             }
+            17 => {
+                // Records whether a session's run reached a normal terminal state
+                // or terminated on an error (e.g. a scheduled recipe whose provider
+                // stream errored mid-turn). Defaults to 'completed' so existing rows
+                // are not retroactively flagged as failed. The existence check keeps
+                // the migration idempotent for databases whose `create_schema` path
+                // already added the column.
+                let has_completion_status = sqlx::query_scalar::<_, i32>(
+                    "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name = 'completion_status'",
+                )
+                .fetch_one(&mut **tx)
+                .await?
+                    > 0;
+                if !has_completion_status {
+                    sqlx::query(
+                        "ALTER TABLE sessions ADD COLUMN completion_status TEXT NOT NULL DEFAULT 'completed'",
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                }
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -1635,7 +1697,7 @@ impl SessionStorage {
                accumulated_cost,
                schedule_id, recipe_json, user_recipe_values_json,
                provider_name, model_config_json, goose_mode,
-               archived_at, project_id, parent_session_id
+               archived_at, project_id, parent_session_id, completion_status
         FROM sessions
         WHERE id = ?
     "#,
@@ -1720,6 +1782,7 @@ impl SessionStorage {
 
         add_update!(builder.project_id, "project_id");
         add_update!(builder.parent_session_id, "parent_session_id");
+        add_update!(builder.completion_status, "completion_status");
 
         if updates.is_empty() {
             return Ok(());
@@ -1798,6 +1861,9 @@ impl SessionStorage {
         }
         if let Some(ref parent_session_id) = builder.parent_session_id {
             q = q.bind(parent_session_id.as_ref());
+        }
+        if let Some(completion_status) = builder.completion_status {
+            q = q.bind(completion_status.to_string());
         }
 
         let pool = self.pool().await?;
@@ -2001,7 +2067,7 @@ impl SessionStorage {
                    s.accumulated_cost,
                    s.schedule_id, s.recipe_json, s.user_recipe_values_json,
                    s.provider_name, s.model_config_json, s.goose_mode,
-                   s.archived_at, s.project_id, s.parent_session_id,
+                   s.archived_at, s.project_id, s.parent_session_id, s.completion_status,
                    COUNT(m.id) FILTER (WHERE {}) as message_count,
                    MAX({}) as last_message_timestamp,
                    {} as sort_timestamp
@@ -4398,6 +4464,77 @@ mod tests {
         let loaded = sm.get_session("cache_id", false).await.unwrap();
         assert_eq!(loaded.usage, usage);
         assert_eq!(loaded.accumulated_usage, accumulated_usage);
+    }
+
+    #[tokio::test]
+    async fn test_completion_status_migration_and_round_trip() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join(SESSIONS_FOLDER).join(DB_NAME);
+
+        if let Some(parent) = db_path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+
+        let pool = SqlitePoolOptions::new()
+            .connect_with(
+                SqliteConnectOptions::new()
+                    .filename(&db_path)
+                    .create_if_missing(true),
+            )
+            .await
+            .unwrap();
+
+        SessionStorage::create_schema(&pool).await.unwrap();
+
+        // Simulate a database that predates the completion_status column.
+        sqlx::query("ALTER TABLE sessions DROP COLUMN completion_status")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE schema_version SET version = 16")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO sessions (id, name, user_set_name, session_type, working_dir, extension_data, goose_mode)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind("failed_run")
+        .bind("Failed Run")
+        .bind(false)
+        .bind("scheduled")
+        .bind("/tmp")
+        .bind("{}")
+        .bind("auto")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        pool.close().await;
+
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        sm.storage().pool().await.unwrap(); // Triggers migration 17
+
+        // Pre-existing rows default to `completed` rather than being flagged failed.
+        let pre_migration = sm.get_session("failed_run", false).await.unwrap();
+        assert_eq!(
+            pre_migration.completion_status,
+            SessionCompletionStatus::Completed
+        );
+
+        // A run that terminated on an error records its true outcome.
+        sm.update("failed_run")
+            .completion_status(SessionCompletionStatus::Failed)
+            .apply()
+            .await
+            .unwrap();
+
+        let after_failure = sm.get_session("failed_run", false).await.unwrap();
+        assert_eq!(
+            after_failure.completion_status,
+            SessionCompletionStatus::Failed
+        );
     }
 
     fn message_usage(input: i32, output: i32, cost: f64, is_compaction: bool) -> MessageUsage {

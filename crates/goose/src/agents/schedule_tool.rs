@@ -455,10 +455,11 @@ impl ScheduleTool {
                         .into_iter()
                         .map(|(session_name, session)| {
                             format!(
-                                "- Session: {} (Messages: {}, Working Dir: {})",
+                                "- Session: {} (Messages: {}, Working Dir: {}, Status: {})",
                                 session_name,
                                 session.message_count,
-                                session.working_dir.display()
+                                session.working_dir.display(),
+                                session.completion_status,
                             )
                         })
                         .collect();
