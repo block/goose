@@ -173,10 +173,26 @@ crash_scenario relay-crash "$PREFIX-relay"
 log "NAT rule counters (evidence the QUIC flows traversed the router mappings)"
 docker exec "$PREFIX-router" iptables -t nat -vnL | tee "$RESULTS/nat-counters.log"
 
-log "port audit (expect: no TCP listeners, only the QUIC UDP socket)"
+log "port audit (expect: no TCP listeners, exactly the bound QUIC UDP socket)"
+# The scenario execs have all exited by now, so without a live client the
+# client-side audit would pass vacuously on an empty socket set. Hold a
+# client data plane open (the crash scenario with nothing killed is just a
+# resilient soak) and audit while it runs.
+client crash --duration-secs 25 >"$RESULTS/audit-hold.log" 2>&1 &
+AUDIT_PID=$!
+for ((i = 0; i < 240; i++)); do
+  grep -q CRASH_RUNNING "$RESULTS/audit-hold.log" 2>/dev/null && break
+  kill -0 "$AUDIT_PID" 2>/dev/null || break
+  sleep 0.5
+done
+if ! grep -q CRASH_RUNNING "$RESULTS/audit-hold.log" 2>/dev/null; then
+  echo "port audit hold client never came up" >&2
+  cat "$RESULTS/audit-hold.log" >&2 || true
+  exit 1
+fi
 # Allowed sockets: docker's embedded DNS on 127.0.0.11, the deliberately
-# bound QUIC v4 socket, and iroh's default v6 UDP transport. Anything else
-# listening is an audit failure, not a log line.
+# bound QUIC v4 socket (required, both peers), and iroh's default v6 UDP
+# transport. Anything else listening is an audit failure, not a log line.
 for peer in host client; do
   echo "--- $PREFIX-$peer"
   docker exec "$PREFIX-$peer" sh -c 'echo "tcp listeners:"; ss -Hltn; echo "udp sockets:"; ss -Hlun' \
@@ -192,7 +208,12 @@ for peer in host client; do
     printf '%s\n%s\n' "$bad_tcp" "$bad_udp" >&2
     exit 1
   fi
+  if ! docker exec "$PREFIX-$peer" ss -Hlun | awk '$4 == "0.0.0.0:7777"' | grep -q .; then
+    echo "port audit FAILED on $PREFIX-$peer: expected QUIC socket 0.0.0.0:7777 not bound" >&2
+    exit 1
+  fi
 done
+wait "$AUDIT_PID" || { echo "port audit hold client failed" >&2; exit 1; }
 echo "port audit OK"
 
 log "results ($RESULTS/results.jsonl)"
