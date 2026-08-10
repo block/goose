@@ -36,6 +36,7 @@ use serde_json::Value;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 use tracing::{debug, info, warn};
+use tracing_futures::Instrument;
 
 use crate::plugins::discovery::{discover_enabled_plugins, DiscoveredPlugin};
 
@@ -289,6 +290,45 @@ impl HookManager {
         self.rules.get(&event).is_some_and(|r| !r.is_empty())
     }
 
+    async fn run_action(
+        &self,
+        event: HookEvent,
+        session_id: &str,
+        rule: &LoadedRule,
+        command: &str,
+        payload: &str,
+        timeout: Duration,
+    ) -> Result<std::process::Output> {
+        let span = tracing::info_span!(
+            target: "goose::hooks",
+            "execute_hook",
+            "gen_ai.operation.name" = "execute_hook",
+            "goose.hook.event" = %event,
+            "goose.hook.plugin" = %rule.plugin_name,
+            "error.type" = tracing::field::Empty,
+            session.id = %session_id,
+        );
+        let result = run_command_hook(
+            command,
+            &rule.plugin_root,
+            payload,
+            timeout,
+            self.use_login_shell_path,
+        )
+        .instrument(span.clone())
+        .await;
+        match &result {
+            Ok(output) if !output.status.success() => {
+                span.record("error.type", "hook_exit");
+            }
+            Err(_) => {
+                span.record("error.type", "hook_execution_error");
+            }
+            _ => {}
+        }
+        result
+    }
+
     /// Fire all rules whose matcher matches the event context. Errors from
     /// individual hooks are logged but never propagated — a misbehaving hook
     /// MUST NOT crash the host tool.
@@ -324,25 +364,20 @@ impl HookManager {
                     command = %command,
                     "Running plugin hook",
                 );
-                let res = run_command_hook(
-                    command,
-                    &rule.plugin_root,
-                    &payload,
-                    *timeout,
-                    self.use_login_shell_path,
-                )
-                .await
-                .and_then(|o| {
-                    if o.status.success() {
-                        Ok(())
-                    } else {
-                        anyhow::bail!(
-                            "hook `{command}` exited with {:?}: {}",
-                            o.status.code(),
-                            String::from_utf8_lossy(&o.stderr).trim()
-                        )
-                    }
-                });
+                let res = self
+                    .run_action(event, &ctx.session_id, rule, command, &payload, *timeout)
+                    .await
+                    .and_then(|o| {
+                        if o.status.success() {
+                            Ok(())
+                        } else {
+                            anyhow::bail!(
+                                "hook `{command}` exited with {:?}: {}",
+                                o.status.code(),
+                                String::from_utf8_lossy(&o.stderr).trim()
+                            )
+                        }
+                    });
                 if let Err(err) = res {
                     warn!(
                         plugin = %rule.plugin_name,
@@ -384,14 +419,9 @@ impl HookManager {
 
             for action in &rule.actions {
                 let LoadedAction::Command { command, timeout } = action;
-                let output = match run_command_hook(
-                    command,
-                    &rule.plugin_root,
-                    &payload,
-                    *timeout,
-                    self.use_login_shell_path,
-                )
-                .await
+                let output = match self
+                    .run_action(event, &ctx.session_id, rule, command, &payload, *timeout)
+                    .await
                 {
                     Ok(o) => o,
                     Err(err) => {

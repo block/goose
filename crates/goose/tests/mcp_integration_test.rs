@@ -252,6 +252,7 @@ async fn test_replayed_session(
     let extension_manager = Arc::new(ExtensionManager::new(
         provider,
         session_manager,
+        None,
         GoosePlatform::GooseDesktop.to_string(),
         ExtensionManagerCapabilities {
             mcpui: true,

@@ -1226,6 +1226,15 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Sambung ke pelayan goose yang berjalan di tempat lain (memerlukan memulakan semula aplikasi)"
   },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "Direktori kerja jauh (pilihan)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "Laluan mutlak pada backend luaran. Biarkan kosong untuk menghantar direktori kerja setempat."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
+  },
   "goosehintsModal.close": {
     "defaultMessage": "Tutup"
   },
@@ -3770,6 +3779,12 @@
   "sessions.action.export": {
     "defaultMessage": "Eksport sesi"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "Buka dalam tetingkap baharu"
   },
@@ -3868,6 +3883,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "Sesi \"{name}\" berjaya diduplikasi"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "Gagal mengeksport sesi: {error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "Sesi berjaya dieksport"

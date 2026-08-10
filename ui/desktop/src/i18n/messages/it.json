@@ -1226,6 +1226,15 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Connettiti a un server goose in esecuzione altrove (richiede il riavvio dell'app)"
   },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "Directory di lavoro remota (facoltativa)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "Percorso assoluto sul backend esterno. Lascia vuoto per inviare la directory di lavoro locale."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
+  },
   "goosehintsModal.close": {
     "defaultMessage": "Chiudi"
   },
@@ -3770,6 +3779,12 @@
   "sessions.action.export": {
     "defaultMessage": "Esporta sessione"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "Apri in una nuova finestra"
   },
@@ -3868,6 +3883,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "Sessione \"{name}\" duplicata correttamente"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "Impossibile esportare la sessione: {error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "Sessione esportata correttamente"

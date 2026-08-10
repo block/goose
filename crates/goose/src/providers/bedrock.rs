@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
+    DEFAULT_CONNECT_TIMEOUT_SECS, DEFAULT_PROVIDER_TIMEOUT_SECS,
+};
 use super::openai_compatible::{handle_status, stream_responses_compat};
 use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
@@ -177,7 +180,12 @@ impl BedrockProvider {
             name: BEDROCK_PROVIDER_NAME.to_string(),
             region: resolved_region,
             bearer_token,
-            http_client: reqwest::Client::new(),
+            http_client: reqwest::Client::builder()
+                .connect_timeout(std::time::Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
+                .read_timeout(std::time::Duration::from_secs(
+                    DEFAULT_PROVIDER_TIMEOUT_SECS,
+                ))
+                .build()?,
             mantle_base_url: None,
         })
     }
@@ -270,10 +278,11 @@ impl BedrockProvider {
             }
         }
 
-        let response = req
-            .send()
-            .await
-            .map_err(|e| ProviderError::RequestFailed(format!("Mantle request failed: {}", e)))?;
+        let response = goose_providers::http_status::send_bounded(
+            req,
+            std::time::Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
+        )
+        .await?;
 
         handle_status(response).await
     }
@@ -314,13 +323,32 @@ impl BedrockProvider {
         let visible_messages: Vec<&Message> =
             messages.iter().filter(|m| m.is_agent_visible()).collect();
 
-        let last_idx = visible_messages.len().saturating_sub(1);
+        let mut bedrock_messages: Vec<bedrock::Message> = Vec::new();
+        for message in visible_messages {
+            let formatted =
+                to_bedrock_message_with_caching(message, false, Some(&model.model_name))?;
+            if formatted.content().is_empty() {
+                continue;
+            }
+            if let Some(previous) = bedrock_messages.last_mut() {
+                if previous.role() == formatted.role() {
+                    previous.content.extend(formatted.content);
+                    continue;
+                }
+            }
+            bedrock_messages.push(formatted);
+        }
 
-        let bedrock_messages = visible_messages
-            .iter()
-            .enumerate()
-            .map(|(idx, m)| to_bedrock_message_with_caching(m, enable_caching && idx == last_idx))
-            .collect::<Result<Vec<_>>>()?;
+        if enable_caching {
+            if let Some(last) = bedrock_messages.last_mut() {
+                last.content.push(bedrock::ContentBlock::CachePoint(
+                    bedrock::CachePointBlock::builder()
+                        .r#type(bedrock::CachePointType::Default)
+                        .build()
+                        .map_err(|error| ProviderError::ExecutionError(error.to_string()))?,
+                ));
+            }
+        }
 
         let tool_config = if tools.is_empty() {
             None
@@ -1015,6 +1043,41 @@ mod tests {
             !provider.should_enable_caching(&model),
             "Caching should be disabled for non-Claude models"
         );
+    }
+
+    #[test]
+    fn stale_reasoning_only_turn_is_removed_and_neighboring_roles_are_merged() {
+        use crate::conversation::message::{InferenceMetadata, MessageContent};
+
+        let (provider, model) = create_mock_provider_and_model("anthropic.claude-sonnet-4");
+        let messages = vec![
+            Message::user().with_text("first"),
+            Message::assistant()
+                .with_content(MessageContent::thinking("internal", "sig-abc"))
+                .with_inference(InferenceMetadata {
+                    provider: "aws_bedrock".to_string(),
+                    requested_model: "anthropic.claude-opus-4".to_string(),
+                    resolved_model: None,
+                    provider_session_id: None,
+                }),
+            Message::user().with_text("second"),
+        ];
+
+        let parts = provider
+            .build_request_parts(&model, "system", &messages, &[])
+            .unwrap();
+
+        assert_eq!(parts.messages.len(), 1);
+        assert_eq!(parts.messages[0].role(), &bedrock::ConversationRole::User);
+        let text: Vec<&str> = parts.messages[0]
+            .content()
+            .iter()
+            .filter_map(|content| match content {
+                bedrock::ContentBlock::Text(text) => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(text, vec!["first", "second"]);
     }
 
     #[test]

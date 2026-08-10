@@ -312,6 +312,30 @@ mod tests {
         assert_eq!(callback_url, expected);
     }
 
+    #[test]
+    fn callback_params_capture_rfc_9207_issuer() {
+        let uri: axum::http::Uri =
+            "http://127.0.0.1/oauth_callback?code=auth-code&state=csrf-state&iss=https%3A%2F%2Fauth.example%2Fidp"
+                .parse()
+                .unwrap();
+
+        let Query(params) = Query::<CallbackParams>::try_from_uri(&uri).unwrap();
+
+        assert_eq!(params.iss.as_deref(), Some("https://auth.example/idp"));
+    }
+
+    #[test]
+    fn callback_params_accept_missing_issuer() {
+        let uri: axum::http::Uri =
+            "http://127.0.0.1/oauth_callback?code=auth-code&state=csrf-state"
+                .parse()
+                .unwrap();
+
+        let Query(params) = Query::<CallbackParams>::try_from_uri(&uri).unwrap();
+
+        assert_eq!(params.iss, None);
+    }
+
     #[tokio::test]
     async fn wait_for_callback_times_out_with_authorization_url() {
         let (_sender, receiver) = oneshot::channel();

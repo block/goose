@@ -352,7 +352,10 @@ impl PromptInjectionScanner {
         messages
             .iter()
             .rev()
-            .filter(|m| crate::conversation::effective_role(m) == "user")
+            .filter(|m| {
+                crate::conversation::effective_role(m) == crate::conversation::EffectiveRole::User
+                    && !m.is_turn_context()
+            })
             .take(limit)
             .map(|m| {
                 m.content
@@ -457,5 +460,34 @@ mod tests {
             .unwrap();
 
         assert!(result.is_malicious);
+    }
+
+    #[test]
+    fn extract_user_messages_skips_turn_context_events() {
+        use crate::conversation::message::MessageMetadata;
+
+        let scanner = PromptInjectionScanner::new();
+        let turn_context = |text: &str| {
+            Message::user()
+                .with_text(text)
+                .with_metadata(MessageMetadata::agent_only().with_turn_context())
+        };
+        let messages = vec![
+            Message::user().with_text("oldest prompt"),
+            turn_context("turn context one"),
+            Message::assistant().with_text("ok"),
+            Message::user().with_text("middle prompt"),
+            turn_context("turn context two"),
+            Message::assistant().with_text("done"),
+            Message::user().with_text("newest prompt"),
+            turn_context("turn context three"),
+        ];
+
+        let extracted = scanner.extract_user_messages(&messages, 3);
+
+        assert_eq!(
+            extracted,
+            vec!["newest prompt", "middle prompt", "oldest prompt"]
+        );
     }
 }

@@ -7,7 +7,7 @@ import {
   useNavigate,
   useLocation,
   useSearchParams,
-} from 'react-router-dom';
+} from 'react-router';
 import { importNostrSessionFromDeepLink } from './sessionLinks';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ExtensionInstallModal } from './components/ExtensionInstallModal';

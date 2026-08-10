@@ -1226,6 +1226,15 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "连接到运行在其他位置的 goose 服务器（需要重启应用）"
   },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "远程工作目录（可选）"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "外部后端上的绝对路径。留空时将发送本地工作目录。"
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
+  },
   "goosehintsModal.close": {
     "defaultMessage": "关闭"
   },
@@ -3770,6 +3779,12 @@
   "sessions.action.export": {
     "defaultMessage": "导出会话"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "在新窗口中打开"
   },
@@ -3868,6 +3883,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "会话“{name}”复制成功"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "导出会话失败：{error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "会话导出成功"

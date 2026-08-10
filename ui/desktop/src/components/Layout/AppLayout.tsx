@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router';
 import { motion } from 'framer-motion';
 import { Menu, PanelLeft } from 'lucide-react';
 import { defineMessages, useIntl } from '../../i18n';
