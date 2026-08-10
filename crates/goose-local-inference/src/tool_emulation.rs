@@ -210,12 +210,20 @@ fn could_be_control_line(line: &str, marker: Option<char>) -> bool {
 }
 
 #[allow(clippy::string_slice)]
-fn closing_fence_range(input: &str, marker: char, minimum_len: usize) -> Option<(usize, usize)> {
+fn closing_fence_range(
+    input: &str,
+    marker: char,
+    minimum_len: usize,
+    allow_end_of_stream: bool,
+) -> Option<(usize, usize)> {
     let mut line_start = 0;
     loop {
         let remaining = &input[line_start..];
-        let line_end = remaining
-            .find('\n')
+        let newline_offset = remaining.find('\n');
+        if newline_offset.is_none() && !allow_end_of_stream {
+            return None;
+        }
+        let line_end = newline_offset
             .map(|offset| line_start + offset)
             .unwrap_or(input.len());
         if is_closing_fence(&input[line_start..line_end], marker, minimum_len) {
@@ -266,7 +274,7 @@ impl StreamingEmulatorParser {
                 }
                 ParserState::InExecuteBlock { fence_len } => {
                     if let Some((closing_start, consumed)) =
-                        closing_fence_range(&self.buffer, '`', fence_len)
+                        closing_fence_range(&self.buffer, '`', fence_len, false)
                     {
                         let code_end = closing_start
                             .checked_sub(1)
@@ -406,8 +414,20 @@ impl StreamingEmulatorParser {
                         results.push(EmulatorAction::Text(self.buffer.clone()));
                     }
                 }
-                ParserState::InExecuteBlock { .. } => {
-                    let code = self.buffer.trim();
+                ParserState::InExecuteBlock { fence_len } => {
+                    let code_end = closing_fence_range(&self.buffer, '`', fence_len, true)
+                        .map(|(closing_start, _)| {
+                            closing_start
+                                .checked_sub(1)
+                                .filter(|index| self.buffer.as_bytes()[*index] == b'\n')
+                                .unwrap_or(closing_start)
+                        })
+                        .unwrap_or(self.buffer.len());
+                    let code = self
+                        .buffer
+                        .get(..code_end)
+                        .expect("fence boundary must be a character boundary")
+                        .trim();
                     if !code.is_empty() {
                         results.push(EmulatorAction::ExecuteCode(code.to_string()));
                     }
@@ -707,6 +727,61 @@ mod tests {
             .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
             .collect();
 
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "let x = 1;");
+    }
+
+    #[test]
+    fn closing_fence_waits_for_the_complete_streamed_line() {
+        let mut parser = StreamingEmulatorParser::new(true);
+
+        let actions = parser.process_chunk("```execute_typescript\nlet x = 1;\n```");
+        assert!(!actions
+            .iter()
+            .any(|action| matches!(action, EmulatorAction::ExecuteCode(_))));
+
+        let actions = parser.process_chunk("`");
+        assert!(!actions
+            .iter()
+            .any(|action| matches!(action, EmulatorAction::ExecuteCode(_))));
+
+        let actions = parser.process_chunk("\n");
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+            .collect();
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "let x = 1;");
+    }
+
+    #[test]
+    fn closing_fence_prefix_with_trailing_text_remains_code() {
+        let mut parser = StreamingEmulatorParser::new(true);
+
+        let actions = parser.process_chunk("```execute_typescript\nlet x = 1;\n```");
+        assert!(!actions
+            .iter()
+            .any(|action| matches!(action, EmulatorAction::ExecuteCode(_))));
+
+        let actions = parser.process_chunk("not-a-close\n");
+        assert!(!actions
+            .iter()
+            .any(|action| matches!(action, EmulatorAction::ExecuteCode(_))));
+    }
+
+    #[test]
+    fn closing_fence_at_end_of_stream_is_recognized_on_flush() {
+        let mut parser = StreamingEmulatorParser::new(true);
+        let actions = parser.process_chunk("```execute_typescript\nlet x = 1;\n```");
+        assert!(!actions
+            .iter()
+            .any(|action| matches!(action, EmulatorAction::ExecuteCode(_))));
+
+        let actions = parser.flush();
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+            .collect();
         assert_eq!(executes.len(), 1);
         assert_execute(executes[0], "let x = 1;");
     }
