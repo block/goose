@@ -63,6 +63,35 @@ impl SteeringQueue {
         !self.state.lock().await.items.is_empty()
     }
 
+    #[allow(dead_code)]
+    pub(crate) async fn peek_next_ready(&self) -> Option<(u64, Message)> {
+        self.state
+            .lock()
+            .await
+            .items
+            .front()
+            .filter(|entry| entry.hook_complete)
+            .map(|entry| (entry.entry_id, entry.message.clone()))
+    }
+
+    #[allow(dead_code)]
+    pub(crate) async fn remove_next_ready(&self, entry_id: u64) -> Option<Message> {
+        let mut state = self.state.lock().await;
+        let matches = state
+            .items
+            .front()
+            .is_some_and(|entry| entry.hook_complete && entry.entry_id == entry_id);
+
+        if !matches {
+            return None;
+        }
+
+        state
+            .items
+            .pop_front()
+            .map(|entry| entry.message.with_steer())
+    }
+
     pub(crate) async fn drain_available(&self) -> Vec<Message> {
         let mut state = self.state.lock().await;
         let available = state
@@ -95,6 +124,28 @@ impl SteeringQueue {
             }
         }
     }
+
+    #[allow(dead_code)]
+    pub(crate) async fn wait_for_next_ready(&self) {
+        loop {
+            let notified = self.hook_complete_notify.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+
+            if self
+                .state
+                .lock()
+                .await
+                .items
+                .front()
+                .is_some_and(|entry| entry.hook_complete)
+            {
+                return;
+            }
+
+            notified.as_mut().await;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -112,6 +163,7 @@ mod tests {
         let second = queue.enqueue(Message::user().with_text("second")).await;
 
         assert!(queue.mark_hook_complete(second).await);
+        assert!(queue.peek_next_ready().await.is_none());
         assert!(queue.drain_available().await.is_empty());
 
         assert!(queue.mark_hook_complete(first).await);
@@ -134,6 +186,54 @@ mod tests {
         assert!(queue.mark_hook_complete(entry_id).await);
         assert!(!queue.mark_hook_complete(entry_id).await);
         assert_eq!(queue.drain_available().await.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn next_ready_entry_is_retained_until_the_matching_entry_is_removed() {
+        let queue = SteeringQueue::default();
+        let entry_id = queue.enqueue(Message::user().with_text("steer")).await;
+        assert!(queue.mark_hook_complete(entry_id).await);
+
+        let (peeked_id, message) = queue.peek_next_ready().await.expect("ready steer");
+        assert_eq!(peeked_id, entry_id);
+        assert_eq!(message.as_concat_text(), "steer");
+        assert!(!message.metadata.steer);
+        assert!(queue.has_pending().await);
+
+        assert!(queue.remove_next_ready(entry_id + 1).await.is_none());
+        assert!(queue.has_pending().await);
+
+        let message = queue
+            .remove_next_ready(entry_id)
+            .await
+            .expect("matching steer");
+        assert_eq!(message.as_concat_text(), "steer");
+        assert!(message.metadata.steer);
+        assert!(!queue.has_pending().await);
+    }
+
+    #[tokio::test]
+    async fn next_ready_wait_observes_existing_and_new_readiness() {
+        let queue = SteeringQueue::default();
+        let first = queue.enqueue(Message::user().with_text("first")).await;
+        assert!(queue.mark_hook_complete(first).await);
+        queue.wait_for_next_ready().await;
+        assert!(queue.remove_next_ready(first).await.is_some());
+
+        let second = queue.enqueue(Message::user().with_text("second")).await;
+        let mut wait = Box::pin(queue.wait_for_next_ready());
+        assert!(futures::poll!(wait.as_mut()).is_pending());
+        assert!(queue.mark_hook_complete(second).await);
+        wait.await;
+        assert!(queue.peek_next_ready().await.is_some());
+
+        assert!(queue.remove_next_ready(second).await.is_some());
+        let third = queue.enqueue(Message::user().with_text("third")).await;
+        let mut abandoned_wait = Box::pin(queue.wait_for_next_ready());
+        assert!(futures::poll!(abandoned_wait.as_mut()).is_pending());
+        drop(abandoned_wait);
+        assert!(queue.mark_hook_complete(third).await);
+        assert_eq!(queue.peek_next_ready().await.unwrap().0, third);
     }
 
     #[tokio::test]
