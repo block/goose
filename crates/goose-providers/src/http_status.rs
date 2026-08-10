@@ -308,7 +308,7 @@ async fn read_json_response_with_limit<T: DeserializeOwned>(
                     "Provider response body exceeds the {limit} byte limit"
                 )));
             }
-            body.try_reserve_exact(chunk.len()).map_err(|_| {
+            body.try_reserve(chunk.len()).map_err(|_| {
                 ProviderError::RequestFailed("Failed to allocate response body".to_string())
             })?;
             body.extend_from_slice(&chunk);
@@ -423,6 +423,24 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.to_string().contains("64 byte limit"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn bounded_json_accepts_many_small_chunks() {
+        let body = br#"{"ok":true}"#;
+        let mut raw =
+            b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ntransfer-encoding: chunked\r\n\r\n"
+                .to_vec();
+        for byte in body {
+            raw.extend_from_slice(b"1\r\n");
+            raw.push(*byte);
+            raw.extend_from_slice(b"\r\n");
+        }
+        raw.extend_from_slice(b"0\r\n\r\n");
+
+        let response = response_from_raw(raw).await;
+        let value: Value = read_json_response_with_limit(response, 64).await.unwrap();
+        assert_eq!(value, json!({"ok": true}));
     }
 
     #[tokio::test]
