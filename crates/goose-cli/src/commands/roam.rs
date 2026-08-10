@@ -33,11 +33,11 @@ use crate::commands::roam_full_bridge::FullAcpBridge;
 
 const CARD_SCHEME: &str = "goose+roam://";
 
-fn directory_path() -> std::path::PathBuf {
+pub(crate) fn directory_path() -> std::path::PathBuf {
     Paths::state_dir().join("roaming_directory.json")
 }
 
-fn trust_path() -> std::path::PathBuf {
+pub(crate) fn trust_path() -> std::path::PathBuf {
     Paths::config_dir().join("roaming_trust.json")
 }
 
@@ -75,7 +75,7 @@ const DEFAULT_ROAM_RELAYS: &[&str] = &[
 /// Uses `GOOSE_ROAM_RELAYS` (env or config file) when set — optionally
 /// authenticated with the `GOOSE_ROAM_RELAY_TOKEN` secret applied to each —
 /// otherwise the default managed relays. Never iroh's public n0 relays.
-fn resolve_relay_settings() -> RelaySettings {
+pub(crate) fn resolve_relay_settings() -> RelaySettings {
     let config = Config::global();
     let urls: Vec<String> = match config.get_param::<Vec<String>>(CONFIG_ROAM_RELAYS_KEY) {
         Ok(urls) => urls,
@@ -461,7 +461,7 @@ async fn handle_list() -> Result<()> {
 
 /// This node's single long-lived identity. Its public key is what peers accept
 /// and what the connection card advertises.
-fn load_identity() -> Result<RoamingIdentity> {
+pub(crate) fn load_identity() -> Result<RoamingIdentity> {
     let path = default_key_path(&Paths::config_dir());
     RoamingIdentity::load_or_create(&path).context("failed to load roaming identity")
 }

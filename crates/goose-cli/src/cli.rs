@@ -897,6 +897,14 @@ enum Command {
 
         #[arg(long, help = "Enable scheduled recipe execution")]
         enable_scheduler: bool,
+
+        /// Also expose this server over goose roam (p2p) so paired devices can connect remotely
+        #[cfg(feature = "roaming")]
+        #[arg(
+            long,
+            help = "Also expose this server over goose roam (p2p) so paired devices can connect remotely"
+        )]
+        roam: bool,
     },
 
     /// Start or resume interactive chat sessions
@@ -1394,6 +1402,74 @@ struct ServeCommandArgs {
     dangerously_unauthenticated: bool,
     allowed_origins: Vec<String>,
     enable_scheduler: bool,
+    #[cfg(feature = "roaming")]
+    roam: bool,
+}
+
+#[cfg(feature = "roaming")]
+async fn start_roam_share(
+    server: std::sync::Arc<goose::acp::server_factory::AcpServer>,
+) -> Result<std::sync::Arc<goose_roaming::RoamingNode>> {
+    use crate::commands::roam::{
+        directory_path, load_identity, resolve_relay_settings, trust_path,
+    };
+    use crate::commands::roam_full_bridge::FullAcpBridge;
+    use goose::config::paths::Paths;
+    use goose_roaming::{RoamingConfig, RoamingNode, TrustBook};
+    use std::sync::Arc;
+
+    let status_path = Paths::data_dir().join("roam/serve.json");
+    let _ = std::fs::remove_file(&status_path);
+
+    let identity = load_identity()?;
+    let node = RoamingNode::bind(RoamingConfig {
+        identity,
+        relay: resolve_relay_settings(),
+        trust: TrustBook::new(),
+        trust_path: Some(trust_path()),
+        directory: goose_roaming::Directory::persistent(directory_path()),
+        bind_addr: None,
+    })
+    .await?;
+
+    let agent_id = node.endpoint_id().to_string();
+    node.share(Arc::new(FullAcpBridge::new(server, agent_id)))
+        .await?;
+    node.watch_revocations(std::time::Duration::from_secs(2))
+        .await;
+
+    if !node.wait_online(std::time::Duration::from_secs(15)).await {
+        tracing::warn!(
+            "roaming endpoint did not come online; the card may lack a reachable address"
+        );
+    }
+
+    let card = node.card();
+    let card_encoded = card.encode()?;
+    let started_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let status = serde_json::json!({
+        "card": card_encoded,
+        "endpointId": card.endpoint_id.to_string(),
+        "fingerprint": card.fingerprint(),
+        "startedAt": started_at,
+    });
+    if let Some(dir) = status_path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let tmp_path = status_path.with_extension("json.tmp");
+    std::fs::write(&tmp_path, serde_json::to_vec_pretty(&status)?)?;
+    std::fs::rename(&tmp_path, &status_path)?;
+
+    eprintln!("roam is enabled for this server");
+    eprintln!("  endpoint id : {}", card.endpoint_id);
+    eprintln!("  fingerprint : {}", card.fingerprint());
+    eprintln!("your connection card (share with a peer so it can reach you):");
+    eprintln!("{card_encoded}");
+
+    Ok(node)
 }
 
 async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
@@ -1417,6 +1493,8 @@ async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
         dangerously_unauthenticated,
         allowed_origins,
         enable_scheduler,
+        #[cfg(feature = "roaming")]
+        roam,
     } = args;
 
     let builtins = if builtins.is_empty() {
@@ -1483,6 +1561,12 @@ async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
     if let Err(error) = server.start_scheduler().await {
         warn!("Scheduler failed to start; scheduled jobs will not run until a client connects: {error}");
     }
+    #[cfg(feature = "roaming")]
+    let _roam_node = if roam {
+        Some(start_roam_share(server.clone()).await?)
+    } else {
+        None
+    };
     let router = create_router(
         server,
         secret_key,
@@ -1538,6 +1622,11 @@ async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
             router.into_make_service_with_connect_info::<SocketAddr>(),
         )
         .await?;
+    }
+
+    #[cfg(feature = "roaming")]
+    if let Some(node) = _roam_node {
+        let _ = node.shutdown().await;
     }
 
     Ok(())
@@ -2262,6 +2351,8 @@ pub async fn cli() -> anyhow::Result<()> {
             dangerously_unauthenticated,
             allowed_origins,
             enable_scheduler,
+            #[cfg(feature = "roaming")]
+            roam,
         }) => {
             handle_serve_command(ServeCommandArgs {
                 host,
@@ -2274,6 +2365,8 @@ pub async fn cli() -> anyhow::Result<()> {
                 dangerously_unauthenticated,
                 allowed_origins,
                 enable_scheduler,
+                #[cfg(feature = "roaming")]
+                roam,
             })
             .await
         }
