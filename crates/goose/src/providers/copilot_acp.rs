@@ -11,6 +11,7 @@ use crate::config::{Config, GooseMode};
 use crate::providers::base::{
     current_working_dir, ProviderDef, ProviderDescriptor, ProviderMetadata,
 };
+use crate::providers::catalog::ProviderSetupMetadata;
 
 pub(crate) const COPILOT_ACP_PROVIDER_NAME: &str = "copilot-acp";
 const COPILOT_ACP_DOC_URL: &str = "https://github.com/github/copilot-cli";
@@ -35,9 +36,17 @@ impl goose_providers::base::ProviderDescriptor for CopilotAcpProvider {
         .with_setup_steps(vec![
             "Install the Copilot CLI: `npm install -g @github/copilot`",
             "Run `copilot login` to authenticate with your GitHub account",
-            "Add to your goose config file (`~/.config/goose/config.yaml` on macOS/Linux):\n  GOOSE_PROVIDER: copilot-acp\n  GOOSE_MODEL: current\n  copilot-acp_configured: true",
-            "Restart goose for changes to take effect",
         ])
+        .with_setup(
+            ProviderSetupMetadata::cli_agent(
+                COPILOT_ACP_BINARY,
+                &["copilot-acp", "github_copilot", "github_copilot_cli"],
+            )
+            .with_display_name("GitHub Copilot")
+            .with_description("GitHub's AI pair programmer")
+            .with_docs_url("https://docs.github.com/en/copilot/github-copilot-in-the-cli")
+            .with_capabilities(true, true, false),
+        )
     }
 }
 

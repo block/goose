@@ -307,6 +307,14 @@ impl GooseAcpAgent {
         self.on_refresh_provider_inventory(req).await
     }
 
+    #[custom_method(ProviderReadinessCheckRequest)]
+    async fn dispatch_check_provider_readiness(
+        &self,
+        req: ProviderReadinessCheckRequest,
+    ) -> Result<ProviderReadinessCheckResponse, agent_client_protocol::Error> {
+        self.on_check_provider_readiness(req).await
+    }
+
     #[custom_method(ProviderConfigReadRequest)]
     async fn dispatch_read_provider_config(
         &self,

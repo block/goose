@@ -34,5 +34,12 @@
   "headers": null,
   "timeout_seconds": null,
   "preserves_thinking": true,
-  "supports_streaming": true
+  "supports_streaming": true,
+  "setup": {
+    "category": "model",
+    "setup_method": "single_api_key",
+    "group": "additional",
+    "description": "DeepSeek chat and reasoning models",
+    "docs_url": "https://platform.deepseek.com/api_keys"
+  }
 }

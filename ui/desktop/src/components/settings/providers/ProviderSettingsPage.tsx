@@ -53,7 +53,7 @@ export default function ProviderSettings({
     try {
       const result = await acpListProviderDetails();
       if (result) {
-        setProviders(result);
+        setProviders(result.filter((provider) => provider.visible_in_setup));
         initialLoadDone.current = true;
       }
     } catch (error) {
@@ -73,7 +73,7 @@ export default function ProviderSettings({
   const refreshProviders = useCallback(async () => {
     if (initialLoadDone.current) {
       const result = await acpListProviderDetails();
-      if (result) setProviders(result);
+      if (result) setProviders(result.filter((provider) => provider.visible_in_setup));
     }
   }, []);
 

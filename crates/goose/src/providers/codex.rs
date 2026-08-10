@@ -637,6 +637,7 @@ impl goose_providers::base::ProviderDescriptor for CodexProvider {
                 ConfigKey::new("CODEX_SKIP_GIT_CHECK", false, false, Some("false"), true),
             ],
         )
+        .deprecated(Some("codex-acp"))
     }
 }
 

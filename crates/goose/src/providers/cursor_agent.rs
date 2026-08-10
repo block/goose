@@ -11,6 +11,7 @@ use tokio::process::Command;
 use super::base::{
     stream_from_single_message, ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
 };
+use super::catalog::ProviderSetupMetadata;
 use super::utils::filter_extensions_from_system_prompt;
 use crate::config::search_path::SearchPaths;
 use crate::conversation::message::{Message, MessageContent};
@@ -474,6 +475,15 @@ impl goose_providers::base::ProviderDescriptor for CursorAgentProvider {
                 Some("cursor-agent"),
                 true,
             )],
+        )
+        .with_setup(
+            ProviderSetupMetadata::cli_agent(
+                "cursor-agent",
+                &["cursor-agent", "cursor_agent", "cursor"],
+            )
+            .with_description("Cursor's AI agent")
+            .with_docs_url("https://docs.cursor.com/en/cli/overview")
+            .with_capabilities(true, true, true),
         )
     }
 }

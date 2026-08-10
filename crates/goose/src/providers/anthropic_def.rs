@@ -15,7 +15,13 @@ pub struct AnthropicProviderDef;
 
 impl ProviderDescriptor for AnthropicProviderDef {
     fn metadata() -> goose_providers::base::ProviderMetadata {
-        AnthropicProvider::metadata()
+        AnthropicProvider::metadata().with_setup(
+            crate::providers::catalog::ProviderSetupMetadata::api_key(
+                crate::providers::catalog::ProviderSetupGroup::Default,
+            )
+            .with_description("Claude models")
+            .with_docs_url("https://console.anthropic.com/settings/keys"),
+        )
     }
 }
 
@@ -128,6 +134,7 @@ mod tests {
             setup_steps: vec![],
             fast_model: None,
             preserves_thinking: false,
+            setup: None,
         }
     }
 

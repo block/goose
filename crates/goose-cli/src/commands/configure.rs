@@ -809,14 +809,18 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     // Get global config instance
     let config = Config::global();
 
-    // Get all available providers and their metadata
+    let current_provider: Option<String> = config.get_goose_provider().ok();
     let mut available_providers = providers().await;
+    available_providers.retain(|(provider, provider_type)| {
+        provider.setup.is_some()
+            || *provider_type == goose::providers::base::ProviderType::Custom
+            || current_provider.as_deref() == Some(&provider.name)
+    });
 
     // Sort providers alphabetically by display name
     available_providers.sort_by(|a, b| a.0.display_name.cmp(&b.0.display_name));
 
     // Get current default provider if it exists
-    let current_provider: Option<String> = config.get_goose_provider().ok();
     let current_provider_index = current_provider.as_ref().and_then(|current_provider| {
         available_providers
             .iter()

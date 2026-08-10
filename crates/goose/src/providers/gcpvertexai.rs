@@ -585,6 +585,16 @@ impl goose_providers::base::ProviderDescriptor for GcpVertexAIProvider {
                 ),
             ],
         )
+        .with_setup(
+            crate::providers::catalog::ProviderSetupMetadata::new(
+                crate::providers::catalog::ProviderSetupCategory::Model,
+                crate::providers::catalog::ProviderSetupMethod::CloudCredentials,
+                crate::providers::catalog::ProviderSetupGroup::Additional,
+            )
+            .with_description("Models on Google Cloud")
+            .with_field("GCP_PROJECT_ID", "Project ID", Some("my-gcp-project"), None)
+            .with_field("GCP_LOCATION", "Location", Some("us-central1"), None),
+        )
     }
 }
 

@@ -189,6 +189,15 @@ impl goose_providers::base::ProviderDescriptor for HuggingFaceProvider {
                 ConfigKey::new("HF_HOST", false, false, Some(HUGGINGFACE_API_HOST), false),
             ],
         )
+        .with_setup(
+            crate::providers::catalog::ProviderSetupMetadata::api_key(
+                crate::providers::catalog::ProviderSetupGroup::Default,
+            )
+            .with_display_name("Hugging Face")
+            .with_description("Hugging Face Inference Providers")
+            .with_docs_url("https://huggingface.co/docs/inference-providers")
+            .with_aliases(&["huggingface", "hf"]),
+        )
     }
 }
 
@@ -538,6 +547,7 @@ mod tests {
             setup_steps: vec![],
             fast_model: None,
             preserves_thinking: true,
+            setup: None,
         }
     }
 }

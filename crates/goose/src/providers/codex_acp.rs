@@ -11,6 +11,7 @@ use crate::config::{Config, GooseMode};
 use crate::providers::base::{
     current_working_dir, ProviderDef, ProviderDescriptor, ProviderMetadata,
 };
+use crate::providers::catalog::ProviderSetupMetadata;
 
 pub(crate) const CODEX_ACP_PROVIDER_NAME: &str = "codex-acp";
 const CODEX_ACP_DOC_URL: &str = "https://github.com/agentclientprotocol/codex-acp";
@@ -33,9 +34,13 @@ impl goose_providers::base::ProviderDescriptor for CodexAcpProvider {
             "If `--version` is rejected, remove `@zed-industries/codex-acp`: `npm uninstall -g @zed-industries/codex-acp`",
             "If `codex-acp` is missing or was removed, install `@agentclientprotocol/codex-acp`: `npm install -g @agentclientprotocol/codex-acp`",
             "Authenticate with OpenAI: run `codex` and follow the prompts",
-            "Configure goose in `~/.config/goose/config.yaml`:\n  GOOSE_PROVIDER: codex-acp\n  GOOSE_MODEL: current",
-            "Restart goose",
         ])
+        .with_setup(
+            ProviderSetupMetadata::cli_agent(CODEX_ACP_PROVIDER_NAME, &["codex-acp", "codex_cli", "codex"])
+                .with_description("OpenAI's coding agent")
+                .with_docs_url("https://github.com/openai/codex")
+                .with_capabilities(true, true, true),
+        )
     }
 }
 

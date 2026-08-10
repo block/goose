@@ -1,36 +1,10 @@
 pub use goose_providers::canonical::catalog::{
     ModelCapabilities, ModelTemplate, ProviderCatalogEntry, ProviderFormat,
     ProviderSetupCapabilities, ProviderSetupCatalogEntry, ProviderSetupCategory,
-    ProviderSetupConfigKey, ProviderSetupField, ProviderSetupGroup, ProviderSetupMetadata,
+    ProviderSetupField, ProviderSetupFieldOverride, ProviderSetupGroup, ProviderSetupMetadata,
     ProviderSetupMethod, ProviderTemplate,
 };
-use std::collections::{HashMap, HashSet};
-
-use super::base::{ConfigKey, ProviderMetadata};
-
-fn setup_config_key(config_key: ConfigKey) -> ProviderSetupConfigKey {
-    ProviderSetupConfigKey {
-        name: config_key.name,
-        required: config_key.required,
-        secret: config_key.secret,
-        default: config_key.default,
-        primary: config_key.primary,
-    }
-}
-
-fn setup_metadata(metadata: ProviderMetadata) -> ProviderSetupMetadata {
-    ProviderSetupMetadata {
-        name: metadata.name,
-        display_name: metadata.display_name,
-        description: metadata.description,
-        model_doc_link: metadata.model_doc_link,
-        config_keys: metadata
-            .config_keys
-            .into_iter()
-            .map(setup_config_key)
-            .collect(),
-    }
-}
+use std::collections::HashSet;
 
 pub async fn get_providers_by_format(format: ProviderFormat) -> Vec<ProviderCatalogEntry> {
     let native_provider_ids = super::init::providers()
@@ -43,20 +17,12 @@ pub async fn get_providers_by_format(format: ProviderFormat) -> Vec<ProviderCata
 }
 
 pub async fn get_setup_catalog_entries() -> Vec<ProviderSetupCatalogEntry> {
-    let registry_metadata = super::providers()
-        .await
-        .into_iter()
-        .map(|(metadata, _)| {
-            let name = metadata.name.clone();
-            (name, setup_metadata(metadata))
-        })
-        .collect::<HashMap<_, _>>();
-
-    goose_providers::canonical::catalog::get_setup_catalog_entries(&registry_metadata)
-}
-
-pub fn get_provider_setup_category(provider_id: &str) -> Option<ProviderSetupCategory> {
-    goose_providers::canonical::catalog::get_provider_setup_category(provider_id)
+    goose_providers::canonical::catalog::get_setup_catalog_entries(
+        super::providers()
+            .await
+            .into_iter()
+            .map(|(metadata, _)| metadata),
+    )
 }
 
 pub fn get_provider_template(provider_id: &str) -> Option<ProviderTemplate> {
@@ -188,18 +154,65 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn setup_catalog_excludes_uncurated_deprecated_providers() {
+    async fn setup_catalog_preserves_curated_providers_and_hides_deprecated_ones() {
         let provider_ids = get_setup_catalog_entries()
             .await
             .into_iter()
             .map(|entry| entry.provider_id)
             .collect::<std::collections::HashSet<_>>();
 
-        assert!(provider_ids.contains("claude-acp"));
-        assert!(provider_ids.contains("codex-acp"));
-        assert!(provider_ids.contains("atomic_chat"));
-        assert!(!provider_ids.contains("claude_code"));
-        assert!(!provider_ids.contains("codex"));
-        assert!(!provider_ids.contains("gemini_cli"));
+        for provider_id in [
+            "goose",
+            "claude-acp",
+            "codex-acp",
+            "copilot-acp",
+            "amp-acp",
+            "cursor-agent",
+            "pi-acp",
+            "anthropic",
+            "google",
+            "huggingface",
+            "chatgpt_codex",
+            "openai",
+            "mistral",
+            "ollama",
+            "openrouter",
+            "databricks",
+            "databricks_v2",
+            "github_copilot",
+            "custom_deepseek",
+            "zai",
+            "xai",
+            "xai_oauth",
+            "groq",
+            "azure_openai",
+            "aws_bedrock",
+            "gcp_vertex_ai",
+            "litellm",
+            "lmstudio",
+            "atomic_chat",
+            "nvidia",
+            "cerebras",
+            "snowflake",
+        ] {
+            assert!(provider_ids.contains(provider_id), "missing {provider_id}");
+        }
+
+        for (provider_id, replacement) in [
+            ("claude-code", "claude-acp"),
+            ("codex", "codex-acp"),
+            ("gemini-cli", "gemini_oauth"),
+        ] {
+            assert!(!provider_ids.contains(provider_id));
+            let metadata = crate::providers::get_from_registry(provider_id)
+                .await
+                .unwrap()
+                .metadata()
+                .clone();
+            assert_eq!(
+                metadata.deprecated.and_then(|value| value.replacement),
+                Some(replacement.to_string())
+            );
+        }
     }
 }

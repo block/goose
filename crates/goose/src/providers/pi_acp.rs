@@ -11,6 +11,7 @@ use crate::config::{Config, GooseMode};
 use crate::providers::base::{
     current_working_dir, ProviderDef, ProviderDescriptor, ProviderMetadata,
 };
+use crate::providers::catalog::ProviderSetupMetadata;
 
 pub(crate) const PI_ACP_PROVIDER_NAME: &str = "pi-acp";
 const PI_ACP_DOC_URL: &str = "https://github.com/anthropics/pi";
@@ -32,9 +33,13 @@ impl goose_providers::base::ProviderDescriptor for PiAcpProvider {
         .with_setup_steps(vec![
             "Install the Pi CLI and the pi-acp adapter",
             "Ensure your Pi CLI is authenticated (run `pi` to verify)",
-            "Add to your goose config file (`~/.config/goose/config.yaml` on macOS/Linux):\n  GOOSE_PROVIDER: pi-acp\n  GOOSE_MODEL: current\n  pi-acp_configured: true",
-            "Restart goose for changes to take effect",
         ])
+        .with_setup(
+            ProviderSetupMetadata::cli_agent(PI_ACP_BINARY, &["pi-acp", "pi"])
+                .with_description("Open-source AI coding agent")
+                .with_docs_url("https://github.com/badlogic/pi-mono")
+                .show_only_when_installed(),
+        )
         .with_model_selection_hint("Use the Pi CLI to configure models")
     }
 }

@@ -18,10 +18,18 @@ import {
   acpAuthenticateProvider,
   acpDeleteCustomProvider,
   acpDeleteProviderConfig,
+  acpRefreshProviderDetails,
   acpSaveProviderConfig,
 } from '../../../../acp/providers';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
-import { AlertTriangle, LogIn } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  CircleAlert,
+  LoaderCircle,
+  LogIn,
+  RefreshCw,
+} from 'lucide-react';
 import type { ProviderDetails } from '../../../../types/providers';
 import { Button } from '../../../../components/ui/button';
 import { errorMessage } from '../../../../utils/conversionUtils';
@@ -99,6 +107,38 @@ const i18n = defineMessages({
     id: 'providerConfigurationModal.externalSetupIntro',
     defaultMessage: 'This provider is configured outside of goose. Follow these steps:',
   },
+  adapterFound: {
+    id: 'providerConfigurationModal.adapterFound',
+    defaultMessage: 'ACP adapter found',
+  },
+  adapterNotFound: {
+    id: 'providerConfigurationModal.adapterNotFound',
+    defaultMessage: 'ACP adapter not found',
+  },
+  connectionSuccessful: {
+    id: 'providerConfigurationModal.connectionSuccessful',
+    defaultMessage: 'Connected successfully',
+  },
+  connectionNotChecked: {
+    id: 'providerConfigurationModal.connectionNotChecked',
+    defaultMessage: 'Check your account connection before continuing.',
+  },
+  authenticationHelp: {
+    id: 'providerConfigurationModal.authenticationHelp',
+    defaultMessage: 'Sign in through the provider CLI, then check again.',
+  },
+  checkAgain: {
+    id: 'providerConfigurationModal.checkAgain',
+    defaultMessage: 'Check again',
+  },
+  checking: {
+    id: 'providerConfigurationModal.checking',
+    defaultMessage: 'Checking...',
+  },
+  chooseModel: {
+    id: 'providerConfigurationModal.chooseModel',
+    defaultMessage: 'Choose model',
+  },
   seeDocumentation: {
     id: 'providerConfigurationModal.seeDocumentation',
     defaultMessage: 'See the <link>documentation</link> for more details.',
@@ -171,6 +211,10 @@ export default function ProviderConfigurationModal({
   const [isActiveProvider, setIsActiveProvider] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isOAuthLoading, setIsOAuthLoading] = useState(false);
+  const [externalProvider, setExternalProvider] = useState(provider);
+  const [isCheckingExternalProvider, setIsCheckingExternalProvider] = useState(false);
+  const [hasCheckedExternalProvider, setHasCheckedExternalProvider] = useState(false);
+  const [externalReadinessError, setExternalReadinessError] = useState<string | null>(null);
 
   let primaryParameters = provider.metadata.config_keys.filter((param) => param.primary);
   if (primaryParameters.length === 0) {
@@ -183,7 +227,7 @@ export default function ProviderConfigurationModal({
   const hasDeviceCodeFlow = provider.metadata.config_keys.some((key) => key.device_code_flow);
   const isHuggingFaceProvider = provider.name === 'huggingface';
 
-  const isConfigured = provider.is_configured;
+  const isConfigured = externalProvider.is_configured;
   const headerText = showDeleteConfirmation
     ? intl.formatMessage(i18n.deleteConfigHeader, { providerName: provider.metadata.display_name })
     : intl.formatMessage(i18n.configureHeader, { providerName: provider.metadata.display_name });
@@ -192,6 +236,24 @@ export default function ProviderConfigurationModal({
     provider.metadata.config_keys.length === 0 &&
     provider.metadata.setup_steps &&
     provider.metadata.setup_steps.length > 0;
+  const isAcpProvider = isExternalSetup && provider.name.endsWith('-acp');
+  const canUseExternalProvider =
+    isConfigured && hasCheckedExternalProvider && !externalReadinessError;
+
+  const handleCheckExternalProvider = async () => {
+    setIsCheckingExternalProvider(true);
+    setError(null);
+    try {
+      const result = await acpRefreshProviderDetails(provider.name);
+      setExternalProvider(result.provider);
+      setHasCheckedExternalProvider(result.connectionChecked);
+      setExternalReadinessError(result.readinessError);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setIsCheckingExternalProvider(false);
+    }
+  };
 
   const descriptionText = showDeleteConfirmation
     ? isActiveProvider
@@ -423,14 +485,59 @@ export default function ProviderConfigurationModal({
 
                 {isExternalSetup && (
                   <div className="space-y-3">
-                    <p className="text-sm text-text-secondary">
-                      {intl.formatMessage(i18n.externalSetupIntro)}
-                    </p>
-                    <ol className="ml-5 list-decimal text-sm text-text-primary space-y-2">
-                      {provider.metadata.setup_steps?.map((step, i) => (
-                        <li key={i}>{renderSetupStep(step)}</li>
-                      ))}
-                    </ol>
+                    {isAcpProvider && (
+                      <div className="rounded-md border border-border-primary p-3 space-y-2">
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                          {isCheckingExternalProvider ? (
+                            <LoaderCircle className="h-4 w-4 animate-spin" />
+                          ) : isConfigured ? (
+                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <CircleAlert className="h-4 w-4 text-yellow-600" />
+                          )}
+                          {isCheckingExternalProvider
+                            ? intl.formatMessage(i18n.checking)
+                            : intl.formatMessage(
+                                isConfigured ? i18n.adapterFound : i18n.adapterNotFound
+                              )}
+                        </div>
+                        {hasCheckedExternalProvider && isConfigured && !externalReadinessError && (
+                          <div className="text-sm text-text-secondary">
+                            {intl.formatMessage(i18n.connectionSuccessful)}
+                          </div>
+                        )}
+                        {isConfigured && !hasCheckedExternalProvider && !externalReadinessError && (
+                          <div className="text-sm text-text-secondary">
+                            {intl.formatMessage(i18n.connectionNotChecked)}
+                          </div>
+                        )}
+                        {externalReadinessError && (
+                          <div className="space-y-1 text-sm text-red-600 break-words">
+                            <div>{externalReadinessError}</div>
+                            <div>{intl.formatMessage(i18n.authenticationHelp)}</div>
+                          </div>
+                        )}
+                        {hasCheckedExternalProvider &&
+                          !externalReadinessError &&
+                          externalProvider.last_refresh_error && (
+                            <div className="text-sm text-yellow-600 break-words">
+                              {externalProvider.last_refresh_error}
+                            </div>
+                          )}
+                      </div>
+                    )}
+                    {(!isConfigured || externalReadinessError) && (
+                      <>
+                        <p className="text-sm text-text-secondary">
+                          {intl.formatMessage(i18n.externalSetupIntro)}
+                        </p>
+                        <ol className="ml-5 list-decimal text-sm text-text-primary space-y-2">
+                          {provider.metadata.setup_steps?.map((step, i) => (
+                            <li key={i}>{renderSetupStep(step)}</li>
+                          ))}
+                        </ol>
+                      </>
+                    )}
                     {provider.metadata.model_doc_link && (
                       <p className="text-sm text-text-secondary mt-4">
                         {intl.formatMessage(i18n.seeDocumentation, {
@@ -475,23 +582,35 @@ export default function ProviderConfigurationModal({
                 <Button variant="outline" onClick={handleCancel}>
                   {intl.formatMessage(i18n.cancel)}
                 </Button>
-                {isConfigured && (
+                {canUseExternalProvider && (
                   <Button variant="destructive" onClick={handleDelete}>
                     {intl.formatMessage(i18n.removeConfiguration)}
                   </Button>
                 )}
               </div>
-            ) : isExternalSetup && !showDeleteConfirmation ? (
-              <div className="w-full">
+            ) : isAcpProvider && !showDeleteConfirmation ? (
+              <div className="flex w-full justify-end gap-2 border-t border-border-primary pt-4">
                 <Button
                   type="button"
-                  variant="ghost"
-                  onClick={handleCancel}
-                  className="w-full h-[60px] rounded-none border-t border-border-primary text-md hover:bg-background-secondary text-text-primary font-medium"
+                  variant="outline"
+                  onClick={handleCheckExternalProvider}
+                  disabled={isCheckingExternalProvider}
                 >
-                  {intl.formatMessage(i18n.close)}
+                  <RefreshCw
+                    className={`mr-2 h-4 w-4 ${isCheckingExternalProvider ? 'animate-spin' : ''}`}
+                  />
+                  {intl.formatMessage(isCheckingExternalProvider ? i18n.checking : i18n.checkAgain)}
                 </Button>
+                {canUseExternalProvider && (
+                  <Button type="button" onClick={() => onConfigured?.(externalProvider)}>
+                    {intl.formatMessage(i18n.chooseModel)}
+                  </Button>
+                )}
               </div>
+            ) : isExternalSetup && !showDeleteConfirmation ? (
+              <Button type="button" variant="outline" onClick={handleCancel}>
+                {intl.formatMessage(i18n.close)}
+              </Button>
             ) : (
               <ProviderSetupActions
                 primaryParameters={primaryParameters}

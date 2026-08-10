@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::pin::Pin;
 
 use crate::{
-    canonical::{map_to_canonical_model, CanonicalModelRegistry},
+    canonical::{catalog::ProviderSetupMetadata, map_to_canonical_model, CanonicalModelRegistry},
     conversation::{
         message::{Message, MessageContentBlock},
         token_usage::{ProviderUsage, Usage},
@@ -46,6 +46,17 @@ pub struct ProviderMetadata {
     /// compaction). When set, fast-path callers prefer this model over the main model.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fast_model: Option<String>,
+    /// Setup information exposed to clients. Providers without this are hidden from setup UIs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub setup: Option<ProviderSetupMetadata>,
+    /// Structured deprecation information for providers kept for compatibility.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deprecated: Option<ProviderDeprecation>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderDeprecation {
+    pub replacement: Option<String>,
 }
 
 impl ProviderMetadata {
@@ -72,6 +83,8 @@ impl ProviderMetadata {
             setup_steps: vec![],
             model_selection_hint: None,
             fast_model: None,
+            setup: None,
+            deprecated: None,
         }
     }
 
@@ -95,6 +108,8 @@ impl ProviderMetadata {
             setup_steps: vec![],
             model_selection_hint: None,
             fast_model: None,
+            setup: None,
+            deprecated: None,
         }
     }
 
@@ -110,6 +125,8 @@ impl ProviderMetadata {
             setup_steps: vec![],
             model_selection_hint: None,
             fast_model: None,
+            setup: None,
+            deprecated: None,
         }
     }
 
@@ -125,6 +142,18 @@ impl ProviderMetadata {
 
     pub fn with_fast_model(mut self, fast_model: &str) -> Self {
         self.fast_model = Some(fast_model.to_string());
+        self
+    }
+
+    pub fn with_setup(mut self, setup: ProviderSetupMetadata) -> Self {
+        self.setup = Some(setup);
+        self
+    }
+
+    pub fn deprecated(mut self, replacement: Option<&str>) -> Self {
+        self.deprecated = Some(ProviderDeprecation {
+            replacement: replacement.map(str::to_string),
+        });
         self
     }
 }

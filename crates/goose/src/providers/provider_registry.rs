@@ -293,6 +293,8 @@ impl ProviderRegistry {
             setup_steps: config.setup_steps.clone(),
             model_selection_hint: None,
             fast_model: config.fast_model.clone(),
+            setup: config.setup.clone().or(base_metadata.setup),
+            deprecated: base_metadata.deprecated,
         };
         let inventory_config_keys = custom_metadata.config_keys.clone();
         let default_inventory_configured = Arc::new(move || {
@@ -390,6 +392,7 @@ mod tests {
             setup_steps: vec![],
             fast_model: None,
             preserves_thinking: false,
+            setup: None,
         }
     }
 

@@ -260,7 +260,7 @@ pub fn copilot_acp_inventory() -> InventoryRegistration {
 }
 
 pub fn pi_acp_inventory() -> InventoryRegistration {
-    acp_inventory(PI_ACP_PROVIDER_NAME, PI_ACP_BINARY, false)
+    acp_inventory(PI_ACP_PROVIDER_NAME, PI_ACP_BINARY, true)
 }
 
 #[cfg(test)]

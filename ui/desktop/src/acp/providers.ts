@@ -3,38 +3,29 @@ import type {
   CustomProviderCreateRequest_unstable,
   CustomProviderReadResponse_unstable,
   ProviderSecretDto,
+  ProviderInventoryEntryDto,
   ProviderTemplateCatalogEntryDto,
   ProviderTemplateDto,
 } from '@aaif/goose-sdk';
-import type { ProviderDetails, ThinkingEffort, UpdateCustomProviderRequest } from '../types/providers';
+import type {
+  ProviderDetails,
+  ThinkingEffort,
+  UpdateCustomProviderRequest,
+} from '../types/providers';
 import { getAcpClient } from './acpConnection';
 
 export type { CanonicalModelInfoDto, ProviderSecretDto };
 
-function updateRequestToCreate(
-  request: UpdateCustomProviderRequest
-): CustomProviderCreateRequest_unstable {
+function providerEntryToDetails(entry: ProviderInventoryEntryDto): ProviderDetails {
   return {
-    engine: request.engine,
-    displayName: request.display_name,
-    apiUrl: request.api_url,
-    apiKey: request.api_key || null,
-    models: request.models,
-    supportsStreaming: request.supports_streaming ?? null,
-    headers: request.headers ?? undefined,
-    requiresAuth: request.requires_auth ?? true,
-    catalogProviderId: request.catalog_provider_id ?? null,
-    basePath: request.base_path ?? null,
-    preservesThinking: request.preserves_thinking ?? null,
-  };
-}
-
-export async function acpListProviderDetails(): Promise<ProviderDetails[]> {
-  const client = await getAcpClient();
-  const { entries } = await client.goose.providersList_unstable({});
-  return entries.map((entry) => ({
     name: entry.providerId,
     is_configured: entry.configured,
+    is_refreshing: entry.refreshing,
+    last_refresh_error: entry.lastRefreshError ?? null,
+    supports_refresh: entry.supportsRefresh,
+    visible_in_setup: entry.visibleInSetup,
+    deprecated: entry.deprecated,
+    replacement: entry.replacement ?? null,
     provider_type: entry.providerType as ProviderDetails['provider_type'],
     metadata: {
       name: entry.providerId,
@@ -59,7 +50,99 @@ export async function acpListProviderDetails(): Promise<ProviderDetails[]> {
       })),
       setup_steps: entry.setupSteps,
     },
-  }));
+  };
+}
+
+function updateRequestToCreate(
+  request: UpdateCustomProviderRequest
+): CustomProviderCreateRequest_unstable {
+  return {
+    engine: request.engine,
+    displayName: request.display_name,
+    apiUrl: request.api_url,
+    apiKey: request.api_key || null,
+    models: request.models,
+    supportsStreaming: request.supports_streaming ?? null,
+    headers: request.headers ?? undefined,
+    requiresAuth: request.requires_auth ?? true,
+    catalogProviderId: request.catalog_provider_id ?? null,
+    basePath: request.base_path ?? null,
+    preservesThinking: request.preserves_thinking ?? null,
+  };
+}
+
+export async function acpListProviderDetails(): Promise<ProviderDetails[]> {
+  const client = await getAcpClient();
+  const { entries } = await client.goose.providersList_unstable({});
+  return entries.filter((entry) => entry.visibleInSetup).map(providerEntryToDetails);
+}
+
+export async function acpGetProviderDetails(providerId: string): Promise<ProviderDetails> {
+  const client = await getAcpClient();
+  const { entries } = await client.goose.providersList_unstable({ providerIds: [providerId] });
+  const entry = entries.find((candidate) => candidate.providerId === providerId);
+  if (!entry) throw new Error(`Unknown provider: ${providerId}`);
+  return providerEntryToDetails(entry);
+}
+
+export async function acpRefreshProviderDetails(providerId: string): Promise<{
+  provider: ProviderDetails;
+  connectionChecked: boolean;
+  readinessError: string | null;
+}> {
+  const client = await getAcpClient();
+  let { entries } = await client.goose.providersList_unstable({ providerIds: [providerId] });
+  let entry = entries.find((candidate) => candidate.providerId === providerId);
+  if (!entry) throw new Error(`Unknown provider: ${providerId}`);
+
+  if (!entry.configured) {
+    return {
+      provider: providerEntryToDetails(entry),
+      connectionChecked: false,
+      readinessError: null,
+    };
+  }
+
+  const readiness = await client.goose.providersReadinessCheck_unstable({ providerId });
+  if (!readiness.ready) {
+    return {
+      provider: providerEntryToDetails(entry),
+      connectionChecked: true,
+      readinessError: readiness.error ?? 'Provider is not ready',
+    };
+  }
+
+  if (entry.supportsRefresh) {
+    const refresh = await client.goose.providersInventoryRefresh_unstable({
+      providerIds: [providerId],
+    });
+    const refreshStarted =
+      refresh.started.includes(providerId) ||
+      refresh.skipped?.some(
+        (skip) => skip.providerId === providerId && skip.reason === 'already_refreshing'
+      );
+    if (!refreshStarted) {
+      return {
+        provider: providerEntryToDetails(entry),
+        connectionChecked: true,
+        readinessError: null,
+      };
+    }
+    for (let attempt = 0; attempt < 300; attempt += 1) {
+      ({ entries } = await client.goose.providersList_unstable({ providerIds: [providerId] }));
+      entry = entries.find((candidate) => candidate.providerId === providerId);
+      if (!entry) throw new Error(`Unknown provider: ${providerId}`);
+      if (!entry.refreshing) break;
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+    }
+    if (entry.refreshing) throw new Error(`Timed out while checking ${entry.providerName}`);
+  }
+
+  return {
+    provider: providerEntryToDetails(entry),
+    connectionChecked: true,
+    readinessError: null,
+  };
 }
 
 export async function acpListProviderModels(providerId: string) {

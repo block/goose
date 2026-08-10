@@ -179,6 +179,7 @@ impl goose_providers::base::ProviderDescriptor for GeminiCliProvider {
                 true,
             )],
         )
+        .deprecated(Some("gemini_oauth"))
     }
 }
 

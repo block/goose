@@ -767,6 +767,18 @@ impl goose_providers::base::ProviderDescriptor for XaiOAuthProvider {
                 ConfigKey::new("XAI_HOST", false, false, Some(XAI_API_HOST), false),
             ],
         )
+        .with_setup(
+            crate::providers::catalog::ProviderSetupMetadata::new(
+                crate::providers::catalog::ProviderSetupCategory::Model,
+                crate::providers::catalog::ProviderSetupMethod::OauthBrowser,
+                crate::providers::catalog::ProviderSetupGroup::Default,
+            )
+            .with_display_name("xAI (SuperGrok)")
+            .with_description("Grok via SuperGrok subscription")
+            .with_docs_url("https://x.ai/grok")
+            .with_native_connect_query("xAI Grok")
+            .with_capabilities(false, true, false),
+        )
     }
 }
 

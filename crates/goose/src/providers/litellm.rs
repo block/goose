@@ -190,6 +190,26 @@ impl goose_providers::base::ProviderDescriptor for LiteLLMProvider {
                 ConfigKey::new("LITELLM_TIMEOUT", false, false, Some("600"), false),
             ],
         )
+        .with_setup(
+            crate::providers::catalog::ProviderSetupMetadata::new(
+                crate::providers::catalog::ProviderSetupCategory::Model,
+                crate::providers::catalog::ProviderSetupMethod::ConfigFields,
+                crate::providers::catalog::ProviderSetupGroup::Additional,
+            )
+            .with_description("LiteLLM proxy gateway")
+            .with_field(
+                "LITELLM_HOST",
+                "Host URL",
+                Some("https://your-proxy.example.com"),
+                None,
+            )
+            .with_field(
+                "LITELLM_API_KEY",
+                "API Key",
+                Some("Paste your API key"),
+                None,
+            ),
+        )
     }
 }
 

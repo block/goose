@@ -1692,6 +1692,21 @@
           "$ref": "#/$defs/ProviderSetupCategoryDto",
           "description": "Whether this inventory entry represents an agent provider or a model provider."
         },
+        "visibleInSetup": {
+          "type": "boolean",
+          "description": "Whether this provider should appear in normal provider setup UIs."
+        },
+        "deprecated": {
+          "type": "boolean",
+          "description": "Whether this provider is retained only for compatibility."
+        },
+        "replacement": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Preferred replacement for a deprecated provider."
+        },
         "configKeys": {
           "type": "array",
           "items": {
@@ -1762,6 +1777,8 @@
         "configured",
         "providerType",
         "category",
+        "visibleInSetup",
+        "deprecated",
         "configKeys",
         "setupSteps",
         "supportsRefresh",
@@ -2643,6 +2660,43 @@
       "description": "Trigger a background refresh of provider inventories.",
       "x-side": "agent",
       "x-method": "_goose/unstable/providers/inventory/refresh"
+    },
+    "ProviderReadinessCheckRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "providerId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "providerId"
+      ],
+      "description": "Check whether an ACP provider can initialize and create a session.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/readiness/check"
+    },
+    "ProviderReadinessCheckResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "providerId": {
+          "type": "string"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "providerId",
+        "ready"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/readiness/check"
     },
     "ProviderConfigReadRequest_unstable": {
       "type": "object",
@@ -7211,6 +7265,15 @@
                 {
                   "allOf": [
                     {
+                      "$ref": "#/$defs/ProviderReadinessCheckRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/providers/readiness/check",
+                  "title": "ProviderReadinessCheckRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
                       "$ref": "#/$defs/ProviderConfigReadRequest_unstable"
                     }
                   ],
@@ -8155,6 +8218,14 @@
                         }
                       ],
                       "title": "RefreshProviderInventoryResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ProviderReadinessCheckResponse_unstable"
+                        }
+                      ],
+                      "title": "ProviderReadinessCheckResponse_unstable"
                     },
                     {
                       "allOf": [

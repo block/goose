@@ -146,6 +146,8 @@ pub struct DeclarativeProviderConfig {
     pub fast_model: Option<String>,
     #[serde(default)]
     pub preserves_thinking: bool,
+    #[serde(default)]
+    pub setup: Option<goose_provider_types::canonical::catalog::ProviderSetupMetadata>,
 }
 
 fn default_requires_auth() -> bool {

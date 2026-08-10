@@ -1670,6 +1670,26 @@ pub struct ListProvidersResponse {
     pub entries: Vec<ProviderInventoryEntryDto>,
 }
 
+/// Check whether an ACP provider can initialize and create a session.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/providers/readiness/check",
+    response = ProviderReadinessCheckResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderReadinessCheckRequest {
+    pub provider_id: String,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderReadinessCheckResponse {
+    pub provider_id: String,
+    pub ready: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
 /// List the raw model identifiers returned by a provider's live supported-models API.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
@@ -1769,6 +1789,13 @@ pub struct ProviderInventoryEntryDto {
     pub provider_type: String,
     /// Whether this inventory entry represents an agent provider or a model provider.
     pub category: ProviderSetupCategoryDto,
+    /// Whether this provider should appear in normal provider setup UIs.
+    pub visible_in_setup: bool,
+    /// Whether this provider is retained only for compatibility.
+    pub deprecated: bool,
+    /// Preferred replacement for a deprecated provider.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub replacement: Option<String>,
     /// Required configuration keys and setup metadata.
     pub config_keys: Vec<ProviderConfigKey>,
     /// Step-by-step setup instructions, when present.

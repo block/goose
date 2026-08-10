@@ -72,7 +72,7 @@ export default function ProviderSelector({
     const load = async () => {
       try {
         const list = await acpListProviderDetails();
-        setProviderList(list);
+        setProviderList(list.filter((provider) => provider.visible_in_setup));
       } catch (err) {
         console.error('Failed to fetch providers:', err);
       }

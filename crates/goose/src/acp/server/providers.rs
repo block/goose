@@ -44,6 +44,9 @@ fn inventory_entry_to_dto(entry: ProviderInventoryEntry) -> ProviderInventoryEnt
         configured: entry.configured,
         provider_type: format!("{:?}", entry.provider_type),
         category: provider_setup_category_to_dto(entry.category),
+        visible_in_setup: entry.visible_in_setup,
+        deprecated: entry.deprecated,
+        replacement: entry.replacement,
         config_keys: entry
             .config_keys
             .into_iter()
@@ -486,6 +489,37 @@ impl GooseAcpAgent {
         Ok(ProviderSupportedModelsListResponse {
             provider_id: req.provider_id,
             models,
+        })
+    }
+
+    pub(super) async fn on_check_provider_readiness(
+        &self,
+        req: ProviderReadinessCheckRequest,
+    ) -> Result<ProviderReadinessCheckResponse, agent_client_protocol::Error> {
+        if !req.provider_id.ends_with("-acp") {
+            return Err(agent_client_protocol::Error::invalid_params().data(format!(
+                "Provider is not an ACP provider: {}",
+                req.provider_id
+            )));
+        }
+
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            self.create_provider(&req.provider_id, Vec::new(), None),
+        )
+        .await;
+        let (ready, error) = match result {
+            Ok(Ok(_)) => (true, None),
+            Ok(Err(error)) => (false, Some(error.to_string())),
+            Err(_) => (
+                false,
+                Some(format!("Timed out while checking {}", req.provider_id)),
+            ),
+        };
+        Ok(ProviderReadinessCheckResponse {
+            provider_id: req.provider_id,
+            ready,
+            error,
         })
     }
 

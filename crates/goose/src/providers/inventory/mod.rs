@@ -36,6 +36,9 @@ pub struct ProviderInventoryEntry {
     pub configured: bool,
     pub provider_type: ProviderType,
     pub category: ProviderSetupCategory,
+    pub visible_in_setup: bool,
+    pub deprecated: bool,
+    pub replacement: Option<String>,
     pub config_keys: Vec<ConfigKey>,
     pub setup_steps: Vec<String>,
     pub supports_refresh: bool,
@@ -262,6 +265,9 @@ struct ProviderDescriptor {
     configured: bool,
     provider_type: ProviderType,
     category: ProviderSetupCategory,
+    visible_in_setup: bool,
+    deprecated: bool,
+    replacement: Option<String>,
     config_keys: Vec<ConfigKey>,
     setup_steps: Vec<String>,
     supports_refresh: bool,
@@ -305,6 +311,9 @@ impl ProviderInventoryService {
             configured: descriptor.configured,
             provider_type: descriptor.provider_type,
             category: descriptor.category,
+            visible_in_setup: descriptor.visible_in_setup,
+            deprecated: descriptor.deprecated,
+            replacement: descriptor.replacement,
             config_keys: descriptor.config_keys,
             setup_steps: descriptor.setup_steps,
             supports_refresh: descriptor.supports_refresh,
@@ -717,8 +726,18 @@ impl ProviderInventoryService {
             identity,
             configured: entry.inventory_configured(),
             provider_type: entry.provider_type(),
-            category: crate::providers::catalog::get_provider_setup_category(&metadata.name)
+            category: metadata
+                .setup
+                .as_ref()
+                .map(|setup| setup.category)
                 .unwrap_or(ProviderSetupCategory::Model),
+            visible_in_setup: metadata.setup.is_some()
+                || entry.provider_type() == ProviderType::Custom,
+            deprecated: metadata.deprecated.is_some(),
+            replacement: metadata
+                .deprecated
+                .as_ref()
+                .and_then(|deprecated| deprecated.replacement.clone()),
             config_keys: metadata.config_keys.clone(),
             setup_steps: metadata.setup_steps.clone(),
             supports_refresh: entry.supports_inventory_refresh(),
