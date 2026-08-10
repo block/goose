@@ -1110,11 +1110,34 @@ export function App({ roam }: { roam: RoamClient }) {
                       <ChevronLeft className="w-4 h-4" />
                     </button>
                   )}
-                  <h2 className="text-lg font-semibold">Add a host</h2>
+                  <h2 className="text-lg font-semibold">
+                    {hosts.length === 0 ? "goose remote" : "Add a host"}
+                  </h2>
                 </div>
-                <p className="text-xs text-text-tertiary mb-4">
-                  a machine running <code className="font-mono">goose roam share</code>
-                </p>
+                {hosts.length === 0 ? (
+                  <div className="text-xs text-text-secondary leading-relaxed mb-4 space-y-1.5">
+                    <p>
+                      Chat with a goose agent on your own machine, from this browser —
+                      peer to peer, no accounts, nothing in between.
+                    </p>
+                    <ol className="list-decimal ml-4 space-y-1 text-text-tertiary">
+                      <li>
+                        on your machine: <code className="font-mono">goose roam share --qr</code>
+                      </li>
+                      <li>scan or paste its card below</li>
+                      <li>
+                        accept this browser once:{" "}
+                        <code className="font-mono">goose roam pair</code> (or{" "}
+                        <code className="font-mono">peers accept</code>) with the card under
+                        “first time?”
+                      </li>
+                    </ol>
+                  </div>
+                ) : (
+                  <p className="text-xs text-text-tertiary mb-4">
+                    a machine running <code className="font-mono">goose roam share</code>
+                  </p>
+                )}
                 <input
                   id="host-name"
                   type="text"
