@@ -168,6 +168,28 @@ describe('OnboardingGuard telemetry preference', () => {
     expect(mocks.getFallbackModelAndProvider).not.toHaveBeenCalled();
   });
 
+  it('repairs a malformed pending marker before entering the application', async () => {
+    mocks.read.mockResolvedValue('not-a-boolean');
+    mocks.acpReadDefaults.mockResolvedValue({
+      providerId: 'test-provider',
+      modelId: 'test-model',
+    });
+
+    const user = userEvent.setup();
+    render(
+      <IntlTestWrapper>
+        <OnboardingGuard>
+          <div>Protected application</div>
+        </OnboardingGuard>
+      </IntlTestWrapper>
+    );
+
+    await user.click(await screen.findByRole('button', { name: 'Decline telemetry' }));
+
+    expect(await screen.findByText('Protected application')).toBeInTheDocument();
+    expect(mocks.remove).toHaveBeenCalledWith('GOOSE_ONBOARDING_TELEMETRY_PENDING', false);
+  });
+
   it('does not save fallback defaults while consent is pending without a provider', async () => {
     mocks.read.mockResolvedValue(true);
     mocks.getFallbackModelAndProvider.mockResolvedValue({

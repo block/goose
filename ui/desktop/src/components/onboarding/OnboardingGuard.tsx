@@ -75,7 +75,7 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
           { throwOnError: true }
         );
         const { providerId: provider, modelId: model } = await acpReadDefaults();
-        if (telemetryPending === true) {
+        if (telemetryPending !== null && telemetryPending !== false) {
           if (provider?.trim()) {
             const providers = await acpListProviderDetails();
             const matchedProvider = providers.find((candidate) => candidate.name === provider);
