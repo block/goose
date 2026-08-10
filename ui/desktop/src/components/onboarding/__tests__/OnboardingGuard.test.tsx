@@ -6,7 +6,13 @@ import OnboardingGuard from '../OnboardingGuard';
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
+  read: vi.fn(),
+  remove: vi.fn(),
   upsert: vi.fn(),
+  acpReadDefaults: vi.fn(),
+  acpListProviderDetails: vi.fn(),
+  acpSaveDefaults: vi.fn(),
+  getFallbackModelAndProvider: vi.fn(),
   refreshCurrentModelAndProvider: vi.fn(),
   trackTelemetryPreference: vi.fn(),
   setTelemetryEnabled: vi.fn(),
@@ -17,25 +23,20 @@ vi.mock('react-router', () => ({
 }));
 
 vi.mock('../../ConfigContext', () => ({
-  useConfig: () => ({ upsert: mocks.upsert }),
+  useConfig: () => ({ read: mocks.read, remove: mocks.remove, upsert: mocks.upsert }),
 }));
 
 vi.mock('../../ModelAndProviderContext', () => ({
   useModelAndProvider: () => ({
-    getFallbackModelAndProvider: vi.fn().mockResolvedValue({ provider: '', model: '' }),
+    getFallbackModelAndProvider: mocks.getFallbackModelAndProvider,
     refreshCurrentModelAndProvider: mocks.refreshCurrentModelAndProvider,
   }),
 }));
 
 vi.mock('../../../acp/providers', () => ({
-  acpReadDefaults: vi.fn().mockResolvedValue({ providerId: null, modelId: null }),
-  acpListProviderDetails: vi.fn().mockResolvedValue([
-    {
-      name: 'test-provider',
-      metadata: { display_name: 'Test Provider', default_model: 'test-model' },
-    },
-  ]),
-  acpSaveDefaults: vi.fn().mockResolvedValue(undefined),
+  acpReadDefaults: mocks.acpReadDefaults,
+  acpListProviderDetails: mocks.acpListProviderDetails,
+  acpSaveDefaults: mocks.acpSaveDefaults,
 }));
 
 vi.mock('../../../utils/analytics', () => ({
@@ -77,11 +78,25 @@ async function reachTelemetryChoice() {
 describe('OnboardingGuard telemetry preference', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.read.mockResolvedValue(null);
+    mocks.remove.mockResolvedValue(undefined);
+    mocks.upsert.mockResolvedValue(undefined);
+    mocks.acpReadDefaults.mockResolvedValue({ providerId: null, modelId: null });
+    mocks.acpListProviderDetails.mockResolvedValue([
+      {
+        name: 'test-provider',
+        metadata: { display_name: 'Test Provider', default_model: 'test-model' },
+      },
+    ]);
+    mocks.acpSaveDefaults.mockResolvedValue(undefined);
+    mocks.getFallbackModelAndProvider.mockResolvedValue({ provider: '', model: '' });
     mocks.refreshCurrentModelAndProvider.mockResolvedValue(undefined);
   });
 
   it('keeps onboarding retryable when an opt-out cannot be persisted', async () => {
-    mocks.upsert.mockRejectedValue(new Error('config write failed'));
+    mocks.upsert
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('config write failed'));
     const user = await reachTelemetryChoice();
 
     await user.click(await screen.findByRole('button', { name: 'Decline telemetry' }));
@@ -97,7 +112,6 @@ describe('OnboardingGuard telemetry preference', () => {
   });
 
   it('enters the application after persisting an opt-out', async () => {
-    mocks.upsert.mockResolvedValue(undefined);
     const user = await reachTelemetryChoice();
 
     await user.click(await screen.findByRole('button', { name: 'Decline telemetry' }));
@@ -106,10 +120,10 @@ describe('OnboardingGuard telemetry preference', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/', { replace: true });
     expect(mocks.trackTelemetryPreference).toHaveBeenCalledWith(false, 'onboarding');
     expect(mocks.setTelemetryEnabled).toHaveBeenCalledWith(false);
+    expect(mocks.remove).toHaveBeenCalledWith('GOOSE_ONBOARDING_TELEMETRY_PENDING', false);
   });
 
   it('enters the application after persisting an opt-in', async () => {
-    mocks.upsert.mockResolvedValue(undefined);
     const user = await reachTelemetryChoice();
 
     await user.click(await screen.findByRole('button', { name: 'Accept telemetry' }));
@@ -118,5 +132,89 @@ describe('OnboardingGuard telemetry preference', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/', { replace: true });
     expect(mocks.trackTelemetryPreference).toHaveBeenCalledWith(true, 'onboarding');
     expect(mocks.setTelemetryEnabled).not.toHaveBeenCalled();
+    expect(mocks.remove).toHaveBeenCalledWith('GOOSE_ONBOARDING_TELEMETRY_PENDING', false);
+  });
+
+  it('persists pending consent before saving provider defaults', async () => {
+    await reachTelemetryChoice();
+
+    expect(mocks.upsert).toHaveBeenCalledWith(
+      'GOOSE_ONBOARDING_TELEMETRY_PENDING',
+      true,
+      false
+    );
+    expect(mocks.upsert.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.acpSaveDefaults.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('restores pending consent after provider defaults were persisted', async () => {
+    mocks.read.mockResolvedValue(true);
+    mocks.acpReadDefaults.mockResolvedValue({
+      providerId: 'test-provider',
+      modelId: 'test-model',
+    });
+
+    render(
+      <IntlTestWrapper>
+        <OnboardingGuard>
+          <div>Protected application</div>
+        </OnboardingGuard>
+      </IntlTestWrapper>
+    );
+
+    expect(await screen.findByRole('button', { name: 'Decline telemetry' })).toBeInTheDocument();
+    expect(screen.queryByText('Protected application')).not.toBeInTheDocument();
+    expect(mocks.getFallbackModelAndProvider).not.toHaveBeenCalled();
+  });
+
+  it('does not save fallback defaults while consent is pending without a provider', async () => {
+    mocks.read.mockResolvedValue(true);
+    mocks.getFallbackModelAndProvider.mockResolvedValue({
+      provider: 'fallback-provider',
+      model: 'fallback-model',
+    });
+
+    render(
+      <IntlTestWrapper>
+        <OnboardingGuard>
+          <div>Protected application</div>
+        </OnboardingGuard>
+      </IntlTestWrapper>
+    );
+
+    expect(await screen.findByRole('button', { name: 'Configure' })).toBeInTheDocument();
+    expect(mocks.getFallbackModelAndProvider).not.toHaveBeenCalled();
+    expect(screen.queryByText('Protected application')).not.toBeInTheDocument();
+  });
+
+  it('keeps onboarding pending when clearing the marker fails', async () => {
+    mocks.remove.mockRejectedValueOnce(new Error('config remove failed'));
+    const user = await reachTelemetryChoice();
+
+    await user.click(await screen.findByRole('button', { name: 'Decline telemetry' }));
+
+    await waitFor(() => expect(mocks.remove).toHaveBeenCalledTimes(1));
+    expect(mocks.navigate).not.toHaveBeenCalled();
+    expect(mocks.trackTelemetryPreference).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Decline telemetry' })).toBeInTheDocument();
+  });
+
+  it('enters the application for an existing provider with no pending marker', async () => {
+    mocks.acpReadDefaults.mockResolvedValue({
+      providerId: 'test-provider',
+      modelId: 'test-model',
+    });
+
+    render(
+      <IntlTestWrapper>
+        <OnboardingGuard>
+          <div>Protected application</div>
+        </OnboardingGuard>
+      </IntlTestWrapper>
+    );
+
+    expect(await screen.findByText('Protected application')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Decline telemetry' })).not.toBeInTheDocument();
   });
 });

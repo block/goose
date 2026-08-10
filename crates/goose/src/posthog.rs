@@ -18,6 +18,7 @@ const POSTHOG_CAPTURE_URL: &str = "https://us.i.posthog.com/capture/";
 
 /// Config key for telemetry opt-out preference
 pub const TELEMETRY_ENABLED_KEY: &str = "GOOSE_TELEMETRY_ENABLED";
+pub const ONBOARDING_TELEMETRY_PENDING_KEY: &str = "GOOSE_ONBOARDING_TELEMETRY_PENDING";
 
 static TELEMETRY_DISABLED_BY_ENV: Lazy<AtomicBool> = Lazy::new(|| {
     std::env::var("GOOSE_TELEMETRY_OFF")
@@ -36,6 +37,12 @@ pub fn get_telemetry_choice() -> Option<bool> {
     }
 
     let config = Config::global();
+    if config
+        .get_param::<bool>(ONBOARDING_TELEMETRY_PENDING_KEY)
+        .unwrap_or(false)
+    {
+        return Some(false);
+    }
     config.get_param::<bool>(TELEMETRY_ENABLED_KEY).ok()
 }
 
@@ -601,4 +608,33 @@ pub async fn emit_event(
         .collect();
 
     posthog_capture(event_name, &installation.installation_id, sanitized).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pending_onboarding_consent_overrides_stale_enabled_telemetry() {
+        let _env = env_lock::lock_env([
+            ("GOOSE_TELEMETRY_OFF", Some("false")),
+            (TELEMETRY_ENABLED_KEY, Some("true")),
+            (ONBOARDING_TELEMETRY_PENDING_KEY, Some("true")),
+        ]);
+
+        assert_eq!(get_telemetry_choice(), Some(false));
+        assert!(!is_telemetry_enabled());
+    }
+
+    #[test]
+    fn completed_onboarding_preserves_enabled_telemetry() {
+        let _env = env_lock::lock_env([
+            ("GOOSE_TELEMETRY_OFF", Some("false")),
+            (TELEMETRY_ENABLED_KEY, Some("true")),
+            (ONBOARDING_TELEMETRY_PENDING_KEY, Some("false")),
+        ]);
+
+        assert_eq!(get_telemetry_choice(), Some(true));
+        assert!(is_telemetry_enabled());
+    }
 }

@@ -9,6 +9,10 @@ import {
 } from '../utils/analytics';
 import PrivacyInfoModal from './onboarding/PrivacyInfoModal';
 import { defineMessages, useIntl } from '../i18n';
+import {
+  ONBOARDING_TELEMETRY_PENDING_CONFIG_KEY,
+  TELEMETRY_CONFIG_KEY,
+} from './onboarding/telemetryConfig';
 
 const i18n = defineMessages({
   heading: {
@@ -34,8 +38,6 @@ const i18n = defineMessages({
   },
 });
 
-const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
-
 export default function TelemetryConsentPrompt() {
   const intl = useIntl();
   const { read, upsert } = useConfig();
@@ -48,6 +50,13 @@ export default function TelemetryConsentPrompt() {
 
     (async () => {
       try {
+        const onboardingTelemetryPending = await read(
+          ONBOARDING_TELEMETRY_PENDING_CONFIG_KEY,
+          false,
+          { throwOnError: true }
+        );
+        if (onboardingTelemetryPending === true) return;
+
         const provider = await read('GOOSE_PROVIDER', false);
         if (!provider || provider === '') return;
 

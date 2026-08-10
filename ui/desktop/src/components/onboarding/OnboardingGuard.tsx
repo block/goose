@@ -15,6 +15,10 @@ import {
   setTelemetryEnabled as setAnalyticsTelemetryEnabled,
 } from '../../utils/analytics';
 import { defineMessages, useIntl } from '../../i18n';
+import {
+  ONBOARDING_TELEMETRY_PENDING_CONFIG_KEY,
+  TELEMETRY_CONFIG_KEY,
+} from './telemetryConfig';
 
 const i18n = defineMessages({
   welcomeTitle: {
@@ -39,8 +43,6 @@ const i18n = defineMessages({
   },
 });
 
-const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
-
 interface OnboardingGuardProps {
   children: React.ReactNode;
 }
@@ -48,7 +50,7 @@ interface OnboardingGuardProps {
 export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   const intl = useIntl();
   const navigate = useNavigate();
-  const { upsert } = useConfig();
+  const { read, remove, upsert } = useConfig();
   const { getFallbackModelAndProvider, refreshCurrentModelAndProvider } = useModelAndProvider();
 
   const [isCheckingProvider, setIsCheckingProvider] = useState(true);
@@ -67,7 +69,27 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
     setCheckProviderError(false);
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const { providerId: provider } = await acpReadDefaults();
+        const telemetryPending = await read(
+          ONBOARDING_TELEMETRY_PENDING_CONFIG_KEY,
+          false,
+          { throwOnError: true }
+        );
+        const { providerId: provider, modelId: model } = await acpReadDefaults();
+        if (telemetryPending === true) {
+          if (provider?.trim()) {
+            const providers = await acpListProviderDetails();
+            const matchedProvider = providers.find((candidate) => candidate.name === provider);
+            setConfiguredProvider(provider);
+            setConfiguredModel(model ?? null);
+            setConfiguredProviderDisplayName(
+              matchedProvider?.metadata.display_name || provider
+            );
+          }
+          setHasProvider(false);
+          setIsCheckingProvider(false);
+          return;
+        }
+
         if (provider?.trim()) {
           setHasProvider(true);
           setIsCheckingProvider(false);
@@ -117,6 +139,7 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
     const providers = await acpListProviderDetails();
     const matchedProvider = providers.find((p) => p.name === providerName);
     const resolvedModel = modelId ?? matchedProvider?.metadata.default_model ?? null;
+    await upsert(ONBOARDING_TELEMETRY_PENDING_CONFIG_KEY, true, false);
     await acpSaveDefaults(providerName, resolvedModel);
     setConfiguredModel(resolvedModel);
     await refreshCurrentModelAndProvider();
@@ -127,6 +150,7 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   const finishOnboarding = async (telemetryEnabled: boolean) => {
     try {
       await upsert(TELEMETRY_CONFIG_KEY, telemetryEnabled, false);
+      await remove(ONBOARDING_TELEMETRY_PENDING_CONFIG_KEY, false);
     } catch (error) {
       console.error('Failed to save telemetry preference:', error);
       return;
