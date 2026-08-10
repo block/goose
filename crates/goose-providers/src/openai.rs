@@ -15,6 +15,7 @@ use crate::formats::openai_responses::{
     create_responses_request_for_model, get_responses_usage, responses_api_to_message,
     ResponsesApiResponse,
 };
+use crate::http_status::read_json_response;
 use crate::images::ImageFormat;
 use crate::openai_compatible::{
     handle_response_openai_compat, handle_status, stream_openai_compat, stream_responses_compat,
@@ -324,9 +325,7 @@ impl OpenAiProvider {
         if self.supports_streaming {
             stream_responses_compat(response, log)
         } else {
-            let json: serde_json::Value = response.json().await.map_err(|e| {
-                ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
-            })?;
+            let json: serde_json::Value = read_json_response(response).await?;
             let parsed: ResponsesApiResponse =
                 serde_json::from_value(json.clone()).map_err(|e| {
                     ProviderError::ExecutionError(format!(
@@ -811,9 +810,7 @@ impl Provider for OpenAiProvider {
             if self.supports_streaming {
                 stream_openai_compat(response, log)
             } else {
-                let json: serde_json::Value = response.json().await.map_err(|e| {
-                    ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
-                })?;
+                let json: serde_json::Value = read_json_response(response).await?;
 
                 let message = response_to_message(&json).map_err(|e| {
                     ProviderError::RequestFailed(format!("Failed to parse message: {}", e))
@@ -1590,6 +1587,80 @@ mod tests {
 
         let err = provider.fetch_supported_models().await.unwrap_err();
         assert!(!err.is_endpoint_not_found(), "got: {:?}", err);
+    }
+
+    #[tokio::test]
+    async fn nonstreaming_chat_accepts_legitimate_response() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/chat/completions"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "choices": [{
+                    "index": 0,
+                    "message": {"role": "assistant", "content": "hello"},
+                    "finish_reason": "stop"
+                }],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}
+            })))
+            .mount(&server)
+            .await;
+
+        let mut provider = make_provider_with_custom_models(
+            &server.uri(),
+            "v1/chat/completions",
+            vec!["test-model".to_string()],
+        );
+        provider.supports_streaming = false;
+
+        let _stream = provider
+            .stream(&ModelConfig::new("test-model"), "", &[], &[])
+            .await
+            .expect("legitimate non-streaming response should be accepted");
+    }
+
+    #[tokio::test]
+    async fn nonstreaming_chat_rejects_oversized_response_body() {
+        use crate::http_status::MAX_PROVIDER_JSON_RESPONSE_BYTES;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/chat/completions"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "choices": [{
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "a".repeat(MAX_PROVIDER_JSON_RESPONSE_BYTES + 1)
+                    },
+                    "finish_reason": "stop"
+                }]
+            })))
+            .mount(&server)
+            .await;
+
+        let mut provider = make_provider_with_custom_models(
+            &server.uri(),
+            "v1/chat/completions",
+            vec!["test-model".to_string()],
+        );
+        provider.supports_streaming = false;
+
+        let err = match provider
+            .stream(&ModelConfig::new("test-model"), "", &[], &[])
+            .await
+        {
+            Ok(_) => panic!("oversized response should be rejected"),
+            Err(err) => err,
+        };
+        assert!(
+            err.to_string().contains("response body exceeds"),
+            "got: {err}"
+        );
     }
 
     #[tokio::test]

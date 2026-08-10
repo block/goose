@@ -5227,6 +5227,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "env-lock",
+ "flate2",
  "futures",
  "goose-local-inference",
  "goose-provider-types",
