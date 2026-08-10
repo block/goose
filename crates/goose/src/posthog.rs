@@ -40,12 +40,18 @@ pub fn get_telemetry_choice() -> Option<bool> {
 }
 
 fn get_telemetry_choice_from_config(config: &Config) -> Option<bool> {
-    match config.get_param_from_files::<bool>(ONBOARDING_TELEMETRY_PENDING_KEY) {
-        Ok(true) => return Some(false),
-        Ok(false) | Err(ConfigError::NotFound(_)) => {}
-        Err(_) => return Some(false),
+    if onboarding_telemetry_is_pending(config) {
+        return None;
     }
     config.get_param::<bool>(TELEMETRY_ENABLED_KEY).ok()
+}
+
+fn onboarding_telemetry_is_pending(config: &Config) -> bool {
+    match config.get_param_from_files::<bool>(ONBOARDING_TELEMETRY_PENDING_KEY) {
+        Ok(true) => true,
+        Ok(false) | Err(ConfigError::NotFound(_)) => false,
+        Err(_) => true,
+    }
 }
 
 /// Check if telemetry is enabled.
@@ -57,7 +63,18 @@ fn get_telemetry_choice_from_config(config: &Config) -> Option<bool> {
 ///
 /// Returns true only if the user has explicitly opted in.
 pub fn is_telemetry_enabled() -> bool {
-    get_telemetry_choice().unwrap_or(false)
+    if TELEMETRY_DISABLED_BY_ENV.load(Ordering::Relaxed) {
+        return false;
+    }
+
+    is_telemetry_enabled_from_config(Config::global())
+}
+
+fn is_telemetry_enabled_from_config(config: &Config) -> bool {
+    !onboarding_telemetry_is_pending(config)
+        && config
+            .get_param::<bool>(TELEMETRY_ENABLED_KEY)
+            .unwrap_or(false)
 }
 
 // ============================================================================
@@ -635,7 +652,9 @@ mod tests {
             .set_param(ONBOARDING_TELEMETRY_PENDING_KEY, true)
             .unwrap();
 
-        assert_eq!(get_telemetry_choice_from_config(&config), Some(false));
+        assert_eq!(get_telemetry_choice_from_config(&config), None);
+        assert!(onboarding_telemetry_is_pending(&config));
+        assert!(!is_telemetry_enabled_from_config(&config));
     }
 
     #[test]
@@ -651,6 +670,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(get_telemetry_choice_from_config(&config), Some(true));
+        assert!(is_telemetry_enabled_from_config(&config));
     }
 
     #[test]
@@ -675,6 +695,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(get_telemetry_choice_from_config(&config), Some(true));
+        assert!(is_telemetry_enabled_from_config(&config));
     }
 
     #[test]
@@ -686,6 +707,8 @@ mod tests {
             .set_param(ONBOARDING_TELEMETRY_PENDING_KEY, "not-a-boolean")
             .unwrap();
 
-        assert_eq!(get_telemetry_choice_from_config(&config), Some(false));
+        assert_eq!(get_telemetry_choice_from_config(&config), None);
+        assert!(onboarding_telemetry_is_pending(&config));
+        assert!(!is_telemetry_enabled_from_config(&config));
     }
 }
