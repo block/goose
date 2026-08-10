@@ -151,7 +151,7 @@ async fn grind_is_bounded_by_max_turns() -> Result<()> {
 }
 
 #[tokio::test]
-async fn slash_commands_yield_or_fall_through_to_inference() -> Result<()> {
+async fn slash_commands_yield_or_are_rejected() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
 
     let status = pipeline.run(["/status"]).await?;
@@ -163,10 +163,9 @@ async fn slash_commands_yield_or_fall_through_to_inference() -> Result<()> {
         .iter()
         .all(|message| message.is_user_visible() && !message.is_agent_visible()));
 
-    api.on("/not-a-command").reply("saw it");
     let unknown = pipeline.run(["/not-a-command"]).await?;
-    assert_eq!(api.call_count(), 1);
-    unknown.assert_message(-1, Agent, "saw it");
+    assert_eq!(api.call_count(), 0);
+    unknown.assert_message(-1, Agent, "Unknown or unavailable slash command");
     let command = unknown
         .conversation()
         .messages()
@@ -174,7 +173,7 @@ async fn slash_commands_yield_or_fall_through_to_inference() -> Result<()> {
         .find(|message| message.as_concat_text() == "/not-a-command")
         .expect("persisted user message");
     assert!(command.is_user_visible());
-    assert!(command.is_agent_visible());
+    assert!(!command.is_agent_visible());
 
     Ok(())
 }

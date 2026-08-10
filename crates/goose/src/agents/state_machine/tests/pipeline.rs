@@ -161,10 +161,6 @@ impl TestPipeline {
             Arc::new(ExitOnErrorOperation),
         ];
         operations.extend(remaining_operations);
-        let context_managing_provider = self
-            .provider_features
-            .manages_own_context
-            .then(|| provider.get_name().to_string());
         let inference = Arc::new(InferenceRunner::new(
             provider,
             self.model_config.clone(),
@@ -176,10 +172,8 @@ impl TestPipeline {
         ));
         let mut command_handlers = operations.clone();
         command_handlers.push(inference.clone());
-        let command_operation: Arc<dyn Operation + '_> = Arc::new(SlashCommandOperation::new(
-            command_handlers,
-            context_managing_provider,
-        ));
+        let command_operation: Arc<dyn Operation + '_> =
+            Arc::new(SlashCommandOperation::new(command_handlers));
         let steps = std::iter::once(command_operation)
             .chain(operations)
             .map(Step::Operation)

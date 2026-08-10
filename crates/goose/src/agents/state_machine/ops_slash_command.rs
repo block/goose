@@ -5,7 +5,6 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 
-use crate::agents::context_management_unsupported_message;
 use crate::agents::state_machine::operation::{
     messages_since_kickoff, not_applicable, yielded_with, Emitter, Operation, OperationResult,
     SlashCommand, StateEffect,
@@ -16,7 +15,6 @@ use crate::session::Session;
 
 pub struct SlashCommandOperation<'a> {
     operations: Vec<Arc<dyn Operation + 'a>>,
-    context_managing_provider: Option<String>,
 }
 
 fn parse_slash_command(message: &str) -> Option<SlashCommand<'_>> {
@@ -39,14 +37,8 @@ fn parse_slash_command(message: &str) -> Option<SlashCommand<'_>> {
 }
 
 impl<'a> SlashCommandOperation<'a> {
-    pub fn new(
-        operations: Vec<Arc<dyn Operation + 'a>>,
-        context_managing_provider: Option<String>,
-    ) -> Self {
-        Self {
-            operations,
-            context_managing_provider,
-        }
+    pub fn new(operations: Vec<Arc<dyn Operation + 'a>>) -> Self {
+        Self { operations }
     }
 }
 
@@ -74,35 +66,6 @@ impl Operation for SlashCommandOperation<'_> {
             return not_applicable();
         };
 
-        if matches!(command.command, "clear" | "compact") {
-            if let Some(provider) = &self.context_managing_provider {
-                let message_id = user_message
-                    .id
-                    .clone()
-                    .ok_or_else(|| anyhow::anyhow!("Persisted slash command message has no id"))?;
-                emit.message(user_message.clone().with_visibility(true, false))
-                    .await;
-                let response = emit
-                    .message(
-                        Message::assistant()
-                            .with_text(context_management_unsupported_message(
-                                command.command,
-                                provider,
-                            ))
-                            .with_visibility(true, false),
-                    )
-                    .await;
-                return yielded_with([
-                    StateEffect::SetMessageVisibility {
-                        message_id,
-                        user_visible: true,
-                        agent_visible: false,
-                    },
-                    response.into(),
-                ]);
-            }
-        }
-
         for operation in &self.operations {
             match operation
                 .run_command(&command, session, conversation, emit)
@@ -112,6 +75,30 @@ impl Operation for SlashCommandOperation<'_> {
                 applied @ OperationResult::Applied(_) => return Ok(applied),
             }
         }
-        not_applicable()
+
+        let message_id = user_message
+            .id
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("Persisted slash command message has no id"))?;
+        emit.message(user_message.clone().with_visibility(true, false))
+            .await;
+        let response = emit
+            .message(
+                Message::assistant()
+                    .with_text(format!(
+                        "Unknown or unavailable slash command: /{}",
+                        command.command
+                    ))
+                    .with_visibility(true, false),
+            )
+            .await;
+        yielded_with([
+            StateEffect::SetMessageVisibility {
+                message_id,
+                user_visible: true,
+                agent_visible: false,
+            },
+            response.into(),
+        ])
     }
 }

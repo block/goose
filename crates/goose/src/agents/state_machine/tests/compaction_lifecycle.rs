@@ -180,9 +180,7 @@ async fn context_owning_provider_has_no_compaction_operation() -> Result<()> {
         rejected.assert_message(
             -1,
             Agent,
-            &format!(
-                "/{command} is not available for provider 'openai' because it manages its own conversation context"
-            ),
+            &format!("Unknown or unavailable slash command: /{command}"),
         );
         assert_eq!(rejected.history_replacements(), 0);
     }

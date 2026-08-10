@@ -1612,8 +1612,6 @@ impl Agent {
                 crate::context_mgmt::compute_tool_call_cutoff(context_limit, compaction_threshold)
             });
         let manages_own_context = provider.manages_own_context();
-        let context_managing_provider =
-            manages_own_context.then(|| provider.get_name().to_string());
         let tool_pair_compaction_enabled =
             crate::context_mgmt::tool_pair_summarization_enabled() && !manages_own_context;
 
@@ -1675,10 +1673,8 @@ impl Agent {
         ));
         let mut command_handlers = operations.clone();
         command_handlers.push(inference.clone());
-        let command_operation: Arc<dyn Operation + '_> = Arc::new(SlashCommandOperation::new(
-            command_handlers,
-            context_managing_provider,
-        ));
+        let command_operation: Arc<dyn Operation + '_> =
+            Arc::new(SlashCommandOperation::new(command_handlers));
         let operations: Vec<_> = std::iter::once(command_operation)
             .chain(operations)
             .collect();
