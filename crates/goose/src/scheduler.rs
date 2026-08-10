@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tokio_cron_scheduler::{job::JobId, Job, JobScheduler as TokioJobScheduler};
 use tokio_util::sync::CancellationToken;
+use uuid::Uuid;
 
 use crate::agents::{Agent, AgentConfig, AgentEvent, GoosePlatform, SessionConfig};
 use crate::config::paths::Paths;
@@ -27,7 +28,12 @@ use crate::scheduler_trait::SchedulerTrait;
 use crate::session::session_manager::SessionType;
 use crate::session::{Session, SessionManager};
 
-type RunningTasksMap = HashMap<String, CancellationToken>;
+struct RunningTask {
+    execution_id: Uuid,
+    cancel_token: CancellationToken,
+}
+
+type RunningTasksMap = HashMap<String, RunningTask>;
 type JobsMap = HashMap<String, (JobId, ScheduledJob)>;
 
 pub(crate) const MAX_SCHEDULE_RECIPE_BYTES: u64 = 1024 * 1024;
@@ -269,21 +275,26 @@ async fn claim_cron_execution(
     job_id: &str,
     current_time: DateTime<Utc>,
     cancel_token: CancellationToken,
-) -> bool {
+) -> Option<Uuid> {
     let mut jobs_guard = jobs.lock().await;
-    let Some((_, job)) = jobs_guard.get_mut(job_id) else {
-        return false;
-    };
+    let (_, job) = jobs_guard.get_mut(job_id)?;
     if job.paused || job.currently_running {
-        return false;
+        return None;
     }
 
     let mut tasks_guard = running_tasks.lock().await;
+    let execution_id = Uuid::new_v4();
     job.last_run = Some(current_time);
     job.currently_running = true;
     job.process_start_time = Some(current_time);
-    tasks_guard.insert(job_id.to_string(), cancel_token);
-    true
+    tasks_guard.insert(
+        job_id.to_string(),
+        RunningTask {
+            execution_id,
+            cancel_token,
+        },
+    );
+    Some(execution_id)
 }
 
 async fn claim_manual_execution(
@@ -292,7 +303,7 @@ async fn claim_manual_execution(
     job_id: &str,
     current_time: DateTime<Utc>,
     cancel_token: CancellationToken,
-) -> Result<ScheduledJob, SchedulerError> {
+) -> Result<(ScheduledJob, Uuid), SchedulerError> {
     let mut jobs_guard = jobs.lock().await;
     let Some((_, job)) = jobs_guard.get_mut(job_id) else {
         return Err(SchedulerError::JobNotFound(job_id.to_string()));
@@ -305,10 +316,66 @@ async fn claim_manual_execution(
     }
 
     let mut tasks_guard = running_tasks.lock().await;
+    let execution_id = Uuid::new_v4();
     job.currently_running = true;
     job.process_start_time = Some(current_time);
-    tasks_guard.insert(job_id.to_string(), cancel_token);
-    Ok(job.clone())
+    tasks_guard.insert(
+        job_id.to_string(),
+        RunningTask {
+            execution_id,
+            cancel_token,
+        },
+    );
+    Ok((job.clone(), execution_id))
+}
+
+async fn set_execution_session(
+    jobs: &Arc<Mutex<JobsMap>>,
+    running_tasks: &Arc<Mutex<RunningTasksMap>>,
+    job_id: &str,
+    execution_id: Uuid,
+    session_id: String,
+) -> bool {
+    let mut jobs_guard = jobs.lock().await;
+    let tasks_guard = running_tasks.lock().await;
+    if !matches!(
+        tasks_guard.get(job_id),
+        Some(task) if task.execution_id == execution_id
+    ) {
+        return false;
+    }
+
+    let Some((_, job)) = jobs_guard.get_mut(job_id) else {
+        return false;
+    };
+    job.current_session_id = Some(session_id);
+    true
+}
+
+async fn finish_execution(
+    jobs: &Arc<Mutex<JobsMap>>,
+    running_tasks: &Arc<Mutex<RunningTasksMap>>,
+    job_id: &str,
+    execution_id: Uuid,
+    completed_at: Option<DateTime<Utc>>,
+) -> bool {
+    let mut jobs_guard = jobs.lock().await;
+    let mut tasks_guard = running_tasks.lock().await;
+    if !matches!(
+        tasks_guard.get(job_id),
+        Some(task) if task.execution_id == execution_id
+    ) {
+        return false;
+    }
+
+    tasks_guard.remove(job_id);
+    if let Some((_, job)) = jobs_guard.get_mut(job_id) {
+        clear_running_state(job);
+        if let Some(completed_at) = completed_at {
+            job.last_run = Some(completed_at);
+        }
+    }
+    true
 }
 
 pub struct Scheduler {
@@ -390,7 +457,7 @@ impl Scheduler {
             Box::pin(async move {
                 let current_time = Utc::now();
                 let cancel_token = CancellationToken::new();
-                if !claim_cron_execution(
+                let Some(execution_id) = claim_cron_execution(
                     &current_jobs_arc,
                     &running_tasks,
                     &task_job_id,
@@ -398,9 +465,9 @@ impl Scheduler {
                     cancel_token.clone(),
                 )
                 .await
-                {
+                else {
                     return;
-                }
+                };
 
                 if let Err(e) = persist_jobs(&local_storage_path, &current_jobs_arc).await {
                     tracing::error!("Failed to persist job status: {}", e);
@@ -409,25 +476,22 @@ impl Scheduler {
                 let result = execute_job(
                     job_to_execute,
                     current_jobs_arc.clone(),
+                    running_tasks.clone(),
                     task_job_id.clone(),
+                    execution_id,
                     cancel_token.clone(),
                     session_manager,
                 )
                 .await;
 
-                {
-                    let mut tasks = running_tasks.lock().await;
-                    tasks.remove(&task_job_id);
-                }
-
-                {
-                    let mut jobs_guard = current_jobs_arc.lock().await;
-                    if let Some((_, job)) = jobs_guard.get_mut(&task_job_id) {
-                        job.currently_running = false;
-                        job.current_session_id = None;
-                        job.process_start_time = None;
-                    }
-                }
+                finish_execution(
+                    &current_jobs_arc,
+                    &running_tasks,
+                    &task_job_id,
+                    execution_id,
+                    None,
+                )
+                .await;
 
                 if let Err(e) = persist_jobs(&local_storage_path, &current_jobs_arc).await {
                     tracing::error!("Failed to persist job completion: {}", e);
@@ -834,7 +898,7 @@ impl Scheduler {
 
     pub async fn run_now(&self, sched_id: &str) -> Result<String, SchedulerError> {
         let cancel_token = CancellationToken::new();
-        let job_to_run = claim_manual_execution(
+        let (job_to_run, execution_id) = claim_manual_execution(
             &self.jobs,
             &self.running_tasks,
             sched_id,
@@ -848,27 +912,23 @@ impl Scheduler {
         let result = execute_job(
             job_to_run,
             self.jobs.clone(),
+            self.running_tasks.clone(),
             sched_id.to_string(),
+            execution_id,
             cancel_token.clone(),
             self.session_manager.clone(),
         )
         .await;
         let was_cancelled = cancel_token.is_cancelled();
 
-        {
-            let mut tasks = self.running_tasks.lock().await;
-            tasks.remove(sched_id);
-        }
-
-        {
-            let mut jobs_guard = self.jobs.lock().await;
-            if let Some((_, job)) = jobs_guard.get_mut(sched_id) {
-                job.currently_running = false;
-                job.current_session_id = None;
-                job.process_start_time = None;
-                job.last_run = Some(Utc::now());
-            }
-        }
+        finish_execution(
+            &self.jobs,
+            &self.running_tasks,
+            sched_id,
+            execution_id,
+            Some(Utc::now()),
+        )
+        .await;
 
         persist_jobs(&self.storage_path, &self.jobs).await?;
 
@@ -967,35 +1027,22 @@ impl Scheduler {
 
     pub async fn kill_running_job(&self, sched_id: &str) -> Result<(), SchedulerError> {
         {
-            let jobs_guard = self.jobs.lock().await;
-            match jobs_guard.get(sched_id) {
-                Some((_, job)) if !job.currently_running => {
-                    return Err(SchedulerError::AnyhowError(anyhow!(
-                        "Schedule '{}' is not running",
-                        sched_id
-                    )));
-                }
-                None => return Err(SchedulerError::JobNotFound(sched_id.to_string())),
-                _ => {}
-            }
-        }
-
-        let token = {
-            let mut tasks = self.running_tasks.lock().await;
-            tasks.remove(sched_id)
-        };
-        if let Some(token) = token {
-            token.cancel();
-        }
-
-        {
             let mut jobs_guard = self.jobs.lock().await;
-            match jobs_guard.get_mut(sched_id) {
-                Some((_, job)) => {
-                    clear_running_state(job);
-                }
-                None => return Err(SchedulerError::JobNotFound(sched_id.to_string())),
+            let Some((_, job)) = jobs_guard.get_mut(sched_id) else {
+                return Err(SchedulerError::JobNotFound(sched_id.to_string()));
+            };
+            if !job.currently_running {
+                return Err(SchedulerError::AnyhowError(anyhow!(
+                    "Schedule '{}' is not running",
+                    sched_id
+                )));
             }
+
+            let mut tasks_guard = self.running_tasks.lock().await;
+            if let Some(task) = tasks_guard.remove(sched_id) {
+                task.cancel_token.cancel();
+            }
+            clear_running_state(job);
         }
 
         persist_jobs(&self.storage_path, &self.jobs).await
@@ -1023,7 +1070,9 @@ impl Scheduler {
 async fn execute_job(
     job: ScheduledJob,
     jobs: Arc<Mutex<JobsMap>>,
+    running_tasks: Arc<Mutex<RunningTasksMap>>,
     job_id: String,
+    execution_id: Uuid,
     cancel_token: CancellationToken,
     session_manager: Arc<SessionManager>,
 ) -> Result<String> {
@@ -1095,11 +1144,17 @@ async fn execute_job(
         .update_goose_mode(GooseMode::Auto, &session.id)
         .await?;
 
-    let mut jobs_guard = jobs.lock().await;
-    if let Some((_, job_def)) = jobs_guard.get_mut(job_id.as_str()) {
-        job_def.current_session_id = Some(session.id.clone());
+    if !set_execution_session(
+        &jobs,
+        &running_tasks,
+        &job_id,
+        execution_id,
+        session.id.clone(),
+    )
+    .await
+    {
+        return Err(anyhow!("Scheduled execution was cancelled"));
     }
-    drop(jobs_guard);
 
     let start_time = std::time::Instant::now();
 
@@ -1637,11 +1692,13 @@ mod tests {
 
         scheduler.add_scheduled_job(job, false).await.unwrap();
         let token = CancellationToken::new();
-        scheduler
-            .running_tasks
-            .lock()
-            .await
-            .insert("running_removal_job".to_string(), token.clone());
+        scheduler.running_tasks.lock().await.insert(
+            "running_removal_job".to_string(),
+            RunningTask {
+                execution_id: Uuid::new_v4(),
+                cancel_token: token.clone(),
+            },
+        );
 
         let error = scheduler
             .remove_scheduled_job("running_removal_job", false)
@@ -1721,7 +1778,7 @@ mod tests {
         });
         drop(running_tasks_guard);
 
-        assert!(claim.await.unwrap());
+        assert!(claim.await.unwrap().is_some());
         assert!(matches!(
             removal.await.unwrap(),
             Err(SchedulerError::JobRunning(id)) if id == "cron_claim_job"
@@ -1760,11 +1817,13 @@ mod tests {
         };
         scheduler.add_scheduled_job(job, false).await.unwrap();
         let original_token = CancellationToken::new();
-        scheduler
-            .running_tasks
-            .lock()
-            .await
-            .insert("active_cron_job".to_string(), original_token.clone());
+        scheduler.running_tasks.lock().await.insert(
+            "active_cron_job".to_string(),
+            RunningTask {
+                execution_id: Uuid::new_v4(),
+                cancel_token: original_token.clone(),
+            },
+        );
         let second_token = CancellationToken::new();
 
         let claimed = claim_cron_execution(
@@ -1776,7 +1835,7 @@ mod tests {
         )
         .await;
 
-        assert!(!claimed);
+        assert!(claimed.is_none());
         let jobs_guard = scheduler.jobs.lock().await;
         let (_, active_job) = jobs_guard.get("active_cron_job").unwrap();
         assert_eq!(active_job.last_run, Some(original_start));
@@ -1786,7 +1845,11 @@ mod tests {
 
         original_token.cancel();
         let tasks_guard = scheduler.running_tasks.lock().await;
-        assert!(tasks_guard.get("active_cron_job").unwrap().is_cancelled());
+        assert!(tasks_guard
+            .get("active_cron_job")
+            .unwrap()
+            .cancel_token
+            .is_cancelled());
         assert!(!second_token.is_cancelled());
     }
 
@@ -1858,6 +1921,115 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn stale_execution_cannot_clear_or_relabel_its_successor() {
+        let temp_dir = tempdir().unwrap();
+        let storage_path = temp_dir.path().join("schedule.json");
+        let recipe_path = create_test_recipe(temp_dir.path(), "successor_job");
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let scheduler = Scheduler::new(storage_path, session_manager).await.unwrap();
+
+        let job = ScheduledJob {
+            id: "successor_job".to_string(),
+            source: recipe_path.to_string_lossy().to_string(),
+            cron: "0 0 0 1 1 *".to_string(),
+            last_run: None,
+            currently_running: false,
+            paused: false,
+            current_session_id: None,
+            process_start_time: None,
+            parameters: vec![],
+            recipe_base_dir: None,
+        };
+        scheduler.add_scheduled_job(job, false).await.unwrap();
+
+        let first_token = CancellationToken::new();
+        let (_, first_execution_id) = claim_manual_execution(
+            &scheduler.jobs,
+            &scheduler.running_tasks,
+            "successor_job",
+            Utc::now(),
+            first_token.clone(),
+        )
+        .await
+        .unwrap();
+        scheduler.kill_running_job("successor_job").await.unwrap();
+        assert!(first_token.is_cancelled());
+
+        let successor_token = CancellationToken::new();
+        let (_, successor_execution_id) = claim_manual_execution(
+            &scheduler.jobs,
+            &scheduler.running_tasks,
+            "successor_job",
+            Utc::now(),
+            successor_token.clone(),
+        )
+        .await
+        .unwrap();
+        assert!(
+            set_execution_session(
+                &scheduler.jobs,
+                &scheduler.running_tasks,
+                "successor_job",
+                successor_execution_id,
+                "successor-session".to_string(),
+            )
+            .await
+        );
+
+        assert!(
+            !set_execution_session(
+                &scheduler.jobs,
+                &scheduler.running_tasks,
+                "successor_job",
+                first_execution_id,
+                "stale-session".to_string(),
+            )
+            .await
+        );
+        assert!(
+            !finish_execution(
+                &scheduler.jobs,
+                &scheduler.running_tasks,
+                "successor_job",
+                first_execution_id,
+                Some(Utc::now()),
+            )
+            .await
+        );
+
+        let jobs_guard = scheduler.jobs.lock().await;
+        let (_, successor_job) = jobs_guard.get("successor_job").unwrap();
+        assert!(successor_job.currently_running);
+        assert_eq!(
+            successor_job.current_session_id.as_deref(),
+            Some("successor-session")
+        );
+        drop(jobs_guard);
+
+        let tasks_guard = scheduler.running_tasks.lock().await;
+        let successor_task = tasks_guard.get("successor_job").unwrap();
+        assert_eq!(successor_task.execution_id, successor_execution_id);
+        assert!(!successor_task.cancel_token.is_cancelled());
+        drop(tasks_guard);
+
+        assert!(matches!(
+            scheduler
+                .remove_scheduled_job("successor_job", false)
+                .await,
+            Err(SchedulerError::JobRunning(id)) if id == "successor_job"
+        ));
+
+        finish_execution(
+            &scheduler.jobs,
+            &scheduler.running_tasks,
+            "successor_job",
+            successor_execution_id,
+            Some(Utc::now()),
+        )
+        .await;
+    }
+
+    #[tokio::test]
     async fn test_kill_running_job_clears_state_and_persists() {
         let temp_dir = tempdir().unwrap();
         let storage_path = temp_dir.path().join("schedule.json");
@@ -1890,7 +2062,13 @@ mod tests {
         }
         {
             let mut tasks = scheduler.running_tasks.lock().await;
-            tasks.insert("running_job".to_string(), CancellationToken::new());
+            tasks.insert(
+                "running_job".to_string(),
+                RunningTask {
+                    execution_id: Uuid::new_v4(),
+                    cancel_token: CancellationToken::new(),
+                },
+            );
         }
         persist_jobs(&storage_path, &scheduler.jobs).await.unwrap();
 
