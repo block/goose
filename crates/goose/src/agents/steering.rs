@@ -150,7 +150,7 @@ impl SteeringQueue {
             .collect()
     }
 
-    pub(crate) async fn wait_until_steer_can_be_used(&self, cancel: &CancellationToken) {
+    pub(crate) async fn wait_for_next_ready_or_cancelled(&self, cancel: &CancellationToken) {
         loop {
             let notified = self.hook_complete_notify.notified();
             tokio::pin!(notified);
@@ -300,7 +300,7 @@ mod tests {
         assert!(queue.mark_hook_complete(entry_id).await);
 
         queue
-            .wait_until_steer_can_be_used(&CancellationToken::new())
+            .wait_for_next_ready_or_cancelled(&CancellationToken::new())
             .await;
     }
 
@@ -312,7 +312,7 @@ mod tests {
         let wait = tokio::spawn({
             let queue = Arc::clone(&queue);
             let cancel = cancel.clone();
-            async move { queue.wait_until_steer_can_be_used(&cancel).await }
+            async move { queue.wait_for_next_ready_or_cancelled(&cancel).await }
         });
 
         cancel.cancel();

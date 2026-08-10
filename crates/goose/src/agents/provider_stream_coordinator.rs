@@ -29,6 +29,7 @@ pub(crate) struct ProviderStreamCoordinator {
     steering_queue: Arc<SteeringQueue>,
     session_id: String,
     pending_native_steer: Option<NativeSteerFuture>,
+    deferred_stream_end: Option<Result<(), ProviderError>>,
     fallback_to_next_prompt: bool,
 }
 
@@ -45,6 +46,7 @@ impl ProviderStreamCoordinator {
             steering_queue,
             session_id: session_id.to_string(),
             pending_native_steer: None,
+            deferred_stream_end: None,
             fallback_to_next_prompt: false,
         }
     }
@@ -56,7 +58,15 @@ impl ProviderStreamCoordinator {
         loop {
             if self.pending_native_steer.is_none() {
                 if cancel.is_cancelled() {
+                    self.release_provider_stream();
                     return None;
+                }
+
+                if let Some(stream_end) = self.deferred_stream_end.take() {
+                    return match stream_end {
+                        Ok(()) => None,
+                        Err(error) => Some(ProviderStreamEvent::ProviderOutput(Err(error))),
+                    };
                 }
 
                 if !self.fallback_to_next_prompt {
@@ -95,20 +105,27 @@ impl ProviderStreamCoordinator {
                 }
                 _ = cancel.cancelled() => {
                     self.pending_native_steer = None;
+                    self.release_provider_stream();
                     return None;
                 }
-                output = self.stream.next() => {
+                output = self.stream.next(), if self.deferred_stream_end.is_none() => {
                     match output {
                         Some(Ok(output)) => {
                             return Some(ProviderStreamEvent::ProviderOutput(Ok(output)));
                         }
                         Some(Err(error)) => {
-                            self.pending_native_steer = None;
-                            return Some(ProviderStreamEvent::ProviderOutput(Err(error)));
+                            if self.pending_native_steer.is_some() {
+                                self.deferred_stream_end = Some(Err(error));
+                            } else {
+                                return Some(ProviderStreamEvent::ProviderOutput(Err(error)));
+                            }
                         }
                         None => {
-                            self.pending_native_steer = None;
-                            return None;
+                            if self.pending_native_steer.is_some() {
+                                self.deferred_stream_end = Some(Ok(()));
+                            } else {
+                                return None;
+                            }
                         }
                     }
                 }
@@ -126,6 +143,10 @@ impl ProviderStreamCoordinator {
             (entry_id, result)
         }));
     }
+
+    fn release_provider_stream(&mut self) {
+        self.stream = Box::pin(futures::stream::empty());
+    }
 }
 
 #[cfg(test)]
@@ -133,18 +154,20 @@ mod tests {
     use std::collections::VecDeque;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
+    use std::task::Poll;
     use std::time::Duration;
 
     use async_trait::async_trait;
     use futures::{stream, StreamExt};
     use goose_providers::model::ModelConfig;
     use rmcp::model::Tool;
-    use tokio::sync::{Mutex as AsyncMutex, Notify};
+    use tokio::sync::{oneshot, Mutex as AsyncMutex, Notify};
     use tokio::time::timeout;
     use tokio_util::sync::CancellationToken;
 
     use super::{
         MessageStream, Provider, ProviderError, ProviderStreamCoordinator, ProviderStreamEvent,
+        ProviderStreamItem,
     };
     use crate::agents::steering::SteeringQueue;
     use crate::conversation::message::Message;
@@ -156,6 +179,7 @@ mod tests {
         Blocked {
             started: Arc<Notify>,
             release: Arc<Notify>,
+            result: Result<bool, ProviderError>,
         },
     }
 
@@ -210,10 +234,14 @@ mod tests {
                 .expect("test behavior")
             {
                 NativeSteerBehavior::Immediate(result) => result,
-                NativeSteerBehavior::Blocked { started, release } => {
+                NativeSteerBehavior::Blocked {
+                    started,
+                    release,
+                    result,
+                } => {
                     started.notify_one();
                     release.notified().await;
-                    Ok(true)
+                    result
                 }
             }
         }
@@ -227,6 +255,15 @@ mod tests {
 
     fn pending_stream() -> MessageStream {
         Box::pin(stream::pending())
+    }
+
+    fn pending_stream_with_drop_signal() -> (MessageStream, oneshot::Receiver<()>) {
+        let (drop_tx, drop_rx) = oneshot::channel();
+        let stream = stream::poll_fn(move |_cx| {
+            let _ = &drop_tx;
+            Poll::<Option<ProviderStreamItem>>::Pending
+        });
+        (Box::pin(stream), drop_rx)
     }
 
     fn output_stream(texts: &[&str]) -> MessageStream {
@@ -315,6 +352,7 @@ mod tests {
         let provider = TestProvider::new([NativeSteerBehavior::Blocked {
             started: Arc::clone(&started),
             release: Arc::clone(&release),
+            result: Ok(true),
         }]);
         let mut stream = ProviderStreamCoordinator::new(
             output_stream(&["one", "two"]),
@@ -391,9 +429,11 @@ mod tests {
         let provider = TestProvider::new([NativeSteerBehavior::Blocked {
             started: Arc::clone(&started),
             release: Arc::new(Notify::new()),
+            result: Ok(true),
         }]);
+        let (provider_stream, stream_dropped) = pending_stream_with_drop_signal();
         let mut stream = ProviderStreamCoordinator::new(
-            pending_stream(),
+            provider_stream,
             provider,
             Arc::clone(&queue),
             "session",
@@ -411,16 +451,23 @@ mod tests {
         .expect("cancellation should stop the stream");
 
         assert!(event.is_none());
+        assert!(timeout(TEST_TIMEOUT, stream_dropped)
+            .await
+            .expect("cancellation should release the provider stream")
+            .is_err());
         assert_eq!(queue.peek_next_ready().await.unwrap().0, entry_id);
     }
 
     #[tokio::test]
-    async fn terminal_provider_stream_drops_pending_steering_and_retains_the_queue_entry() {
+    async fn terminal_provider_stream_waits_for_confirmed_native_steering() {
         let queue = Arc::new(SteeringQueue::default());
-        let entry_id = enqueue_ready(&queue, "steer").await;
+        enqueue_ready(&queue, "steer").await;
+        let started = Arc::new(Notify::new());
+        let release = Arc::new(Notify::new());
         let provider = TestProvider::new([NativeSteerBehavior::Blocked {
-            started: Arc::new(Notify::new()),
-            release: Arc::new(Notify::new()),
+            started: Arc::clone(&started),
+            release: Arc::clone(&release),
+            result: Ok(true),
         }]);
         let provider_stream: MessageStream = Box::pin(stream::empty());
         let mut stream = ProviderStreamCoordinator::new(
@@ -429,18 +476,33 @@ mod tests {
             Arc::clone(&queue),
             "session",
         );
+        let cancel = CancellationToken::new();
 
+        let event = timeout(TEST_TIMEOUT, async {
+            tokio::join!(stream.next_event(&cancel), async {
+                started.notified().await;
+                release.notify_one();
+            })
+            .0
+        })
+        .await
+        .expect("native steering should settle after provider completion");
+
+        assert_eq!(delivered_message(event).as_concat_text(), "steer");
+        assert!(!queue.has_pending().await);
         assert!(stream.next_event(&CancellationToken::new()).await.is_none());
-        assert_eq!(queue.peek_next_ready().await.unwrap().0, entry_id);
     }
 
     #[tokio::test]
-    async fn provider_stream_error_drops_pending_steering_and_retains_the_queue_entry() {
+    async fn provider_stream_error_is_returned_after_confirmed_native_steering() {
         let queue = Arc::new(SteeringQueue::default());
-        let entry_id = enqueue_ready(&queue, "steer").await;
+        enqueue_ready(&queue, "steer").await;
+        let started = Arc::new(Notify::new());
+        let release = Arc::new(Notify::new());
         let provider = TestProvider::new([NativeSteerBehavior::Blocked {
-            started: Arc::new(Notify::new()),
-            release: Arc::new(Notify::new()),
+            started: Arc::clone(&started),
+            release: Arc::clone(&release),
+            result: Ok(true),
         }]);
         let provider_stream: MessageStream = Box::pin(stream::iter([Err(
             ProviderError::ExecutionError("stream failed".to_string()),
@@ -451,6 +513,18 @@ mod tests {
             Arc::clone(&queue),
             "session",
         );
+        let cancel = CancellationToken::new();
+
+        let event = timeout(TEST_TIMEOUT, async {
+            tokio::join!(stream.next_event(&cancel), async {
+                started.notified().await;
+                release.notify_one();
+            })
+            .0
+        })
+        .await
+        .expect("native steering should settle before the provider error");
+        assert_eq!(delivered_message(event).as_concat_text(), "steer");
 
         match stream.next_event(&CancellationToken::new()).await {
             Some(ProviderStreamEvent::ProviderOutput(Err(error))) => {
@@ -458,7 +532,47 @@ mod tests {
             }
             _ => panic!("expected provider stream error"),
         }
-        assert_eq!(queue.peek_next_ready().await.unwrap().0, entry_id);
+        assert!(!queue.has_pending().await);
+    }
+
+    #[tokio::test]
+    async fn terminal_provider_stream_waits_for_native_steering_fallback() {
+        for result in [
+            Ok(false),
+            Err(ProviderError::ExecutionError("failed".to_string())),
+        ] {
+            let queue = Arc::new(SteeringQueue::default());
+            let entry_id = enqueue_ready(&queue, "steer").await;
+            let started = Arc::new(Notify::new());
+            let release = Arc::new(Notify::new());
+            let provider = TestProvider::new([NativeSteerBehavior::Blocked {
+                started: Arc::clone(&started),
+                release: Arc::clone(&release),
+                result,
+            }]);
+            let provider_stream: MessageStream = Box::pin(stream::empty());
+            let mut stream = ProviderStreamCoordinator::new(
+                provider_stream,
+                provider.clone(),
+                Arc::clone(&queue),
+                "session",
+            );
+            let cancel = CancellationToken::new();
+
+            let event = timeout(TEST_TIMEOUT, async {
+                tokio::join!(stream.next_event(&cancel), async {
+                    started.notified().await;
+                    release.notify_one();
+                })
+                .0
+            })
+            .await
+            .expect("native steering fallback should settle after provider completion");
+
+            assert!(event.is_none());
+            assert_eq!(queue.peek_next_ready().await.unwrap().0, entry_id);
+            assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
+        }
     }
 
     #[tokio::test]
@@ -470,6 +584,7 @@ mod tests {
         let provider = TestProvider::new([NativeSteerBehavior::Blocked {
             started: Arc::clone(&started),
             release: Arc::clone(&release),
+            result: Ok(true),
         }]);
         let mut stream = ProviderStreamCoordinator::new(
             pending_stream(),
@@ -501,6 +616,7 @@ mod tests {
         let provider = TestProvider::new([NativeSteerBehavior::Blocked {
             started: Arc::new(Notify::new()),
             release: Arc::new(Notify::new()),
+            result: Ok(true),
         }]);
         let mut stream = ProviderStreamCoordinator::new(
             output_stream(&["output"]),

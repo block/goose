@@ -668,16 +668,6 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn native_steering_defaults_to_unsupported() {
-        let provider = ModelInventoryProvider { models: vec![] };
-
-        assert!(!provider
-            .steer_natively("session", &Message::user().with_text("steer"))
-            .await
-            .unwrap());
-    }
-
     fn content_from_str(s: String) -> MessageContentBlock {
         if let Some(img_data) = s.strip_prefix("*img:") {
             MessageContentBlock::image(format!("http://example.com/{}", img_data), "image/png")

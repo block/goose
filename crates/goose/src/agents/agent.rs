@@ -541,21 +541,21 @@ impl Agent {
         }
 
         let hook_manager = self.hook_manager.clone();
-        let hook_session_id = session_id.to_string();
-        let activation_queue = Arc::clone(&queue);
-        let activation = tokio::spawn(async move {
+        let session_id = session_id.to_string();
+        let queue_for_hook = Arc::clone(&queue);
+        let hook_task = tokio::spawn(async move {
             let context = crate::hooks::HookContext::new(
                 crate::hooks::HookEvent::UserPromptSubmit,
-                hook_session_id,
+                session_id,
             )
             .with_message(message_text);
             hook_manager
                 .emit(crate::hooks::HookEvent::UserPromptSubmit, context)
                 .await;
-            activation_queue.mark_hook_complete(entry_id).await;
+            queue_for_hook.mark_hook_complete(entry_id).await;
         });
 
-        if let Err(error) = activation.await {
+        if let Err(error) = hook_task.await {
             warn!(%error, "Steering hook task failed");
             queue.mark_hook_complete(entry_id).await;
         }
@@ -2303,7 +2303,7 @@ impl Agent {
             let mut retrying_after_stop_hook_denial = false;
             let mut consecutive_stop_hook_blocks = 0u32;
             let stop_hook_block_cap = self.stop_hook_block_cap();
-            let mut provider_response_ended = false;
+            let mut can_drain_pending_steers = false;
             let turn_start = chrono::Local::now();
             let turn_start_compaction_info =
                 super::moim::compute_compaction_info(&session_config.id, &self.extension_manager)
@@ -2315,7 +2315,7 @@ impl Agent {
                     break;
                 }
 
-                if provider_response_ended {
+                if can_drain_pending_steers {
                     for message in steering_queue.drain_available().await {
                         let message = persist_and_push_message_with_id(
                             &session_manager,
@@ -3127,9 +3127,9 @@ impl Agent {
                         }
                     }
                 }
-                provider_response_ended = true;
+                can_drain_pending_steers = true;
                 steering_queue
-                    .wait_until_steer_can_be_used(&reply_cancel)
+                    .wait_for_next_ready_or_cancelled(&reply_cancel)
                     .await;
 
                 if tools_updated {

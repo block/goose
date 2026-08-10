@@ -4,10 +4,10 @@ mod steering_tests;
 
 use self::claude_steering::{ClaudeSteeringRequest, ClaudeSteeringResponse};
 use agent_client_protocol::schema::v1::{
-    Annotations as AcpAnnotations, ClientCapabilities, CloseSessionRequest, ContentBlock,
-    ContentChunk, EnvVariable, HttpHeader, ImageContent, InitializeRequest, InitializeResponse,
-    McpCapabilities, McpServer, McpServerHttp, McpServerStdio, NewSessionRequest,
-    NewSessionResponse, PromptRequest, PromptResponse, RequestPermissionOutcome,
+    Annotations as AcpAnnotations, CancelNotification, ClientCapabilities, CloseSessionRequest,
+    ContentBlock, ContentChunk, EnvVariable, HttpHeader, ImageContent, InitializeRequest,
+    InitializeResponse, McpCapabilities, McpServer, McpServerHttp, McpServerStdio,
+    NewSessionRequest, NewSessionResponse, PromptRequest, PromptResponse, RequestPermissionOutcome,
     RequestPermissionRequest, RequestPermissionResponse, Role as AcpRole, SessionConfigKind,
     SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOptions, SessionId,
     SessionModeState, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
@@ -1172,10 +1172,25 @@ async fn run_prompt_request(
     response_tx: mpsc::Sender<AcpUpdate>,
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
 ) -> Result<(), agent_client_protocol::Error> {
-    let response: Result<PromptResponse, _> = cx
-        .send_request(PromptRequest::new(session_id, content))
-        .block_task()
-        .await;
+    let prompt = cx
+        .send_request(PromptRequest::new(session_id.clone(), content))
+        .block_task();
+    tokio::pin!(prompt);
+
+    let response: Result<PromptResponse, _> = tokio::select! {
+        biased;
+        response = &mut prompt => response,
+        _ = response_tx.closed() => {
+            if let Err(error) = cx.send_notification(CancelNotification::new(session_id)) {
+                tracing::debug!(
+                    method = AGENT_METHOD_NAMES.session_cancel,
+                    %error,
+                    "failed to cancel abandoned ACP prompt"
+                );
+            }
+            prompt.await
+        }
+    };
 
     match response {
         Ok(response) => {
@@ -1297,13 +1312,17 @@ async fn handle_requests(
                 session_id,
                 content,
                 assistant_message_boundary_pending,
-                response_tx,
+                mut response_tx,
             } => {
-                let result: Result<ClaudeSteeringResponse> = cx
+                let request = cx
                     .send_request(ClaudeSteeringRequest::new(session_id, content))
-                    .block_task()
-                    .await
-                    .map_err(anyhow::Error::from);
+                    .block_task();
+                tokio::pin!(request);
+                let result: Result<ClaudeSteeringResponse> = tokio::select! {
+                    biased;
+                    result = &mut request => result.map_err(anyhow::Error::from),
+                    _ = response_tx.closed() => continue,
+                };
                 if result
                     .as_ref()
                     .is_ok_and(claude_steering::delivery_confirmed)

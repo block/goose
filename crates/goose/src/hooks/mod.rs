@@ -147,15 +147,7 @@ struct LoadedRule {
 
 #[derive(Debug, Clone)]
 enum LoadedAction {
-    Command {
-        command: String,
-        timeout: Duration,
-    },
-    #[cfg(test)]
-    Wait {
-        started: Arc<Notify>,
-        release: Arc<Notify>,
-    },
+    Command { command: String, timeout: Duration },
 }
 
 /// Context passed to a hook as JSON on stdin.
@@ -239,11 +231,22 @@ pub enum HookDecision {
     Deny { reason: String, plugin: String },
 }
 
+#[cfg(test)]
+#[derive(Debug, Clone)]
+struct TestWaitHook {
+    event: HookEvent,
+    matcher: Regex,
+    started: Arc<Notify>,
+    release: Arc<Notify>,
+}
+
 /// Loads and executes plugin hooks.
 #[derive(Debug, Default, Clone)]
 pub struct HookManager {
     rules: HashMap<HookEvent, Vec<LoadedRule>>,
     use_login_shell_path: bool,
+    #[cfg(test)]
+    test_wait_hook: Option<TestWaitHook>,
 }
 
 impl HookManager {
@@ -266,16 +269,14 @@ impl HookManager {
         release: Arc<Notify>,
     ) -> Self {
         Self {
-            rules: HashMap::from([(
-                event,
-                vec![LoadedRule {
-                    plugin_name: "test-hook".into(),
-                    plugin_root: PathBuf::new(),
-                    matcher: Some(Regex::new(matcher).expect("test hook matcher should be valid")),
-                    actions: vec![LoadedAction::Wait { started, release }],
-                }],
-            )]),
+            rules: HashMap::new(),
             use_login_shell_path: false,
+            test_wait_hook: Some(TestWaitHook {
+                event,
+                matcher: Regex::new(matcher).expect("test hook matcher should be valid"),
+                started,
+                release,
+            }),
         }
     }
 
@@ -315,11 +316,22 @@ impl HookManager {
         Self {
             rules,
             use_login_shell_path,
+            #[cfg(test)]
+            test_wait_hook: None,
         }
     }
 
     /// Returns true if any rule is registered for `event`.
     pub fn has_hooks(&self, event: HookEvent) -> bool {
+        #[cfg(test)]
+        if self
+            .test_wait_hook
+            .as_ref()
+            .is_some_and(|hook| hook.event == event)
+        {
+            return true;
+        }
+
         self.rules.get(&event).is_some_and(|r| !r.is_empty())
     }
 
@@ -366,6 +378,18 @@ impl HookManager {
     /// individual hooks are logged but never propagated — a misbehaving hook
     /// MUST NOT crash the host tool.
     pub async fn emit(&self, event: HookEvent, ctx: HookContext) {
+        #[cfg(test)]
+        if let Some(hook) = self.test_wait_hook.as_ref().filter(|hook| {
+            hook.event == event
+                && hook
+                    .matcher
+                    .is_match(ctx.matcher_context.as_deref().unwrap_or(""))
+        }) {
+            hook.started.notify_one();
+            hook.release.notified().await;
+            return;
+        }
+
         let Some(rules) = self.rules.get(&event) else {
             return;
         };
@@ -390,43 +414,35 @@ impl HookManager {
             }
 
             for action in &rule.actions {
-                match action {
-                    LoadedAction::Command { command, timeout } => {
-                        debug!(
-                            plugin = %rule.plugin_name,
-                            event = %event,
-                            command = %command,
-                            "Running plugin hook",
-                        );
-                        let res = self
-                            .run_action(event, &ctx.session_id, rule, command, &payload, *timeout)
-                            .await
-                            .and_then(|o| {
-                                if o.status.success() {
-                                    Ok(())
-                                } else {
-                                    anyhow::bail!(
-                                        "hook `{command}` exited with {:?}: {}",
-                                        o.status.code(),
-                                        String::from_utf8_lossy(&o.stderr).trim()
-                                    )
-                                }
-                            });
-                        if let Err(err) = res {
-                            warn!(
-                                plugin = %rule.plugin_name,
-                                event = %event,
-                                command = %command,
-                                error = %err,
-                                "Plugin hook failed",
-                            );
+                let LoadedAction::Command { command, timeout } = action;
+                debug!(
+                    plugin = %rule.plugin_name,
+                    event = %event,
+                    command = %command,
+                    "Running plugin hook",
+                );
+                let res = self
+                    .run_action(event, &ctx.session_id, rule, command, &payload, *timeout)
+                    .await
+                    .and_then(|o| {
+                        if o.status.success() {
+                            Ok(())
+                        } else {
+                            anyhow::bail!(
+                                "hook `{command}` exited with {:?}: {}",
+                                o.status.code(),
+                                String::from_utf8_lossy(&o.stderr).trim()
+                            )
                         }
-                    }
-                    #[cfg(test)]
-                    LoadedAction::Wait { started, release } => {
-                        started.notify_one();
-                        release.notified().await;
-                    }
+                    });
+                if let Err(err) = res {
+                    warn!(
+                        plugin = %rule.plugin_name,
+                        event = %event,
+                        command = %command,
+                        error = %err,
+                        "Plugin hook failed",
+                    );
                 }
             }
         }
@@ -459,44 +475,36 @@ impl HookManager {
             }
 
             for action in &rule.actions {
-                match action {
-                    LoadedAction::Command { command, timeout } => {
-                        let output = match self
-                            .run_action(event, &ctx.session_id, rule, command, &payload, *timeout)
-                            .await
-                        {
-                            Ok(o) => o,
-                            Err(err) => {
-                                warn!(
-                                    plugin = %rule.plugin_name,
-                                    event = %event,
-                                    command = %command,
-                                    error = %err,
-                                    "Plugin hook failed",
-                                );
-                                continue;
-                            }
-                        };
+                let LoadedAction::Command { command, timeout } = action;
+                let output = match self
+                    .run_action(event, &ctx.session_id, rule, command, &payload, *timeout)
+                    .await
+                {
+                    Ok(o) => o,
+                    Err(err) => {
+                        warn!(
+                            plugin = %rule.plugin_name,
+                            event = %event,
+                            command = %command,
+                            error = %err,
+                            "Plugin hook failed",
+                        );
+                        continue;
+                    }
+                };
 
-                        if let Some(reason) = deny_reason(&output) {
-                            info!(
-                                plugin = %rule.plugin_name,
-                                event = %event,
-                                command = %command,
-                                reason = %reason,
-                                "Plugin hook denied tool call",
-                            );
-                            return HookDecision::Deny {
-                                reason,
-                                plugin: rule.plugin_name.clone(),
-                            };
-                        }
-                    }
-                    #[cfg(test)]
-                    LoadedAction::Wait { started, release } => {
-                        started.notify_one();
-                        release.notified().await;
-                    }
+                if let Some(reason) = deny_reason(&output) {
+                    info!(
+                        plugin = %rule.plugin_name,
+                        event = %event,
+                        command = %command,
+                        reason = %reason,
+                        "Plugin hook denied tool call",
+                    );
+                    return HookDecision::Deny {
+                        reason,
+                        plugin: rule.plugin_name.clone(),
+                    };
                 }
             }
         }

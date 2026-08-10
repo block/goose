@@ -44,7 +44,7 @@ impl Operation for SteerOperation {
         }
 
         self.queue
-            .wait_until_steer_can_be_used(emit.cancel_token())
+            .wait_for_next_ready_or_cancelled(emit.cancel_token())
             .await;
         let pending = self.queue.drain_available().await;
         if pending.is_empty() {
