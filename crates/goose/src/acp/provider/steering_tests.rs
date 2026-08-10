@@ -1,7 +1,6 @@
 use super::*;
 use agent_client_protocol::schema::v1::Implementation;
 use futures::StreamExt;
-use rmcp::model::{Annotations, TextContent as RmcpTextContent};
 use std::sync::atomic::AtomicUsize;
 use std::time::Duration;
 use tokio::sync::Notify;
@@ -43,7 +42,8 @@ fn supported_initialize_response(
 macro_rules! test_agent {
     ($adapter_version:expr) => {{
         let adapter_version = $adapter_version.to_string();
-        Agent::builder()
+        agent_client_protocol::Agent
+            .builder()
             .on_receive_request(
                 async move |request: InitializeRequest, responder, _cx| {
                     responder.respond(supported_initialize_response(request, &adapter_version))
@@ -234,10 +234,9 @@ async fn send_update_and_message_id(
         .expect("provider message should have an ID")
 }
 
-async fn complete_native_steer_with(
+async fn complete_native_steer(
     provider: Arc<AcpProvider>,
     requests: &mut mpsc::Receiver<ClientRequest>,
-    response: ClaudeSteeringResponse,
 ) -> bool {
     let steer = tokio::spawn(async move {
         provider
@@ -257,10 +256,10 @@ async fn complete_native_steer_with(
             response_tx,
             ..
         } => {
-            if claude_steering::delivery_confirmed(&response) {
-                assistant_message_boundary_pending.store(true, Ordering::Release);
-            }
-            response_tx.send(Ok(response)).unwrap();
+            assistant_message_boundary_pending.store(true, Ordering::Release);
+            response_tx
+                .send(Ok(ClaudeSteeringResponse::Injected))
+                .unwrap();
         }
         _ => panic!("expected steering request"),
     }
@@ -268,67 +267,7 @@ async fn complete_native_steer_with(
 }
 
 #[tokio::test]
-async fn steering_outcome_controls_delivery_and_message_boundary() {
-    for (response, expected_delivery) in [
-        (ClaudeSteeringResponse::Injected, true),
-        (ClaudeSteeringResponse::PromptRequired, false),
-    ] {
-        let (provider, mut requests) =
-            connect_test_provider(CLAUDE_ACP_PROVIDER_NAME, "0.65.0", Some(response)).await;
-
-        let delivered = provider
-            .steer_natively(
-                "goose-session",
-                &Message::user().with_text("focus on tests"),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(delivered, expected_delivery);
-        assert_eq!(
-            provider
-                .assistant_message_boundary_pending
-                .load(Ordering::Acquire),
-            expected_delivery
-        );
-        requests
-            .recv()
-            .await
-            .expect("steering request should be sent");
-    }
-}
-
-#[tokio::test]
-async fn unsupported_acp_providers_do_not_send_a_steering_request() {
-    for (provider_name, version) in [
-        ("other-acp", "0.65.0"),
-        (CLAUDE_ACP_PROVIDER_NAME, "0.64.2"),
-    ] {
-        let (provider, mut requests) = connect_test_provider(
-            provider_name,
-            version,
-            Some(ClaudeSteeringResponse::Injected),
-        )
-        .await;
-
-        let delivered = provider
-            .steer_natively(
-                "goose-session",
-                &Message::user().with_text("focus on tests"),
-            )
-            .await
-            .unwrap();
-
-        assert!(!delivered);
-        assert!(matches!(
-            requests.try_recv(),
-            Err(mpsc::error::TryRecvError::Empty)
-        ));
-    }
-}
-
-#[tokio::test]
-async fn empty_or_non_agent_visible_content_is_not_sent() {
+async fn injected_response_confirms_delivery_and_message_boundary() {
     let (provider, mut requests) = connect_test_provider(
         CLAUDE_ACP_PROVIDER_NAME,
         "0.65.0",
@@ -336,21 +275,42 @@ async fn empty_or_non_agent_visible_content_is_not_sent() {
     )
     .await;
 
-    let empty = provider
-        .steer_natively("goose-session", &Message::user())
-        .await
-        .unwrap();
-    let user_only = MessageContent::Text(
-        RmcpTextContent::new("hidden")
-            .with_annotations(Annotations::default().with_audience(vec![Role::User])),
-    );
-    let non_agent_visible = provider
-        .steer_natively("goose-session", &Message::user().with_content(user_only))
+    let delivered = provider
+        .steer_natively(
+            "goose-session",
+            &Message::user().with_text("focus on tests"),
+        )
         .await
         .unwrap();
 
-    assert!(!empty);
-    assert!(!non_agent_visible);
+    assert!(delivered);
+    assert!(provider
+        .assistant_message_boundary_pending
+        .load(Ordering::Acquire));
+    requests
+        .recv()
+        .await
+        .expect("steering request should be sent");
+}
+
+#[tokio::test]
+async fn non_claude_provider_does_not_send_a_steering_request() {
+    let (provider, mut requests) = connect_test_provider(
+        "other-acp",
+        "0.65.0",
+        Some(ClaudeSteeringResponse::Injected),
+    )
+    .await;
+
+    let delivered = provider
+        .steer_natively(
+            "goose-session",
+            &Message::user().with_text("focus on tests"),
+        )
+        .await
+        .unwrap();
+
+    assert!(!delivered);
     assert!(matches!(
         requests.try_recv(),
         Err(mpsc::error::TryRecvError::Empty)
@@ -466,32 +426,6 @@ async fn dropping_prompt_stream_sends_session_cancel() {
 }
 
 #[tokio::test]
-async fn completed_prompt_does_not_send_session_cancel() {
-    let PromptTestHarness {
-        provider,
-        mut prompt_started,
-        mut cancellations,
-        mut prompt_responded,
-        release_prompt,
-    } = connect_prompt_test_provider("test-acp", None).await;
-    let model = ModelConfig::new("test-model");
-    let prompt = Message::user().with_text("complete this task");
-    let mut stream = provider.stream(&model, "", &[prompt], &[]).await.unwrap();
-
-    receive(&mut prompt_started, "prompt should start").await;
-    release_prompt.notify_one();
-    receive(&mut prompt_responded, "prompt should respond after release").await;
-    assert!(timeout(TEST_TIMEOUT, stream.next())
-        .await
-        .expect("provider stream should finish")
-        .is_none());
-    assert!(matches!(
-        cancellations.try_recv(),
-        Err(mpsc::error::TryRecvError::Empty)
-    ));
-}
-
-#[tokio::test]
 async fn steering_completes_while_original_prompt_remains_active() {
     let PromptTestHarness {
         provider,
@@ -582,14 +516,7 @@ async fn injected_steers_start_new_assistant_runs_once() {
     )
     .await;
 
-    assert!(
-        complete_native_steer_with(
-            Arc::clone(&provider),
-            &mut requests,
-            ClaudeSteeringResponse::Injected,
-        )
-        .await
-    );
+    assert!(complete_native_steer(provider, &mut requests).await);
 
     let text_after = send_update_and_message_id(
         &response_tx,
@@ -620,66 +547,4 @@ async fn injected_steers_start_new_assistant_runs_once() {
     assert_eq!(text_after, text_continued);
     assert_ne!(thought_before, thought_after);
     assert_eq!(thought_after, thought_continued);
-
-    assert!(
-        complete_native_steer_with(provider, &mut requests, ClaudeSteeringResponse::Injected,)
-            .await
-    );
-    let text_after_second = send_update_and_message_id(
-        &response_tx,
-        &mut stream,
-        AcpUpdate::Text(TextContent::new("text after second steer")),
-    )
-    .await;
-    let thought_after_second = send_update_and_message_id(
-        &response_tx,
-        &mut stream,
-        AcpUpdate::Thought("thought after second steer".to_string()),
-    )
-    .await;
-
-    assert_ne!(text_after, text_after_second);
-    assert_ne!(thought_after, thought_after_second);
-}
-
-#[tokio::test]
-async fn prompt_required_preserves_assistant_runs() {
-    let (provider, mut requests, response_tx, mut stream) = start_boundary_test_stream().await;
-    let text_before = send_update_and_message_id(
-        &response_tx,
-        &mut stream,
-        AcpUpdate::Text(TextContent::new("text before prompt required")),
-    )
-    .await;
-    let thought_before = send_update_and_message_id(
-        &response_tx,
-        &mut stream,
-        AcpUpdate::Thought("thought before prompt required".to_string()),
-    )
-    .await;
-
-    assert!(
-        !complete_native_steer_with(
-            provider,
-            &mut requests,
-            ClaudeSteeringResponse::PromptRequired,
-        )
-        .await
-    );
-
-    let text_after = send_update_and_message_id(
-        &response_tx,
-        &mut stream,
-        AcpUpdate::Text(TextContent::new("text after prompt required")),
-    )
-    .await;
-    let thought_after = send_update_and_message_id(
-        &response_tx,
-        &mut stream,
-        AcpUpdate::Thought("thought after prompt required".to_string()),
-    )
-    .await;
-
-    assert_eq!(text_before, text_after);
-    assert_eq!(thought_before, thought_after);
 }

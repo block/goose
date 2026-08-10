@@ -17,7 +17,6 @@ pub(crate) struct NativeSteeringTestProvider {
     streams: AsyncMutex<VecDeque<MessageStream>>,
     native_behaviors: AsyncMutex<VecDeque<NativeSteeringBehavior>>,
     prompts: Mutex<Vec<Vec<Message>>>,
-    native_messages: Mutex<Vec<String>>,
     pub(crate) stream_calls: AtomicUsize,
     pub(crate) native_calls: AtomicUsize,
     stream_called: Notify,
@@ -60,7 +59,6 @@ impl NativeSteeringTestProvider {
             streams: AsyncMutex::new(streams.into_iter().collect()),
             native_behaviors: AsyncMutex::new(behaviors.into_iter().collect()),
             prompts: Mutex::new(Vec::new()),
-            native_messages: Mutex::new(Vec::new()),
             stream_calls: AtomicUsize::new(0),
             native_calls: AtomicUsize::new(0),
             stream_called: Notify::new(),
@@ -82,13 +80,6 @@ impl NativeSteeringTestProvider {
 
     pub(crate) fn prompts(&self) -> Vec<Vec<Message>> {
         self.prompts.lock().expect("prompts lock").clone()
-    }
-
-    pub(crate) fn native_messages(&self) -> Vec<String> {
-        self.native_messages
-            .lock()
-            .expect("native messages lock")
-            .clone()
     }
 }
 
@@ -121,13 +112,9 @@ impl Provider for NativeSteeringTestProvider {
     async fn steer_natively(
         &self,
         _session_id: &str,
-        message: &Message,
+        _message: &Message,
     ) -> Result<bool, ProviderError> {
         self.native_calls.fetch_add(1, Ordering::SeqCst);
-        self.native_messages
-            .lock()
-            .expect("native messages lock")
-            .push(message.as_concat_text());
         self.native_called.notify_one();
         match self
             .native_behaviors

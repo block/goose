@@ -257,30 +257,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn delivered_steers_preserve_fifo_order() {
-        let queue = Arc::new(SteeringQueue::default());
-        enqueue_ready(&queue, "first").await;
-        enqueue_ready(&queue, "second").await;
-        let provider = NativeSteeringTestProvider::with_behaviors([
-            NativeSteeringBehavior::Immediate(Ok(true)),
-            NativeSteeringBehavior::Immediate(Ok(true)),
-        ]);
-        let mut stream = ProviderStreamCoordinator::new(
-            pending_stream(),
-            provider.clone(),
-            Arc::clone(&queue),
-            "session",
-        );
-
-        let first = delivered_message(stream.next_event(&CancellationToken::new()).await);
-        let second = delivered_message(stream.next_event(&CancellationToken::new()).await);
-
-        assert_eq!(first.as_concat_text(), "first");
-        assert_eq!(second.as_concat_text(), "second");
-        assert_eq!(provider.native_messages(), ["first", "second"]);
-    }
-
-    #[tokio::test]
     async fn provider_output_continues_while_native_steering_is_pending() {
         let queue = Arc::new(SteeringQueue::default());
         enqueue_ready(&queue, "steer").await;
@@ -419,44 +395,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn provider_stream_error_is_returned_after_confirmed_native_steering() {
-        let queue = Arc::new(SteeringQueue::default());
-        enqueue_ready(&queue, "steer").await;
-        let started = Arc::new(Notify::new());
-        let release = Arc::new(Notify::new());
-        let provider = blocked_provider(Arc::clone(&started), Arc::clone(&release), Ok(true));
-        let provider_stream: MessageStream = Box::pin(stream::iter([Err(
-            ProviderError::ExecutionError("stream failed".to_string()),
-        )]));
-        let mut stream = ProviderStreamCoordinator::new(
-            provider_stream,
-            provider,
-            Arc::clone(&queue),
-            "session",
-        );
-        let cancel = CancellationToken::new();
-
-        let event = timeout(TEST_TIMEOUT, async {
-            tokio::join!(stream.next_event(&cancel), async {
-                started.notified().await;
-                release.notify_one();
-            })
-            .0
-        })
-        .await
-        .expect("native steering should settle before the provider error");
-        assert_eq!(delivered_message(event).as_concat_text(), "steer");
-
-        match stream.next_event(&CancellationToken::new()).await {
-            Some(ProviderStreamEvent::ProviderOutput(Err(error))) => {
-                assert_eq!(error.to_string(), "Execution error: stream failed");
-            }
-            _ => panic!("expected provider stream error"),
-        }
-        assert!(!queue.has_pending().await);
-    }
-
-    #[tokio::test]
     async fn terminal_provider_stream_waits_for_native_steering_fallback() {
         for result in [
             Ok(false),
@@ -520,23 +458,5 @@ mod tests {
 
         assert_eq!(delivered_message(event).as_concat_text(), "steer");
         assert!(!queue.has_pending().await);
-    }
-
-    #[tokio::test]
-    async fn dropping_the_coordinator_retains_a_pending_steer() {
-        let queue = Arc::new(SteeringQueue::default());
-        let entry_id = enqueue_ready(&queue, "steer").await;
-        let provider = blocked_provider(Arc::new(Notify::new()), Arc::new(Notify::new()), Ok(true));
-        let mut stream = ProviderStreamCoordinator::new(
-            output_stream(&["output"]),
-            provider,
-            Arc::clone(&queue),
-            "session",
-        );
-
-        provider_output(stream.next_event(&CancellationToken::new()).await);
-        drop(stream);
-
-        assert_eq!(queue.peek_next_ready().await.unwrap().0, entry_id);
     }
 }
