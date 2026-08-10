@@ -49,6 +49,16 @@ fn describe_json_value(value: &Value) -> &'static str {
     }
 }
 
+fn output_token_limit_tool_error(function_name: &str, id: &str) -> ErrorData {
+    ErrorData {
+        code: ErrorCode::INVALID_PARAMS,
+        message: Cow::from(format!(
+            "Tool arguments for {function_name} (id {id}) were truncated because the model reached its output token limit"
+        )),
+        data: None,
+    }
+}
+
 pub fn is_reserved_request_param_key(key: &str) -> bool {
     matches!(key, "messages" | "model" | "stream" | "stream_options")
 }
@@ -268,7 +278,7 @@ pub fn format_messages_with_options(
                 MessageContentBlock::RedactedThinking(_) => {
                     continue;
                 }
-                MessageContentBlock::SystemNotification(_) => {
+                MessageContentBlock::SystemNotification(_) | MessageContentBlock::Error(_) => {
                     continue;
                 }
                 MessageContentBlock::ToolRequest(request) => match &request.tool_call {
@@ -671,6 +681,11 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
 
 /// Convert OpenAI's API response to internal Message format
 pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
+    let output_token_limit_reached = response
+        .pointer("/choices/0/finish_reason")
+        .and_then(Value::as_str)
+        == Some("length");
+
     let Some(original) = response
         .get("choices")
         .and_then(|c| c.get(0))
@@ -751,6 +766,16 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                     })
                     .filter(|m: &serde_json::Map<String, Value>| !m.is_empty());
 
+                if output_token_limit_reached {
+                    let error = output_token_limit_tool_error(&function_name, &id);
+                    content.push(MessageContentBlock::tool_request_with_metadata(
+                        id,
+                        Err(error),
+                        metadata.as_ref(),
+                    ));
+                    continue;
+                }
+
                 if function_name.is_empty() {
                     let error = ErrorData {
                         code: ErrorCode::INVALID_REQUEST,
@@ -815,11 +840,9 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
         }
     }
 
-    Ok(Message::new(
-        Role::Assistant,
-        chrono::Utc::now().timestamp(),
-        content,
-    ))
+    let mut message = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
+    message.metadata.output_token_limit_reached = output_token_limit_reached;
+    Ok(message)
 }
 
 pub fn get_usage(usage: &Value) -> Usage {
@@ -1033,7 +1056,101 @@ fn strip_data_prefix(line: &str) -> Option<&str> {
         .map(|s| s.trim())
 }
 
-fn parse_streaming_chunk(line: &str) -> Result<StreamingChunk, ProviderError> {
+/// Longest error text pulled out of a stream frame, so a pathological payload cannot be
+/// pasted wholesale into a user-facing message.
+const MAX_STREAM_ERROR_LEN: usize = 500;
+
+/// Best-effort human-readable text for an error payload that may not be a plain string.
+///
+/// FastAPI reports `HTTPException` as `{"detail": "..."}` but `RequestValidationError` as
+/// `{"detail": [{"loc": [...], "msg": "field required", ...}]}`, so a string-only read would
+/// drop the commoner validation shape entirely.
+fn stream_error_text(value: &Value) -> Option<String> {
+    fn one(value: &Value) -> Option<String> {
+        match value {
+            Value::String(s) => Some(s.clone()),
+            Value::Object(_) => value
+                .get("msg")
+                .or_else(|| value.get("message"))
+                .and_then(|m| m.as_str().map(String::from))
+                .or_else(|| Some(value.to_string())),
+            Value::Null => None,
+            other => Some(other.to_string()),
+        }
+    }
+
+    let text = match value {
+        Value::Array(items) => {
+            let parts: Vec<String> = items.iter().filter_map(one).collect();
+            if parts.is_empty() {
+                return None;
+            }
+            parts.join("; ")
+        }
+        other => one(other)?,
+    };
+    if text.is_empty() {
+        return None;
+    }
+    if text.chars().count() > MAX_STREAM_ERROR_LEN {
+        let truncated: String = text.chars().take(MAX_STREAM_ERROR_LEN).collect();
+        return Some(format!("{truncated}…"));
+    }
+    Some(text)
+}
+
+/// Decide whether a choice-less SSE frame reports an in-stream failure.
+///
+/// Returns `Some(err)` when it does, `None` when it is gateway metadata that can be skipped.
+///
+/// Requires an actual error *signal* — a `status`/`statusCode`/`code` of 400 or above, a
+/// `type` of `"error"`, or a `detail` field, which has no benign meaning in this position.
+/// Mere prose is not enough: gateways also emit informational frames, and treating
+/// `{"message": "processing"}` as a failure would kill a healthy stream, which is the very
+/// bug this skip exists to avoid. The converse matters just as much — a gateway that
+/// rate-limits with a bare `{"statusCode": 429, "message": …}` on an HTTP 200 must not be
+/// silently skipped, or a failed turn is reported as an empty successful one.
+fn classify_choiceless_frame(value: &Value) -> Option<ProviderError> {
+    let status = ["status", "statusCode", "code"].iter().find_map(|key| {
+        let raw = value.get(*key)?;
+        raw.as_i64()
+            .or_else(|| raw.as_str().and_then(|s| s.parse::<i64>().ok()))
+    });
+
+    let has_error_signal = status.is_some_and(|s| s >= 400)
+        || value.get("type").and_then(|t| t.as_str()) == Some("error")
+        || value.get("detail").is_some_and(|d| !d.is_null());
+    if !has_error_signal {
+        return None;
+    }
+
+    let details = value
+        .get("message")
+        .and_then(stream_error_text)
+        .or_else(|| value.get("detail").and_then(stream_error_text))
+        .or_else(|| value.get("error").and_then(stream_error_text))
+        // A status with no recoverable text must still be loud rather than vanish.
+        .unwrap_or_else(|| match status {
+            Some(s) => format!("Gateway returned status {s} mid-stream"),
+            None => "Unknown server error".to_string(),
+        });
+    Some(ProviderError::ServerError(details))
+}
+
+/// Parse one SSE `data:` payload.
+///
+/// Returns `Ok(None)` for a metadata-only frame — a JSON object with no `choices` key at
+/// all. Gateways interleave these with the real chunks: Portkey/Azure APIM and friends
+/// emit trace/guardrail objects such as `{"hook_results": {...}}` before the first token.
+/// They carry nothing this parser consumes, so they are skipped rather than failed on;
+/// treating them as decode errors kills the whole turn on an otherwise healthy stream.
+///
+/// A frame with `"choices": []` is NOT metadata — that is the standard usage-only chunk,
+/// so it still deserializes and flows through the empty-choices paths below.
+///
+/// A choice-less frame that reports an in-stream failure is NOT metadata either — see
+/// `classify_choiceless_frame`.
+fn parse_streaming_chunk(line: &str) -> Result<Option<StreamingChunk>, ProviderError> {
     let value: Value = serde_json::from_str(line).map_err(|e| {
         ProviderError::stream_decode_error(format!(
             "Failed to parse streaming chunk: {e}: {line:?}"
@@ -1056,11 +1173,30 @@ fn parse_streaming_chunk(line: &str) -> Result<StreamingChunk, ProviderError> {
         return Err(ProviderError::ServerError(message.to_string()));
     }
 
-    serde_json::from_value(value).map_err(|e| {
+    if value
+        .as_object()
+        .is_some_and(|o| !o.contains_key("choices"))
+    {
+        if let Some(err) = classify_choiceless_frame(&value) {
+            return Err(err);
+        }
+        return Ok(None);
+    }
+
+    serde_json::from_value(value).map(Some).map_err(|e| {
         ProviderError::stream_decode_error(format!(
             "Failed to parse streaming chunk: {e}: {line:?}"
         ))
     })
+}
+
+fn output_token_limit_marker(id: Option<String>) -> Message {
+    let mut message = Message::assistant();
+    if let Some(id) = id {
+        message = message.with_id(id);
+    }
+    message.metadata.output_token_limit_reached = true;
+    message
 }
 
 pub fn response_to_streaming_message<S>(
@@ -1083,6 +1219,9 @@ where
         // reasoning_content in a later chunk would produce duplicated reasoning.
         let mut pending_inline_thinking = String::new();
         let mut last_seen_model: Option<String> = None;
+        let mut last_response_id: Option<String> = None;
+        let mut output_token_limit_reached = false;
+        let mut output_token_limit_metadata_emitted = false;
 
         'outer: while let Some(response) = stream.next().await {
             let response_str = response?;
@@ -1096,11 +1235,16 @@ where
                 continue
             }
 
-            let chunk: StreamingChunk = parse_streaming_chunk(
+            let Some(chunk) = parse_streaming_chunk(
                 line.ok_or_else(|| anyhow!("unexpected stream format"))?
-            )?;
+            )? else {
+                continue  // metadata-only frame
+            };
             if let Some(model) = &chunk.model {
                 last_seen_model = Some(model.clone());
+            }
+            if let Some(id) = &chunk.id {
+                last_response_id = Some(id.clone());
             }
 
             if !chunk.choices.is_empty() {
@@ -1117,6 +1261,11 @@ where
             }
 
             let mut usage = extract_usage_with_output_tokens(&chunk, last_seen_model.as_deref());
+            output_token_limit_reached |= chunk
+                .choices
+                .first()
+                .and_then(|choice| choice.finish_reason.as_deref())
+                == Some("length");
 
             if chunk.choices.is_empty() {
                 yield (None, usage)
@@ -1132,7 +1281,10 @@ where
                     }
                 }
 
-                let is_complete = chunk.choices[0].finish_reason == Some("tool_calls".to_string());
+                let is_complete = matches!(
+                    chunk.choices[0].finish_reason.as_deref(),
+                    Some("tool_calls" | "length")
+                );
 
                 if !is_complete {
                     let mut done = false;
@@ -1144,9 +1296,17 @@ where
                                     break 'outer;
                                 }
 
-                                let tool_chunk: StreamingChunk = parse_streaming_chunk(line)?;
+                                // A metadata frame here must NOT fall through to the
+                                // empty-choices branch below, which ends accumulation and
+                                // would truncate this tool call's arguments.
+                                let Some(tool_chunk) = parse_streaming_chunk(line)? else {
+                                    continue
+                                };
                                 if let Some(model) = &tool_chunk.model {
                                     last_seen_model = Some(model.clone());
+                                }
+                                if let Some(id) = &tool_chunk.id {
+                                    last_response_id = Some(id.clone());
                                 }
 
                                 if let Some(chunk_usage) = extract_usage_with_output_tokens(&tool_chunk, last_seen_model.as_deref()) {
@@ -1154,6 +1314,10 @@ where
                                 }
 
                                 if !tool_chunk.choices.is_empty() {
+                                    output_token_limit_reached |=
+                                        tool_chunk.choices[0].finish_reason.as_deref()
+                                            == Some("length");
+
                                     if let Some(details) = &tool_chunk.choices[0].delta.reasoning_details {
                                         accumulated_reasoning.extend(details.iter().cloned());
                                     }
@@ -1262,7 +1426,13 @@ where
                             extra_fields.as_ref().filter(|m| !m.is_empty()).cloned()
                         };
 
-                        let content = if arguments.is_empty() {
+                        let content = if output_token_limit_reached {
+                            MessageContentBlock::tool_request_with_metadata(
+                                id.clone(),
+                                Err(output_token_limit_tool_error(function_name, id)),
+                                metadata.as_ref(),
+                            )
+                        } else if arguments.is_empty() {
                             MessageContentBlock::tool_request_with_metadata(
                                 id.clone(),
                                 Ok(CallToolRequestParams::new(function_name.clone()).with_arguments(object(json!({})))),
@@ -1319,6 +1489,8 @@ where
                 if let Some(id) = chunk.id {
                     msg = msg.with_id(id);
                 }
+                msg.metadata.output_token_limit_reached = output_token_limit_reached;
+                output_token_limit_metadata_emitted |= output_token_limit_reached;
 
                 yield (
                     Some(msg),
@@ -1397,14 +1569,23 @@ where
                 content.push(MessageContentBlock::thinking(trailing_thinking, ""));
             }
 
-            yield (
-                Some(Message::new(
-                    Role::Assistant,
-                    chrono::Utc::now().timestamp(),
-                    content,
-                )),
-                None,
-            )
+            let mut message = Message::new(
+                Role::Assistant,
+                chrono::Utc::now().timestamp(),
+                content,
+            );
+            if let Some(id) = last_response_id.clone() {
+                message = message.with_id(id);
+            }
+            message.metadata.output_token_limit_reached =
+                output_token_limit_reached && !output_token_limit_metadata_emitted;
+            output_token_limit_metadata_emitted |= message.metadata.output_token_limit_reached;
+
+            yield (Some(message), None)
+        }
+
+        if output_token_limit_reached && !output_token_limit_metadata_emitted {
+            yield (Some(output_token_limit_marker(last_response_id)), None)
         }
     }
 }
@@ -2175,6 +2356,76 @@ mod tests {
     }
 
     #[test]
+    fn test_response_to_message_marks_length_finish_reason() -> anyhow::Result<()> {
+        let response = json!({
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": "Partial answer"
+                },
+                "finish_reason": "length"
+            }]
+        });
+
+        let message = response_to_message(&response)?;
+
+        assert_eq!(message.as_concat_text(), "Partial answer");
+        assert!(message.metadata.output_token_limit_reached);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_rejects_length_terminated_tool_calls() -> anyhow::Result<()> {
+        let response = json!({
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": null,
+                    "tool_calls": [
+                        {
+                            "id": "call_empty",
+                            "type": "function",
+                            "function": {
+                                "name": "empty_tool",
+                                "arguments": ""
+                            }
+                        },
+                        {
+                            "id": "call_valid",
+                            "type": "function",
+                            "function": {
+                                "name": "valid_tool",
+                                "arguments": "{\"value\":true}"
+                            }
+                        }
+                    ]
+                },
+                "finish_reason": "length"
+            }]
+        });
+
+        let message = response_to_message(&response)?;
+
+        assert!(message.metadata.output_token_limit_reached);
+        assert_eq!(message.content.len(), 2);
+        for (content, expected_id) in message.content.iter().zip(["call_empty", "call_valid"]) {
+            let MessageContentBlock::ToolRequest(request) = content else {
+                panic!("expected tool request");
+            };
+            assert_eq!(request.id, expected_id);
+            let error = request
+                .tool_call
+                .as_ref()
+                .expect_err("length-terminated tool call must not be executable");
+            assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
+            assert!(error.message.contains("output token limit"));
+        }
+
+        Ok(())
+    }
+
+    #[test]
     fn test_response_to_message_valid_toolrequest() -> anyhow::Result<()> {
         let response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
         let message = response_to_message(&response)?;
@@ -2756,6 +3007,8 @@ mod tests {
         usage: Option<ProviderUsage>,
         tool_calls: Vec<String>,
         has_text_content: bool,
+        text: String,
+        output_token_limit_message_ids: Vec<Option<String>>,
     }
 
     async fn run_streaming_test(response_lines: &str) -> anyhow::Result<StreamingUsageTestResult> {
@@ -2769,6 +3022,8 @@ mod tests {
             usage: None,
             tool_calls: Vec::new(),
             has_text_content: false,
+            text: String::new(),
+            output_token_limit_message_ids: Vec::new(),
         };
 
         while let Some(Ok((message, usage))) = messages.next().await {
@@ -2777,6 +3032,9 @@ mod tests {
                 result.usage = Some(u);
             }
             if let Some(msg) = message {
+                if msg.metadata.output_token_limit_reached {
+                    result.output_token_limit_message_ids.push(msg.id.clone());
+                }
                 for content in &msg.content {
                     match content {
                         MessageContentBlock::ToolRequest(req) => {
@@ -2786,6 +3044,7 @@ mod tests {
                         }
                         MessageContentBlock::Text(text) if !text.text.is_empty() => {
                             result.has_text_content = true;
+                            result.text.push_str(&text.text);
                         }
                         _ => {}
                     }
@@ -2812,6 +3071,26 @@ mod tests {
         assert_eq!(usage.usage.input_tokens, Some(expected_input));
         assert_eq!(usage.usage.output_tokens, Some(expected_output));
         assert_eq!(usage.usage.total_tokens, Some(expected_total));
+    }
+
+    #[tokio::test]
+    async fn test_streaming_marks_length_on_empty_terminal_chunk() -> anyhow::Result<()> {
+        let response_lines = r#"
+data: {"id":"chatcmpl-limit","model":"test-model","choices":[{"index":0,"delta":{"role":"assistant","content":"Partial answer"},"finish_reason":null}]}
+data: {"id":"chatcmpl-limit","model":"test-model","choices":[{"index":0,"delta":{},"finish_reason":"length"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}
+data: [DONE]
+"#;
+
+        let result = run_streaming_test(response_lines).await?;
+
+        assert_eq!(result.text, "Partial answer");
+        assert_eq!(
+            result.output_token_limit_message_ids,
+            vec![Some("chatcmpl-limit".to_string())]
+        );
+        assert_usage_yielded_once(&result, 10, 5, 15);
+
+        Ok(())
     }
 
     #[test]
@@ -3134,7 +3413,8 @@ data: [DONE]"#;
     async fn test_streaming_non_object_arguments_does_not_panic() -> anyhow::Result<()> {
         // Streamed tool call whose arguments are valid JSON but NOT an object.
         // Must yield an INVALID_PARAMS tool error, not panic via rmcp `object()`.
-        let response_lines = r#"data: {"model":"test-model","choices":[{"delta":{"role":"assistant","tool_calls":[{"id":"call_bad","function":{"name":"test_tool","arguments":"[1, 2, 3]"},"type":"function","index":0}]},"index":0,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110},"object":"chat.completion.chunk","id":"test-id","created":1234567890}
+        let response_lines = r#"data: {"model":"test-model","choices":[{"delta":{"role":"assistant","tool_calls":[{"id":"call_bad","function":{"name":"test_tool","arguments":"[1, "},"type":"function","index":0}]},"index":0,"finish_reason":null}],"object":"chat.completion.chunk","id":"test-id","created":1234567890}
+data: {"model":"test-model","choices":[{"delta":{"tool_calls":[{"function":{"arguments":"2, 3]"},"index":0}]},"index":0,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110},"object":"chat.completion.chunk","id":"test-id","created":1234567890}
 data: [DONE]"#;
 
         let response_stream =
@@ -3142,9 +3422,17 @@ data: [DONE]"#;
         let messages = response_to_streaming_message(response_stream);
         pin!(messages);
 
-        while let Some(Ok((message, _usage))) = messages.next().await {
+        let mut found_tool_error = false;
+        let mut usage_count = 0;
+        while let Some(result) = messages.next().await {
+            let (message, usage) = result?;
+            if usage.is_some() {
+                usage_count += 1;
+            }
             if let Some(msg) = message {
                 if let MessageContentBlock::ToolRequest(request) = &msg.content[0] {
+                    assert!(!msg.metadata.output_token_limit_reached);
+                    assert_eq!(msg.id.as_deref(), Some("test-id"));
                     match &request.tool_call {
                         Err(ErrorData {
                             code: ErrorCode::INVALID_PARAMS,
@@ -3156,14 +3444,60 @@ data: [DONE]"#;
                                 m.contains("test_tool"),
                                 "error must name the original tool so the model can retry it: {m}"
                             );
-                            return Ok(());
+                            found_tool_error = true;
                         }
                         _ => panic!("expected INVALID_PARAMS for non-object streamed args"),
                     }
                 }
             }
         }
-        panic!("expected a tool request message");
+
+        assert!(found_tool_error, "expected a tool request message");
+        assert_eq!(usage_count, 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_length_rejects_tool_calls_regardless_of_arguments() -> anyhow::Result<()>
+    {
+        let response_lines = r#"data: {"model":"test-model","choices":[{"delta":{"role":"assistant","tool_calls":[{"id":"call_empty","function":{"name":"empty_tool","arguments":""},"type":"function","index":0},{"id":"call_valid","function":{"name":"valid_tool","arguments":"{\"value\":"},"type":"function","index":1}]},"index":0,"finish_reason":null}],"object":"chat.completion.chunk","id":"test-id","created":1234567890}
+data: {"model":"test-model","choices":[{"delta":{"tool_calls":[{"function":{"arguments":""},"index":0},{"function":{"arguments":"true}"},"index":1}]},"index":0,"finish_reason":"length"}],"usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110},"object":"chat.completion.chunk","id":"test-id","created":1234567890}
+data: [DONE]"#;
+
+        let response_stream =
+            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
+        let messages = response_to_streaming_message(response_stream);
+        pin!(messages);
+
+        let mut tool_error_ids = Vec::new();
+        let mut usage_count = 0;
+        while let Some(result) = messages.next().await {
+            let (message, usage) = result?;
+            if usage.is_some() {
+                usage_count += 1;
+            }
+            if let Some(msg) = message {
+                assert!(msg.metadata.output_token_limit_reached);
+                assert_eq!(msg.id.as_deref(), Some("test-id"));
+                for content in msg.content {
+                    if let MessageContentBlock::ToolRequest(request) = content {
+                        let request_id = request.id.clone();
+                        match request.tool_call {
+                            Err(error) => {
+                                assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
+                                assert!(error.message.contains("output token limit"));
+                                tool_error_ids.push(request_id);
+                            }
+                            Ok(_) => panic!("length-terminated tool call must not be executable"),
+                        }
+                    }
+                }
+            }
+        }
+
+        assert_eq!(tool_error_ids, vec!["call_empty", "call_valid"]);
+        assert_eq!(usage_count, 1);
+        Ok(())
     }
 
     #[tokio::test]
@@ -3201,6 +3535,87 @@ data: [DONE]"#;
 
         assert_eq!(text, "y");
         assert_eq!(thinking, "x");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_truncated_inline_think_preserves_output_token_limit(
+    ) -> anyhow::Result<()> {
+        let response_lines = concat!(
+            "data: {\"id\":\"chunk-1\",\"model\":\"test-model\",\"choices\":[{\"delta\":{\"content\":\"<think>unfinished reasoning\"},\"index\":0,\"finish_reason\":null}]}\n",
+            "data: {\"id\":\"chunk-1\",\"choices\":[{\"delta\":{},\"index\":0,\"finish_reason\":\"length\"}],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":5,\"total_tokens\":15}}\n",
+            "data: [DONE]\n"
+        );
+
+        let response_stream =
+            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+        let mut streamed_messages = Vec::new();
+        let mut usage_count = 0;
+
+        while let Some(result) = messages.next().await {
+            let (message, usage) = result?;
+            if usage.is_some() {
+                usage_count += 1;
+            }
+            if let Some(message) = message {
+                streamed_messages.push(message);
+            }
+        }
+
+        assert_eq!(usage_count, 1);
+        assert_eq!(
+            streamed_messages
+                .iter()
+                .filter(|message| message.metadata.output_token_limit_reached)
+                .count(),
+            1
+        );
+        let trailing_message = streamed_messages
+            .last()
+            .expect("expected trailing thinking");
+        assert!(trailing_message.metadata.output_token_limit_reached);
+        assert!(matches!(
+            trailing_message.content.as_slice(),
+            [MessageContentBlock::Thinking(thinking)]
+                if thinking.thinking == "unfinished reasoning"
+        ));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_partial_think_tag_emits_one_output_limit_marker() -> anyhow::Result<()>
+    {
+        let response_lines = concat!(
+            "data: {\"id\":\"chunk-1\",\"model\":\"test-model\",\"choices\":[{\"delta\":{\"content\":\"<thi\"},\"index\":0,\"finish_reason\":null}]}\n",
+            "data: {\"id\":\"chunk-1\",\"choices\":[{\"delta\":{},\"index\":0,\"finish_reason\":\"length\"}],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":5,\"total_tokens\":15}}\n",
+            "data: [DONE]\n"
+        );
+
+        let response_stream =
+            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+        let mut streamed_messages = Vec::new();
+        let mut usage_count = 0;
+
+        while let Some(result) = messages.next().await {
+            let (message, usage) = result?;
+            usage_count += usize::from(usage.is_some());
+            if let Some(message) = message {
+                streamed_messages.push(message);
+            }
+        }
+
+        assert_eq!(usage_count, 1);
+        let marked_messages: Vec<_> = streamed_messages
+            .iter()
+            .filter(|message| message.metadata.output_token_limit_reached)
+            .collect();
+        assert_eq!(marked_messages.len(), 1);
+        assert_eq!(marked_messages[0].id.as_deref(), Some("chunk-1"));
+        assert_eq!(marked_messages[0].as_concat_text(), "<thi");
 
         Ok(())
     }
@@ -3931,6 +4346,224 @@ data: [DONE]"#;
         Ok(())
     }
 
+    // ---- metadata-only SSE frames (gateway trace/guardrail objects) -----------------------
+    //
+    // Some OpenAI-compatible gateways interleave objects that have no `choices` key at all
+    // with the real chunks. A Portkey gateway sends a `hook_results` guardrail trace as the
+    // FIRST frame whenever strict-openai-compliance is off. Failing on such a frame killed
+    // the whole turn.
+
+    /// A guardrail trace frame, in the shape a Portkey gateway emits it.
+    const METADATA_FRAME: &str = concat!(
+        r#"data: {"hook_results":{"before_request_hooks":[{"verdict":true,"#,
+        r#""id":"guardrail-1","type":"guardrail","deny":false}]}}"#
+    );
+
+    fn content_chunk(content: &str) -> String {
+        format!(
+            concat!(
+                r#"data: {{"id":"x","object":"chat.completion.chunk","created":1,"model":"m","#,
+                r#""choices":[{{"index":0,"delta":{{"content":"{}"}},"finish_reason":null}}]}}"#
+            ),
+            content
+        )
+    }
+
+    #[tokio::test]
+    async fn test_metadata_only_first_frame_does_not_abort_stream() -> anyhow::Result<()> {
+        // The reported bug: a metadata-only opening frame made the whole turn fail with
+        // "Failed to parse streaming chunk: missing field `choices`".
+        let response_lines = format!("{METADATA_FRAME}\n{}\ndata: [DONE]", content_chunk("hello"));
+        assert_eq!(run_streaming_test(&response_lines).await?.text, "hello");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_metadata_only_frame_interleaved_mid_stream_is_skipped() -> anyhow::Result<()> {
+        let response_lines = format!(
+            "{}\n{METADATA_FRAME}\n{}\ndata: [DONE]",
+            content_chunk("hel"),
+            content_chunk("lo")
+        );
+        assert_eq!(run_streaming_test(&response_lines).await?.text, "hello");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_metadata_only_frame_mid_tool_call_keeps_arguments_intact() -> anyhow::Result<()> {
+        // A metadata frame arriving between two tool_calls argument deltas must not end
+        // argument accumulation. Merely defaulting `choices` to an empty vec would route this
+        // frame into the inner loop's empty-choices branch (`done = true`) and silently
+        // truncate the arguments to `{"city":"Pa` — a quiet corruption instead of a loud error.
+        let response_lines = concat!(
+            r#"data: {"id":"x","object":"chat.completion.chunk","model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"get_weather","arguments":"{\"city\":\"Pa"}}]},"finish_reason":null}]}"#,
+            "\n",
+            r#"data: {"hook_results":{"before_request_hooks":[{"verdict":true,"type":"guardrail","deny":false}]}}"#,
+            "\n",
+            r#"data: {"id":"x","object":"chat.completion.chunk","model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"ris\"}"}}]},"finish_reason":null}]}"#,
+            "\n",
+            r#"data: {"id":"x","object":"chat.completion.chunk","model":"m","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}"#,
+            "\n",
+            "data: [DONE]"
+        );
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+
+        let mut tool_calls = Vec::new();
+        while let Some(result) = messages.next().await {
+            let (message, _usage) = result?;
+            if let Some(msg) = message {
+                for content in &msg.content {
+                    if let MessageContentBlock::ToolRequest(req) = content {
+                        if let Ok(call) = &req.tool_call {
+                            tool_calls.push(call.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        assert_eq!(tool_calls.len(), 1, "expected exactly one tool call");
+        assert_eq!(tool_calls[0].name, "get_weather");
+        assert_eq!(
+            tool_calls[0]
+                .arguments
+                .as_ref()
+                .and_then(|a| a.get("city"))
+                .and_then(Value::as_str),
+            Some("Paris"),
+            "arguments must survive the interleaved metadata frame intact"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_empty_choices_array_is_not_treated_as_metadata() -> anyhow::Result<()> {
+        // `"choices": []` is the standard usage-only chunk, NOT a metadata frame: it must
+        // still deserialize and still surface its usage.
+        let response_lines = concat!(
+            r#"data: {"id":"x","object":"chat.completion.chunk","model":"m","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}]}"#,
+            "\n",
+            r#"data: {"id":"x","object":"chat.completion.chunk","model":"m","choices":[],"usage":{"prompt_tokens":7,"completion_tokens":3,"total_tokens":10}}"#,
+            "\n",
+            "data: [DONE]"
+        );
+        let result = run_streaming_test(response_lines).await?;
+        assert_eq!(result.usage_count, 1, "the usage-only chunk must be kept");
+        let usage = result.usage.expect("usage should be reported");
+        assert_eq!(usage.usage.output_tokens, Some(3));
+        assert!(result.has_text_content);
+        Ok(())
+    }
+
+    #[test]
+    fn test_error_frames_still_surface_as_server_error() {
+        // Skipping choice-less frames must not swallow gateway error frames, which are also
+        // choice-less. Every one of these is handled ahead of the metadata skip.
+        for line in [
+            r#"{"error":{"message":"upstream exploded"}}"#,
+            r#"{"object":"error","message":"upstream exploded"}"#,
+            // No `error` key and no `object`: the shape Azure APIM rate-limits with, on an
+            // HTTP 200. Skipping this would report the failed turn as an empty success.
+            r#"{"statusCode":429,"message":"upstream exploded"}"#,
+            // Some gateways stringify the status.
+            r#"{"status":"503","message":"upstream exploded"}"#,
+            // FastAPI's HTTPException shape.
+            r#"{"detail":"upstream exploded"}"#,
+            // FastAPI's RequestValidationError shape: `detail` is a LIST, so a string-only
+            // read would drop it and silently skip the frame.
+            r#"{"detail":[{"loc":["body"],"msg":"upstream exploded","type":"value_error"}]}"#,
+            // A non-string `message` must not be dropped either.
+            r#"{"statusCode":500,"message":{"text":"upstream exploded"}}"#,
+            // `type: "error"` is a third error marker some gateways use.
+            r#"{"type":"error","message":"upstream exploded"}"#,
+        ] {
+            match parse_streaming_chunk(line) {
+                Err(ProviderError::ServerError(msg)) => assert!(
+                    msg.contains("upstream exploded"),
+                    "message preserved for {line}, got {msg:?}"
+                ),
+                other => panic!("expected ServerError for {line}, got {other:?}"),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_informational_choiceless_frame_is_still_skipped() -> anyhow::Result<()> {
+        // Prose alone is not an error signal. A keepalive/progress frame carrying a message
+        // but no status must NOT abort the turn — doing so would reintroduce exactly the bug
+        // the metadata skip exists to fix.
+        let response_lines = format!(
+            "{}\n{}\ndata: [DONE]",
+            r#"data: {"message":"processing"}"#,
+            content_chunk("hello")
+        );
+        assert_eq!(run_streaming_test(&response_lines).await?.text, "hello");
+        Ok(())
+    }
+
+    #[test]
+    fn test_status_only_error_frame_still_fails_loudly() {
+        // No message text anywhere: the frame must still surface rather than vanish.
+        match parse_streaming_chunk(r#"{"statusCode":503}"#) {
+            Err(ProviderError::ServerError(msg)) => {
+                assert!(msg.contains("503"), "status should reach the caller: {msg}")
+            }
+            other => panic!("expected ServerError, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_choiceless_frame_error_text_is_capped() {
+        let long = "x".repeat(5_000);
+        let line = format!(r#"{{"statusCode":500,"message":"{long}"}}"#);
+        match parse_streaming_chunk(&line) {
+            Err(ProviderError::ServerError(msg)) => assert!(
+                msg.chars().count() <= MAX_STREAM_ERROR_LEN + 1,
+                "error text should be truncated, got {} chars",
+                msg.chars().count()
+            ),
+            other => panic!("expected ServerError, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_in_stream_error_frame_aborts_rather_than_ending_empty() {
+        // End-to-end counterpart: the turn must fail, not complete with no content. A silent
+        // skip here tells the user to resend — the worst possible advice into a 429.
+        let response_lines = concat!(
+            r#"data: {"statusCode":429,"message":"rate limited"}"#,
+            "\n",
+            "data: [DONE]"
+        );
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+
+        let first = messages.next().await.expect("stream should yield an item");
+        let err = first.expect_err("an in-stream error frame must not be skipped");
+        assert!(
+            err.to_string().contains("rate limited"),
+            "the gateway's message must reach the caller: {err}"
+        );
+    }
+
+    #[test]
+    fn test_parse_streaming_chunk_returns_none_for_metadata_frames() {
+        // Unit-level counterpart to the streaming tests above.
+        let metadata = parse_streaming_chunk(r#"{"hook_results":{"before_request_hooks":[]}}"#)
+            .expect("metadata frame must not be an error");
+        assert!(metadata.is_none(), "metadata frame should be skipped");
+
+        let real = parse_streaming_chunk(r#"{"choices":[],"usage":{"completion_tokens":1}}"#)
+            .expect("usage-only chunk must parse");
+        assert!(
+            real.is_some(),
+            "`choices: []` is a real chunk, not metadata"
+        );
+    }
+
     #[tokio::test]
     async fn test_streaming_chunk_with_only_reasoning_content() -> anyhow::Result<()> {
         let response_lines = "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"hi\"},\"finish_reason\":null}]}\ndata: [DONE]";
@@ -4574,5 +5207,62 @@ data: [DONE]"#;
             assistant[0]["content"],
             json!("<think>\nreasoning\n</think>")
         );
+    }
+
+    mod cache_prefix_stability {
+        use super::*;
+
+        fn turn_context(time: &str, turn_budget: &str) -> String {
+            format!(
+                "<turn-context>\n\
+                 <current-time>{time}</current-time>\n\
+                 <working-directory>/Users/me/code/goose</working-directory>\n\
+                 <turn-budget>{turn_budget}</turn-budget>\n\
+                 </turn-context>"
+            )
+        }
+
+        fn tool_loop_conversation(turn_context_block: &str) -> Vec<Message> {
+            vec![
+                Message::user().with_text("What does the main entrypoint do?"),
+                Message::assistant().with_text("Let me read it."),
+                Message::user()
+                    .with_text("Now add error handling to it.")
+                    .with_text(turn_context_block),
+                Message::assistant().with_tool_request(
+                    "tool_1",
+                    Ok(CallToolRequestParams::new("read_file")
+                        .with_arguments(object!({"path": "src/main.rs"}))),
+                ),
+                Message::user().with_tool_response(
+                    "tool_1",
+                    Ok(CallToolResult::success(vec![ContentBlock::text(
+                        "fn main() { run(); }",
+                    )])),
+                ),
+            ]
+        }
+
+        #[test]
+        fn turn_context_stays_on_its_source_message() {
+            let block = turn_context("2026-08-03 12:00:00", "14/40 used");
+            let spec = format_messages(&tool_loop_conversation(&block), &ImageFormat::OpenAi);
+
+            let occurrences: Vec<usize> = spec
+                .iter()
+                .enumerate()
+                .filter_map(|(i, m)| {
+                    m["content"]
+                        .as_str()
+                        .is_some_and(|c| c.contains("<turn-context>"))
+                        .then_some(i)
+                })
+                .collect();
+            assert_eq!(
+                occurrences,
+                vec![2],
+                "turn-context must appear exactly once, on its source message"
+            );
+        }
     }
 }

@@ -1226,6 +1226,15 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Kết nối tới một máy chủ goose đang chạy ở nơi khác (cần khởi động lại ứng dụng)"
   },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "Thư mục làm việc từ xa (tùy chọn)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "Đường dẫn tuyệt đối trên backend bên ngoài. Để trống để gửi thư mục làm việc cục bộ."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
+  },
   "goosehintsModal.close": {
     "defaultMessage": "Đóng"
   },
@@ -3770,6 +3779,12 @@
   "sessions.action.export": {
     "defaultMessage": "Xuất phiên"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "Mở trong cửa sổ mới"
   },
@@ -3868,6 +3883,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "Đã nhân bản phiên làm việc \"{name}\" thành công"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "Không thể xuất phiên làm việc: {error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "Đã xuất phiên làm việc thành công"

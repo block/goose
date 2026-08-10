@@ -1226,6 +1226,15 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "連線至在其他位置執行的 goose 伺服器（需要重新啟動應用程式）"
   },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "遠端工作目錄（選用）"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "外部後端上的絕對路徑。留空時將傳送本機工作目錄。"
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
+  },
   "goosehintsModal.close": {
     "defaultMessage": "關閉"
   },
@@ -3770,6 +3779,12 @@
   "sessions.action.export": {
     "defaultMessage": "匯出工作階段"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "在新視窗中開啟"
   },
@@ -3868,6 +3883,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "已成功複製工作階段「{name}」"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "無法匯出工作階段：{error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "已成功匯出工作階段"

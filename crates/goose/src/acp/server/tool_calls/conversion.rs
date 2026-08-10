@@ -1,6 +1,6 @@
 use crate::acp::tools::AcpAwareToolMeta;
 use crate::agents::extension_manager::TRUSTED_TOOL_UPDATE_META_KEY;
-use crate::conversation::message::{ToolNameParts, ToolRequest, ToolResponse};
+use crate::conversation::message::{Message, ToolNameParts, ToolRequest, ToolResponse};
 use crate::mcp_utils::ToolResult;
 use agent_client_protocol::schema::v1::{
     BlobResourceContents, Content, ContentBlock, EmbeddedResource, EmbeddedResourceResource,
@@ -8,6 +8,8 @@ use agent_client_protocol::schema::v1::{
     ToolCallLocation, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
 };
 use rmcp::model::{CallToolResult, ContentBlock as RmcpContentBlock, ResourceContents};
+
+use super::super::message_meta::merge_message_meta;
 
 pub(crate) fn format_tool_name(tool_name: &str) -> String {
     let parts = ToolNameParts::from(tool_name);
@@ -27,9 +29,15 @@ fn default_tool_title(tool_name: &str, arguments: Option<&serde_json::Value>) ->
 
     let detail = arguments.and_then(|args| {
         let obj = args.as_object()?;
-        let keys = [
-            "path", "file", "command", "query", "url", "uri", "name", "pattern", "source",
-        ];
+        let keys = if matches!(tool_name, "developer__shell" | "shell") {
+            [
+                "command", "path", "file", "query", "url", "uri", "name", "pattern", "source",
+            ]
+        } else {
+            [
+                "path", "file", "command", "query", "url", "uri", "name", "pattern", "source",
+            ]
+        };
         for key in &keys {
             if let Some(v) = obj.get(*key) {
                 let s = match v {
@@ -37,8 +45,9 @@ fn default_tool_title(tool_name: &str, arguments: Option<&serde_json::Value>) ->
                     other => other.to_string(),
                 };
                 if !s.is_empty() {
-                    let first_line = s.lines().next().unwrap_or(&s);
-                    if first_line.len() > 60 {
+                    let mut lines = s.lines();
+                    let first_line = lines.next().unwrap_or(&s);
+                    if first_line.len() > 60 || lines.next().is_some() {
                         return Some(format!("{}…", crate::utils::safe_truncate(first_line, 57)));
                     }
                     return Some(first_line.to_string());
@@ -82,10 +91,7 @@ pub(crate) fn goose_tool_call_meta(tool_request: &ToolRequest) -> Option<Meta> {
     Some(meta)
 }
 
-pub(crate) fn build_initial_tool_call(
-    tool_request: &ToolRequest,
-    include_generated_title: bool,
-) -> ToolCall {
+fn build_initial_tool_call(tool_request: &ToolRequest, include_generated_title: bool) -> ToolCall {
     let tool_name = match &tool_request.tool_call {
         Ok(tool_call) => tool_call.name.to_string(),
         Err(_) => "error".to_string(),
@@ -115,6 +121,16 @@ pub(crate) fn build_initial_tool_call(
     }
 
     tool_call.meta(goose_meta)
+}
+
+pub(crate) fn build_initial_tool_call_with_message_meta(
+    tool_request: &ToolRequest,
+    message: &Message,
+    include_generated_title: bool,
+) -> ToolCall {
+    let mut tool_call = build_initial_tool_call(tool_request, include_generated_title);
+    let meta = tool_call.meta.take().unwrap_or_default();
+    tool_call.meta(merge_message_meta(meta, message))
 }
 
 pub(crate) fn build_permission_tool_call_update(
@@ -354,6 +370,31 @@ mod tests {
         }
 
         #[test]
+        fn shell_command_takes_precedence_over_ignored_path() {
+            let args = serde_json::json!({
+                "path": "/tmp/harmless",
+                "command": "rm -rf /tmp/important"
+            });
+            assert_eq!(
+                default_tool_title("developer__shell", Some(&args)),
+                "developer: shell · rm -rf /tmp/important"
+            );
+            assert_eq!(
+                default_tool_title("shell", Some(&args)),
+                "shell · rm -rf /tmp/important"
+            );
+        }
+
+        #[test]
+        fn multiline_shell_command_marks_omitted_lines() {
+            let args = serde_json::json!({"command": "echo harmless\nrm -rf /tmp/important"});
+            assert_eq!(
+                default_tool_title("developer__shell", Some(&args)),
+                "developer: shell · echo harmless…"
+            );
+        }
+
+        #[test]
         fn long_value_is_truncated() {
             let long_path = "a".repeat(80);
             let args = serde_json::json!({"path": long_path});
@@ -450,6 +491,55 @@ mod tests {
             assert_eq!(tool_call.status, ToolCallStatus::Pending);
             assert_eq!(tool_call.raw_input, None);
             assert_eq!(tool_call.meta, None);
+        }
+    }
+
+    mod build_initial_tool_call_with_message_meta {
+        use super::*;
+        use rmcp::model::Role;
+
+        #[test]
+        fn merges_message_and_tool_metadata() {
+            let request = ToolRequest {
+                id: "req_1".to_string(),
+                tool_call: Ok(CallToolRequestParams::new("developer__shell")),
+                metadata: None,
+                tool_meta: None,
+            };
+            let message = Message::new(Role::Assistant, 1_700_000_000, vec![]).with_id("msg_live");
+
+            let tool_call = build_initial_tool_call_with_message_meta(&request, &message, false);
+            assert_eq!(
+                tool_call.meta.as_ref().and_then(|meta| meta.get("goose")),
+                Some(&serde_json::json!({
+                    "created": 1_700_000_000,
+                    "messageId": "msg_live",
+                    "toolCall": {
+                        "extensionName": "developer",
+                        "toolName": "developer__shell",
+                    },
+                })),
+            );
+
+            let mut limited_message = message;
+            limited_message.metadata.output_token_limit_reached = true;
+            let limited_tool_call =
+                build_initial_tool_call_with_message_meta(&request, &limited_message, false);
+            assert_eq!(
+                limited_tool_call
+                    .meta
+                    .as_ref()
+                    .and_then(|meta| meta.get("goose")),
+                Some(&serde_json::json!({
+                    "created": 1_700_000_000,
+                    "messageId": "msg_live",
+                    "outputTokenLimitReached": true,
+                    "toolCall": {
+                        "extensionName": "developer",
+                        "toolName": "developer__shell",
+                    },
+                })),
+            );
         }
     }
 

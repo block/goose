@@ -168,6 +168,7 @@ export type InferenceMetadata = {
   provider: string;
   requestedModel: string;
   resolvedModel?: string | null;
+  providerSessionId?: string | null;
 };
 
 /** Mirrors the backend `MessageUsage` schema (camelCase). */
@@ -186,7 +187,9 @@ export type MessageUsage = {
 
 export type MessageMetadata = {
   agentVisible: boolean;
+  fallbackContent?: boolean;
   inference?: InferenceMetadata | null;
+  outputTokenLimitReached?: boolean;
   steer?: boolean;
   usage?: MessageUsage | null;
   userVisible: boolean;

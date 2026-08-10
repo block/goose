@@ -31,6 +31,7 @@ struct AppState {
 struct CallbackParams {
     code: String,
     state: String,
+    iss: Option<String>,
 }
 
 fn resolve_oauth_callback_timeout(value: Option<&str>) -> Duration {
@@ -173,8 +174,11 @@ pub async fn oauth_flow(
     let CallbackParams {
         code: auth_code,
         state: csrf_token,
+        iss,
     } = callback_params?;
-    oauth_state.handle_callback(&auth_code, &csrf_token).await?;
+    oauth_state
+        .handle_callback_with_issuer(&auth_code, &csrf_token, iss.as_deref())
+        .await?;
 
     let (client_id, token_response) = oauth_state.get_credentials().await?;
 
@@ -242,6 +246,7 @@ mod tests {
             .send(CallbackParams {
                 code: "auth-code".to_string(),
                 state: "csrf-state".to_string(),
+                iss: Some("https://auth.example".to_string()),
             })
             .unwrap();
 
@@ -256,6 +261,31 @@ mod tests {
 
         assert_eq!(params.code, "auth-code");
         assert_eq!(params.state, "csrf-state");
+        assert_eq!(params.iss.as_deref(), Some("https://auth.example"));
+    }
+
+    #[test]
+    fn callback_params_capture_rfc_9207_issuer() {
+        let uri: axum::http::Uri =
+            "http://127.0.0.1/oauth_callback?code=auth-code&state=csrf-state&iss=https%3A%2F%2Fauth.example%2Fidp"
+                .parse()
+                .unwrap();
+
+        let Query(params) = Query::<CallbackParams>::try_from_uri(&uri).unwrap();
+
+        assert_eq!(params.iss.as_deref(), Some("https://auth.example/idp"));
+    }
+
+    #[test]
+    fn callback_params_accept_missing_issuer() {
+        let uri: axum::http::Uri =
+            "http://127.0.0.1/oauth_callback?code=auth-code&state=csrf-state"
+                .parse()
+                .unwrap();
+
+        let Query(params) = Query::<CallbackParams>::try_from_uri(&uri).unwrap();
+
+        assert_eq!(params.iss, None);
     }
 
     #[tokio::test]

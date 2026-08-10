@@ -1226,6 +1226,15 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "다른 곳에서 실행 중인 ACP 호환 백엔드에 연결합니다."
   },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "원격 작업 디렉터리(선택 사항)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "외부 백엔드의 절대 경로입니다. 비워 두면 로컬 작업 디렉터리를 전송합니다."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
+  },
   "goosehintsModal.close": {
     "defaultMessage": "닫기"
   },
@@ -3770,6 +3779,12 @@
   "sessions.action.export": {
     "defaultMessage": "세션 내보내기"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "새 창에서 열기"
   },
@@ -3868,6 +3883,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "세션 \"{name}\"이(가) 성공적으로 복제되었습니다."
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "세션 내보내기 실패: {error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "세션을 성공적으로 내보냈습니다."

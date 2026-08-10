@@ -1226,6 +1226,15 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "別の場所で実行中の goose サーバーに接続します（アプリの再起動が必要）"
   },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "リモート作業ディレクトリ（任意）"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "外部バックエンド上の絶対パスです。空欄の場合はローカルの作業ディレクトリを送信します。"
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
+  },
   "goosehintsModal.close": {
     "defaultMessage": "閉じる"
   },
@@ -3770,6 +3779,12 @@
   "sessions.action.export": {
     "defaultMessage": "セッションをエクスポート"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "新しいウィンドウで開く"
   },
@@ -3868,6 +3883,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "セッション「{name}」を複製しました"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "セッションをエクスポートできませんでした: {error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "セッションをエクスポートしました"

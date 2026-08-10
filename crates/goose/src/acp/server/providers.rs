@@ -478,10 +478,21 @@ impl GooseAcpAgent {
             .create_provider(&req.provider_id, Vec::new(), None)
             .await
             .internal_err_ctx("Failed to initialize provider")?;
-        let models = provider
-            .fetch_supported_models()
-            .await
-            .internal_err_ctx("Failed to fetch provider supported models")?;
+        let models = match provider.fetch_supported_models().await {
+            Ok(models) => models,
+            Err(goose_providers::errors::ProviderError::Authentication(error)) => {
+                return Err(agent_client_protocol::Error::auth_required().data(error));
+            }
+            Err(goose_providers::errors::ProviderError::NotConfigured) => {
+                return Err(agent_client_protocol::Error::invalid_params()
+                    .data(format!("Provider is not configured: {}", req.provider_id)));
+            }
+            Err(error) => {
+                return Err(agent_client_protocol::Error::internal_error().data(format!(
+                    "Failed to fetch provider supported models: {error}"
+                )));
+            }
+        };
 
         Ok(ProviderSupportedModelsListResponse {
             provider_id: req.provider_id,

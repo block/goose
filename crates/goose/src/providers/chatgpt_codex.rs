@@ -1,7 +1,10 @@
 use crate::config::paths::Paths;
 use crate::conversation::message::{Message, MessageContent};
 use crate::providers::api_client::{AuthProvider, RequestBuilderDecorator};
-use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
+use crate::providers::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
+    DEFAULT_CONNECT_TIMEOUT_SECS, DEFAULT_PROVIDER_TIMEOUT_SECS,
+};
 use crate::providers::openai_compatible::handle_status;
 use crate::providers::private_file::write_private_file;
 use crate::providers::retry::ProviderRetry;
@@ -921,7 +924,13 @@ impl ChatGptCodexProvider {
             );
         }
 
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
+            .read_timeout(std::time::Duration::from_secs(
+                DEFAULT_PROVIDER_TIMEOUT_SECS,
+            ))
+            .build()
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
         let request = client
             .post(format!("{}/responses", CODEX_API_ENDPOINT))
             .header(
@@ -932,11 +941,13 @@ impl ChatGptCodexProvider {
             .headers(headers)
             .json(payload);
 
-        let response = (self.request_builder)(request)
-            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?
-            .send()
-            .await
-            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+        let request = (self.request_builder)(request)
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
+        let response = goose_providers::http_status::send_bounded(
+            request,
+            std::time::Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
+        )
+        .await?;
 
         handle_status(response).await
     }
