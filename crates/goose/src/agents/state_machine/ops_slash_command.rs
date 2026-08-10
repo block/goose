@@ -5,14 +5,18 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 
+use crate::agents::context_management_unsupported_message;
 use crate::agents::state_machine::operation::{
-    messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult, SlashCommand,
+    messages_since_kickoff, not_applicable, yielded_with, Emitter, Operation, OperationResult,
+    SlashCommand, StateEffect,
 };
+use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::session::Session;
 
 pub struct SlashCommandOperation<'a> {
     operations: Vec<Arc<dyn Operation + 'a>>,
+    context_managing_provider: Option<String>,
 }
 
 fn parse_slash_command(message: &str) -> Option<SlashCommand<'_>> {
@@ -35,8 +39,14 @@ fn parse_slash_command(message: &str) -> Option<SlashCommand<'_>> {
 }
 
 impl<'a> SlashCommandOperation<'a> {
-    pub fn new(operations: Vec<Arc<dyn Operation + 'a>>) -> Self {
-        Self { operations }
+    pub fn new(
+        operations: Vec<Arc<dyn Operation + 'a>>,
+        context_managing_provider: Option<String>,
+    ) -> Self {
+        Self {
+            operations,
+            context_managing_provider,
+        }
     }
 }
 
@@ -63,6 +73,35 @@ impl Operation for SlashCommandOperation<'_> {
         let Some(command) = parse_slash_command(&message_text) else {
             return not_applicable();
         };
+
+        if matches!(command.command, "clear" | "compact") {
+            if let Some(provider) = &self.context_managing_provider {
+                let message_id = user_message
+                    .id
+                    .clone()
+                    .ok_or_else(|| anyhow::anyhow!("Persisted slash command message has no id"))?;
+                emit.message(user_message.clone().with_visibility(true, false))
+                    .await;
+                let response = emit
+                    .message(
+                        Message::assistant()
+                            .with_text(context_management_unsupported_message(
+                                command.command,
+                                provider,
+                            ))
+                            .with_visibility(true, false),
+                    )
+                    .await;
+                return yielded_with([
+                    StateEffect::SetMessageVisibility {
+                        message_id,
+                        user_visible: true,
+                        agent_visible: false,
+                    },
+                    response.into(),
+                ]);
+            }
+        }
 
         for operation in &self.operations {
             match operation

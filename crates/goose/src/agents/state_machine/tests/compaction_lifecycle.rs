@@ -3,6 +3,7 @@ use goose_providers::conversation::token_usage::{ProviderUsage, Usage as Provide
 use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock};
 
 use super::calculator_extension::{value, ADD};
+use super::dummy_api::ProviderFeatures;
 use super::pipeline::{self, test_pipeline, MessageKind::Agent};
 use crate::agents::state_machine;
 use crate::agents::state_machine::ops_compaction::MAX_CONTEXT_ERROR_COMPACTIONS;
@@ -152,6 +153,40 @@ async fn a_failed_compact_command_reports_the_error_and_keeps_working() -> Resul
     api.on("still there?").reply("still here");
     let recovered = pipeline.run(["still there?"]).await?;
     recovered.assert_message(-1, Agent, "still here");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn context_owning_provider_has_no_compaction_operation() -> Result<()> {
+    let (pipeline, api) = pipeline::test_pipeline_with(ProviderFeatures {
+        manages_own_context: true,
+        ..ProviderFeatures::default()
+    })
+    .await?;
+    api.on("continue").reply("continued");
+    pipeline
+        .set_total_tokens((pipeline.context_limit() as f64 * 0.81) as i32)
+        .await;
+
+    let continued = pipeline.run(["continue"]).await?;
+    continued.assert_message(-1, Agent, "continued");
+    assert_eq!(continued.history_replacements(), 0);
+    assert_eq!(api.calls().len(), 1);
+
+    for command in ["clear", "compact"] {
+        let input = format!("/{command}");
+        let rejected = pipeline.run([input.as_str()]).await?;
+        rejected.assert_message(
+            -1,
+            Agent,
+            &format!(
+                "/{command} is not available for provider 'openai' because it manages its own conversation context"
+            ),
+        );
+        assert_eq!(rejected.history_replacements(), 0);
+    }
+    assert_eq!(api.calls().len(), 1);
 
     Ok(())
 }

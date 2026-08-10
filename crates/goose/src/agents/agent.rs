@@ -1611,19 +1611,26 @@ impl Agent {
             .unwrap_or_else(|_| {
                 crate::context_mgmt::compute_tool_call_cutoff(context_limit, compaction_threshold)
             });
-        let tool_pair_compaction_enabled = crate::context_mgmt::tool_pair_summarization_enabled()
-            && !provider.manages_own_context();
+        let manages_own_context = provider.manages_own_context();
+        let context_managing_provider =
+            manages_own_context.then(|| provider.get_name().to_string());
+        let tool_pair_compaction_enabled =
+            crate::context_mgmt::tool_pair_summarization_enabled() && !manages_own_context;
 
-        let operations: Vec<Arc<dyn Operation + '_>> = vec![
+        let mut operations: Vec<Arc<dyn Operation + '_>> = vec![
             Arc::new(SteerOperation::new(steer_queue, self.hook_manager.clone())),
             Arc::new(MaxTurnsOperation::new(max_turns)),
             Arc::new(BangShellOperation::new()),
-            Arc::new(CompactionOperation::new(
+        ];
+        if !manages_own_context {
+            operations.push(Arc::new(CompactionOperation::new(
                 provider.clone(),
                 model_config.clone(),
                 context_limit,
                 compaction_threshold,
-            )),
+            )));
+        }
+        let remaining_operations: Vec<Arc<dyn Operation + '_>> = vec![
             Arc::new(ToolPairCompactionOperation::new(
                 provider.clone(),
                 model_config.clone(),
@@ -1656,6 +1663,7 @@ impl Agent {
             )),
             Arc::new(ExitOnErrorOperation),
         ];
+        operations.extend(remaining_operations);
         let inference = Arc::new(InferenceRunner::new(
             provider,
             model_config,
@@ -1667,8 +1675,10 @@ impl Agent {
         ));
         let mut command_handlers = operations.clone();
         command_handlers.push(inference.clone());
-        let command_operation: Arc<dyn Operation + '_> =
-            Arc::new(SlashCommandOperation::new(command_handlers));
+        let command_operation: Arc<dyn Operation + '_> = Arc::new(SlashCommandOperation::new(
+            command_handlers,
+            context_managing_provider,
+        ));
         let operations: Vec<_> = std::iter::once(command_operation)
             .chain(operations)
             .collect();
