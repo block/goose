@@ -208,6 +208,10 @@ async fn native_delivery_preserves_order_estimated_usage_and_prompt_boundary() -
         .as_ref()
         .expect("final conversation")
         .messages();
+    let turn_context = messages
+        .iter()
+        .position(Message::is_turn_context)
+        .expect("persisted turn context");
     let assistant = messages
         .iter()
         .position(|message| message.as_concat_text() == "before steer")
@@ -216,7 +220,15 @@ async fn native_delivery_preserves_order_estimated_usage_and_prompt_boundary() -
         .iter()
         .position(|message| message.as_concat_text() == "new direction")
         .expect("persisted steer");
+    assert!(turn_context < assistant);
     assert!(assistant < steer);
+    assert_eq!(
+        messages
+            .iter()
+            .filter(|message| message.is_turn_context())
+            .count(),
+        1
+    );
     assert!(messages[assistant].metadata.usage.is_some());
     assert_eq!(messages[steer].id.as_deref(), Some("native-order-steer"));
     assert!(messages[steer].metadata.steer);

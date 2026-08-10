@@ -517,12 +517,15 @@ impl Inference for InferenceRunner<'_> {
                 turn_start,
             )
             .filter(|event| Some(event.as_concat_text()) != last_turn_context);
-            if let Some(event) = &turn_context {
-                messages_for_provider.push(event.clone());
+            if let Some(event) = turn_context {
+                let event = event.with_generated_id_if_missing();
+                self.session_manager
+                    .add_message(&session.id, &event)
+                    .await?;
+                messages_for_provider.push(event);
             }
             let conversation_for_provider = Conversation::new_unvalidated(messages_for_provider);
-            let mut usage_effects: Vec<StateEffect> =
-                turn_context.into_iter().map(StateEffect::from).collect();
+            let mut usage_effects = Vec::new();
 
             let stream = crate::agents::reply_parts::stream_response_from_provider(
                 self.provider.clone(),
