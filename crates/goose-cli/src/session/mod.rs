@@ -12,7 +12,7 @@ mod thinking;
 use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
-use goose::conversation::{fix_conversation, Conversation};
+use goose::conversation::{fix_conversation, merge_consecutive_messages_for_request, Conversation};
 use std::env;
 use std::io::Write;
 use std::str::FromStr;
@@ -69,8 +69,16 @@ const SHELL_STATUS_MAX_LINES: usize = 3;
 const SHELL_STATUS_RESERVED_WIDTH: usize = 2;
 
 fn planner_provider_messages(plan_messages: &Conversation) -> Conversation {
-    let projected_messages = plan_messages.agent_visible_messages();
-    fix_conversation(Conversation::new_unvalidated(projected_messages)).0
+    // The planner prompt has no turn-context instructions; drop the blocks.
+    let projected_messages: Vec<Message> = plan_messages
+        .agent_visible_messages()
+        .into_iter()
+        .filter(|message| !message.is_turn_context())
+        .collect();
+    let fixed = fix_conversation(Conversation::new_unvalidated(projected_messages)).0;
+    Conversation::new_unvalidated(merge_consecutive_messages_for_request(
+        fixed.messages().clone(),
+    ))
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -1645,24 +1653,29 @@ impl CliSession {
                 &Message::assistant().with_text(interrupt_prompt),
                 self.debug,
             );
-        } else if let Some(last_msg) = self.messages.last() {
-            if last_msg.role == rmcp::model::Role::User {
-                match last_msg.content.first() {
-                    Some(MessageContent::ToolResponse(_)) => {
-                        self.push_message(Message::assistant().with_text(interrupt_prompt));
-                        output::render_message(
-                            &Message::assistant().with_text(interrupt_prompt),
-                            self.debug,
-                        );
-                    }
-                    Some(_) => {
-                        self.messages.pop();
-                        let assistant_msg = Message::assistant().with_text(interrupt_prompt);
-                        self.push_message(assistant_msg.clone());
-                        output::render_message(&assistant_msg, self.debug);
-                    }
-                    None => {
-                        // Empty message content — nothing to do, just continue gracefully
+        } else {
+            while self.messages.last().is_some_and(Message::is_turn_context) {
+                self.messages.pop();
+            }
+            if let Some(last_msg) = self.messages.last() {
+                if last_msg.role == rmcp::model::Role::User {
+                    match last_msg.content.first() {
+                        Some(MessageContent::ToolResponse(_)) => {
+                            self.push_message(Message::assistant().with_text(interrupt_prompt));
+                            output::render_message(
+                                &Message::assistant().with_text(interrupt_prompt),
+                                self.debug,
+                            );
+                        }
+                        Some(_) => {
+                            self.messages.pop();
+                            let assistant_msg = Message::assistant().with_text(interrupt_prompt);
+                            self.push_message(assistant_msg.clone());
+                            output::render_message(&assistant_msg, self.debug);
+                        }
+                        None => {
+                            // Empty message content — nothing to do, just continue gracefully
+                        }
                     }
                 }
             }
@@ -2644,6 +2657,32 @@ mod tests {
         assert!(!provider_messages[0]
             .as_concat_text()
             .contains("hidden separator"));
+    }
+
+    #[test]
+    fn planner_history_excludes_turn_context_events() {
+        use goose::conversation::message::MessageMetadata;
+
+        let history = Conversation::new_unvalidated([
+            Message::user().with_text("plan the refactor"),
+            Message::user()
+                .with_text("<turn-context>cwd /repo, todo: ship v2</turn-context>")
+                .with_metadata(MessageMetadata::agent_only().with_turn_context()),
+            Message::assistant().with_text("on it"),
+        ]);
+
+        let provider_text = planner_provider_messages(&history)
+            .agent_visible_messages()
+            .iter()
+            .map(|message| message.as_concat_text())
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(provider_text.contains("plan the refactor"));
+        assert!(
+            !provider_text.contains("turn-context"),
+            "the planner prompt has no turn-context instructions, so blocks must not reach it"
+        );
     }
 
     #[test]

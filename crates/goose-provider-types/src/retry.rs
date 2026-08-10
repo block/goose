@@ -88,6 +88,7 @@ impl RetryConfig {
 const PERMANENT_REQUEST_FAILURE_MARKERS: &[&str] = &[
     "blocks in the latest assistant message cannot be modified",
     "must remain as they were in the original response",
+    "Reasoning is mandatory for this endpoint",
 ];
 
 fn is_permanent_request_failure(message: &str) -> bool {

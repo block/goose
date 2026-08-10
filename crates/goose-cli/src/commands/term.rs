@@ -248,6 +248,20 @@ pub async fn handle_term_log(command: String) -> Result<()> {
     Ok(())
 }
 
+fn shell_history_text(newest_first_tail: &[&Message]) -> Option<String> {
+    let history: Vec<String> = newest_first_tail
+        .iter()
+        .filter(|m| !m.is_turn_context())
+        .rev()
+        .map(|m| m.as_concat_text())
+        .collect();
+    if history.is_empty() {
+        None
+    } else {
+        Some(history.join("\n"))
+    }
+}
+
 pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
     let prompt = prompt.join(" ");
     let session_id = std::env::var("AGENT_SESSION_ID").map_err(|_| {
@@ -291,20 +305,12 @@ pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
         }
     }
 
-    let prompt_with_context = if user_messages_after_last_assistant.is_empty() {
-        prompt
-    } else {
-        let history = user_messages_after_last_assistant
-            .iter()
-            .rev() // back to chronological order
-            .map(|m| m.as_concat_text())
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        format!(
+    let prompt_with_context = match shell_history_text(&user_messages_after_last_assistant) {
+        Some(history) => format!(
             "<shell_history>\n{}\n</shell_history>\n\n{}",
             history, prompt
-        )
+        ),
+        None => prompt,
     };
 
     let config = SessionBuilderConfig {
@@ -406,5 +412,25 @@ mod tests {
         let script = render_term_init_script(Shell::Fish, "session-123", "/tmp/goose", true);
 
         assert!(!script.contains("command_not_found"));
+    }
+
+    #[test]
+    fn shell_history_skips_turn_context_events() {
+        use goose::conversation::message::MessageMetadata;
+
+        let older = Message::user().with_text("git status");
+        let block = Message::user()
+            .with_text("<turn-context>cwd /repo</turn-context>")
+            .with_metadata(MessageMetadata::agent_only().with_turn_context());
+        let newer = Message::user().with_text("cargo build");
+        let newest_first_tail = vec![&newer, &block, &older];
+
+        assert_eq!(
+            shell_history_text(&newest_first_tail).unwrap(),
+            "git status\ncargo build"
+        );
+
+        let only_block = vec![&block];
+        assert_eq!(shell_history_text(&only_block), None);
     }
 }

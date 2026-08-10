@@ -297,6 +297,7 @@ mod tests {
         let client = SkillsClient::new(PlatformExtensionContext {
             extension_manager: None,
             session_manager: Arc::new(crate::session::SessionManager::instance()),
+            scheduler: None,
             session: Some(session),
             use_login_shell_path: false,
         })
@@ -330,6 +331,7 @@ mod tests {
         let client = SkillsClient::new(PlatformExtensionContext {
             extension_manager: None,
             session_manager: Arc::new(crate::session::SessionManager::instance()),
+            scheduler: None,
             session: None,
             use_login_shell_path: false,
         })

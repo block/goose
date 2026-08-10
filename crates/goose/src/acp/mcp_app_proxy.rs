@@ -217,6 +217,7 @@ fn build_outer_csp(
          media-src 'self' data: blob:{resources}; \
          {frame_src}; \
          object-src 'none'; \
+         form-action 'none'; \
          base-uri 'self'{base_uris}"
     )
 }
@@ -392,7 +393,7 @@ pub(crate) fn routes(secret_key: String) -> Router {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_csp_source, parse_domains, peer_addr_is_loopback};
+    use super::{build_outer_csp, normalize_csp_source, parse_domains, peer_addr_is_loopback};
     use axum::{
         body::Body,
         extract::ConnectInfo,
@@ -465,6 +466,13 @@ mod tests {
         assert!(!peer_addr_is_loopback(
             &"192.168.1.10:12345".parse::<SocketAddr>().unwrap()
         ));
+    }
+
+    #[test]
+    fn outer_csp_blocks_form_submission() {
+        let csp = build_outer_csp(&[], &[], &[], &[], &[], "http://127.0.0.1:12345");
+
+        assert!(csp.contains("form-action 'none'"));
     }
 
     #[tokio::test]

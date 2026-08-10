@@ -1,21 +1,21 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::fmt;
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
 use futures::stream::BoxStream;
-use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
+use futures::{stream, FutureExt, StreamExt, TryStreamExt};
 use tracing_futures::Instrument;
 
 use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
 use super::gen_ai_telemetry;
 use super::mcp_client::GooseMcpHostInfo;
-use super::platform_tools;
 use super::tool_confirmation_router::ToolConfirmationRouter;
-use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use super::tool_execution::{
+    tool_stream, ToolCallResult, ToolStream, ToolStreamItem, CHAT_MODE_TOOL_SKIPPED_RESPONSE,
+    DECLINED_RESPONSE,
+};
 use crate::action_required_manager::ElicitationOutcome;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{
@@ -23,10 +23,19 @@ use crate::agents::extension_manager::{
 };
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
 use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
-use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
-use crate::agents::types::{FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver};
+use crate::agents::state_machine::{
+    BangShellOperation, CompactionOperation, DoctorOperation, Emitter, ExitOnErrorOperation,
+    InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation, RecipeOperation,
+    RetryOperation, SkillOperation, SlashCommandOperation, StateMachine, SteerOperation,
+    SteerQueue, Step, StopHookOperation, ToolApprovalOperation, ToolExecutionOperation,
+    ToolPairCompactionOperation, UnknownToolOperation, MAX_TURNS_MESSAGE,
+};
+use crate::agents::types::{
+    FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver,
+    DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
+};
 use crate::config::extensions::name_to_key;
 use crate::config::permission::PermissionManager;
 use crate::config::{get_enabled_extensions, Config, GooseMode};
@@ -37,7 +46,9 @@ use crate::conversation::message::{
     ActionRequiredData, InferenceMetadata, Message, MessageContent, MessageUsage, ProviderMetadata,
     SystemNotificationType, ToolRequest,
 };
-use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
+use crate::conversation::{
+    debug_conversation_fix, fix_conversation, merge_consecutive_messages_for_request, Conversation,
+};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
@@ -69,7 +80,6 @@ use tracing::{debug, error, info, instrument, warn};
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const DEFAULT_STOP_HOOK_BLOCK_CAP: u32 = 8;
 const COMPACTION_PROGRESS_TEXT: &str = "goose is compacting the conversation...";
-const MAX_TURNS_MESSAGE: &str = "I've reached the maximum number of actions I can do without user input. Would you like me to continue?";
 const MAX_EMPTY_TURN_RETRIES: u32 = 3;
 const EMPTY_TURN_MESSAGE: &str =
     "The model returned an empty response. Please resend your message to continue.";
@@ -105,7 +115,7 @@ fn extract_string_arg(input: &Value, keys: &[&str]) -> Option<String> {
     None
 }
 
-fn stop_hook_denial_context_message(plugin: &str, reason: &str) -> Message {
+pub(crate) fn stop_hook_denial_context_message(plugin: &str, reason: &str) -> Message {
     let nudge = format!(
         "Stop hook `{plugin}` blocked ending this turn:
 
@@ -118,14 +128,14 @@ Address this policy hook denial before trying to stop again."
         .with_visibility(false, true)
 }
 
-fn stop_hook_denial_notification(plugin: &str) -> Message {
+pub(crate) fn stop_hook_denial_notification(plugin: &str) -> Message {
     Message::assistant().with_system_notification(
         SystemNotificationType::InlineMessage,
         format!("Stop hook `{plugin}` blocked ending this turn."),
     )
 }
 
-fn stop_hook_block_cap_warning(plugin: &str, cap: u32) -> Message {
+pub(crate) fn stop_hook_block_cap_warning(plugin: &str, cap: u32) -> Message {
     Message::assistant().with_system_notification(
         SystemNotificationType::InlineMessage,
         format!(
@@ -142,7 +152,6 @@ pub struct ReplyContext {
     pub system_prompt: String,
     pub goose_mode: GooseMode,
     pub tool_call_cut_off: usize,
-    pub initial_messages: Vec<Message>,
     pub model_config: goose_providers::model::ModelConfig,
 }
 
@@ -257,11 +266,11 @@ pub struct Agent {
     pub(super) tool_inspection_manager: ToolInspectionManager,
     pub(super) hook_manager: crate::hooks::HookManager,
     #[cfg(test)]
-    stop_hook_block_cap_override: Option<u32>,
+    pub(super) stop_hook_block_cap_override: Option<u32>,
     container: Mutex<Option<Container>>,
-    goal: Mutex<Option<String>>,
-    grind: Mutex<Option<String>>,
-    pending_steers: Mutex<HashMap<String, VecDeque<Message>>>,
+    pub(super) goal: Mutex<Option<String>>,
+    pub(super) grind: Mutex<Option<String>>,
+    steer_queues: Mutex<HashMap<String, SteerQueue>>,
 }
 
 #[derive(Clone, Debug)]
@@ -349,47 +358,6 @@ impl Default for Agent {
     }
 }
 
-pub enum ToolStreamItem<T> {
-    ActionRequired(Message),
-    Message(ServerNotification),
-    Result(T),
-}
-
-pub type ToolStream =
-    Pin<Box<dyn Stream<Item = ToolStreamItem<ToolResult<CallToolResult>>> + Send>>;
-
-// tool_stream combines a stream of ServerNotifications with a future representing the
-// final result of the tool call. MCP notifications are not request-scoped, but
-// this lets us capture all notifications emitted during the tool call for
-// simpler consumption
-pub fn tool_stream<S, A, F>(rx: S, action_required_rx: A, done: F) -> ToolStream
-where
-    S: Stream<Item = ServerNotification> + Send + Unpin + 'static,
-    A: Stream<Item = Message> + Send + Unpin + 'static,
-    F: Future<Output = ToolResult<CallToolResult>> + Send + 'static,
-{
-    Box::pin(async_stream::stream! {
-        tokio::pin!(done);
-        let mut rx = rx;
-        let mut action_required_rx = action_required_rx;
-
-        loop {
-            tokio::select! {
-                Some(msg) = action_required_rx.next() => {
-                    yield ToolStreamItem::ActionRequired(msg);
-                }
-                Some(msg) = rx.next() => {
-                    yield ToolStreamItem::Message(msg);
-                }
-                r = &mut done => {
-                    yield ToolStreamItem::Result(r);
-                    break;
-                }
-            }
-        }
-    })
-}
-
 impl Agent {
     pub fn new() -> Self {
         let config = Config::global();
@@ -427,6 +395,7 @@ impl Agent {
             .and_then(|host_info| host_info.client_name.clone())
             .unwrap_or_else(|| goose_platform.to_string());
         let session_manager = Arc::clone(&config.session_manager);
+        let scheduler = config.scheduler_service.clone();
         let inspection_session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
         let use_login_shell_path = config.resolve_use_login_shell_path();
@@ -437,6 +406,7 @@ impl Agent {
             extension_manager: Arc::new(ExtensionManager::new(
                 provider.clone(),
                 session_manager,
+                scheduler,
                 client_name,
                 capabilities,
                 use_login_shell_path,
@@ -464,7 +434,7 @@ impl Agent {
             container: Mutex::new(None),
             goal: Mutex::new(None),
             grind: Mutex::new(None),
-            pending_steers: Mutex::new(HashMap::new()),
+            steer_queues: Mutex::new(HashMap::new()),
         }
     }
 
@@ -480,7 +450,7 @@ impl Agent {
         self.stop_hook_block_cap_override = Some(cap);
     }
 
-    fn stop_hook_block_cap(&self) -> u32 {
+    pub(crate) fn stop_hook_block_cap(&self) -> u32 {
         #[cfg(test)]
         if let Some(cap) = self.stop_hook_block_cap_override {
             return cap;
@@ -510,7 +480,7 @@ impl Agent {
             .with_working_dir(working_dir.to_string())
     }
 
-    async fn emit_stop_hook(
+    pub(crate) async fn emit_stop_hook(
         &self,
         session_id: &str,
         last_assistant_message: &str,
@@ -527,7 +497,7 @@ impl Agent {
             .await;
     }
 
-    async fn emit_stop_hook_blocking(
+    pub(crate) async fn emit_stop_hook_blocking(
         &self,
         session_id: &str,
         last_assistant_message: &str,
@@ -542,33 +512,45 @@ impl Agent {
     }
 
     pub async fn steer(&self, session_id: &str, message: Message) {
-        self.pending_steers
+        self.steer_queue(session_id)
+            .await
             .lock()
             .await
-            .entry(session_id.to_string())
-            .or_default()
             .push_back(message);
     }
 
     pub async fn discard_pending_steers(&self, session_id: &str) {
-        self.pending_steers.lock().await.remove(session_id);
+        self.steer_queues.lock().await.remove(session_id);
     }
 
-    async fn has_pending_steers(&self, session_id: &str) -> bool {
-        self.pending_steers
-            .lock()
-            .await
-            .get(session_id)
-            .is_some_and(|messages| !messages.is_empty())
+    pub(crate) async fn has_pending_steers(&self, session_id: &str) -> bool {
+        let queue = self.steer_queues.lock().await.get(session_id).cloned();
+        match queue {
+            Some(queue) => !queue.lock().await.is_empty(),
+            None => false,
+        }
     }
 
-    async fn drain_pending_steers(&self, session_id: &str) -> Vec<Message> {
-        self.pending_steers
+    pub(crate) async fn drain_pending_steers(&self, session_id: &str) -> Vec<Message> {
+        let queue = self.steer_queues.lock().await.get(session_id).cloned();
+        match queue {
+            Some(queue) => queue
+                .lock()
+                .await
+                .drain(..)
+                .map(Message::with_steer)
+                .collect(),
+            None => Vec::new(),
+        }
+    }
+
+    async fn steer_queue(&self, session_id: &str) -> SteerQueue {
+        self.steer_queues
             .lock()
             .await
-            .remove(session_id)
-            .map(|messages| messages.into_iter().map(Message::with_steer).collect())
-            .unwrap_or_default()
+            .entry(session_id.to_string())
+            .or_default()
+            .clone()
     }
 
     async fn emit_pre_tool_extended_hooks(
@@ -763,14 +745,16 @@ impl Agent {
         session_config: &SessionConfig,
         initial_messages: &[Message],
     ) -> Result<RetryResult> {
-        self.retry_manager
-            .handle_retry_logic(
-                messages,
-                session_config,
-                initial_messages,
-                &self.final_output_tool,
-            )
-            .await
+        let result = self
+            .retry_manager
+            .handle_retry_logic(messages, session_config, initial_messages)
+            .await?;
+        if matches!(result, RetryResult::Retried) {
+            if let Some(tool) = self.final_output_tool.lock().await.as_mut() {
+                tool.final_output = None;
+            }
+        }
+        Ok(result)
     }
     async fn load_project_instructions(&self, session: &Session) -> Option<String> {
         let project_id = session.project_id.as_deref()?;
@@ -804,8 +788,6 @@ impl Agent {
                 )
             );
         }
-        let initial_messages = conversation.messages().clone();
-
         let (tools, toolshim_tools, system_prompt, model_config) = self
             .prepare_tools_and_prompt(session_id, working_dir)
             .await?;
@@ -837,7 +819,6 @@ impl Agent {
             system_prompt,
             goose_mode,
             tool_call_cut_off,
-            initial_messages,
             model_config,
         })
     }
@@ -1197,26 +1178,6 @@ impl Agent {
         )
         .await;
 
-        if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
-            let arguments = tool_call
-                .arguments
-                .clone()
-                .map(Value::Object)
-                .unwrap_or(Value::Object(serde_json::Map::new()));
-            let result = self
-                .handle_schedule_management(arguments, request_id.clone())
-                .await;
-            let wrapped_result = result.map(CallToolResult::success);
-            return (
-                request_id,
-                Ok(self.with_post_tool_hook(
-                    ToolCallResult::from(wrapped_result),
-                    &tool_call,
-                    session,
-                )),
-            );
-        }
-
         if tool_call.name == FINAL_OUTPUT_TOOL_NAME {
             return if let Some(final_output_tool) = self.final_output_tool.lock().await.as_mut() {
                 let result = final_output_tool.execute_tool_call(tool_call.clone()).await;
@@ -1258,15 +1219,12 @@ impl Agent {
                     cancellation_token.unwrap_or_default(),
                 )
                 .await;
-            result.unwrap_or_else(|e| {
+            result.unwrap_or_else(|error_data| {
                 #[cfg(feature = "telemetry")]
                 crate::posthog::emit_error(
                     "tool_execution_failed",
-                    &format!("{}: {}", tool_call.name, e),
+                    &format!("{}: {}", tool_call.name, error_data),
                 );
-                let error_data = e.downcast::<ErrorData>().unwrap_or_else(|e| {
-                    ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)
-                });
                 ToolCallResult::from(Err(error_data))
             })
         };
@@ -1540,12 +1498,6 @@ impl Agent {
                 .await,
         );
 
-        if (extension_name.is_none() || extension_name.as_deref() == Some("platform"))
-            && self.config.scheduler_service.is_some()
-        {
-            prefixed_tools.push(platform_tools::manage_schedule_tool());
-        }
-
         if extension_name.is_none() {
             if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                 prefixed_tools.push(final_output_tool.tool());
@@ -1621,11 +1573,225 @@ impl Agent {
         false
     }
 
+    pub(super) fn create_state_machine(
+        &self,
+        provider: Arc<dyn Provider>,
+        model_config: goose_providers::model::ModelConfig,
+        context_limit: usize,
+        max_turns: Option<u32>,
+        cancel: CancellationToken,
+        steer_queue: SteerQueue,
+    ) -> StateMachine<'_> {
+        let max_turns = max_turns.unwrap_or_else(|| {
+            Config::global()
+                .get_param::<u32>("GOOSE_MAX_TURNS")
+                .unwrap_or(DEFAULT_MAX_TURNS)
+        });
+        let retry_timeout = Config::global()
+            .get_param::<u64>("GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS")
+            .unwrap_or(DEFAULT_RETRY_TIMEOUT_SECONDS);
+        let on_failure_timeout = Config::global()
+            .get_param::<u64>("GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS")
+            .unwrap_or(DEFAULT_ON_FAILURE_TIMEOUT_SECONDS);
+        #[cfg(test)]
+        let stop_hook_block_cap = self.stop_hook_block_cap_override.unwrap_or_else(|| {
+            Config::global()
+                .get_param::<u32>("GOOSE_STOP_HOOK_BLOCK_CAP")
+                .unwrap_or(DEFAULT_STOP_HOOK_BLOCK_CAP)
+        });
+        #[cfg(not(test))]
+        let stop_hook_block_cap = Config::global()
+            .get_param::<u32>("GOOSE_STOP_HOOK_BLOCK_CAP")
+            .unwrap_or(DEFAULT_STOP_HOOK_BLOCK_CAP);
+        let compaction_threshold = Config::global()
+            .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+            .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
+        let tool_call_cutoff = Config::global()
+            .get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
+            .unwrap_or_else(|_| {
+                crate::context_mgmt::compute_tool_call_cutoff(context_limit, compaction_threshold)
+            });
+        let tool_pair_compaction_enabled = crate::context_mgmt::tool_pair_summarization_enabled()
+            && !provider.manages_own_context();
+
+        let operations: Vec<Arc<dyn Operation + '_>> = vec![
+            Arc::new(SteerOperation::new(steer_queue, self.hook_manager.clone())),
+            Arc::new(MaxTurnsOperation::new(max_turns)),
+            Arc::new(BangShellOperation::new()),
+            Arc::new(CompactionOperation::new(
+                provider.clone(),
+                model_config.clone(),
+                context_limit,
+                compaction_threshold,
+            )),
+            Arc::new(ToolPairCompactionOperation::new(
+                provider.clone(),
+                model_config.clone(),
+                tool_call_cutoff,
+                tool_pair_compaction_enabled,
+            )),
+            Arc::new(ToolApprovalOperation::new(
+                &self.current_goose_mode,
+                &self.tool_inspection_manager,
+            )),
+            Arc::new(DoctorOperation),
+            Arc::new(ProjectOperation),
+            Arc::new(SkillOperation),
+            Arc::new(RecipeOperation),
+            Arc::new(ToolExecutionOperation::new(
+                &self.current_goose_mode,
+                self.extension_manager.clone(),
+                self.hook_manager.clone(),
+            )),
+            Arc::new(UnknownToolOperation),
+            Arc::new(RetryOperation::new(
+                &self.goal,
+                &self.grind,
+                std::time::Duration::from_secs(retry_timeout),
+                std::time::Duration::from_secs(on_failure_timeout),
+            )),
+            Arc::new(StopHookOperation::new(
+                self.hook_manager.clone(),
+                stop_hook_block_cap,
+            )),
+            Arc::new(ExitOnErrorOperation),
+        ];
+        let inference = Arc::new(InferenceRunner::new(
+            provider,
+            model_config,
+            self.extension_manager.clone(),
+            &self.current_goose_mode,
+            &self.prompt_manager,
+            &self.tool_inspection_manager,
+            &self.frontend_instructions,
+        ));
+        let mut command_handlers = operations.clone();
+        command_handlers.push(inference.clone());
+        let command_operation: Arc<dyn Operation + '_> =
+            Arc::new(SlashCommandOperation::new(command_handlers));
+        let operations: Vec<_> = std::iter::once(command_operation)
+            .chain(operations)
+            .collect();
+
+        let steps = operations
+            .into_iter()
+            .map(Step::Operation)
+            .chain(std::iter::once(Step::Inference(inference)))
+            .collect();
+
+        StateMachine::new(steps, cancel).with_hook_manager(self.hook_manager.clone())
+    }
+
+    pub(crate) async fn reply_with_state_machine(
+        &self,
+        user_message: Message,
+        session_config: SessionConfig,
+        cancel_token: Option<CancellationToken>,
+    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        let session_manager = self.config.session_manager.clone();
+        let cancel = cancel_token.unwrap_or_default();
+        let session_id = session_config.id.clone();
+
+        let entry_session = session_manager.get_session(&session_id, false).await?;
+        if let Some(schedule_id) = session_config.schedule_id.clone() {
+            session_manager
+                .update(&session_id)
+                .schedule_id(Some(schedule_id))
+                .apply()
+                .await?;
+        }
+        session_manager
+            .add_message(&session_config.id, &user_message)
+            .await?;
+
+        let provider = self
+            .provider
+            .lock()
+            .await
+            .clone()
+            .ok_or_else(|| anyhow!("Provider not set"))?;
+
+        if !self.config.disable_session_naming {
+            let manager = session_manager.clone();
+            let tx = self.config.session_name_update_tx.clone();
+            let id = session_id.clone();
+            let provider = provider.clone();
+            tokio::spawn(async move {
+                match manager.maybe_update_name(&id, provider).await {
+                    Ok(Some(update)) => {
+                        if let Some(tx) = tx {
+                            if tx.send(update).is_err() {
+                                tracing::warn!("Failed to publish generated session name");
+                            }
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(e) => tracing::warn!("Failed to generate session description: {}", e),
+                }
+            });
+        }
+
+        let model_config = match entry_session.model_config {
+            Some(model_config) => model_config,
+            None => {
+                let provider_name = Config::global()
+                    .get_goose_provider()
+                    .map_err(|_| anyhow!("Could not resolve model config: missing provider"))?;
+                let model_name = Config::global()
+                    .get_goose_model()
+                    .map_err(|_| anyhow!("Could not resolve model config: missing model"))?;
+                crate::model_config::model_config_from_user_config(&provider_name, &model_name)
+                    .map_err(|error| anyhow!("Could not resolve model config: {error}"))?
+            }
+        };
+
+        let context_limit = provider
+            .get_context_limit(&model_config)
+            .await
+            .unwrap_or_else(|_| model_config.context_limit());
+        let steer_queue = self.steer_queue(&session_id).await;
+        let machine = self.create_state_machine(
+            provider,
+            model_config,
+            context_limit,
+            session_config.max_turns,
+            cancel.clone(),
+            steer_queue,
+        );
+        let reply_span = tracing::Span::current();
+
+        Ok(Box::pin(
+            async_stream::try_stream! {
+                let (tx, mut rx) = mpsc::channel::<AgentEvent>(32);
+                let emit = Emitter::new(tx, cancel.clone());
+                let result = {
+                    let run = machine.run(session_manager.as_ref(), &session_id, &emit);
+                    tokio::pin!(run);
+                    loop {
+                        tokio::select! {
+                            biased;
+                            Some(event) = rx.recv() => yield event,
+                            result = &mut run => break result,
+                        }
+                    }
+                };
+                result?;
+                // Without this the drain below never ends: `run` only borrows the emitter.
+                drop(emit);
+                while let Some(event) = rx.recv().await {
+                    yield event;
+                }
+            }
+            .instrument(reply_span),
+        ))
+    }
+
     #[instrument(
         skip(self, user_message, session_config, cancel_token),
         fields(
             user_message,
             trace_input,
+            trace_output = tracing::field::Empty,
             session.id = %session_config.id,
             gen_ai.operation.name = "invoke_agent",
             gen_ai.input.messages = tracing::field::Empty,
@@ -1703,6 +1869,15 @@ impl Agent {
                     return Ok(Box::pin(futures::stream::empty()));
                 }
             }
+        }
+
+        if super::state_machine::enabled()
+            || super::state_machine::bang_shell_command(&message_text_for_trace).is_some()
+        {
+            tracing::info!("dispatching reply via experimental state machine");
+            return self
+                .reply_with_state_machine(user_message, session_config, cancel_token)
+                .await;
         }
 
         let message_text = message_text_for_trace;
@@ -1977,7 +2152,6 @@ impl Agent {
             mut system_prompt,
             tool_call_cut_off,
             goose_mode,
-            initial_messages,
             model_config,
         } = context;
 
@@ -2087,7 +2261,27 @@ impl Agent {
             let turn_start_compaction_info =
                 super::moim::compute_compaction_info(&session_config.id, &self.extension_manager)
                     .await;
-            let turn_start_turns_taken = turns_taken;
+
+            if let Some(turn_context) = super::moim::turn_context_message(
+                &session_config.id,
+                &self.extension_manager,
+                turns_taken,
+                max_turns,
+                turn_start,
+                turn_start_compaction_info,
+            )
+            .await
+            {
+                persist_and_push_message_with_id(
+                    &session_manager,
+                    &session_config.id,
+                    &mut conversation,
+                    turn_context,
+                )
+                .await?;
+            }
+            // Snapshot after the turn-context append so a retry keeps the sent prefix.
+            let initial_messages = conversation.messages().clone();
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -2182,23 +2376,12 @@ impl Agent {
                     break;
                 }
 
-                let conversation_with_moim = super::moim::inject_moim(
-                    &session_config.id,
-                    conversation.clone(),
-                    &self.extension_manager,
-                    turn_start_turns_taken,
-                    max_turns,
-                    turn_start,
-                    turn_start_compaction_info.clone(),
-                )
-                .await;
-
-                let mut stream = Self::stream_response_from_provider(
+                let mut stream = crate::agents::reply_parts::stream_response_from_provider(
                     self.provider().await?,
                     model_config.clone(),
                     &session_config.id,
                     &system_prompt,
-                    conversation_with_moim.messages(),
+                    conversation.messages(),
                     &tools,
                     &toolshim_tools,
                 ).await?;
@@ -3557,7 +3740,7 @@ impl Agent {
             .filter(super::reply_parts::is_tool_visible_to_model)
             .collect();
 
-        messages = Conversation::new_unvalidated(messages.agent_visible_messages());
+        messages = Conversation::new_unvalidated(recipe_conversation_history(&messages));
         messages.push(Message::user().with_text(recipe_prompt));
 
         let (messages, issues) = fix_conversation(messages);
@@ -3566,6 +3749,9 @@ impl Agent {
                 .iter()
                 .for_each(|issue| tracing::warn!(recipe.conversation.issue = issue));
         }
+        let messages = Conversation::new_unvalidated(merge_consecutive_messages_for_request(
+            messages.messages().clone(),
+        ));
 
         tracing::debug!(
             "Added recipe prompt to messages, total messages: {}",
@@ -3731,6 +3917,15 @@ impl Agent {
     }
 }
 
+fn recipe_conversation_history(messages: &Conversation) -> Vec<Message> {
+    // The recipe prompt has no turn-context instructions; drop the blocks.
+    messages
+        .agent_visible_messages()
+        .into_iter()
+        .filter(|message| !message.is_turn_context())
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3745,6 +3940,25 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
+
+    #[test]
+    fn recipe_history_excludes_turn_context_events() {
+        use crate::conversation::message::MessageMetadata;
+
+        let history = Conversation::new_unvalidated([
+            Message::user().with_text("build me a recipe"),
+            Message::user()
+                .with_text("<turn-context>cwd /repo</turn-context>")
+                .with_metadata(MessageMetadata::agent_only().with_turn_context()),
+            Message::assistant().with_text("on it"),
+        ]);
+
+        let texts: Vec<String> = recipe_conversation_history(&history)
+            .iter()
+            .map(|message| message.as_concat_text())
+            .collect();
+        assert_eq!(texts, ["build me a recipe", "on it"]);
+    }
 
     async fn tracing_test_agent_and_session() -> (Agent, Session, TempDir) {
         let data_dir = TempDir::new().unwrap();
@@ -3779,8 +3993,10 @@ mod tests {
         let capture = SpanFieldCapture::new("dispatch_tool_call");
         let _subscriber = capture.clone().set_default();
         let (agent, session, _data_dir) = tracing_test_agent_and_session().await;
-        let tool_call = CallToolRequestParams::new(PLATFORM_MANAGE_SCHEDULE_TOOL_NAME)
-            .with_arguments(object!({ "action": "list" }));
+        let tool_name =
+            crate::agents::platform_extensions::scheduler::MANAGE_SCHEDULE_TOOL_NAME_COMPLETE;
+        let tool_call =
+            CallToolRequestParams::new(tool_name).with_arguments(object!({ "action": "list" }));
 
         let (request_id, result) = agent
             .dispatch_tool_call(
@@ -3796,10 +4012,7 @@ mod tests {
 
         let fields = capture.fields();
         assert_eq!(fields["gen_ai.operation.name"], "execute_tool");
-        assert_eq!(
-            fields["gen_ai.tool.name"],
-            PLATFORM_MANAGE_SCHEDULE_TOOL_NAME
-        );
+        assert_eq!(fields["gen_ai.tool.name"], tool_name);
         assert_eq!(fields["gen_ai.tool.call.id"], "call-42");
         assert_eq!(fields["gen_ai.conversation.id"], session.id);
         let arguments: Value =

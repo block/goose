@@ -210,6 +210,9 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
         MessageContent::SystemNotification(_) => {
             bail!("SystemNotification should not get passed to the provider")
         }
+        MessageContent::Error(_) => {
+            bail!("Error content should not get passed to the provider")
+        }
         MessageContent::ToolRequest(tool_req) => {
             let tool_use_id = tool_req.id.to_string();
             let tool_use = if let Ok(call) = tool_req.tool_call.as_ref() {
