@@ -8,6 +8,7 @@ pub mod api_client {
     pub use goose_providers::api_client::*;
 }
 pub mod avian;
+pub mod avocado;
 pub mod azure;
 pub mod azure_foundry_def;
 pub mod azureauth;

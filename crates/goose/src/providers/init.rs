@@ -10,6 +10,7 @@ use super::sagemaker_tgi::SageMakerTgiProvider;
 use super::{
     amp_acp::AmpAcpProvider,
     avian::AvianProvider,
+    avocado::AvocadoProvider,
     azure::AzureProvider,
     base::{Provider, ProviderMetadata},
     chatgpt_codex::ChatGptCodexProvider,
@@ -69,6 +70,8 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             Some(registrations::anthropic_inventory()),
         );
         registry.register::<AvianProvider>(false);
+        registry
+            .register_with_inventory::<AvocadoProvider>(true, Some(registrations::refresh_only()));
         registry.register::<AzureProvider>(false);
         registry.register_with_inventory::<AzureFoundryProviderDef>(
             true,
@@ -520,6 +523,7 @@ mod tests {
     #[tokio::test]
     async fn test_api_backed_model_providers_are_registered_for_refresh() {
         for provider_name in [
+            "avocado",
             "gcp_vertex_ai",
             "github_copilot",
             "kimi_code",
