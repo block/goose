@@ -275,26 +275,10 @@ pub async fn send_bounded(
     Ok(response)
 }
 
-pub async fn read_error_body(response: Response) -> Option<String> {
-    match response.extensions().get::<ResponseDeadline>().copied() {
-        Some(ResponseDeadline(deadline)) => tokio::time::timeout_at(deadline, response.text())
-            .await
-            .ok()
-            .and_then(Result::ok),
-        None => response.text().await.ok(),
-    }
-}
-
-pub async fn read_json_response<T: DeserializeOwned>(
-    response: Response,
-) -> Result<T, ProviderError> {
-    read_json_response_with_limit(response, MAX_PROVIDER_JSON_RESPONSE_BYTES).await
-}
-
-async fn read_json_response_with_limit<T: DeserializeOwned>(
+async fn read_response_body_with_limit(
     response: Response,
     limit: usize,
-) -> Result<T, ProviderError> {
+) -> Result<Vec<u8>, ProviderError> {
     let deadline = response.extensions().get::<ResponseDeadline>().copied();
     let read = async move {
         let mut stream = response.bytes_stream();
@@ -313,10 +297,7 @@ async fn read_json_response_with_limit<T: DeserializeOwned>(
             })?;
             body.extend_from_slice(&chunk);
         }
-
-        serde_json::from_slice(&body).map_err(|e| {
-            ProviderError::RequestFailed(format!("Response body is not valid JSON: {e}"))
-        })
+        Ok(body)
     };
 
     match deadline {
@@ -332,12 +313,42 @@ async fn read_json_response_with_limit<T: DeserializeOwned>(
     }
 }
 
+pub async fn read_error_body(response: Response) -> Option<String> {
+    read_response_body_with_limit(response, MAX_PROVIDER_JSON_RESPONSE_BYTES)
+        .await
+        .ok()
+        .map(|body| String::from_utf8_lossy(&body).into_owned())
+}
+
+pub async fn read_json_response<T: DeserializeOwned>(
+    response: Response,
+) -> Result<T, ProviderError> {
+    read_json_response_with_limit(response, MAX_PROVIDER_JSON_RESPONSE_BYTES).await
+}
+
+async fn read_json_response_with_limit<T: DeserializeOwned>(
+    response: Response,
+    limit: usize,
+) -> Result<T, ProviderError> {
+    let body = read_response_body_with_limit(response, limit).await?;
+    serde_json::from_slice(&body)
+        .map_err(|e| ProviderError::RequestFailed(format!("Response body is not valid JSON: {e}")))
+}
+
 pub async fn handle_status(response: Response) -> Result<Response, ProviderError> {
+    handle_status_with_limit(response, MAX_PROVIDER_JSON_RESPONSE_BYTES).await
+}
+
+async fn handle_status_with_limit(
+    response: Response,
+    limit: usize,
+) -> Result<Response, ProviderError> {
     let status = response.status();
     if !status.is_success() {
         let url = sanitize_url(response.url().as_str());
         let headers = response.headers().clone();
-        let body = read_error_body(response).await.unwrap_or_default();
+        let body = read_response_body_with_limit(response, limit).await?;
+        let body = String::from_utf8_lossy(&body);
         let payload = serde_json::from_str::<Value>(&body).ok();
         let mut err = map_http_error_to_provider_error(status, payload.clone(), &url);
         if let ProviderError::RateLimitExceeded { details, .. } = &err {
@@ -422,6 +433,21 @@ mod tests {
         let err = read_json_response_with_limit::<Value>(response, 64)
             .await
             .unwrap_err();
+        assert!(err.to_string().contains("64 byte limit"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn bounded_status_rejects_oversized_chunked_error_body() {
+        let body = format!("{{\"error\":{{\"message\":\"{}\"}}}}", "a".repeat(64));
+        let raw = format!(
+            "HTTP/1.1 400 Bad Request\r\ncontent-type: application/json\r\ntransfer-encoding: chunked\r\n\r\n{:x}\r\n{}\r\n0\r\n\r\n",
+            body.len(),
+            body
+        )
+        .into_bytes();
+        let response = response_from_raw(raw).await;
+
+        let err = handle_status_with_limit(response, 64).await.unwrap_err();
         assert!(err.to_string().contains("64 byte limit"), "got: {err}");
     }
 
