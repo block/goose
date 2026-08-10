@@ -196,6 +196,37 @@ connect several hosts at once; their sessions appear in one merged list.
 The source lives in `crates/goose-roaming/web/` — the README there has build
 details if you want to host it yourself (it builds to a static site).
 
+## The desktop app: remote access without a terminal
+
+The desktop app can expose its own backend over roam, so the whole loop —
+enable, pair, chat from your phone, revoke — happens in the UI:
+
+1. **Settings → Remote Access → Enable remote access**, then restart goose.
+   The backend now starts as `goose serve --roam`: the same agent server the
+   desktop windows use is also reachable over roam, one process, one session
+   store. A phone talking over roam and the desktop window in front of you
+   see the same sessions, and steering a running turn works because it *is*
+   the same process.
+2. A **pairing QR** appears in the same panel. It encodes the hosted web
+   client's URL with this machine's card in the URL fragment — scanning it
+   with a phone camera opens the web client already pointed at this goose.
+   (Fragments never reach the web server, and the client scrubs the card
+   from the address bar on load.)
+3. First scan from a new device: the host refuses it (not paired yet) and
+   the web client shows the device's own card. Paste that card into
+   **Accept a device** in the same settings panel — no CLI needed. The
+   fingerprint is shown so you can verify it matches what the device shows.
+4. **Paired devices** lists every accepted key with a two-tap **Revoke**.
+   Revoking force-closes that device's live connections within seconds.
+
+The desktop shares one roam identity and one allowlist per machine with the
+CLI — devices you accept in Settings can also connect to a `goose roam share`
+you run later, and `goose roam peers list` shows them.
+
+`goose serve --roam` also works headless (it's what the desktop runs for
+you): it writes its card to `<data-dir>/roam/serve.json` and prints it on
+startup.
+
 ## Saved peers
 
 Save a peer's card under a nickname so you don't paste cards each time. A saved
@@ -270,7 +301,13 @@ so this composes into multi-machine workflows without any shared state.
   raw `goose+roam://…` card. Remember the peer must also have accepted your key.
 - A message sent to a session that has a run in flight **in the share process**
   becomes a steer of that run. A loop running in a *different* process on the
-  host (the desktop app, another CLI) can't be steered remotely — the web
-  client detects this and warns before sending.
+  host (a desktop app without roam enabled, another CLI) can't be steered
+  remotely — the web client detects this and warns before sending. With the
+  desktop's Remote Access enabled there is no boundary: roam and the desktop
+  windows share one process.
+- Revoking a peer force-closes its connections within seconds and drops any
+  in-flight turn at its next step; no new work can start. One narrow residual:
+  an OS process a tool had already spawned (say, a long shell command) may run
+  to completion — revocation stops the agent, not processes it already forked.
 - On macOS, if a session still appears to hang on connect, set
   `GOOSE_DISABLE_KEYRING=1` to skip the keychain entirely.

@@ -54,6 +54,15 @@ and must stay prominent in user-facing docs. Revocation force-closes live
 connections within ~2s (`node.rs` `watch_revocations` / `enforce_trust`) but
 cannot undo actions already taken.
 
+Precise in-flight semantics of a force-close: the peer's ACP serving future
+ends when its stream errors out, and any in-flight prompt turn is dropped at
+its next await point — the agent loop stops mid-turn, within moments. The
+residual is narrower than "work continues": an OS process a tool has
+*already spawned* (e.g. a running shell command) is not `kill_on_drop` and
+is only killed via the run's cancellation token, which a plain drop does not
+fire — so an already-forked process may run to completion as an orphan. No
+new work can start after the close.
+
 ## Findings by surface
 
 ### Identity & key storage
