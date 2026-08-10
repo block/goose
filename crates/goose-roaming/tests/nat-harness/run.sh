@@ -60,6 +60,9 @@ EOF
     "$PREFIX-builder" cargo build --release -p goose-roaming \
     --example nat_harness --target-dir /target
   mkdir -p "$HERE/bin"
+  # Unlink before extracting: copying over a live executable gets running
+  # processes SIGKILLed on macOS (Code Signature Invalid) — see AGENTS.md.
+  rm -f "$HERE/bin/nat_harness"
   docker run --rm -v "$PREFIX-target:/target" -v "$HERE/bin:/out" \
     debian:bookworm-slim cp /target/release/examples/nat_harness /out/
   log "building runtime image"
@@ -121,37 +124,55 @@ sleep 10
 
 run_scenario soak-hairpin client soak --frames 300
 
-log "scenario: crash (SIGKILL host at ~25s, restart at ~35s)"
-client crash --duration-secs 90 >"$RESULTS/crash.log" 2>&1 &
-CRASH_PID=$!
-sleep 25
-docker kill -s KILL "$PREFIX-host" >/dev/null
-sleep 10
-docker start "$PREFIX-host" >/dev/null
-wait "$CRASH_PID" || true
-grep '^RESULT ' "$RESULTS/crash.log" | sed 's/^RESULT //' \
-  | sed 's/{/{"name":"crash",/' >>"$RESULTS/results.jsonl" || true
+crash_scenario() { # name victim-container
+  local name=$1 victim=$2
+  log "scenario: $name (SIGKILL $victim at ~25s, restart at ~35s)"
+  client crash --duration-secs 90 >"$RESULTS/$name.log" 2>&1 &
+  local pid=$!
+  sleep 25
+  docker kill -s KILL "$victim" >/dev/null
+  sleep 10
+  docker start "$victim" >/dev/null
+  # The client exits non-zero if it never reconnects — that IS the recovery
+  # regression this scenario exists to catch, so it must fail the run.
+  if ! wait "$pid"; then
+    echo "$name: client did not recover (see $RESULTS/$name.log)" >&2
+    exit 1
+  fi
+  local result
+  result=$(grep '^RESULT ' "$RESULTS/$name.log" || true)
+  if [ -z "$result" ]; then
+    echo "$name: client exited cleanly but recorded no RESULT" >&2
+    exit 1
+  fi
+  echo "$result" | sed 's/^RESULT //' \
+    | sed "s/{/{\"name\":\"$name\",/" >>"$RESULTS/results.jsonl"
+}
 
-log "scenario: relay-crash (SIGKILL relay at ~25s, restart at ~35s)"
-client crash --duration-secs 90 >"$RESULTS/relay-crash.log" 2>&1 &
-CRASH_PID=$!
-sleep 25
-docker kill -s KILL "$PREFIX-relay" >/dev/null
-sleep 10
-docker start "$PREFIX-relay" >/dev/null
-wait "$CRASH_PID" || true
-grep '^RESULT ' "$RESULTS/relay-crash.log" | sed 's/^RESULT //' \
-  | sed 's/{/{"name":"relay-crash",/' >>"$RESULTS/results.jsonl" || true
+crash_scenario crash "$PREFIX-host"
+crash_scenario relay-crash "$PREFIX-relay"
 
 log "NAT rule counters (evidence the QUIC flows traversed the router mappings)"
 docker exec "$PREFIX-router" iptables -t nat -vnL | tee "$RESULTS/nat-counters.log"
 
 log "port audit (expect: no TCP listeners, only the QUIC UDP socket)"
+# Allowed sockets: docker's embedded DNS on 127.0.0.11, the deliberately
+# bound QUIC v4 socket, and iroh's default v6 UDP transport. Anything else
+# listening is an audit failure, not a log line.
 for peer in host client; do
   echo "--- $PREFIX-$peer"
-  docker exec "$PREFIX-$peer" sh -c 'echo "tcp listeners:"; ss -ltn; echo "udp sockets:"; ss -lun' \
+  docker exec "$PREFIX-$peer" sh -c 'echo "tcp listeners:"; ss -Hltn; echo "udp sockets:"; ss -Hlun' \
     | tee "$RESULTS/ports-$peer.log"
+  bad_tcp=$(docker exec "$PREFIX-$peer" ss -Hltn | awk '$4 !~ /^127\.0\.0\.11:/' || true)
+  bad_udp=$(docker exec "$PREFIX-$peer" ss -Hlun \
+    | awk '$4 !~ /^127\.0\.0\.11:/ && $4 != "0.0.0.0:7777" && $4 !~ /^\[::\]:/' || true)
+  if [ -n "$bad_tcp" ] || [ -n "$bad_udp" ]; then
+    echo "port audit FAILED on $PREFIX-$peer:" >&2
+    printf '%s\n%s\n' "$bad_tcp" "$bad_udp" >&2
+    exit 1
+  fi
 done
+echo "port audit OK"
 
 log "results ($RESULTS/results.jsonl)"
 cat "$RESULTS/results.jsonl"
