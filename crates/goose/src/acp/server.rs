@@ -33,7 +33,6 @@ use crate::providers::inventory::{
     ProviderInventoryEntry, ProviderInventoryService, RefreshJobPlan, RefreshPlan,
     RefreshSkipReason,
 };
-use crate::scheduler_trait::SchedulerTrait;
 use crate::session::session_manager::SessionUsageTotals;
 use crate::session::{
     EnabledExtensionsState, ExtensionData, ExtensionState, Session, SessionManager, SessionType,
@@ -257,12 +256,18 @@ impl AcpBuiltinSelection {
 pub struct GooseAcpAgentOptions {
     pub provider_factory: AcpProviderFactory,
     pub builtin_selection: AcpBuiltinSelection,
-    pub data_dir: std::path::PathBuf,
     pub config_dir: std::path::PathBuf,
     pub disable_session_naming: bool,
     pub goose_platform: GoosePlatform,
     pub additional_source_roots: Vec<SourceRoot>,
-    pub scheduler: Option<Arc<dyn SchedulerTrait>>,
+    /// Shared across ACP connections so a reconnect resumes sessions from
+    /// the in-memory cache instead of re-initializing every extension.
+    /// `session_manager`/`permission_manager` must be the instances the
+    /// `agent_manager` was built with: the agent and the ACP layer share
+    /// their in-memory state.
+    pub agent_manager: Arc<AgentManager>,
+    pub session_manager: Arc<SessionManager>,
+    pub permission_manager: Arc<PermissionManager>,
 }
 
 pub struct GooseAcpAgent {
@@ -735,6 +740,11 @@ impl GooseAcpAgent {
         Arc::clone(&self.permission_manager)
     }
 
+    #[cfg(test)]
+    pub(crate) fn agent_manager(&self) -> Arc<AgentManager> {
+        Arc::clone(&self.agent_manager)
+    }
+
     pub(super) fn supports_goose_custom_notifications(&self) -> bool {
         self.client_supports_goose_custom_notifications
             .get()
@@ -800,7 +810,7 @@ impl GooseAcpAgent {
 
     // TODO: goose reads Paths::in_state_dir globally (e.g. RequestLog), ignoring this data_dir.
     pub async fn new(options: GooseAcpAgentOptions) -> Result<Self> {
-        let session_manager = Arc::new(SessionManager::new(options.data_dir));
+        let session_manager = options.session_manager;
 
         // Eagerly initialize the SQLite pool so it's ready when providers/sessions need it.
         let storage_clone = session_manager.storage().clone();
@@ -808,17 +818,9 @@ impl GooseAcpAgent {
             let _ = storage_clone.pool().await;
         });
 
-        let permission_manager = Arc::new(PermissionManager::new(options.config_dir.clone()));
+        let permission_manager = options.permission_manager;
         let provider_inventory = ProviderInventoryService::new(session_manager.storage().clone());
-        let agent_config = AgentConfig::new(
-            Arc::clone(&session_manager),
-            Arc::clone(&permission_manager),
-            options.scheduler,
-            Config::global().get_goose_mode().unwrap_or_default(),
-            options.disable_session_naming,
-            options.goose_platform.clone(),
-        );
-        let agent_manager = Arc::new(AgentManager::new(agent_config, None).await?);
+        let agent_manager = options.agent_manager;
         let (thinking_effort_update_tx, thinking_effort_update_rx) = mpsc::unbounded_channel();
 
         Ok(Self {
@@ -3351,16 +3353,34 @@ print(\"hello, world\")
                 Box::pin(async { Err(anyhow::anyhow!("unused provider factory")) })
             },
         );
+        let session_manager = Arc::new(SessionManager::new(root.path().to_path_buf()));
+        let permission_manager = Arc::new(PermissionManager::new(root.path().to_path_buf()));
+        let agent_manager = Arc::new(
+            AgentManager::new(
+                AgentConfig::new(
+                    Arc::clone(&session_manager),
+                    Arc::clone(&permission_manager),
+                    None,
+                    GooseMode::Auto,
+                    true,
+                    GoosePlatform::GooseCli,
+                ),
+                None,
+            )
+            .await
+            .unwrap(),
+        );
         let server = Arc::new(
             GooseAcpAgent::new(GooseAcpAgentOptions {
                 provider_factory,
                 builtin_selection: AcpBuiltinSelection::default(),
-                data_dir: root.path().to_path_buf(),
                 config_dir: root.path().to_path_buf(),
                 disable_session_naming: true,
                 goose_platform: GoosePlatform::GooseCli,
                 additional_source_roots: Vec::new(),
-                scheduler: None,
+                agent_manager,
+                session_manager,
+                permission_manager,
             })
             .await
             .unwrap(),

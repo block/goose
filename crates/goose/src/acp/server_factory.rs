@@ -1,7 +1,9 @@
 use crate::acp::server::{
     AcpBuiltinSelection, AcpProviderFactory, GooseAcpAgent, GooseAcpAgentOptions,
 };
-use crate::agents::GoosePlatform;
+use crate::agents::{AgentConfig, GoosePlatform};
+use crate::config::PermissionManager;
+use crate::execution::manager::AgentManager;
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::SessionManager;
 use crate::source_roots::SourceRoot;
@@ -19,9 +21,16 @@ pub struct AcpServerFactoryConfig {
     pub enable_scheduler: bool,
 }
 
+struct SharedAgentState {
+    session_manager: Arc<SessionManager>,
+    permission_manager: Arc<PermissionManager>,
+    agent_manager: Arc<AgentManager>,
+}
+
 pub struct AcpServer {
     config: AcpServerFactoryConfig,
     scheduler: OnceCell<Arc<dyn SchedulerTrait>>,
+    shared_state: OnceCell<Arc<SharedAgentState>>,
 }
 
 impl AcpServer {
@@ -29,6 +38,7 @@ impl AcpServer {
         Self {
             config,
             scheduler: OnceCell::new(),
+            shared_state: OnceCell::new(),
         }
     }
 
@@ -60,6 +70,46 @@ impl AcpServer {
             .map(Some)
     }
 
+    /// Agent state shared by every ACP connection of this process. Without
+    /// sharing, each reconnect starts with an empty session cache, so resuming
+    /// sessions re-initializes every extension of every session — a client
+    /// stuck in a reconnect loop then floods its MCP servers with `initialize`
+    /// requests (see issue #11095). The `SessionManager`/`PermissionManager`
+    /// must be the same instances the `AgentManager` holds: the agent and the
+    /// ACP layer share their in-memory state.
+    async fn shared_state(
+        &self,
+        scheduler: Option<Arc<dyn SchedulerTrait>>,
+        disable_session_naming: bool,
+    ) -> Result<Arc<SharedAgentState>> {
+        let data_dir = self.config.data_dir.clone();
+        let config_dir = self.config.config_dir.clone();
+        let goose_platform = self.config.goose_platform.clone();
+        self.shared_state
+            .get_or_try_init(|| async move {
+                let session_manager = Arc::new(SessionManager::new(data_dir));
+                let permission_manager = Arc::new(PermissionManager::new(config_dir));
+                let agent_config = AgentConfig::new(
+                    Arc::clone(&session_manager),
+                    Arc::clone(&permission_manager),
+                    scheduler,
+                    crate::config::Config::global()
+                        .get_goose_mode()
+                        .unwrap_or_default(),
+                    disable_session_naming,
+                    goose_platform,
+                );
+                let agent_manager = AgentManager::new(agent_config, None).await.map(Arc::new)?;
+                Ok(Arc::new(SharedAgentState {
+                    session_manager,
+                    permission_manager,
+                    agent_manager,
+                }))
+            })
+            .await
+            .map(Arc::clone)
+    }
+
     pub async fn create_agent(&self) -> Result<Arc<GooseAcpAgent>> {
         let config = crate::config::Config::global();
         let disable_session_naming = config.get_goose_disable_session_naming().unwrap_or(false);
@@ -68,6 +118,9 @@ impl AcpServer {
             // Listing syncs from storage, registering jobs persisted by other processes.
             scheduler.list_scheduled_jobs().await;
         }
+        let shared = self
+            .shared_state(scheduler.clone(), disable_session_naming)
+            .await?;
 
         let provider_factory: AcpProviderFactory = Arc::new(
             move |provider_name, extensions, working_dir, use_default_model| {
@@ -95,12 +148,13 @@ impl AcpServer {
         let agent = GooseAcpAgent::new(GooseAcpAgentOptions {
             provider_factory,
             builtin_selection: self.config.builtins.clone(),
-            data_dir: self.config.data_dir.clone(),
             config_dir: self.config.config_dir.clone(),
             disable_session_naming,
             goose_platform: self.config.goose_platform.clone(),
             additional_source_roots: self.config.additional_source_roots.clone(),
-            scheduler,
+            agent_manager: Arc::clone(&shared.agent_manager),
+            session_manager: Arc::clone(&shared.session_manager),
+            permission_manager: Arc::clone(&shared.permission_manager),
         })
         .await?;
         info!("Created new ACP agent");
@@ -122,6 +176,17 @@ mod tests {
             additional_source_roots: Vec::new(),
             enable_scheduler,
         })
+    }
+
+    #[tokio::test]
+    async fn agent_manager_is_shared_across_connections() {
+        let root = tempfile::tempdir().unwrap();
+        let server = server(root.path().to_path_buf(), false);
+
+        let first = server.create_agent().await.unwrap();
+        let second = server.create_agent().await.unwrap();
+
+        assert!(Arc::ptr_eq(&first.agent_manager(), &second.agent_manager()));
     }
 
     #[tokio::test]

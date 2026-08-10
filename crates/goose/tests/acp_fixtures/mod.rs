@@ -389,18 +389,38 @@ pub async fn spawn_acp_server_in_process(
         )
     });
 
+    let session_manager = Arc::new(goose::session::SessionManager::new(data_root.to_path_buf()));
+    let permission_manager = Arc::new(PermissionManager::new(data_root.to_path_buf()));
+    let agent_manager = Arc::new(
+        goose::execution::manager::AgentManager::new(
+            goose::agents::AgentConfig::new(
+                Arc::clone(&session_manager),
+                Arc::clone(&permission_manager),
+                Some(Arc::new(FixtureScheduler::new())),
+                goose::config::Config::global()
+                    .get_goose_mode()
+                    .unwrap_or_default(),
+                disable_session_naming,
+                GoosePlatform::GooseCli,
+            ),
+            None,
+        )
+        .await
+        .unwrap(),
+    );
     let agent = GooseAcpAgent::new(GooseAcpAgentOptions {
         provider_factory,
         builtin_selection: goose::acp::server::AcpBuiltinSelection {
             explicit: builtins.to_vec(),
             ..Default::default()
         },
-        data_dir: data_root.to_path_buf(),
         config_dir: data_root.to_path_buf(),
         disable_session_naming,
         goose_platform: GoosePlatform::GooseCli,
         additional_source_roots: Vec::new(),
-        scheduler: Some(Arc::new(FixtureScheduler::new())),
+        agent_manager,
+        session_manager,
+        permission_manager,
     })
     .await
     .unwrap();
