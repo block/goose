@@ -22,7 +22,7 @@ use crate::config::GooseMode;
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
 use crate::hints::load_hints::SubdirectoryHintTracker;
-use crate::hooks::{HookContext, HookDecision, HookEvent, HookManager};
+use crate::hooks::{HookChainOutcome, HookContext, HookDecision, HookEvent, HookManager};
 use crate::session::{EnabledExtensionsState, ExtensionState, Session};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -117,6 +117,29 @@ impl<'a> ToolExecutionOperation<'a> {
         self.hook_manager.emit(event, context).await;
     }
 
+    /// Observation-only record of what the `PreToolUse` chain decided. Carries
+    /// no veto: the decision has already been made by the time this runs.
+    async fn emit_pre_tool_use_result(
+        &self,
+        session: &Session,
+        tool_call_id: &str,
+        tool_name: &str,
+        tool_input: Option<&serde_json::Value>,
+        outcome: &HookChainOutcome,
+    ) {
+        if !self.hook_manager.has_hooks(HookEvent::PreToolUseResult) {
+            return;
+        }
+        let context = HookContext::new(HookEvent::PreToolUseResult, &session.id)
+            .with_tool(tool_name.to_string(), tool_input.cloned())
+            .with_tool_call_id(tool_call_id)
+            .with_working_dir(session.working_dir.to_string_lossy().to_string())
+            .with_pre_tool_use_outcome(outcome);
+        self.hook_manager
+            .emit(HookEvent::PreToolUseResult, context)
+            .await;
+    }
+
     async fn emit_extended_pre_hooks(
         &self,
         tool_name: &str,
@@ -146,11 +169,13 @@ impl<'a> ToolExecutionOperation<'a> {
         tool_call: &CallToolRequestParams,
         session: &Session,
         span: tracing::Span,
+        tool_call_id: &str,
     ) -> ToolCallResult {
         let hook_manager = self.hook_manager.clone();
         let session_id = session.id.clone();
         let working_dir = session.working_dir.to_string_lossy().to_string();
         let tool_name = tool_call.name.to_string();
+        let tool_call_id = tool_call_id.to_string();
         let tool_input = tool_call
             .arguments
             .as_ref()
@@ -175,6 +200,7 @@ impl<'a> ToolExecutionOperation<'a> {
             if hook_manager.has_hooks(event) {
                 let context = HookContext::new(event, &session_id)
                     .with_tool(tool_name.clone(), tool_input.clone())
+                    .with_tool_call_id(tool_call_id.as_str())
                     .with_working_dir(working_dir.clone());
                 hook_manager.emit(event, context).await;
             }
@@ -230,33 +256,49 @@ impl<'a> ToolExecutionOperation<'a> {
                 .arguments
                 .as_ref()
                 .map(|arguments| serde_json::Value::Object(arguments.clone()));
-            if self.hook_manager.has_hooks(HookEvent::PreToolUse) {
+            let pre_tool_outcome = if self.hook_manager.has_hooks(HookEvent::PreToolUse) {
                 let context = HookContext::new(HookEvent::PreToolUse, &session.id)
                     .with_tool(tool_call.name.to_string(), tool_input.clone())
+                    .with_tool_call_id(request_id.as_str())
                     .with_working_dir(session.working_dir.to_string_lossy().to_string());
-                if let HookDecision::Deny { reason, plugin } = self
-                    .hook_manager
-                    .emit_blocking(HookEvent::PreToolUse, context)
+                self.hook_manager
+                    .emit_blocking_with_outcome(HookEvent::PreToolUse, context)
                     .await
-                {
-                    tracing::Span::current().record("error.type", "hook_denied");
-                    return Err(ErrorData::new(
-                        rmcp::model::ErrorCode::INTERNAL_ERROR,
-                        format!(
-                            "Tool call denied by policy hook `{plugin}`: {reason}. \
-                             Do not retry; this is a policy denial, not a transient failure."
-                        ),
-                        None,
-                    ));
-                }
+            } else {
+                HookChainOutcome::allow(false)
+            };
+
+            // Emitted before the denial returns, so an observer sees the denial
+            // before the model receives the refusal. Best effort, like every other
+            // hook emission: a subscriber that fails or is absent changes nothing.
+            self.emit_pre_tool_use_result(
+                session,
+                request_id.as_str(),
+                &tool_call.name,
+                tool_input.as_ref(),
+                &pre_tool_outcome,
+            )
+            .await;
+
+            if let HookDecision::Deny { reason, plugin } = pre_tool_outcome.decision {
+                tracing::Span::current().record("error.type", "hook_denied");
+                return Err(ErrorData::new(
+                    rmcp::model::ErrorCode::INTERNAL_ERROR,
+                    format!(
+                        "Tool call denied by policy hook `{plugin}`: {reason}. \
+                         Do not retry; this is a policy denial, not a transient failure."
+                    ),
+                    None,
+                ));
             }
+
             self.emit_extended_pre_hooks(&tool_call.name, tool_input.as_ref(), session)
                 .await;
 
             let context = crate::agents::tool_execution::ToolCallContext::new(
                 session.id.clone(),
                 Some(session.working_dir.clone()),
-                Some(request_id),
+                Some(request_id.clone()),
             );
             let result = self
                 .extension_manager
@@ -270,7 +312,7 @@ impl<'a> ToolExecutionOperation<'a> {
                 );
                 ToolCallResult::from(Err(error))
             });
-            Ok(self.with_post_hooks(result, &tool_call, session, result_span))
+            Ok(self.with_post_hooks(result, &tool_call, session, result_span, &request_id))
         }
         .instrument(span)
         .await

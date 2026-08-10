@@ -161,3 +161,210 @@ async fn session_prompt_and_tool_hooks_fire_at_their_boundaries() -> Result<()> 
 
     Ok(())
 }
+
+/// Plugin fixture that can register several events at once, each with its own
+/// matcher and script, and read back the JSON payloads a script recorded.
+struct RecordingHookEnv {
+    _temp_dir: tempfile::TempDir,
+    plugin_dir: std::path::PathBuf,
+}
+
+/// (event name, matcher or "" for none, script file name, script body)
+type HookSpec<'a> = (&'a str, &'a str, &'a str, &'a str);
+
+impl RecordingHookEnv {
+    fn new(specs: &[HookSpec<'_>]) -> Self {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let plugin_dir = temp_dir.path().join("test-plugin");
+        std::fs::create_dir_all(plugin_dir.join("hooks")).unwrap();
+        let entries: Vec<String> = specs
+            .iter()
+            .map(|(event, matcher, script, _)| {
+                let matcher = if matcher.is_empty() {
+                    String::new()
+                } else {
+                    format!(r#""matcher": "{matcher}", "#)
+                };
+                format!(
+                    r#""{event}": [{{{matcher}"hooks": [{{"type": "command", "command": "sh ${{PLUGIN_ROOT}}/{script}"}}]}}]"#
+                )
+            })
+            .collect();
+        std::fs::write(
+            plugin_dir.join("hooks/hooks.json"),
+            format!(r#"{{"hooks": {{{}}}}}"#, entries.join(", ")),
+        )
+        .unwrap();
+        for (_, _, script, body) in specs {
+            std::fs::write(plugin_dir.join(script), body).unwrap();
+        }
+        Self {
+            _temp_dir: temp_dir,
+            plugin_dir,
+        }
+    }
+
+    fn hook_manager(&self) -> crate::hooks::HookManager {
+        use crate::plugins::discovery::{DiscoveredPlugin, PluginScope};
+        crate::hooks::HookManager::from_plugins_for_test(vec![DiscoveredPlugin {
+            name: "test-plugin".into(),
+            root: self.plugin_dir.clone(),
+            scope: PluginScope::Project,
+        }])
+    }
+
+    fn payloads(&self, log: &str) -> Vec<serde_json::Value> {
+        std::fs::read_to_string(self.plugin_dir.join(log))
+            .unwrap_or_default()
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect()
+    }
+}
+
+const RECORD_PRE_SCRIPT: &str =
+    "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/pre.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/pre.log\"\nexit 0\n";
+const RECORD_RESULT_SCRIPT: &str =
+    "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/result.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/result.log\"\nexit 0\n";
+const RECORD_POST_SCRIPT: &str =
+    "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/post.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/post.log\"\nexit 0\n";
+const RECORD_POST_FAILURE_SCRIPT: &str =
+    "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/postfail.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/postfail.log\"\nexit 0\n";
+const DENY_AND_RECORD_SCRIPT: &str =
+    "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/pre.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/pre.log\"\necho \"blocked by test policy\" >&2\nexit 2\n";
+
+/// deny-invisible: the tool never dispatches, neither post event fires, and a
+/// PreToolUseResult subscriber still sees the denial with blocked_by and reason.
+#[tokio::test]
+async fn pre_tool_use_result_observes_denial_that_post_hooks_never_see() -> Result<()> {
+    let env = RecordingHookEnv::new(&[
+        ("PreToolUse", "", "pre.sh", DENY_AND_RECORD_SCRIPT),
+        ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+        ("PostToolUse", "", "post.sh", RECORD_POST_SCRIPT),
+        (
+            "PostToolUseFailure",
+            "",
+            "postfail.sh",
+            RECORD_POST_FAILURE_SCRIPT,
+        ),
+    ]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(env.hook_manager());
+    api.on("add one").call(ADD, value(1));
+    api.on("denied by policy hook").reply("understood");
+
+    pipeline.run(["add one"]).await?;
+
+    assert_eq!(pipeline.calculator_total(), 0, "tool must not dispatch");
+    assert!(
+        env.payloads("post.log").is_empty(),
+        "PostToolUse must not fire for a denied call"
+    );
+    assert!(
+        env.payloads("postfail.log").is_empty(),
+        "PostToolUseFailure must not fire for a denied call"
+    );
+
+    let results = env.payloads("result.log");
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0]["event"], "PreToolUseResult");
+    assert_eq!(results[0]["decision"], "deny");
+    assert_eq!(results[0]["policy_evaluated"], true);
+    assert_eq!(results[0]["blocked_by"], "test-plugin");
+    assert_eq!(results[0]["reason"], "blocked by test policy");
+    assert!(results[0]["tool_call_id"]
+        .as_str()
+        .is_some_and(|id| !id.is_empty()));
+    Ok(())
+}
+
+/// repeated identical calls: two calls with the same name and input in one
+/// session correlate to their outcomes by tool_call_id, not by name plus input.
+#[tokio::test]
+async fn repeated_identical_calls_correlate_by_tool_call_id() -> Result<()> {
+    let env = RecordingHookEnv::new(&[
+        ("PreToolUse", "", "pre.sh", RECORD_PRE_SCRIPT),
+        ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+        ("PostToolUse", "", "post.sh", RECORD_POST_SCRIPT),
+    ]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(env.hook_manager());
+    api.on("add one").call(ADD, value(1));
+    api.on("result: 1").call(ADD, value(1));
+    api.on("result: 2").reply("done");
+
+    pipeline.run(["add one"]).await?;
+    assert_eq!(pipeline.calculator_total(), 2);
+
+    let pres = env.payloads("pre.log");
+    let results = env.payloads("result.log");
+    let posts = env.payloads("post.log");
+    assert_eq!(pres.len(), 2);
+    assert_eq!(results.len(), 2);
+    assert_eq!(posts.len(), 2);
+
+    for payloads in [&pres, &results, &posts] {
+        assert_eq!(payloads[0]["tool_name"], payloads[1]["tool_name"]);
+        assert_eq!(payloads[0]["tool_input"], payloads[1]["tool_input"]);
+    }
+
+    let ids: Vec<&str> = results
+        .iter()
+        .map(|payload| payload["tool_call_id"].as_str().unwrap())
+        .collect();
+    assert_ne!(
+        ids[0], ids[1],
+        "identical name and input must still carry distinct ids"
+    );
+
+    for (index, id) in ids.iter().enumerate() {
+        assert_eq!(
+            pres[index]["tool_call_id"], results[index]["tool_call_id"],
+            "PreToolUse and PreToolUseResult must carry one id per call"
+        );
+        assert_eq!(
+            posts
+                .iter()
+                .filter(|payload| payload["tool_call_id"] == *id)
+                .count(),
+            1,
+            "each call must pair with exactly one outcome by id"
+        );
+    }
+    Ok(())
+}
+
+/// no matching hook: a PreToolUse rule is registered but its matcher does not
+/// match, so nothing runs and the event reports allow with policy_evaluated false.
+#[tokio::test]
+async fn pre_tool_use_result_reports_allow_and_unevaluated_when_no_hook_matches() -> Result<()> {
+    let env = RecordingHookEnv::new(&[
+        (
+            "PreToolUse",
+            "a_tool_name_that_never_matches",
+            "pre.sh",
+            DENY_AND_RECORD_SCRIPT,
+        ),
+        ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+    ]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(env.hook_manager());
+    api.on("add one").call(ADD, value(1));
+    api.on("result: 1").reply("done");
+
+    pipeline.run(["add one"]).await?;
+    assert_eq!(pipeline.calculator_total(), 1, "tool must still run");
+
+    assert!(
+        env.payloads("pre.log").is_empty(),
+        "the non-matching rule must not run"
+    );
+    let results = env.payloads("result.log");
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0]["decision"], "allow");
+    assert_eq!(results[0]["policy_evaluated"], false);
+    assert!(results[0].get("blocked_by").is_none());
+    assert!(results[0].get("reason").is_none());
+    Ok(())
+}
