@@ -175,6 +175,15 @@ fn persist_telemetry_choice(config: &Config, enabled: bool) -> anyhow::Result<()
 }
 
 #[cfg(feature = "telemetry")]
+fn telemetry_consent_initial_value(config: &Config) -> bool {
+    match config.get_param_from_files::<bool>(TELEMETRY_ENABLED_KEY) {
+        Ok(enabled) => enabled,
+        Err(ConfigError::NotFound(_)) => true,
+        Err(_) => false,
+    }
+}
+
+#[cfg(feature = "telemetry")]
 pub fn configure_telemetry_consent_dialog() -> anyhow::Result<bool> {
     let config = Config::global();
 
@@ -222,7 +231,7 @@ pub fn configure_telemetry_consent_dialog() -> anyhow::Result<bool> {
     println!();
 
     let enabled = cliclack::confirm("Share anonymous usage data to help improve goose?")
-        .initial_value(true)
+        .initial_value(telemetry_consent_initial_value(config))
         .interact()?;
 
     persist_telemetry_choice(config, enabled)?;
@@ -2410,5 +2419,26 @@ mod tests {
         assert!(!config
             .get_param::<bool>(ONBOARDING_TELEMETRY_PENDING_KEY)
             .unwrap());
+    }
+
+    #[cfg(feature = "telemetry")]
+    #[test]
+    fn telemetry_consent_retry_preserves_stored_choice() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config::new_with_file_secrets(
+            dir.path().join("config.yaml"),
+            dir.path().join("secrets.yaml"),
+        )
+        .unwrap();
+
+        assert!(telemetry_consent_initial_value(&config));
+
+        config.set_param(TELEMETRY_ENABLED_KEY, false).unwrap();
+        assert!(!telemetry_consent_initial_value(&config));
+
+        config
+            .set_param(TELEMETRY_ENABLED_KEY, "not-a-boolean")
+            .unwrap();
+        assert!(!telemetry_consent_initial_value(&config));
     }
 }
