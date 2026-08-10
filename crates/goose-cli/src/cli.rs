@@ -1429,6 +1429,7 @@ async fn start_roam_share(
         trust_path: Some(trust_path()),
         directory: goose_roaming::Directory::persistent(directory_path()),
         bind_addr: None,
+        relay_tls: None,
     })
     .await?;
 

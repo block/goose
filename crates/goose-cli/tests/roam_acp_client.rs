@@ -127,6 +127,7 @@ async fn bind_node(trust: TrustBook) -> Arc<RoamingNode> {
         trust_path: None,
         directory: Directory::new(),
         bind_addr: Some(loopback()),
+        relay_tls: None,
     })
     .await
     .expect("bind node")

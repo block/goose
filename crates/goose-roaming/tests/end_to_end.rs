@@ -61,6 +61,7 @@ async fn bind_node() -> Arc<RoamingNode> {
         trust_path: None,
         directory: Directory::new(),
         bind_addr: Some(loopback()),
+        relay_tls: None,
     })
     .await
     .expect("bind node")
@@ -89,6 +90,7 @@ async fn trust_file_refresh_takes_effect_on_running_share() {
         trust_path: Some(trust_file.clone()),
         directory: Directory::new(),
         bind_addr: Some(loopback()),
+        relay_tls: None,
     })
     .await
     .expect("bind host");
@@ -243,6 +245,7 @@ async fn revocation_watcher_closes_live_connection_from_file() {
         trust_path: Some(trust_file.clone()),
         directory: Directory::new(),
         bind_addr: Some(loopback()),
+        relay_tls: None,
     })
     .await
     .expect("bind host");

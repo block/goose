@@ -78,6 +78,11 @@ pub struct RoamingConfig {
     /// otherwise stalls (`MultipathNotNegotiated`) when both the specified IPv4
     /// and a default `[::]` IPv6 socket are candidates with no relay fallback.
     pub bind_addr: Option<std::net::SocketAddr>,
+    /// Override the CA trust used for relay TLS. `None` (the default) uses
+    /// the system roots. Tests pass `CaTlsConfig::insecure_skip_verify()`
+    /// (available under iroh's `test-utils` feature) to run against a local
+    /// self-signed relay.
+    pub relay_tls: Option<iroh::tls::CaTlsConfig>,
 }
 
 impl RoamingConfig {
@@ -92,6 +97,7 @@ impl RoamingConfig {
             trust_path: None,
             directory: Directory::new(),
             bind_addr: None,
+            relay_tls: None,
         }
     }
 
@@ -159,6 +165,9 @@ impl RoamingNode {
             builder = builder
                 .bind_addr(addr)
                 .map_err(|e| RoamingError::Transport(format!("invalid bind address: {e}")))?;
+        }
+        if let Some(relay_tls) = config.relay_tls {
+            builder = builder.ca_tls_config(relay_tls);
         }
         let endpoint = builder
             .bind()

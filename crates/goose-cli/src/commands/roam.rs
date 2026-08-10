@@ -291,6 +291,7 @@ async fn handle_id(qr: bool) -> Result<()> {
         trust_path: None,
         directory: Directory::new(),
         bind_addr: None,
+        relay_tls: None,
     })
     .await?;
     eprintln!("contacting relay so the card carries a reachable address...");
@@ -508,6 +509,7 @@ async fn handle_share(
         trust_path: Some(trust_path()),
         directory: Directory::persistent(directory_path()),
         bind_addr: None,
+        relay_tls: None,
     })
     .await?;
 
@@ -582,6 +584,7 @@ async fn dial_target(
         trust_path: None,
         directory: Directory::new(),
         bind_addr: None,
+        relay_tls: None,
     })
     .await?;
     eprintln!("connecting to {}...", card.endpoint_id);

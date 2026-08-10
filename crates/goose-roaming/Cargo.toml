@@ -22,6 +22,7 @@ tokio-util = { workspace = true, features = ["compat"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
+iroh = { workspace = true, features = ["test-utils"] }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "test-util"] }
 
