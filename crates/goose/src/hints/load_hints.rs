@@ -167,7 +167,7 @@ fn load_hints_from_directory(
     }
 }
 
-fn find_git_root(start_dir: &Path) -> Option<&Path> {
+pub fn find_git_root(start_dir: &Path) -> Option<&Path> {
     let mut check_dir = start_dir;
 
     loop {

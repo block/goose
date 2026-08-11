@@ -114,23 +114,20 @@ fn get_preprompt_context(messages: &Conversation) -> String {
 /// worktrees (`.git` file containing a `gitdir:` pointer). Never fails —
 /// returns None when anything is missing or unexpected.
 ///
-/// The ancestor walk stops at `home` (exclusive): a `.git` at or above the
-/// home directory is almost always a dotfiles repo unrelated to the
-/// conversation, and the bound also keeps the walk short.
+/// Repos at or above `home` are ignored: a `.git` at the home directory or
+/// higher is almost always a dotfiles repo unrelated to the conversation.
 fn read_git_branch(working_dir: &Path, home: Option<&Path>) -> Option<String> {
-    let mut dir = working_dir.to_path_buf();
-    let git_path = loop {
-        if home.is_some_and(|h| dir == h) {
+    let git_root = crate::hints::find_git_root(working_dir)?;
+    if let Some(home) = home {
+        // Reject the dotfiles case: the repo root is the home directory, or
+        // the working dir lives under home but the repo root does not
+        // (i.e. the walk escaped home before finding .git).
+        if git_root == home || (working_dir.starts_with(home) && !git_root.starts_with(home)) {
             return None;
         }
-        let candidate = dir.join(".git");
-        if candidate.exists() {
-            break candidate;
-        }
-        if !dir.pop() {
-            return None;
-        }
-    };
+    }
+    let git_path = git_root.join(".git");
+    let dir = git_root.to_path_buf();
 
     let head_path: PathBuf = if git_path.is_file() {
         // Worktree: .git is a file like "gitdir: /path/to/repo/.git/worktrees/x"
