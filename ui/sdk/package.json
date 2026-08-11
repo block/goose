@@ -60,7 +60,7 @@
   "devDependencies": {
     "@agentclientprotocol/sdk": "^0.19.0",
     "@hey-api/openapi-ts": "^0.92.3",
-    "@types/node": "^20.0.0",
+    "@types/node": "^26.1.2",
     "prettier": "^3.8.1",
     "tsx": "^4.21.0",
     "typescript": "~5.9.3"
