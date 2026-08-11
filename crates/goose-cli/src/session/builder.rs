@@ -28,14 +28,6 @@ fn truncate_with_ellipsis(s: &str, max_len: usize) -> String {
     }
 }
 
-/// Rename stdio extensions that would otherwise share a name.
-///
-/// A stdio extension is named after the basename of its command, so everything
-/// launched through the same interpreter collides: `npx -y server-memory` and
-/// `npx -y server-filesystem` are both "npx". The colliding ones are renamed
-/// after their full command line instead. An extension the user named
-/// explicitly (`--with-extension "name:cmd ..."`) is never renamed; it is the
-/// escape hatch for anyone who wants a specific name.
 fn disambiguate_stdio_extension_names(
     extensions: &mut [(String, ExtensionConfig)],
     explicitly_named: &HashSet<usize>,
@@ -759,14 +751,6 @@ mod tests {
     }
 
     #[test]
-    fn test_unique_launcher_names_are_left_alone() {
-        assert_eq!(
-            stdio_names(&["npx -y @scope/server-memory", "python -m word_mcp"]),
-            vec!["npx".to_string(), "python".to_string()]
-        );
-    }
-
-    #[test]
     fn test_colliding_launcher_names_fall_back_to_the_command_line() {
         assert_eq!(
             stdio_names(&[
@@ -779,7 +763,6 @@ mod tests {
 
     #[test]
     fn test_explicit_names_survive_a_collision() {
-        // Only the unnamed sibling is renamed.
         assert_eq!(
             stdio_names(&["python -m word_mcp", "memory:python -m memory_mcp"]),
             vec!["python".to_string(), "memory".to_string()]

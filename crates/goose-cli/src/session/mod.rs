@@ -73,14 +73,6 @@ const SHELL_STATUS_RESERVED_WIDTH: usize = 2;
 /// built out of a whole command line has to be clipped.
 const DERIVED_EXTENSION_NAME_MAX_LEN: usize = 32;
 
-/// Split an optional `name:` prefix off a stdio extension string.
-///
-/// Only a leading run of `[A-Za-z0-9_-]` of at least two characters followed by
-/// `:` counts, so the shapes that legitimately contain a colon are left alone:
-/// a Windows drive letter (`C:\...`, one character), a URL-ish command
-/// (`something://...`, the remainder starts with `/`), and any colon that
-/// appears later in the string (`npx -y pkg:latest`, the candidate would
-/// contain spaces).
 pub(crate) fn split_extension_name_prefix(extension_command: &str) -> (Option<String>, &str) {
     let Some((candidate, rest)) = extension_command.split_once(':') else {
         return (None, extension_command);
@@ -95,13 +87,6 @@ pub(crate) fn split_extension_name_prefix(extension_command: &str) -> (Option<St
     (Some(name_to_key(candidate)), rest)
 }
 
-/// An extension name derived from the whole command line rather than from the
-/// basename of the command, used to tell apart extensions that would otherwise
-/// share the launcher's name (`npx`, `python`, `uvx`, ...).
-///
-/// Long names are clipped from the front, keeping the tail: it is the end of a
-/// command line that identifies the server (`npx -y @scope/server-memory` and
-/// `npx -y @scope/server-filesystem` share everything but their last token).
 pub(crate) fn derive_extension_name_from_command(cmd: &str, args: &[String]) -> String {
     let basename = std::path::Path::new(cmd)
         .file_name()
@@ -3023,8 +3008,6 @@ mod tests {
     fn test_parse_stdio_extension_explicit_name() {
         assert_eq!(stdio_name("word:python -m word_mcp"), "word");
         assert_eq!(stdio_name("Word-One:python -m word_mcp"), "word-one");
-        // The name replaces only the name; env parsing and the command are
-        // untouched.
         let config = CliSession::parse_stdio_extension("memory:API_KEY=k npx -y srv").unwrap();
         let ExtensionConfig::Stdio {
             name,
@@ -3058,8 +3041,6 @@ mod tests {
             derive_extension_name_from_command("python", &["-m".into(), "word_mcp".into()]),
             "python_m_word_mcp"
         );
-        // Clipped from the front: the tail is what tells two servers launched
-        // by the same tool apart.
         assert_eq!(
             derive_extension_name_from_command(
                 "npx",
