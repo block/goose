@@ -12,7 +12,7 @@ use crate::conversation::Conversation;
 use crate::session::Session;
 
 pub struct SlashCommandOperation<'a> {
-    operations: Vec<Arc<dyn Operation + 'a>>,
+    operations: Vec<Arc<dyn Operation<Session> + 'a>>,
 }
 
 fn parse_slash_command(message: &str) -> Option<SlashCommand<'_>> {
@@ -35,13 +35,13 @@ fn parse_slash_command(message: &str) -> Option<SlashCommand<'_>> {
 }
 
 impl<'a> SlashCommandOperation<'a> {
-    pub fn new(operations: Vec<Arc<dyn Operation + 'a>>) -> Self {
+    pub fn new(operations: Vec<Arc<dyn Operation<Session> + 'a>>) -> Self {
         Self { operations }
     }
 }
 
 #[async_trait]
-impl Operation for SlashCommandOperation<'_> {
+impl Operation<Session> for SlashCommandOperation<'_> {
     fn name(&self) -> &'static str {
         "slash_command"
     }

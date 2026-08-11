@@ -15,7 +15,7 @@ use crate::session::Session;
 pub struct DoctorOperation;
 
 #[async_trait]
-impl Operation for DoctorOperation {
+impl Operation<Session> for DoctorOperation {
     fn name(&self) -> &'static str {
         "doctor"
     }

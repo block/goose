@@ -33,7 +33,7 @@ impl SteerOperation {
 }
 
 #[async_trait]
-impl Operation for SteerOperation {
+impl Operation<Session> for SteerOperation {
     fn name(&self) -> &'static str {
         "steer"
     }

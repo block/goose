@@ -33,7 +33,7 @@ impl MaxTurnsOperation {
 }
 
 #[async_trait]
-impl Operation for MaxTurnsOperation {
+impl Operation<Session> for MaxTurnsOperation {
     fn name(&self) -> &'static str {
         "max_turns"
     }

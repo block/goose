@@ -194,7 +194,7 @@ impl<'a> InferenceRunner<'a> {
 }
 
 #[async_trait]
-impl Operation for InferenceRunner<'_> {
+impl Operation<Session> for InferenceRunner<'_> {
     fn name(&self) -> &'static str {
         "llm"
     }
@@ -331,7 +331,7 @@ impl Operation for InferenceRunner<'_> {
 }
 
 #[async_trait]
-impl Inference for InferenceRunner<'_> {
+impl Inference<Session> for InferenceRunner<'_> {
     fn applies(&self, conversation: &Conversation) -> bool {
         let Ok(turn) = messages_since_kickoff(conversation) else {
             return false;

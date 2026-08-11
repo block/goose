@@ -124,7 +124,7 @@ impl CompactionOperation {
 }
 
 #[async_trait]
-impl Operation for CompactionOperation {
+impl Operation<Session> for CompactionOperation {
     fn name(&self) -> &'static str {
         "compaction"
     }

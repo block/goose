@@ -19,7 +19,7 @@ pub(super) const UNCLAIMED_TOOL_ERROR: &str = "goose.unclaimed_tool";
 pub struct UnknownToolOperation;
 
 #[async_trait]
-impl Operation for UnknownToolOperation {
+impl Operation<Session> for UnknownToolOperation {
     fn name(&self) -> &'static str {
         "unknown_tool"
     }

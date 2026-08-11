@@ -10,7 +10,7 @@ use crate::conversation::message::{Message, MessageContent, MessageErrorKind};
 use crate::conversation::{effective_role, Conversation, EffectiveRole};
 use crate::providers::base::ProviderUsage;
 use crate::recipe::Recipe;
-use crate::session::{ExtensionData, Session};
+use crate::session::ExtensionData;
 use rmcp::model::Tool;
 
 pub type OperationFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -76,7 +76,7 @@ pub fn ends_turn(messages: &[Message]) -> bool {
 }
 
 #[async_trait]
-pub trait Operation: Send + Sync {
+pub trait Operation<S>: Send + Sync {
     fn name(&self) -> &'static str;
 
     /// Note on a message something this operation did, so that a pipeline rebuilt
@@ -93,7 +93,7 @@ pub trait Operation: Send + Sync {
 
     async fn cancel(
         &self,
-        _session: &Session,
+        _session: &S,
         _conversation: &Conversation,
         result: OperationResult,
         _emit: &Emitter,
@@ -104,36 +104,32 @@ pub trait Operation: Send + Sync {
     async fn run_command(
         &self,
         _command: &SlashCommand<'_>,
-        _session: &Session,
+        _session: &S,
         _conversation: &Conversation,
         _emit: &Emitter,
     ) -> Result<OperationResult> {
         not_applicable()
     }
 
-    async fn inference_tools(&self, _session: &Session) -> Result<Vec<Tool>> {
+    async fn inference_tools(&self, _session: &S) -> Result<Vec<Tool>> {
         Ok(Vec::new())
     }
 
     async fn prompt_parts(
         &self,
-        _session: &Session,
+        _session: &S,
         _conversation: &Conversation,
     ) -> Result<Vec<(String, String)>> {
         Ok(Vec::new())
     }
 
-    async fn moim_parts(
-        &self,
-        _session: &Session,
-        _conversation: &Conversation,
-    ) -> Result<Vec<String>> {
+    async fn moim_parts(&self, _session: &S, _conversation: &Conversation) -> Result<Vec<String>> {
         Ok(Vec::new())
     }
 
     async fn run(
         &self,
-        _session: &Session,
+        _session: &S,
         _conversation: &Conversation,
         _emit: &Emitter,
     ) -> Result<OperationResult> {
@@ -149,14 +145,14 @@ pub struct InferenceInput {
 }
 
 #[async_trait]
-pub trait Inference: Operation {
+pub trait Inference<S>: Operation<S> {
     /// Whether the next step would reach the provider. The machine asks before
     /// firing the hooks that mark the start of a turn.
     fn applies(&self, conversation: &Conversation) -> bool;
 
     async fn infer(
         &self,
-        session: &Session,
+        session: &S,
         conversation: &Conversation,
         input: InferenceInput,
         emit: &Emitter,

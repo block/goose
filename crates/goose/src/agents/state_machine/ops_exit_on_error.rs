@@ -12,7 +12,7 @@ use crate::session::Session;
 pub struct ExitOnErrorOperation;
 
 #[async_trait]
-impl Operation for ExitOnErrorOperation {
+impl Operation<Session> for ExitOnErrorOperation {
     fn name(&self) -> &'static str {
         "exit_on_error"
     }

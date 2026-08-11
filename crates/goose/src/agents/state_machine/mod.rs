@@ -10,6 +10,7 @@ mod operation;
 mod ops_bang_shell;
 mod ops_compaction;
 mod ops_doctor;
+mod ops_entry_hook;
 mod ops_exit_on_error;
 mod ops_llm;
 mod ops_maxturns;
@@ -38,6 +39,7 @@ pub use operation::{
 pub(super) use ops_bang_shell::{bang_shell_command, BangShellOperation};
 pub(super) use ops_compaction::CompactionOperation;
 pub(super) use ops_doctor::DoctorOperation;
+pub(super) use ops_entry_hook::EntryHookOperation;
 pub(super) use ops_exit_on_error::ExitOnErrorOperation;
 pub(super) use ops_llm::InferenceRunner;
 pub(super) use ops_maxturns::{MaxTurnsOperation, MAX_TURNS_MESSAGE};

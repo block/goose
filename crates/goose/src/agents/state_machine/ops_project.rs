@@ -10,7 +10,7 @@ use crate::session::Session;
 pub struct ProjectOperation;
 
 #[async_trait]
-impl Operation for ProjectOperation {
+impl Operation<Session> for ProjectOperation {
     fn name(&self) -> &'static str {
         "project"
     }

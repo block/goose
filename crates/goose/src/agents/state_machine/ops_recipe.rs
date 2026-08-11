@@ -104,7 +104,7 @@ impl RecipeOperation {
 }
 
 #[async_trait]
-impl Operation for RecipeOperation {
+impl Operation<Session> for RecipeOperation {
     fn name(&self) -> &'static str {
         "recipe"
     }

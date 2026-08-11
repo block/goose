@@ -31,7 +31,7 @@ impl BangShellOperation {
 }
 
 #[async_trait]
-impl Operation for BangShellOperation {
+impl Operation<Session> for BangShellOperation {
     fn name(&self) -> &'static str {
         "bang_shell"
     }

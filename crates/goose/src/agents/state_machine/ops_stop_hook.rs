@@ -57,7 +57,7 @@ impl StopHookOperation {
 }
 
 #[async_trait]
-impl Operation for StopHookOperation {
+impl Operation<Session> for StopHookOperation {
     fn name(&self) -> &'static str {
         "stop_hook"
     }

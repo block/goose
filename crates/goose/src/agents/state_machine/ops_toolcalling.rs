@@ -573,7 +573,7 @@ fn approval_denied(permission: Option<&crate::permission::Permission>) -> bool {
 }
 
 #[async_trait]
-impl Operation for ToolExecutionOperation<'_> {
+impl Operation<Session> for ToolExecutionOperation<'_> {
     fn name(&self) -> &'static str {
         "tool_execution"
     }

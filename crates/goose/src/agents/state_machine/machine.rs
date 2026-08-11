@@ -10,17 +10,15 @@ use crate::agents::state_machine::operation::{
 use crate::agents::state_machine::usage;
 use crate::agents::AgentEvent;
 use crate::conversation::message::Message;
-use crate::conversation::Conversation;
-use crate::hooks::{HookContext, HookEvent, HookManager};
 use crate::session::{Session, SessionManager};
 
-pub enum Step<'a> {
-    Operation(Arc<dyn Operation + 'a>),
-    Inference(Arc<dyn Inference + 'a>),
+pub enum Step<'a, S> {
+    Operation(Arc<dyn Operation<S> + 'a>),
+    Inference(Arc<dyn Inference<S> + 'a>),
 }
 
-impl Step<'_> {
-    fn operation(&self) -> &dyn Operation {
+impl<S> Step<'_, S> {
+    fn operation(&self) -> &dyn Operation<S> {
         match self {
             Step::Operation(operation) => operation.as_ref(),
             Step::Inference(inference) => inference.as_ref(),
@@ -28,71 +26,14 @@ impl Step<'_> {
     }
 }
 
-pub struct StateMachine<'a> {
-    steps: Vec<Step<'a>>,
+pub struct StateMachine<'a, S> {
+    steps: Vec<Step<'a, S>>,
     cancel: CancellationToken,
-    hook_manager: HookManager,
 }
 
-impl<'a> StateMachine<'a> {
-    pub fn new(steps: Vec<Step<'a>>, cancel: CancellationToken) -> Self {
-        Self {
-            steps,
-            cancel,
-            hook_manager: HookManager::default(),
-        }
-    }
-
-    pub fn with_hook_manager(mut self, hook_manager: HookManager) -> Self {
-        self.hook_manager = hook_manager;
-        self
-    }
-
-    async fn emit_entry_hooks(&self, session: &Session, conversation: &Conversation) -> Result<()> {
-        let messages = messages_since_kickoff(conversation)?;
-        if Self::has_agent_reply(messages) {
-            return Ok(());
-        }
-
-        let messages_before_kickoff =
-            &conversation.messages()[..conversation.len() - messages.len()];
-        if !messages_before_kickoff.iter().any(|message| {
-            message.role == rmcp::model::Role::User
-                && message.is_user_visible()
-                && !message.is_tool_response()
-        }) {
-            self.hook_manager
-                .emit(
-                    HookEvent::SessionStart,
-                    HookContext::new(HookEvent::SessionStart, &session.id)
-                        .with_working_dir(session.working_dir.to_string_lossy().to_string()),
-                )
-                .await;
-        }
-
-        let prompt = messages
-            .first()
-            .map(Message::as_concat_text)
-            .unwrap_or_default();
-        if !prompt.is_empty() {
-            self.hook_manager
-                .emit(
-                    HookEvent::UserPromptSubmit,
-                    HookContext::new(HookEvent::UserPromptSubmit, &session.id)
-                        .with_message(prompt)
-                        .with_working_dir(session.working_dir.to_string_lossy().to_string()),
-                )
-                .await;
-        }
-        Ok(())
-    }
-
-    fn has_agent_reply(messages: &[Message]) -> bool {
-        messages.iter().any(|message| {
-            message.role == rmcp::model::Role::Assistant
-                && ((message.is_user_visible() && message.is_agent_visible())
-                    || message.error_kind().is_some())
-        })
+impl<'a> StateMachine<'a, Session> {
+    pub fn new(steps: Vec<Step<'a, Session>>, cancel: CancellationToken) -> Self {
+        Self { steps, cancel }
     }
 
     pub async fn step(&self, session: &Session, emit: &Emitter) -> Result<Option<StepResult>> {
@@ -100,8 +41,6 @@ impl<'a> StateMachine<'a> {
             .conversation
             .as_ref()
             .ok_or_else(|| anyhow!("state-machine session loaded without conversation"))?;
-
-        self.emit_entry_hooks(session, conversation).await?;
 
         for step in &self.steps {
             let name = step.operation().name();

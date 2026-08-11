@@ -83,7 +83,7 @@ impl<'a> RetryOperation<'a> {
 }
 
 #[async_trait]
-impl Operation for RetryOperation<'_> {
+impl Operation<Session> for RetryOperation<'_> {
     fn name(&self) -> &'static str {
         "retry"
     }

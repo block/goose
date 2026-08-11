@@ -29,7 +29,7 @@ use tracing_subscriber::Layer;
 struct PromptPart;
 
 #[async_trait]
-impl Operation for PromptPart {
+impl Operation<Session> for PromptPart {
     fn name(&self) -> &'static str {
         "prompt_part"
     }
@@ -46,14 +46,14 @@ impl Operation for PromptPart {
 struct TestInference;
 
 #[async_trait]
-impl Operation for TestInference {
+impl Operation<Session> for TestInference {
     fn name(&self) -> &'static str {
         "test_inference"
     }
 }
 
 #[async_trait]
-impl Inference for TestInference {
+impl Inference<Session> for TestInference {
     fn applies(&self, _conversation: &Conversation) -> bool {
         true
     }

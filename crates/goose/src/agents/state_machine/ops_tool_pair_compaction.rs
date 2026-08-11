@@ -42,7 +42,7 @@ impl ToolPairCompactionOperation {
 }
 
 #[async_trait]
-impl Operation for ToolPairCompactionOperation {
+impl Operation<Session> for ToolPairCompactionOperation {
     fn name(&self) -> &'static str {
         "tool_pair_compaction"
     }

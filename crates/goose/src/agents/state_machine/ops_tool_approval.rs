@@ -40,7 +40,7 @@ impl<'a> ToolApprovalOperation<'a> {
 }
 
 #[async_trait]
-impl Operation for ToolApprovalOperation<'_> {
+impl Operation<Session> for ToolApprovalOperation<'_> {
     fn name(&self) -> &'static str {
         "tool_approval"
     }

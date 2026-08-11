@@ -233,7 +233,7 @@ impl SkillOperation {
 }
 
 #[async_trait]
-impl Operation for SkillOperation {
+impl Operation<Session> for SkillOperation {
     fn name(&self) -> &'static str {
         "skills"
     }
