@@ -509,7 +509,12 @@ impl GooseAcpAgent {
         )
         .await;
         let (ready, error) = match result {
-            Ok(Ok(_)) => (true, None),
+            Ok(Ok(provider)) => {
+                tokio::task::spawn_blocking(move || drop(provider))
+                    .await
+                    .internal_err_ctx("Failed to stop provider readiness check")?;
+                (true, None)
+            }
             Ok(Err(error)) => (false, Some(error.to_string())),
             Err(_) => (
                 false,

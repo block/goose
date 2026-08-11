@@ -293,9 +293,9 @@ impl ProviderRegistry {
             setup_steps: config.setup_steps.clone(),
             model_selection_hint: None,
             fast_model: config.fast_model.clone(),
-            setup: config.setup.clone().or(base_metadata.setup),
-            hidden_from_setup: base_metadata.hidden_from_setup,
-            deprecated: base_metadata.deprecated,
+            setup: config.setup.clone(),
+            hidden_from_setup: false,
+            deprecated: None,
         };
         let inventory_config_keys = custom_metadata.config_keys.clone();
         let default_inventory_configured = Arc::new(move || {
@@ -412,5 +412,8 @@ mod tests {
         let entry = registry.entries.get("custom_hf").unwrap();
 
         assert!(!entry.inventory_configured());
+        assert!(entry.metadata().setup.is_none());
+        assert!(!entry.metadata().hidden_from_setup);
+        assert!(entry.metadata().deprecated.is_none());
     }
 }

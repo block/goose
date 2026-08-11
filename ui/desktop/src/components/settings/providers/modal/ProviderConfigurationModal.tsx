@@ -582,7 +582,7 @@ export default function ProviderConfigurationModal({
                 <Button variant="outline" onClick={handleCancel}>
                   {intl.formatMessage(i18n.cancel)}
                 </Button>
-                {canUseExternalProvider && (
+                {isConfigured && (
                   <Button variant="destructive" onClick={handleDelete}>
                     {intl.formatMessage(i18n.removeConfiguration)}
                   </Button>

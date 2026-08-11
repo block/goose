@@ -29,7 +29,13 @@ impl ProviderDescriptor for OpenAiProviderDef {
                 crate::providers::catalog::ProviderSetupGroup::Default,
             )
             .with_description("GPT and o-series models")
-            .with_docs_url("https://platform.openai.com/api-keys"),
+            .with_docs_url("https://platform.openai.com/api-keys")
+            .with_field(
+                "OPENAI_API_KEY",
+                "API Key",
+                Some("Paste your API key"),
+                None,
+            ),
         )
     }
 }

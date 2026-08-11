@@ -346,12 +346,21 @@ fn setup_field(config_key: &ConfigKey, setup: &ProviderSetupMetadata) -> Provide
         key: config_key.name.clone(),
         label: field_override
             .map(|field| field.label.clone())
-            .unwrap_or_else(|| field_label(&config_key.name)),
+            .unwrap_or_else(|| {
+                if config_key.secret && setup.setup_method == ProviderSetupMethod::SingleApiKey {
+                    "API Key".to_string()
+                } else {
+                    field_label(&config_key.name)
+                }
+            }),
         secret: config_key.secret,
         required: config_key.required,
         placeholder: field_override
             .and_then(|field| field.placeholder.clone())
-            .or_else(|| config_key.secret.then(|| "Paste your API key".to_string())),
+            .or_else(|| {
+                (config_key.secret && setup.setup_method == ProviderSetupMethod::SingleApiKey)
+                    .then(|| "Paste your API key".to_string())
+            }),
         default_value: field_override
             .and_then(|field| field.default_value.clone())
             .or_else(|| config_key.default.clone()),
@@ -366,7 +375,7 @@ fn setup_entry_from_metadata(metadata: ProviderMetadata) -> Option<ProviderSetup
         .filter(|key| key.primary)
         .map(|key| setup_field(key, &setup))
         .collect();
-    ProviderSetupCatalogEntry {
+    Some(ProviderSetupCatalogEntry {
         provider_id: metadata.name,
         display_name: setup.display_name.unwrap_or(metadata.display_name),
         category: setup.category,
@@ -382,8 +391,7 @@ fn setup_entry_from_metadata(metadata: ProviderMetadata) -> Option<ProviderSetup
         binary_name: setup.binary_name,
         setup_capabilities: setup.setup_capabilities,
         show_only_when_installed: setup.show_only_when_installed,
-    }
-    .into()
+    })
 }
 
 pub fn get_providers_by_format(
@@ -449,13 +457,36 @@ pub fn get_setup_catalog_entries(
         },
         show_only_when_installed: false,
     };
-    std::iter::once(goose)
+    let mut entries = std::iter::once(goose)
         .chain(
             registry_metadata
                 .into_iter()
                 .filter_map(setup_entry_from_metadata),
         )
-        .collect()
+        .collect::<Vec<_>>();
+    entries.sort_by(|a, b| {
+        (a.provider_id != "goose")
+            .cmp(&(b.provider_id != "goose"))
+            .then_with(|| setup_group_rank(a.group).cmp(&setup_group_rank(b.group)))
+            .then_with(|| setup_category_rank(a.category).cmp(&setup_category_rank(b.category)))
+            .then_with(|| a.display_name.cmp(&b.display_name))
+            .then_with(|| a.provider_id.cmp(&b.provider_id))
+    });
+    entries
+}
+
+fn setup_group_rank(group: ProviderSetupGroup) -> u8 {
+    match group {
+        ProviderSetupGroup::Default => 0,
+        ProviderSetupGroup::Additional => 1,
+    }
+}
+
+fn setup_category_rank(category: ProviderSetupCategory) -> u8 {
+    match category {
+        ProviderSetupCategory::Agent => 0,
+        ProviderSetupCategory::Model => 1,
+    }
 }
 
 pub fn get_provider_template(provider_id: &str) -> Option<ProviderTemplate> {
@@ -513,4 +544,95 @@ pub fn get_provider_template(provider_id: &str) -> Option<ProviderTemplate> {
         env_var,
         doc_url: metadata.doc.clone().unwrap_or_default(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn setup_provider(
+        name: &str,
+        display_name: &str,
+        category: ProviderSetupCategory,
+        group: ProviderSetupGroup,
+    ) -> ProviderMetadata {
+        ProviderMetadata::new(name, display_name, "", "", vec![], "", vec![]).with_setup(
+            ProviderSetupMetadata::new(category, ProviderSetupMethod::ConfigFields, group),
+        )
+    }
+
+    #[test]
+    fn setup_catalog_has_stable_presentation_order() {
+        let entries = get_setup_catalog_entries(vec![
+            setup_provider(
+                "gamma",
+                "Gamma",
+                ProviderSetupCategory::Model,
+                ProviderSetupGroup::Additional,
+            ),
+            setup_provider(
+                "beta",
+                "Beta",
+                ProviderSetupCategory::Model,
+                ProviderSetupGroup::Default,
+            ),
+            setup_provider(
+                "alpha",
+                "Alpha",
+                ProviderSetupCategory::Agent,
+                ProviderSetupGroup::Default,
+            ),
+        ]);
+
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| entry.provider_id.as_str())
+                .collect::<Vec<_>>(),
+            ["goose", "alpha", "beta", "gamma"]
+        );
+    }
+
+    #[test]
+    fn single_api_key_uses_api_key_presentation() {
+        let metadata = ProviderMetadata::new(
+            "example",
+            "Example",
+            "",
+            "",
+            vec![],
+            "",
+            vec![ConfigKey::new("EXAMPLE_TOKEN", true, true, None, true)],
+        )
+        .with_setup(ProviderSetupMetadata::api_key(ProviderSetupGroup::Default));
+
+        let entry = setup_entry_from_metadata(metadata).unwrap();
+        assert_eq!(entry.fields[0].label, "API Key");
+        assert_eq!(
+            entry.fields[0].placeholder.as_deref(),
+            Some("Paste your API key")
+        );
+    }
+
+    #[test]
+    fn other_secret_fields_do_not_claim_to_be_api_keys() {
+        let metadata = ProviderMetadata::new(
+            "example",
+            "Example",
+            "",
+            "",
+            vec![],
+            "",
+            vec![ConfigKey::new("EXAMPLE_TOKEN", true, true, None, true)],
+        )
+        .with_setup(ProviderSetupMetadata::new(
+            ProviderSetupCategory::Model,
+            ProviderSetupMethod::ConfigFields,
+            ProviderSetupGroup::Default,
+        ));
+
+        let entry = setup_entry_from_metadata(metadata).unwrap();
+        assert_eq!(entry.fields[0].label, "Example Token");
+        assert_eq!(entry.fields[0].placeholder, None);
+    }
 }
