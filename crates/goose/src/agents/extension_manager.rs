@@ -490,8 +490,12 @@ fn is_oauth_auth_failure(err: &ClientInitializeError) -> bool {
 
     if let Some(http_err) = error.downcast_ref::<StreamableHttpError<reqwest::Error>>() {
         return match http_err {
-            StreamableHttpError::AuthRequired(_) => true,
-            StreamableHttpError::UnexpectedServerResponse(body) => body.starts_with("HTTP 401"),
+            StreamableHttpError::AuthRequired(_) | StreamableHttpError::InsufficientScope(_) => {
+                true
+            }
+            StreamableHttpError::UnexpectedServerResponse(body) => {
+                body.starts_with("HTTP 401") || body.starts_with("HTTP 403")
+            }
             _ => false,
         };
     }
@@ -502,14 +506,19 @@ fn is_oauth_auth_failure(err: &ClientInitializeError) -> bool {
         )
     {
         return match http_err {
-            StreamableHttpError::AuthRequired(_) => true,
-            StreamableHttpError::UnexpectedServerResponse(body) => body.starts_with("HTTP 401"),
+            StreamableHttpError::AuthRequired(_) | StreamableHttpError::InsufficientScope(_) => {
+                true
+            }
+            StreamableHttpError::UnexpectedServerResponse(body) => {
+                body.starts_with("HTTP 401") || body.starts_with("HTTP 403")
+            }
             _ => false,
         };
     }
 
     let message = error.to_string();
     message.contains("unexpected server response: HTTP 401")
+        || message.contains("unexpected server response: HTTP 403")
         || message.contains("Auth required")
         || message.contains("Authorization required")
 }
@@ -814,7 +823,8 @@ struct StreamableHttpConnectParams {
 struct OAuthStepUpClient {
     inner: tokio::sync::RwLock<McpClient>,
     server_info: Option<ServerInfo>,
-    params: StreamableHttpConnectParams,
+    params: tokio::sync::RwLock<StreamableHttpConnectParams>,
+    step_up_lock: tokio::sync::Mutex<()>,
 }
 
 impl OAuthStepUpClient {
@@ -823,7 +833,8 @@ impl OAuthStepUpClient {
         Self {
             inner: tokio::sync::RwLock::new(inner),
             server_info,
-            params,
+            params: tokio::sync::RwLock::new(params),
+            step_up_lock: tokio::sync::Mutex::new(()),
         }
     }
 
@@ -831,7 +842,7 @@ impl OAuthStepUpClient {
         &self,
         challenge: String,
     ) -> Result<(), crate::agents::mcp_client::Error> {
-        let params = &self.params;
+        let params = self.params.read().await;
         let auth_manager = oauth_flow_with_challenge(
             &params.uri,
             &params.name,
@@ -891,9 +902,20 @@ impl OAuthStepUpClient {
         match first {
             Err(err) => {
                 if let Some(challenge) = auth_challenge_from_service_error(&err) {
-                    self.step_up_reconnect(challenge).await?;
-                    let client = self.inner.read().await;
-                    op(&client).await
+                    let _step_up_guard = self.step_up_lock.lock().await;
+                    let retry = {
+                        let client = self.inner.read().await;
+                        op(&client).await
+                    };
+                    if auth_challenge_from_service_error(retry.as_ref().err().unwrap_or(&err))
+                        .is_some()
+                    {
+                        self.step_up_reconnect(challenge).await?;
+                        let client = self.inner.read().await;
+                        op(&client).await
+                    } else {
+                        retry
+                    }
                 } else {
                     Err(err)
                 }
@@ -954,11 +976,18 @@ impl McpClientTrait for OAuthStepUpClient {
         next_cursor: Option<String>,
         cancel_token: CancellationToken,
     ) -> Result<rmcp::model::ListResourcesResult, crate::agents::mcp_client::Error> {
-        self.inner
-            .read()
-            .await
-            .list_resources(session_id, next_cursor, cancel_token)
-            .await
+        let session_id = session_id.to_string();
+        self.with_step_up_retry(move |client| {
+            let session_id = session_id.clone();
+            let next_cursor = next_cursor.clone();
+            let cancel_token = cancel_token.clone();
+            Box::pin(async move {
+                client
+                    .list_resources(&session_id, next_cursor, cancel_token)
+                    .await
+            })
+        })
+        .await
     }
 
     async fn read_resource(
@@ -967,11 +996,15 @@ impl McpClientTrait for OAuthStepUpClient {
         uri: &str,
         cancel_token: CancellationToken,
     ) -> Result<rmcp::model::ReadResourceResult, crate::agents::mcp_client::Error> {
-        self.inner
-            .read()
-            .await
-            .read_resource(session_id, uri, cancel_token)
-            .await
+        let session_id = session_id.to_string();
+        let uri = uri.to_string();
+        self.with_step_up_retry(move |client| {
+            let session_id = session_id.clone();
+            let uri = uri.clone();
+            let cancel_token = cancel_token.clone();
+            Box::pin(async move { client.read_resource(&session_id, &uri, cancel_token).await })
+        })
+        .await
     }
 
     async fn list_prompts(
@@ -980,11 +1013,18 @@ impl McpClientTrait for OAuthStepUpClient {
         next_cursor: Option<String>,
         cancel_token: CancellationToken,
     ) -> Result<rmcp::model::ListPromptsResult, crate::agents::mcp_client::Error> {
-        self.inner
-            .read()
-            .await
-            .list_prompts(session_id, next_cursor, cancel_token)
-            .await
+        let session_id = session_id.to_string();
+        self.with_step_up_retry(move |client| {
+            let session_id = session_id.clone();
+            let next_cursor = next_cursor.clone();
+            let cancel_token = cancel_token.clone();
+            Box::pin(async move {
+                client
+                    .list_prompts(&session_id, next_cursor, cancel_token)
+                    .await
+            })
+        })
+        .await
     }
 
     async fn get_prompt(
@@ -994,11 +1034,20 @@ impl McpClientTrait for OAuthStepUpClient {
         arguments: Value,
         cancel_token: CancellationToken,
     ) -> Result<GetPromptResult, crate::agents::mcp_client::Error> {
-        self.inner
-            .read()
-            .await
-            .get_prompt(session_id, name, arguments, cancel_token)
-            .await
+        let session_id = session_id.to_string();
+        let name = name.to_string();
+        self.with_step_up_retry(move |client| {
+            let session_id = session_id.clone();
+            let name = name.clone();
+            let arguments = arguments.clone();
+            let cancel_token = cancel_token.clone();
+            Box::pin(async move {
+                client
+                    .get_prompt(&session_id, &name, arguments, cancel_token)
+                    .await
+            })
+        })
+        .await
     }
 
     async fn subscribe(&self) -> tokio::sync::mpsc::Receiver<rmcp::model::ServerNotification> {
@@ -1013,6 +1062,7 @@ impl McpClientTrait for OAuthStepUpClient {
         &self,
         new_dir: PathBuf,
     ) -> Result<(), crate::agents::mcp_client::Error> {
+        self.params.write().await.roots_dir = new_dir.clone();
         self.inner.read().await.update_working_dir(new_dir).await
     }
 }
