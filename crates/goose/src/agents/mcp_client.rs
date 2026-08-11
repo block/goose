@@ -739,61 +739,6 @@ impl McpClient {
         })
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) async fn connect_with_factory<F, Fut, T, E, A>(
-        mut create_transport: F,
-        timeout: std::time::Duration,
-        provider: SharedProvider,
-        docker_container: Option<String>,
-        client_name: String,
-        capabilities: GooseMcpClientCapabilities,
-        working_dir: PathBuf,
-        action_required: Arc<ActionRequiredManager>,
-        extension_manager: Weak<ExtensionManager>,
-    ) -> anyhow::Result<Self>
-    where
-        F: FnMut() -> Fut,
-        Fut: std::future::Future<Output = anyhow::Result<T>>,
-        T: IntoTransport<RoleClient, E, A>,
-        E: std::error::Error + From<std::io::Error> + Send + Sync + 'static,
-    {
-        let transport = create_transport().await?;
-        match Self::connect_with_container(
-            transport,
-            timeout,
-            provider.clone(),
-            docker_container.clone(),
-            client_name.clone(),
-            capabilities.clone(),
-            working_dir.clone(),
-            action_required.clone(),
-            extension_manager.clone(),
-        )
-        .await
-        {
-            Err(ClientInitializeError::JsonRpcError(error))
-                if capabilities.protocol_version.is_none()
-                    && error.code == ErrorCode::INVALID_PARAMS =>
-            {
-                let mut legacy_capabilities = capabilities;
-                legacy_capabilities.protocol_version = Some(ProtocolVersion::LATEST);
-                Ok(Self::connect_with_container(
-                    create_transport().await?,
-                    timeout,
-                    provider,
-                    docker_container,
-                    client_name,
-                    legacy_capabilities,
-                    working_dir,
-                    action_required,
-                    extension_manager,
-                )
-                .await?)
-            }
-            result => Ok(result?),
-        }
-    }
-
     pub fn docker_container(&self) -> Option<&str> {
         self.docker_container.as_deref()
     }
