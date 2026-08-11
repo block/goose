@@ -184,10 +184,15 @@ fn parse_fence_marker(rest: &str, container_indent: Option<usize>) -> Option<Fen
         return None;
     }
 
+    let info = rest[len..].trim();
+    if marker == '`' && info.contains('`') {
+        return None;
+    }
+
     Some(Fence {
         marker,
         len,
-        info: rest[len..].trim(),
+        info,
         container_indent,
     })
 }
@@ -853,6 +858,34 @@ mod tests {
         assert!(actions
             .iter()
             .all(|action| matches!(action, EmulatorAction::Text(_))));
+    }
+
+    #[test]
+    fn backtick_in_tilde_fence_info_keeps_nested_execute_inert() {
+        let input = "~~~markdown `quoted`\n```execute_typescript\nmalicious();\n```\n~~~\n";
+        let actions = parse_all(input, true);
+
+        assert!(actions
+            .iter()
+            .all(|action| matches!(action, EmulatorAction::Text(_))));
+    }
+
+    #[test]
+    fn backtick_in_backtick_fence_info_does_not_hide_next_execute() {
+        let input = "```execute_typescript```\n```execute_typescript\nlet safe = 1;\n```\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        let actions = parse_chunks(&chunk_refs, true);
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+            .collect();
+
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "let safe = 1;");
+        assert!(actions.iter().any(
+            |action| matches!(action, EmulatorAction::Text(text) if text.contains("```execute_typescript```"))
+        ));
     }
 
     #[test]

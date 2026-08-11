@@ -577,6 +577,24 @@ mod tests {
     }
 
     #[test]
+    fn backtick_in_backtick_fence_info_does_not_hide_next_execute() {
+        let input = "```execute_typescript```\n```execute_typescript\nlet safe = 1;\n```\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        let actions = parse_chunks(&chunk_refs, true);
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+            .collect();
+
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "let safe = 1;");
+        assert!(actions.iter().any(
+            |action| matches!(action, EmulatorAction::Text(text) if text.contains("```execute_typescript```"))
+        ));
+    }
+
+    #[test]
     fn execute_fence_nested_in_list_item_fence_remains_text() {
         let input = "- ````markdown\n  ```execute_typescript\n  await Developer.shell({ command: \"id\" });\n  ```\n  ````\n```execute_typescript\nlet safe = 1;\n```\n";
         let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
