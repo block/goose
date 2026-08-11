@@ -5,7 +5,7 @@ describe('preload file access boundary', () => {
     vi.resetModules();
   });
 
-  it('exposes only narrow read operations without renderer-supplied paths', async () => {
+  it('exposes only narrow file operations without renderer-supplied paths', async () => {
     const exposed: Record<string, unknown> = {};
     const invoke = vi.fn();
     vi.doMock('electron', () => ({
@@ -34,8 +34,10 @@ describe('preload file access boundary', () => {
 
     electron.selectRecipeFile('/etc/passwd');
     electron.readGoosehints('../secret');
+    electron.writeGoosehints('project guidance', '../secret');
 
     expect(invoke).toHaveBeenNthCalledWith(1, 'select-recipe-file');
     expect(invoke).toHaveBeenNthCalledWith(2, 'read-goosehints');
+    expect(invoke).toHaveBeenNthCalledWith(3, 'write-goosehints', 'project guidance');
   });
 });

@@ -56,10 +56,24 @@ describe('DesktopFileAccess', () => {
     });
   });
 
+  it('creates and updates .goosehints in the bound working directory', async () => {
+    const workingDirectory = makeTempDirectory();
+    const access = new DesktopFileAccess();
+    await access.bindWindow(7, workingDirectory);
+    const filePath = path.join(fs.realpathSync(workingDirectory), '.goosehints');
+
+    await expect(access.writeGoosehints(7, 'first guidance')).resolves.toBe(true);
+    expect(fs.readFileSync(filePath, 'utf8')).toBe('first guidance');
+
+    await expect(access.writeGoosehints(7, 'updated guidance')).resolves.toBe(true);
+    expect(fs.readFileSync(filePath, 'utf8')).toBe('updated guidance');
+  });
+
   it('rejects a renderer without a bound working directory', async () => {
     const access = new DesktopFileAccess();
 
     await expect(access.readGoosehints(99)).rejects.toThrow('not authorized');
+    await expect(access.writeGoosehints(99, 'project guidance')).rejects.toThrow('not authorized');
   });
 
   it.skipIf(process.platform === 'win32')(
@@ -75,12 +89,34 @@ describe('DesktopFileAccess', () => {
       await access.bindWindow(7, workingDirectory);
 
       const result = await access.readGoosehints(7);
+      const saved = await access.writeGoosehints(7, 'replacement');
 
       expect(result.found).toBe(false);
       expect(result.file).toBe('');
       expect(result.error).toContain('symbolic link');
+      expect(saved).toBe(false);
+      expect(fs.readFileSync(secretPath, 'utf8')).toBe('host secret');
     }
   );
+
+  it('does not truncate a replacement file opened after validation', async () => {
+    const workingDirectory = makeTempDirectory();
+    const filePath = path.join(workingDirectory, '.goosehints');
+    const originalPath = path.join(workingDirectory, 'original.goosehints');
+    fs.writeFileSync(filePath, 'original guidance');
+    const access = new DesktopFileAccess();
+    await access.bindWindow(7, workingDirectory);
+    const open = fsPromises.open.bind(fsPromises);
+    vi.spyOn(fsPromises, 'open').mockImplementationOnce(async (...args) => {
+      fs.renameSync(filePath, originalPath);
+      fs.writeFileSync(filePath, 'replacement guidance');
+      return open(...args);
+    });
+
+    await expect(access.writeGoosehints(7, 'new guidance')).resolves.toBe(false);
+    expect(fs.readFileSync(filePath, 'utf8')).toBe('replacement guidance');
+    expect(fs.readFileSync(originalPath, 'utf8')).toBe('original guidance');
+  });
 
   it.skipIf(process.platform === 'win32')(
     'keeps a symlinked working directory pinned to its bind-time target',
@@ -107,6 +143,25 @@ describe('DesktopFileAccess', () => {
         error: null,
         found: true,
       });
+      await expect(access.writeGoosehints(7, 'updated first guidance')).resolves.toBe(true);
+      expect(fs.readFileSync(path.join(firstProject, '.goosehints'), 'utf8')).toBe(
+        'updated first guidance'
+      );
+      expect(fs.readFileSync(path.join(secondProject, '.goosehints'), 'utf8')).toBe(
+        'second guidance'
+      );
+    }
+  );
+
+  it.skipIf(process.platform === 'win32')(
+    'rejects a non-regular .goosehints target without blocking',
+    async () => {
+      const workingDirectory = makeTempDirectory();
+      execFileSync('mkfifo', [path.join(workingDirectory, '.goosehints')]);
+      const access = new DesktopFileAccess();
+      await access.bindWindow(7, workingDirectory);
+
+      await expect(access.writeGoosehints(7, 'project guidance')).resolves.toBe(false);
     }
   );
 });

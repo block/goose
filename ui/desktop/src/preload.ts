@@ -120,6 +120,7 @@ type ElectronAPI = {
   getBinaryPath: (binaryName: string) => Promise<string>;
   selectRecipeFile: () => Promise<FileResponse | null>;
   readGoosehints: () => Promise<FileResponse>;
+  writeGoosehints: (content: string) => Promise<boolean>;
   writeFile: (directory: string, content: string) => Promise<boolean>;
   ensureDirectory: (dirPath: string) => Promise<boolean>;
   listFiles: (dirPath: string, extension?: string) => Promise<string[]>;
@@ -216,6 +217,7 @@ const electronAPI: ElectronAPI = {
   getBinaryPath: (binaryName: string) => ipcRenderer.invoke('get-binary-path', binaryName),
   selectRecipeFile: () => ipcRenderer.invoke('select-recipe-file'),
   readGoosehints: () => ipcRenderer.invoke('read-goosehints'),
+  writeGoosehints: (content: string) => ipcRenderer.invoke('write-goosehints', content),
   writeFile: (filePath: string, content: string) =>
     ipcRenderer.invoke('write-file', filePath, content),
   ensureDirectory: (dirPath: string) => ipcRenderer.invoke('ensure-directory', dirPath),

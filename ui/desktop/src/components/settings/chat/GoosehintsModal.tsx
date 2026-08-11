@@ -181,7 +181,10 @@ export const GoosehintsModal = ({ directory, setIsGoosehintsModalOpen }: Goosehi
     setIsSaving(true);
     setSaveSuccess(false);
     try {
-      await window.electron.writeFile(goosehintsFilePath, goosehintsFile);
+      const saved = await window.electron.writeGoosehints(goosehintsFile);
+      if (!saved) {
+        throw new Error('Unable to save .goosehints');
+      }
       setSaveSuccess(true);
       setGoosehintsFileFound(true);
       setTimeout(() => setSaveSuccess(false), 3000);

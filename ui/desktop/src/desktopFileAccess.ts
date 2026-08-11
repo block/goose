@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
+import type { Stats } from 'node:fs';
 import path from 'node:path';
 
 export interface FileReadResult {
@@ -67,6 +68,14 @@ type WorkingDirectoryBinding =
 export class DesktopFileAccess {
   private readonly workingDirectories = new Map<number, WorkingDirectoryBinding>();
 
+  private bindingForWindow(windowId: number): WorkingDirectoryBinding {
+    const binding = this.workingDirectories.get(windowId);
+    if (!binding) {
+      throw new Error('This window is not authorized to access .goosehints');
+    }
+    return binding;
+  }
+
   async bindWindow(windowId: number, workingDirectory: string): Promise<void> {
     const resolvedPath = path.resolve(workingDirectory);
     try {
@@ -85,11 +94,7 @@ export class DesktopFileAccess {
   }
 
   async readGoosehints(windowId: number): Promise<FileReadResult> {
-    const binding = this.workingDirectories.get(windowId);
-    if (!binding) {
-      throw new Error('This window is not authorized to read .goosehints');
-    }
-
+    const binding = this.bindingForWindow(windowId);
     const filePath = path.join(binding.path, '.goosehints');
     if (binding.status === 'missing') {
       return missingFile(filePath);
@@ -136,6 +141,64 @@ export class DesktopFileAccess {
         return missingFile(filePath);
       }
       return failedRead(filePath, 'Unable to read .goosehints');
+    }
+  }
+
+  async writeGoosehints(windowId: number, content: string): Promise<boolean> {
+    const binding = this.bindingForWindow(windowId);
+    if (binding.status !== 'ready' || typeof content !== 'string') {
+      return false;
+    }
+
+    const filePath = path.join(binding.path, '.goosehints');
+    const noFollow = process.platform === 'win32' ? 0 : fsConstants.O_NOFOLLOW;
+    try {
+      let metadata: Stats;
+      try {
+        metadata = await fs.lstat(filePath);
+      } catch (error) {
+        if (!isMissingFile(error)) {
+          return false;
+        }
+
+        const handle = await fs.open(
+          filePath,
+          fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL | noFollow,
+          0o666
+        );
+        try {
+          if (!(await handle.stat()).isFile()) {
+            return false;
+          }
+          await handle.writeFile(content, 'utf8');
+          return true;
+        } finally {
+          await handle.close();
+        }
+      }
+
+      if (metadata.isSymbolicLink() || !metadata.isFile()) {
+        return false;
+      }
+
+      const handle = await fs.open(filePath, fsConstants.O_WRONLY | noFollow);
+      try {
+        const openedMetadata = await handle.stat();
+        if (
+          !openedMetadata.isFile() ||
+          openedMetadata.dev !== metadata.dev ||
+          openedMetadata.ino !== metadata.ino
+        ) {
+          return false;
+        }
+        await handle.truncate(0);
+        await handle.writeFile(content, 'utf8');
+        return true;
+      } finally {
+        await handle.close();
+      }
+    } catch {
+      return false;
     }
   }
 }

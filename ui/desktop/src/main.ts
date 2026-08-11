@@ -2286,6 +2286,11 @@ ipcMain.handle('read-goosehints', async (event) => {
   return desktopFileAccess.readGoosehints(senderWindow.id);
 });
 
+ipcMain.handle('write-goosehints', async (event, content) => {
+  const senderWindow = requireRegularRendererWindow(event);
+  return desktopFileAccess.writeGoosehints(senderWindow.id, content);
+});
+
 // Native picker tailored for session imports: shows hidden files (so users can
 // reach `~/.claude/projects/...` or `~/.pi/agent/sessions/...`), filters for
 // .json/.jsonl, and returns the file's contents inline so the renderer doesn't
