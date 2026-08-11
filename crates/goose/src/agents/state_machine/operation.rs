@@ -5,6 +5,7 @@ use std::pin::Pin;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
+use crate::agents::steering::was_native_steer_delivered;
 use crate::agents::AgentEvent;
 use crate::conversation::message::{Message, MessageContent, MessageErrorKind};
 use crate::conversation::{effective_role, Conversation, EffectiveRole};
@@ -51,6 +52,9 @@ pub fn assistant_turn_count(messages: &[Message]) -> u32 {
     let mut turns = 0;
     let mut in_assistant_block = false;
     for message in messages.iter().rev() {
+        if was_native_steer_delivered(message) {
+            continue;
+        }
         if message.role == rmcp::model::Role::Assistant {
             if !in_assistant_block {
                 turns += 1;

@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::hooks_lifecycle::{HookTestEnv, LOG_AND_ALLOW_SCRIPT};
 use super::pipeline::{self, test_pipeline, MessageKind::Agent, MessageKind::Error};
-use crate::agents::state_machine::Emitter;
+use crate::agents::state_machine::{Emitter, MAX_TURNS_MESSAGE};
 use crate::agents::steering::was_native_steer_delivered;
 use crate::agents::test_support::{controlled_stream, NativeSteeringTestProvider};
 use crate::agents::types::{RetryConfig, SuccessCheck};
@@ -156,7 +156,8 @@ async fn native_delivery_preserves_order_estimated_usage_and_prompt_boundary() -
     let (pipeline, _) = test_pipeline().await?;
     let pipeline = pipeline
         .with_provider(provider.clone())
-        .with_hook_manager(stop_hook.hook_manager());
+        .with_hook_manager(stop_hook.hook_manager())
+        .with_max_turns(2);
     pipeline
         .seed([Message::user().with_text("start native work")])
         .await?;
@@ -193,6 +194,12 @@ async fn native_delivery_preserves_order_estimated_usage_and_prompt_boundary() -
             message.as_concat_text() == "new direction"
         })
         .await;
+        stream_tx
+            .send(Ok((
+                Some(Message::assistant().with_text("after steer")),
+                None,
+            )))
+            .expect("provider stream receiver");
         drop(stream_tx);
     };
 
@@ -209,7 +216,7 @@ async fn native_delivery_preserves_order_estimated_usage_and_prompt_boundary() -
         .iter()
         .position(Message::is_turn_context)
         .expect("persisted turn context");
-    let assistant = messages
+    let assistant_before_steer = messages
         .iter()
         .position(|message| message.as_concat_text() == "before steer")
         .expect("persisted assistant prefix");
@@ -217,8 +224,13 @@ async fn native_delivery_preserves_order_estimated_usage_and_prompt_boundary() -
         .iter()
         .position(|message| message.as_concat_text() == "new direction")
         .expect("persisted steer");
-    assert!(turn_context < assistant);
-    assert!(assistant < steer);
+    let assistant_after_steer = messages
+        .iter()
+        .position(|message| message.as_concat_text() == "after steer")
+        .expect("persisted assistant response");
+    assert!(turn_context < assistant_before_steer);
+    assert!(assistant_before_steer < steer);
+    assert!(steer < assistant_after_steer);
     assert_eq!(
         messages
             .iter()
@@ -226,7 +238,7 @@ async fn native_delivery_preserves_order_estimated_usage_and_prompt_boundary() -
             .count(),
         1
     );
-    assert!(messages[assistant].metadata.usage.is_some());
+    assert!(messages[assistant_after_steer].metadata.usage.is_some());
     assert_eq!(messages[steer].id.as_deref(), Some("native-order-steer"));
     assert!(messages[steer].metadata.steer);
     assert!(was_native_steer_delivered(&messages[steer]));
@@ -235,6 +247,9 @@ async fn native_delivery_preserves_order_estimated_usage_and_prompt_boundary() -
             .as_concat_text()
             .contains("The model returned an empty response")
     }));
+    assert!(!messages
+        .iter()
+        .any(|message| message.as_concat_text() == MAX_TURNS_MESSAGE));
     assert_eq!(stop_hook.invocations(), 1);
     assert_eq!(provider.stream_calls.load(Ordering::SeqCst), 1);
     timeout(TEST_TIMEOUT, pipeline.resume())
