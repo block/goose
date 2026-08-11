@@ -159,6 +159,12 @@ fn is_regular_file_without_following_symlinks(path: &Path) -> bool {
         .is_some_and(|metadata| metadata.file_type().is_file())
 }
 
+fn is_regular_file_following_symlinks(path: &Path) -> bool {
+    std::fs::metadata(path)
+        .ok()
+        .is_some_and(|metadata| metadata.is_file())
+}
+
 fn is_directory_following_symlinks(path: &Path) -> bool {
     std::fs::metadata(path)
         .ok()
@@ -166,7 +172,7 @@ fn is_directory_following_symlinks(path: &Path) -> bool {
 }
 
 fn is_structural_git_directory(path: &Path) -> bool {
-    is_regular_file_without_following_symlinks(&path.join("HEAD"))
+    is_regular_file_following_symlinks(&path.join("HEAD"))
         && ((is_directory_following_symlinks(&path.join("objects"))
             && is_directory_following_symlinks(&path.join("refs")))
             || (is_regular_file_without_following_symlinks(&path.join("commondir"))
@@ -899,7 +905,7 @@ mod tests {
 
         #[cfg(unix)]
         #[test]
-        fn test_structural_git_detection_follows_directory_markers_only() {
+        fn test_structural_git_detection_follows_supported_marker_symlinks() {
             use std::os::unix::fs::symlink;
 
             let temp_dir = tempfile::tempdir().unwrap();
@@ -907,17 +913,20 @@ mod tests {
             let outside = tempfile::tempdir().unwrap();
             std::fs::create_dir_all(import_boundary.join("nested-git")).unwrap();
             std::fs::create_dir_all(import_boundary.join("project-data/objects")).unwrap();
-            std::fs::create_dir(import_boundary.join("project-data/refs")).unwrap();
             std::fs::create_dir(outside.path().join("objects")).unwrap();
             std::fs::create_dir(outside.path().join("refs")).unwrap();
-            std::fs::write(outside.path().join("HEAD"), "ordinary file").unwrap();
-            create_file(import_boundary, "nested-git/HEAD", "ref: refs/heads/main\n");
+            std::fs::write(outside.path().join("HEAD"), "ref: refs/heads/main\n").unwrap();
             create_file(import_boundary, "nested-git/config", "NESTED_GIT_SECRET");
             create_file(
                 import_boundary,
                 "project-data/config.md",
                 "legitimate project data",
             );
+            symlink(
+                outside.path().join("HEAD"),
+                import_boundary.join("nested-git/HEAD"),
+            )
+            .unwrap();
             symlink(
                 outside.path().join("objects"),
                 import_boundary.join("nested-git/objects"),
