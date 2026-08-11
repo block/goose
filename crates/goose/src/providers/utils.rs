@@ -349,26 +349,34 @@ fn create_and_restrict_request_log_state_directory(
     // SAFETY: openat returned a new owned descriptor.
     let state_directory = unsafe { std::fs::File::from_raw_fd(state_fd) };
     let metadata = state_directory.metadata()?;
-    if !metadata.is_dir() || metadata.uid() != current_effective_uid() {
+    let current_uid = current_effective_uid();
+    let should_restrict = request_log_state_directory_needs_restriction(
+        metadata.uid(),
+        metadata.permissions().mode(),
+        current_uid,
+    );
+    if !metadata.is_dir() || should_restrict.is_none() {
         return Err(Error::new(
             ErrorKind::PermissionDenied,
-            "request log state directory is not owned by the current user",
+            "request log state directory ownership or permissions are not trusted",
         )
         .into());
     }
 
-    let current_directory = CString::new(".").unwrap();
-    // SAFETY: resolving `.` relative to the retained state descriptor binds chmod to it.
-    if unsafe {
-        libc::fchmodat(
-            state_directory.as_raw_fd(),
-            current_directory.as_ptr(),
-            0o700,
-            0,
-        )
-    } < 0
-    {
-        return Err(Error::last_os_error().into());
+    if should_restrict == Some(true) {
+        let current_directory = CString::new(".").unwrap();
+        // SAFETY: resolving `.` relative to the retained state descriptor binds chmod to it.
+        if unsafe {
+            libc::fchmodat(
+                state_directory.as_raw_fd(),
+                current_directory.as_ptr(),
+                0o700,
+                0,
+            )
+        } < 0
+        {
+            return Err(Error::last_os_error().into());
+        }
     }
 
     // SAFETY: libc::stat is initialized before fstatat writes it.
@@ -383,7 +391,11 @@ fn create_and_restrict_request_log_state_directory(
         || metadata.dev() != current.st_dev as u64
         || metadata.ino() != current.st_ino as u64
         || !updated.is_dir()
-        || updated.uid() != current_effective_uid()
+        || request_log_state_directory_needs_restriction(
+            updated.uid(),
+            updated.permissions().mode(),
+            current_uid,
+        ) != should_restrict
     {
         return Err(Error::new(
             ErrorKind::PermissionDenied,
@@ -393,6 +405,21 @@ fn create_and_restrict_request_log_state_directory(
     }
 
     Ok(state_directory)
+}
+
+#[cfg(unix)]
+fn request_log_state_directory_needs_restriction(
+    owner_uid: libc::uid_t,
+    mode: u32,
+    effective_uid: libc::uid_t,
+) -> Option<bool> {
+    if owner_uid == effective_uid {
+        Some(true)
+    } else if owner_uid == 0 && mode & 0o022 == 0 {
+        Some(false)
+    } else {
+        None
+    }
 }
 
 #[cfg(unix)]
@@ -889,7 +916,7 @@ fn restrict_existing_request_log_with_hook(
         Err(error) => return Err(error.into()),
     };
     let metadata = file.metadata()?;
-    if metadata.is_file() && metadata.uid() == current_effective_uid() {
+    if metadata.is_file() && metadata.uid() == current_effective_uid() && metadata.nlink() == 1 {
         after_metadata();
         file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
         let current = match request_log_entry_metadata(logs_directory, file_name) {
@@ -935,6 +962,7 @@ fn restrict_inaccessible_request_log_with_hook(
 
     if metadata.st_mode & libc::S_IFMT != libc::S_IFREG
         || metadata.st_uid != current_effective_uid()
+        || metadata.st_nlink != 1
     {
         return Ok(RestrictionOutcome::Complete);
     }
@@ -1422,6 +1450,65 @@ mod tests {
 
     #[test]
     #[cfg(unix)]
+    fn request_log_permission_upgrade_skips_accessible_hard_links() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = tempfile::tempdir().unwrap();
+        let outside = root.path().join("shared-output");
+        let alias = root.path().join("llm_request.14.jsonl");
+        std::fs::write(&outside, "unrelated application data").unwrap();
+        std::fs::set_permissions(&outside, std::fs::Permissions::from_mode(0o644)).unwrap();
+        std::fs::hard_link(&outside, &alias).unwrap();
+        let directory = open_search_only_directory(root.path()).unwrap();
+
+        restrict_existing_request_logs(&directory).unwrap();
+
+        assert_eq!(
+            std::fs::metadata(&outside).unwrap().permissions().mode() & 0o777,
+            0o644
+        );
+        assert_eq!(
+            std::fs::metadata(&alias).unwrap().permissions().mode() & 0o777,
+            0o644
+        );
+        assert_eq!(
+            std::fs::read_to_string(&outside).unwrap(),
+            "unrelated application data"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn request_log_permission_upgrade_skips_inaccessible_hard_links() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = tempfile::tempdir().unwrap();
+        let outside = root.path().join("shared-output");
+        let alias = root.path().join("llm_request.15.jsonl");
+        std::fs::write(&outside, "unrelated application data").unwrap();
+        std::fs::hard_link(&outside, &alias).unwrap();
+        std::fs::set_permissions(&outside, std::fs::Permissions::from_mode(0o066)).unwrap();
+        let directory = open_search_only_directory(root.path()).unwrap();
+
+        restrict_existing_request_logs(&directory).unwrap();
+
+        assert_eq!(
+            std::fs::metadata(&outside).unwrap().permissions().mode() & 0o777,
+            0o066
+        );
+        assert_eq!(
+            std::fs::metadata(&alias).unwrap().permissions().mode() & 0o777,
+            0o066
+        );
+        std::fs::set_permissions(&outside, std::fs::Permissions::from_mode(0o600)).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(&outside).unwrap(),
+            "unrelated application data"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
     fn request_log_directory_repair_is_bound_to_opened_directory() {
         use std::os::unix::fs::{symlink, PermissionsExt};
 
@@ -1498,6 +1585,37 @@ mod tests {
         assert_eq!(
             std::fs::metadata(state_dir).unwrap().permissions().mode() & 0o777,
             0o700
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn request_log_state_directory_ownership_policy() {
+        let user_uid = 501;
+
+        assert_eq!(
+            request_log_state_directory_needs_restriction(user_uid, 0o777, user_uid),
+            Some(true)
+        );
+        assert_eq!(
+            request_log_state_directory_needs_restriction(0, 0o755, user_uid),
+            Some(false)
+        );
+        assert_eq!(
+            request_log_state_directory_needs_restriction(0, 0o711, user_uid),
+            Some(false)
+        );
+        assert_eq!(
+            request_log_state_directory_needs_restriction(0, 0o775, user_uid),
+            None
+        );
+        assert_eq!(
+            request_log_state_directory_needs_restriction(0, 0o777, user_uid),
+            None
+        );
+        assert_eq!(
+            request_log_state_directory_needs_restriction(502, 0o700, user_uid),
+            None
         );
     }
 
