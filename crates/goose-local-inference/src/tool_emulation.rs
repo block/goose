@@ -240,7 +240,32 @@ fn list_marker_width(line: &str) -> Option<usize> {
 }
 
 #[allow(clippy::string_slice)]
+fn is_list_thematic_break_candidate(line: &str) -> bool {
+    let (indent_bytes, marker_indent) = leading_indent(line);
+    if marker_indent > 3 {
+        return false;
+    }
+    let rest = &line[indent_bytes..];
+    let Some(marker @ ('*' | '-')) = rest.chars().next() else {
+        return false;
+    };
+    if list_marker_width(rest).is_none() {
+        return false;
+    }
+    rest.chars()
+        .all(|ch| ch == marker || ch == ' ' || ch == '\t' || ch == '\r')
+}
+
+fn is_list_thematic_break(line: &str) -> bool {
+    is_list_thematic_break_candidate(line)
+        && line.chars().filter(|ch| matches!(ch, '*' | '-')).count() >= 3
+}
+
+#[allow(clippy::string_slice)]
 fn list_item_indents(line: &str) -> Option<(usize, usize)> {
+    if is_list_thematic_break(line) {
+        return None;
+    }
     let (indent_bytes, marker_indent) = leading_indent(line);
     if marker_indent > 3 {
         return None;
@@ -358,6 +383,7 @@ fn could_be_control_line(
                 || "$".starts_with(rest)
                 || rest.starts_with('`')
                 || rest.starts_with('~')
+                || is_list_thematic_break_candidate(line)
                 || could_be_list_fence(rest)
         }
     }
@@ -1043,6 +1069,23 @@ mod tests {
                     .count(),
                 expected_execute_count
             );
+        }
+    }
+
+    #[test]
+    fn thematic_break_does_not_start_list_context() {
+        for separator in ["* * *", "- - -"] {
+            let input = format!("{separator}\n  ```execute_typescript\nlet safe = 1;\n  ```\n");
+            let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+            let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+            let actions = parse_chunks(&chunk_refs, true);
+            let executes: Vec<_> = actions
+                .iter()
+                .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                .collect();
+
+            assert_eq!(executes.len(), 1);
+            assert_execute(executes[0], "let safe = 1;");
         }
     }
 
