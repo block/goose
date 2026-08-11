@@ -43,7 +43,8 @@ pub struct ReviewOptions {
     /// single-prompt path that asks the main agent to delegate checks via
     /// `delegate(... async: true ...)`. Useful when comparing against the
     /// in-process behavior or running on a model that handles dispatch
-    /// reliably on its own.
+    /// reliably on its own. Checks with an explicit tool allowlist require
+    /// the default orchestrator and are rejected on this path.
     pub no_orchestrate: bool,
     /// Additional free-form instructions to prepend to the review (PR
     /// intent, commit-message context, etc.). Surfaced to both the main
@@ -205,6 +206,7 @@ pub async fn handle_review(opts: ReviewOptions) -> Result<()> {
             }
             return Ok(());
         }
+        ensure_legacy_check_tools_are_unrestricted(&discovered)?;
         let mut session = build_session(SessionBuilderConfig {
             session_id: None,
             no_session: true,
@@ -278,6 +280,23 @@ fn filter_checks(discovered: DiscoveredReview, names: &[String]) -> DiscoveredRe
             .filter(|c| allow.contains(c.name.as_str()))
             .collect(),
     }
+}
+
+fn ensure_legacy_check_tools_are_unrestricted(discovered: &DiscoveredReview) -> Result<()> {
+    let restricted: Vec<&str> = discovered
+        .checks
+        .iter()
+        .filter(|check| check.tools.is_some())
+        .map(|check| check.name.as_str())
+        .collect();
+    if restricted.is_empty() {
+        return Ok(());
+    }
+
+    bail!(
+        "--no-orchestrate cannot enforce per-check tool allowlists for: {}; rerun without --no-orchestrate",
+        restricted.join(", ")
+    )
 }
 
 /// Prepend a free-form `--instructions <text>` block to the base prompt
@@ -553,6 +572,40 @@ mod tests {
         let out = filter_checks(d, &["security".to_string(), "idempotency".to_string()]);
         let names: Vec<&str> = out.checks.iter().map(|c| c.name.as_str()).collect();
         assert_eq!(names, vec!["security", "idempotency"]);
+    }
+
+    #[test]
+    fn legacy_review_allows_checks_without_tool_policy() {
+        let discovered = DiscoveredReview {
+            checks: vec![ck("security")],
+        };
+
+        ensure_legacy_check_tools_are_unrestricted(&discovered).unwrap();
+    }
+
+    #[test]
+    fn legacy_review_rejects_nonempty_tool_allowlists() {
+        let mut restricted = ck("security");
+        restricted.tools = Some(vec!["read".to_string()]);
+        let discovered = DiscoveredReview {
+            checks: vec![restricted],
+        };
+
+        let error = ensure_legacy_check_tools_are_unrestricted(&discovered).unwrap_err();
+        assert!(error.to_string().contains("security"));
+        assert!(error.to_string().contains("without --no-orchestrate"));
+    }
+
+    #[test]
+    fn legacy_review_rejects_explicit_empty_tool_allowlists() {
+        let mut restricted = ck("no-tools");
+        restricted.tools = Some(Vec::new());
+        let discovered = DiscoveredReview {
+            checks: vec![restricted],
+        };
+
+        let error = ensure_legacy_check_tools_are_unrestricted(&discovered).unwrap_err();
+        assert!(error.to_string().contains("no-tools"));
     }
 
     #[test]
