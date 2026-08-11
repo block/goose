@@ -1,3 +1,4 @@
+use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 use anyhow::Result;
@@ -108,6 +109,64 @@ fn get_preprompt_context(messages: &Conversation) -> String {
         .join("\n")
 }
 
+/// Reads the current git branch for a working directory, if it is inside a
+/// git checkout. Handles both regular checkouts (`.git` directory) and
+/// worktrees (`.git` file containing a `gitdir:` pointer). Never fails —
+/// returns None when anything is missing or unexpected.
+fn read_git_branch(working_dir: &Path) -> Option<String> {
+    let mut dir = working_dir.to_path_buf();
+    let git_path = loop {
+        let candidate = dir.join(".git");
+        if candidate.exists() {
+            break candidate;
+        }
+        if !dir.pop() {
+            return None;
+        }
+    };
+
+    let head_path: PathBuf = if git_path.is_file() {
+        // Worktree: .git is a file like "gitdir: /path/to/repo/.git/worktrees/x"
+        let contents = std::fs::read_to_string(&git_path).ok()?;
+        let gitdir = contents.strip_prefix("gitdir:")?.trim();
+        let gitdir_path = PathBuf::from(gitdir);
+        let gitdir_path = if gitdir_path.is_relative() {
+            dir.join(gitdir_path)
+        } else {
+            gitdir_path
+        };
+        gitdir_path.join("HEAD")
+    } else {
+        git_path.join("HEAD")
+    };
+
+    let head = std::fs::read_to_string(head_path).ok()?;
+    let branch = head.trim().strip_prefix("ref: refs/heads/")?.trim();
+    if branch.is_empty() {
+        None
+    } else {
+        Some(branch.to_string())
+    }
+}
+
+/// Builds deterministic naming hints from the session's working directory:
+/// the folder name and, when available, the git branch. These often carry
+/// the distinguishing subject (ticket ID, feature name) even when the first
+/// user messages are purely mechanical.
+fn deterministic_hints(working_dir: Option<&Path>) -> String {
+    let Some(working_dir) = working_dir else {
+        return String::new();
+    };
+    let mut hints = Vec::new();
+    if let Some(folder) = working_dir.file_name().and_then(|f| f.to_str()) {
+        hints.push(format!("working folder: {folder}"));
+    }
+    if let Some(branch) = read_git_branch(working_dir) {
+        hints.push(format!("git branch: {branch}"));
+    }
+    hints.join("\n")
+}
+
 /// Generate a session name/description based on the conversation history
 /// Creates a prompt asking for a concise description in 4 words or less.
 pub(crate) async fn generate_session_name(
@@ -115,6 +174,7 @@ pub(crate) async fn generate_session_name(
     model_config: &goose_providers::model::ModelConfig,
     session_id: &str,
     messages: &Conversation,
+    working_dir: Option<&Path>,
 ) -> Result<String> {
     let context = get_initial_user_messages(messages);
     let preprompt_context = get_preprompt_context(messages);
@@ -131,14 +191,24 @@ pub(crate) async fn generate_session_name(
         String::new()
     } else {
         format!(
-            "---BEGIN BACKGROUND CONTEXT (for understanding only, do NOT base the title on this)---\n{}\n---END BACKGROUND CONTEXT---\n\n",
+            "---BEGIN BACKGROUND CONTEXT (for understanding only; you may borrow a ticket ID, feature, or project name from here, but do NOT base the title's topic on this)---\n{}\n---END BACKGROUND CONTEXT---\n\n",
             preprompt_context
         )
     };
 
+    let hints = deterministic_hints(working_dir);
+    let hints_section = if hints.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "---BEGIN HINTS (optional signals like folder and git branch; use identifiers from here when they clarify the subject)---\n{hints}\n---END HINTS---\n\n"
+        )
+    };
+
     let user_text = format!(
-        "{}{}\n{}\n{}\n\n{}",
+        "{}{}{}\n{}\n{}\n\n{}",
         preprompt_section,
+        hints_section,
         SESSION_NAME_BEGIN_MARKER,
         context.join("\n"),
         SESSION_NAME_END_MARKER,
@@ -179,6 +249,87 @@ pub(crate) async fn generate_session_name(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_deterministic_hints_no_working_dir() {
+        assert_eq!(deterministic_hints(None), "");
+    }
+
+    #[test]
+    fn test_deterministic_hints_folder_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let project = dir.path().join("acme-renewal");
+        std::fs::create_dir(&project).unwrap();
+        let hints = deterministic_hints(Some(&project));
+        assert_eq!(hints, "working folder: acme-renewal");
+    }
+
+    #[test]
+    fn test_deterministic_hints_with_git_branch() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path().join("goose-internal");
+        let git = repo.join(".git");
+        std::fs::create_dir_all(&git).unwrap();
+        std::fs::write(
+            git.join("HEAD"),
+            "ref: refs/heads/tulsi/bot-1565-session-titles\n",
+        )
+        .unwrap();
+        let hints = deterministic_hints(Some(&repo));
+        assert_eq!(
+            hints,
+            "working folder: goose-internal\ngit branch: tulsi/bot-1565-session-titles"
+        );
+    }
+
+    #[test]
+    fn test_deterministic_hints_from_subdirectory() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path().join("repo");
+        let nested = repo.join("crates").join("goose");
+        let git = repo.join(".git");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::create_dir_all(&git).unwrap();
+        std::fs::write(git.join("HEAD"), "ref: refs/heads/main\n").unwrap();
+        let hints = deterministic_hints(Some(&nested));
+        assert_eq!(hints, "working folder: goose\ngit branch: main");
+    }
+
+    #[test]
+    fn test_read_git_branch_worktree_gitfile() {
+        let dir = tempfile::tempdir().unwrap();
+        let main_repo = dir.path().join("main");
+        let worktree_gitdir = main_repo.join(".git").join("worktrees").join("wt");
+        std::fs::create_dir_all(&worktree_gitdir).unwrap();
+        std::fs::write(
+            worktree_gitdir.join("HEAD"),
+            "ref: refs/heads/feature/wt-branch\n",
+        )
+        .unwrap();
+
+        let worktree = dir.path().join("wt");
+        std::fs::create_dir_all(&worktree).unwrap();
+        std::fs::write(
+            worktree.join(".git"),
+            format!("gitdir: {}\n", worktree_gitdir.display()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            read_git_branch(&worktree),
+            Some("feature/wt-branch".to_string())
+        );
+    }
+
+    #[test]
+    fn test_read_git_branch_detached_head() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path().join("repo");
+        let git = repo.join(".git");
+        std::fs::create_dir_all(&git).unwrap();
+        std::fs::write(git.join("HEAD"), "1c1bd5299a243f309cb251d2bbe429c7f4\n").unwrap();
+        assert_eq!(read_git_branch(&repo), None);
+    }
 
     #[test]
     fn test_strip_xml_tags() {

@@ -631,8 +631,14 @@ impl SessionManager {
         };
 
         if should_generate_name {
-            let name =
-                generate_session_name(provider.as_ref(), &model_config, id, &conversation).await?;
+            let name = generate_session_name(
+                provider.as_ref(),
+                &model_config,
+                id,
+                &conversation,
+                Some(session.working_dir.as_path()),
+            )
+            .await?;
             return Ok(Some(self.system_generated_name_update(id, name).await?));
         }
         Ok(None)
