@@ -243,6 +243,7 @@ keyring = { workspace = true, features = ["sync-secret-service"], optional = tru
 
 [target."cfg(unix)".dependencies]
 libc = { version = "0.2.182", default-features = false, features = ["std"] }
+rustix = { version = "1.1.4", default-features = false, features = ["fs", "std"] }
 
 [dev-dependencies]
 serial_test = { workspace = true }
