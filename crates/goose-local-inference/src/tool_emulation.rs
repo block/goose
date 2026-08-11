@@ -157,9 +157,11 @@ pub(crate) struct StreamingEmulatorParser {
     streamed_line_prior_paragraph: bool,
     streamed_setext: StreamedSetext,
     streamed_thematic: StreamedThematic,
+    streamed_html_tag: HtmlTagLineTracker,
+    streamed_markdown_blank: bool,
     streamed_pending_cr: bool,
     streamed_line_in_html_block: bool,
-    html_block: Option<HtmlBlockKind>,
+    html_block: Option<ActiveHtmlBlock>,
     html_tail: String,
 }
 
@@ -249,20 +251,231 @@ impl StreamedThematic {
 
 #[derive(Clone, Copy)]
 enum HtmlBlockKind {
+    RawText,
     Comment,
     ProcessingInstruction,
     Cdata,
     Declaration,
+    UntilBlankLine,
+}
+
+#[derive(Clone, Copy)]
+struct ActiveHtmlBlock {
+    kind: HtmlBlockKind,
+    container_indent: Option<usize>,
 }
 
 impl HtmlBlockKind {
-    fn terminator(self) -> &'static str {
+    fn fixed_terminator(self) -> Option<&'static str> {
         match self {
-            Self::Comment => "-->",
-            Self::ProcessingInstruction => "?>",
-            Self::Cdata => "]]>",
-            Self::Declaration => ">",
+            Self::Comment => Some("-->"),
+            Self::ProcessingInstruction => Some("?>"),
+            Self::Cdata => Some("]]>"),
+            Self::Declaration => Some(">"),
+            Self::RawText | Self::UntilBlankLine => None,
         }
+    }
+
+    fn ends_with(self, tail: &str) -> bool {
+        match self {
+            Self::RawText => ["</pre>", "</script>", "</style>", "</textarea>"]
+                .iter()
+                .any(|ending| tail.to_ascii_lowercase().ends_with(ending)),
+            _ => self
+                .fixed_terminator()
+                .is_some_and(|ending| tail.ends_with(ending)),
+        }
+    }
+}
+
+#[derive(Default)]
+struct HtmlTagLineTracker {
+    state: HtmlTagState,
+    indent_columns: usize,
+    opening_tag: bool,
+    open_name: String,
+    open_name_continued: bool,
+}
+
+#[derive(Clone, Copy, Default)]
+enum HtmlTagState {
+    #[default]
+    Leading,
+    AfterLessThan,
+    ClosingNameStart,
+    OpenName,
+    ClosingName,
+    BetweenAttributes,
+    AttributeName,
+    AfterAttributeName,
+    BeforeAttributeValue,
+    UnquotedValue,
+    SingleQuotedValue,
+    DoubleQuotedValue,
+    AfterAttributeValue,
+    SelfClosing,
+    ClosingBeforeGt,
+    Closed,
+    Invalid,
+}
+
+impl HtmlTagLineTracker {
+    fn push(&mut self, ch: char) {
+        use HtmlTagState::*;
+
+        let previous = self.state;
+        if matches!(previous, AfterLessThan) && ch.is_ascii_alphabetic() {
+            self.opening_tag = true;
+            self.open_name.clear();
+        }
+        if self.opening_tag
+            && matches!(previous, AfterLessThan | OpenName)
+            && (ch.is_ascii_alphanumeric() || ch == '-')
+        {
+            if self.open_name.len() < 8 {
+                self.open_name.push(ch.to_ascii_lowercase());
+            } else {
+                self.open_name_continued = true;
+            }
+        }
+
+        self.state = match previous {
+            Leading => match ch {
+                ' ' => {
+                    self.indent_columns += 1;
+                    if self.indent_columns <= 3 {
+                        Leading
+                    } else {
+                        Invalid
+                    }
+                }
+                '\t' => {
+                    self.indent_columns += 4 - (self.indent_columns % 4);
+                    if self.indent_columns <= 3 {
+                        Leading
+                    } else {
+                        Invalid
+                    }
+                }
+                '<' => AfterLessThan,
+                _ => Invalid,
+            },
+            AfterLessThan => match ch {
+                '/' => ClosingNameStart,
+                ch if ch.is_ascii_alphabetic() => OpenName,
+                _ => Invalid,
+            },
+            ClosingNameStart => {
+                if ch.is_ascii_alphabetic() {
+                    ClosingName
+                } else {
+                    Invalid
+                }
+            }
+            OpenName => match ch {
+                ch if ch.is_ascii_alphanumeric() || ch == '-' => OpenName,
+                ' ' | '\t' => BetweenAttributes,
+                '>' => Closed,
+                '/' => SelfClosing,
+                _ => Invalid,
+            },
+            ClosingName => match ch {
+                ch if ch.is_ascii_alphanumeric() || ch == '-' => ClosingName,
+                ' ' | '\t' => ClosingBeforeGt,
+                '>' => Closed,
+                _ => Invalid,
+            },
+            BetweenAttributes => match ch {
+                ' ' | '\t' => BetweenAttributes,
+                '>' => Closed,
+                '/' => SelfClosing,
+                ch if ch.is_ascii_alphabetic() || matches!(ch, '_' | ':') => AttributeName,
+                _ => Invalid,
+            },
+            AttributeName => match ch {
+                ch if ch.is_ascii_alphanumeric() || matches!(ch, '_' | '.' | ':' | '-') => {
+                    AttributeName
+                }
+                ' ' | '\t' => AfterAttributeName,
+                '=' => BeforeAttributeValue,
+                '>' => Closed,
+                '/' => SelfClosing,
+                _ => Invalid,
+            },
+            AfterAttributeName => match ch {
+                ' ' | '\t' => AfterAttributeName,
+                '=' => BeforeAttributeValue,
+                '>' => Closed,
+                '/' => SelfClosing,
+                ch if ch.is_ascii_alphabetic() || matches!(ch, '_' | ':') => AttributeName,
+                _ => Invalid,
+            },
+            BeforeAttributeValue => match ch {
+                ' ' | '\t' => BeforeAttributeValue,
+                '\'' => SingleQuotedValue,
+                '"' => DoubleQuotedValue,
+                ch if !ch.is_ascii_whitespace()
+                    && !matches!(ch, '"' | '\'' | '=' | '<' | '>' | '`') =>
+                {
+                    UnquotedValue
+                }
+                _ => Invalid,
+            },
+            UnquotedValue => match ch {
+                ' ' | '\t' => BetweenAttributes,
+                '>' => Closed,
+                ch if !ch.is_ascii_whitespace() && !matches!(ch, '"' | '\'' | '=' | '<' | '`') => {
+                    UnquotedValue
+                }
+                _ => Invalid,
+            },
+            SingleQuotedValue => {
+                if ch == '\'' {
+                    AfterAttributeValue
+                } else {
+                    SingleQuotedValue
+                }
+            }
+            DoubleQuotedValue => {
+                if ch == '"' {
+                    AfterAttributeValue
+                } else {
+                    DoubleQuotedValue
+                }
+            }
+            AfterAttributeValue => match ch {
+                ' ' | '\t' => BetweenAttributes,
+                '/' => SelfClosing,
+                '>' => Closed,
+                _ => Invalid,
+            },
+            SelfClosing => {
+                if ch == '>' {
+                    Closed
+                } else {
+                    Invalid
+                }
+            }
+            ClosingBeforeGt => match ch {
+                ' ' | '\t' => ClosingBeforeGt,
+                '>' => Closed,
+                _ => Invalid,
+            },
+            Closed => match ch {
+                ' ' | '\t' | '\r' => Closed,
+                _ => Invalid,
+            },
+            Invalid => Invalid,
+        };
+    }
+
+    fn is_complete(&self) -> bool {
+        matches!(self.state, HtmlTagState::Closed)
+            && !(self.opening_tag
+                && !self.open_name_continued
+                && RAW_HTML_TAGS
+                    .iter()
+                    .any(|candidate| self.open_name == *candidate))
     }
 }
 
@@ -285,6 +498,10 @@ fn leading_indent(line: &str) -> (usize, usize) {
         bytes += 1;
     }
     (bytes, columns)
+}
+
+fn is_markdown_blank_line(line: &str) -> bool {
+    line.chars().all(|ch| matches!(ch, ' ' | '\t' | '\r'))
 }
 
 #[allow(clippy::string_slice)]
@@ -431,8 +648,112 @@ fn is_thematic_break(line: &str) -> bool {
     candidate.is_break()
 }
 
-fn html_block_start_kind(rest: &str) -> Option<HtmlBlockKind> {
-    if rest.starts_with("<!--") {
+const RAW_HTML_TAGS: &[&str] = &["pre", "script", "style", "textarea"];
+const BLOCK_HTML_TAGS: &[&str] = &[
+    "address",
+    "article",
+    "aside",
+    "base",
+    "basefont",
+    "blockquote",
+    "body",
+    "caption",
+    "center",
+    "col",
+    "colgroup",
+    "dd",
+    "details",
+    "dialog",
+    "dir",
+    "div",
+    "dl",
+    "dt",
+    "fieldset",
+    "figcaption",
+    "figure",
+    "footer",
+    "form",
+    "frame",
+    "frameset",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "head",
+    "header",
+    "hr",
+    "html",
+    "iframe",
+    "legend",
+    "li",
+    "link",
+    "main",
+    "menu",
+    "menuitem",
+    "nav",
+    "noframes",
+    "ol",
+    "optgroup",
+    "option",
+    "p",
+    "param",
+    "search",
+    "section",
+    "summary",
+    "table",
+    "tbody",
+    "td",
+    "tfoot",
+    "th",
+    "thead",
+    "title",
+    "tr",
+    "track",
+    "ul",
+];
+
+fn starts_named_html_tag(
+    rest: &str,
+    names: &[&str],
+    allow_closing: bool,
+    allow_self_closing: bool,
+    complete_line: bool,
+) -> bool {
+    let Some(mut suffix) = rest.strip_prefix('<') else {
+        return false;
+    };
+    if let Some(closing) = suffix.strip_prefix('/') {
+        if !allow_closing {
+            return false;
+        }
+        suffix = closing;
+    }
+    let name_len = suffix
+        .bytes()
+        .take_while(|byte| byte.is_ascii_alphanumeric())
+        .count();
+    if name_len == 0 {
+        return false;
+    }
+    let name = suffix.get(..name_len).unwrap_or_default();
+    let delimiter = suffix.get(name_len..).unwrap_or_default();
+    let delimiter_is_valid = (complete_line && delimiter.is_empty())
+        || delimiter.starts_with('>')
+        || (allow_self_closing && delimiter.starts_with("/>"))
+        || delimiter.starts_with(' ')
+        || delimiter.starts_with('\t');
+    delimiter_is_valid
+        && names
+            .iter()
+            .any(|candidate| name.eq_ignore_ascii_case(candidate))
+}
+
+fn bounded_html_block_start_kind(rest: &str, complete_line: bool) -> Option<HtmlBlockKind> {
+    if starts_named_html_tag(rest, RAW_HTML_TAGS, false, false, complete_line) {
+        Some(HtmlBlockKind::RawText)
+    } else if rest.starts_with("<!--") {
         Some(HtmlBlockKind::Comment)
     } else if rest.starts_with("<?") {
         Some(HtmlBlockKind::ProcessingInstruction)
@@ -441,12 +762,35 @@ fn html_block_start_kind(rest: &str) -> Option<HtmlBlockKind> {
     } else if rest
         .strip_prefix("<!")
         .and_then(|suffix| suffix.chars().next())
-        .is_some_and(|ch| ch.is_ascii_uppercase())
+        .is_some_and(|ch| ch.is_ascii_alphabetic())
     {
         Some(HtmlBlockKind::Declaration)
+    } else if starts_named_html_tag(rest, BLOCK_HTML_TAGS, true, true, complete_line) {
+        Some(HtmlBlockKind::UntilBlankLine)
     } else {
         None
     }
+}
+
+fn complete_html_block_start_kind(line: &str, paragraph_was_open: bool) -> Option<HtmlBlockKind> {
+    let line = line.strip_suffix('\r').unwrap_or(line);
+    let (indent_bytes, indent_columns) = leading_indent(line);
+    if indent_columns > 3 {
+        return None;
+    }
+    let rest = line.get(indent_bytes..).unwrap_or_default();
+    bounded_html_block_start_kind(rest, true).or_else(|| {
+        if paragraph_was_open {
+            return None;
+        }
+        let mut tracker = HtmlTagLineTracker::default();
+        for ch in line.chars() {
+            tracker.push(ch);
+        }
+        tracker
+            .is_complete()
+            .then_some(HtmlBlockKind::UntilBlankLine)
+    })
 }
 
 #[allow(clippy::string_slice)]
@@ -476,7 +820,7 @@ fn line_continues_paragraph(
     }
     if rest.starts_with('>')
         || (paragraph_was_open && setext_underline)
-        || html_block_start_kind(rest).is_some()
+        || complete_html_block_start_kind(line, paragraph_was_open).is_some()
     {
         return false;
     }
@@ -698,6 +1042,8 @@ impl StreamingEmulatorParser {
             streamed_line_prior_paragraph: false,
             streamed_setext: StreamedSetext::default(),
             streamed_thematic: StreamedThematic::default(),
+            streamed_html_tag: HtmlTagLineTracker::default(),
+            streamed_markdown_blank: true,
             streamed_pending_cr: false,
             streamed_line_in_html_block: false,
             html_block: None,
@@ -711,6 +1057,8 @@ impl StreamingEmulatorParser {
             self.streamed_line_prior_paragraph = self.paragraph_open;
             self.streamed_setext = StreamedSetext::default();
             self.streamed_thematic = StreamedThematic::default();
+            self.streamed_html_tag = HtmlTagLineTracker::default();
+            self.streamed_markdown_blank = true;
             self.streamed_line_in_html_block = self.html_block.is_some();
         }
         for ch in text.chars() {
@@ -729,6 +1077,10 @@ impl StreamingEmulatorParser {
     fn record_streamed_char(&mut self, ch: char) {
         self.streamed_setext.push(ch);
         self.streamed_thematic.push(ch);
+        self.streamed_html_tag.push(ch);
+        if !matches!(ch, ' ' | '\t' | '\r') {
+            self.streamed_markdown_blank = false;
+        }
         if self.streamed_line_prefix.len() + ch.len_utf8() <= 64 {
             self.streamed_line_prefix.push(ch);
         }
@@ -739,21 +1091,30 @@ impl StreamingEmulatorParser {
                     .streamed_line_prefix
                     .get(indent_bytes..)
                     .unwrap_or_default();
-                if let Some(kind) = html_block_start_kind(rest) {
-                    self.html_block = Some(kind);
+                if let Some(kind) = bounded_html_block_start_kind(rest, false) {
+                    let container_indent = self
+                        .list_container_indent
+                        .filter(|minimum| indent_columns >= *minimum);
+                    self.html_block = Some(ActiveHtmlBlock {
+                        kind,
+                        container_indent,
+                    });
                     self.html_tail.clear();
                     self.streamed_line_in_html_block = true;
                 }
             }
         }
-        if let Some(kind) = self.html_block {
-            self.html_tail.push(ch);
-            while self.html_tail.len() > 3 {
-                self.html_tail.remove(0);
-            }
-            if self.html_tail.ends_with(kind.terminator()) {
-                self.html_block = None;
-                self.html_tail.clear();
+        if let Some(active) = self.html_block {
+            let kind = active.kind;
+            if !matches!(kind, HtmlBlockKind::UntilBlankLine) {
+                self.html_tail.push(ch);
+                while self.html_tail.len() > 16 {
+                    self.html_tail.remove(0);
+                }
+                if kind.ends_with(&self.html_tail) {
+                    self.html_block = None;
+                    self.html_tail.clear();
+                }
             }
         }
     }
@@ -761,6 +1122,43 @@ impl StreamingEmulatorParser {
     fn finish_streamed_line(&mut self) {
         if !self.streamed_line_active {
             return;
+        }
+        let streamed_html_start = if self.html_block.is_none() && !self.streamed_line_in_html_block
+        {
+            let (indent_bytes, indent_columns) = leading_indent(&self.streamed_line_prefix);
+            let bounded = (indent_columns <= 3)
+                .then(|| {
+                    self.streamed_line_prefix
+                        .get(indent_bytes..)
+                        .and_then(|rest| bounded_html_block_start_kind(rest, true))
+                })
+                .flatten();
+            bounded.or_else(|| {
+                (!self.streamed_line_prior_paragraph && self.streamed_html_tag.is_complete())
+                    .then_some(HtmlBlockKind::UntilBlankLine)
+            })
+        } else {
+            None
+        };
+        if let Some(kind) = streamed_html_start {
+            let indent_columns = leading_indent(&self.streamed_line_prefix).1;
+            let container_indent = self
+                .list_container_indent
+                .filter(|minimum| indent_columns >= *minimum);
+            self.html_block = Some(ActiveHtmlBlock {
+                kind,
+                container_indent,
+            });
+            self.streamed_line_in_html_block = true;
+        }
+        if self.streamed_line_in_html_block
+            && self
+                .html_block
+                .is_some_and(|active| matches!(active.kind, HtmlBlockKind::UntilBlankLine))
+            && self.streamed_markdown_blank
+        {
+            self.html_block = None;
+            self.html_tail.clear();
         }
         let (_, indent_columns) = leading_indent(&self.streamed_line_prefix);
         let closes_paragraph = self.streamed_line_in_html_block
@@ -782,6 +1180,8 @@ impl StreamingEmulatorParser {
         self.streamed_line_active = false;
         self.streamed_setext = StreamedSetext::default();
         self.streamed_thematic = StreamedThematic::default();
+        self.streamed_html_tag = HtmlTagLineTracker::default();
+        self.streamed_markdown_blank = true;
         self.streamed_pending_cr = false;
         self.streamed_line_in_html_block = false;
         if self.html_block.is_some() {
@@ -969,8 +1369,17 @@ impl StreamingEmulatorParser {
                 }
                 ParserState::Normal => {
                     if self.at_line_start && self.html_block.is_some() {
+                        let active = self.html_block.expect("checked above");
                         if let Some(end_idx) = self.buffer.find('\n') {
                             let line = self.buffer[..end_idx].to_string();
+                            if active.container_indent.is_some_and(|minimum_indent| {
+                                let (_, indent_columns) = leading_indent(&line);
+                                !is_markdown_blank_line(&line) && indent_columns < minimum_indent
+                            }) {
+                                self.html_block = None;
+                                self.html_tail.clear();
+                                continue;
+                            }
                             self.end_list_container_on_outdent(&line);
                             self.record_streamed_text(&line);
                             results.push(EmulatorAction::Text(self.buffer[..=end_idx].to_string()));
@@ -980,6 +1389,14 @@ impl StreamingEmulatorParser {
                         }
                         if !self.buffer.is_empty() {
                             let line = self.buffer.clone();
+                            if active.container_indent.is_some_and(|minimum_indent| {
+                                let (indent_bytes, indent_columns) = leading_indent(&line);
+                                indent_bytes < line.len() && indent_columns < minimum_indent
+                            }) {
+                                self.html_block = None;
+                                self.html_tail.clear();
+                                continue;
+                            }
                             self.end_list_container_on_outdent(&line);
                             let text = std::mem::take(&mut self.buffer);
                             self.record_streamed_text(&text);
@@ -1019,11 +1436,19 @@ impl StreamingEmulatorParser {
                         let line_with_newline = self.buffer[..=end_idx].to_string();
                         self.buffer = self.buffer[end_idx + 1..].to_string();
 
-                        let (indent_bytes, indent_columns) = leading_indent(&line);
-                        if indent_columns <= 3
-                            && html_block_start_kind(&line[indent_bytes..]).is_some()
+                        if let Some(kind) =
+                            complete_html_block_start_kind(&line, self.paragraph_open)
                         {
                             self.end_list_container_on_outdent(&line);
+                            let indent_columns = leading_indent(&line).1;
+                            let container_indent = self
+                                .list_container_indent
+                                .filter(|minimum| indent_columns >= *minimum);
+                            self.html_block = Some(ActiveHtmlBlock {
+                                kind,
+                                container_indent,
+                            });
+                            self.html_tail.clear();
                             self.record_streamed_text(&line);
                             results.push(EmulatorAction::Text(line_with_newline));
                             self.finish_streamed_line();
@@ -1084,6 +1509,8 @@ impl StreamingEmulatorParser {
                         self.streamed_line_active = false;
                         self.streamed_setext = StreamedSetext::default();
                         self.streamed_thematic = StreamedThematic::default();
+                        self.streamed_html_tag = HtmlTagLineTracker::default();
+                        self.streamed_markdown_blank = true;
                         self.streamed_pending_cr = false;
                         self.streamed_line_in_html_block = false;
                         self.state = ParserState::InCommand;
@@ -1746,6 +2173,161 @@ mod tests {
 
             assert_eq!(executes.len(), 1);
             assert_execute(executes[0], "safe();");
+        }
+    }
+
+    #[test]
+    fn every_commonmark_html_block_type_keeps_tools_inert() {
+        let cases = [
+            "<ScRiPt>\n\n$ malicious\n```execute_typescript\nmalicious();\n```\n</STYLE>\n",
+            "<!--\n$ malicious\n```execute_typescript\nmalicious();\n```\n-->\n",
+            "<?target\n$ malicious\n```execute_typescript\nmalicious();\n```\n?>\n",
+            "<!doctype\n$ malicious\n```execute_typescript\nmalicious();\n```\n>\n",
+            "<![CDATA[\n$ malicious\n```execute_typescript\nmalicious();\n```\n]]>\n",
+            "<DiV class=example>\n$ malicious\n```execute_typescript\nmalicious();\n```\n</div>\nstill raw\n\n",
+            "<custom-element data-long='abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz'>\n$ malicious\n```execute_typescript\nmalicious();\n```\n</custom-element>\nstill raw\n\n",
+        ];
+
+        for html in cases {
+            let input = format!("{html}```execute_typescript\nsafe();\n```\n");
+            let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+            let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+            for actions in [
+                parse_chunks(&chunk_refs, true),
+                parse_chunks(&[&input], true),
+            ] {
+                let shells: Vec<_> = actions
+                    .iter()
+                    .filter(|action| matches!(action, EmulatorAction::ShellCommand(_)))
+                    .collect();
+                let executes: Vec<_> = actions
+                    .iter()
+                    .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                    .collect();
+
+                assert!(shells.is_empty(), "HTML block emitted a shell command");
+                assert_eq!(executes.len(), 1, "unexpected execute count for {html:?}");
+                assert_execute(executes[0], "safe();");
+            }
+        }
+    }
+
+    #[test]
+    fn type_seven_html_cannot_interrupt_a_paragraph() {
+        let input = "paragraph\n<custom-element attr=value>\n```execute_typescript\nsafe();\n```\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+
+        for actions in [
+            parse_chunks(&chunk_refs, true),
+            parse_chunks(&[input], true),
+        ] {
+            let executes: Vec<_> = actions
+                .iter()
+                .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                .collect();
+            assert_eq!(executes.len(), 1);
+            assert_execute(executes[0], "safe();");
+        }
+    }
+
+    #[test]
+    fn end_of_line_html_starts_are_chunk_independent() {
+        for (opener, terminator) in [("<script", "</script>\n"), ("<div", "\n")] {
+            for line_ending in ["\n", "\r\n"] {
+                let input = format!(
+                    "{opener}{line_ending}```execute_typescript\nmalicious();\n```\n{terminator}```execute_typescript\nsafe();\n```\n"
+            );
+                let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+                let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+                for actions in [
+                    parse_chunks(&chunk_refs, true),
+                    parse_chunks(&[&input], true),
+                ] {
+                    let executes: Vec<_> = actions
+                        .iter()
+                        .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                        .collect();
+                    assert_eq!(executes.len(), 1);
+                    assert_execute(executes[0], "safe();");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn unicode_whitespace_does_not_end_blank_terminated_html() {
+        for prefix in [String::new(), " ".repeat(64)] {
+            let input = format!(
+                "<div>\n{prefix}\u{a0}\n```execute_typescript\nmalicious();\n```\n\n```execute_typescript\nsafe();\n```\n"
+            );
+            let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+            let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+            for actions in [
+                parse_chunks(&chunk_refs, true),
+                parse_chunks(&[&input], true),
+            ] {
+                let executes: Vec<_> = actions
+                    .iter()
+                    .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                    .collect();
+                assert_eq!(executes.len(), 1);
+                assert_execute(executes[0], "safe();");
+            }
+        }
+    }
+
+    #[test]
+    fn outdent_ends_html_inside_list_container() {
+        let input = "- item\n  <script>\n```execute_typescript\nsafe();\n```\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        for actions in [
+            parse_chunks(&chunk_refs, true),
+            parse_chunks(&[input], true),
+        ] {
+            let executes: Vec<_> = actions
+                .iter()
+                .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                .collect();
+            assert_eq!(executes.len(), 1);
+            assert_execute(executes[0], "safe();");
+        }
+    }
+
+    #[test]
+    fn self_closing_raw_tag_does_not_start_html_block() {
+        for tag in ["script", "textarea"] {
+            let input = format!("<{tag}/>\n```execute_typescript\nsafe();\n```\n");
+            let actions = parse_all(&input, true);
+            let executes: Vec<_> = actions
+                .iter()
+                .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                .collect();
+            assert_eq!(executes.len(), 1);
+            assert_execute(executes[0], "safe();");
+        }
+    }
+
+    #[test]
+    fn raw_tag_prefixes_can_be_generic_type_seven_tags() {
+        for tag in ["textareax", "textarea-long"] {
+            let input = format!(
+                "<{tag}>\n```execute_typescript\nmalicious();\n```\n\n```execute_typescript\nsafe();\n```\n"
+            );
+            let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+            let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+            for actions in [
+                parse_chunks(&chunk_refs, true),
+                parse_chunks(&[&input], true),
+            ] {
+                let executes: Vec<_> = actions
+                    .iter()
+                    .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                    .collect();
+                assert_eq!(executes.len(), 1);
+                assert_execute(executes[0], "safe();");
+            }
         }
     }
 

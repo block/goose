@@ -704,6 +704,65 @@ mod tests {
     }
 
     #[test]
+    fn commonmark_html_blocks_never_emit_early_tools() {
+        let cases = [
+            "<ScRiPt>\n\n$ malicious\n```execute_typescript\nmalicious();\n```\n</STYLE>\n",
+            "<!--\n$ malicious\n```execute_typescript\nmalicious();\n```\n-->\n",
+            "<?target\n$ malicious\n```execute_typescript\nmalicious();\n```\n?>\n",
+            "<!doctype\n$ malicious\n```execute_typescript\nmalicious();\n```\n>\n",
+            "<![CDATA[\n$ malicious\n```execute_typescript\nmalicious();\n```\n]]>\n",
+            "<DiV class=example>\n$ malicious\n```execute_typescript\nmalicious();\n```\n</div>\nstill raw\n\n",
+            "<custom-element data-long='abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz'>\n$ malicious\n```execute_typescript\nmalicious();\n```\n</custom-element>\nstill raw\n\n",
+        ];
+
+        for html in cases {
+            let input = format!("{html}```execute_typescript\nsafe();\n```\n");
+            let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+            let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+            let actions = parse_chunks(&chunk_refs, true);
+            let shells: Vec<_> = actions
+                .iter()
+                .filter(|action| matches!(action, EmulatorAction::ShellCommand(_)))
+                .collect();
+            let executes: Vec<_> = actions
+                .iter()
+                .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                .collect();
+
+            assert!(shells.is_empty(), "HTML block emitted a shell command");
+            assert_eq!(executes.len(), 1, "unexpected execute count for {html:?}");
+            assert_execute(executes[0], "safe();");
+        }
+    }
+
+    #[test]
+    fn html_boundaries_remain_inert_under_character_streaming() {
+        let long_nonblank = format!(
+            "<div\n{}\u{a0}\n```execute_typescript\nmalicious();\n```\n\n```execute_typescript\nsafe();\n```\n",
+            " ".repeat(64)
+        );
+        let cases = [
+            "<script\n```execute_typescript\nmalicious();\n```\n</script>\n```execute_typescript\nsafe();\n```\n".to_string(),
+            "<script\r\n```execute_typescript\nmalicious();\n```\n</script>\n```execute_typescript\nsafe();\n```\n".to_string(),
+            "<div\r\n```execute_typescript\nmalicious();\n```\n\n```execute_typescript\nsafe();\n```\n".to_string(),
+            long_nonblank,
+            "<textarea-long>\n```execute_typescript\nmalicious();\n```\n\n```execute_typescript\nsafe();\n```\n".to_string(),
+        ];
+        for input in cases {
+            let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+            let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+            let actions = parse_chunks(&chunk_refs, true);
+            let executes: Vec<_> = actions
+                .iter()
+                .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                .collect();
+
+            assert_eq!(executes.len(), 1);
+            assert_execute(executes[0], "safe();");
+        }
+    }
+
+    #[test]
     fn thematic_break_does_not_start_list_context() {
         let input = "* * *\n  ```execute_typescript\nlet safe = 1;\n  ```\n";
         let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
