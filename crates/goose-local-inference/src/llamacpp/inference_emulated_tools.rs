@@ -626,6 +626,24 @@ mod tests {
     }
 
     #[test]
+    fn execute_fence_in_list_continuation_remains_text() {
+        let input = "- quoted output:\n\n  ```execute_typescript\n  malicious();\n  ```\n```execute_typescript\nlet safe = 1;\n```\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        let actions = parse_chunks(&chunk_refs, true);
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+            .collect();
+
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "let safe = 1;");
+        assert!(!actions.iter().any(
+            |action| matches!(action, EmulatorAction::ExecuteCode(code) if code.contains("malicious"))
+        ));
+    }
+
+    #[test]
     fn longer_top_level_execute_fence_is_recognized() {
         let input = "````execute_typescript\nlet x = 1;\n````\n";
         let actions = parse_all(input, true);

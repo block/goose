@@ -149,6 +149,7 @@ pub(crate) struct StreamingEmulatorParser {
     state: ParserState,
     code_mode_enabled: bool,
     at_line_start: bool,
+    list_container_indent: Option<usize>,
 }
 
 struct Fence<'a> {
@@ -236,6 +237,30 @@ fn list_marker_width(line: &str) -> Option<usize> {
     (1..=4)
         .contains(&whitespace)
         .then_some(marker_end + whitespace)
+}
+
+#[allow(clippy::string_slice)]
+fn list_item_indents(line: &str) -> Option<(usize, usize)> {
+    let (indent_bytes, marker_indent) = leading_indent(line);
+    if marker_indent > 3 {
+        return None;
+    }
+    let marker_width = list_marker_width(&line[indent_bytes..])?;
+    Some((marker_indent, marker_indent + marker_width))
+}
+
+fn parse_fence_in_container(line: &str, container_indent: Option<usize>) -> Option<Fence<'_>> {
+    if let Some(container_indent) = container_indent {
+        if let Some(fence) = parse_direct_fence(
+            line,
+            container_indent,
+            container_indent + 3,
+            Some(container_indent),
+        ) {
+            return Some(fence);
+        }
+    }
+    parse_fence(line)
 }
 
 #[allow(clippy::string_slice)]
@@ -383,6 +408,31 @@ impl StreamingEmulatorParser {
             state: ParserState::Normal,
             code_mode_enabled,
             at_line_start: true,
+            list_container_indent: None,
+        }
+    }
+
+    fn update_list_container(&mut self, line: &str, complete_line: bool) {
+        if line.trim().is_empty() {
+            return;
+        }
+
+        if let Some((marker_indent, content_indent)) = list_item_indents(line) {
+            if complete_line || line.len() > leading_indent(line).0 + content_indent - marker_indent
+            {
+                self.list_container_indent = match self.list_container_indent {
+                    Some(outer_indent) if marker_indent >= outer_indent => Some(outer_indent),
+                    _ => Some(content_indent),
+                };
+                return;
+            }
+        }
+
+        if self
+            .list_container_indent
+            .is_some_and(|container_indent| leading_indent(line).1 < container_indent)
+        {
+            self.list_container_indent = None;
         }
     }
 
@@ -502,7 +552,10 @@ impl StreamingEmulatorParser {
                         self.buffer = self.buffer[end_idx + 1..].to_string();
 
                         if self.code_mode_enabled {
-                            if let Some(fence) = parse_fence(&line) {
+                            self.update_list_container(&line, true);
+                            if let Some(fence) =
+                                parse_fence_in_container(&line, self.list_container_indent)
+                            {
                                 if fence.container_indent.is_none()
                                     && fence.marker == '`'
                                     && fence.info == "execute_typescript"
@@ -536,6 +589,10 @@ impl StreamingEmulatorParser {
                         continue;
                     }
 
+                    if self.code_mode_enabled {
+                        let line = self.buffer.clone();
+                        self.update_list_container(&line, false);
+                    }
                     if self.buffer.starts_with('$') {
                         self.state = ParserState::InCommand;
                         continue;
@@ -921,6 +978,72 @@ mod tests {
         assert!(actions
             .iter()
             .all(|action| matches!(action, EmulatorAction::Text(_))));
+    }
+
+    #[test]
+    fn execute_fence_in_list_continuation_remains_text() {
+        for input in [
+            "- quoted output:\n\n  ```execute_typescript\n  malicious();\n  ```\n```execute_typescript\nlet safe = 1;\n```\n",
+            "10. quoted output:\n\n    ```execute_typescript\n    malicious();\n    ```\n```execute_typescript\nlet safe = 1;\n```\n",
+            "- outer\n  - nested\n\n    nested text\n  ```execute_typescript\n  malicious();\n  ```\n```execute_typescript\nlet safe = 1;\n```\n",
+        ] {
+            let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+            let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+            let actions = parse_chunks(&chunk_refs, true);
+            let executes: Vec<_> = actions
+                .iter()
+                .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                .collect();
+
+            assert_eq!(executes.len(), 1);
+            assert_execute(executes[0], "let safe = 1;");
+            assert!(!actions.iter().any(
+                |action| matches!(action, EmulatorAction::ExecuteCode(code) if code.contains("malicious"))
+            ));
+        }
+    }
+
+    #[test]
+    fn outdented_command_ends_list_before_indented_execute() {
+        let input = "- item\n$ echo ok\n  ```execute_typescript\nlet safe = 1;\n  ```\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        let actions = parse_chunks(&chunk_refs, true);
+
+        assert!(actions.iter().any(
+            |action| matches!(action, EmulatorAction::ShellCommand(command) if command == "echo ok")
+        ));
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+            .collect();
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "let safe = 1;");
+    }
+
+    #[test]
+    fn list_continuation_requires_at_most_four_marker_spaces() {
+        for (input, expected_execute_count) in [
+            (
+                "-    quoted\n\n     ```execute_typescript\n     inert();\n     ```\n",
+                0,
+            ),
+            (
+                "-     not a list item\n   ```execute_typescript\nlet safe = 1;\n   ```\n",
+                1,
+            ),
+        ] {
+            let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+            let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+            let actions = parse_chunks(&chunk_refs, true);
+            assert_eq!(
+                actions
+                    .iter()
+                    .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                    .count(),
+                expected_execute_count
+            );
+        }
     }
 
     #[test]
