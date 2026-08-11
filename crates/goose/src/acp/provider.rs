@@ -8,11 +8,11 @@ use agent_client_protocol::schema::v1::{
     ContentBlock, ContentChunk, EnvVariable, HttpHeader, ImageContent, InitializeRequest,
     InitializeResponse, LoadSessionRequest, McpCapabilities, McpServer, McpServerHttp,
     McpServerStdio, NewSessionRequest, NewSessionResponse, PromptRequest, PromptResponse,
-    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse, Role as AcpRole,
-    SessionConfigKind, SessionConfigOption, SessionConfigOptionCategory,
-    SessionConfigSelectOptions, SessionId, SessionModeState, SessionNotification, SessionUpdate,
-    SetSessionConfigOptionRequest, SetSessionModeRequest, SetSessionModeResponse, StopReason,
-    TextContent, ToolCallContent, ToolCallStatus, ToolKind,
+    RequestId as AcpRequestId, RequestPermissionOutcome, RequestPermissionRequest,
+    RequestPermissionResponse, Role as AcpRole, SessionConfigKind, SessionConfigOption,
+    SessionConfigOptionCategory, SessionConfigSelectOptions, SessionId, SessionModeState,
+    SessionNotification, SessionUpdate, SetSessionConfigOptionRequest, SetSessionModeRequest,
+    SetSessionModeResponse, StopReason, TextContent, ToolCallContent, ToolCallStatus, ToolKind,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
@@ -36,6 +36,7 @@ use tokio::io::AsyncReadExt;
 use tokio::process::{Child, Command};
 use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex};
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
+use tokio_util::sync::CancellationToken;
 
 use crate::acp::{map_permission_response, PermissionDecision};
 use crate::config::{ExtensionConfig, GooseMode};
@@ -97,6 +98,7 @@ enum ClientRequest {
         session_id: SessionId,
         content: Vec<ContentBlock>,
         assistant_message_boundary_pending: Arc<AtomicBool>,
+        cancellation: CancellationToken,
         response_tx: oneshot::Sender<Result<ClaudeSteeringResponse>>,
     },
     Prompt {
@@ -135,6 +137,7 @@ enum AcpUpdate {
     },
     PermissionRequest {
         request: Box<RequestPermissionRequest>,
+        generation: u64,
         response_tx: oneshot::Sender<RequestPermissionResponse>,
     },
     Complete(StopReason, Option<AcpUsage>),
@@ -196,6 +199,7 @@ pub struct AcpProvider {
 
     pending_confirmations:
         Arc<TokioMutex<HashMap<String, oneshot::Sender<PermissionConfirmation>>>>,
+    steer_generation: Arc<AtomicU64>,
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
     handoff_context_sent: AtomicBool,
     /// Latest `size` reported by the ACP server in a `session/update` →
@@ -288,6 +292,8 @@ impl AcpProvider {
                 .map(|(_, value)| value.clone())
         });
         let goose_mode_shared = Arc::new(Mutex::new(goose_mode));
+        let pending_confirmations = Arc::new(TokioMutex::new(HashMap::new()));
+        let steer_generation = Arc::new(AtomicU64::new(0));
         let pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>> =
             Arc::new(Mutex::new(HashMap::new()));
         let context_size = Arc::new(AtomicU64::new(0));
@@ -295,6 +301,8 @@ impl AcpProvider {
         let client_loop = AcpClientLoop::new(
             config,
             goose_mode_shared.clone(),
+            pending_confirmations.clone(),
+            steer_generation.clone(),
             pending_tool_updates.clone(),
             context_size.clone(),
             session_title_publisher.clone(),
@@ -330,7 +338,8 @@ impl AcpProvider {
             goose_mode: goose_mode_shared,
             mode_mapping,
             session: Mutex::new(session),
-            pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
+            pending_confirmations,
+            steer_generation,
             pending_tool_updates,
             handoff_context_sent: AtomicBool::new(false),
             context_size,
@@ -408,6 +417,8 @@ impl AcpProvider {
         content: Vec<ContentBlock>,
     ) -> Result<ClaudeSteeringResponse> {
         let (response_tx, response_rx) = oneshot::channel();
+        let cancellation = CancellationToken::new();
+        let cancel_on_drop = cancellation.clone().drop_guard();
         self.tx
             .as_ref()
             .unwrap()
@@ -417,28 +428,14 @@ impl AcpProvider {
                 assistant_message_boundary_pending: Arc::clone(
                     &self.assistant_message_boundary_pending,
                 ),
+                cancellation,
                 response_tx,
             })
             .await
             .context("ACP client is unavailable")?;
-        response_rx.await.context("ACP request cancelled")?
-    }
-
-    async fn cancel_pending_permissions(&self) {
-        let pending = {
-            let mut pending = self.pending_confirmations.lock().await;
-            pending
-                .drain()
-                .map(|(_, response_tx)| response_tx)
-                .collect::<Vec<_>>()
-        };
-        let cancellation = PermissionConfirmation {
-            principal_type: PrincipalType::Tool,
-            permission: Permission::Cancel,
-        };
-        for response_tx in pending {
-            let _ = response_tx.send(cancellation.clone());
-        }
+        let response = response_rx.await.context("ACP request cancelled")?;
+        cancel_on_drop.disarm();
+        response
     }
 
     /// Re-apply the model selection config option when the active session model
@@ -571,11 +568,7 @@ impl Provider for AcpProvider {
             .await
             .map_err(|error| ProviderError::RequestFailed(error.to_string()))?;
 
-        let delivered = claude_steering::delivery_confirmed(&response);
-        if delivered {
-            self.cancel_pending_permissions().await;
-        }
-        Ok(delivered)
+        Ok(claude_steering::delivery_confirmed(&response))
     }
 
     async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
@@ -686,6 +679,7 @@ impl Provider for AcpProvider {
         };
 
         let pending_confirmations = self.pending_confirmations.clone();
+        let steer_generation = self.steer_generation.clone();
         let goose_mode = *self
             .goose_mode
             .lock()
@@ -796,39 +790,59 @@ impl Provider for AcpProvider {
                             yield (Some(message), None);
                         }
                     }
-                    AcpUpdate::PermissionRequest { request, response_tx } => {
+                    AcpUpdate::PermissionRequest {
+                        request,
+                        generation,
+                        response_tx,
+                    } => {
                         text_run = None;
                         thought_run = None;
-                        if let Some(decision) = permission_decision_from_mode(goose_mode) {
-                            if decision.should_record_rejection() {
-                                rejected_tool_calls.insert(request.tool_call.tool_call_id.0.to_string());
-                            }
-                            let _ = response_tx.send(map_permission_response(&request, decision));
-                            continue;
-                        }
-
                         let request_id = request.tool_call.tool_call_id.0.to_string();
-                        let (tx, rx) = oneshot::channel();
+                        let awaited_confirmation = {
+                            let mut pending = pending_confirmations.lock().await;
+                            let immediate_decision =
+                                if generation < steer_generation.load(Ordering::Acquire) {
+                                    Some(PermissionDecision::Cancel)
+                                } else {
+                                    permission_decision_from_mode(goose_mode)
+                                };
+                            match immediate_decision {
+                                Some(decision) => Err(decision),
+                                None => {
+                                    let (confirmation_tx, confirmation_rx) = oneshot::channel();
+                                    pending.insert(request_id.clone(), confirmation_tx);
+                                    Ok(confirmation_rx)
+                                }
+                            }
+                        };
 
-                        pending_confirmations
-                            .lock()
-                            .await
-                            .insert(request_id.clone(), tx);
+                        let confirmation_rx = match awaited_confirmation {
+                            Ok(confirmation_rx) => confirmation_rx,
+                            Err(decision) => {
+                                if decision.should_record_rejection() {
+                                    rejected_tool_calls.insert(request_id);
+                                }
+                                let _ =
+                                    response_tx.send(map_permission_response(&request, decision));
+                                continue;
+                            }
+                        };
 
                         if let Some(action_required) = build_action_required_message(&request) {
                             yield (Some(action_required), None);
                         }
 
-                        let confirmation = rx.await.unwrap_or(PermissionConfirmation {
-                            principal_type: PrincipalType::Tool,
-                            permission: Permission::Cancel,
-                        });
+                        let confirmation =
+                            confirmation_rx.await.unwrap_or(PermissionConfirmation {
+                                principal_type: PrincipalType::Tool,
+                                permission: Permission::Cancel,
+                            });
 
                         pending_confirmations.lock().await.remove(&request_id);
 
                         let decision = PermissionDecision::from(confirmation.permission);
                         if decision.should_record_rejection() {
-                            rejected_tool_calls.insert(request.tool_call.tool_call_id.0.to_string());
+                            rejected_tool_calls.insert(request_id);
                         }
                         let _ = response_tx.send(map_permission_response(&request, decision));
                     }
@@ -876,6 +890,9 @@ struct AcpClientLoop {
     config: AcpProviderConfig,
     goose_mode: Arc<Mutex<GooseMode>>,
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
+    pending_confirmations:
+        Arc<TokioMutex<HashMap<String, oneshot::Sender<PermissionConfirmation>>>>,
+    steer_generation: Arc<AtomicU64>,
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
     context_size: Arc<AtomicU64>,
     session_title_publisher: SessionTitlePublisher,
@@ -885,6 +902,10 @@ impl AcpClientLoop {
     fn new(
         config: AcpProviderConfig,
         goose_mode: Arc<Mutex<GooseMode>>,
+        pending_confirmations: Arc<
+            TokioMutex<HashMap<String, oneshot::Sender<PermissionConfirmation>>>,
+        >,
+        steer_generation: Arc<AtomicU64>,
         pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
         context_size: Arc<AtomicU64>,
         session_title_publisher: SessionTitlePublisher,
@@ -893,6 +914,8 @@ impl AcpClientLoop {
             config,
             goose_mode,
             prompt_response_tx: Arc::new(Mutex::new(None)),
+            pending_confirmations,
+            steer_generation,
             pending_tool_updates,
             context_size,
             session_title_publisher,
@@ -948,12 +971,15 @@ impl AcpClientLoop {
             config,
             goose_mode,
             prompt_response_tx,
+            pending_confirmations,
+            steer_generation,
             pending_tool_updates,
             context_size,
             session_title_publisher,
         } = self;
         let notification_callback = config.notification_callback.clone();
         let reverse_modes = reverse_mode_mapping(&config.mode_mapping);
+        let prompt_turn_lock = Arc::new(TokioMutex::new(()));
 
         Client
             .builder()
@@ -1134,7 +1160,8 @@ impl AcpClientLoop {
             .on_receive_request(
                 {
                     let prompt_response_tx = prompt_response_tx.clone();
-                    async move |request: RequestPermissionRequest, responder, _connection_cx| {
+                    let steer_generation = steer_generation.clone();
+                    async move |request: RequestPermissionRequest, responder, connection_cx| {
                         let (response_tx, response_rx) = oneshot::channel();
 
                         let handler = prompt_response_tx
@@ -1151,20 +1178,34 @@ impl AcpClientLoop {
 
                         tx.try_send(AcpUpdate::PermissionRequest {
                             request: Box::new(request),
+                            generation: steer_generation.load(Ordering::Acquire),
                             response_tx,
                         })
                         .map_err(|_| agent_client_protocol::Error::internal_error())?;
 
-                        let response = response_rx.await.unwrap_or_else(|_| {
-                            RequestPermissionResponse::new(RequestPermissionOutcome::Cancelled)
-                        });
-                        responder.respond(response)
+                        connection_cx.spawn(async move {
+                            let response = response_rx.await.unwrap_or_else(|_| {
+                                RequestPermissionResponse::new(RequestPermissionOutcome::Cancelled)
+                            });
+                            responder.respond(response)
+                        })
                     }
                 },
                 agent_client_protocol::on_receive_request!(),
             )
             .connect_with(transport, async move |cx: ConnectionTo<Agent>| {
-                handle_requests(config, goose_mode, cx, rx, prompt_response_tx, init_tx).await
+                handle_requests(
+                    config,
+                    goose_mode,
+                    cx,
+                    rx,
+                    prompt_response_tx,
+                    prompt_turn_lock,
+                    pending_confirmations,
+                    steer_generation,
+                    init_tx,
+                )
+                .await
             })
             .await?;
 
@@ -1242,13 +1283,44 @@ fn log_undelivered<E: std::fmt::Debug>(result: Result<(), E>, method: &str) {
     }
 }
 
+async fn invalidate_pending_permissions(
+    pending_confirmations: &TokioMutex<HashMap<String, oneshot::Sender<PermissionConfirmation>>>,
+    steer_generation: &AtomicU64,
+) {
+    let pending = {
+        let mut pending = pending_confirmations.lock().await;
+        steer_generation.fetch_add(1, Ordering::AcqRel);
+        pending
+            .drain()
+            .map(|(_, response_tx)| response_tx)
+            .collect::<Vec<_>>()
+    };
+    let cancellation = PermissionConfirmation {
+        principal_type: PrincipalType::Tool,
+        permission: Permission::Cancel,
+    };
+    for response_tx in pending {
+        let _ = response_tx.send(cancellation.clone());
+    }
+}
+
 async fn run_prompt_request(
     cx: ConnectionTo<Agent>,
     session_id: SessionId,
     content: Vec<ContentBlock>,
     response_tx: mpsc::Sender<AcpUpdate>,
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
+    prompt_turn_lock: Arc<TokioMutex<()>>,
 ) -> Result<(), agent_client_protocol::Error> {
+    let _prompt_turn = tokio::select! {
+        prompt_turn = prompt_turn_lock.lock() => prompt_turn,
+        _ = response_tx.closed() => return Ok(()),
+    };
+    if response_tx.is_closed() {
+        return Ok(());
+    }
+    *prompt_response_tx.lock().unwrap() = Some(response_tx.clone());
+
     let prompt = cx
         .send_request(PromptRequest::new(session_id.clone(), content))
         .block_task();
@@ -1288,12 +1360,18 @@ async fn run_prompt_request(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn handle_requests(
     config: AcpProviderConfig,
     goose_mode: Arc<Mutex<GooseMode>>,
     cx: ConnectionTo<Agent>,
     rx: &mut mpsc::Receiver<ClientRequest>,
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
+    prompt_turn_lock: Arc<TokioMutex<()>>,
+    pending_confirmations: Arc<
+        TokioMutex<HashMap<String, oneshot::Sender<PermissionConfirmation>>>,
+    >,
+    steer_generation: Arc<AtomicU64>,
     init_tx: oneshot::Sender<Result<InitializeResponse>>,
 ) -> Result<(), agent_client_protocol::Error> {
     let mut init_tx = Some(init_tx);
@@ -1436,58 +1514,78 @@ async fn handle_requests(
                 session_id,
                 content,
                 assistant_message_boundary_pending,
-                mut response_tx,
+                cancellation,
+                response_tx,
             } => {
-                let request = cx
-                    .send_request(ClaudeSteeringRequest::new(session_id, content))
-                    .block_task();
-                tokio::pin!(request);
-                let result: Result<ClaudeSteeringResponse> = tokio::select! {
-                    biased;
-                    result = &mut request => result.map_err(anyhow::Error::from),
-                    _ = response_tx.closed() => continue,
+                let request = cx.send_request(ClaudeSteeringRequest::new(session_id, content));
+                let request_id: AcpRequestId = match serde_json::from_value(request.id()) {
+                    Ok(request_id) => request_id,
+                    Err(error) => {
+                        log_undelivered(
+                            response_tx.send(Err(anyhow::Error::from(error))),
+                            "_session/steering",
+                        );
+                        continue;
+                    }
                 };
-                if result
-                    .as_ref()
-                    .is_ok_and(claude_steering::delivery_confirmed)
-                {
-                    assistant_message_boundary_pending.store(true, Ordering::Release);
-                }
-                log_undelivered(response_tx.send(result), "_session/steering");
+                let response_complete = CancellationToken::new();
+                cx.spawn({
+                    let cx = cx.clone();
+                    let cancellation = cancellation.clone();
+                    let response_complete = response_complete.clone();
+                    async move {
+                        tokio::select! {
+                            biased;
+                            _ = response_complete.cancelled() => {}
+                            _ = cancellation.cancelled() => {
+                                if let Err(error) = cx.send_cancel_request(request_id) {
+                                    tracing::debug!(
+                                        method = "_session/steering",
+                                        %error,
+                                        "failed to cancel abandoned ACP steering request"
+                                    );
+                                }
+                            }
+                        }
+                        Ok(())
+                    }
+                })?;
+
+                let pending_confirmations = pending_confirmations.clone();
+                let steer_generation = steer_generation.clone();
+                request.on_receiving_result(async move |result| {
+                    response_complete.cancel();
+                    if cancellation.is_cancelled() {
+                        return Ok(());
+                    }
+
+                    let result = result.map_err(anyhow::Error::from);
+                    if result
+                        .as_ref()
+                        .is_ok_and(claude_steering::delivery_confirmed)
+                    {
+                        invalidate_pending_permissions(&pending_confirmations, &steer_generation)
+                            .await;
+                        assistant_message_boundary_pending.store(true, Ordering::Release);
+                    }
+                    log_undelivered(response_tx.send(result), "_session/steering");
+                    Ok(())
+                })?;
             }
             ClientRequest::Prompt {
                 session_id,
                 content,
                 response_tx,
             } => {
-                let prompt_already_active = {
-                    let mut active_prompt_tx = prompt_response_tx.lock().unwrap();
-                    if active_prompt_tx.is_some() {
-                        true
-                    } else {
-                        *active_prompt_tx = Some(response_tx.clone());
-                        false
-                    }
-                };
-                if prompt_already_active {
-                    log_undelivered(
-                        response_tx.try_send(AcpUpdate::Error(
-                            "ACP prompt already in progress".to_string(),
-                        )),
-                        AGENT_METHOD_NAMES.session_prompt,
-                    );
-                    continue;
-                }
-
                 let prompt_task = run_prompt_request(
                     cx.clone(),
                     session_id,
                     content,
                     response_tx.clone(),
                     prompt_response_tx.clone(),
+                    prompt_turn_lock.clone(),
                 );
                 if let Err(error) = cx.spawn(prompt_task) {
-                    *prompt_response_tx.lock().unwrap() = None;
                     log_undelivered(
                         response_tx.try_send(AcpUpdate::Error(error.to_string())),
                         AGENT_METHOD_NAMES.session_prompt,
@@ -2034,6 +2132,7 @@ mod tests {
                     response: NewSessionResponse::new("test-session"),
                 }),
                 pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
+                steer_generation: Arc::new(AtomicU64::new(0)),
                 pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
                 handoff_context_sent: AtomicBool::new(false),
                 context_size: Arc::new(AtomicU64::new(0)),

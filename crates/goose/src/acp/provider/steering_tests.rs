@@ -1,5 +1,8 @@
 use super::*;
-use agent_client_protocol::schema::v1::Implementation;
+use agent_client_protocol::schema::v1::{
+    Implementation, PermissionOption, PermissionOptionKind, ToolCallId, ToolCallUpdate,
+    ToolCallUpdateFields,
+};
 use futures::StreamExt;
 use std::sync::atomic::AtomicUsize;
 use std::time::Duration;
@@ -39,6 +42,20 @@ fn supported_initialize_response(
         .meta(meta)
 }
 
+fn permission_request(tool_call_id: &str) -> RequestPermissionRequest {
+    RequestPermissionRequest::new(
+        ACP_SESSION_ID,
+        ToolCallUpdate::new(
+            ToolCallId::new(tool_call_id),
+            ToolCallUpdateFields::default(),
+        ),
+        vec![
+            PermissionOption::new("allow", "Allow", PermissionOptionKind::AllowOnce),
+            PermissionOption::new("reject", "Reject", PermissionOptionKind::RejectOnce),
+        ],
+    )
+}
+
 macro_rules! test_agent {
     ($adapter_version:expr) => {{
         let adapter_version = $adapter_version.to_string();
@@ -63,9 +80,17 @@ async fn connect_provider(
     provider_name: &str,
     transport: impl agent_client_protocol::ConnectTo<Client> + 'static,
 ) -> AcpProvider {
+    connect_provider_in_mode(provider_name, GooseMode::Auto, transport).await
+}
+
+async fn connect_provider_in_mode(
+    provider_name: &str,
+    goose_mode: GooseMode,
+    transport: impl agent_client_protocol::ConnectTo<Client> + 'static,
+) -> AcpProvider {
     AcpProvider::connect_with_transport(
         provider_name.to_string(),
-        GooseMode::Auto,
+        goose_mode,
         test_config(),
         transport,
     )
@@ -105,7 +130,7 @@ async fn connect_test_provider(
 
 struct PromptTestHarness {
     provider: AcpProvider,
-    prompt_started: mpsc::UnboundedReceiver<()>,
+    prompt_started: mpsc::UnboundedReceiver<String>,
     cancellations: mpsc::UnboundedReceiver<CancelNotification>,
     prompt_responded: mpsc::UnboundedReceiver<()>,
     release_prompt: Arc<Notify>,
@@ -123,10 +148,18 @@ async fn connect_prompt_test_provider(
         .on_receive_request(
             {
                 let release_prompt = Arc::clone(&release_prompt);
-                async move |_request: PromptRequest, responder, cx| {
+                async move |request: PromptRequest, responder, cx| {
                     let release_prompt = Arc::clone(&release_prompt);
                     let prompt_responded_tx = prompt_responded_tx.clone();
-                    prompt_started_tx.send(()).unwrap();
+                    let prompt_text = request
+                        .prompt
+                        .iter()
+                        .find_map(|content| match content {
+                            ContentBlock::Text(text) => Some(text.text.clone()),
+                            _ => None,
+                        })
+                        .unwrap_or_default();
+                    prompt_started_tx.send(prompt_text).unwrap();
                     let prompt_cx = cx.clone();
                     cx.spawn(async move {
                         release_prompt.notified().await;
@@ -184,6 +217,7 @@ fn boundary_test_provider() -> (Arc<AcpProvider>, mpsc::Receiver<ClientRequest>)
             response: NewSessionResponse::new(ACP_SESSION_ID),
         }),
         pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
+        steer_generation: Arc::new(AtomicU64::new(0)),
         pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
         handoff_context_sent: AtomicBool::new(false),
         context_size: Arc::new(AtomicU64::new(0)),
@@ -295,48 +329,149 @@ async fn injected_response_confirms_delivery_and_message_boundary() {
 
 #[tokio::test]
 async fn injected_steer_cancels_permissions_that_arrive_while_delivery_is_pending() {
-    timeout(TEST_TIMEOUT, async {
-        let (provider, mut requests) = boundary_test_provider();
-        let (before_tx, before_rx) = oneshot::channel();
-        provider
-            .pending_confirmations
-            .lock()
-            .await
-            .insert("before-steer".to_string(), before_tx);
+    let (permission_started_tx, mut permission_started_rx) = mpsc::unbounded_channel();
+    let (permission_cancelled_tx, mut permission_cancelled_rx) = mpsc::unbounded_channel();
+    let release_prompt = Arc::new(Notify::new());
+    let agent = test_agent!("0.65.0")
+        .on_receive_request(
+            {
+                let release_prompt = Arc::clone(&release_prompt);
+                async move |_request: PromptRequest, responder, cx| {
+                    let permission_started_tx = permission_started_tx.clone();
+                    let permission_cancelled_tx = permission_cancelled_tx.clone();
+                    let release_prompt = Arc::clone(&release_prompt);
+                    for tool_call_id in ["tool-1", "tool-2"] {
+                        let permission_started_tx = permission_started_tx.clone();
+                        let permission_cancelled_tx = permission_cancelled_tx.clone();
+                        let permission_cx = cx.clone();
+                        cx.spawn(async move {
+                            let request =
+                                permission_cx.send_request(permission_request(tool_call_id));
+                            permission_started_tx.send(()).unwrap();
+                            let response = request.block_task().await?;
+                            permission_cancelled_tx
+                                .send(matches!(
+                                    response.outcome,
+                                    RequestPermissionOutcome::Cancelled
+                                ))
+                                .unwrap();
+                            Ok(())
+                        })?;
+                    }
 
-        let steer = tokio::spawn({
-            let provider = provider.clone();
-            async move {
-                provider
-                    .steer_natively(
-                        "goose-session",
-                        &Message::user().with_text("focus on the tests"),
-                    )
-                    .await
+                    cx.spawn(async move {
+                        release_prompt.notified().await;
+                        responder.respond(PromptResponse::new(StopReason::EndTurn))
+                    })
+                }
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
+        .on_receive_request(
+            async |_request: ClaudeSteeringRequest, responder, _cx| {
+                responder.respond(ClaudeSteeringResponse::Injected)
+            },
+            agent_client_protocol::on_receive_request!(),
+        );
+
+    let provider =
+        connect_provider_in_mode(CLAUDE_ACP_PROVIDER_NAME, GooseMode::Approve, agent).await;
+    let model = ModelConfig::new("test-model");
+    let prompt = Message::user().with_text("start a long task");
+    let mut stream = provider.stream(&model, "", &[prompt], &[]).await.unwrap();
+    let (action_required_tx, mut action_required_rx) = mpsc::unbounded_channel();
+    let drain_stream = tokio::spawn(async move {
+        while let Some(update) = stream.next().await {
+            if update?.0.is_some() {
+                let _ = action_required_tx.send(());
             }
-        });
-        let response_tx = match requests.recv().await.expect("steering request") {
-            ClientRequest::ClaudeSteer { response_tx, .. } => response_tx,
-            _ => panic!("expected steering request"),
-        };
+        }
+        Ok::<_, ProviderError>(())
+    });
 
-        let (during_tx, during_rx) = oneshot::channel();
-        provider
-            .pending_confirmations
-            .lock()
-            .await
-            .insert("during-steer".to_string(), during_tx);
-        response_tx
-            .send(Ok(ClaudeSteeringResponse::Injected))
-            .unwrap();
+    receive(&mut permission_started_rx, "first permission should start").await;
+    receive(&mut permission_started_rx, "second permission should start").await;
+    receive(
+        &mut action_required_rx,
+        "permission confirmation should be registered",
+    )
+    .await;
+    assert_eq!(provider.pending_confirmations.lock().await.len(), 1);
+    assert!(provider
+        .steer_natively(
+            "goose-session",
+            &Message::user().with_text("focus on the tests"),
+        )
+        .await
+        .unwrap());
 
-        assert!(steer.await.unwrap().unwrap());
-        assert_eq!(before_rx.await.unwrap().permission, Permission::Cancel);
-        assert_eq!(during_rx.await.unwrap().permission, Permission::Cancel);
-        assert!(provider.pending_confirmations.lock().await.is_empty());
-    })
-    .await
-    .expect("permission cancellation after steering should settle");
+    assert!(
+        receive(
+            &mut permission_cancelled_rx,
+            "first permission should cancel"
+        )
+        .await
+    );
+    assert!(
+        receive(
+            &mut permission_cancelled_rx,
+            "second permission should cancel"
+        )
+        .await
+    );
+    assert!(provider.pending_confirmations.lock().await.is_empty());
+
+    release_prompt.notify_one();
+    timeout(TEST_TIMEOUT, drain_stream)
+        .await
+        .expect("prompt stream should finish")
+        .unwrap()
+        .unwrap();
+}
+
+#[tokio::test]
+async fn stale_permission_marks_the_tool_call_rejected() {
+    let (provider, _requests, response_tx, mut stream) = start_boundary_test_stream().await;
+    provider.steer_generation.store(1, Ordering::Release);
+    let (permission_response_tx, permission_response_rx) = oneshot::channel();
+    response_tx
+        .send(AcpUpdate::PermissionRequest {
+            request: Box::new(permission_request("tool-1")),
+            generation: 0,
+            response_tx: permission_response_tx,
+        })
+        .await
+        .unwrap();
+    response_tx
+        .send(AcpUpdate::ToolCallComplete {
+            id: "tool-1".to_string(),
+            raw_output: None,
+            content: None,
+            is_error: false,
+        })
+        .await
+        .unwrap();
+
+    let denial = timeout(TEST_TIMEOUT, stream.next())
+        .await
+        .expect("rejected tool call should produce a response")
+        .expect("stream should remain open")
+        .expect("tool-call response should succeed")
+        .0
+        .expect("tool-call response should contain a message");
+    assert_eq!(
+        denial
+            .content
+            .first()
+            .and_then(|content| content.as_tool_response_text())
+            .as_deref(),
+        Some("Tool call was denied.")
+    );
+    let permission_response = permission_response_rx.await.unwrap();
+    assert!(matches!(
+        permission_response.outcome,
+        RequestPermissionOutcome::Cancelled
+    ));
 }
 
 #[tokio::test]
@@ -513,14 +648,9 @@ async fn steering_completes_while_original_prompt_remains_active() {
         .stream(&model, "", std::slice::from_ref(&prompt), &[])
         .await
         .unwrap();
-    let second_result = timeout(TEST_TIMEOUT, second_stream.next())
-        .await
-        .expect("second prompt should be rejected")
-        .expect("second prompt should produce an error");
     assert!(matches!(
-        second_result,
-        Err(ProviderError::RequestFailed(message))
-            if message == "ACP prompt already in progress"
+        prompt_started.try_recv(),
+        Err(mpsc::error::TryRecvError::Empty)
     ));
     assert!(provider
         .assistant_message_boundary_pending
@@ -542,6 +672,72 @@ async fn steering_completes_while_original_prompt_remains_active() {
     assert!(timeout(TEST_TIMEOUT, original_stream.next())
         .await
         .expect("original stream should finish")
+        .is_none());
+
+    receive(&mut prompt_started, "queued prompt should start").await;
+    release_prompt.notify_one();
+    receive(&mut prompt_responded, "queued prompt should respond").await;
+    let queued_update = timeout(TEST_TIMEOUT, second_stream.next())
+        .await
+        .expect("queued prompt should receive its update")
+        .expect("queued prompt stream should remain open")
+        .expect("queued prompt update should succeed")
+        .0
+        .expect("queued prompt update should contain a message");
+    assert_eq!(queued_update.as_concat_text(), "original prompt update");
+    assert!(timeout(TEST_TIMEOUT, second_stream.next())
+        .await
+        .expect("queued prompt should finish")
+        .is_none());
+}
+
+#[tokio::test]
+async fn cancelled_queued_prompt_is_not_sent() {
+    let PromptTestHarness {
+        provider,
+        mut prompt_started,
+        cancellations: _cancellations,
+        mut prompt_responded,
+        release_prompt,
+    } = connect_prompt_test_provider("test-acp", None).await;
+    let model = ModelConfig::new("test-model");
+    let first_prompt = Message::user().with_text("first prompt");
+    let mut original_stream = provider
+        .stream(&model, "", std::slice::from_ref(&first_prompt), &[])
+        .await
+        .unwrap();
+
+    assert_eq!(
+        receive(&mut prompt_started, "prompt should start").await,
+        "first prompt"
+    );
+    let cancelled_prompt = Message::user().with_text("cancelled prompt");
+    let queued_stream = provider
+        .stream(&model, "", std::slice::from_ref(&cancelled_prompt), &[])
+        .await
+        .unwrap();
+    drop(queued_stream);
+    let final_prompt = Message::user().with_text("final prompt");
+    let mut final_stream = provider
+        .stream(&model, "", std::slice::from_ref(&final_prompt), &[])
+        .await
+        .unwrap();
+
+    release_prompt.notify_one();
+    receive(&mut prompt_responded, "prompt should respond after release").await;
+    assert!(timeout(TEST_TIMEOUT, original_stream.next())
+        .await
+        .expect("original prompt should finish")
+        .is_none());
+    assert_eq!(
+        receive(&mut prompt_started, "final prompt should start").await,
+        "final prompt"
+    );
+    release_prompt.notify_one();
+    receive(&mut prompt_responded, "final prompt should respond").await;
+    assert!(timeout(TEST_TIMEOUT, final_stream.next())
+        .await
+        .expect("final prompt should finish")
         .is_none());
 }
 
