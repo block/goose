@@ -1,6 +1,6 @@
 STDIN: {"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{"extensions":{"io.modelcontextprotocol/ui":{"mimeTypes":["text/html;profile=mcp-app"]}},"roots":{},"sampling":{},"elicitation":{}},"clientInfo":{"name":"goose-desktop","version":"0.0.0"}}}
 STDERR: warning: The `native-tls` setting is deprecated and will be removed in a future release. Use `system-certs` instead.
-STDERR: /Users/jackamadeo/.cache/uv/archive-v0/qVA6xesA-RY1n0SG/lib/python3.14/site-packages/fastmcp/server/auth/providers/jwt.py:10: AuthlibDeprecationWarning: authlib.jose module is deprecated, please use joserfc instead.
+STDERR: /Users/jackamadeo/.cache/uv/archive-v0/al1Eg6tdenSv08iE/lib/python3.14/site-packages/fastmcp/server/auth/providers/jwt.py:10: AuthlibDeprecationWarning: authlib.jose module is deprecated, please use joserfc instead.
 STDERR: It will be compatible before version 2.0.0.
 STDERR:   from authlib.jose import JsonWebKey, JsonWebToken
 STDERR: 
@@ -25,14 +25,14 @@ STDERR: │                          ✨ FastMCP 3.0 is coming!                 
 STDERR: │       Pin `fastmcp < 3` in production, then upgrade when you're ready.       │
 STDERR: ╰──────────────────────────────────────────────────────────────────────────────╯
 STDERR: ╭──────────────────────────────────────────────────────────────────────────────╮
-STDERR: │                          🎉 Update available: 3.4.5                          │
+STDERR: │                          🎉 Update available: 3.4.7                          │
 STDERR: │                      Run: pip install --upgrade fastmcp                      │
 STDERR: ╰──────────────────────────────────────────────────────────────────────────────╯
 STDERR: 
 STDERR: 
-STDERR: [07/29/26 10:52:55] INFO     Starting MCP server 'mymcp' with     server.py:2506
+STDERR: [08/11/26 10:56:02] INFO     Starting MCP server 'mymcp' with     server.py:2506
 STDERR:                              transport 'stdio'                                  
-STDERR: /Users/jackamadeo/.cache/uv/archive-v0/qVA6xesA-RY1n0SG/lib/python3.14/site-packages/redis/asyncio/connection.py:1628: DeprecationWarning: FakeConnection is deprecated. Use FakeAsyncRedisConnection instead
+STDERR: /Users/jackamadeo/.cache/uv/archive-v0/al1Eg6tdenSv08iE/lib/python3.14/site-packages/redis/asyncio/connection.py:2861: DeprecationWarning: FakeConnection is deprecated. Use FakeAsyncRedisConnection instead
 STDERR:   return self.connection_class(**self.connection_kwargs)
 STDOUT: {"jsonrpc":"2.0","id":0,"result":{"protocolVersion":"2025-11-25","capabilities":{"experimental":{},"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"tools":{"listChanged":true},"tasks":{"list":{},"cancel":{},"requests":{"tools":{"call":{}},"prompts":{"get":{}},"resources":{"read":{}}}}},"serverInfo":{"name":"mymcp","version":"2.14.4"}}}
 STDIN: {"jsonrpc":"2.0","method":"notifications/initialized"}
