@@ -1000,6 +1000,8 @@ mod tests {
                 "python_m_word_mcp_2".to_string()
             ]
         );
+    }
+
     fn test_config(temp_dir: &TempDir) -> Config {
         Config::new_with_file_secrets(
             temp_dir.path().join("config.yaml"),
