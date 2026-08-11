@@ -261,6 +261,14 @@ impl RequestLog {
 fn create_and_restrict_request_log_state_directory(
     state_dir: &std::path::Path,
 ) -> Result<std::fs::File> {
+    create_and_restrict_request_log_state_directory_with_hook(state_dir, || {})
+}
+
+#[cfg(unix)]
+fn create_and_restrict_request_log_state_directory_with_hook(
+    state_dir: &std::path::Path,
+    after_entry_metadata: impl FnOnce(),
+) -> Result<std::fs::File> {
     use std::ffi::CString;
     use std::io::{Error, ErrorKind};
     use std::os::fd::{AsRawFd, FromRawFd};
@@ -335,6 +343,8 @@ fn create_and_restrict_request_log_state_directory(
         .into());
     }
 
+    after_entry_metadata();
+
     let flags = directory_search_flags()
         | if entry_is_symlink {
             0
@@ -349,6 +359,15 @@ fn create_and_restrict_request_log_state_directory(
     // SAFETY: openat returned a new owned descriptor.
     let state_directory = unsafe { std::fs::File::from_raw_fd(state_fd) };
     let metadata = state_directory.metadata()?;
+    if !entry_is_symlink
+        && (metadata.dev() != entry.st_dev as u64 || metadata.ino() != entry.st_ino as u64)
+    {
+        return Err(Error::new(
+            ErrorKind::PermissionDenied,
+            "request log state directory changed before it was opened",
+        )
+        .into());
+    }
     let current_uid = current_effective_uid();
     let should_restrict = request_log_state_directory_needs_restriction(
         metadata.uid(),
@@ -1586,6 +1605,33 @@ mod tests {
             std::fs::metadata(state_dir).unwrap().permissions().mode() & 0o777,
             0o700
         );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn request_log_state_directory_replacement_before_open_is_rejected() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = tempfile::tempdir().unwrap();
+        let state_dir = root.path().join("state");
+        let moved_state_dir = root.path().join("moved-state");
+        let replacement = root.path().join("replacement");
+        std::fs::create_dir(&state_dir).unwrap();
+        std::fs::create_dir(&replacement).unwrap();
+        std::fs::set_permissions(&replacement, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let result = create_and_restrict_request_log_state_directory_with_hook(&state_dir, || {
+            std::fs::rename(&state_dir, &moved_state_dir).unwrap();
+            std::fs::rename(&replacement, &state_dir).unwrap();
+        });
+
+        assert!(result.is_err());
+        assert!(moved_state_dir.is_dir());
+        assert_eq!(
+            std::fs::metadata(&state_dir).unwrap().permissions().mode() & 0o777,
+            0o755
+        );
+        assert!(!state_dir.join("logs").exists());
     }
 
     #[test]
