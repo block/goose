@@ -1704,7 +1704,6 @@ impl Agent {
         let inference = Arc::new(InferenceRunner::new(
             provider,
             model_config,
-            Arc::clone(&self.config.session_manager),
             steering_queue,
             self.extension_manager.clone(),
             &self.current_goose_mode,

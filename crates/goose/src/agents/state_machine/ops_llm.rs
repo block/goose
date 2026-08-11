@@ -14,10 +14,10 @@ use crate::agents::steering::{
 };
 use crate::agents::{AgentEvent, ExtensionManager, PromptManager};
 use crate::config::GooseMode;
-use crate::conversation::message::{InferenceMetadata, Message, MessageContent, MessageUsage};
+use crate::conversation::message::{InferenceMetadata, Message, MessageContent};
 use crate::conversation::{effective_role, Conversation, EffectiveRole};
 use crate::providers::base::{Provider, ProviderUsage};
-use crate::session::{Session, SessionManager};
+use crate::session::Session;
 use crate::tool_inspection::ToolInspectionManager;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -131,7 +131,6 @@ pub(super) fn record_chat_usage(span: &tracing::Span, usage: &ProviderUsage) {
 pub struct InferenceRunner<'a> {
     provider: Arc<dyn Provider>,
     model_config: ModelConfig,
-    session_manager: Arc<SessionManager>,
     steering_queue: Arc<SteeringQueue>,
     #[cfg(feature = "code-mode")]
     extension_manager: Arc<ExtensionManager>,
@@ -191,7 +190,6 @@ impl<'a> InferenceRunner<'a> {
     pub fn new(
         provider: Arc<dyn Provider>,
         model_config: ModelConfig,
-        session_manager: Arc<SessionManager>,
         steering_queue: Arc<SteeringQueue>,
         #[cfg(feature = "code-mode")] extension_manager: Arc<ExtensionManager>,
         #[cfg(not(feature = "code-mode"))] _extension_manager: Arc<ExtensionManager>,
@@ -203,7 +201,6 @@ impl<'a> InferenceRunner<'a> {
         Self {
             provider,
             model_config,
-            session_manager,
             steering_queue,
             #[cfg(feature = "code-mode")]
             extension_manager,
@@ -222,36 +219,6 @@ impl<'a> InferenceRunner<'a> {
         let message = Message::from_provider_error(err);
         let message = emit.message(message).await;
         vec![message.into()]
-    }
-
-    async fn persist_message_usage(
-        &self,
-        session: &Session,
-        message: &Message,
-        usage: &ProviderUsage,
-        emit: &Emitter,
-    ) -> Result<()> {
-        let message_id = message
-            .id
-            .as_deref()
-            .ok_or_else(|| anyhow!("persisted assistant message has no id"))?;
-        let usage = crate::agents::state_machine::usage::enrich_provider_usage(session, usage);
-        let message_usage = MessageUsage::from_provider_usage(&usage, false);
-        let persisted_usage = message_usage.clone();
-        self.session_manager
-            .update_message_metadata(&session.id, message_id, move |mut metadata| {
-                metadata.usage = Some(Box::new(persisted_usage));
-                metadata
-            })
-            .await?;
-        if !message.user_visible_content().content.is_empty() {
-            emit.emit(AgentEvent::MessageUsage {
-                message_id: message.id.clone(),
-                usage: message_usage,
-            })
-            .await;
-        }
-        Ok(())
     }
 }
 
@@ -529,15 +496,12 @@ impl Inference for InferenceRunner<'_> {
                 turn_start,
             )
             .filter(|event| Some(event.as_concat_text()) != last_turn_context);
-            if let Some(event) = turn_context {
-                let event = event.with_generated_id_if_missing();
-                self.session_manager
-                    .add_message(&session.id, &event)
-                    .await?;
-                messages_for_provider.push(event);
+            if let Some(event) = &turn_context {
+                messages_for_provider.push(event.clone());
             }
             let conversation_for_provider = Conversation::new_unvalidated(messages_for_provider);
-            let mut usage_effects = Vec::new();
+            let mut effects: Vec<StateEffect> =
+                turn_context.into_iter().map(StateEffect::from).collect();
 
             let stream = crate::agents::reply_parts::stream_response_from_provider(
                 self.provider.clone(),
@@ -553,8 +517,8 @@ impl Inference for InferenceRunner<'_> {
             let stream = match stream {
                 Ok(stream) => stream,
                 Err(err) => {
-                    usage_effects.extend(self.error_outcome(&err, emit).await);
-                    return applied(usage_effects);
+                    effects.extend(self.error_outcome(&err, emit).await);
+                    return applied(effects);
                 }
             };
             let mut stream = ProviderStreamCoordinator::new(
@@ -582,7 +546,7 @@ impl Inference for InferenceRunner<'_> {
             let mut accumulator = Conversation::empty();
             let mut tool_request_ids = std::collections::HashSet::new();
             let mut native_steer_delivered = false;
-            let mut last_flushed_assistant = None;
+            let mut last_assistant_before_steer = None;
             loop {
                 let Some(event) = stream.next_event(emit.cancel_token()).await else {
                     break;
@@ -592,34 +556,15 @@ impl Inference for InferenceRunner<'_> {
                         let (msg_opt, usage_opt) = match result {
                             Ok(chunk) => chunk,
                             Err(err) => {
-                                let has_unflushed_assistant = accumulator.iter().any(|message| {
-                                    message.role == rmcp::model::Role::Assistant
-                                        && message.error_kind().is_none()
-                                });
-                                if !has_unflushed_assistant {
-                                    if let (Some(message), Some(usage)) = (
-                                        last_flushed_assistant.as_ref(),
-                                        usage_effects.iter().rev().find_map(
-                                            |effect| match effect {
-                                                StateEffect::RecordUsage(usage) => Some(usage),
-                                                _ => None,
-                                            },
-                                        ),
-                                    ) {
-                                        self.persist_message_usage(session, message, usage, emit)
-                                            .await?;
-                                    }
-                                }
-                                usage_effects
-                                    .extend(accumulator.into_iter().map(StateEffect::from));
-                                usage_effects.extend(self.error_outcome(&err, emit).await);
-                                return applied(usage_effects);
+                                effects.extend(accumulator.into_iter().map(StateEffect::from));
+                                effects.extend(self.error_outcome(&err, emit).await);
+                                return applied(effects);
                             }
                         };
                         if let Some(usage) = usage_opt {
                             let span = tracing::Span::current();
                             record_chat_usage(&span, &usage);
-                            usage_effects.push(StateEffect::RecordUsage(usage));
+                            effects.push(StateEffect::RecordUsage(usage));
                         }
                         if let Some(mut chunk) = msg_opt {
                             if let Some(inference) = &inference {
@@ -649,35 +594,29 @@ impl Inference for InferenceRunner<'_> {
                         if is_empty_provider_response(&accumulator) {
                             accumulator = Conversation::empty();
                         } else {
-                            let flushed =
+                            let output_before_steer =
                                 std::mem::replace(&mut accumulator, Conversation::empty());
-                            for message in flushed {
+                            for message in output_before_steer {
                                 let message = message.with_generated_id_if_missing();
                                 if message.role == rmcp::model::Role::Assistant
                                     && message.error_kind().is_none()
                                 {
-                                    last_flushed_assistant = Some(message.clone());
+                                    last_assistant_before_steer = Some(message.clone());
                                 }
-                                self.session_manager
-                                    .add_message(&session.id, &message)
-                                    .await?;
+                                effects.push(message.into());
                             }
                         }
 
                         if let Some(response) = cancelled_tool_response {
                             let response = response.with_generated_id_if_missing();
-                            self.session_manager
-                                .add_message(&session.id, &response)
-                                .await?;
-                            emit.emit(AgentEvent::Message(response)).await;
+                            emit.emit(AgentEvent::Message(response.clone())).await;
+                            effects.push(response.into());
                         }
 
                         mark_native_steer_delivered(&mut message);
                         let message = message.with_generated_id_if_missing();
-                        self.session_manager
-                            .add_message(&session.id, &message)
-                            .await?;
-                        emit.emit(AgentEvent::Message(message)).await;
+                        emit.emit(AgentEvent::Message(message.clone())).await;
+                        effects.push(message.into());
                         native_steer_delivered = true;
                     }
                 }
@@ -687,14 +626,14 @@ impl Inference for InferenceRunner<'_> {
             if empty_response && !native_steer_delivered {
                 let message = Message::assistant().with_text(EMPTY_RESPONSE_MESSAGE);
                 let message = emit.message(message).await;
-                usage_effects.push(message.into());
-                return yielded_with(usage_effects);
+                effects.push(message.into());
+                return yielded_with(effects);
             }
             if empty_response {
                 accumulator = Conversation::empty();
             }
 
-            let has_recorded_usage = usage_effects
+            let has_recorded_usage = effects
                 .iter()
                 .any(|effect| matches!(effect, StateEffect::RecordUsage(_)));
             if !has_recorded_usage {
@@ -702,7 +641,8 @@ impl Inference for InferenceRunner<'_> {
                     self.model_config.model_name.clone(),
                     goose_providers::conversation::token_usage::Usage::default(),
                 );
-                if let Some(response) = accumulator.last().or(last_flushed_assistant.as_ref()) {
+                if let Some(response) = accumulator.last().or(last_assistant_before_steer.as_ref())
+                {
                     crate::providers::usage_estimator::ensure_usage_tokens(
                         &mut usage,
                         &system_prompt,
@@ -712,28 +652,12 @@ impl Inference for InferenceRunner<'_> {
                     )
                     .await?;
                     record_chat_usage(&tracing::Span::current(), &usage);
-                    usage_effects.push(StateEffect::RecordUsage(usage));
+                    effects.push(StateEffect::RecordUsage(usage));
                 }
             }
 
-            let has_unflushed_assistant = accumulator.iter().any(|message| {
-                message.role == rmcp::model::Role::Assistant && message.error_kind().is_none()
-            });
-            if !has_unflushed_assistant {
-                if let (Some(message), Some(usage)) = (
-                    last_flushed_assistant.as_ref(),
-                    usage_effects.iter().rev().find_map(|effect| match effect {
-                        StateEffect::RecordUsage(usage) => Some(usage),
-                        _ => None,
-                    }),
-                ) {
-                    self.persist_message_usage(session, message, usage, emit)
-                        .await?;
-                }
-            }
-
-            usage_effects.extend(accumulator.into_iter().map(Into::into));
-            applied(usage_effects)
+            effects.extend(accumulator.into_iter().map(Into::into));
+            applied(effects)
         }
         .instrument(span)
         .await
