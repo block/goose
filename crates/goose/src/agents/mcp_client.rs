@@ -15,7 +15,6 @@ use rmcp::model::{
     ElicitationAction, ErrorCode, ExtensionCapabilities, Extensions, JsonObject, MetaObject,
 };
 use rmcp::{
-    ClientHandler, ErrorData, Peer, RoleClient, ServiceError, ServiceExt,
     model::{
         CallToolRequestParams, CallToolResult, CancelledNotificationParam, ClientCapabilities,
         ClientInfo, ClientRequest, GetPromptRequestParams, GetPromptResult, Implementation,
@@ -29,6 +28,7 @@ use rmcp::{
         ServiceRole,
     },
     transport::IntoTransport,
+    ClientHandler, ErrorData, Peer, RoleClient, ServiceError, ServiceExt,
 };
 use serde_json::Value;
 use std::{
@@ -38,8 +38,8 @@ use std::{
     time::Duration,
 };
 use tokio::sync::{
-    Mutex,
     mpsc::{self, Sender},
+    Mutex,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -1164,8 +1164,8 @@ mod tests {
             None
         );
     }
-    use crate::agents::GoosePlatform;
     use crate::agents::extension::ExtensionConfig;
+    use crate::agents::GoosePlatform;
     use rmcp::model::Tool;
     use serde_json::json;
     use std::sync::atomic::{AtomicUsize, Ordering};
