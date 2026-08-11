@@ -150,6 +150,7 @@ pub(crate) struct StreamingEmulatorParser {
     code_mode_enabled: bool,
     at_line_start: bool,
     list_container_indent: Option<usize>,
+    empty_list_item_indent: Option<usize>,
 }
 
 struct Fence<'a> {
@@ -240,7 +241,37 @@ fn list_marker_width(line: &str) -> Option<usize> {
 }
 
 #[allow(clippy::string_slice)]
+fn empty_list_item_indents(line: &str) -> Option<(usize, usize)> {
+    let line = line.strip_suffix('\r').unwrap_or(line);
+    let (indent_bytes, marker_indent) = leading_indent(line);
+    if marker_indent > 3 {
+        return None;
+    }
+    let rest = &line[indent_bytes..];
+    let bytes = rest.as_bytes();
+    let marker_end = match bytes.first()? {
+        b'-' | b'+' | b'*' => 1,
+        byte if byte.is_ascii_digit() => {
+            let digits = bytes
+                .iter()
+                .take_while(|byte| byte.is_ascii_digit())
+                .count();
+            if digits > 9 || !matches!(bytes.get(digits), Some(b'.' | b')')) {
+                return None;
+            }
+            digits + 1
+        }
+        _ => return None,
+    };
+    rest[marker_end..]
+        .chars()
+        .all(|ch| ch == ' ' || ch == '\t')
+        .then_some((marker_indent, marker_indent + marker_end + 1))
+}
+
+#[allow(clippy::string_slice)]
 fn is_list_thematic_break_candidate(line: &str) -> bool {
+    let line = line.strip_suffix('\r').unwrap_or(line);
     let (indent_bytes, marker_indent) = leading_indent(line);
     if marker_indent > 3 {
         return false;
@@ -263,6 +294,7 @@ fn is_list_thematic_break(line: &str) -> bool {
 
 #[allow(clippy::string_slice)]
 fn list_item_indents(line: &str) -> Option<(usize, usize)> {
+    let line = line.strip_suffix('\r').unwrap_or(line);
     if is_list_thematic_break(line) {
         return None;
     }
@@ -383,6 +415,7 @@ fn could_be_control_line(
                 || "$".starts_with(rest)
                 || rest.starts_with('`')
                 || rest.starts_with('~')
+                || empty_list_item_indents(line).is_some()
                 || is_list_thematic_break_candidate(line)
                 || could_be_list_fence(rest)
         }
@@ -435,12 +468,30 @@ impl StreamingEmulatorParser {
             code_mode_enabled,
             at_line_start: true,
             list_container_indent: None,
+            empty_list_item_indent: None,
         }
     }
 
     fn update_list_container(&mut self, line: &str, complete_line: bool) {
         if line.trim().is_empty() {
+            if complete_line {
+                if self.empty_list_item_indent == self.list_container_indent {
+                    self.list_container_indent = None;
+                }
+                self.empty_list_item_indent = None;
+            }
             return;
+        }
+
+        if complete_line {
+            if let Some((marker_indent, content_indent)) = empty_list_item_indents(line) {
+                self.list_container_indent = match self.list_container_indent {
+                    Some(outer_indent) if marker_indent >= outer_indent => Some(outer_indent),
+                    _ => Some(content_indent),
+                };
+                self.empty_list_item_indent = Some(content_indent);
+                return;
+            }
         }
 
         if let Some((marker_indent, content_indent)) = list_item_indents(line) {
@@ -450,7 +501,15 @@ impl StreamingEmulatorParser {
                     Some(outer_indent) if marker_indent >= outer_indent => Some(outer_indent),
                     _ => Some(content_indent),
                 };
+                self.empty_list_item_indent = None;
                 return;
+            }
+        }
+
+        if let Some(empty_indent) = self.empty_list_item_indent.take() {
+            let line_indent = leading_indent(line).1;
+            if line_indent < empty_indent && self.list_container_indent == Some(empty_indent) {
+                self.list_container_indent = None;
             }
         }
 
@@ -1087,6 +1146,49 @@ mod tests {
             assert_eq!(executes.len(), 1);
             assert_execute(executes[0], "let safe = 1;");
         }
+    }
+
+    #[test]
+    fn empty_list_item_keeps_indented_execute_inert() {
+        for (marker, indent) in [
+            ("-", "  "),
+            ("-   ", "  "),
+            ("-\t", "  "),
+            ("2)", "   "),
+            ("10.   ", "    "),
+        ] {
+            let input = format!(
+                "{marker}\n{indent}```execute_typescript\n{indent}malicious();\n{indent}```\n```execute_typescript\nlet safe = 1;\n```\n"
+            );
+            let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+            let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+            let actions = parse_chunks(&chunk_refs, true);
+            let executes: Vec<_> = actions
+                .iter()
+                .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                .collect();
+
+            assert_eq!(executes.len(), 1);
+            assert_execute(executes[0], "let safe = 1;");
+            assert!(!actions.iter().any(
+                |action| matches!(action, EmulatorAction::ExecuteCode(code) if code.contains("malicious"))
+            ));
+        }
+    }
+
+    #[test]
+    fn second_blank_line_ends_empty_list_item() {
+        let input = "-\n\n  ```execute_typescript\nlet safe = 1;\n  ```\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        let actions = parse_chunks(&chunk_refs, true);
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+            .collect();
+
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "let safe = 1;");
     }
 
     #[test]

@@ -659,6 +659,25 @@ mod tests {
     }
 
     #[test]
+    fn empty_list_item_keeps_indented_execute_inert() {
+        for (marker, indent) in [("-", "  "), ("10.   ", "    ")] {
+            let input = format!(
+                "{marker}\n{indent}```execute_typescript\n{indent}malicious();\n{indent}```\n```execute_typescript\nlet safe = 1;\n```\n"
+            );
+            let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+            let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+            let actions = parse_chunks(&chunk_refs, true);
+            let executes: Vec<_> = actions
+                .iter()
+                .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                .collect();
+
+            assert_eq!(executes.len(), 1);
+            assert_execute(executes[0], "let safe = 1;");
+        }
+    }
+
+    #[test]
     fn longer_top_level_execute_fence_is_recognized() {
         let input = "````execute_typescript\nlet x = 1;\n````\n";
         let actions = parse_all(input, true);
