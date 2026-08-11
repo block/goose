@@ -827,6 +827,24 @@
       "required": false
     }
   ]
-}
-
+},
+  {
+    "id": "resemble-detect",
+    "name": "Resemble Detect",
+    "description": "Detect AI-generated audio, image, and video, trace synthetic audio to its source platform, and apply or verify invisible watermarks",
+    "url": "https://mcp.resemble.ai/mcp",
+    "link": "https://github.com/resemble-ai/resemble-mcp",
+    "installation_notes": "This is a remote extension that requires a Resemble AI API key from https://app.resemble.ai/account/api as a Request Header e.g Authorization: Bearer <YOUR_RESEMBLE_API_KEY>.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [],
+    "headers": [
+      {
+        "name": "Authorization",
+        "description": "Bearer <YOUR_RESEMBLE_API_KEY>",
+        "required": true
+      }
+    ],
+    "type": "streamable-http"
+  }
 ]
