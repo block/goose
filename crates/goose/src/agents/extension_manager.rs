@@ -1291,18 +1291,6 @@ impl ExtensionManager {
         }
     }
 
-    pub async fn get_extension_and_tool_counts(&self, session_id: &str) -> (usize, usize) {
-        let enabled_extensions_count = self.extensions.lock().await.len();
-
-        let total_tools = self
-            .get_prefixed_tools(session_id, None)
-            .await
-            .map(|tools| tools.len())
-            .unwrap_or(0);
-
-        (enabled_extensions_count, total_tools)
-    }
-
     pub async fn list_extensions(&self) -> ExtensionResult<Vec<String>> {
         Ok(self.extensions.lock().await.keys().cloned().collect())
     }

@@ -448,6 +448,86 @@ impl HookManager {
         }
     }
 
+    /// Like [`Self::emit`], but collects banner lines from hook stdout.
+    ///
+    /// If a hook exits successfully and its stdout contains valid JSON with a
+    /// `"banner"` field, that string is collected. Multiple hooks can each
+    /// contribute banner lines. Non-JSON stdout or missing `"banner"` field
+    /// is silently ignored (backwards compatible).
+    pub async fn emit_collecting_banners(&self, event: HookEvent, ctx: HookContext) -> Vec<String> {
+        let mut banners = Vec::new();
+        let Some(rules) = self.rules.get(&event) else {
+            return banners;
+        };
+        if rules.is_empty() {
+            return banners;
+        }
+
+        let payload = match serde_json::to_string(&ctx) {
+            Ok(s) => s,
+            Err(err) => {
+                warn!(event = %event, error = %err, "Failed to serialize hook context");
+                return banners;
+            }
+        };
+
+        for rule in rules {
+            if let Some(matcher) = &rule.matcher {
+                let target = ctx.matcher_context.as_deref().unwrap_or("");
+                if !matcher.is_match(target) {
+                    continue;
+                }
+            }
+
+            for action in &rule.actions {
+                let LoadedAction::Command { command, timeout } = action;
+                debug!(
+                    plugin = %rule.plugin_name,
+                    event = %event,
+                    command = %command,
+                    "Running plugin hook (banner-collecting)",
+                );
+                match run_command_hook(
+                    command,
+                    &rule.plugin_root,
+                    &payload,
+                    *timeout,
+                    self.use_login_shell_path,
+                )
+                .await
+                {
+                    Ok(output) if output.status.success() => {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        if let Some(banner) = extract_banner(stdout.trim()) {
+                            banners.push(banner);
+                        }
+                    }
+                    Ok(output) => {
+                        warn!(
+                            plugin = %rule.plugin_name,
+                            event = %event,
+                            command = %command,
+                            "hook exited with {:?}: {}",
+                            output.status.code(),
+                            String::from_utf8_lossy(&output.stderr).trim(),
+                        );
+                    }
+                    Err(err) => {
+                        warn!(
+                            plugin = %rule.plugin_name,
+                            event = %event,
+                            command = %command,
+                            error = %err,
+                            "Plugin hook failed",
+                        );
+                    }
+                }
+            }
+        }
+
+        banners
+    }
+
     /// Like [`Self::emit`], but stops at the first rule that denies the event
     /// and returns the denial. A hook denies by exiting with status code 2
     /// (reason on stderr) or by printing `{"decision":"block","reason":"..."}`
@@ -511,6 +591,20 @@ impl HookManager {
 
         HookDecision::Allow
     }
+}
+
+fn extract_banner(stdout: &str) -> Option<String> {
+    if !stdout.starts_with('{') {
+        return None;
+    }
+
+    #[derive(Deserialize)]
+    struct BannerResp {
+        banner: Option<String>,
+    }
+
+    let parsed: BannerResp = serde_json::from_str(stdout).ok()?;
+    parsed.banner.filter(|b| !b.is_empty())
 }
 
 fn deny_reason(output: &std::process::Output) -> Option<String> {
@@ -954,5 +1048,71 @@ mod tests {
         )
         .await;
         assert!(marker.exists());
+    }
+
+    #[test]
+    fn extract_banner_from_json() {
+        assert_eq!(
+            extract_banner(r#"{"banner":"  🌱 hello"}"#),
+            Some("  🌱 hello".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_banner_ignores_non_json() {
+        assert_eq!(extract_banner("just some text"), None);
+    }
+
+    #[test]
+    fn extract_banner_ignores_json_without_banner_field() {
+        assert_eq!(extract_banner(r#"{"decision":"allow"}"#), None);
+    }
+
+    #[test]
+    fn extract_banner_ignores_empty_banner() {
+        assert_eq!(extract_banner(r#"{"banner":""}"#), None);
+    }
+
+    #[tokio::test]
+    async fn emit_collecting_banners_returns_banner_lines() {
+        let tmp = tempfile::tempdir().unwrap();
+        let hooks = r#"{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"printf '{\"banner\":\"  🌱 test banner\"}'" }]}]}}"#;
+        let root = write_plugin(tmp.path(), "p", hooks);
+        let mgr = make_manager(vec![DiscoveredPlugin {
+            name: "p".into(),
+            root,
+            scope: PluginScope::User,
+        }]);
+
+        let banners = mgr
+            .emit_collecting_banners(
+                HookEvent::SessionStart,
+                HookContext::new(HookEvent::SessionStart, "s"),
+            )
+            .await;
+
+        assert_eq!(banners, vec!["  🌱 test banner"]);
+    }
+
+    #[tokio::test]
+    async fn emit_collecting_banners_skips_non_json_output() {
+        let tmp = tempfile::tempdir().unwrap();
+        let hooks =
+            r#"{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"echo hello"}]}]}}"#;
+        let root = write_plugin(tmp.path(), "p", hooks);
+        let mgr = make_manager(vec![DiscoveredPlugin {
+            name: "p".into(),
+            root,
+            scope: PluginScope::User,
+        }]);
+
+        let banners = mgr
+            .emit_collecting_banners(
+                HookEvent::SessionStart,
+                HookContext::new(HookEvent::SessionStart, "s"),
+            )
+            .await;
+
+        assert!(banners.is_empty());
     }
 }

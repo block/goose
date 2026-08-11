@@ -22,8 +22,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 const SHELL_TEST_CONTENT: &str = "test-shell-content-98765";
-const TURN_CONTEXT_OPEN: &str = r#"\n<turn-context>"#;
-const OPENAI_SESSION_NAME_RESPONSE: &str = r#"data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1766229303,"model":"gpt-5-nano","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+pub const TURN_CONTEXT_OPEN: &str = r#"\n<turn-context>"#;
+/// Session name produced by `OPENAI_SESSION_NAME_RESPONSE`.
+pub const GENERATED_SESSION_TITLE: &str = "Generated Test Title";
+pub const OPENAI_SESSION_NAME_RESPONSE: &str = r#"data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1766229303,"model":"gpt-5-nano","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
 
 data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1766229303,"model":"gpt-5-nano","choices":[{"index":0,"delta":{"content":"Generated Test Title"},"finish_reason":null}]}
 
@@ -157,7 +159,7 @@ pub async fn run_session_name_update_notification<C: Connection>() {
             _ => None,
         })
         .expect("expected generated session name notification");
-    assert_eq!(update.0.as_deref(), Some("Generated Test Title"));
+    assert_eq!(update.0.as_deref(), Some(GENERATED_SESSION_TITLE));
     assert!(update.1.is_some());
     assert!(update.2.unwrap_or_default() >= 1);
     assert_eq!(*update.3, Some(false));

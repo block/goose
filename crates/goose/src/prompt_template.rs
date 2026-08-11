@@ -64,6 +64,13 @@ pub struct Template {
     pub is_customized: bool,
 }
 
+fn builtin_content(name: &str) -> Option<String> {
+    CORE_PROMPTS_DIR
+        .get_file(name)
+        .map(|file| String::from_utf8_lossy(file.contents()).to_string())
+        .or_else(|| goose_context_management::templates::builtin_template(name))
+}
+
 fn user_prompts_dir() -> PathBuf {
     Paths::config_dir().join("prompts")
 }
@@ -121,24 +128,39 @@ pub fn render_template<T: Serialize>(name: &str, context: &T) -> Result<String, 
             )
         })?
     } else {
-        let file = CORE_PROMPTS_DIR.get_file(name).ok_or_else(|| {
+        builtin_content(name).ok_or_else(|| {
             MiniJinjaError::new(
                 minijinja::ErrorKind::TemplateNotFound,
                 format!("Built-in template '{}' not found", name),
             )
-        })?;
-        String::from_utf8_lossy(file.contents()).to_string()
+        })?
     };
 
     render_string(&template_str, context)
 }
 
+pub fn template_source(name: &str) -> Result<String, MiniJinjaError> {
+    let user_path = user_prompts_dir().join(name);
+    if user_path.exists() {
+        return std::fs::read_to_string(&user_path).map_err(|e| {
+            MiniJinjaError::new(
+                minijinja::ErrorKind::InvalidOperation,
+                format!("Failed to read user template: {}", e),
+            )
+        });
+    }
+    builtin_content(name).ok_or_else(|| {
+        MiniJinjaError::new(
+            minijinja::ErrorKind::TemplateNotFound,
+            format!("Built-in template '{}' not found", name),
+        )
+    })
+}
+
 pub fn get_template(name: &str) -> Option<Template> {
     let (_, description) = TEMPLATE_REGISTRY.iter().find(|(n, _)| *n == name)?;
 
-    let default_content = CORE_PROMPTS_DIR
-        .get_file(name)
-        .map(|file| String::from_utf8_lossy(file.contents()).to_string())?;
+    let default_content = builtin_content(name)?;
 
     let user_path = user_prompts_dir().join(name);
     let user_content = if user_path.exists() {
@@ -193,9 +215,7 @@ pub fn list_templates() -> Vec<Template> {
     TEMPLATE_REGISTRY
         .iter()
         .filter_map(|(name, description)| {
-            let default_content = CORE_PROMPTS_DIR
-                .get_file(name)
-                .map(|file| String::from_utf8_lossy(file.contents()).to_string())?;
+            let default_content = builtin_content(name)?;
 
             let user_path = user_prompts_dir().join(name);
             let user_content = if user_path.exists() {

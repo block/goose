@@ -205,8 +205,6 @@ impl Agent {
             .extension_manager
             .get_extensions_info(working_dir)
             .await;
-        let (extension_count, tool_count) = self.total_extension_and_tool_counts(session_id).await;
-
         let model_config = self.model_config_for_session(session_id).await?;
 
         let goose_mode = *self.current_goose_mode.lock().await;
@@ -220,7 +218,6 @@ impl Agent {
             .builder()
             .with_extensions(extensions_info.into_iter())
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
-            .with_extension_and_tool_counts(extension_count, tool_count)
             .with_code_execution_mode(code_execution_active)
             .with_hints(working_dir)
             .with_goose_mode(goose_mode)
@@ -361,6 +358,7 @@ pub(crate) async fn stream_response_from_provider(
 
     // Clone owned data to move into the async stream
     let system_prompt = system_prompt.to_owned();
+    let session_id = session_id.to_owned();
     let tools = tools.to_owned();
     let toolshim_tools = toolshim_tools.to_owned();
     let provider = provider.clone();
@@ -372,7 +370,7 @@ pub(crate) async fn stream_response_from_provider(
     let request_started = std::time::Instant::now();
     debug!("WAITING_LLM_STREAM_START");
     let stream_result = crate::session_context::with_session_id(
-        Some(session_id.to_string()),
+        Some(session_id.clone()),
         provider.stream(
             &model_config,
             system_prompt.as_str(),
@@ -397,6 +395,66 @@ pub(crate) async fn stream_response_from_provider(
     };
 
     Ok(Box::pin(try_stream! {
+        if !provider.manages_own_context() {
+            let retry_config = provider.retry_config().transient_only();
+            let mut attempts = 0;
+
+            loop {
+                match stream.next().await {
+                    None => break,
+                    Some(Ok(item)) => {
+                        stream = Box::pin(
+                            futures::stream::once(std::future::ready(Ok(item))).chain(stream),
+                        );
+                        break;
+                    }
+                    Some(Err(error))
+                        if goose_providers::retry::should_retry(&error, &retry_config)
+                            && attempts < retry_config.max_retries =>
+                    {
+                        attempts += 1;
+                        let delay = match &error {
+                            ProviderError::RateLimitExceeded {
+                                retry_delay: Some(provider_delay),
+                                ..
+                            } => *provider_delay,
+                            _ => retry_config.delay_for_attempt(attempts),
+                        };
+                        warn!(
+                            "Provider stream failed before its first item, retrying ({}/{}): {:?}",
+                            attempts, retry_config.max_retries, error
+                        );
+
+                        let skip_backoff = std::env::var("GOOSE_PROVIDER_SKIP_BACKOFF")
+                            .unwrap_or_default()
+                            .parse::<bool>()
+                            .unwrap_or(false);
+                        if !skip_backoff {
+                            tokio::time::sleep(delay).await;
+                        }
+
+                        stream = match crate::session_context::with_session_id(
+                            Some(session_id.clone()),
+                            provider.stream(
+                                &model_config,
+                                system_prompt.as_str(),
+                                messages_for_provider.messages(),
+                                &tools,
+                            ),
+                        )
+                        .await
+                        {
+                            Ok(stream) => stream,
+                            Err(error) => {
+                                Err(enhance_model_error(error, &provider, config.toolshim).await)?
+                            }
+                        };
+                    }
+                    Some(Err(error)) => Err(error)?,
+                }
+            }
+        }
+
         if config.toolshim {
             // Toolshim mode: accumulate the full response before processing
             // so that tool-use markers spanning multiple chunks are detected
@@ -1788,5 +1846,220 @@ mod tests {
             "no content chunk observed means no TTFT"
         );
         assert!(stats.elapsed_ms.expect("elapsed_ms must be filled") >= 100);
+    }
+
+    type TestStreamItem = Result<(Option<Message>, Option<ProviderUsage>), ProviderError>;
+
+    struct SequencedProvider {
+        responses: Mutex<std::collections::VecDeque<Result<Vec<TestStreamItem>, ProviderError>>>,
+        calls: Arc<std::sync::atomic::AtomicUsize>,
+        manages_context: bool,
+    }
+
+    impl SequencedProvider {
+        fn new(responses: Vec<Result<Vec<TestStreamItem>, ProviderError>>) -> Self {
+            Self {
+                responses: Mutex::new(responses.into()),
+                calls: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+                manages_context: false,
+            }
+        }
+
+        fn managing_context(mut self) -> Self {
+            self.manages_context = true;
+            self
+        }
+    }
+
+    #[async_trait]
+    impl Provider for SequencedProvider {
+        fn get_name(&self) -> &str {
+            "sequenced"
+        }
+
+        fn retry_config(&self) -> goose_providers::retry::RetryConfig {
+            goose_providers::retry::RetryConfig::new(2, 0, 1.0, 0)
+        }
+
+        fn manages_own_context(&self) -> bool {
+            self.manages_context
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let response = self.responses.lock().unwrap().pop_front().unwrap();
+            response.map(|items| Box::pin(futures::stream::iter(items)) as MessageStream)
+        }
+    }
+
+    fn successful_item() -> TestStreamItem {
+        Ok((Some(Message::assistant().with_text("ok")), None))
+    }
+
+    fn transient_error() -> ProviderError {
+        ProviderError::NetworkError("stream closed".into())
+    }
+
+    async fn stream_for_test(provider: Arc<dyn Provider>) -> MessageStream {
+        stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model"),
+            "session",
+            "system",
+            &[Message::user().with_text("hi")],
+            &[],
+            &[],
+        )
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn first_item_transient_error_retries() {
+        let provider = Arc::new(SequencedProvider::new(vec![
+            Ok(vec![Err(transient_error())]),
+            Ok(vec![successful_item()]),
+        ]));
+        let calls = provider.calls.clone();
+        let mut stream = stream_for_test(provider).await;
+
+        assert_eq!(
+            stream
+                .next()
+                .await
+                .unwrap()
+                .unwrap()
+                .0
+                .unwrap()
+                .as_concat_text(),
+            "ok"
+        );
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn first_item_non_transient_error_does_not_retry() {
+        let provider = Arc::new(SequencedProvider::new(vec![Ok(vec![Err(
+            ProviderError::ContextLengthExceeded("too long".into()),
+        )])]));
+        let calls = provider.calls.clone();
+        let mut stream = stream_for_test(provider).await;
+
+        assert!(matches!(
+            stream.next().await.unwrap(),
+            Err(ProviderError::ContextLengthExceeded(_))
+        ));
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn first_item_retry_exhaustion_returns_last_error() {
+        let provider = Arc::new(SequencedProvider::new(vec![
+            Ok(vec![Err(transient_error())]),
+            Ok(vec![Err(transient_error())]),
+            Ok(vec![Err(transient_error())]),
+        ]));
+        let calls = provider.calls.clone();
+        let mut stream = stream_for_test(provider).await;
+
+        assert!(matches!(
+            stream.next().await.unwrap(),
+            Err(ProviderError::NetworkError(_))
+        ));
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 3);
+    }
+
+    #[tokio::test]
+    async fn provider_managing_context_does_not_retry() {
+        let provider = Arc::new(
+            SequencedProvider::new(vec![Ok(vec![Err(transient_error())])]).managing_context(),
+        );
+        let calls = provider.calls.clone();
+        let mut stream = stream_for_test(provider).await;
+
+        assert!(matches!(
+            stream.next().await.unwrap(),
+            Err(ProviderError::NetworkError(_))
+        ));
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn replacement_stream_creation_error_does_not_retry() {
+        let provider = Arc::new(SequencedProvider::new(vec![
+            Ok(vec![Err(transient_error())]),
+            Err(ProviderError::ServerError("unavailable".into())),
+        ]));
+        let calls = provider.calls.clone();
+        let mut stream = stream_for_test(provider).await;
+
+        assert!(matches!(
+            stream.next().await.unwrap(),
+            Err(ProviderError::ServerError(_))
+        ));
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn error_after_first_item_does_not_retry() {
+        let provider = Arc::new(SequencedProvider::new(vec![Ok(vec![
+            successful_item(),
+            Err(transient_error()),
+        ])]));
+        let calls = provider.calls.clone();
+        let mut stream = stream_for_test(provider).await;
+
+        assert!(stream.next().await.unwrap().is_ok());
+        assert!(matches!(
+            stream.next().await.unwrap(),
+            Err(ProviderError::NetworkError(_))
+        ));
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn empty_stream_is_not_retried() {
+        let provider = Arc::new(SequencedProvider::new(vec![Ok(vec![])]));
+        let calls = provider.calls.clone();
+        let mut stream = stream_for_test(provider).await;
+
+        assert!(stream.next().await.is_none());
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    struct PendingProvider;
+
+    #[async_trait]
+    impl Provider for PendingProvider {
+        fn get_name(&self) -> &str {
+            "pending"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            Ok(Box::pin(futures::stream::pending()))
+        }
+    }
+
+    #[tokio::test]
+    async fn pending_first_item_does_not_block_stream_creation() {
+        let result = tokio::time::timeout(
+            Duration::from_secs(1),
+            stream_for_test(Arc::new(PendingProvider)),
+        )
+        .await;
+
+        assert!(result.is_ok());
     }
 }

@@ -178,7 +178,7 @@ impl AnthropicProvider {
             system,
             messages,
             tools,
-            self.format_options,
+            self.format_options.clone(),
         )?;
         payload["stream"] = Value::Bool(true);
         let mut log = start_log(model_config, &payload)?;
@@ -376,6 +376,7 @@ fn format_options_for_provider(preserves_thinking: bool) -> AnthropicFormatOptio
         preserve_unsigned_thinking: preserves_thinking,
         preserve_thinking_context: preserves_thinking,
         thinking_disabled: false,
+        current_model: None,
     }
 }
 

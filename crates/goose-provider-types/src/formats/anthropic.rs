@@ -46,11 +46,12 @@ macro_rules! string_enum {
 
 string_enum!(ThinkingType { Adaptive => "adaptive", Enabled => "enabled", Disabled => "disabled" });
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AnthropicFormatOptions {
     pub preserve_unsigned_thinking: bool,
     pub preserve_thinking_context: bool,
     pub thinking_disabled: bool,
+    pub current_model: Option<String>,
 }
 
 impl AnthropicFormatOptions {
@@ -69,8 +70,26 @@ impl AnthropicFormatOptions {
             preserve_unsigned_thinking,
             preserve_thinking_context,
             thinking_disabled,
+            current_model: self
+                .current_model
+                .or_else(|| Some(model_config.model_name.clone())),
         }
     }
+}
+
+pub fn thinking_block_is_stale(message: &Message, current_model: Option<&str>) -> bool {
+    let Some(current_model) = current_model else {
+        return false;
+    };
+    let Some(inference) = message.metadata.inference.as_ref() else {
+        return false;
+    };
+    let requested = inference.requested_model.as_str();
+    let resolved = inference.resolved_model.as_deref().unwrap_or("");
+    if requested.is_empty() && resolved.is_empty() {
+        return false;
+    }
+    current_model != requested && current_model != resolved
 }
 
 fn canonical_thinking_mode(provider_name: &str, model_name: &str) -> Option<ThinkingMode> {
@@ -177,12 +196,12 @@ fn args_to_input_value(arguments: Option<JsonObject>) -> Value {
 
 /// Convert internal Message format to Anthropic's API message specification
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
-    format_messages_with_options(messages, AnthropicFormatOptions::default())
+    format_messages_with_options(messages, &AnthropicFormatOptions::default())
 }
 
 fn format_messages_with_options(
     messages: &[Message],
-    options: AnthropicFormatOptions,
+    options: &AnthropicFormatOptions,
 ) -> Vec<Value> {
     let mut anthropic_messages = Vec::new();
 
@@ -191,6 +210,8 @@ fn format_messages_with_options(
             Role::User => USER_ROLE,
             Role::Assistant => ASSISTANT_ROLE,
         };
+
+        let thinking_is_stale = thinking_block_is_stale(message, options.current_model.as_deref());
 
         let mut content = Vec::new();
         for msg_content in &message.content {
@@ -346,11 +367,13 @@ fn format_messages_with_options(
                     // Anthropic rejects thinking blocks sent without a matching thinking config.
                     if !options.thinking_disabled {
                         if !thinking.signature.is_empty() {
-                            content.push(json!({
-                                TYPE_FIELD: THINKING_TYPE,
-                                THINKING_TYPE: thinking.thinking,
-                                SIGNATURE_FIELD: thinking.signature
-                            }));
+                            if !thinking_is_stale {
+                                content.push(json!({
+                                    TYPE_FIELD: THINKING_TYPE,
+                                    THINKING_TYPE: thinking.thinking,
+                                    SIGNATURE_FIELD: thinking.signature
+                                }));
+                            }
                         } else if options.preserve_unsigned_thinking
                             && !thinking.thinking.is_empty()
                         {
@@ -362,7 +385,7 @@ fn format_messages_with_options(
                     }
                 }
                 MessageContentBlock::RedactedThinking(redacted) => {
-                    if !options.thinking_disabled {
+                    if !options.thinking_disabled && !thinking_is_stale {
                         content.push(json!({
                             TYPE_FIELD: REDACTED_THINKING_TYPE,
                             DATA_FIELD: redacted.data
@@ -741,7 +764,7 @@ pub fn create_request_for_model(
     options: AnthropicFormatOptions,
 ) -> Result<Value> {
     let options = options.for_model(model_config);
-    let anthropic_messages = format_messages_with_options(messages, options);
+    let anthropic_messages = format_messages_with_options(messages, &options);
     let tool_specs = format_tools(tools);
     let system_spec = format_system(system);
 
@@ -1120,7 +1143,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::conversation::message::Message;
+    use crate::conversation::message::{Message, MessageContent};
     use crate::model::ModelConfig;
     use rmcp::object;
     use serde_json::json;
@@ -1316,10 +1339,11 @@ mod tests {
 
         let spec = format_messages_with_options(
             &messages,
-            AnthropicFormatOptions {
+            &AnthropicFormatOptions {
                 preserve_unsigned_thinking: true,
                 preserve_thinking_context: false,
                 thinking_disabled: false,
+                current_model: None,
             },
         );
 
@@ -1329,6 +1353,64 @@ mod tests {
         assert_eq!(spec[0]["content"][0]["thinking"], "internal");
         assert!(spec[0]["content"][0].get("signature").is_none());
         assert_eq!(spec[1]["content"][0]["text"], "Hi there");
+    }
+
+    fn signed_thinking_from_model(model: &str) -> Message {
+        use crate::conversation::message::InferenceMetadata;
+        Message::assistant()
+            .with_content(MessageContent::thinking("internal", "sig-abc"))
+            .with_text("answer")
+            .with_inference(InferenceMetadata {
+                provider: "anthropic".to_string(),
+                requested_model: model.to_string(),
+                resolved_model: None,
+                provider_session_id: None,
+            })
+    }
+
+    #[test]
+    fn drops_signed_thinking_from_a_different_model() {
+        let messages = vec![signed_thinking_from_model("claude-opus-4-1")];
+        let opts = AnthropicFormatOptions {
+            current_model: Some("claude-sonnet-4-5".to_string()),
+            ..Default::default()
+        };
+        let spec = format_messages_with_options(&messages, &opts);
+        let types: Vec<&str> = spec[0]["content"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| c["type"].as_str().unwrap())
+            .collect();
+        assert!(
+            !types.contains(&"thinking"),
+            "stale thinking must be dropped"
+        );
+        assert!(types.contains(&"text"), "text content must be preserved");
+    }
+
+    #[test]
+    fn keeps_signed_thinking_from_the_same_model() {
+        let messages = vec![signed_thinking_from_model("claude-sonnet-4-5")];
+        let opts = AnthropicFormatOptions {
+            current_model: Some("claude-sonnet-4-5".to_string()),
+            ..Default::default()
+        };
+        let spec = format_messages_with_options(&messages, &opts);
+        assert_eq!(spec[0]["content"][0]["type"], "thinking");
+        assert_eq!(spec[0]["content"][0]["signature"], "sig-abc");
+    }
+
+    #[test]
+    fn keeps_signed_thinking_when_provenance_unknown() {
+        let messages =
+            vec![Message::assistant().with_content(MessageContent::thinking("internal", "sig"))];
+        let opts = AnthropicFormatOptions {
+            current_model: Some("claude-sonnet-4-5".to_string()),
+            ..Default::default()
+        };
+        let spec = format_messages_with_options(&messages, &opts);
+        assert_eq!(spec[0]["content"][0]["type"], "thinking");
     }
 
     #[test]
@@ -1554,6 +1636,7 @@ mod tests {
                 preserve_unsigned_thinking: true,
                 preserve_thinking_context: true,
                 thinking_disabled: false,
+                current_model: None,
             },
         )?;
 

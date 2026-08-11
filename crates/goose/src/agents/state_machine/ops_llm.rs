@@ -572,15 +572,12 @@ impl Inference for InferenceRunner<'_> {
                 .ok()
                 .and_then(|model_info| model_info.resolved_model);
             let provider_session_id = self.provider.provider_session_id();
-            let inference =
-                (resolved_model.is_some() || provider_session_id.is_some()).then(|| {
-                    InferenceMetadata {
-                        provider: self.provider.get_name().to_string(),
-                        requested_model,
-                        resolved_model,
-                        provider_session_id,
-                    }
-                });
+            let inference = Some(InferenceMetadata {
+                provider: self.provider.get_name().to_string(),
+                requested_model,
+                resolved_model,
+                provider_session_id,
+            });
 
             let mut accumulator = Conversation::empty();
             let mut tool_request_ids = std::collections::HashSet::new();

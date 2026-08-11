@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
@@ -199,6 +200,7 @@ pub struct AgentConfig {
     pub mcp_host_info: Option<GooseMcpHostInfo>,
     pub session_name_update_tx: Option<mpsc::UnboundedSender<SessionNameUpdate>>,
     pub use_login_shell_path: Option<bool>,
+    pub is_subagent: bool,
 }
 
 impl AgentConfig {
@@ -220,6 +222,7 @@ impl AgentConfig {
             mcp_host_info: None,
             session_name_update_tx: None,
             use_login_shell_path: None,
+            is_subagent: false,
         }
     }
 
@@ -269,6 +272,7 @@ pub struct Agent {
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
     pub(super) hook_manager: crate::hooks::HookManager,
+    session_start_emitted: AtomicBool,
     #[cfg(test)]
     pub(super) stop_hook_block_cap_override: Option<u32>,
     container: Mutex<Option<Container>>,
@@ -417,6 +421,7 @@ impl Agent {
         let inspection_session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
         let use_login_shell_path = config.resolve_use_login_shell_path();
+        let is_subagent = config.is_subagent;
         Self {
             provider: provider.clone(),
             config,
@@ -443,10 +448,15 @@ impl Agent {
                 provider.clone(),
                 inspection_session_manager,
             ),
-            hook_manager: crate::hooks::HookManager::load(
-                std::env::current_dir().ok().as_deref(),
-                use_login_shell_path,
-            ),
+            hook_manager: if is_subagent {
+                crate::hooks::HookManager::default()
+            } else {
+                crate::hooks::HookManager::load(
+                    std::env::current_dir().ok().as_deref(),
+                    use_login_shell_path,
+                )
+            },
+            session_start_emitted: AtomicBool::new(false),
             #[cfg(test)]
             stop_hook_block_cap_override: None,
             container: Mutex::new(None),
@@ -486,6 +496,22 @@ impl Agent {
         self.hook_manager
             .emit(event, crate::hooks::HookContext::new(event, session_id))
             .await;
+    }
+
+    pub async fn emit_hook_with_banners(
+        &self,
+        event: crate::hooks::HookEvent,
+        session_id: &str,
+    ) -> Vec<String> {
+        if event == crate::hooks::HookEvent::SessionStart {
+            self.session_start_emitted.store(true, Ordering::Release);
+        }
+        if !self.hook_manager.has_hooks(event) {
+            return Vec::new();
+        }
+        self.hook_manager
+            .emit_collecting_banners(event, crate::hooks::HookContext::new(event, session_id))
+            .await
     }
 
     fn stop_hook_context(
@@ -1086,18 +1112,6 @@ impl Agent {
         let mut extension_configs = self.extension_manager.get_extension_configs().await;
         extension_configs.extend(self.frontend_extension_configs().await);
         extension_configs
-    }
-
-    pub(crate) async fn total_extension_and_tool_counts(&self, session_id: &str) -> (usize, usize) {
-        let (extension_count, tool_count) = self
-            .extension_manager
-            .get_extension_and_tool_counts(session_id)
-            .await;
-
-        (
-            extension_count + self.frontend_extensions.lock().await.len(),
-            tool_count + self.frontend_tools.lock().await.len(),
-        )
     }
 
     pub async fn add_final_output_tool(&self, response: Response) {
@@ -1940,7 +1954,7 @@ impl Agent {
             return Ok(Box::pin(futures::stream::empty()));
         }
 
-        if is_first_agent_turn {
+        if is_first_agent_turn && !self.session_start_emitted.swap(true, Ordering::AcqRel) {
             self.emit_hook(crate::hooks::HookEvent::SessionStart, &session_config.id)
                 .await;
         }
@@ -2215,13 +2229,11 @@ impl Agent {
             .ok()
             .and_then(|model_info| model_info.resolved_model);
         let provider_session_id = provider.provider_session_id();
-        let inference = (resolved_model.is_some() || provider_session_id.is_some()).then(|| {
-            InferenceMetadata {
-                provider: provider_name.clone(),
-                requested_model,
-                resolved_model,
-                provider_session_id,
-            }
+        let inference = Some(InferenceMetadata {
+            provider: provider_name.clone(),
+            requested_model,
+            resolved_model,
+            provider_session_id,
         });
         let session_manager = self.config.session_manager.clone();
         let steering_queue = self.steering_queue(&session_config.id).await;
@@ -2478,10 +2490,8 @@ impl Agent {
                         }
                         ProviderStreamEvent::NativeSteerDelivered(mut message) => {
                             native_steer_delivered = true;
-                            messages_to_add = apply_inference_metadata(
-                                messages_to_add,
-                                inference.as_ref(),
-                            );
+                            messages_to_add =
+                                apply_inference_metadata(messages_to_add, inference.as_ref());
 
                             if let Some(usage) = pending_turn_usage.take() {
                                 if let Some((message_id, usage)) = attach_turn_usage(
@@ -3849,7 +3859,6 @@ impl Agent {
             .get_extensions_info(&session.working_dir)
             .await;
         tracing::debug!("Retrieved {} extensions info", extensions_info.len());
-        let (extension_count, tool_count) = self.total_extension_and_tool_counts(session_id).await;
 
         let model_config = self.model_config_for_session(session_id).await?;
         let model_name = &model_config.model_name;
@@ -3861,7 +3870,6 @@ impl Agent {
             .builder()
             .with_extensions(extensions_info.into_iter())
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
-            .with_extension_and_tool_counts(extension_count, tool_count)
             .with_goose_mode(goose_mode)
             .build();
 
