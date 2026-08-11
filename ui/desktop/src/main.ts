@@ -19,7 +19,13 @@ import {
   Tray,
 } from 'electron';
 import { AuthManager, isZitadelAuthEnabled } from './auth';
-import { applyBakedDistroEnv } from './backendLock';
+import {
+  applyBakedDistroEnv,
+  canOfferDisableExternalBackend,
+  currentDistroFlags,
+  isAppLocked,
+  resolveStartupTarget,
+} from './backendLock';
 import { pathToFileURL, format as formatUrl, URLSearchParams } from 'node:url';
 import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
@@ -905,7 +911,7 @@ const { defaultProvider, defaultModel, predefinedModels, version } = getBundledC
 const GENERATED_SECRET = crypto.randomBytes(32).toString('hex');
 
 interface ExternalBackend {
-  source: 'env' | 'settings';
+  source: 'env' | 'settings' | 'locked';
   url: string;
   secret: string;
   certFingerprint?: string;
@@ -931,7 +937,7 @@ const getExternalBackendFromEnv = (): ExternalBackend | null => {
   }
 
   // Zitadel auth mode: access token is supplied per-request; secret placeholder unused.
-  if (isZitadelAuthEnabled()) {
+  if (isZitadelAuthEnabled(process.env, { isPackaged: app.isPackaged })) {
     return {
       source: 'env',
       url,
@@ -962,6 +968,27 @@ const getServerSecret = (settings: Settings): string => {
 };
 
 const getActiveExternalBackend = (settings: Settings): ExternalBackend | null => {
+  const target = resolveStartupTarget({
+    isPackaged: app.isPackaged,
+    env: process.env,
+    settings,
+    distro: currentDistroFlags(),
+  });
+
+  if (target.mode === 'local-serve') {
+    return null;
+  }
+
+  if (target.mode === 'locked-remote') {
+    // Packaged lock: always the baked URL; settings.externalGoosed cannot redirect.
+    return {
+      source: 'locked',
+      url: target.url!,
+      secret: 'zitadel-access-token',
+    };
+  }
+
+  // Unlocked external mode — preserve env vs settings source for disable-dialog policy.
   const envBackend = getExternalBackendFromEnv();
   if (envBackend) {
     return envBackend;
@@ -1019,7 +1046,7 @@ function getAuthManager(): AuthManager | null {
 
 function ensureAuthManager(): AuthManager | null {
   if (authManager) return authManager;
-  if (!isZitadelAuthEnabled()) return null;
+  if (!isZitadelAuthEnabled(process.env, { isPackaged: app.isPackaged })) return null;
   authManager = new AuthManager({
     userDataPath: app.getPath('userData'),
     safeStorage,
@@ -1056,28 +1083,41 @@ async function tryCreateExternalBackendLease(
     });
     if (!externalBackendReady) {
       externalCertificateTrust?.release();
-      const canDisableExternalBackend = externalBackend.source === 'settings';
+      const locked = isAppLocked(app.isPackaged);
+      const canDisable = canOfferDisableExternalBackend({
+        isPackaged: app.isPackaged,
+        source: externalBackend.source,
+      });
       const response = dialog.showMessageBoxSync({
         type: 'error',
-        title: 'External Backend Unreachable',
-        message: `Could not connect to external backend at ${externalBaseUrl}`,
-        detail:
-          authMode === 'bearer'
+        title: locked ? 'Cannot reach Avocado' : 'External Backend Unreachable',
+        message: locked
+          ? 'Cannot reach Avocado — sign in required'
+          : `Could not connect to external backend at ${externalBaseUrl}`,
+        detail: locked
+          ? 'Sign in with an Avocado account that has agent-access, then retry. The backend URL cannot be changed in this build.'
+          : authMode === 'bearer'
             ? 'The gateway must be running and your Zitadel access token must include the agent-access role.'
             : 'The external backend must be running and the configured secret must match GOOSE_SERVER__SECRET_KEY on the server.',
-        buttons: canDisableExternalBackend
+        buttons: canDisable
           ? ['Disable External Backend & Retry', 'Quit']
-          : ['Quit'],
+          : locked
+            ? ['Retry', 'Quit']
+            : ['Quit'],
         defaultId: 0,
-        cancelId: canDisableExternalBackend ? 1 : 0,
+        cancelId: canDisable || locked ? 1 : 0,
       });
 
-      if (canDisableExternalBackend && response === 0) {
+      if (canDisable && response === 0) {
         updateSettings((s) => {
           if (s.externalGoosed) {
             s.externalGoosed.enabled = false;
           }
         });
+      }
+
+      if (locked && response === 0) {
+        return tryCreateExternalBackendLease(externalBackend, probeSecret, authMode);
       }
 
       return null;
@@ -1093,20 +1133,21 @@ async function tryCreateExternalBackendLease(
   } catch (error) {
     externalCertificateTrust?.release();
     log.error('External ACP backend is misconfigured', error);
-    const canDisableExternalBackend = externalBackend.source === 'settings';
+    const canDisable = canOfferDisableExternalBackend({
+      isPackaged: app.isPackaged,
+      source: externalBackend.source,
+    });
     const response = dialog.showMessageBoxSync({
       type: 'error',
       title: 'External Backend Misconfigured',
       message: 'The external backend URL is invalid.',
       detail: errorMessage(error),
-      buttons: canDisableExternalBackend
-        ? ['Disable External Backend & Retry', 'Quit']
-        : ['Quit'],
+      buttons: canDisable ? ['Disable External Backend & Retry', 'Quit'] : ['Quit'],
       defaultId: 0,
-      cancelId: canDisableExternalBackend ? 1 : 0,
+      cancelId: canDisable ? 1 : 0,
     });
 
-    if (canDisableExternalBackend && response === 0) {
+    if (canDisable && response === 0) {
       updateSettings((s) => {
         if (s.externalGoosed) {
           s.externalGoosed.enabled = false;
@@ -1223,17 +1264,21 @@ const createChat = async (
     })();
 
     if (!usesHttps) {
+      const canDisable = canOfferDisableExternalBackend({
+        isPackaged: app.isPackaged,
+        source: externalBackend.source,
+      });
       const response = dialog.showMessageBoxSync({
         type: 'error',
         title: 'External Backend Misconfigured',
         message: 'Certificate fingerprint requires an HTTPS external backend URL.',
         detail: 'Use an https:// URL or remove the configured certificate fingerprint.',
-        buttons: ['Disable External Backend & Retry', 'Quit'],
+        buttons: canDisable ? ['Disable External Backend & Retry', 'Quit'] : ['Quit'],
         defaultId: 0,
-        cancelId: 1,
+        cancelId: canDisable ? 1 : 0,
       });
 
-      if (response === 0) {
+      if (canDisable && response === 0) {
         updateSettings((s) => {
           if (s.externalGoosed) {
             s.externalGoosed.enabled = false;
@@ -1289,6 +1334,21 @@ const createChat = async (
       }
     }
   } else {
+    // Defense in depth: packaged + REQUIRE_ZITADEL_AUTH must never spawn local goose serve.
+    if (isAppLocked(app.isPackaged)) {
+      log.error('Refusing local goose serve in locked packaged build');
+      dialog.showMessageBoxSync({
+        type: 'error',
+        title: 'Cannot reach Avocado',
+        message: 'Cannot reach Avocado — sign in required',
+        detail:
+          'This build requires a signed-in Avocado account and the Avocado gateway. Local backends are disabled.',
+        buttons: ['Quit'],
+      });
+      app.quit();
+      return;
+    }
+
     const localCertificateTrust = trustBackendCertificate('127.0.0.1', null);
 
     const loginShellPath = await getLoginShellPath(log);
@@ -2148,7 +2208,9 @@ ipcMain.handle('get-acp-url', async (event) => {
   return baseAcpUrl;
 });
 
-ipcMain.handle('auth-is-enabled', () => isZitadelAuthEnabled());
+ipcMain.handle('auth-is-enabled', () =>
+  isZitadelAuthEnabled(process.env, { isPackaged: app.isPackaged })
+);
 
 ipcMain.handle('auth-get-status', () => {
   const auth = ensureAuthManager();

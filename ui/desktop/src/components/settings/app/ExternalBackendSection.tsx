@@ -7,6 +7,7 @@ import { AlertCircle } from 'lucide-react';
 import { ExternalBackendConfig, defaultSettings } from '../../../utils/settings';
 import { defineMessages, useIntl } from '../../../i18n';
 import { normalizeAcpHttpBaseUrl } from '../../../acp/url';
+import { REQUIRE_ZITADEL_AUTH } from '../../../updates';
 
 const i18n = defineMessages({
   title: {
@@ -85,6 +86,14 @@ const i18n = defineMessages({
     id: 'externalBackendSection.identity',
     defaultMessage: 'Identity',
   },
+  accountTitle: {
+    id: 'externalBackendSection.accountTitle',
+    defaultMessage: 'Account',
+  },
+  accountDescription: {
+    id: 'externalBackendSection.accountDescription',
+    defaultMessage: 'Signed in via Zitadel. Backend URL is managed by Avocado and cannot be changed.',
+  },
   signOut: {
     id: 'externalBackendSection.signOut',
     defaultMessage: 'Sign out',
@@ -93,6 +102,11 @@ const i18n = defineMessages({
     id: 'externalBackendSection.authModeHelp',
     defaultMessage:
       'Secret Key is hidden in auth mode — the gateway receives a Zitadel access token instead.',
+  },
+  lockedDistroNote: {
+    id: 'externalBackendSection.lockedDistroNote',
+    defaultMessage:
+      'This build connects only to the Avocado gateway. External backend settings are disabled.',
   },
 });
 
@@ -198,6 +212,52 @@ export default function ExternalBackendSection() {
       await saveConfig(config);
     }
   };
+
+  // Distro lock: account panel only — no backend URL / secret / disable controls.
+  if (REQUIRE_ZITADEL_AUTH) {
+    return (
+      <section id="avocado-account" className="space-y-4 pr-4 mt-1" data-testid="locked-account-section">
+        <Card className="pb-2">
+          <CardHeader className="pb-0">
+            <CardTitle>{intl.formatMessage(i18n.accountTitle)}</CardTitle>
+            <CardDescription>{intl.formatMessage(i18n.accountDescription)}</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-4 px-4">
+            <div className="space-y-2 rounded-md border border-border-default p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm text-text-primary">{identity?.email || '—'}</p>
+                  <p className="text-xs text-text-secondary mt-1">
+                    {identity?.roles?.length
+                      ? `Signed in via Zitadel · role ${identity.roles.join(', ')}`
+                      : authEnabled
+                        ? 'Signed in via Zitadel'
+                        : 'Sign in required'}
+                  </p>
+                </div>
+                {authEnabled && (
+                  <Button
+                    variant="outline"
+                    disabled={isSaving}
+                    onClick={async () => {
+                      await window.electron.authLogout();
+                      const status = (await window.electron.getAuthStatus()) as AuthIdentity;
+                      setIdentity(status);
+                    }}
+                  >
+                    {intl.formatMessage(i18n.signOut)}
+                  </Button>
+                )}
+              </div>
+            </div>
+            <p className="text-xs text-text-secondary">
+              {intl.formatMessage(i18n.lockedDistroNote)}
+            </p>
+          </CardContent>
+        </Card>
+      </section>
+    );
+  }
 
   return (
     <section id="external-backend" className="space-y-4 pr-4 mt-1">

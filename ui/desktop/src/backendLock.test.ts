@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   applyBakedDistroEnv,
+  canOfferDisableExternalBackend,
   isAppLocked,
   resolveStartupTarget,
   type DistroFlags,
@@ -172,5 +173,37 @@ describe('applyBakedDistroEnv', () => {
     expect(env.GOOSE_EXTERNAL_BACKEND_URL).toBe(LOCKED_URL);
     expect(env.ZITADEL_ISSUER).toBeTruthy();
     expect(env.ZITADEL_CLIENT_ID).toBeTruthy();
+  });
+});
+
+describe('canOfferDisableExternalBackend', () => {
+  it('GivenLockedBackend_WhenShowingCertDialog_ThenDisableNotOffered', () => {
+    expect(
+      canOfferDisableExternalBackend({
+        isPackaged: true,
+        source: 'settings',
+        requireZitadelAuth: true,
+      })
+    ).toBe(false);
+  });
+
+  it('GivenSettingsSourceUnpackaged_WhenShowingCertDialog_ThenDisableOffered', () => {
+    expect(
+      canOfferDisableExternalBackend({
+        isPackaged: false,
+        source: 'settings',
+        requireZitadelAuth: true,
+      })
+    ).toBe(true);
+  });
+
+  it('GivenEnvSource_WhenShowingCertDialog_ThenDisableNotOffered', () => {
+    expect(
+      canOfferDisableExternalBackend({
+        isPackaged: false,
+        source: 'env',
+        requireZitadelAuth: false,
+      })
+    ).toBe(false);
   });
 });

@@ -13,7 +13,7 @@ import { useState, useEffect, useRef } from 'react';
 import ChatSettingsSection from './chat/ChatSettingsSection';
 import KeyboardShortcutsSection from './keyboard/KeyboardShortcutsSection';
 import LocalInferenceSection from './localInference/LocalInferenceSection';
-import { CONFIGURATION_ENABLED } from '../../updates';
+import { CONFIGURATION_ENABLED, REQUIRE_ZITADEL_AUTH } from '../../updates';
 import { trackSettingsTabViewed } from '../../utils/analytics';
 import { useFeatures } from '../../contexts/FeaturesContext';
 import { defineMessages, useIntl } from '../../i18n';
@@ -86,7 +86,8 @@ export default function SettingsView({
         update: 'app',
         models: 'models',
         modes: 'chat',
-        sharing: 'sharing',
+        // Locked distro: External Backend tab is removed; deep-links land on App (account).
+        sharing: REQUIRE_ZITADEL_AUTH ? 'app' : 'sharing',
         styles: 'chat',
         tools: 'chat',
         app: 'app',
@@ -109,6 +110,13 @@ export default function SettingsView({
       setActiveTab('models');
     }
   }, [localInference, activeTab]);
+
+  // Reset if External Backend tab is hidden by the distro lock
+  useEffect(() => {
+    if (REQUIRE_ZITADEL_AUTH && activeTab === 'sharing') {
+      setActiveTab('app');
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (!hasTrackedInitialTab.current) {
@@ -173,14 +181,16 @@ export default function SettingsView({
                     <MessageSquare className="h-4 w-4" />
                     {intl.formatMessage(i18n.tabChat)}
                   </TabsTrigger>
-                  <TabsTrigger
-                    value="sharing"
-                    className="flex gap-2"
-                    data-testid="settings-sharing-tab"
-                  >
-                    <Share2 className="h-4 w-4" />
-                    {intl.formatMessage(i18n.tabExternalBackend)}
-                  </TabsTrigger>
+                  {!REQUIRE_ZITADEL_AUTH && (
+                    <TabsTrigger
+                      value="sharing"
+                      className="flex gap-2"
+                      data-testid="settings-sharing-tab"
+                    >
+                      <Share2 className="h-4 w-4" />
+                      {intl.formatMessage(i18n.tabExternalBackend)}
+                    </TabsTrigger>
+                  )}
                   <TabsTrigger
                     value="prompts"
                     className="flex gap-2"
@@ -228,14 +238,16 @@ export default function SettingsView({
                   <ChatSettingsSection />
                 </TabsContent>
 
-                <TabsContent
-                  value="sharing"
-                  className="mt-0 focus-visible:outline-none focus-visible:ring-0"
-                >
-                  <div className="space-y-8 pb-8">
-                    <ExternalBackendSection />
-                  </div>
-                </TabsContent>
+                {!REQUIRE_ZITADEL_AUTH && (
+                  <TabsContent
+                    value="sharing"
+                    className="mt-0 focus-visible:outline-none focus-visible:ring-0"
+                  >
+                    <div className="space-y-8 pb-8">
+                      <ExternalBackendSection />
+                    </div>
+                  </TabsContent>
+                )}
 
                 <TabsContent
                   value="prompts"
@@ -256,6 +268,7 @@ export default function SettingsView({
                   className="mt-0 focus-visible:outline-none focus-visible:ring-0"
                 >
                   <div className="space-y-8">
+                    {REQUIRE_ZITADEL_AUTH && <ExternalBackendSection />}
                     {CONFIGURATION_ENABLED && <ConfigSettings />}
                     <AppSettingsSection scrollToSection={viewOptions.section} />
                   </div>

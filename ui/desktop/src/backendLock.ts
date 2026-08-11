@@ -150,3 +150,18 @@ export function currentDistroFlags(): DistroFlags {
     lockedBackendUrl: LOCKED_BACKEND_URL,
   };
 }
+
+/**
+ * Whether the certificate / unreachable-backend dialogs may offer
+ * "Disable External Backend". Never when locked; only for settings-sourced backends.
+ */
+export function canOfferDisableExternalBackend(input: {
+  isPackaged: boolean;
+  source: 'env' | 'settings' | 'locked';
+  requireZitadelAuth?: boolean;
+}): boolean {
+  if (isAppLocked(input.isPackaged, input.requireZitadelAuth ?? REQUIRE_ZITADEL_AUTH)) {
+    return false;
+  }
+  return input.source === 'settings';
+}
