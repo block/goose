@@ -257,6 +257,132 @@ impl RequestLog {
     }
 }
 
+#[cfg(target_os = "macos")]
+fn restrict_request_log_descriptor(fd: std::os::fd::RawFd, mode: libc::mode_t) -> Result<()> {
+    use std::io::{Error, ErrorKind};
+
+    mod apple {
+        use libc::{c_int, c_void, mode_t};
+
+        pub(super) type FileSec = *mut c_void;
+        pub(super) type Acl = *mut c_void;
+        pub(super) type AclEntry = *mut c_void;
+
+        pub(super) const FILESEC_MODE: c_int = 4;
+        pub(super) const FILESEC_ACL: c_int = 5;
+        pub(super) const ACL_TYPE_EXTENDED: c_int = 0x100;
+        pub(super) const ACL_FIRST_ENTRY: c_int = 0;
+
+        unsafe extern "C" {
+            pub(super) fn filesec_init() -> FileSec;
+            pub(super) fn filesec_free(filesec: FileSec);
+            pub(super) fn filesec_set_property(
+                filesec: FileSec,
+                property: c_int,
+                value: *const c_void,
+            ) -> c_int;
+            pub(super) fn fchmodx_np(fd: c_int, filesec: FileSec) -> c_int;
+            pub(super) fn acl_get_fd_np(fd: c_int, acl_type: c_int) -> Acl;
+            pub(super) fn acl_get_entry(acl: Acl, entry_id: c_int, entry: *mut AclEntry) -> c_int;
+            pub(super) fn acl_free(object: *mut c_void) -> c_int;
+        }
+
+        pub(super) struct OwnedFileSec(pub(super) FileSec);
+
+        impl Drop for OwnedFileSec {
+            fn drop(&mut self) {
+                unsafe { filesec_free(self.0) };
+            }
+        }
+
+        pub(super) struct OwnedAcl(pub(super) Acl);
+
+        impl Drop for OwnedAcl {
+            fn drop(&mut self) {
+                unsafe { acl_free(self.0) };
+            }
+        }
+
+        pub(super) fn mode_pointer(mode: &mode_t) -> *const c_void {
+            std::ptr::from_ref(mode).cast()
+        }
+
+        pub(super) fn remove_acl_pointer() -> *const c_void {
+            std::ptr::dangling()
+        }
+    }
+
+    let filesec = unsafe { apple::filesec_init() };
+    if filesec.is_null() {
+        return Err(Error::last_os_error().into());
+    }
+    let filesec = apple::OwnedFileSec(filesec);
+    if unsafe {
+        apple::filesec_set_property(filesec.0, apple::FILESEC_MODE, apple::mode_pointer(&mode))
+    } < 0
+    {
+        return Err(Error::last_os_error().into());
+    }
+    if unsafe {
+        apple::filesec_set_property(filesec.0, apple::FILESEC_ACL, apple::remove_acl_pointer())
+    } < 0
+    {
+        return Err(Error::last_os_error().into());
+    }
+
+    if unsafe { apple::fchmodx_np(fd, filesec.0) } < 0 {
+        let error = Error::last_os_error();
+        if error.raw_os_error() != Some(libc::EOPNOTSUPP) {
+            return Err(error.into());
+        }
+        if unsafe { libc::fchmod(fd, mode) } < 0 {
+            return Err(Error::last_os_error().into());
+        }
+    }
+
+    let mut metadata: libc::stat = unsafe { std::mem::zeroed() };
+    if unsafe { libc::fstat(fd, &mut metadata) } < 0 {
+        return Err(Error::last_os_error().into());
+    }
+    if metadata.st_mode & 0o7777 != mode {
+        return Err(Error::new(
+            ErrorKind::PermissionDenied,
+            "request log permissions were not restricted",
+        )
+        .into());
+    }
+
+    let acl = unsafe { apple::acl_get_fd_np(fd, apple::ACL_TYPE_EXTENDED) };
+    if acl.is_null() {
+        let error = Error::last_os_error();
+        if matches!(
+            error.raw_os_error(),
+            Some(libc::EOPNOTSUPP) | Some(libc::ENOENT)
+        ) {
+            return Ok(());
+        }
+        return Err(error.into());
+    }
+    let acl = apple::OwnedAcl(acl);
+    let mut entry = std::ptr::null_mut();
+    if unsafe { apple::acl_get_entry(acl.0, apple::ACL_FIRST_ENTRY, &mut entry) } == 0 {
+        return Err(Error::new(
+            ErrorKind::PermissionDenied,
+            "request log extended ACL was not removed",
+        )
+        .into());
+    }
+    let error = Error::last_os_error();
+    if !matches!(
+        error.raw_os_error(),
+        Some(libc::EINVAL) | Some(libc::ENOENT)
+    ) {
+        return Err(error.into());
+    }
+
+    Ok(())
+}
+
 #[cfg(unix)]
 fn create_and_restrict_request_log_state_directory(
     state_dir: &std::path::Path,
@@ -386,18 +512,23 @@ fn create_and_restrict_request_log_state_directory_with_hook(
     }
 
     if should_restrict == Some(true) {
-        let current_directory = CString::new(".").unwrap();
-        // SAFETY: resolving `.` relative to the retained state descriptor binds chmod to it.
-        if unsafe {
-            libc::fchmodat(
-                state_directory.as_raw_fd(),
-                current_directory.as_ptr(),
-                0o700,
-                0,
-            )
-        } < 0
+        #[cfg(target_os = "macos")]
+        restrict_request_log_descriptor(state_directory.as_raw_fd(), 0o700)?;
+        #[cfg(not(target_os = "macos"))]
         {
-            return Err(Error::last_os_error().into());
+            let current_directory = CString::new(".").unwrap();
+            // SAFETY: resolving `.` relative to the retained state descriptor binds chmod to it.
+            if unsafe {
+                libc::fchmodat(
+                    state_directory.as_raw_fd(),
+                    current_directory.as_ptr(),
+                    0o700,
+                    0,
+                )
+            } < 0
+            {
+                return Err(Error::last_os_error().into());
+            }
         }
     }
 
@@ -527,18 +658,23 @@ fn create_and_restrict_request_log_logs_directory(
         .into());
     }
 
-    let current_directory = CString::new(".").unwrap();
-    // SAFETY: resolving `.` relative to the retained logs descriptor binds chmod to it.
-    if unsafe {
-        libc::fchmodat(
-            logs_directory.as_raw_fd(),
-            current_directory.as_ptr(),
-            0o700,
-            0,
-        )
-    } < 0
+    #[cfg(target_os = "macos")]
+    restrict_request_log_descriptor(logs_directory.as_raw_fd(), 0o700)?;
+    #[cfg(not(target_os = "macos"))]
     {
-        return Err(Error::last_os_error().into());
+        let current_directory = CString::new(".").unwrap();
+        // SAFETY: resolving `.` relative to the retained logs descriptor binds chmod to it.
+        if unsafe {
+            libc::fchmodat(
+                logs_directory.as_raw_fd(),
+                current_directory.as_ptr(),
+                0o700,
+                0,
+            )
+        } < 0
+        {
+            return Err(Error::last_os_error().into());
+        }
     }
 
     // SAFETY: libc::stat is initialized before fstatat writes it.
@@ -881,7 +1017,9 @@ fn restrict_existing_request_log_with_hook(
 ) -> Result<RestrictionOutcome> {
     use std::io::ErrorKind;
     use std::os::fd::{AsRawFd, FromRawFd};
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::os::unix::fs::MetadataExt;
+    #[cfg(not(target_os = "macos"))]
+    use std::os::unix::fs::PermissionsExt;
 
     let flags = libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC;
     // SAFETY: the name pointer is valid for the synchronous call and the retained logs fd is open.
@@ -950,6 +1088,9 @@ fn restrict_existing_request_log_with_hook(
     let metadata = file.metadata()?;
     if metadata.is_file() && metadata.uid() == current_effective_uid() && metadata.nlink() == 1 {
         after_metadata();
+        #[cfg(target_os = "macos")]
+        restrict_request_log_descriptor(file.as_raw_fd(), 0o600)?;
+        #[cfg(not(target_os = "macos"))]
         file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
         let current = match request_log_entry_metadata(logs_directory, file_name) {
             Ok(metadata) => metadata,
@@ -1032,6 +1173,10 @@ fn restrict_inaccessible_request_log_with_hook(
         return Ok(RestrictionOutcome::Retry);
     }
 
+    #[cfg(target_os = "macos")]
+    return Ok(RestrictionOutcome::Retry);
+
+    #[cfg(not(target_os = "macos"))]
     Ok(RestrictionOutcome::Complete)
 }
 
@@ -1109,6 +1254,7 @@ impl RequestLogger for RequestLog {
             use std::ffi::CString;
             use std::io::{Error, ErrorKind};
             use std::os::fd::{AsRawFd, FromRawFd};
+            #[cfg(not(target_os = "macos"))]
             use std::os::unix::fs::PermissionsExt;
 
             let temp_name = CString::new(temp_name).map_err(|_| {
@@ -1132,7 +1278,10 @@ impl RequestLogger for RequestLog {
             }
             // SAFETY: openat returned a new owned descriptor.
             let raw_file = unsafe { std::fs::File::from_raw_fd(fd) };
+            #[cfg(target_os = "macos")]
+            restrict_request_log_descriptor(raw_file.as_raw_fd(), 0o600)?;
             let file = File::from_parts(raw_file, temp_path.clone());
+            #[cfg(not(target_os = "macos"))]
             file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
             file
         };
@@ -1254,12 +1403,105 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    #[cfg(target_os = "macos")]
+    fn add_extended_acl(path: &std::path::Path, rule: &str) {
+        let status = std::process::Command::new("/bin/chmod")
+            .arg("+a")
+            .arg(rule)
+            .arg(path)
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+
+    #[cfg(target_os = "macos")]
+    fn remove_extended_acl(path: &std::path::Path) {
+        let status = std::process::Command::new("/bin/chmod")
+            .arg("-N")
+            .arg(path)
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+
+    #[cfg(target_os = "macos")]
+    fn descriptor_has_extended_acl(file: &std::fs::File) -> bool {
+        use libc::{c_int, c_void};
+        use std::os::fd::AsRawFd;
+
+        unsafe extern "C" {
+            fn acl_get_fd_np(fd: c_int, acl_type: c_int) -> *mut c_void;
+            fn acl_get_entry(acl: *mut c_void, entry_id: c_int, entry: *mut *mut c_void) -> c_int;
+            fn acl_free(object: *mut c_void) -> c_int;
+        }
+
+        let acl = unsafe { acl_get_fd_np(file.as_raw_fd(), 0x100) };
+        if acl.is_null() {
+            let error = std::io::Error::last_os_error();
+            assert!(matches!(
+                error.raw_os_error(),
+                Some(libc::ENOENT) | Some(libc::EOPNOTSUPP)
+            ));
+            return false;
+        }
+        let mut entry = std::ptr::null_mut();
+        let has_entry = unsafe { acl_get_entry(acl, 0, &mut entry) } == 0;
+        unsafe { acl_free(acl) };
+        has_entry
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn request_log_descriptor_restriction_removes_extended_acls() {
+        use std::os::fd::AsRawFd;
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = tempfile::tempdir().unwrap();
+        for mode in [0o600, 0o644] {
+            let path = root.path().join(format!("request-{mode:o}.jsonl"));
+            let file = std::fs::File::create(&path).unwrap();
+            file.set_permissions(std::fs::Permissions::from_mode(mode))
+                .unwrap();
+            add_extended_acl(&path, "everyone allow read");
+            assert!(descriptor_has_extended_acl(&file));
+
+            restrict_request_log_descriptor(file.as_raw_fd(), 0o600).unwrap();
+
+            assert!(!descriptor_has_extended_acl(&file));
+            assert_eq!(
+                file.metadata().unwrap().permissions().mode() & 0o7777,
+                0o600
+            );
+        }
+
+        let directory = root.path().join("logs");
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o700)).unwrap();
+        add_extended_acl(
+            &directory,
+            "everyone allow list,search,file_inherit,directory_inherit",
+        );
+        let directory = open_search_only_directory(&directory).unwrap();
+        assert!(descriptor_has_extended_acl(&directory));
+
+        restrict_request_log_descriptor(directory.as_raw_fd(), 0o700).unwrap();
+
+        assert!(!descriptor_has_extended_acl(&directory));
+        assert_eq!(
+            directory.metadata().unwrap().permissions().mode() & 0o7777,
+            0o700
+        );
+    }
+
     #[cfg(unix)]
     const REQUEST_LOG_PERMISSIONS_CHILD: &str = "GOOSE_REQUEST_LOG_PERMISSIONS_CHILD";
 
     #[cfg(unix)]
     const REQUEST_LOG_UPGRADE_PERMISSIONS_CHILD: &str =
         "GOOSE_REQUEST_LOG_UPGRADE_PERMISSIONS_CHILD";
+
+    #[cfg(target_os = "macos")]
+    const REQUEST_LOG_ACL_LIFECYCLE_CHILD: &str = "GOOSE_REQUEST_LOG_ACL_LIFECYCLE_CHILD";
 
     #[cfg(unix)]
     fn assert_owner_only(path: &std::path::Path) {
@@ -1296,6 +1538,152 @@ mod tests {
             "permission test subprocess failed\nstdout:\n{}\nstderr:\n{}",
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn request_log_lifecycle_removes_inherited_extended_acls() {
+        use std::process::Command;
+
+        let root = tempfile::tempdir().unwrap();
+        let output = Command::new(std::env::current_exe().unwrap())
+            .arg("--exact")
+            .arg("providers::utils::tests::request_log_acl_lifecycle_child")
+            .arg("--nocapture")
+            .env(REQUEST_LOG_ACL_LIFECYCLE_CHILD, "1")
+            .env("GOOSE_PATH_ROOT", root.path())
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "ACL lifecycle test subprocess failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn request_log_acl_lifecycle_child() {
+        use std::io::Write;
+        use std::os::unix::fs::PermissionsExt;
+
+        if std::env::var_os(REQUEST_LOG_ACL_LIFECYCLE_CHILD).is_none() {
+            return;
+        }
+
+        let state_dir = Paths::state_dir();
+        std::fs::create_dir_all(&state_dir).unwrap();
+        std::fs::set_permissions(&state_dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        add_extended_acl(
+            &state_dir,
+            "everyone allow list,search,file_inherit,directory_inherit",
+        );
+
+        let logs_dir = state_dir.join("logs");
+        std::fs::create_dir(&logs_dir).unwrap();
+        std::fs::set_permissions(&logs_dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        add_extended_acl(
+            &logs_dir,
+            "everyone allow list,search,file_inherit,directory_inherit",
+        );
+
+        let accessible_path = logs_dir.join("llm_request.7.jsonl");
+        std::fs::write(&accessible_path, b"accessible retained log").unwrap();
+        std::fs::set_permissions(&accessible_path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        add_extended_acl(&accessible_path, "everyone allow read");
+
+        let inaccessible_path = logs_dir.join("llm_request.8.jsonl");
+        let mut inaccessible = std::fs::File::create(&inaccessible_path).unwrap();
+        inaccessible
+            .write_all(b"inaccessible retained log")
+            .unwrap();
+        inaccessible
+            .set_permissions(std::fs::Permissions::from_mode(0o066))
+            .unwrap();
+        remove_extended_acl(&inaccessible_path);
+        add_extended_acl(&inaccessible_path, "everyone allow readsecurity");
+
+        assert!(descriptor_has_extended_acl(
+            &std::fs::File::open(&state_dir).unwrap()
+        ));
+        assert!(descriptor_has_extended_acl(
+            &std::fs::File::open(&logs_dir).unwrap()
+        ));
+        assert!(descriptor_has_extended_acl(
+            &std::fs::File::open(&accessible_path).unwrap()
+        ));
+        assert!(descriptor_has_extended_acl(&inaccessible));
+        drop(inaccessible);
+        assert!(std::fs::File::open(&inaccessible_path).is_err());
+        assert!(std::fs::OpenOptions::new()
+            .write(true)
+            .open(&inaccessible_path)
+            .is_err());
+
+        let log = RequestLog::new(2).unwrap();
+
+        for directory in [&state_dir, &logs_dir] {
+            let file = std::fs::File::open(directory).unwrap();
+            assert!(!descriptor_has_extended_acl(&file));
+            assert_eq!(
+                file.metadata().unwrap().permissions().mode() & 0o7777,
+                0o700
+            );
+        }
+        for (path, expected) in [
+            (&accessible_path, "accessible retained log"),
+            (&inaccessible_path, "inaccessible retained log"),
+        ] {
+            let file = std::fs::File::open(path).unwrap();
+            assert!(!descriptor_has_extended_acl(&file));
+            assert_eq!(
+                file.metadata().unwrap().permissions().mode() & 0o7777,
+                0o600
+            );
+            assert_eq!(std::fs::read_to_string(path).unwrap(), expected);
+        }
+
+        add_extended_acl(&logs_dir, "everyone allow read,file_inherit");
+        assert!(descriptor_has_extended_acl(
+            &std::fs::File::open(&logs_dir).unwrap()
+        ));
+
+        let mut handle = log.start().unwrap();
+        let active_path = std::fs::read_dir(&logs_dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .find(|path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| {
+                        name.starts_with("llm_request.")
+                            && name != "llm_request.7.jsonl"
+                            && name != "llm_request.8.jsonl"
+                    })
+            })
+            .unwrap();
+        let active = std::fs::File::open(&active_path).unwrap();
+        assert!(!descriptor_has_extended_acl(&active));
+        assert_eq!(
+            active.metadata().unwrap().permissions().mode() & 0o7777,
+            0o600
+        );
+
+        handle.write("new request and response").unwrap();
+        drop(handle);
+
+        let rotated_path = logs_dir.join("llm_request.0.jsonl");
+        let rotated = std::fs::File::open(&rotated_path).unwrap();
+        assert!(!descriptor_has_extended_acl(&rotated));
+        assert_eq!(
+            rotated.metadata().unwrap().permissions().mode() & 0o7777,
+            0o600
+        );
+        assert_eq!(
+            std::fs::read_to_string(rotated_path).unwrap(),
+            "new request and response\n"
         );
     }
 
