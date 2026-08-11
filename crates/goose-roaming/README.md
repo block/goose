@@ -9,10 +9,16 @@ goose, the desktop app, or any ACP client) that drives it, and lets a client
 dial a remote agent to hold an interactive session, delegate a one-shot task, or
 bridge it to a local ACP client — typically without port-forwarding.
 
-The crate has no dependency on `goose` core, so the iroh dependency stays out of
-core. The code that bridges the transport to goose's agent machinery lives in
-`goose-cli` behind an optional `roaming` feature; it isn't compiled unless that
-feature is enabled.
+This crate is a **standalone library** with no dependency on `goose` core (so
+the iroh dependency stays out of core): it knows nothing about agents or
+sessions, only identity, trust, and authenticated byte streams, and can be
+embedded in any Rust application. The consumer surface is `RoamingNode`
+(bind/share/connect), `RoamingConfig`, the two-method `AcpStreamServer` trait to
+plug in whatever serves a stream, `TrustBook`, and `ConnectionCard` — see
+`examples/echo_roundtrip.rs` for the whole flow in one file
+(`cargo run -p goose-roaming --example echo_roundtrip`). The code that bridges
+the transport to goose's agent machinery lives in `goose-cli` behind an optional
+`roaming` feature; it isn't compiled unless that feature is enabled.
 
 ## The model: an authenticated ACP transport with mutual key trust
 

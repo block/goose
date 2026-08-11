@@ -9,9 +9,17 @@ peer-to-peer connection — no open ports, no VPN, no server to host. It's built
 on [iroh](https://iroh.computer) (QUIC), so two machines can connect directly or
 via a relay, typically without any firewall changes.
 
+Roaming is designed to be **embedded**: the transport is a standalone Rust crate
+(`goose-roaming`) with no dependency on goose's agent internals, the CLI exposes
+it as `goose roam` commands, and there are wasm bindings for browser apps. If
+you build on goose — or just want an authenticated p2p ACP transport — you can
+use the same pieces directly. The web client and the desktop app's remote-access
+feature (covered near the end) are **reference clients** built entirely on this
+public surface.
+
 Use it to drive your laptop's agent from another device, hand a one-shot task to
-a remote agent, or expose a remote agent to any local ACP client (like the goose
-desktop app or an editor).
+a remote agent, expose a remote agent to any local ACP client (like the goose
+desktop app or an editor), or wire p2p agent access into your own application.
 
 ## The core idea: roaming is an ACP transport
 
@@ -77,7 +85,9 @@ Each connecting client gets its **own** agent and drives its **own** sessions
 over the full ACP surface. (Simultaneous multi-viewer "co-driving" of one live
 session is a possible future feature, not part of this ACP-transport model.)
 
-## Quick start
+## Using the CLI
+
+### Quick start
 
 Say machine B wants to drive machine A's agent. Both run `goose roam id` and send
 each other the card it prints. Then:
@@ -108,12 +118,17 @@ and press enter; `/quit` or Ctrl-D to leave.
 real work, prefer `bridge` (drive the remote agent from a full ACP client) or
 `delegate` (scriptable one-shot tasks).
 
+For the common "pair a new device" case there is also a one-step helper:
+`goose roam pair` shows this node's card as a QR code, reads the device's card
+from stdin, and saves + accepts it in one go (the equivalent of
+`peers add` + `peers accept`).
+
 :::tip
 Compare the short **fingerprint** shown by `roam id` / `peers accept` out of band
 (e.g. read it aloud) to be sure you accepted the key you meant to.
 :::
 
-## One-shot delegation
+### One-shot delegation
 
 To send a single task and get the answer back — no interactive session:
 
@@ -133,7 +148,7 @@ goose roam delegate 'goose+roam://…' --list-sessions
 goose roam delegate 'goose+roam://…' --session <SESSION_ID> "Now fix the first failure."
 ```
 
-## Bridging to any ACP client
+### Bridging to any ACP client
 
 `connect` and `delegate` embed goose's own ACP client. `bridge` does the
 opposite: it exposes a remote agent as a **local ACP endpoint**, so any ACP
@@ -171,13 +186,112 @@ A bridge serves one client connection. The remote host still runs the agent,
 imposes its own working directory, and authorizes the connection.
 :::
 
-## The web client
+## Embedding roaming in your own app
 
-There is also a browser client, hosted at
-[aaif-goose.github.io/goose-mobile](https://aaif-goose.github.io/goose-mobile/).
-The browser tab is itself a roam peer: iroh compiled to WebAssembly runs inside
-the tab and connects through the same relays with the same mutual key trust —
-there is no server in between, and no traffic goes through the site's origin.
+Everything above is built on the **`goose-roaming` crate**
+(`crates/goose-roaming`), and you can use it directly. The crate deliberately
+has **zero dependency on goose core** — it knows nothing about agents or
+sessions, only about identity, trust, and authenticated byte streams — so you
+can embed it in any Rust application, with or without goose.
+
+The surface a consumer touches:
+
+- **`RoamingIdentity`** — a persisted ed25519 node key whose public half *is*
+  the iroh endpoint id (`RoamingIdentity::generate()` for ephemeral,
+  `default_key_path` for the on-disk one goose uses).
+- **`RoamingConfig`** — a builder for a node: `RoamingConfig::new(identity)`
+  plus chainers like `.with_relay(RelaySettings::…)` and
+  `.with_bind_addr(addr)`. Defaults to iroh's public relays and an **empty
+  allowlist** (accepts no one), so the safe default is built in.
+- **`RoamingNode`** — the node itself. `RoamingNode::bind(config)` binds the
+  endpoint; `node.share(server)` hosts an agent to accepted peers;
+  `node.connect(&card, label)` / `node.connect_with_addr(addr, label)` dial a
+  remote and return a `RoamingClientStream` (use `.into_futures_io()` to get
+  plain async read/write halves); `node.card()` produces the shareable card.
+- **`AcpStreamServer`** — the trait your host side implements to plug in "the
+  agent". It has two methods — `serve_stream` (drive your protocol over an
+  authorized stream for an accepted peer) and `agent_id` (a display id sent in
+  the handshake ack) — and that's the entire integration seam. goose-cli's
+  `FullAcpBridge` implements it by handing the stream to goose's real ACP
+  `serve`; your app can serve anything.
+- **`TrustBook`** — the mutual allowlist of accepted peer keys, with durable
+  persistence and fail-closed reload. `node.trust()` gives you a handle to
+  accept or revoke keys at runtime.
+- **`ConnectionCard`** — the non-secret identity + reachability string
+  (`goose+roam://…`), with `encode()` / parsing and a short `fingerprint()`
+  for out-of-band verification.
+
+A minimal end-to-end example (condensed from
+`crates/goose-roaming/examples/echo_roundtrip.rs`, which runs both ends in one
+process — `cargo run -p goose-roaming --example echo_roundtrip`):
+
+```rust
+use std::sync::Arc;
+use goose_roaming::{
+    AcpStreamServer, EndpointId, RoamingConfig, RoamingIdentity, RoamingNode,
+};
+
+// Your "agent": anything that can serve an authorized byte stream.
+struct EchoServer;
+impl AcpStreamServer for EchoServer {
+    fn serve_stream(
+        &self,
+        _client: EndpointId,
+        recv: Box<dyn futures::io::AsyncRead + Send + Unpin>,
+        send: Box<dyn futures::io::AsyncWrite + Send + Unpin>,
+    ) -> futures::future::BoxFuture<'static, anyhow::Result<()>> {
+        Box::pin(async move { /* echo recv back on send … */ Ok(()) })
+    }
+    fn agent_id(&self) -> String { "echo-agent".to_string() }
+}
+
+async fn demo() -> anyhow::Result<()> {
+    // Host: bind a node and share the agent to accepted peers.
+    let host = RoamingNode::bind(RoamingConfig::new(RoamingIdentity::generate())).await?;
+    host.share(Arc::new(EchoServer)).await?;
+    println!("share this card: {}", host.card().encode()?);
+
+    // Client: a separate node dials the host's card.
+    let client = RoamingNode::bind(RoamingConfig::new(RoamingIdentity::generate())).await?;
+
+    // Trust step: the HOST must accept the client's key, or the dial is refused.
+    host.trust().lock().await.accept(&client.endpoint_id());
+
+    let stream = client.connect(&host.card(), Some("example".into())).await?;
+    let (send, recv, _conn) = stream.into_futures_io();
+    // … speak your protocol (ACP, or anything) over send/recv …
+    Ok(())
+}
+```
+
+A few notes for integrators:
+
+- **To expose a full goose backend**, you don't have to implement
+  `AcpStreamServer` yourself: `goose serve --roam` runs goose's regular agent
+  server *and* exposes it over roam in one process. It works headless, writes
+  its card to `<data-dir>/roam/serve.json`, and prints it on startup — this is
+  exactly what the desktop app runs for its remote-access feature.
+- **For browser apps**, the same transport compiles to WebAssembly. The wasm
+  bindings (`@aaif/goose-roam-web`, built from
+  `crates/goose-roaming/web/goose-roaming-web`) expose a `RoamClient` to
+  JavaScript — generate an identity, print your card, dial a host's card, and
+  drive ACP from inside a browser tab, with no server in between. The web
+  client below is built on these bindings.
+- The crate's [README](https://github.com/aaif-goose/goose/tree/main/crates/goose-roaming)
+  covers the design decisions (why the host controls the working directory,
+  why trust is all-or-nothing, etc.) in more depth.
+
+## The web client: a reference browser client
+
+The hosted web client at
+[aaif-goose.github.io/goose-mobile](https://aaif-goose.github.io/goose-mobile/)
+is a **reference client built on the pieces above**: the `@aaif/goose-roam-web`
+wasm bindings for transport, and goose's `ui/sdk` `GooseClient` for the ACP
+protocol layer. The browser tab is itself a roam peer: iroh compiled to
+WebAssembly runs inside the tab and connects through the same relays with the
+same mutual key trust — there is no server in between, and no traffic goes
+through the site's origin. Anything it does, your own app can do with the same
+bindings.
 
 Pairing works exactly like any other peer. The tab generates its own identity
 and shows its card; you accept it once on the host:
@@ -196,10 +310,13 @@ connect several hosts at once; their sessions appear in one merged list.
 The source lives in `crates/goose-roaming/web/` — the README there has build
 details if you want to host it yourself (it builds to a static site).
 
-## The desktop app: remote access without a terminal
+## The desktop app: a reference host integration
 
-The desktop app can expose its own backend over roam, so the whole loop —
-enable, pair, chat from your phone, revoke — happens in the UI:
+The desktop app's Remote Access feature is likewise a **reference integration
+of the pieces above**: it launches `goose serve --roam` as its backend, uses
+the shared per-machine identity and `TrustBook`, and points the pairing QR at
+the hosted web client. The whole loop — enable, pair, chat from your phone,
+revoke — happens in the UI:
 
 1. **Settings → Remote Access → Enable remote access**, then restart goose.
    The backend now starts as `goose serve --roam`: the same agent server the
@@ -222,10 +339,6 @@ enable, pair, chat from your phone, revoke — happens in the UI:
 The desktop shares one roam identity and one allowlist per machine with the
 CLI — devices you accept in Settings can also connect to a `goose roam share`
 you run later, and `goose roam peers list` shows them.
-
-`goose serve --roam` also works headless (it's what the desktop runs for
-you): it writes its card to `<data-dir>/roam/serve.json` and prints it on
-startup.
 
 ## Saved peers
 
