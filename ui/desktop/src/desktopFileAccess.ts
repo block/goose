@@ -19,7 +19,11 @@ export function isAppRendererUrl(rendererUrl: string, expectedUrl: URL): boolean
   try {
     const actual = new URL(rendererUrl);
     if (expectedUrl.protocol === 'file:') {
-      return actual.protocol === 'file:' && actual.pathname === expectedUrl.pathname;
+      return (
+        actual.protocol === 'file:' &&
+        actual.host === expectedUrl.host &&
+        actual.pathname === expectedUrl.pathname
+      );
     }
     return actual.origin === expectedUrl.origin && actual.pathname === expectedUrl.pathname;
   } catch {
@@ -55,11 +59,25 @@ function failedRead(filePath: string, message: string): FileReadResult {
   return { file: '', filePath, error: message, found: false };
 }
 
-export class DesktopFileAccess {
-  private readonly workingDirectories = new Map<number, string>();
+type WorkingDirectoryBinding =
+  | { status: 'ready'; path: string }
+  | { status: 'missing'; path: string }
+  | { status: 'error'; path: string };
 
-  bindWindow(windowId: number, workingDirectory: string): void {
-    this.workingDirectories.set(windowId, path.resolve(workingDirectory));
+export class DesktopFileAccess {
+  private readonly workingDirectories = new Map<number, WorkingDirectoryBinding>();
+
+  async bindWindow(windowId: number, workingDirectory: string): Promise<void> {
+    const resolvedPath = path.resolve(workingDirectory);
+    try {
+      const canonicalPath = await fs.realpath(resolvedPath);
+      this.workingDirectories.set(windowId, { status: 'ready', path: canonicalPath });
+    } catch (error) {
+      this.workingDirectories.set(windowId, {
+        status: isMissingFile(error) ? 'missing' : 'error',
+        path: resolvedPath,
+      });
+    }
   }
 
   unbindWindow(windowId: number): void {
@@ -67,25 +85,19 @@ export class DesktopFileAccess {
   }
 
   async readGoosehints(windowId: number): Promise<FileReadResult> {
-    const workingDirectory = this.workingDirectories.get(windowId);
-    if (!workingDirectory) {
+    const binding = this.workingDirectories.get(windowId);
+    if (!binding) {
       throw new Error('This window is not authorized to read .goosehints');
     }
 
-    let canonicalWorkingDirectory: string;
-    try {
-      canonicalWorkingDirectory = await fs.realpath(workingDirectory);
-    } catch (error) {
-      if (isMissingFile(error)) {
-        return missingFile(path.join(workingDirectory, '.goosehints'));
-      }
-      return failedRead(
-        path.join(workingDirectory, '.goosehints'),
-        'Unable to resolve the working directory'
-      );
+    const filePath = path.join(binding.path, '.goosehints');
+    if (binding.status === 'missing') {
+      return missingFile(filePath);
+    }
+    if (binding.status === 'error') {
+      return failedRead(filePath, 'Unable to resolve the working directory');
     }
 
-    const filePath = path.join(canonicalWorkingDirectory, '.goosehints');
     try {
       const metadata = await fs.lstat(filePath);
       if (metadata.isSymbolicLink()) {
@@ -96,7 +108,7 @@ export class DesktopFileAccess {
       }
 
       const canonicalFilePath = await fs.realpath(filePath);
-      if (path.dirname(canonicalFilePath) !== canonicalWorkingDirectory) {
+      if (path.dirname(canonicalFilePath) !== binding.path) {
         return failedRead(filePath, '.goosehints resolves outside the working directory');
       }
 
@@ -135,16 +147,22 @@ export async function readSelectedRecipe(filePath: string): Promise<FileReadResu
   }
 
   try {
-    const metadata = await fs.stat(filePath);
-    if (!metadata.isFile()) {
-      return failedRead(filePath, 'The selected recipe is not a regular file');
+    const nonBlocking = process.platform === 'win32' ? 0 : fsConstants.O_NONBLOCK;
+    const handle = await fs.open(filePath, fsConstants.O_RDONLY | nonBlocking);
+    try {
+      const metadata = await handle.stat();
+      if (!metadata.isFile()) {
+        return failedRead(filePath, 'The selected recipe is not a regular file');
+      }
+      return {
+        file: await handle.readFile('utf8'),
+        filePath,
+        error: null,
+        found: true,
+      };
+    } finally {
+      await handle.close();
     }
-    return {
-      file: await fs.readFile(filePath, 'utf8'),
-      filePath,
-      error: null,
-      found: true,
-    };
   } catch (error) {
     if (isMissingFile(error)) {
       return missingFile(filePath);

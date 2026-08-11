@@ -1,7 +1,9 @@
-import fs from 'node:fs';
+import fs, { constants as fsConstants } from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DesktopFileAccess,
   isAppRendererUrl,
@@ -18,6 +20,7 @@ function makeTempDirectory(): string {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   while (tempDirectories.length > 0) {
     fs.rmSync(tempDirectories.pop()!, { recursive: true, force: true });
   }
@@ -28,7 +31,7 @@ describe('DesktopFileAccess', () => {
     const workingDirectory = makeTempDirectory();
     fs.writeFileSync(path.join(workingDirectory, '.goosehints'), 'project guidance');
     const access = new DesktopFileAccess();
-    access.bindWindow(7, workingDirectory);
+    await access.bindWindow(7, workingDirectory);
     const canonicalWorkingDirectory = fs.realpathSync(workingDirectory);
 
     await expect(access.readGoosehints(7)).resolves.toEqual({
@@ -42,7 +45,7 @@ describe('DesktopFileAccess', () => {
   it('preserves missing-file behavior', async () => {
     const workingDirectory = makeTempDirectory();
     const access = new DesktopFileAccess();
-    access.bindWindow(7, workingDirectory);
+    await access.bindWindow(7, workingDirectory);
     const canonicalWorkingDirectory = fs.realpathSync(workingDirectory);
 
     await expect(access.readGoosehints(7)).resolves.toEqual({
@@ -69,13 +72,41 @@ describe('DesktopFileAccess', () => {
       fs.writeFileSync(secretPath, 'host secret');
       fs.symlinkSync('../secret', path.join(workingDirectory, '.goosehints'));
       const access = new DesktopFileAccess();
-      access.bindWindow(7, workingDirectory);
+      await access.bindWindow(7, workingDirectory);
 
       const result = await access.readGoosehints(7);
 
       expect(result.found).toBe(false);
       expect(result.file).toBe('');
       expect(result.error).toContain('symbolic link');
+    }
+  );
+
+  it.skipIf(process.platform === 'win32')(
+    'keeps a symlinked working directory pinned to its bind-time target',
+    async () => {
+      const root = makeTempDirectory();
+      const firstProject = path.join(root, 'first-project');
+      const secondProject = path.join(root, 'second-project');
+      const workingDirectory = path.join(root, 'current-project');
+      fs.mkdirSync(firstProject);
+      fs.mkdirSync(secondProject);
+      fs.writeFileSync(path.join(firstProject, '.goosehints'), 'first guidance');
+      fs.writeFileSync(path.join(secondProject, '.goosehints'), 'second guidance');
+      fs.symlinkSync(firstProject, workingDirectory);
+      const access = new DesktopFileAccess();
+      await access.bindWindow(7, workingDirectory);
+      const canonicalFirstProject = fs.realpathSync(firstProject);
+
+      fs.unlinkSync(workingDirectory);
+      fs.symlinkSync(secondProject, workingDirectory);
+
+      await expect(access.readGoosehints(7)).resolves.toEqual({
+        file: 'first guidance',
+        filePath: path.join(canonicalFirstProject, '.goosehints'),
+        error: null,
+        found: true,
+      });
     }
   );
 });
@@ -100,6 +131,12 @@ describe('renderer provenance', () => {
     expect(isAppRendererUrl('http://127.0.0.1:5173/admin#/settings', devServerUrl)).toBe(false);
     expect(isAppRendererUrl('http://localhost:5173/#/settings', devServerUrl)).toBe(false);
     expect(isAppRendererUrl('https://attacker.example/#/settings', devServerUrl)).toBe(false);
+    expect(
+      isAppRendererUrl(
+        'file://attacker/Applications/Goose.app/Contents/Resources/renderer/main_window/index.html',
+        new URL('file:///Applications/Goose.app/Contents/Resources/renderer/main_window/index.html')
+      )
+    ).toBe(false);
     expect(isAppRendererUrl('not a URL', devServerUrl)).toBe(false);
   });
 
@@ -148,4 +185,66 @@ describe('readSelectedRecipe', () => {
     expect(result.file).toBe('');
     expect(result.error).toContain('YAML');
   });
+
+  it.skipIf(process.platform === 'win32')('allows a picker-selected YAML symlink', async () => {
+    const directory = makeTempDirectory();
+    const targetPath = path.join(directory, 'target.yaml');
+    const recipePath = path.join(directory, 'recipe.yaml');
+    fs.writeFileSync(targetPath, 'title: Linked recipe');
+    fs.symlinkSync(targetPath, recipePath);
+
+    await expect(readSelectedRecipe(recipePath)).resolves.toEqual({
+      file: 'title: Linked recipe',
+      filePath: recipePath,
+      error: null,
+      found: true,
+    });
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'reads from the opened recipe when a selected symlink is retargeted',
+    async () => {
+      const directory = makeTempDirectory();
+      const firstTarget = path.join(directory, 'first.yaml');
+      const secondTarget = path.join(directory, 'second.yaml');
+      const recipePath = path.join(directory, 'recipe.yaml');
+      fs.writeFileSync(firstTarget, 'title: First recipe');
+      fs.writeFileSync(secondTarget, 'title: Second recipe');
+      fs.symlinkSync(firstTarget, recipePath);
+      const open = fsPromises.open.bind(fsPromises);
+      const openSpy = vi.spyOn(fsPromises, 'open').mockImplementationOnce(async (...args) => {
+        const handle = await open(...args);
+        fs.unlinkSync(recipePath);
+        fs.symlinkSync(secondTarget, recipePath);
+        return handle;
+      });
+
+      await expect(readSelectedRecipe(recipePath)).resolves.toEqual({
+        file: 'title: First recipe',
+        filePath: recipePath,
+        error: null,
+        found: true,
+      });
+      expect(openSpy).toHaveBeenCalledOnce();
+    }
+  );
+
+  it.skipIf(process.platform === 'win32')(
+    'rejects a picker-selected FIFO without blocking',
+    async () => {
+      const directory = makeTempDirectory();
+      const recipePath = path.join(directory, 'recipe.yaml');
+      execFileSync('mkfifo', [recipePath]);
+      const openSpy = vi.spyOn(fsPromises, 'open');
+
+      const result = await readSelectedRecipe(recipePath);
+
+      expect(result.found).toBe(false);
+      expect(result.error).toContain('not a regular file');
+      expect(openSpy).toHaveBeenCalledWith(
+        recipePath,
+        fsConstants.O_RDONLY | fsConstants.O_NONBLOCK
+      );
+    }
+  );
 });

@@ -1486,6 +1486,40 @@ const createChat = async (
       mainWindow.show();
     }
   });
+
+  await desktopFileAccess.bindWindow(windowId, workingDir);
+  if (mainWindow.isDestroyed()) {
+    desktopFileAccess.unbindWindow(windowId);
+    return;
+  }
+  windowMap.set(windowId, mainWindow);
+
+  // Handle window closure
+  mainWindow.on('closed', () => {
+    windowMap.delete(windowId);
+    desktopFileAccess.unbindWindow(windowId);
+
+    pendingInitialMessages.delete(windowId);
+    pendingDeepLinks.delete(windowId);
+    reactReadyWindows.delete(windowId);
+
+    if (windowPowerSaveBlockers.has(windowId)) {
+      const blockerId = windowPowerSaveBlockers.get(windowId)!;
+      try {
+        powerSaveBlocker.stop(blockerId);
+        console.log(
+          `[Main] Stopped power save blocker ${blockerId} for closing window ${windowId}`
+        );
+      } catch (error) {
+        console.error(
+          `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
+          error
+        );
+      }
+      windowPowerSaveBlockers.delete(windowId);
+    }
+  });
+
   mainWindow.loadURL(formattedUrl);
 
   // If we have an initial message, store it to send after React is ready
@@ -1534,34 +1568,6 @@ const createChat = async (
     }
   });
 
-  desktopFileAccess.bindWindow(windowId, workingDir);
-  windowMap.set(windowId, mainWindow);
-
-  // Handle window closure
-  mainWindow.on('closed', () => {
-    windowMap.delete(windowId);
-    desktopFileAccess.unbindWindow(windowId);
-
-    pendingInitialMessages.delete(windowId);
-    pendingDeepLinks.delete(windowId);
-    reactReadyWindows.delete(windowId);
-
-    if (windowPowerSaveBlockers.has(windowId)) {
-      const blockerId = windowPowerSaveBlockers.get(windowId)!;
-      try {
-        powerSaveBlocker.stop(blockerId);
-        console.log(
-          `[Main] Stopped power save blocker ${blockerId} for closing window ${windowId}`
-        );
-      } catch (error) {
-        console.error(
-          `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
-          error
-        );
-      }
-      windowPowerSaveBlockers.delete(windowId);
-    }
-  });
   return mainWindow;
 };
 
