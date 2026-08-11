@@ -437,7 +437,7 @@ async fn usage_reported_after_native_delivery_updates_the_assistant_before_steer
 }
 
 #[tokio::test]
-async fn native_steering_error_uses_one_next_prompt_fallback() -> Result<()> {
+async fn native_steering_error_after_empty_completion_falls_back_once() -> Result<()> {
     let (first_stream_tx, first_stream) = controlled_stream();
     let second_stream = completed_stream(Message::assistant().with_text("fallback complete"));
     let provider = NativeSteeringTestProvider::new(
@@ -460,12 +460,6 @@ async fn native_steering_error_uses_one_next_prompt_fallback() -> Result<()> {
             )
             .await;
         provider.wait_for_native_calls(1).await;
-        first_stream_tx
-            .send(Ok((
-                Some(Message::assistant().with_text("first prompt complete")),
-                None,
-            )))
-            .expect("provider stream receiver");
         drop(first_stream_tx);
     };
     let (result, ()) = timeout(TEST_TIMEOUT, async { tokio::join!(run, steer) })

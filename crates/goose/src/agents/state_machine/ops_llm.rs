@@ -627,6 +627,9 @@ impl Inference for InferenceRunner<'_> {
                 let message = Message::assistant().with_text(EMPTY_RESPONSE_MESSAGE);
                 let message = emit.message(message).await;
                 effects.push(message.into());
+                if self.steering_queue.has_pending().await {
+                    return applied(effects);
+                }
                 return yielded_with(effects);
             }
             if empty_response {
