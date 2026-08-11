@@ -1590,6 +1590,53 @@ where
     }
 }
 
+/// Minimum content tokens to reserve when a reasoning model shares one
+/// `max_tokens` budget between `reasoning_content` and `content`.
+///
+/// OpenAI-compatible servers (llama.cpp, vLLM, Ollama) count both streams
+/// against the same `max_tokens`, so a verbose thinking pass can consume the
+/// whole budget and leave an empty answer (`finish_reason: "length"`, 0
+/// content tokens). Bumping the budget by a per-effort thinking budget keeps
+/// the answer from being starved. See issue #11142.
+const MIN_ANSWER_TOKENS: i32 = 1_024;
+
+/// Thinking budget added on top of the base `max_tokens` for a given thinking
+/// effort, so reasoning + content both fit within a single request budget.
+fn thinking_budget_for_effort(effort: ThinkingEffort) -> i32 {
+    match effort {
+        ThinkingEffort::Off => 0,
+        ThinkingEffort::Low => 2_048,
+        ThinkingEffort::Medium => 8_192,
+        ThinkingEffort::High | ThinkingEffort::Max => 16_384,
+    }
+}
+
+/// Compute the effective `max_tokens` for a request, accounting for reasoning
+/// tokens sharing the budget with content on OpenAI-compatible endpoints.
+///
+/// When a model has reasoning enabled and a thinking effort other than `Off`,
+/// the base budget is topped up with a thinking budget and content is floored
+/// at [`MIN_ANSWER_TOKENS`]. Requests to the OpenAI Responses API
+/// (`max_completion_tokens`) are left untouched: that API already counts
+/// reasoning inside the completion cap, and inflating it risks exceeding the
+/// model's hard output cap.
+fn effective_max_tokens_for_reasoning(
+    model_config: &ModelConfig,
+    base_max_tokens: i32,
+    uses_max_completion_tokens: bool,
+) -> i32 {
+    if uses_max_completion_tokens || !model_config.is_reasoning_model() {
+        return base_max_tokens;
+    }
+    let Some(effort) = model_config.thinking_effort() else {
+        return base_max_tokens;
+    };
+    if effort == ThinkingEffort::Off {
+        return base_max_tokens;
+    }
+    base_max_tokens.max(MIN_ANSWER_TOKENS) + thinking_budget_for_effort(effort)
+}
+
 pub fn create_request(
     model_config: &ModelConfig,
     system: &str,
@@ -1713,10 +1760,12 @@ pub fn create_request_for_model_with_options(
         } else {
             "max_tokens"
         };
+        let tokens =
+            effective_max_tokens_for_reasoning(model_config, max_tokens, is_reasoning_model);
         payload
             .as_object_mut()
             .unwrap()
-            .insert(key.to_string(), json!(max_tokens));
+            .insert(key.to_string(), json!(tokens));
     }
 
     if for_streaming {
