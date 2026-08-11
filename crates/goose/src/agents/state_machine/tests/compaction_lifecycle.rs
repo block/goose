@@ -176,15 +176,12 @@ async fn context_owning_provider_has_no_compaction_operation() -> Result<()> {
 
     for command in ["clear", "compact"] {
         let input = format!("/{command}");
-        let rejected = pipeline.run([input.as_str()]).await?;
-        rejected.assert_message(
-            -1,
-            Agent,
-            &format!("Unknown or unavailable slash command: /{command}"),
-        );
-        assert_eq!(rejected.history_replacements(), 0);
+        api.on(&input).reply(format!("provider handled /{command}"));
+        let handled = pipeline.run([input.as_str()]).await?;
+        handled.assert_message(-1, Agent, &format!("provider handled /{command}"));
+        assert_eq!(handled.history_replacements(), 0);
     }
-    assert_eq!(api.calls().len(), 1);
+    assert_eq!(api.calls().len(), 3);
 
     Ok(())
 }

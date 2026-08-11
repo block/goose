@@ -6,10 +6,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 use crate::agents::state_machine::operation::{
-    messages_since_kickoff, not_applicable, yielded_with, Emitter, Operation, OperationResult,
-    SlashCommand, StateEffect,
+    messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult, SlashCommand,
 };
-use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::session::Session;
 
@@ -76,29 +74,6 @@ impl Operation for SlashCommandOperation<'_> {
             }
         }
 
-        let message_id = user_message
-            .id
-            .clone()
-            .ok_or_else(|| anyhow::anyhow!("Persisted slash command message has no id"))?;
-        emit.message(user_message.clone().with_visibility(true, false))
-            .await;
-        let response = emit
-            .message(
-                Message::assistant()
-                    .with_text(format!(
-                        "Unknown or unavailable slash command: /{}",
-                        command.command
-                    ))
-                    .with_visibility(true, false),
-            )
-            .await;
-        yielded_with([
-            StateEffect::SetMessageVisibility {
-                message_id,
-                user_visible: true,
-                agent_visible: false,
-            },
-            response.into(),
-        ])
+        not_applicable()
     }
 }
