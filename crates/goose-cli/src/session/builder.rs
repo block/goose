@@ -32,10 +32,20 @@ fn truncate_with_ellipsis(s: &str, max_len: usize) -> String {
 fn disambiguate_stdio_extension_names(
     extensions: &mut [(String, ExtensionConfig)],
     renameable: &HashSet<usize>,
-) {
+) -> Result<(), ExtensionError> {
     let mut counts: HashMap<String, usize> = HashMap::new();
     for (_, config) in extensions.iter() {
         *counts.entry(config.key()).or_default() += 1;
+    }
+
+    let duplicate_fixed_names = extensions.iter().enumerate().find(|(index, (_, config))| {
+        !renameable.contains(index) && counts.get(&config.key()).copied().unwrap_or(0) > 1
+    });
+    if let Some((_, (_, config))) = duplicate_fixed_names {
+        return Err(ExtensionError::ConfigError(format!(
+            "extension name '{}' is already in use",
+            config.name()
+        )));
     }
 
     let mut taken: HashSet<String> = counts.keys().cloned().collect();
@@ -59,6 +69,7 @@ fn disambiguate_stdio_extension_names(
         taken.insert(name_to_key(&candidate));
         *name = candidate;
     }
+    Ok(())
 }
 
 fn parse_cli_flag_extensions(
@@ -495,7 +506,7 @@ async fn collect_extension_configs(
             .into_iter()
             .map(|(label, config, _)| (label, config)),
     );
-    disambiguate_stdio_extension_names(&mut all, &renameable);
+    disambiguate_stdio_extension_names(&mut all, &renameable)?;
 
     Ok(all.into_iter().map(|(_, config)| config).collect())
 }
@@ -767,7 +778,7 @@ mod tests {
             .into_iter()
             .map(|(label, config, _)| (label, config))
             .collect();
-        disambiguate_stdio_extension_names(&mut configs, &renameable);
+        disambiguate_stdio_extension_names(&mut configs, &renameable).unwrap();
         configs
             .into_iter()
             .map(|(_, config)| config.name())
@@ -825,9 +836,28 @@ mod tests {
                 CliSession::parse_stdio_extension("npx cli-server").unwrap(),
             ),
         ];
-        disambiguate_stdio_extension_names(&mut extensions, &HashSet::from([1]));
+        disambiguate_stdio_extension_names(&mut extensions, &HashSet::from([1])).unwrap();
         assert_eq!(extensions[0].1.name(), "npx");
         assert_eq!(extensions[1].1.name(), "npx_cli-server");
+    }
+
+    #[test]
+    fn test_duplicate_explicit_names_are_rejected() {
+        let mut extensions = vec![
+            (
+                "first".to_string(),
+                CliSession::parse_stdio_extension("memory:npx first").unwrap(),
+            ),
+            (
+                "second".to_string(),
+                CliSession::parse_stdio_extension("Memory:npx second").unwrap(),
+            ),
+        ];
+        let error =
+            disambiguate_stdio_extension_names(&mut extensions, &HashSet::new()).unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("extension name 'memory' is already in use"));
     }
 
     #[test]
