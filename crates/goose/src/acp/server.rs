@@ -62,7 +62,10 @@ use anyhow::Result;
 use fs_err as fs;
 use futures::future::{BoxFuture, FutureExt};
 use futures::stream::{self, StreamExt};
-use rmcp::model::{Annotations as RmcpAnnotations, Role, TextContent as RmcpTextContent};
+use rmcp::model::{
+    Annotations as RmcpAnnotations, ImageContent as RmcpImageContent, Role,
+    TextContent as RmcpTextContent,
+};
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::panic::AssertUnwindSafe;
@@ -482,6 +485,29 @@ fn read_resource_link(link: ResourceLink) -> Option<String> {
         ))
     } else {
         None
+    }
+}
+
+fn rmcp_audience_annotations(annotations: Option<&Annotations>) -> Option<RmcpAnnotations> {
+    let audience = annotations?
+        .audience
+        .as_ref()?
+        .iter()
+        .filter_map(|role| match role {
+            agent_client_protocol::schema::v1::Role::Assistant => Some(Role::Assistant),
+            agent_client_protocol::schema::v1::Role::User => Some(Role::User),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    Some(RmcpAnnotations::default().with_audience(audience))
+}
+
+fn annotated_prompt_text(text: &str, annotations: Option<&Annotations>) -> RmcpTextContent {
+    let content = RmcpTextContent::new(sanitize_unicode_tags(text));
+    match rmcp_audience_annotations(annotations) {
+        Some(annotations) => content.with_annotations(annotations),
+        None => content,
     }
 }
 
@@ -984,45 +1010,21 @@ impl GooseAcpAgent {
     }
 
     /// Convert ACP prompt content blocks into a user message.
-    fn convert_acp_prompt_to_message(prompt: &[ContentBlock]) -> Message {
+    pub(crate) fn convert_acp_prompt_to_message(prompt: &[ContentBlock]) -> Message {
         let mut message = Message::user();
         for block in prompt {
             match block {
                 ContentBlock::Text(text) => {
-                    let annotated = if let Some(ref ann) = text.annotations {
-                        let audience: Vec<Role> = ann
-                            .audience
-                            .as_ref()
-                            .map(|roles| {
-                                roles
-                                    .iter()
-                                    .filter_map(|r| match r {
-                                        agent_client_protocol::schema::v1::Role::Assistant => {
-                                            Some(Role::Assistant)
-                                        }
-                                        agent_client_protocol::schema::v1::Role::User => {
-                                            Some(Role::User)
-                                        }
-                                        _ => None,
-                                    })
-                                    .collect()
-                            })
-                            .unwrap_or_default();
-                        let raw = RmcpTextContent::new(sanitize_unicode_tags(&text.text));
-                        if audience.is_empty() {
-                            raw
-                        } else {
-                            raw.with_annotations(RmcpAnnotations::default().with_audience(audience))
-                        }
-                    } else {
-                        // No annotations — regular user text.
-                        let sanitized = sanitize_unicode_tags(&text.text);
-                        RmcpTextContent::new(sanitized)
-                    };
+                    let annotated = annotated_prompt_text(&text.text, text.annotations.as_ref());
                     message = message.with_content(MessageContent::Text(annotated));
                 }
                 ContentBlock::Image(image) => {
-                    message = message.with_image(&image.data, &image.mime_type);
+                    let content = RmcpImageContent::new(&image.data, &image.mime_type);
+                    let content = match rmcp_audience_annotations(image.annotations.as_ref()) {
+                        Some(annotations) => content.with_annotations(annotations),
+                        None => content,
+                    };
+                    message = message.with_content(MessageContent::Image(content));
                 }
                 ContentBlock::Resource(resource) => {
                     if let EmbeddedResourceResource::TextResourceContents(text_resource) =
@@ -1030,12 +1032,16 @@ impl GooseAcpAgent {
                     {
                         let header = format!("--- Resource: {} ---\n", text_resource.uri);
                         let content = format!("{}{}\n---\n", header, text_resource.text);
-                        message = message.with_text(&content);
+                        message = message.with_content(MessageContent::Text(
+                            annotated_prompt_text(&content, resource.annotations.as_ref()),
+                        ));
                     }
                 }
                 ContentBlock::ResourceLink(link) => {
                     if let Some(text) = read_resource_link(link.clone()) {
-                        message = message.with_text(text);
+                        message = message.with_content(MessageContent::Text(
+                            annotated_prompt_text(&text, link.annotations.as_ref()),
+                        ));
                     }
                 }
                 ContentBlock::Audio(..) | _ => (),
@@ -2352,8 +2358,9 @@ mod tests {
     use super::*;
     use crate::session::session_manager::SessionType;
     use agent_client_protocol::schema::v1::{
-        EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse, McpServerStdio,
-        PermissionOptionId, ResourceLink, SelectedPermissionOutcome,
+        EmbeddedResource, EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse,
+        McpServerStdio, PermissionOptionId, ResourceLink, Role as AcpRole,
+        SelectedPermissionOutcome, TextResourceContents,
     };
     use goose_providers::conversation::token_usage::Usage as TokenUsage;
     use std::io::Write;
@@ -2544,6 +2551,111 @@ print(\"hello, world\")
         );
 
         assert_eq!(result, expected,)
+    }
+
+    #[test]
+    fn convert_acp_prompt_preserves_audience_for_converted_blocks() {
+        let assistant_only = || Annotations::new().audience(vec![AcpRole::Assistant]);
+        let user_only = || Annotations::new().audience(vec![AcpRole::User]);
+        let empty_audience = || Annotations::new().audience(Vec::new());
+        let (link, _file) = new_resource_link("assistant-only linked resource").unwrap();
+        let prompt = vec![
+            ContentBlock::Text(TextContent::new("visible text")),
+            ContentBlock::Text(
+                TextContent::new("visible text with audience omitted")
+                    .annotations(Annotations::new()),
+            ),
+            ContentBlock::Text(
+                TextContent::new("empty-audience text").annotations(empty_audience()),
+            ),
+            ContentBlock::Image(
+                ImageContent::new("image-data", "image/png").annotations(assistant_only()),
+            ),
+            ContentBlock::Resource(
+                EmbeddedResource::new(EmbeddedResourceResource::TextResourceContents(
+                    TextResourceContents::new(
+                        "assistant-only embedded resource",
+                        "file:///assistant-only.txt",
+                    ),
+                ))
+                .annotations(assistant_only()),
+            ),
+            ContentBlock::Resource(
+                EmbeddedResource::new(EmbeddedResourceResource::TextResourceContents(
+                    TextResourceContents::new(
+                        "user-visible embedded resource",
+                        "file:///user-visible.txt",
+                    ),
+                ))
+                .annotations(user_only()),
+            ),
+            ContentBlock::Resource(
+                EmbeddedResource::new(EmbeddedResourceResource::TextResourceContents(
+                    TextResourceContents::new(
+                        "empty-audience embedded resource",
+                        "file:///empty-audience.txt",
+                    ),
+                ))
+                .annotations(empty_audience()),
+            ),
+            ContentBlock::ResourceLink(link.annotations(assistant_only())),
+        ];
+
+        let message = GooseAcpAgent::convert_acp_prompt_to_message(&prompt);
+        let user_content = message.user_visible_content();
+        let agent_content = message.agent_visible_content();
+        let empty_audience_content = message
+            .content
+            .iter()
+            .filter_map(|content| match content {
+                MessageContent::Text(text) if text.text.contains("empty-audience") => Some(text),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let audience_omitted_content = message
+            .content
+            .iter()
+            .find_map(|content| match content {
+                MessageContent::Text(text)
+                    if text.text.contains("visible text with audience omitted") =>
+                {
+                    Some(text)
+                }
+                _ => None,
+            })
+            .unwrap();
+
+        assert_eq!(empty_audience_content.len(), 2);
+        assert!(empty_audience_content.iter().all(|text| text
+            .annotations
+            .as_ref()
+            .and_then(|annotations| annotations.audience.as_ref())
+            .is_some_and(Vec::is_empty)));
+        assert!(audience_omitted_content.annotations.is_none());
+        assert!(user_content.as_concat_text().contains("visible text"));
+        assert!(user_content
+            .as_concat_text()
+            .contains("visible text with audience omitted"));
+        assert!(user_content
+            .as_concat_text()
+            .contains("user-visible embedded resource"));
+        assert!(!user_content.as_concat_text().contains("assistant-only"));
+        assert!(!user_content.as_concat_text().contains("empty-audience"));
+        assert!(!user_content
+            .content
+            .iter()
+            .any(|content| matches!(content, MessageContent::Image(_))));
+        assert!(agent_content
+            .as_concat_text()
+            .contains("assistant-only embedded resource"));
+        assert!(agent_content
+            .as_concat_text()
+            .contains("assistant-only linked resource"));
+        assert!(!agent_content.as_concat_text().contains("empty-audience"));
+        assert!(agent_content
+            .content
+            .iter()
+            .any(|content| matches!(content, MessageContent::Image(_))));
     }
 
     #[test_case(
