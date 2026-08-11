@@ -1,5 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { acpRefreshProviderDetails } from '../../../../acp/providers';
 import { IntlTestWrapper } from '../../../../i18n/test-utils';
 import type { ProviderDetails } from '../../../../types/providers';
 import ProviderConfigurationModal from './ProviderConfigurationModal';
@@ -11,6 +13,14 @@ vi.mock('../../../ModelAndProviderContext', () => ({
       model: 'model',
     }),
   }),
+}));
+
+vi.mock('../../../../acp/providers', () => ({
+  acpAuthenticateProvider: vi.fn(),
+  acpDeleteCustomProvider: vi.fn(),
+  acpDeleteProviderConfig: vi.fn(),
+  acpRefreshProviderDetails: vi.fn(),
+  acpSaveProviderConfig: vi.fn(),
 }));
 
 const oauthProvider: ProviderDetails = {
@@ -45,5 +55,54 @@ describe('ProviderConfigurationModal', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Remove Configuration' })).toBeInTheDocument();
+  });
+
+  it('invalidates ACP readiness while checking again', async () => {
+    const user = userEvent.setup();
+    const acpProvider: ProviderDetails = {
+      ...oauthProvider,
+      name: 'claude-acp',
+      metadata: {
+        ...oauthProvider.metadata,
+        name: 'claude-acp',
+        config_keys: [],
+        setup_steps: ['Install and authenticate Claude Code'],
+      },
+    };
+    let finishSecondCheck:
+      | ((value: Awaited<ReturnType<typeof acpRefreshProviderDetails>>) => void)
+      | undefined;
+    vi.mocked(acpRefreshProviderDetails)
+      .mockResolvedValueOnce({
+        provider: acpProvider,
+        connectionChecked: true,
+        readinessError: null,
+      })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishSecondCheck = resolve;
+          })
+      );
+
+    render(
+      <ProviderConfigurationModal provider={acpProvider} onClose={vi.fn()} onConfigured={vi.fn()} />,
+      { wrapper: IntlTestWrapper }
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Check again' }));
+    expect(await screen.findByRole('button', { name: 'Choose model' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Check again' }));
+    expect(screen.queryByRole('button', { name: 'Choose model' })).not.toBeInTheDocument();
+
+    finishSecondCheck?.({
+      provider: acpProvider,
+      connectionChecked: true,
+      readinessError: 'Authentication expired',
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Check again' })).not.toBeDisabled()
+    );
   });
 });

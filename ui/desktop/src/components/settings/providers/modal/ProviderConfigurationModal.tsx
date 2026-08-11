@@ -242,6 +242,8 @@ export default function ProviderConfigurationModal({
 
   const handleCheckExternalProvider = async () => {
     setIsCheckingExternalProvider(true);
+    setHasCheckedExternalProvider(false);
+    setExternalReadinessError(null);
     setError(null);
     try {
       const result = await acpRefreshProviderDetails(provider.name);
