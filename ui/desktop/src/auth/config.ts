@@ -1,3 +1,5 @@
+import { REQUIRE_ZITADEL_AUTH } from '../updates'
+
 export type ZitadelAuthConfig = {
   issuer: string
   clientId: string
@@ -15,9 +17,37 @@ export const AUTH_LOOPBACK_PORT = 47821
 export const AUTH_REDIRECT_PATH = '/callback'
 export const AUTH_LOGGED_OUT_PATH = '/logged-out'
 
+export type IsZitadelAuthEnabledOptions = {
+  isPackaged?: boolean
+  /** Override for tests; defaults to REQUIRE_ZITADEL_AUTH from updates.ts */
+  requireZitadelAuth?: boolean
+}
+
+function detectIsPackaged(): boolean {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const electron = require('electron') as { app?: { isPackaged?: boolean } }
+    return Boolean(electron.app?.isPackaged)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * When locked (`REQUIRE_ZITADEL_AUTH && isPackaged`), auth cannot be disabled
+ * via `AVCD_AUTH_MODE=off` or a missing issuer — returns true unconditionally.
+ * Env overrides are honoured only when not locked.
+ */
 export function isZitadelAuthEnabled(
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  opts?: IsZitadelAuthEnabledOptions
 ): boolean {
+  const isPackaged = opts?.isPackaged ?? detectIsPackaged()
+  const requireAuth = opts?.requireZitadelAuth ?? REQUIRE_ZITADEL_AUTH
+  if (requireAuth === true && isPackaged === true) {
+    return true
+  }
+
   const mode = env.AVCD_AUTH_MODE?.trim().toLowerCase()
   if (mode === 'off' || mode === 'false' || mode === '0') return false
   if (mode === 'zitadel' || mode === 'on' || mode === 'true' || mode === '1') {

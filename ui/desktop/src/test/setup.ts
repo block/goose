@@ -5,6 +5,7 @@ import { cleanup } from '@testing-library/react';
 // Mock Electron modules before any imports
 vi.mock('electron', () => ({
   app: {
+    isPackaged: false,
     getPath: vi.fn((name: string) => {
       if (name === 'userData') return '/tmp/test-user-data';
       if (name === 'temp') return '/tmp';

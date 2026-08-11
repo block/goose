@@ -19,6 +19,7 @@ import {
   Tray,
 } from 'electron';
 import { AuthManager, isZitadelAuthEnabled } from './auth';
+import { applyBakedDistroEnv } from './backendLock';
 import { pathToFileURL, format as formatUrl, URLSearchParams } from 'node:url';
 import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
@@ -889,6 +890,8 @@ const getBundledConfig = (): BundledConfig => {
   //{env-macro-start}//
   //needed when goose is bundled for a specific provider
   //{env-macro-end}//
+  // Avocado distro: bake Zitadel + locked gateway into process.env (compiled into app.asar).
+  applyBakedDistroEnv(process.env, { isPackaged: app.isPackaged });
   return {
     defaultProvider: process.env.GOOSE_DEFAULT_PROVIDER,
     defaultModel: process.env.GOOSE_DEFAULT_MODEL,
