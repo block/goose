@@ -74,7 +74,12 @@ function updateRequestToCreate(
 export async function acpListProviderDetails(): Promise<ProviderDetails[]> {
   const client = await getAcpClient();
   const { entries } = await client.goose.providersList_unstable({});
-  return entries.filter((entry) => entry.visibleInSetup).map(providerEntryToDetails);
+  return entries.map(providerEntryToDetails);
+}
+
+export async function acpListSetupProviderDetails(): Promise<ProviderDetails[]> {
+  const providers = await acpListProviderDetails();
+  return providers.filter((provider) => provider.visible_in_setup);
 }
 
 export async function acpGetProviderDetails(providerId: string): Promise<ProviderDetails> {

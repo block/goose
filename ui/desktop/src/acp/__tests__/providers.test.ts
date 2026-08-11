@@ -3,6 +3,7 @@ import { getAcpClient } from '../acpConnection';
 import {
   acpGetProviderDetails,
   acpListProviderDetails,
+  acpListSetupProviderDetails,
   acpRefreshProviderDetails,
   acpSetSessionProviderModel,
 } from '../providers';
@@ -104,20 +105,24 @@ describe('ACP providers', () => {
     expect(client.goose.providersReadinessCheck_unstable).not.toHaveBeenCalled();
   });
 
-  it('hides deprecated providers from setup lists but still resolves them directly', async () => {
-    const visible = providerEntry();
-    const hidden = providerEntry({
-      providerId: 'claude_code',
+  it('keeps compatibility providers in inventory but omits them from setup lists', async () => {
+    const replacement = providerEntry();
+    const deprecated = providerEntry({
+      providerId: 'claude-code',
       visibleInSetup: false,
       deprecated: true,
       replacement: 'claude-acp',
+    });
+    const hidden = providerEntry({
+      providerId: 'internal-provider',
+      visibleInSetup: false,
     });
     const client = {
       goose: {
         providersList_unstable: vi
           .fn()
           .mockImplementation(({ providerIds }: { providerIds?: string[] }) => ({
-            entries: providerIds?.length ? [hidden] : [visible, hidden],
+            entries: providerIds?.length ? [deprecated] : [replacement, deprecated, hidden],
           })),
       },
     };
@@ -125,8 +130,15 @@ describe('ACP providers', () => {
       client as unknown as Awaited<ReturnType<typeof getAcpClient>>
     );
 
-    expect(await acpListProviderDetails()).toHaveLength(1);
-    expect((await acpGetProviderDetails('claude_code')).replacement).toBe('claude-acp');
+    expect((await acpListProviderDetails()).map((provider) => provider.name)).toEqual([
+      'claude-acp',
+      'claude-code',
+      'internal-provider',
+    ]);
+    expect((await acpListSetupProviderDetails()).map((provider) => provider.name)).toEqual([
+      'claude-acp',
+    ]);
+    expect((await acpGetProviderDetails('claude-code')).replacement).toBe('claude-acp');
   });
 
   it('probes an installed ACP adapter and returns its refreshed models', async () => {

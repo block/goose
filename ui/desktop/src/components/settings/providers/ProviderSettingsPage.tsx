@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ScrollArea } from '../../ui/scroll-area';
 import BackButton from '../../ui/BackButton';
 import ProviderGrid from './ProviderGrid';
-import { acpListProviderDetails } from '../../../acp/providers';
+import { acpListSetupProviderDetails } from '../../../acp/providers';
 import type { ProviderDetails } from '../../../types/providers';
 import { createNavigationHandler } from '../../../utils/navigationUtils';
 import { defineMessages, useIntl } from '../../../i18n';
@@ -51,9 +51,9 @@ export default function ProviderSettings({
   const loadProviders = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await acpListProviderDetails();
+      const result = await acpListSetupProviderDetails();
       if (result) {
-        setProviders(result.filter((provider) => provider.visible_in_setup));
+        setProviders(result);
         initialLoadDone.current = true;
       }
     } catch (error) {
@@ -72,8 +72,8 @@ export default function ProviderSettings({
   // This function will be passed to ProviderGrid for manual refreshes after config changes
   const refreshProviders = useCallback(async () => {
     if (initialLoadDone.current) {
-      const result = await acpListProviderDetails();
-      if (result) setProviders(result.filter((provider) => provider.visible_in_setup));
+      const result = await acpListSetupProviderDetails();
+      if (result) setProviders(result);
     }
   }, []);
 
