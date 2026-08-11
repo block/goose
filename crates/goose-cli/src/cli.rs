@@ -2212,6 +2212,7 @@ async fn handle_default_session() -> Result<()> {
 
 pub async fn cli() -> anyhow::Result<()> {
     register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
+    crate::legacy_migrations::repair_legacy_project_tracker_permissions();
 
     let cli = Cli::parse();
 

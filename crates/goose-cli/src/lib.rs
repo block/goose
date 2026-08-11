@@ -8,6 +8,7 @@ compile_error!("Features `rustls-tls` and `native-tls` are mutually exclusive");
 
 pub mod cli;
 pub mod commands;
+mod legacy_migrations;
 pub mod logging;
 pub mod recipes;
 pub mod scenario_tests;

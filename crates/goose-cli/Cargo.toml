@@ -77,6 +77,9 @@ winapi = { workspace = true, features = [
     "wincon",
 ] }
 
+[target."cfg(unix)".dependencies]
+libc = { version = "0.2.182", default-features = false, features = ["std"] }
+
 [features]
 default = [
     "code-mode",
