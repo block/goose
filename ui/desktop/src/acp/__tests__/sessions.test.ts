@@ -1,7 +1,12 @@
 import type { SessionInfo } from '@agentclientprotocol/sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getAcpClient } from '../acpConnection';
-import { acpGetSessionListItem, acpLoadSession, sessionInfoToSession } from '../sessions';
+import {
+  acpGetSessionListItem,
+  acpLoadSession,
+  acpNewSession,
+  sessionInfoToSession,
+} from '../sessions';
 
 vi.mock('../acpConnection', () => ({
   getAcpClient: vi.fn(),
@@ -74,6 +79,34 @@ describe('ACP sessions', () => {
     expect(sessionInfoToSession(result.sessionInfo).model_config?.model_name).toBe(
       'claude-sonnet-4-5'
     );
+  });
+
+  it('carries the recipe parameter scope id in new-session metadata', async () => {
+    const createdSessionInfo = sessionInfo();
+    const client = {
+      goose: {
+        sessionInfo_unstable: vi.fn().mockResolvedValue({ session: createdSessionInfo }),
+      },
+      newSession: vi.fn().mockResolvedValue({ sessionId: 'session-1' }),
+    };
+    vi.mocked(getAcpClient).mockResolvedValue(
+      client as unknown as Awaited<ReturnType<typeof getAcpClient>>
+    );
+
+    await acpNewSession('/tmp', [], {
+      recipeDeeplink: 'goose://recipe?url=example',
+      recipeParameterScopeId: 'scope-1',
+    });
+
+    expect(client.newSession).toHaveBeenCalledWith({
+      cwd: '/tmp',
+      mcpServers: [],
+      _meta: {
+        client: 'goose-desktop',
+        recipeDeeplink: 'goose://recipe?url=example',
+        recipeParameterScopeId: 'scope-1',
+      },
+    });
   });
 
   it('returns a list item from ACP session info', async () => {

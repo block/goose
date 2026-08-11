@@ -6847,6 +6847,12 @@
           "items": {
             "$ref": "#/$defs/RecipeParameterDto"
           }
+        },
+        "parameterScopeId": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [

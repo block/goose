@@ -122,8 +122,14 @@ impl GooseAcpAgent {
         recipe: Option<(Recipe, PathBuf)>,
         meta: NewSessionMetaFields,
     ) -> Result<Option<Recipe>, agent_client_protocol::Error> {
+        let recipe_parameter_scope_id = meta_string(args.meta.as_ref(), "recipeParameterScopeId")?;
         let (rendered, user_recipe_values) = self
-            .render_recipe_for_session(cx, &session.id, recipe.as_ref())
+            .render_recipe_for_session(
+                cx,
+                &session.id,
+                recipe.as_ref(),
+                recipe_parameter_scope_id.as_deref(),
+            )
             .await?;
 
         let recipe_settings = rendered.as_ref().and_then(|r| r.settings.as_ref());

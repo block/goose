@@ -2622,6 +2622,7 @@ export type MessageUsageUpdate = {
 export type RequestRecipeParams_unstable = {
     sessionId: string;
     parameters: Array<RecipeParameterDto>;
+    parameterScopeId?: string | null;
 };
 
 export type RecipeParamsResponse_unstable = {
