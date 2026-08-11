@@ -8,7 +8,7 @@ use crate::agents::state_machine::operation::{
     applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
 };
 use crate::agents::state_machine::ops_toolcalling::{
-    pending_tool_requests, tool_span, ToolDisposition,
+    initialize_tool_dispatch_authorization, pending_tool_requests, tool_span, ToolDisposition,
 };
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
@@ -36,6 +36,7 @@ impl Operation for UnknownToolOperation {
         }
 
         let mut response = Message::user();
+        initialize_tool_dispatch_authorization(&mut response);
         for (request, disposition) in pending {
             let tool_name = request
                 .tool_call

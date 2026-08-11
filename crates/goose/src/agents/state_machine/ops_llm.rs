@@ -24,7 +24,7 @@ use tracing_futures::Instrument;
 
 const EMPTY_RESPONSE_MESSAGE: &str =
     "The model returned an empty response. Please resend your message to continue.";
-const CANCELLED_TOOL_RESPONSE: &str = "Tool call was cancelled before execution";
+pub(super) const CANCELLED_TOOL_RESPONSE: &str = "Tool call was cancelled before execution";
 
 fn is_thinking(content: &MessageContent) -> bool {
     matches!(
@@ -242,6 +242,7 @@ impl Operation for InferenceRunner<'_> {
         }
 
         let mut response = Message::user();
+        super::ops_toolcalling::initialize_tool_dispatch_authorization(&mut response);
         for request in requests {
             if !answered.contains(&request.id) {
                 response.add_tool_response_with_metadata(

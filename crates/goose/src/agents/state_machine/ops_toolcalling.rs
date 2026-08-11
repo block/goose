@@ -13,13 +13,17 @@ use crate::agents::state_machine::operation::{
     applied, messages_since_kickoff, not_applicable, yielded_with, Emitter, Operation,
     OperationResult, SlashCommand, StateEffect,
 };
+use crate::agents::state_machine::ops_llm::CANCELLED_TOOL_RESPONSE;
 use crate::agents::state_machine::ops_tool_approval::request_executable;
+use crate::agents::state_machine::ops_unknown_tool::UNCLAIMED_TOOL_ERROR;
 use crate::agents::tool_execution::{
     tool_stream, ToolCallResult, ToolStreamItem, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE,
 };
 use crate::agents::AgentEvent;
 use crate::config::GooseMode;
-use crate::conversation::message::{ActionRequiredData, Message, MessageContent, ToolRequest};
+use crate::conversation::message::{
+    ActionRequiredData, Message, MessageContent, ToolRequest, ToolResponse,
+};
 use crate::conversation::Conversation;
 use crate::hints::load_hints::SubdirectoryHintTracker;
 use crate::hooks::{HookContext, HookDecision, HookEvent, HookManager};
@@ -32,7 +36,7 @@ use tracing_futures::Instrument;
 const TOOL_EXECUTION_OPERATION: &str = "tool_execution";
 const AUTHORIZED_TOOL_REQUEST_IDS_NOTE: &str = "authorizedToolRequestIds";
 
-fn mark_tool_dispatch_authorized(message: &mut Message, request_id: &str) {
+fn authorized_tool_request_ids(message: &mut Message) -> &mut Vec<serde_json::Value> {
     let note = message
         .metadata
         .operations
@@ -41,20 +45,64 @@ fn mark_tool_dispatch_authorized(message: &mut Message, request_id: &str) {
         .or_default()
         .entry(AUTHORIZED_TOOL_REQUEST_IDS_NOTE.to_string())
         .or_insert_with(|| serde_json::Value::Array(Vec::new()));
-    let Some(ids) = note.as_array_mut() else {
-        return;
-    };
+    if !note.is_array() {
+        *note = serde_json::Value::Array(Vec::new());
+    }
+    note.as_array_mut().expect("authorization note is an array")
+}
+
+pub(super) fn initialize_tool_dispatch_authorization(message: &mut Message) {
+    authorized_tool_request_ids(message).clear();
+}
+
+fn mark_tool_dispatch_authorized(message: &mut Message, request_id: &str) {
+    let ids = authorized_tool_request_ids(message);
     if !ids.iter().any(|id| id.as_str() == Some(request_id)) {
         ids.push(serde_json::Value::String(request_id.to_string()));
     }
 }
 
-fn tool_dispatch_was_authorized(message: &Message, request_id: &str) -> bool {
-    message
+fn legacy_tool_response_was_not_executed(response: &ToolResponse) -> bool {
+    (match &response.tool_result {
+        Err(error) => {
+            error.message.contains("Tool call denied by policy hook `")
+                && error
+                    .message
+                    .contains("Do not retry; this is a policy denial")
+        }
+        Ok(result) => result
+            .content
+            .iter()
+            .filter_map(ContentBlock::as_text)
+            .any(|text| {
+                text.text == DECLINED_RESPONSE
+                    || text.text == CHAT_MODE_TOOL_SKIPPED_RESPONSE
+                    || text.text == CANCELLED_TOOL_RESPONSE
+                    || text.text.starts_with("The tool call could not be parsed:")
+                    || (text.text.starts_with("Tool '")
+                        && text.text.ends_with("' is not available."))
+            }),
+    }) || {
+        response
+            .metadata
+            .as_ref()
+            .and_then(|metadata| metadata.get(UNCLAIMED_TOOL_ERROR))
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
+    }
+}
+
+fn tool_dispatch_was_authorized(message: &Message, response: &ToolResponse) -> bool {
+    let marker = message
         .metadata
-        .operation_note(TOOL_EXECUTION_OPERATION, AUTHORIZED_TOOL_REQUEST_IDS_NOTE)
-        .and_then(serde_json::Value::as_array)
-        .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some(request_id)))
+        .operation_note(TOOL_EXECUTION_OPERATION, AUTHORIZED_TOOL_REQUEST_IDS_NOTE);
+    match marker {
+        Some(serde_json::Value::Array(ids)) => ids
+            .iter()
+            .any(|id| id.as_str() == Some(response.id.as_str())),
+        Some(_) => false,
+        None => !legacy_tool_response_was_not_executed(response),
+    }
 }
 
 fn authorized_tool_requests(conversation: &Conversation) -> Vec<&ToolRequest> {
@@ -72,7 +120,7 @@ fn authorized_tool_requests(conversation: &Conversation) -> Vec<&ToolRequest> {
                     let Some(index) = pending_by_id.remove(response.id.as_str()) else {
                         continue;
                     };
-                    requests[index].1 = tool_dispatch_was_authorized(message, &response.id);
+                    requests[index].1 = tool_dispatch_was_authorized(message, response);
                 }
                 _ => {}
             }
@@ -827,6 +875,7 @@ impl Operation for ToolExecutionOperation<'_> {
 
         let mut combined = futures::stream::select_all(tool_streams);
         let mut response = Message::user();
+        initialize_tool_dispatch_authorization(&mut response);
         let mut effects = Vec::new();
         for (request, disposition) in &pending {
             match disposition {
@@ -971,6 +1020,119 @@ mod tests {
             authorized[0].tool_call.as_ref().unwrap().name.as_ref(),
             "authorized"
         );
+    }
+
+    #[test]
+    fn legacy_tool_dispatch_fallback_preserves_success_and_rejects_nonexecution() {
+        let request = |id: &str| {
+            Message::assistant().with_tool_request_with_metadata(
+                id,
+                Ok(CallToolRequestParams::new(id.to_string())),
+                None,
+                None,
+            )
+        };
+        let requests = [
+            "success",
+            "tool_error",
+            "declined",
+            "chat",
+            "parse_error",
+            "hook_denied",
+            "cancelled",
+            "unknown_metadata",
+            "unknown_legacy",
+            "explicitly_unmarked",
+        ]
+        .map(request);
+
+        let mut legacy_responses = Message::user();
+        legacy_responses.add_tool_response_with_metadata(
+            "success",
+            Ok(CallToolResult::success(vec![ContentBlock::text("done")])),
+            None,
+        );
+        legacy_responses.add_tool_response_with_metadata(
+            "tool_error",
+            Ok(CallToolResult::error(vec![ContentBlock::text(
+                "tool failed",
+            )])),
+            None,
+        );
+        legacy_responses.add_tool_response_with_metadata(
+            "declined",
+            Ok(CallToolResult::error(vec![ContentBlock::text(
+                DECLINED_RESPONSE,
+            )])),
+            None,
+        );
+        legacy_responses.add_tool_response_with_metadata(
+            "chat",
+            Ok(CallToolResult::success(vec![ContentBlock::text(
+                CHAT_MODE_TOOL_SKIPPED_RESPONSE,
+            )])),
+            None,
+        );
+        legacy_responses.add_tool_response_with_metadata(
+            "parse_error",
+            Ok(CallToolResult::error(vec![ContentBlock::text(
+                "The tool call could not be parsed: invalid input.",
+            )])),
+            None,
+        );
+        legacy_responses.add_tool_response_with_metadata(
+            "hook_denied",
+            Err(ErrorData::internal_error(
+                "Tool call denied by policy hook `guard`: blocked. Do not retry; this is a policy denial, not a transient failure.",
+                None,
+            )),
+            None,
+        );
+        legacy_responses.add_tool_response_with_metadata(
+            "cancelled",
+            Ok(CallToolResult::error(vec![ContentBlock::text(
+                CANCELLED_TOOL_RESPONSE,
+            )])),
+            None,
+        );
+        let mut unclaimed_metadata = serde_json::Map::new();
+        unclaimed_metadata.insert(UNCLAIMED_TOOL_ERROR.to_string(), true.into());
+        legacy_responses.add_tool_response_with_metadata(
+            "unknown_metadata",
+            Ok(CallToolResult::error(vec![ContentBlock::text(
+                "provider-specific unavailable response",
+            )])),
+            Some(&unclaimed_metadata),
+        );
+        legacy_responses.add_tool_response_with_metadata(
+            "unknown_legacy",
+            Ok(CallToolResult::error(vec![ContentBlock::text(
+                "Tool 'missing__tool' is not available.",
+            )])),
+            None,
+        );
+
+        let mut marked_response = Message::user();
+        authorized_tool_request_ids(&mut marked_response);
+        marked_response.add_tool_response_with_metadata(
+            "explicitly_unmarked",
+            Ok(CallToolResult::success(vec![ContentBlock::text("done")])),
+            None,
+        );
+
+        let conversation = Conversation::new_unvalidated(
+            requests
+                .into_iter()
+                .chain([legacy_responses, marked_response]),
+        );
+        let reconstructed: Conversation =
+            serde_json::from_str(&serde_json::to_string(&conversation).unwrap()).unwrap();
+        let authorized: Vec<_> = authorized_tool_requests(&reconstructed)
+            .into_iter()
+            .map(|request| request.id.as_str())
+            .collect();
+
+        assert_eq!(authorized, ["success", "tool_error"]);
     }
 
     #[test]

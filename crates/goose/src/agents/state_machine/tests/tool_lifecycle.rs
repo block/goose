@@ -8,6 +8,7 @@ use super::calculator_extension::{
 use super::pipeline::MessageKind::{Agent, Confirmation, ToolCall, ToolResponse};
 use super::pipeline::MAX_TURNS;
 use super::test_pipeline;
+use crate::agents::state_machine::ops_unknown_tool::UNCLAIMED_TOOL_ERROR;
 use crate::agents::tool_execution::{CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::config::permission::PermissionLevel;
 use crate::config::GooseMode;
@@ -70,6 +71,29 @@ async fn recover_from_missing_tool() -> Result<()> {
     assert_eq!(api.call_count(), 3);
 
     result.assert_message(2, ToolResponse, "Tool 'missing__tool' is not available");
+    let unavailable_response = result
+        .conversation()
+        .messages()
+        .iter()
+        .find(|message| {
+            message.content.iter().any(|content| {
+                let MessageContent::ToolResponse(response) = content else {
+                    return false;
+                };
+                response
+                    .metadata
+                    .as_ref()
+                    .and_then(|metadata| metadata.get(UNCLAIMED_TOOL_ERROR))
+                    .and_then(serde_json::Value::as_bool)
+                    == Some(true)
+            })
+        })
+        .unwrap();
+    assert!(unavailable_response
+        .metadata
+        .operation_note("tool_execution", "authorizedToolRequestIds")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(Vec::is_empty));
     assert!(api.calls()[1].input_contains(ADD));
     result.assert_message(3, ToolCall, ADD);
     result.assert_message(4, ToolResponse, "result: 2");
@@ -326,6 +350,17 @@ async fn execution_recovers_from_timeout_cancellation_and_filtered_output() -> R
     let pipeline = pipeline.reconstruct().await?;
     let result = pipeline.resume_cancelled().await?;
     result.assert_message(-1, ToolResponse, "cancelled before execution");
+    let cancelled_response = result
+        .conversation()
+        .messages()
+        .iter()
+        .find(|message| message.get_tool_response_ids().contains("unfinished"))
+        .unwrap();
+    assert!(cancelled_response
+        .metadata
+        .operation_note("tool_execution", "authorizedToolRequestIds")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(Vec::is_empty));
     assert_eq!(pipeline.calculator_total(), 0);
     let request_ids = result
         .conversation()
