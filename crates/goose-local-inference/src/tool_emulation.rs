@@ -1144,6 +1144,21 @@ mod tests {
     }
 
     #[test]
+    fn multiple_blank_lines_preserve_nonempty_list_context() {
+        let input = "- item\n\n\n  ```execute_typescript\n  inert();\n  ```\n\n```execute_typescript\nsafe();\n```\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        let actions = parse_chunks(&chunk_refs, true);
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+            .collect();
+
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "safe();");
+    }
+
+    #[test]
     fn outdented_command_ends_list_before_indented_execute() {
         let input = "- item\n$ echo ok\n  ```execute_typescript\nlet safe = 1;\n  ```\n";
         let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
