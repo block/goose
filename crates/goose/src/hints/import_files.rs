@@ -14,6 +14,7 @@ static FILE_REFERENCE_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
 const MAX_DEPTH: usize = 3;
 const MAX_REFERENCE_OPERATIONS: usize = 64;
 const MAX_EXPANDED_OUTPUT_BYTES: usize = 1024 * 1024;
+const MAX_GIT_POINTER_BYTES: u64 = 4096;
 
 struct FileReference {
     path: PathBuf,
@@ -78,6 +79,62 @@ fn contains_git_metadata_component(path: &Path) -> bool {
     })
 }
 
+fn canonical_git_directory(path: PathBuf) -> Option<PathBuf> {
+    path.canonicalize().ok().filter(|path| path.is_dir())
+}
+
+fn resolve_git_path(base: &Path, value: &str) -> Option<PathBuf> {
+    let value = value.lines().next()?.trim();
+    if value.is_empty() {
+        return None;
+    }
+    let path = Path::new(value);
+    canonical_git_directory(if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        base.join(path)
+    })
+}
+
+fn read_git_pointer(path: &Path) -> Option<String> {
+    if !path.is_file() {
+        return None;
+    }
+    let mut value = String::new();
+    std::fs::File::open(path)
+        .ok()?
+        .take(MAX_GIT_POINTER_BYTES + 1)
+        .read_to_string(&mut value)
+        .ok()?;
+    (value.len() <= MAX_GIT_POINTER_BYTES as usize).then_some(value)
+}
+
+fn git_metadata_directories(boundary_canonical: &Path) -> Vec<PathBuf> {
+    let dot_git = boundary_canonical.join(".git");
+    let git_dir = if dot_git.is_dir() {
+        canonical_git_directory(dot_git)
+    } else {
+        read_git_pointer(&dot_git).and_then(|contents| {
+            contents
+                .strip_prefix("gitdir:")
+                .and_then(|value| resolve_git_path(boundary_canonical, value))
+        })
+    };
+    let Some(git_dir) = git_dir else {
+        return Vec::new();
+    };
+
+    let mut directories = vec![git_dir.clone()];
+    if let Some(common_dir) = read_git_pointer(&git_dir.join("commondir"))
+        .and_then(|value| resolve_git_path(&git_dir, &value))
+    {
+        if common_dir != git_dir {
+            directories.push(common_dir);
+        }
+    }
+    directories
+}
+
 fn validate_canonical_path(
     canonical: PathBuf,
     boundary_canonical: &Path,
@@ -93,7 +150,11 @@ fn validate_canonical_path(
             ),
         )
     })?;
-    if contains_git_metadata_component(relative) {
+    if contains_git_metadata_component(relative)
+        || git_metadata_directories(boundary_canonical)
+            .iter()
+            .any(|directory| canonical.starts_with(directory))
+    {
         return Err(std::io::Error::new(
             std::io::ErrorKind::PermissionDenied,
             format!("Git metadata path not allowed: '{}'", original.display()),
@@ -589,6 +650,59 @@ mod tests {
             assert!(expanded.contains("legitimate config"));
             assert!(expanded.contains("legitimate github instructions"));
             assert!(expanded.contains("legitimate gitignore"));
+        }
+
+        #[test]
+        fn test_worktree_git_directories_are_not_imported() {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let import_boundary = temp_dir.path();
+            std::fs::create_dir_all(import_boundary.join(".git-data/worktrees/topic")).unwrap();
+            std::fs::create_dir(import_boundary.join(".git-common-data")).unwrap();
+            std::fs::create_dir_all(import_boundary.join("project-data")).unwrap();
+            create_file(
+                import_boundary,
+                ".git",
+                "gitdir: .git-data/worktrees/topic\n",
+            );
+            create_file(
+                import_boundary,
+                ".git-data/worktrees/topic/commondir",
+                "../../../.git-common-data\n",
+            );
+            create_file(
+                import_boundary,
+                ".git-data/worktrees/topic/config.worktree",
+                "WORKTREE_GIT_SECRET",
+            );
+            create_file(
+                import_boundary,
+                ".git-common-data/config",
+                "COMMON_GIT_SECRET",
+            );
+            create_file(
+                import_boundary,
+                "project-data/config.md",
+                "legitimate project data",
+            );
+            let main_file = create_file(
+                import_boundary,
+                "main.md",
+                "@.git-data/worktrees/topic/config.worktree\n@.git-common-data/config\n@project-data/config.md",
+            );
+            let ignore_patterns = create_ignore_patterns(import_boundary);
+            let mut visited = HashSet::new();
+
+            let expanded = read_referenced_files(
+                &main_file,
+                import_boundary,
+                &mut visited,
+                0,
+                &ignore_patterns,
+            );
+
+            assert!(!expanded.contains("WORKTREE_GIT_SECRET"));
+            assert!(!expanded.contains("COMMON_GIT_SECRET"));
+            assert!(expanded.contains("legitimate project data"));
         }
 
         #[cfg(unix)]
