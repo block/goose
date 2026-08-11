@@ -1137,6 +1137,7 @@ enum Command {
         /// (capped at 4 concurrent), bounding wall-clock to the slowest
         /// single check rather than waiting on the model to issue
         /// dispatches.
+        /// Checks with an explicit tool allowlist require the default orchestrator.
         #[arg(long = "no-orchestrate")]
         no_orchestrate: bool,
 
