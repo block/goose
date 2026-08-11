@@ -54,8 +54,8 @@ export function ConnectPanel({
   videoRef,
 }: ConnectPanelProps) {
   return (
-        <section id="connect-panel" className="flex-1 grid place-items-center p-3 md:p-6 overflow-auto">
-          <div className="w-full max-w-[480px] min-w-0 overflow-hidden bg-background-primary border rounded-xl shadow-sm p-5 md:p-7">
+        <section id="connect-panel" className="flex-1 grid place-items-center p-3 md:p-6 overflow-auto bg-background-secondary">
+          <div className="w-full max-w-[480px] min-w-0 overflow-hidden bg-background-primary rounded-xl shadow-sm p-6 md:p-8">
             {hosts.length > 0 && !addingHost ? (
               <>
                 <div className="flex items-center gap-2 mb-1">
@@ -81,7 +81,7 @@ export function ConnectPanel({
                     return (
                     <button
                       key={h.endpointId}
-                      className="host-row w-full text-left rounded-lg px-3 py-2.5 hover:bg-background-secondary hover:shadow-default transition-all flex items-center gap-3 disabled:opacity-50"
+                      className="host-row w-full text-left rounded-lg px-3 py-2.5 hover:bg-background-secondary transition-colors flex items-center gap-3 disabled:opacity-50"
                       disabled={busy || live}
                       onClick={() => {
                         setCard(h.card);
@@ -109,7 +109,7 @@ export function ConnectPanel({
                 <div className="mt-4 flex justify-center">
                   <button
                     id="add-host"
-                    className="text-xs text-text-secondary border border-border-secondary rounded-lg px-3 py-1.5 hover:border-border-info transition-colors"
+                    className="text-xs text-text-secondary rounded-lg px-3 py-1.5 hover:bg-background-secondary hover:text-text-primary transition-colors"
                     onClick={() => setAddingHost(true)}
                   >
                     add another host
@@ -133,12 +133,12 @@ export function ConnectPanel({
                   </h2>
                 </div>
                 {hosts.length === 0 ? (
-                  <div className="text-xs text-text-secondary leading-relaxed mb-4 space-y-1.5">
+                  <div className="text-xs text-text-secondary leading-relaxed mb-5 space-y-2">
                     <p>
                       Chat with a goose agent on your own machine, from this browser —
                       peer to peer, no accounts, nothing in between.
                     </p>
-                    <ol className="list-decimal ml-4 space-y-1 text-text-tertiary">
+                    <ol className="list-decimal ml-4 space-y-0.5 text-text-tertiary">
                       <li>
                         on your machine: <code className="font-mono">goose roam share --qr</code>
                       </li>
@@ -159,7 +159,7 @@ export function ConnectPanel({
                 <input
                   id="host-name"
                   type="text"
-                  className="w-full bg-background-primary border border-border-primary rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-border-info mb-2"
+                  className="w-full bg-background-secondary rounded-lg px-3 py-2 text-sm mb-2"
                   placeholder="name (optional) — e.g. laptop"
                   value={hostName}
                   onChange={(e) => setHostName(e.target.value)}
@@ -167,7 +167,7 @@ export function ConnectPanel({
                 <textarea
                   id="card-input"
                   rows={3}
-                  className="w-full bg-background-primary border border-border-primary rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-border-info resize-none"
+                  className="w-full bg-background-secondary rounded-lg px-3 py-2.5 text-sm font-mono resize-none"
                   placeholder="goose+roam://…  (the host's card)"
                   value={card}
                   onChange={(e) => setCard(e.target.value)}
@@ -177,7 +177,7 @@ export function ConnectPanel({
                     <button
                       id="scan-card"
                       type="button"
-                      className="inline-flex items-center gap-1.5 text-text-secondary border border-border-secondary rounded-lg px-3 py-1.5 text-xs hover:border-border-info"
+                      className="inline-flex items-center gap-1.5 text-text-secondary rounded-lg px-3 py-1.5 text-xs hover:bg-background-secondary hover:text-text-primary transition-colors"
                       onClick={() => void startScan()}
                     >
                       <Camera className="w-3.5 h-3.5" /> scan QR
@@ -194,7 +194,7 @@ export function ConnectPanel({
                   </button>
                 </div>
                 <details
-                  className="mt-5 border-t border-border-primary pt-3"
+                  className="mt-6 pt-4 border-t border-border-primary"
                   open={pairOpen}
                   onToggle={(e) => setPairOpen((e.target as HTMLDetailsElement).open)}
                 >
@@ -212,7 +212,7 @@ export function ConnectPanel({
                       </code>
                       <button
                         id="copy-card"
-                        className="shrink-0 text-text-secondary border border-border-secondary rounded-lg px-2.5 py-1 text-xs hover:border-border-info"
+                        className="shrink-0 text-text-secondary rounded-lg px-2.5 py-1 text-xs hover:bg-background-secondary hover:text-text-primary transition-colors"
                         onClick={() => navigator.clipboard?.writeText(myCard)}
                       >
                         copy
@@ -220,7 +220,7 @@ export function ConnectPanel({
                       {"share" in navigator && (
                         <button
                           id="share-card"
-                          className="shrink-0 text-text-secondary border border-border-secondary rounded-lg px-2.5 py-1 text-xs hover:border-border-info"
+                          className="shrink-0 text-text-secondary rounded-lg px-2.5 py-1 text-xs hover:bg-background-secondary hover:text-text-primary transition-colors"
                           onClick={() => void navigator.share({ text: myCard }).catch(() => {})}
                         >
                           share

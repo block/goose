@@ -188,7 +188,7 @@ export function SessionMatrix({
       {preview && (
         <div
           id="matrix-preview"
-          className="shrink-0 mx-3 md:mx-auto md:w-[420px] mb-2 border border-border-primary rounded-xl bg-background-secondary px-3.5 py-2.5 flex items-center gap-3"
+          className="shrink-0 mx-3 md:mx-auto md:w-[420px] mb-2 rounded-xl bg-background-secondary shadow-default px-3.5 py-2.5 flex items-center gap-3"
         >
           <span className="flex-1 min-w-0">
             <span className="block text-sm font-medium truncate">

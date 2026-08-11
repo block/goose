@@ -924,7 +924,7 @@ export function App({ roam }: { roam: RoamClient }) {
 
   return (
     <div className="h-[100dvh] flex flex-col bg-background-primary text-text-primary pb-[env(safe-area-inset-bottom)]">
-      <div className="flex items-center justify-between gap-2 px-3 md:px-4 py-2.5 border-b border-border-primary bg-background-secondary shrink-0">
+      <div className="flex items-center justify-between gap-2 px-3 md:px-4 py-2.5 bg-background-secondary shrink-0">
         <div className="flex items-center gap-2 shrink-0">
           {connected && (
             <button
@@ -944,7 +944,7 @@ export function App({ roam }: { roam: RoamClient }) {
           {connected && modelName && (
             <span
               id="model-badge"
-              className="hidden md:inline text-[11px] text-text-secondary bg-background-secondary border border-border-primary rounded-full px-2.5 py-0.5"
+              className="hidden md:inline text-[11px] text-text-secondary bg-background-tertiary rounded-full px-2.5 py-0.5"
             >
               {modelName}
             </span>
@@ -952,19 +952,19 @@ export function App({ roam }: { roam: RoamClient }) {
           {connected && (
             <span
               id="agent-badge"
-              className="hidden md:inline font-mono text-[11px] text-text-secondary bg-background-secondary border border-border-primary rounded-full px-2.5 py-0.5"
+              className="hidden md:inline font-mono text-[11px] text-text-secondary bg-background-tertiary rounded-full px-2.5 py-0.5"
             >
               agent {agentId.slice(0, 12)}…
             </span>
           )}
-          <span id="status" className={`flex items-center gap-1.5 text-xs whitespace-nowrap ${statusColor}`}>
+          <span id="status" className={`flex items-center gap-1.5 text-[11px] whitespace-nowrap ${statusColor}`}>
             <span aria-hidden className="inline-block w-2 h-2 rounded-full bg-current shrink-0" />
             <span className={connected ? "hidden md:inline" : "truncate max-w-[180px] md:max-w-none"}>{status}</span>
           </span>
           {connected && (
             <button
               id="switch-host"
-              className="shrink-0 text-xs text-text-secondary border border-border-secondary rounded-lg px-2.5 py-1 hover:border-border-info transition-colors"
+              className="shrink-0 text-xs text-text-secondary rounded-lg px-2.5 py-1 hover:bg-background-tertiary hover:text-text-primary transition-colors"
               title="connect more hosts — sessions from every connected host share one list"
               onClick={() => setShowHosts((v) => !v)}
             >
@@ -1016,22 +1016,22 @@ export function App({ roam }: { roam: RoamClient }) {
       ) : (
         <section id="workspace" className="flex-1 relative md:grid md:grid-cols-[240px_1fr] flex min-h-0">
           <aside
-            className={`${sidebarOpen ? "flex" : "hidden"} md:flex absolute md:static inset-y-0 left-0 z-20 w-[240px] shadow-lg md:shadow-none border-r border-border-primary bg-background-secondary p-3 flex-col gap-2.5 min-h-0`}
+            className={`${sidebarOpen ? "flex" : "hidden"} md:flex absolute md:static inset-y-0 left-0 z-20 w-[240px] shadow-lg md:shadow-none bg-background-secondary py-3 flex-col gap-2.5 min-h-0`}
           >
             <button
               id="new-session"
               disabled={busy}
               onClick={() => { setSidebarOpen(false); void newSession(); }}
-              className="w-full bg-background-inverse text-text-inverse font-semibold rounded-lg px-3 py-1.5 hover:brightness-110 disabled:opacity-50"
+              className="mx-3 bg-background-inverse text-text-inverse font-semibold rounded-lg px-3 py-1.5 hover:brightness-110 disabled:opacity-50"
             >
               + New session
             </button>
-            <div id="session-list" className="overflow-y-auto flex flex-col gap-1">
+            <div id="session-list" className="overflow-y-auto flex flex-col">
               {groupSessions(sessions, projects).map(({ key, label, sessions: group }) => (
-                <div key={key} className="flex flex-col gap-1">
+                <div key={key} className="flex flex-col">
                   {label !== null && (
                     <button
-                      className="project-label flex items-center gap-1 text-[10px] uppercase tracking-wide text-text-tertiary px-2.5 pt-2 hover:text-text-secondary"
+                      className="project-label flex items-center gap-1 text-[10px] uppercase tracking-wide text-text-tertiary px-3 pt-1 pb-0.5 hover:text-text-secondary"
                       onClick={() => toggleGroup(key)}
                       aria-expanded={!collapsed.has(key)}
                     >
@@ -1046,10 +1046,10 @@ export function App({ roam }: { roam: RoamClient }) {
                   {(label === null || !collapsed.has(key)) && group.map((s) => (
                     <button
                       key={`${s._host}|${s.sessionId}`}
-                      className={`session-item text-left rounded-lg px-2.5 py-2 transition-all duration-150 ${
+                      className={`session-item text-left w-full px-3 py-2 border-l-2 transition-colors duration-150 ${
                         s.sessionId === sessionId && s._host === activeHostId
-                          ? "bg-background-tertiary"
-                          : "hover:bg-background-secondary hover:shadow-default"
+                          ? "bg-background-tertiary border-border-info"
+                          : "border-transparent hover:bg-background-tertiary"
                       }`}
                       onClick={() => { setSidebarOpen(false); void openSession(s._host, s.sessionId); }}
                     >
@@ -1075,7 +1075,7 @@ export function App({ roam }: { roam: RoamClient }) {
                 </div>
               ))}
             </div>
-            <div className="mt-auto pt-2 border-t border-border-primary text-[10px] text-text-tertiary font-mono truncate">
+            <div className="mt-auto px-3 pt-2 text-[10px] text-text-tertiary font-mono truncate">
               {modelName ? `${modelName} · ` : ""}{relay ? `via relay ${relay} · ` : ""}agent {agentId.slice(0, 8)}
             </div>
           </aside>
@@ -1149,7 +1149,7 @@ export function App({ roam }: { roam: RoamClient }) {
             {showConfig && (
               <div
                 id="session-config"
-                className="shrink-0 border-b border-border-primary bg-background-secondary px-3 md:px-6 py-3"
+                className="shrink-0 bg-background-secondary px-3 md:px-6 py-3"
               >
                 <div className="max-w-3xl mx-auto w-full grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5">
                   {configOptions
@@ -1160,7 +1160,7 @@ export function App({ roam }: { roam: RoamClient }) {
                           {o.name}
                         </span>
                         <select
-                          className="w-full bg-background-primary border border-border-primary rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-border-info disabled:opacity-50"
+                          className="w-full bg-background-primary rounded-lg px-2 py-1.5 text-xs text-text-primary disabled:opacity-50"
                           value={typeof o.currentValue === "string" ? o.currentValue : ""}
                           disabled={busy && !activeRun}
                           onChange={(e) => void setConfigOption(o.id, e.target.value)}
@@ -1181,7 +1181,7 @@ export function App({ roam }: { roam: RoamClient }) {
               {items.length > logWindow && (
                 <button
                   id="show-earlier"
-                  className="self-center text-xs text-text-secondary border border-border-secondary rounded-lg px-3 py-1.5 hover:border-border-info"
+                  className="self-center text-xs text-text-secondary rounded-lg px-3 py-1.5 bg-background-secondary hover:bg-background-tertiary transition-colors"
                   onClick={() => {
                     const el = logRef.current;
                     const prevH = el?.scrollHeight ?? 0;
@@ -1281,7 +1281,7 @@ export function App({ roam }: { roam: RoamClient }) {
                                 className={
                                   o.kind.startsWith("allow")
                                     ? "primary bg-background-inverse text-text-inverse font-semibold rounded-lg px-3 py-1 text-[13px]"
-                                    : "border border-border-secondary text-text-secondary rounded-lg px-3 py-1 text-[13px]"
+                                    : "bg-background-secondary text-text-secondary rounded-lg px-3 py-1 text-[13px] hover:bg-background-tertiary"
                                 }
                                 onClick={() => {
                                   it.resolve(o.optionId);
@@ -1314,7 +1314,7 @@ export function App({ roam }: { roam: RoamClient }) {
                       type="button"
                       disabled={cancelling}
                       onClick={() => void cancelTurn()}
-                      className="inline-flex items-center gap-1 border border-border-secondary rounded-md px-2 py-0.5 text-[11px] hover:border-border-warning hover:text-text-warning transition-colors disabled:opacity-50"
+                      className="inline-flex items-center gap-1 bg-background-secondary rounded-md px-2 py-0.5 text-[11px] hover:text-text-warning transition-colors disabled:opacity-50"
                     >
                       <Square className="w-2.5 h-2.5 fill-current" />
                       {cancelling ? "stopping…" : "stop"}
@@ -1335,7 +1335,7 @@ export function App({ roam }: { roam: RoamClient }) {
               {externalActive && !externalOverride && (
                 <div
                   id="external-run-guard"
-                  className="max-w-3xl mx-auto w-full mb-1.5 flex items-center gap-2 text-[11px] text-text-warning border border-border-warning rounded-lg bg-background-secondary px-3 py-1.5"
+                  className="max-w-3xl mx-auto w-full mb-1.5 flex items-center gap-2 text-[11px] text-text-warning rounded-lg bg-background-secondary px-3 py-1.5"
                 >
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-current animate-pulse shrink-0" />
                   <span className="flex-1 min-w-0">
@@ -1351,7 +1351,7 @@ export function App({ roam }: { roam: RoamClient }) {
                   </button>
                 </div>
               )}
-              <div className="max-w-3xl mx-auto w-full flex gap-2.5 items-end border border-border-primary hover:border-border-secondary focus-within:border-border-secondary rounded-xl bg-background-primary px-1.5 py-1 transition-colors">
+              <div className="max-w-3xl mx-auto w-full flex gap-2.5 items-end rounded-xl bg-background-secondary focus-within:ring-2 focus-within:ring-border-info px-1.5 py-1 transition-shadow">
               <textarea
                 ref={inputRef}
                 id="prompt-input"
