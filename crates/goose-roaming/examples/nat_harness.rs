@@ -67,6 +67,7 @@ struct Args {
     duration_secs: u64,
     dials: usize,
     pace_ms: u64,
+    require_direct: bool,
 }
 
 impl Args {
@@ -82,6 +83,7 @@ impl Args {
             duration_secs: 90,
             dials: 8,
             pace_ms: 20,
+            require_direct: false,
         };
         while let Some(flag) = argv.next() {
             let mut value = || {
@@ -97,6 +99,7 @@ impl Args {
                 "--duration-secs" => args.duration_secs = value()?.parse()?,
                 "--dials" => args.dials = value()?.parse()?,
                 "--pace-ms" => args.pace_ms = value()?.parse()?,
+                "--require-direct" => args.require_direct = true,
                 other => anyhow::bail!("unknown flag `{other}`"),
             }
         }
@@ -572,12 +575,37 @@ async fn scenario_crash(
         seq,
     );
 
-    // Prime with one frame so the data plane is provably live, then announce
-    // it: the run script anchors its kill timer on this marker, so a slow
-    // setup can't let the kill land before anything is under test.
+    // Prime with one frame so the data plane is provably live.
     exchange_frame(&mut stream, counter).await?;
     frames_ok += 1;
     counter += 1;
+
+    // For the relay-crash verification the kill must land on a connection that
+    // is genuinely on a direct path — otherwise "relay death caused no outage"
+    // proves nothing. Wait for the direct upgrade (seeded from the live path
+    // set) before signalling the kill, pumping frames so the migration happens
+    // under traffic. Fail loudly if it never upgrades: that is a real
+    // regression, not a reason to kill a relay-only link and pass.
+    if args.require_direct {
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            seed_direct_from_paths(&stream.conn, &direct_selected);
+            if direct_selected.load(std::sync::atomic::Ordering::Relaxed) {
+                break;
+            }
+            anyhow::ensure!(
+                Instant::now() < deadline,
+                "connection never reached a direct path within 30s (--require-direct)"
+            );
+            exchange_frame(&mut stream, counter).await?;
+            frames_ok += 1;
+            counter += 1;
+            tokio::time::sleep(Duration::from_millis(args.pace_ms)).await;
+        }
+    }
+
+    // Announce readiness: the run script anchors its kill timer on this marker,
+    // so a slow setup can't let the kill land before anything is under test.
     println!("CRASH_RUNNING");
     // The measured window starts here — the same instant the run script
     // anchors its kill timer on — so setup time can't eat the window and end

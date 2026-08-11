@@ -22,6 +22,8 @@ RUST_IMAGE=rust:1.96-bookworm
 log() { printf '\n== %s ==\n' "$*"; }
 
 cleanup() {
+  # Set KEEP=1 to leave containers/networks up for post-mortem (docker logs).
+  [ -n "${KEEP:-}" ] && { echo "KEEP set — leaving containers up"; return; }
   docker rm -f "$PREFIX-relay" "$PREFIX-router" "$PREFIX-host" "$PREFIX-client" >/dev/null 2>&1 || true
   docker network rm "$PREFIX-wan" "$PREFIX-lan-a" "$PREFIX-lan-b" >/dev/null 2>&1 || true
   docker volume rm "$PREFIX-shared" >/dev/null 2>&1 || true
@@ -138,10 +140,19 @@ if [ -z "$hairpin_direct" ]; then
 fi
 log "soak-hairpin selected a direct path (QAD upgrade verified)"
 
-crash_scenario() { # name victim-container require-outage(yes|no)
-  local name=$1 victim=$2 require_outage=${3:-yes}
+crash_scenario() { # name victim-container mode(host|relay)
+  local name=$1 victim=$2 mode=${3:-host}
   log "scenario: $name (SIGKILL $victim 25s after the measured loop starts)"
-  client crash --duration-secs 90 >"$RESULTS/$name.log" 2>&1 &
+  # relay mode verifies relay independence, which is only meaningful if the
+  # connection under test is actually on a direct path when the relay dies —
+  # so the client waits for the direct upgrade before signalling the kill.
+  # Plain string (not an array): an empty array under `set -u` on macOS bash
+  # 3.2 is an "unbound variable" error; the flag is a single token, so
+  # unquoted word-splitting is safe.
+  local direct_flag=""
+  [ "$mode" = relay ] && direct_flag="--require-direct"
+  # shellcheck disable=SC2086
+  client crash --duration-secs 90 $direct_flag >"$RESULTS/$name.log" 2>&1 &
   local pid=$!
   # Anchor the kill timer on the client's data-plane-live marker — killing
   # during a slow setup would let the scenario pass without measuring anything.
@@ -174,30 +185,39 @@ crash_scenario() { # name victim-container require-outage(yes|no)
   fi
   echo "$result" | sed 's/^RESULT //' \
     | sed "s/{/{\"name\":\"$name\",/" >>"$RESULTS/results.jsonl"
-  # A host crash must always produce an outage — the host is an endpoint, so
-  # killing it breaks the connection on any path; zero outages there means the
-  # kill missed the measured loop. A relay crash is different: once the
-  # connection has upgraded to a direct path (QAD, fix 3ea6c8b8), the relay is
-  # no longer on the data path, so killing it produces NO outage. That is the
-  # desired result, not a failure — record it instead of asserting.
-  if ! echo "$result" | grep -q '"outage_ms"'; then
-    if [ "$require_outage" = yes ]; then
+
+  local has_outage direct
+  has_outage=$(echo "$result" | grep -o '"outage_ms"' || true)
+  direct=$(echo "$result" | grep -o '"direct_path_selected": *true' || true)
+
+  if [ "$mode" = host ]; then
+    # The host is an endpoint, so killing it breaks the connection on any path.
+    # No outage means the kill missed the measured loop — the scenario measured
+    # nothing.
+    if [ -z "$has_outage" ]; then
       echo "$name: no outage recorded — the kill did not land inside the measured loop" >&2
       exit 1
     fi
-    local direct
-    direct=$(echo "$result" | grep -o '"direct_path_selected": *true' || true)
-    if [ -n "$direct" ]; then
-      log "$name: no outage — connection was on a direct path, relay not on the data plane (expected post-QAD)"
-    else
-      echo "$name: no outage but path was not direct — relay death should have caused an outage" >&2
+  else
+    # Relay independence: the client waited for a direct path (--require-direct)
+    # before the kill, so a correct run is direct AND has no outage. An outage
+    # means the relay was still on the data plane (upgrade regressed or was too
+    # slow); a non-direct result means the same. Either fails — this is the
+    # direct-upgrade regression the harness exists to catch.
+    if [ -z "$direct" ]; then
+      echo "$name: connection was not on a direct path — QAD direct-upgrade regressed" >&2
       exit 1
     fi
+    if [ -n "$has_outage" ]; then
+      echo "$name: relay death caused an outage on a direct connection — relay independence not verified" >&2
+      exit 1
+    fi
+    log "$name: direct path + no outage on relay death (relay independence verified)"
   fi
 }
 
-crash_scenario crash "$PREFIX-host" yes
-crash_scenario relay-crash "$PREFIX-relay" no
+crash_scenario crash "$PREFIX-host" host
+crash_scenario relay-crash "$PREFIX-relay" relay
 
 log "NAT rule counters (evidence the QUIC flows traversed the router mappings)"
 docker exec "$PREFIX-router" iptables -t nat -vnL | tee "$RESULTS/nat-counters.log"
