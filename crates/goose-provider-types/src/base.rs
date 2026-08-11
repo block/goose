@@ -426,6 +426,14 @@ pub trait Provider: Send + Sync {
     /// Get the name of this provider instance
     fn get_name(&self) -> &str;
 
+    fn provider_session_id(&self) -> Option<String> {
+        None
+    }
+
+    async fn resume(&self, _session_id: &str) -> Result<(), ProviderError> {
+        Ok(())
+    }
+
     /// Primary streaming method that all providers must implement.
     async fn stream(
         &self,

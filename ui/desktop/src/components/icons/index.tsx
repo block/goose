@@ -11,7 +11,6 @@ import Check from './Check';
 import Close from './Close';
 import { CodeXml } from './CodeXml';
 import { Cog } from './Cog';
-import CoinIcon from './CoinIcon';
 import Copy from './Copy';
 import { Fuel } from './Fuel';
 import { GalleryHorizontalEnd } from './GalleryHorizontalEnd';
@@ -43,7 +42,6 @@ export {
   Close,
   CodeXml,
   Cog,
-  CoinIcon,
   Copy,
   Fuel,
   GalleryHorizontalEnd,

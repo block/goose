@@ -115,6 +115,7 @@ where
 
 pub mod call_tool_result {
     use super::*;
+    use crate::conversation::message::sanitize_tool_result_in_place;
     use rmcp::model::{CallToolResult, ContentBlock};
 
     pub fn serialize<S>(
@@ -150,41 +151,44 @@ pub mod call_tool_result {
 
         let format = ResultFormat::deserialize(deserializer)?;
 
-        match format {
+        let mut result = match format {
             ResultFormat::SuccessWithCallToolResult { status, value } => {
                 if status == "success" {
-                    Ok(Ok(value))
+                    Ok(value)
                 } else {
-                    Err(serde::de::Error::custom(format!(
+                    return Err(serde::de::Error::custom(format!(
                         "Expected status 'success', got '{}'",
                         status
-                    )))
+                    )));
                 }
             }
             ResultFormat::SuccessWithContentVec { status, value } => {
                 if status == "success" {
-                    Ok(Ok(CallToolResult::success(value)))
+                    Ok(CallToolResult::success(value))
                 } else {
-                    Err(serde::de::Error::custom(format!(
+                    return Err(serde::de::Error::custom(format!(
                         "Expected status 'success', got '{}'",
                         status
-                    )))
+                    )));
                 }
             }
             ResultFormat::Error { status, error } => {
                 if status == "error" {
-                    Ok(Err(ErrorData {
+                    Err(ErrorData {
                         code: ErrorCode::INTERNAL_ERROR,
                         message: Cow::from(error),
                         data: None,
-                    }))
+                    })
                 } else {
-                    Err(serde::de::Error::custom(format!(
+                    return Err(serde::de::Error::custom(format!(
                         "Expected status 'error', got '{}'",
                         status
-                    )))
+                    )));
                 }
             }
-        }
+        };
+
+        sanitize_tool_result_in_place(&mut result);
+        Ok(result)
     }
 }

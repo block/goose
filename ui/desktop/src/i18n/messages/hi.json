@@ -1226,6 +1226,15 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "कहीं और चल रहे goose सर्वर से कनेक्ट करें (ऐप पुनरारंभ की आवश्यकता है)"
   },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "रिमोट कार्य निर्देशिका (वैकल्पिक)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "बाहरी बैकएंड पर पूर्ण पथ। स्थानीय कार्य निर्देशिका भेजने के लिए खाली छोड़ दें।"
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
+  },
   "goosehintsModal.close": {
     "defaultMessage": "बंद करें"
   },

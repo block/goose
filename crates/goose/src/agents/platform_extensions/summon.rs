@@ -1290,7 +1290,7 @@ impl SummonClient {
         // Subagents must use Auto until get_agent_messages forwards
         // ActionRequired messages to the parent. Until then, any mode
         // that requires approval will hang on the subagent's confirmation_rx.
-        let agent_config = AgentConfig::new(
+        let mut agent_config = AgentConfig::new(
             self.context.session_manager.clone(),
             crate::config::permission::PermissionManager::instance(),
             None,
@@ -1299,6 +1299,7 @@ impl SummonClient {
             crate::agents::GoosePlatform::GooseCli,
         )
         .with_use_login_shell_path(self.context.use_login_shell_path);
+        agent_config.is_subagent = true;
 
         let subagent_session = self
             .create_subagent_session(&task_config, "Delegated task".to_string())
@@ -1846,7 +1847,7 @@ impl SummonClient {
         // Subagents must use Auto until get_agent_messages forwards
         // ActionRequired messages to the parent. Until then, any mode
         // that requires approval will hang on the subagent's confirmation_rx.
-        let agent_config = AgentConfig::new(
+        let mut agent_config = AgentConfig::new(
             self.context.session_manager.clone(),
             crate::config::permission::PermissionManager::instance(),
             None,
@@ -1855,6 +1856,7 @@ impl SummonClient {
             crate::agents::GoosePlatform::GooseCli,
         )
         .with_use_login_shell_path(self.context.use_login_shell_path);
+        agent_config.is_subagent = true;
 
         let subagent_session = self
             .create_subagent_session(&task_config, description.clone())

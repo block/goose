@@ -1226,6 +1226,15 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "連線至在其他位置執行的 goose 伺服器（需要重新啟動應用程式）"
   },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "遠端工作目錄（選用）"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "外部後端上的絕對路徑。留空時將傳送本機工作目錄。"
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
+  },
   "goosehintsModal.close": {
     "defaultMessage": "關閉"
   },

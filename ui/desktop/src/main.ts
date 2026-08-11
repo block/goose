@@ -56,6 +56,7 @@ import type { GooseApp } from './types/apps';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { buildCSP } from './utils/csp';
+import { resolveWorkingDir } from './utils/workingDir';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -500,14 +501,20 @@ if (process.platform !== 'darwin') {
         handleProtocolUrl(protocolUrl, parsedUrl);
       }
 
-      // Only focus existing windows for non-bot/recipe URLs
-      const existingWindows = BrowserWindow.getAllWindows();
-      if (existingWindows.length > 0) {
-        const mainWindow = existingWindows[0];
+      // Only focus existing regular windows for non-bot/recipe URLs
+      const regularWindows = getRegularWindows();
+      if (regularWindows.length > 0) {
+        const mainWindow = regularWindows[0];
         if (mainWindow.isMinimized()) {
           mainWindow.restore();
         }
         mainWindow.focus();
+      } else if (!protocolUrl) {
+        app.whenReady().then(async () => {
+          const recentDirs = loadRecentDirs();
+          const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+          await createChat(app, { dir: openDir || undefined });
+        });
       }
     });
   }
@@ -645,10 +652,10 @@ async function handleProtocolUrl(url: string, parsedUrl: URL) {
     if (!targetWindow) return;
     await processProtocolUrl(url, parsedUrl, targetWindow);
   } else {
-    const existingWindows = BrowserWindow.getAllWindows();
+    const regularWindows = getRegularWindows();
     let targetWindow: BrowserWindow | undefined;
-    if (existingWindows.length > 0) {
-      targetWindow = existingWindows[0];
+    if (regularWindows.length > 0) {
+      targetWindow = regularWindows[0];
       if (targetWindow.isMinimized()) {
         targetWindow.restore();
       }
@@ -743,10 +750,10 @@ app.on('open-url', async (_event, url) => {
       return;
     }
 
-    // For extension/session URLs, send to existing window or store pending for new one
-    const existingWindows = BrowserWindow.getAllWindows();
-    if (existingWindows.length > 0) {
-      const targetWindow = existingWindows[0];
+    // For extension/session URLs, send to an existing regular window or open one
+    const regularWindows = getRegularWindows();
+    if (regularWindows.length > 0) {
+      const targetWindow = regularWindows[0];
       if (targetWindow.isMinimized()) targetWindow.restore();
       targetWindow.focus();
       if (parsedUrl.hostname === 'extension' || parsedUrl.hostname === 'sessions') {
@@ -890,6 +897,7 @@ interface ExternalBackend {
   url: string;
   secret: string;
   certFingerprint?: string;
+  workingDir?: string;
 }
 
 const getExternalBackendUrlFromEnv = (): string | null => {
@@ -936,7 +944,10 @@ const getServerSecret = (settings: Settings): string => {
 const getActiveExternalBackend = (settings: Settings): ExternalBackend | null => {
   const envBackend = getExternalBackendFromEnv();
   if (envBackend) {
-    return envBackend;
+    return {
+      ...envBackend,
+      workingDir: settings.externalGoosed?.workingDir,
+    };
   }
 
   if (settings.externalGoosed?.enabled && settings.externalGoosed.url) {
@@ -945,6 +956,7 @@ const getActiveExternalBackend = (settings: Settings): ExternalBackend | null =>
       url: settings.externalGoosed.url,
       secret: getServerSecret(settings),
       certFingerprint: settings.externalGoosed.certFingerprint,
+      workingDir: settings.externalGoosed.workingDir,
     };
   }
 
@@ -980,6 +992,10 @@ let appConfig = {
 
 const windowMap = new Map<number, BrowserWindow>();
 const appWindows = new Map<string, BrowserWindow>();
+
+function getRegularWindows(): BrowserWindow[] {
+  return [...windowMap.values()].filter((w) => !w.isDestroyed());
+}
 
 const gooseServeLeases = new GooseServeLeaseRegistry(log);
 
@@ -1068,7 +1084,7 @@ const createChat = async (
   }
 
   const serverSecret = externalBackend ? externalBackend.secret : GENERATED_SECRET;
-  let workingDir = dir || os.homedir();
+  let workingDir = resolveWorkingDir(externalBackend?.workingDir, dir, os.homedir());
   let gooseServeLease: GooseServeLease | null = null;
 
   if (externalBackend) {
@@ -3003,7 +3019,17 @@ async function appMain() {
         throw new Error('No backend lease found for launching window');
       }
 
-      const workingDir = app.getPath('home');
+      const launchingWorkingDir = await launchingWindow.webContents
+        .executeJavaScript(`window.appConfig ? window.appConfig.get('GOOSE_WORKING_DIR') : null`)
+        .catch((error) => {
+          console.warn('Failed to get working directory from launching window:', error);
+          return undefined;
+        });
+      const workingDir = resolveWorkingDir(
+        typeof launchingWorkingDir === 'string' ? launchingWorkingDir : undefined,
+        undefined,
+        app.getPath('home')
+      );
       const appWindow = new BrowserWindow({
         title: formatAppName(gooseApp.name),
         width: gooseApp.width ?? 800,

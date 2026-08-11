@@ -7,6 +7,7 @@ use crate::formats::openai::{
 };
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
+use crate::utils::{sanitize_unicode_tags, strip_unicode_tags};
 use anyhow::{anyhow, Error};
 use async_stream::try_stream;
 use chrono;
@@ -14,6 +15,7 @@ use futures::Stream;
 use rmcp::model::{object, CallToolRequestParams, ContentBlock, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::HashSet;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ResponsesApiResponse {
@@ -38,7 +40,7 @@ pub struct SummaryText {
 fn reasoning_from_summary(summary: &[SummaryText]) -> Option<MessageContentBlock> {
     let text: String = summary
         .iter()
-        .map(|s| s.text.as_str())
+        .map(|s| sanitize_unicode_tags(&s.text))
         .collect::<Vec<_>>()
         .join("\n");
     if text.is_empty() {
@@ -750,8 +752,56 @@ pub fn create_responses_request_for_model(
     Ok(payload)
 }
 
+fn sanitize_tool_arguments(value: Value) -> anyhow::Result<Value> {
+    match value {
+        Value::String(text) => Ok(Value::String(strip_unicode_tags(&text))),
+        Value::Array(values) => Ok(Value::Array(
+            values
+                .into_iter()
+                .map(sanitize_tool_arguments)
+                .collect::<anyhow::Result<_>>()?,
+        )),
+        Value::Object(values) => {
+            let mut sanitized = serde_json::Map::new();
+            for (key, value) in values {
+                let key = strip_unicode_tags(&key);
+                if sanitized.contains_key(&key) {
+                    return Err(anyhow!(
+                        "Responses tool arguments contain duplicate key after Unicode tag sanitization"
+                    ));
+                }
+                sanitized.insert(key, sanitize_tool_arguments(value)?);
+            }
+            Ok(Value::Object(sanitized))
+        }
+        value => Ok(value),
+    }
+}
+
+fn parse_tool_arguments(arguments: &str) -> anyhow::Result<Value> {
+    if arguments.is_empty() {
+        Ok(json!({}))
+    } else {
+        match serde_json::from_str(arguments) {
+            Ok(value) => sanitize_tool_arguments(value),
+            Err(_) => Ok(json!({})),
+        }
+    }
+}
+
+fn sanitize_tool_request_id(id: &str, seen_ids: &mut HashSet<String>) -> anyhow::Result<String> {
+    let id = strip_unicode_tags(id);
+    if !seen_ids.insert(id.clone()) {
+        return Err(anyhow!(
+            "Responses tool calls contain duplicate ID after Unicode tag sanitization"
+        ));
+    }
+    Ok(id)
+}
+
 pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Result<Message> {
     let mut content = Vec::new();
+    let mut tool_request_ids = HashSet::new();
 
     for item in &response.output {
         match item {
@@ -765,20 +815,25 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                 for block in msg_content {
                     match block {
                         ResponseContentBlock::OutputText { text, .. } => {
+                            let text = sanitize_unicode_tags(text);
                             if !text.is_empty() {
                                 content.push(MessageContentBlock::text(text));
                             }
                         }
                         ResponseContentBlock::Refusal { refusal } => {
+                            let refusal = sanitize_unicode_tags(refusal);
                             if !refusal.is_empty() {
                                 content.push(MessageContentBlock::text(refusal));
                             }
                         }
                         ResponseContentBlock::ToolCall { id, name, input } => {
+                            let id = sanitize_tool_request_id(id, &mut tool_request_ids)?;
                             content.push(MessageContentBlock::tool_request(
-                                id.clone(),
-                                Ok(CallToolRequestParams::new(name.clone())
-                                    .with_arguments(object(input.clone()))),
+                                id,
+                                Ok(CallToolRequestParams::new(strip_unicode_tags(name))
+                                    .with_arguments(object(sanitize_tool_arguments(
+                                        input.clone(),
+                                    )?))),
                             ));
                         }
                     }
@@ -794,15 +849,12 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                 let request_id = call_id.clone().or_else(|| id.clone()).ok_or_else(|| {
                     anyhow!("Responses function_call output missing call_id and id")
                 })?;
-                let parsed_args = if arguments.is_empty() {
-                    json!({})
-                } else {
-                    serde_json::from_str(arguments).unwrap_or_else(|_| json!({}))
-                };
+                let request_id = sanitize_tool_request_id(&request_id, &mut tool_request_ids)?;
+                let parsed_args = parse_tool_arguments(arguments)?;
 
                 content.push(MessageContentBlock::tool_request(
                     request_id,
-                    Ok(CallToolRequestParams::new(name.clone())
+                    Ok(CallToolRequestParams::new(strip_unicode_tags(name))
                         .with_arguments(object(parsed_args))),
                 ));
             }
@@ -828,6 +880,7 @@ fn process_streaming_output_items(
     is_text_response: bool,
 ) -> anyhow::Result<Vec<MessageContentBlock>> {
     let mut content = Vec::new();
+    let mut tool_request_ids = HashSet::new();
 
     for item in output_items {
         match item {
@@ -838,13 +891,15 @@ fn process_streaming_output_items(
                 for part in parts {
                     match part {
                         ContentBlockPart::OutputText { text, .. } => {
+                            let text = sanitize_unicode_tags(&text);
                             if !text.is_empty() && !is_text_response {
-                                content.push(MessageContentBlock::text(&text));
+                                content.push(MessageContentBlock::text(text));
                             }
                         }
                         ContentBlockPart::Refusal { refusal } => {
+                            let refusal = sanitize_unicode_tags(&refusal);
                             if !refusal.is_empty() && !is_text_response {
-                                content.push(MessageContentBlock::text(&refusal));
+                                content.push(MessageContentBlock::text(refusal));
                             }
                         }
                         ContentBlockPart::ToolCall {
@@ -852,15 +907,12 @@ fn process_streaming_output_items(
                             name,
                             arguments,
                         } => {
-                            let parsed_args = if arguments.is_empty() {
-                                json!({})
-                            } else {
-                                serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
-                            };
+                            let id = sanitize_tool_request_id(&id, &mut tool_request_ids)?;
+                            let parsed_args = parse_tool_arguments(&arguments)?;
 
                             content.push(MessageContentBlock::tool_request(
                                 id,
-                                Ok(CallToolRequestParams::new(name)
+                                Ok(CallToolRequestParams::new(strip_unicode_tags(&name))
                                     .with_arguments(object(parsed_args))),
                             ));
                         }
@@ -877,15 +929,13 @@ fn process_streaming_output_items(
                 let request_id = call_id.or(id).ok_or_else(|| {
                     anyhow!("Responses function_call output missing call_id and id")
                 })?;
-                let parsed_args = if arguments.is_empty() {
-                    json!({})
-                } else {
-                    serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
-                };
+                let request_id = sanitize_tool_request_id(&request_id, &mut tool_request_ids)?;
+                let parsed_args = parse_tool_arguments(&arguments)?;
 
                 content.push(MessageContentBlock::tool_request(
                     request_id,
-                    Ok(CallToolRequestParams::new(name).with_arguments(object(parsed_args))),
+                    Ok(CallToolRequestParams::new(strip_unicode_tags(&name))
+                        .with_arguments(object(parsed_args))),
                 ));
             }
         }
@@ -963,6 +1013,7 @@ where
 
                 ResponsesStreamEvent::OutputTextDelta { delta, .. } => {
                     is_text_response = true;
+                    let delta = strip_unicode_tags(&delta);
                     if !delta.is_empty() {
                         accumulated_text.push_str(&delta);
 
@@ -1046,6 +1097,7 @@ where
 
                 ResponsesStreamEvent::RefusalDelta { delta, .. } => {
                     is_text_response = true;
+                    let delta = strip_unicode_tags(&delta);
                     if !delta.is_empty() {
                         accumulated_text.push_str(&delta);
 
@@ -1380,8 +1432,8 @@ mod tests {
                     "type": "reasoning",
                     "id": "rs_1",
                     "summary": [
-                        { "type": "summary_text", "text": "Thinking about the question..." },
-                        { "type": "summary_text", "text": "The answer is straightforward." }
+                        { "type": "summary_text", "text": "Thinking\u{E0041} about the question..." },
+                        { "type": "summary_text", "text": "The answer is\u{E0042} straightforward." }
                     ]
                 },
                 {
@@ -1417,7 +1469,7 @@ mod tests {
             "type": "reasoning",
             "id": "rs_1",
             "summary": [
-                { "type": "summary_text", "text": "Let me think step by step." }
+                { "type": "summary_text", "text": "Let me\u{E0041} think step by step." }
             ]
         });
         let message_item = serde_json::json!({
@@ -1576,6 +1628,153 @@ mod tests {
             panic!("expected tool request content");
         };
         assert_eq!(tool_request.id, "call_abc");
+    }
+
+    #[test]
+    fn test_responses_api_to_message_sanitizes_tool_arguments() {
+        let response = ResponsesApiResponse {
+            id: "resp_1".to_string(),
+            object: "response".to_string(),
+            created_at: 0,
+            status: "completed".to_string(),
+            model: "gpt-5.3-codex".to_string(),
+            output: vec![
+                ResponseOutputItem::Message {
+                    id: Some("msg_1".to_string()),
+                    status: Some("completed".to_string()),
+                    role: "assistant".to_string(),
+                    content: vec![ResponseContentBlock::ToolCall {
+                        id: "call_\u{E0041}1".to_string(),
+                        name: "sh\u{E0041}ell".to_string(),
+                        input: json!({"prompt": "visible e\u{301}\u{E0041}text"}),
+                    }],
+                },
+                ResponseOutputItem::FunctionCall {
+                    id: None,
+                    status: Some("completed".to_string()),
+                    call_id: Some("call_\u{E0042}2".to_string()),
+                    name: "sh\u{E0042}ell".to_string(),
+                    arguments: serde_json::to_string(
+                        &json!({"prompt": "visible e\u{301}\u{E0042}text"}),
+                    )
+                    .unwrap(),
+                },
+            ],
+            reasoning: None,
+            usage: None,
+        };
+
+        let message = responses_api_to_message(&response).unwrap();
+        for (content, expected_id) in message.content.into_iter().zip(["call_1", "call_2"]) {
+            let MessageContentBlock::ToolRequest(tool_request) = content else {
+                panic!("expected tool request content");
+            };
+            assert_eq!(tool_request.id, expected_id);
+            let tool_call = tool_request.tool_call.expect("expected valid tool call");
+            assert_eq!(tool_call.name, "shell");
+            assert_eq!(
+                tool_call
+                    .arguments
+                    .expect("expected arguments")
+                    .get("prompt"),
+                Some(&json!("visible e\u{301}text"))
+            );
+        }
+    }
+
+    #[test]
+    fn test_responses_api_to_message_rejects_sanitized_tool_request_id_collisions() {
+        let response = ResponsesApiResponse {
+            id: "resp_1".to_string(),
+            object: "response".to_string(),
+            created_at: 0,
+            status: "completed".to_string(),
+            model: "gpt-5.3-codex".to_string(),
+            output: vec![
+                ResponseOutputItem::Message {
+                    id: Some("msg_1".to_string()),
+                    status: Some("completed".to_string()),
+                    role: "assistant".to_string(),
+                    content: vec![ResponseContentBlock::ToolCall {
+                        id: "call_1".to_string(),
+                        name: "shell".to_string(),
+                        input: json!({}),
+                    }],
+                },
+                ResponseOutputItem::FunctionCall {
+                    id: None,
+                    status: Some("completed".to_string()),
+                    call_id: Some("call_\u{E0041}1".to_string()),
+                    name: "shell".to_string(),
+                    arguments: "{}".to_string(),
+                },
+            ],
+            reasoning: None,
+            usage: None,
+        };
+
+        let error = responses_api_to_message(&response).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("duplicate ID after Unicode tag sanitization"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn test_responses_api_to_message_rejects_sanitized_tool_argument_key_collisions() {
+        let colliding_arguments = json!({
+            "command": "visible",
+            "comm\u{E0041}and": "hidden",
+        });
+        let responses = [
+            ResponsesApiResponse {
+                id: "resp_1".to_string(),
+                object: "response".to_string(),
+                created_at: 0,
+                status: "completed".to_string(),
+                model: "gpt-5.3-codex".to_string(),
+                output: vec![ResponseOutputItem::Message {
+                    id: Some("msg_1".to_string()),
+                    status: Some("completed".to_string()),
+                    role: "assistant".to_string(),
+                    content: vec![ResponseContentBlock::ToolCall {
+                        id: "call_1".to_string(),
+                        name: "shell".to_string(),
+                        input: colliding_arguments.clone(),
+                    }],
+                }],
+                reasoning: None,
+                usage: None,
+            },
+            ResponsesApiResponse {
+                id: "resp_2".to_string(),
+                object: "response".to_string(),
+                created_at: 0,
+                status: "completed".to_string(),
+                model: "gpt-5.3-codex".to_string(),
+                output: vec![ResponseOutputItem::FunctionCall {
+                    id: None,
+                    status: Some("completed".to_string()),
+                    call_id: Some("call_2".to_string()),
+                    name: "shell".to_string(),
+                    arguments: serde_json::to_string(&colliding_arguments).unwrap(),
+                }],
+                reasoning: None,
+                usage: None,
+            },
+        ];
+
+        for response in responses {
+            let error = responses_api_to_message(&response).unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("duplicate key after Unicode tag sanitization"),
+                "unexpected error: {error}"
+            );
+        }
     }
 
     #[test]
@@ -2156,6 +2355,145 @@ mod tests {
     }
 
     #[test]
+    fn test_responses_api_to_message_sanitizes_unicode_tags() {
+        let response: ResponsesApiResponse = serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "object": "response",
+            "created_at": 0,
+            "status": "completed",
+            "model": "gpt-5.5",
+            "output": [{
+                "type": "message",
+                "id": "msg_1",
+                "status": "completed",
+                "role": "assistant",
+                "content": [
+                    {"type": "output_text", "text": "visible\u{E0041}text"},
+                    {"type": "refusal", "refusal": "cannot\u{E0042}help"}
+                ]
+            }]
+        }))
+        .unwrap();
+
+        let message = responses_api_to_message(&response).unwrap();
+        let text = message
+            .content
+            .iter()
+            .filter_map(MessageContentBlock::as_text)
+            .collect::<Vec<_>>();
+
+        assert_eq!(text, vec!["visibletext", "cannothelp"]);
+    }
+
+    #[test]
+    fn test_streaming_output_items_sanitize_unicode_tags() {
+        let item: ResponseOutputItemInfo = serde_json::from_value(serde_json::json!({
+            "type": "message",
+            "id": "msg_1",
+            "status": "completed",
+            "role": "assistant",
+            "content": [
+                {"type": "output_text", "text": "visible\u{E0041}text"},
+                {"type": "refusal", "refusal": "cannot\u{E0042}help"}
+            ]
+        }))
+        .unwrap();
+
+        let content = process_streaming_output_items(vec![item], false).unwrap();
+        let text = content
+            .iter()
+            .filter_map(MessageContentBlock::as_text)
+            .collect::<Vec<_>>();
+
+        assert_eq!(text, vec!["visibletext", "cannothelp"]);
+    }
+
+    #[tokio::test]
+    async fn test_streaming_deltas_sanitize_unicode_tags() -> anyhow::Result<()> {
+        let lines = vec![
+            format!(
+                "data: {}",
+                serde_json::json!({
+                    "type": "response.created",
+                    "sequence_number": 1,
+                    "response": {
+                        "id": "resp_1",
+                        "object": "response",
+                        "created_at": 0,
+                        "status": "in_progress",
+                        "model": "gpt-5.5",
+                        "output": []
+                    }
+                })
+            ),
+            format!(
+                "data: {}",
+                serde_json::json!({
+                    "type": "response.output_text.delta",
+                    "sequence_number": 2,
+                    "item_id": "msg_1",
+                    "output_index": 0,
+                    "content_index": 0,
+                    "delta": "visible\u{E0041}te"
+                })
+            ),
+            format!(
+                "data: {}",
+                serde_json::json!({
+                    "type": "response.output_text.delta",
+                    "sequence_number": 3,
+                    "item_id": "msg_1",
+                    "output_index": 0,
+                    "content_index": 0,
+                    "delta": "xt e"
+                })
+            ),
+            format!(
+                "data: {}",
+                serde_json::json!({
+                    "type": "response.output_text.delta",
+                    "sequence_number": 4,
+                    "item_id": "msg_1",
+                    "output_index": 0,
+                    "content_index": 0,
+                    "delta": "\u{301}"
+                })
+            ),
+            format!(
+                "data: {}",
+                serde_json::json!({
+                    "type": "response.refusal.delta",
+                    "sequence_number": 5,
+                    "item_id": "msg_1",
+                    "output_index": 0,
+                    "content_index": 1,
+                    "delta": "cannot\u{E0042}help"
+                })
+            ),
+            "data: [DONE]".to_string(),
+        ];
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = responses_api_to_streaming_message(response_stream);
+        futures::pin_mut!(messages);
+
+        let mut text = Vec::new();
+        while let Some(item) = messages.next().await {
+            if let Some(message) = item?.0 {
+                text.extend(
+                    message
+                        .content
+                        .iter()
+                        .filter_map(MessageContentBlock::as_text)
+                        .map(str::to_owned),
+                );
+            }
+        }
+
+        assert_eq!(text.concat(), "visibletext e\u{301}cannothelp");
+        Ok(())
+    }
+
+    #[test]
     fn test_refusal_content_block_deserializes_in_non_streaming_response() {
         let json = r#"{
             "id": "resp_1",
@@ -2259,6 +2597,126 @@ mod tests {
             error.to_string().contains("missing call_id and id"),
             "unexpected error: {error}"
         );
+    }
+
+    #[test]
+    fn test_streaming_output_items_sanitize_tool_arguments() -> anyhow::Result<()> {
+        let output_items = vec![
+            ResponseOutputItemInfo::Message {
+                id: Some("msg_1".to_string()),
+                status: Some("completed".to_string()),
+                role: "assistant".to_string(),
+                content: vec![ContentBlockPart::ToolCall {
+                    id: "call_\u{E0041}1".to_string(),
+                    name: "sh\u{E0041}ell".to_string(),
+                    arguments: serde_json::to_string(
+                        &json!({"prompt": "visible e\u{301}\u{E0041}text"}),
+                    )?,
+                }],
+            },
+            ResponseOutputItemInfo::FunctionCall {
+                id: None,
+                status: Some("completed".to_string()),
+                call_id: Some("call_\u{E0042}2".to_string()),
+                name: "sh\u{E0042}ell".to_string(),
+                arguments: serde_json::to_string(
+                    &json!({"prompt": "visible e\u{301}\u{E0042}text"}),
+                )?,
+            },
+        ];
+
+        let content = process_streaming_output_items(output_items, false)?;
+        for (content, expected_id) in content.into_iter().zip(["call_1", "call_2"]) {
+            let MessageContentBlock::ToolRequest(tool_request) = content else {
+                panic!("expected tool request content");
+            };
+            assert_eq!(tool_request.id, expected_id);
+            let tool_call = tool_request.tool_call.expect("expected valid tool call");
+            assert_eq!(tool_call.name, "shell");
+            assert_eq!(
+                tool_call
+                    .arguments
+                    .expect("expected arguments")
+                    .get("prompt"),
+                Some(&json!("visible e\u{301}text"))
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_streaming_output_items_reject_sanitized_tool_request_id_collisions(
+    ) -> anyhow::Result<()> {
+        let output_items = vec![
+            ResponseOutputItemInfo::Message {
+                id: Some("msg_1".to_string()),
+                status: Some("completed".to_string()),
+                role: "assistant".to_string(),
+                content: vec![ContentBlockPart::ToolCall {
+                    id: "call_1".to_string(),
+                    name: "shell".to_string(),
+                    arguments: "{}".to_string(),
+                }],
+            },
+            ResponseOutputItemInfo::FunctionCall {
+                id: None,
+                status: Some("completed".to_string()),
+                call_id: Some("call_\u{E0041}1".to_string()),
+                name: "shell".to_string(),
+                arguments: "{}".to_string(),
+            },
+        ];
+
+        let error = process_streaming_output_items(output_items, false).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("duplicate ID after Unicode tag sanitization"),
+            "unexpected error: {error}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_streaming_output_items_reject_sanitized_tool_argument_key_collisions(
+    ) -> anyhow::Result<()> {
+        let colliding_arguments = json!({
+            "command": "visible",
+            "comm\u{E0041}and": "hidden",
+        });
+        let output_items = [
+            ResponseOutputItemInfo::Message {
+                id: Some("msg_1".to_string()),
+                status: Some("completed".to_string()),
+                role: "assistant".to_string(),
+                content: vec![ContentBlockPart::ToolCall {
+                    id: "call_1".to_string(),
+                    name: "shell".to_string(),
+                    arguments: serde_json::to_string(&colliding_arguments)?,
+                }],
+            },
+            ResponseOutputItemInfo::FunctionCall {
+                id: None,
+                status: Some("completed".to_string()),
+                call_id: Some("call_2".to_string()),
+                name: "shell".to_string(),
+                arguments: serde_json::to_string(&colliding_arguments)?,
+            },
+        ];
+
+        for output_item in output_items {
+            let error = process_streaming_output_items(vec![output_item], false).unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("duplicate key after Unicode tag sanitization"),
+                "unexpected error: {error}"
+            );
+        }
+
+        Ok(())
     }
 
     #[test]

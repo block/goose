@@ -3,6 +3,7 @@ export interface ExternalBackendConfig {
   url: string;
   secret: string;
   certFingerprint?: string;
+  workingDir?: string;
 }
 
 export interface KeyboardShortcuts {
