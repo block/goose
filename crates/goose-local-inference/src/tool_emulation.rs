@@ -186,7 +186,7 @@ fn parse_fence_marker(rest: &str, container_indent: Option<usize>) -> Option<Fen
         return None;
     }
 
-    let info = rest[len..].trim();
+    let info = rest[len..].trim_matches([' ', '\t', '\r']);
     if marker == '`' && info.contains('`') {
         return None;
     }
@@ -350,6 +350,21 @@ fn is_closing_fence(
     )
 }
 
+fn could_be_fence_prefix(rest: &str) -> bool {
+    let Some(marker @ ('`' | '~')) = rest.chars().next() else {
+        return false;
+    };
+    let marker_len = rest.chars().take_while(|ch| *ch == marker).count();
+    if marker_len < 3 {
+        return marker_len == rest.chars().count();
+    }
+
+    marker != '`'
+        || !rest
+            .get(marker_len..)
+            .is_some_and(|info| info.contains('`'))
+}
+
 #[allow(clippy::string_slice)]
 fn could_be_list_fence(line: &str) -> bool {
     let bytes = line.as_bytes();
@@ -382,7 +397,7 @@ fn could_be_list_fence(line: &str) -> bool {
         return false;
     }
     let rest = &line[marker_end + whitespace..];
-    rest.is_empty() || rest.starts_with('`') || rest.starts_with('~')
+    rest.is_empty() || could_be_fence_prefix(rest)
 }
 
 #[allow(clippy::string_slice)]
@@ -413,8 +428,7 @@ fn could_be_control_line(
         None => {
             rest.is_empty()
                 || "$".starts_with(rest)
-                || rest.starts_with('`')
-                || rest.starts_with('~')
+                || could_be_fence_prefix(rest)
                 || empty_list_item_indents(line).is_some()
                 || is_list_thematic_break_candidate(line)
                 || could_be_list_fence(rest)
@@ -1025,9 +1039,50 @@ mod tests {
 
         assert_eq!(executes.len(), 1);
         assert_execute(executes[0], "let safe = 1;");
-        assert!(actions.iter().any(
-            |action| matches!(action, EmulatorAction::Text(text) if text.contains("```execute_typescript```"))
-        ));
+        let text: String = actions
+            .iter()
+            .filter_map(|action| match action {
+                EmulatorAction::Text(text) => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert!(text.contains("```execute_typescript```"));
+    }
+
+    #[test]
+    fn unicode_whitespace_does_not_close_execute_fence() {
+        let input = "```execute_typescript\nlet before = 1;\n```\u{a0}\nlet after = 2;\n```\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        let actions = parse_chunks(&chunk_refs, true);
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+            .collect();
+
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "let before = 1;\n```\u{a0}\nlet after = 2;");
+    }
+
+    #[test]
+    fn impossible_fence_prefixes_are_streamed_as_text() {
+        for (prefix, suffix) in [("`", "s"), ("``", "s"), ("~", "s"), ("~~", "s")] {
+            let mut parser = StreamingEmulatorParser::new(true);
+            assert!(parser.process_chunk(prefix).is_empty());
+            let actions = parser.process_chunk(suffix);
+
+            assert_eq!(actions.len(), 1);
+            assert_text(&actions[0], &format!("{prefix}{suffix}"));
+        }
+
+        let mut parser = StreamingEmulatorParser::new(true);
+        assert!(parser.process_chunk("- `").is_empty());
+        let actions = parser.process_chunk("status");
+        assert_eq!(actions.len(), 1);
+        assert_text(&actions[0], "- `status");
+
+        let mut parser = StreamingEmulatorParser::new(true);
+        assert!(parser.process_chunk("```python").is_empty());
     }
 
     #[test]

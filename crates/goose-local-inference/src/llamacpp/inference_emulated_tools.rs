@@ -589,9 +589,39 @@ mod tests {
 
         assert_eq!(executes.len(), 1);
         assert_execute(executes[0], "let safe = 1;");
-        assert!(actions.iter().any(
-            |action| matches!(action, EmulatorAction::Text(text) if text.contains("```execute_typescript```"))
-        ));
+        let text: String = actions
+            .iter()
+            .filter_map(|action| match action {
+                EmulatorAction::Text(text) => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert!(text.contains("```execute_typescript```"));
+    }
+
+    #[test]
+    fn unicode_whitespace_does_not_close_execute_fence() {
+        let input = "```execute_typescript\nlet before = 1;\n```\u{a0}\nlet after = 2;\n```\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        let actions = parse_chunks(&chunk_refs, true);
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+            .collect();
+
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "let before = 1;\n```\u{a0}\nlet after = 2;");
+    }
+
+    #[test]
+    fn impossible_fence_prefix_is_streamed_as_text() {
+        let mut parser = StreamingEmulatorParser::new(true);
+        assert!(parser.process_chunk("``").is_empty());
+        let actions = parser.process_chunk("status");
+
+        assert_eq!(actions.len(), 1);
+        assert_text(&actions[0], "``status");
     }
 
     #[test]
