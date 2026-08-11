@@ -4,6 +4,7 @@ use super::output;
 use super::{derive_extension_name_from_command, split_extension_name_prefix, CliSession};
 use console::style;
 use goose::agents::{Agent, Container, ExtensionError};
+use goose::config::extensions::name_to_key;
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{Config, ExtensionConfig, GooseMode};
 use goose::model_config::model_config_from_user_config;
@@ -30,16 +31,16 @@ fn truncate_with_ellipsis(s: &str, max_len: usize) -> String {
 
 fn disambiguate_stdio_extension_names(
     extensions: &mut [(String, ExtensionConfig)],
-    explicitly_named: &HashSet<usize>,
+    renameable: &HashSet<usize>,
 ) {
     let mut counts: HashMap<String, usize> = HashMap::new();
     for (_, config) in extensions.iter() {
-        *counts.entry(config.name()).or_default() += 1;
+        *counts.entry(config.key()).or_default() += 1;
     }
 
     let mut taken: HashSet<String> = counts.keys().cloned().collect();
     for (idx, (_, config)) in extensions.iter_mut().enumerate() {
-        if explicitly_named.contains(&idx) || counts.get(&config.name()).copied().unwrap_or(0) < 2 {
+        if !renameable.contains(&idx) || counts.get(&config.key()).copied().unwrap_or(0) < 2 {
             continue;
         }
         let ExtensionConfig::Stdio {
@@ -51,11 +52,11 @@ fn disambiguate_stdio_extension_names(
         let derived = derive_extension_name_from_command(cmd, args);
         let mut candidate = derived.clone();
         let mut suffix = 2;
-        while candidate.is_empty() || taken.contains(&candidate) {
+        while candidate.is_empty() || taken.contains(&name_to_key(&candidate)) {
             candidate = format!("{}_{}", derived, suffix);
             suffix += 1;
         }
-        taken.insert(candidate.clone());
+        taken.insert(name_to_key(&candidate));
         *name = candidate;
     }
 }
@@ -64,19 +65,16 @@ fn parse_cli_flag_extensions(
     extensions: &[String],
     streamable_http_extensions: &[StreamableHttpOptions],
     builtins: &[String],
-) -> Vec<(String, ExtensionConfig)> {
+) -> Vec<(String, ExtensionConfig, bool)> {
     let mut extensions_to_load = Vec::new();
-    let mut explicitly_named: HashSet<usize> = HashSet::new();
 
     for (idx, ext_str) in extensions.iter().enumerate() {
         match CliSession::parse_stdio_extension(ext_str) {
             Ok(config) => {
                 let hint = truncate_with_ellipsis(ext_str, EXTENSION_HINT_MAX_LEN);
                 let label = format!("stdio #{}({})", idx + 1, hint);
-                if split_extension_name_prefix(ext_str).0.is_some() {
-                    explicitly_named.insert(extensions_to_load.len());
-                }
-                extensions_to_load.push((label, config));
+                let explicitly_named = split_extension_name_prefix(ext_str).0.is_some();
+                extensions_to_load.push((label, config, !explicitly_named));
             }
             Err(e) => {
                 eprintln!(
@@ -95,17 +93,15 @@ fn parse_cli_flag_extensions(
         let config = CliSession::parse_streamable_http_extension(&opts.url, opts.timeout);
         let hint = truncate_with_ellipsis(&opts.url, EXTENSION_HINT_MAX_LEN);
         let label = format!("http #{}({})", idx + 1, hint);
-        extensions_to_load.push((label, config));
+        extensions_to_load.push((label, config, false));
     }
 
     for builtin_str in builtins {
         let configs = CliSession::parse_builtin_extensions(builtin_str);
         for config in configs {
-            extensions_to_load.push((config.name(), config));
+            extensions_to_load.push((config.name(), config, false));
         }
     }
-
-    disambiguate_stdio_extension_names(&mut extensions_to_load, &explicitly_named);
 
     extensions_to_load
 }
@@ -475,16 +471,33 @@ async fn collect_extension_configs(
         &session_config.builtins,
     );
 
-    let mut all: Vec<ExtensionConfig> = configured_extensions;
+    let mut all: Vec<(String, ExtensionConfig)> = configured_extensions
+        .into_iter()
+        .map(|config| (config.name(), config))
+        .collect();
     if !session_config.no_profile && !session_config.resume && recipe_extensions.is_none() {
         let project_root = std::env::current_dir().ok();
-        all.extend(goose::plugins::mcp_servers::enabled_plugin_mcp_servers(
-            project_root.as_deref(),
-        ));
+        all.extend(
+            goose::plugins::mcp_servers::enabled_plugin_mcp_servers(project_root.as_deref())
+                .into_iter()
+                .map(|config| (config.name(), config)),
+        );
     }
-    all.extend(cli_flag_extensions.into_iter().map(|(_, cfg)| cfg));
 
-    Ok(all)
+    let cli_start = all.len();
+    let renameable = cli_flag_extensions
+        .iter()
+        .enumerate()
+        .filter_map(|(index, (_, _, renameable))| renameable.then_some(cli_start + index))
+        .collect();
+    all.extend(
+        cli_flag_extensions
+            .into_iter()
+            .map(|(label, config, _)| (label, config)),
+    );
+    disambiguate_stdio_extension_names(&mut all, &renameable);
+
+    Ok(all.into_iter().map(|(_, config)| config).collect())
 }
 
 async fn resolve_and_load_extensions(
@@ -740,14 +753,25 @@ mod tests {
     use tempfile::TempDir;
 
     fn stdio_names(extensions: &[&str]) -> Vec<String> {
-        parse_cli_flag_extensions(
+        let parsed = parse_cli_flag_extensions(
             &extensions.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
             &[],
             &[],
-        )
-        .into_iter()
-        .map(|(_, config)| config.name())
-        .collect()
+        );
+        let renameable = parsed
+            .iter()
+            .enumerate()
+            .filter_map(|(index, (_, _, renameable))| renameable.then_some(index))
+            .collect();
+        let mut configs: Vec<_> = parsed
+            .into_iter()
+            .map(|(label, config, _)| (label, config))
+            .collect();
+        disambiguate_stdio_extension_names(&mut configs, &renameable);
+        configs
+            .into_iter()
+            .map(|(_, config)| config.name())
+            .collect()
     }
 
     #[test]
@@ -779,6 +803,31 @@ mod tests {
                 "python_m_b_mcp".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn test_normalized_names_are_disambiguated() {
+        assert_eq!(
+            stdio_names(&["MyTool --server a", "mytool --server b"]),
+            vec!["mytool_server_a".to_string(), "mytool_server_b".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_cli_name_is_disambiguated_against_configured_extension() {
+        let mut extensions = vec![
+            (
+                "configured".to_string(),
+                CliSession::parse_stdio_extension("npx configured-server").unwrap(),
+            ),
+            (
+                "cli".to_string(),
+                CliSession::parse_stdio_extension("npx cli-server").unwrap(),
+            ),
+        ];
+        disambiguate_stdio_extension_names(&mut extensions, &HashSet::from([1]));
+        assert_eq!(extensions[0].1.name(), "npx");
+        assert_eq!(extensions[1].1.name(), "npx_cli-server");
     }
 
     #[test]

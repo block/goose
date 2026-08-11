@@ -81,7 +81,7 @@ pub(crate) fn split_extension_name_prefix(extension_command: &str) -> (Option<St
         && candidate
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
-    if !looks_like_name || rest.trim().is_empty() || rest.starts_with('/') {
+    if !looks_like_name || rest.trim().is_empty() || rest.starts_with("//") {
         return (None, extension_command);
     }
     (Some(name_to_key(candidate)), rest)
@@ -3008,6 +3008,12 @@ mod tests {
     fn test_parse_stdio_extension_explicit_name() {
         assert_eq!(stdio_name("word:python -m word_mcp"), "word");
         assert_eq!(stdio_name("Word-One:python -m word_mcp"), "word-one");
+        let absolute = CliSession::parse_stdio_extension("memory:/usr/local/bin/mcp").unwrap();
+        assert_eq!(absolute.name(), "memory");
+        assert!(matches!(
+            absolute,
+            ExtensionConfig::Stdio { cmd, .. } if cmd == "/usr/local/bin/mcp"
+        ));
         let config = CliSession::parse_stdio_extension("memory:API_KEY=k npx -y srv").unwrap();
         let ExtensionConfig::Stdio {
             name,
