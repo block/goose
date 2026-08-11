@@ -1,7 +1,7 @@
 use crate::cli::StreamableHttpOptions;
 
 use super::output;
-use super::CliSession;
+use super::{derive_extension_name_from_command, split_extension_name_prefix, CliSession};
 use console::style;
 use goose::agents::{Agent, Container, ExtensionError};
 use goose::config::resolve_extensions_for_new_session;
@@ -12,7 +12,7 @@ use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
 use goose::session::EnabledExtensionsState;
 use rustyline::EditMode;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::process;
 use std::sync::Arc;
 use tokio::task::JoinSet;
@@ -28,18 +28,62 @@ fn truncate_with_ellipsis(s: &str, max_len: usize) -> String {
     }
 }
 
+/// Rename stdio extensions that would otherwise share a name.
+///
+/// A stdio extension is named after the basename of its command, so everything
+/// launched through the same interpreter collides: `npx -y server-memory` and
+/// `npx -y server-filesystem` are both "npx". The colliding ones are renamed
+/// after their full command line instead. An extension the user named
+/// explicitly (`--with-extension "name:cmd ..."`) is never renamed; it is the
+/// escape hatch for anyone who wants a specific name.
+fn disambiguate_stdio_extension_names(
+    extensions: &mut [(String, ExtensionConfig)],
+    explicitly_named: &HashSet<usize>,
+) {
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    for (_, config) in extensions.iter() {
+        *counts.entry(config.name()).or_default() += 1;
+    }
+
+    let mut taken: HashSet<String> = counts.keys().cloned().collect();
+    for (idx, (_, config)) in extensions.iter_mut().enumerate() {
+        if explicitly_named.contains(&idx) || counts.get(&config.name()).copied().unwrap_or(0) < 2 {
+            continue;
+        }
+        let ExtensionConfig::Stdio {
+            name, cmd, args, ..
+        } = config
+        else {
+            continue;
+        };
+        let derived = derive_extension_name_from_command(cmd, args);
+        let mut candidate = derived.clone();
+        let mut suffix = 2;
+        while candidate.is_empty() || taken.contains(&candidate) {
+            candidate = format!("{}_{}", derived, suffix);
+            suffix += 1;
+        }
+        taken.insert(candidate.clone());
+        *name = candidate;
+    }
+}
+
 fn parse_cli_flag_extensions(
     extensions: &[String],
     streamable_http_extensions: &[StreamableHttpOptions],
     builtins: &[String],
 ) -> Vec<(String, ExtensionConfig)> {
     let mut extensions_to_load = Vec::new();
+    let mut explicitly_named: HashSet<usize> = HashSet::new();
 
     for (idx, ext_str) in extensions.iter().enumerate() {
         match CliSession::parse_stdio_extension(ext_str) {
             Ok(config) => {
                 let hint = truncate_with_ellipsis(ext_str, EXTENSION_HINT_MAX_LEN);
                 let label = format!("stdio #{}({})", idx + 1, hint);
+                if split_extension_name_prefix(ext_str).0.is_some() {
+                    explicitly_named.insert(extensions_to_load.len());
+                }
                 extensions_to_load.push((label, config));
             }
             Err(e) => {
@@ -68,6 +112,8 @@ fn parse_cli_flag_extensions(
             extensions_to_load.push((config.name(), config));
         }
     }
+
+    disambiguate_stdio_extension_names(&mut extensions_to_load, &explicitly_named);
 
     extensions_to_load
 }
@@ -700,6 +746,68 @@ mod tests {
     use super::*;
     use goose::session::SessionManager;
     use tempfile::TempDir;
+
+    fn stdio_names(extensions: &[&str]) -> Vec<String> {
+        parse_cli_flag_extensions(
+            &extensions.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+            &[],
+            &[],
+        )
+        .into_iter()
+        .map(|(_, config)| config.name())
+        .collect()
+    }
+
+    #[test]
+    fn test_unique_launcher_names_are_left_alone() {
+        assert_eq!(
+            stdio_names(&["npx -y @scope/server-memory", "python -m word_mcp"]),
+            vec!["npx".to_string(), "python".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_colliding_launcher_names_fall_back_to_the_command_line() {
+        assert_eq!(
+            stdio_names(&[
+                "npx -y @modelcontextprotocol/server-memory",
+                "npx -y @modelcontextprotocol/server-filesystem",
+            ]),
+            vec!["server-memory".to_string(), "server-filesystem".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_explicit_names_survive_a_collision() {
+        // Only the unnamed sibling is renamed.
+        assert_eq!(
+            stdio_names(&["python -m word_mcp", "memory:python -m memory_mcp"]),
+            vec!["python".to_string(), "memory".to_string()]
+        );
+        assert_eq!(
+            stdio_names(&[
+                "word:python -m word_mcp",
+                "python -m a_mcp",
+                "python -m b_mcp",
+            ]),
+            vec![
+                "word".to_string(),
+                "python_m_a_mcp".to_string(),
+                "python_m_b_mcp".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_identical_commands_still_get_distinct_names() {
+        assert_eq!(
+            stdio_names(&["python -m word_mcp", "python -m word_mcp"]),
+            vec![
+                "python_m_word_mcp".to_string(),
+                "python_m_word_mcp_2".to_string()
+            ]
+        );
+    }
 
     #[test]
     fn test_session_builder_config_creation() {

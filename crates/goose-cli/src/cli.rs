@@ -176,7 +176,7 @@ pub struct ExtensionOptions {
         long = "with-extension",
         value_name = "COMMAND",
         help = "Add stdio extensions (can be specified multiple times)",
-        long_help = "Add stdio extensions from full commands with environment variables. Can be specified multiple times. Format: 'ENV1=val1 ENV2=val2 command args...'",
+        long_help = "Add stdio extensions from full commands with environment variables. Can be specified multiple times. Format: '[name:]ENV1=val1 ENV2=val2 command args...'. Without the optional name, the extension is named after the command, which is the launcher for anything started through one ('npx', 'python', 'uvx', ...); extensions that would end up sharing a name are instead named after their full command line.",
         action = clap::ArgAction::Append
     )]
     pub extensions: Vec<String>,

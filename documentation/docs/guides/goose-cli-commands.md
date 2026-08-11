@@ -215,7 +215,7 @@ Start or resume interactive chat sessions.
 - **`--max-turns <NUMBER>`**: Set the maximum number of turns allowed without user input (default: 1000)
 
 **Extension Options:**
-- **`--with-extension <command>`**: Add stdio extensions
+- **`--with-extension <command>`**: Add stdio extensions. Format: `[name:]ENV1=val1 command args...`. Without the optional `name:`, the extension is named after the command — which is the launcher, not the server, for anything started through one (`npx`, `python -m ...`, `uvx`). That name prefixes every tool the server exposes (`npx__search`), and extensions started by the same launcher would otherwise collide, so goose names colliding ones after their full command line instead. Give an explicit name to control it: `--with-extension "memory:npx -y @modelcontextprotocol/server-memory"` exposes `memory__search`.
 - **`--with-streamable-http-extension <url>`**: Add remote extensions over Streamable HTTP
 - **`--with-builtin <id>`**: Enable built-in extensions (e.g., 'developer', 'computercontroller')
 
@@ -244,6 +244,9 @@ goose session --resume --session-id 20251108_2 --fork --edit --history
 
 # Start with extensions
 goose session --with-extension "npx -y @modelcontextprotocol/server-memory"
+
+# Name an extension explicitly (tools become memory__*, not npx__*)
+goose session --with-extension "memory:npx -y @modelcontextprotocol/server-memory"
 goose session --with-builtin developer
 goose session --with-streamable-http-extension "http://localhost:8080/mcp"
 
