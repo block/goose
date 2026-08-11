@@ -32,8 +32,7 @@ impl MachineSession for Session {
 #[async_trait]
 pub trait StateMachineRuntime<S, E>: Send + Sync {
     async fn load(&self, session_id: &str) -> Result<S>;
-    async fn prepare_effects(&self, session: &S, effects: &mut [E]) -> Result<()>;
-    async fn apply_effect(&self, session: &S, effect: &E, emit: &Emitter) -> Result<()>;
+    async fn apply_effects(&self, session: &S, effects: &mut [E], emit: &Emitter) -> Result<()>;
     fn usage(&self, _effect: &E) -> Option<goose_providers::conversation::token_usage::Usage> {
         None
     }
@@ -132,12 +131,8 @@ where
         R: StateMachineRuntime<S, E>,
     {
         runtime
-            .prepare_effects(session, &mut result.effects)
-            .await?;
-        for effect in &result.effects {
-            runtime.apply_effect(session, effect, emit).await?;
-        }
-        Ok(())
+            .apply_effects(session, &mut result.effects, emit)
+            .await
     }
 
     pub async fn run<R>(&self, runtime: &R, session_id: &str, emit: &Emitter) -> Result<S>
@@ -209,86 +204,85 @@ impl StateMachineRuntime<Session, StateEffect> for SessionManager {
         self.get_session(session_id, true).await
     }
 
-    async fn prepare_effects(&self, session: &Session, effects: &mut [StateEffect]) -> Result<()> {
+    async fn apply_effects(
+        &self,
+        session: &Session,
+        effects: &mut [StateEffect],
+        emit: &Emitter,
+    ) -> Result<()> {
         for effect in effects.iter_mut() {
             effect.ensure_message_ids();
         }
         usage::enrich(session, effects);
-        Ok(())
-    }
 
-    async fn apply_effect(
-        &self,
-        session: &Session,
-        effect: &StateEffect,
-        emit: &Emitter,
-    ) -> Result<()> {
-        match effect {
-            StateEffect::AppendMessage(message) => {
-                self.add_message(&session.id, message).await?;
-                if let Some(usage) = message
-                    .metadata
-                    .usage
-                    .as_deref()
-                    .filter(|_| !message.user_visible_content().content.is_empty())
-                    .cloned()
-                {
-                    emit.emit(AgentEvent::MessageUsage {
-                        message_id: message.id.clone(),
-                        usage,
+        for effect in effects {
+            match effect {
+                StateEffect::AppendMessage(message) => {
+                    self.add_message(&session.id, message).await?;
+                    if let Some(usage) = message
+                        .metadata
+                        .usage
+                        .as_deref()
+                        .filter(|_| !message.user_visible_content().content.is_empty())
+                        .cloned()
+                    {
+                        emit.emit(AgentEvent::MessageUsage {
+                            message_id: message.id.clone(),
+                            usage,
+                        })
+                        .await;
+                    }
+                }
+                StateEffect::ReplaceConversation {
+                    conversation,
+                    usage: replacement_usage,
+                } => {
+                    if let Some(provider_usage) = replacement_usage {
+                        usage::record(self, session, provider_usage, true).await?;
+                    }
+                    self.replace_conversation(&session.id, conversation).await?;
+                    self.update(&session.id)
+                        .usage(usage::estimate_context(conversation).await?)
+                        .apply()
+                        .await?;
+                    emit.emit(AgentEvent::HistoryReplaced(conversation.clone()))
+                        .await;
+                }
+                StateEffect::PatchToolRequestMeta {
+                    tool_call_id,
+                    patch,
+                } => {
+                    self.update_tool_request_meta(&session.id, tool_call_id, patch.clone())
+                        .await?;
+                }
+                StateEffect::SetMessageVisibility {
+                    message_id,
+                    user_visible,
+                    agent_visible,
+                } => {
+                    self.update_message_metadata(&session.id, message_id, |mut metadata| {
+                        metadata.user_visible = *user_visible;
+                        metadata.agent_visible = *agent_visible;
+                        metadata
                     })
-                    .await;
+                    .await?;
                 }
-            }
-            StateEffect::ReplaceConversation {
-                conversation,
-                usage: replacement_usage,
-            } => {
-                if let Some(provider_usage) = replacement_usage {
-                    usage::record(self, session, provider_usage, true).await?;
+                StateEffect::SetRecipe(recipe) => {
+                    self.update(&session.id)
+                        .recipe(recipe.as_ref().clone())
+                        .apply()
+                        .await?;
                 }
-                self.replace_conversation(&session.id, conversation).await?;
-                self.update(&session.id)
-                    .usage(usage::estimate_context(conversation).await?)
-                    .apply()
-                    .await?;
-                emit.emit(AgentEvent::HistoryReplaced(conversation.clone()))
-                    .await;
-            }
-            StateEffect::PatchToolRequestMeta {
-                tool_call_id,
-                patch,
-            } => {
-                self.update_tool_request_meta(&session.id, tool_call_id, patch.clone())
-                    .await?;
-            }
-            StateEffect::SetMessageVisibility {
-                message_id,
-                user_visible,
-                agent_visible,
-            } => {
-                self.update_message_metadata(&session.id, message_id, |mut metadata| {
-                    metadata.user_visible = *user_visible;
-                    metadata.agent_visible = *agent_visible;
-                    metadata
-                })
-                .await?;
-            }
-            StateEffect::SetRecipe(recipe) => {
-                self.update(&session.id)
-                    .recipe(recipe.as_ref().clone())
-                    .apply()
-                    .await?;
-            }
-            StateEffect::SetExtensionData(extension_data) => {
-                self.update(&session.id)
-                    .extension_data(extension_data.clone())
-                    .apply()
-                    .await?;
-            }
-            StateEffect::RecordUsage(provider_usage) => {
-                usage::record(self, session, provider_usage, false).await?;
-                emit.emit(AgentEvent::Usage(provider_usage.clone())).await;
+                StateEffect::SetExtensionData(extension_data) => {
+                    self.update(&session.id)
+                        .extension_data(extension_data.clone())
+                        .apply()
+                        .await?;
+                }
+                StateEffect::RecordUsage(provider_usage) => {
+                    usage::record(self, session, provider_usage, false).await?;
+                    emit.emit(AgentEvent::Usage(provider_usage.clone())).await;
+                }
             }
         }
         Ok(())
