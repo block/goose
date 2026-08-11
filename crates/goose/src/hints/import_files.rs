@@ -153,22 +153,24 @@ fn git_metadata_directories(boundary_canonical: &Path) -> Vec<PathBuf> {
     directories
 }
 
-fn is_regular_file(path: &Path) -> bool {
+fn is_regular_file_without_following_symlinks(path: &Path) -> bool {
     std::fs::symlink_metadata(path)
         .ok()
         .is_some_and(|metadata| metadata.file_type().is_file())
 }
 
-fn is_directory(path: &Path) -> bool {
-    std::fs::symlink_metadata(path)
+fn is_directory_following_symlinks(path: &Path) -> bool {
+    std::fs::metadata(path)
         .ok()
-        .is_some_and(|metadata| metadata.file_type().is_dir())
+        .is_some_and(|metadata| metadata.is_dir())
 }
 
 fn is_structural_git_directory(path: &Path) -> bool {
-    is_regular_file(&path.join("HEAD"))
-        && ((is_directory(&path.join("objects")) && is_directory(&path.join("refs")))
-            || (is_regular_file(&path.join("commondir")) && is_regular_file(&path.join("gitdir"))))
+    is_regular_file_without_following_symlinks(&path.join("HEAD"))
+        && ((is_directory_following_symlinks(&path.join("objects"))
+            && is_directory_following_symlinks(&path.join("refs")))
+            || (is_regular_file_without_following_symlinks(&path.join("commondir"))
+                && is_regular_file_without_following_symlinks(&path.join("gitdir"))))
 }
 
 fn has_structural_git_ancestor(canonical: &Path, boundary_canonical: &Path) -> bool {
@@ -230,10 +232,22 @@ fn canonical_import_boundary(import_boundary: &Path) -> Result<PathBuf, std::io:
     })
 }
 
+fn validate_canonical_parent(
+    path: &Path,
+    import_boundary: &ImportBoundary,
+) -> Result<(), std::io::Error> {
+    let Some(parent) = path.parent() else {
+        return Ok(());
+    };
+    let canonical_parent = parent.canonicalize()?;
+    validate_canonical_path(canonical_parent, import_boundary, parent).map(|_| ())
+}
+
 fn sanitize_existing_path(
     path: &Path,
     import_boundary: &ImportBoundary,
 ) -> Result<PathBuf, std::io::Error> {
+    validate_canonical_parent(path, import_boundary)?;
     let canonical = path.canonicalize()?;
     validate_canonical_path(canonical, import_boundary, path)
 }
@@ -256,6 +270,11 @@ fn sanitize_reference_path(
         ));
     }
     let resolved = including_file_path.join(reference);
+    match validate_canonical_parent(&resolved, import_boundary) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(resolved),
+        Err(error) => return Err(error),
+    }
 
     match resolved.canonicalize() {
         Ok(canonical) => validate_canonical_path(canonical, import_boundary, &resolved),
@@ -845,16 +864,55 @@ mod tests {
 
         #[cfg(unix)]
         #[test]
-        fn test_structural_git_detection_does_not_follow_marker_symlinks() {
+        fn test_final_git_metadata_symlinks_are_not_imported() {
+            use std::os::unix::fs::symlink;
+
+            let temp_dir = tempfile::tempdir().unwrap();
+            let import_boundary = temp_dir.path();
+            std::fs::create_dir(import_boundary.join(".git-data")).unwrap();
+            create_file(import_boundary, ".git", "gitdir: .git-data\n");
+            create_file(import_boundary, "ordinary.md", "ALIASED_GIT_SECRET");
+            symlink("../ordinary.md", import_boundary.join(".git-data/config")).unwrap();
+            let main_file = create_file(import_boundary, "main.md", "@.git-data/config");
+            let ignore_patterns = create_ignore_patterns(import_boundary);
+            let mut visited = HashSet::new();
+
+            let expanded = read_referenced_files(
+                &main_file,
+                import_boundary,
+                &mut visited,
+                0,
+                &ignore_patterns,
+            );
+            let mut root_visited = HashSet::new();
+            let aliased_root = read_referenced_files(
+                &import_boundary.join(".git-data/config"),
+                import_boundary,
+                &mut root_visited,
+                0,
+                &ignore_patterns,
+            );
+
+            assert_eq!(expanded, "@.git-data/config");
+            assert!(aliased_root.is_empty());
+        }
+
+        #[cfg(unix)]
+        #[test]
+        fn test_structural_git_detection_follows_directory_markers_only() {
             use std::os::unix::fs::symlink;
 
             let temp_dir = tempfile::tempdir().unwrap();
             let import_boundary = temp_dir.path();
             let outside = tempfile::tempdir().unwrap();
-            std::fs::create_dir(import_boundary.join("project-data")).unwrap();
+            std::fs::create_dir_all(import_boundary.join("nested-git")).unwrap();
+            std::fs::create_dir_all(import_boundary.join("project-data/objects")).unwrap();
+            std::fs::create_dir(import_boundary.join("project-data/refs")).unwrap();
             std::fs::create_dir(outside.path().join("objects")).unwrap();
             std::fs::create_dir(outside.path().join("refs")).unwrap();
-            create_file(import_boundary, "project-data/HEAD", "ordinary file");
+            std::fs::write(outside.path().join("HEAD"), "ordinary file").unwrap();
+            create_file(import_boundary, "nested-git/HEAD", "ref: refs/heads/main\n");
+            create_file(import_boundary, "nested-git/config", "NESTED_GIT_SECRET");
             create_file(
                 import_boundary,
                 "project-data/config.md",
@@ -862,15 +920,24 @@ mod tests {
             );
             symlink(
                 outside.path().join("objects"),
-                import_boundary.join("project-data/objects"),
+                import_boundary.join("nested-git/objects"),
             )
             .unwrap();
             symlink(
                 outside.path().join("refs"),
-                import_boundary.join("project-data/refs"),
+                import_boundary.join("nested-git/refs"),
             )
             .unwrap();
-            let main_file = create_file(import_boundary, "main.md", "@project-data/config.md");
+            symlink(
+                outside.path().join("HEAD"),
+                import_boundary.join("project-data/HEAD"),
+            )
+            .unwrap();
+            let main_file = create_file(
+                import_boundary,
+                "main.md",
+                "@nested-git/config\n@project-data/config.md",
+            );
             let ignore_patterns = create_ignore_patterns(import_boundary);
             let mut visited = HashSet::new();
 
@@ -882,6 +949,7 @@ mod tests {
                 &ignore_patterns,
             );
 
+            assert!(!expanded.contains("NESTED_GIT_SECRET"));
             assert!(expanded.contains("legitimate project data"));
         }
 
