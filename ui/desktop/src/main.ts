@@ -1,4 +1,4 @@
-import type { OpenDialogOptions, OpenDialogReturnValue } from 'electron';
+import type { IpcMainInvokeEvent, OpenDialogOptions, OpenDialogReturnValue } from 'electron';
 import {
   app,
   App,
@@ -57,6 +57,11 @@ import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-insta
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { buildCSP } from './utils/csp';
 import { resolveWorkingDir } from './utils/workingDir';
+import {
+  DesktopFileAccess,
+  isAuthorizedFileAccessRequest,
+  readSelectedRecipe,
+} from './desktopFileAccess';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -992,6 +997,27 @@ let appConfig = {
 
 const windowMap = new Map<number, BrowserWindow>();
 const appWindows = new Map<string, BrowserWindow>();
+const desktopFileAccess = new DesktopFileAccess();
+
+function requireRegularRendererWindow(event: IpcMainInvokeEvent): BrowserWindow {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  const senderFrame = event.senderFrame;
+  if (
+    !senderWindow ||
+    !senderFrame ||
+    !isAuthorizedFileAccessRequest(
+      {
+        isRegisteredWindow: windowMap.get(senderWindow.id) === senderWindow,
+        isMainFrame: senderFrame === event.sender.mainFrame,
+        rendererUrl: senderFrame.url,
+      },
+      getAppUrl()
+    )
+  ) {
+    throw new Error('This renderer is not authorized for local file access');
+  }
+  return senderWindow;
+}
 
 function getRegularWindows(): BrowserWindow[] {
   return [...windowMap.values()].filter((w) => !w.isDestroyed());
@@ -1508,11 +1534,13 @@ const createChat = async (
     }
   });
 
+  desktopFileAccess.bindWindow(windowId, workingDir);
   windowMap.set(windowId, mainWindow);
 
   // Handle window closure
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
+    desktopFileAccess.unbindWindow(windowId);
 
     pendingInitialMessages.delete(windowId);
     pendingDeepLinks.delete(windowId);
@@ -2220,6 +2248,38 @@ ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) 
   return null;
 });
 
+ipcMain.handle('select-recipe-file', async (event) => {
+  const senderWindow = requireRegularRendererWindow(event);
+  const pathRoot = appConfig.GOOSE_PATH_ROOT as string | undefined;
+  const recipeDirectory = pathRoot
+    ? path.join(pathRoot, 'config', 'recipes')
+    : path.join(os.homedir(), '.config', 'goose', 'recipes');
+  let defaultPath = os.homedir();
+  try {
+    if ((await fs.stat(recipeDirectory)).isDirectory()) {
+      defaultPath = recipeDirectory;
+    }
+  } catch {
+    // The recipe directory is optional; the native picker falls back to the home directory.
+  }
+
+  const result = await dialog.showOpenDialog(senderWindow, {
+    title: 'Select a recipe',
+    defaultPath,
+    properties: ['openFile'],
+    filters: [{ name: 'YAML recipes', extensions: ['yaml', 'yml'] }],
+  });
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+  return readSelectedRecipe(result.filePaths[0]);
+});
+
+ipcMain.handle('read-goosehints', async (event) => {
+  const senderWindow = requireRegularRendererWindow(event);
+  return desktopFileAccess.readGoosehints(senderWindow.id);
+});
+
 // Native picker tailored for session imports: shows hidden files (so users can
 // reach `~/.claude/projects/...` or `~/.pi/agent/sessions/...`), filters for
 // .json/.jsonl, and returns the file's contents inline so the renderer doesn't
@@ -2299,46 +2359,6 @@ ipcMain.handle('check-ollama', async () => {
   } catch (err) {
     console.error('Error checking for Ollama:', err);
     return false;
-  }
-});
-
-ipcMain.handle('read-file', async (_event, filePath) => {
-  try {
-    const expandedPath = expandTilde(filePath);
-    if (process.platform === 'win32') {
-      const buffer = await fs.readFile(expandedPath);
-      return { file: buffer.toString('utf8'), filePath: expandedPath, error: null, found: true };
-    }
-    // Non-Windows: keep previous behavior via cat for parity
-    return await new Promise((resolve) => {
-      const cat = spawn('cat', [expandedPath]);
-      let output = '';
-      let errorOutput = '';
-
-      cat.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-
-      cat.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-      });
-
-      cat.on('close', (code) => {
-        if (code !== 0) {
-          resolve({ file: '', filePath: expandedPath, error: errorOutput || null, found: false });
-          return;
-        }
-        resolve({ file: output, filePath: expandedPath, error: null, found: true });
-      });
-
-      cat.on('error', (error) => {
-        console.error('Error reading file:', error);
-        resolve({ file: '', filePath: expandedPath, error, found: false });
-      });
-    });
-  } catch (error) {
-    console.error('Error reading file:', error);
-    return { file: '', filePath: expandTilde(filePath), error, found: false };
   }
 });
 
