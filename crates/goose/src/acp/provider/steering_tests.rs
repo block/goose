@@ -294,6 +294,65 @@ async fn injected_response_confirms_delivery_and_message_boundary() {
 }
 
 #[tokio::test]
+async fn injected_steer_cancels_only_permissions_pending_when_it_started() {
+    timeout(TEST_TIMEOUT, async {
+        let (provider, mut requests) = boundary_test_provider();
+        let (before_tx, before_rx) = oneshot::channel();
+        provider
+            .pending_confirmations
+            .lock()
+            .await
+            .insert("before-steer".to_string(), before_tx);
+
+        let steer = tokio::spawn({
+            let provider = provider.clone();
+            async move {
+                provider
+                    .steer_natively(
+                        "goose-session",
+                        &Message::user().with_text("focus on the tests"),
+                    )
+                    .await
+            }
+        });
+        let response_tx = match requests.recv().await.expect("steering request") {
+            ClientRequest::ClaudeSteer { response_tx, .. } => response_tx,
+            _ => panic!("expected steering request"),
+        };
+
+        let (during_tx, mut during_rx) = oneshot::channel();
+        provider
+            .pending_confirmations
+            .lock()
+            .await
+            .insert("during-steer".to_string(), during_tx);
+        response_tx
+            .send(Ok(ClaudeSteeringResponse::Injected))
+            .unwrap();
+
+        assert!(steer.await.unwrap().unwrap());
+        assert_eq!(before_rx.await.unwrap().permission, Permission::Cancel);
+        assert!(matches!(
+            during_rx.try_recv(),
+            Err(oneshot::error::TryRecvError::Empty)
+        ));
+
+        let confirmation = PermissionConfirmation {
+            principal_type: PrincipalType::Tool,
+            permission: Permission::AllowOnce,
+        };
+        assert!(
+            provider
+                .handle_permission_confirmation("during-steer", &confirmation)
+                .await
+        );
+        assert_eq!(during_rx.await.unwrap().permission, Permission::AllowOnce);
+    })
+    .await
+    .expect("permission cancellation after steering should settle");
+}
+
+#[tokio::test]
 async fn non_claude_provider_does_not_send_a_steering_request() {
     let (provider, mut requests) = connect_test_provider(
         "other-acp",

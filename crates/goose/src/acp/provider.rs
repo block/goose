@@ -424,6 +424,23 @@ impl AcpProvider {
         response_rx.await.context("ACP request cancelled")?
     }
 
+    async fn cancel_pending_permissions(&self, request_ids: Vec<String>) {
+        let pending = {
+            let mut pending = self.pending_confirmations.lock().await;
+            request_ids
+                .into_iter()
+                .filter_map(|request_id| pending.remove(&request_id))
+                .collect::<Vec<_>>()
+        };
+        let cancellation = PermissionConfirmation {
+            principal_type: PrincipalType::Tool,
+            permission: Permission::Cancel,
+        };
+        for response_tx in pending {
+            let _ = response_tx.send(cancellation.clone());
+        }
+    }
+
     /// Re-apply the model selection config option when the active session model
     /// differs from what was last applied. ACP agents that select their model
     /// via a config option (e.g. Copilot) need this so resumed or switched
@@ -549,12 +566,24 @@ impl Provider for AcpProvider {
             return Ok(false);
         }
 
+        let pending_permission_ids = self
+            .pending_confirmations
+            .lock()
+            .await
+            .keys()
+            .cloned()
+            .collect();
         let response = self
             .send_claude_steer(self.acp_session_id(), content)
             .await
             .map_err(|error| ProviderError::RequestFailed(error.to_string()))?;
 
-        Ok(claude_steering::delivery_confirmed(&response))
+        let delivered = claude_steering::delivery_confirmed(&response);
+        if delivered {
+            self.cancel_pending_permissions(pending_permission_ids)
+                .await;
+        }
+        Ok(delivered)
     }
 
     async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
