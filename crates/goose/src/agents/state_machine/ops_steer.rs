@@ -6,8 +6,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 use crate::agents::state_machine::operation::{
-    applied, ends_turn, last_effective_role, messages_since_kickoff, not_applicable, Emitter,
-    Operation, OperationResult,
+    applied, ends_turn, last_effective_role, messages_since_kickoff, not_applicable,
+    trailing_error, Emitter, Operation, OperationResult,
 };
 use crate::agents::steering::{was_native_steer_delivered, SteeringQueue};
 use crate::conversation::{Conversation, EffectiveRole};
@@ -38,7 +38,8 @@ impl Operation for SteerOperation {
         let messages = messages_since_kickoff(conversation)?;
         let between_turns = ends_turn(messages)
             || last_effective_role(messages)? == EffectiveRole::Tool
-            || messages.last().is_some_and(was_native_steer_delivered);
+            || messages.last().is_some_and(was_native_steer_delivered)
+            || trailing_error(conversation).is_some();
         if !between_turns {
             return not_applicable();
         }

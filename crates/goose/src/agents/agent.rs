@@ -335,6 +335,30 @@ fn agent_visible_message_text(message: &Message) -> String {
     message.agent_visible_content().as_concat_text()
 }
 
+fn turn_assistant_text_for_stop_hook(
+    conversation: &Conversation,
+    turn_start_len: usize,
+) -> Option<String> {
+    conversation
+        .messages()
+        .get(turn_start_len..)?
+        .iter()
+        .rev()
+        .find(|message| {
+            message.role == rmcp::model::Role::Assistant
+                && message.error_kind().is_none()
+                && !message.content.iter().any(|content| {
+                    matches!(
+                        content,
+                        MessageContent::ToolRequest(_)
+                            | MessageContent::FrontendToolRequest(_)
+                            | MessageContent::ActionRequired(_)
+                    )
+                })
+        })
+        .map(Message::as_concat_text)
+}
+
 fn attach_turn_usage(
     messages: &mut Conversation,
     usage: &ProviderUsage,
@@ -2315,6 +2339,7 @@ impl Agent {
             let mut goal_check_pending = false;
             let mut tool_pair_summarization_done = false;
             let mut stop_hook_handled_for_exit = false;
+            let mut stop_hook_not_applicable = false;
             let mut retrying_after_stop_hook_denial = false;
             let mut consecutive_stop_hook_blocks = 0u32;
             let stop_hook_block_cap = self.stop_hook_block_cap();
@@ -3420,7 +3445,17 @@ impl Agent {
                 if should_finish_after_native_steer
                     && !steering_queue.has_pending().await
                 {
-                    break;
+                    match turn_assistant_text_for_stop_hook(&conversation, initial_messages.len())
+                    {
+                        Some(text) => {
+                            last_assistant_text = text;
+                            exit_chat = true;
+                        }
+                        None => {
+                            stop_hook_not_applicable = true;
+                            break;
+                        }
+                    }
                 }
 
                 if exit_chat && steering_queue.has_pending().await {
@@ -3480,7 +3515,7 @@ impl Agent {
             gen_ai_telemetry::record_usage(&tracing::Span::current(), &turn_total_usage);
             gen_ai_telemetry::record_usage(&reply_span, &turn_total_usage);
 
-            if !stop_hook_handled_for_exit {
+            if !stop_hook_handled_for_exit && !stop_hook_not_applicable {
                 self.emit_stop_hook(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy()).await;
             }
         }.instrument(reply_stream_span));
@@ -4471,6 +4506,25 @@ cat > "$PLUGIN_ROOT/payload.json"
 exit 0
 "#;
 
+    const DENY_TWICE_THEN_ALLOW_SCRIPT: &str = r#"#!/bin/sh
+count_file="$PLUGIN_ROOT/count"
+count=0
+if [ -f "$count_file" ]; then
+  count=$(cat "$count_file")
+fi
+count=$((count + 1))
+echo "$count" > "$count_file"
+echo "$count" >> "$PLUGIN_ROOT/hook.log"
+if [ "$count" -eq 2 ]; then
+  cat > "$PLUGIN_ROOT/payload.json"
+fi
+if [ "$count" -lt 3 ]; then
+  echo "block $count" >&2
+  exit 2
+fi
+exit 0
+"#;
+
     struct StopHookTestEnv {
         temp_dir: TempDir,
         hook_log: PathBuf,
@@ -4874,7 +4928,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     }
 
     #[tokio::test]
-    async fn legacy_consecutive_native_steers_end_cleanly_and_run_stop_hook() -> Result<()> {
+    async fn legacy_consecutive_native_steers_end_cleanly_without_stop_hook() -> Result<()> {
         let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", None::<&str>)]);
         let hook = StopHookTestEnv::new(
             r#"#!/bin/sh
@@ -4958,7 +5012,94 @@ exit 0
         assert!(!emitted
             .iter()
             .any(|message| message.as_concat_text() == EMPTY_TURN_MESSAGE));
-        assert_eq!(hook.hook_invocations(), 1);
+        assert_eq!(hook.hook_invocations(), 0);
+        assert!(!agent.has_pending_steers(&session_id).await);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn legacy_stop_hook_denial_defers_native_steer_finish() -> Result<()> {
+        let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", None::<&str>)]);
+        let hook = StopHookTestEnv::new(DENY_TWICE_THEN_ALLOW_SCRIPT)?;
+        let (first_tx, first_stream) = controlled_stream();
+        let (second_tx, second_stream) = controlled_stream();
+        let (third_tx, third_stream) = controlled_stream();
+        let provider = NativeSteeringTestProvider::new(
+            [first_stream, second_stream, third_stream],
+            [Ok(true)],
+        );
+        let (agent, session_id) =
+            create_test_agent(hook.data_dir(), hook.hook_manager(), provider.clone()).await?;
+        let reply = agent
+            .reply(
+                Message::user().with_text("start legacy work"),
+                SessionConfig {
+                    id: session_id.clone(),
+                    schedule_id: None,
+                    max_turns: Some(10),
+                    retry_config: None,
+                },
+                None,
+            )
+            .await?;
+        let (steer_seen_tx, steer_seen_rx) = tokio::sync::oneshot::channel();
+
+        let observe = async {
+            tokio::pin!(reply);
+            let mut steer_seen_tx = Some(steer_seen_tx);
+            while let Some(event) = reply.next().await {
+                if let AgentEvent::Message(message) = event? {
+                    if message.as_concat_text() == "change direction" {
+                        if let Some(tx) = steer_seen_tx.take() {
+                            tx.send(()).expect("steer observer");
+                        }
+                    }
+                }
+            }
+            Ok::<_, anyhow::Error>(())
+        };
+        let drive = async {
+            provider.wait_for_stream_calls(1).await;
+            first_tx
+                .send(Ok((
+                    Some(Message::assistant().with_text("first answer")),
+                    None,
+                )))
+                .expect("provider stream receiver");
+            drop(first_tx);
+            provider.wait_for_stream_calls(2).await;
+            agent
+                .steer(&session_id, Message::user().with_text("change direction"))
+                .await;
+            provider.wait_for_native_calls(1).await;
+            steer_seen_rx.await.expect("steer event");
+            drop(second_tx);
+            provider.wait_for_stream_calls(3).await;
+            third_tx
+                .send(Ok((
+                    Some(Message::assistant().with_text("final answer")),
+                    None,
+                )))
+                .expect("provider stream receiver");
+            drop(third_tx);
+            Ok::<_, anyhow::Error>(())
+        };
+
+        timeout(LEGACY_STEERING_TEST_TIMEOUT, async {
+            tokio::try_join!(observe, drive)
+        })
+        .await
+        .expect("denied native steer finish should settle")?;
+
+        assert_eq!(provider.stream_calls.load(Ordering::SeqCst), 3);
+        assert_eq!(hook.hook_invocations(), 3);
+        let steer_finish_payload = hook.stop_payload()?;
+        assert_eq!(
+            steer_finish_payload
+                .get("last_assistant_message")
+                .and_then(Value::as_str),
+            Some("first answer")
+        );
         assert!(!agent.has_pending_steers(&session_id).await);
         Ok(())
     }

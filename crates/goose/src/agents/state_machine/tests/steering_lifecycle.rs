@@ -507,6 +507,67 @@ async fn native_steering_error_after_empty_completion_falls_back_once() -> Resul
     Ok(())
 }
 
+#[tokio::test]
+async fn stream_error_after_failed_native_steer_continues_queued_steer() -> Result<()> {
+    let (first_stream_tx, first_stream) = controlled_stream();
+    let second_stream = completed_stream(Message::assistant().with_text("recovered after error"));
+    let provider = NativeSteeringTestProvider::new(
+        [first_stream, second_stream],
+        [Err(ProviderError::ExecutionError(
+            "native delivery failed".to_string(),
+        ))],
+    );
+    let (pipeline, _) = test_pipeline().await?;
+    let pipeline = pipeline.with_provider(provider.clone());
+
+    let run = pipeline.run(["start error work"]);
+    let steer = async {
+        provider.wait_for_stream_calls(1).await;
+        pipeline
+            .steer(
+                Message::user()
+                    .with_id("error-fallback-steer")
+                    .with_text("error direction"),
+            )
+            .await;
+        provider.wait_for_native_calls(1).await;
+        first_stream_tx
+            .send(Err(ProviderError::ExecutionError(
+                "stream failed".to_string(),
+            )))
+            .expect("provider stream receiver");
+        drop(first_stream_tx);
+    };
+    let (result, ()) = timeout(TEST_TIMEOUT, async { tokio::join!(run, steer) })
+        .await
+        .expect("stream error with a queued steer should settle");
+    let result = result?;
+
+    result.assert_message(-1, Agent, "recovered after error");
+    let messages = result.conversation().messages();
+    let error = messages
+        .iter()
+        .position(|message| message.error_kind().is_some())
+        .expect("persisted provider error");
+    let steer = messages
+        .iter()
+        .position(|message| message.as_concat_text() == "error direction")
+        .expect("persisted steer");
+    assert!(error < steer);
+    assert!(messages[steer].metadata.steer);
+    assert!(!was_native_steer_delivered(&messages[steer]));
+    assert_eq!(provider.stream_calls.load(Ordering::SeqCst), 2);
+    assert_eq!(provider.native_calls.load(Ordering::SeqCst), 1);
+    assert!(provider.prompts()[1]
+        .iter()
+        .any(|message| message.as_concat_text().contains("error direction")));
+    assert!(!provider.prompts()[1]
+        .iter()
+        .any(|message| message.error_kind().is_some()));
+    assert!(!pipeline.has_pending_steers().await);
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn steering_is_fifo_during_inference_and_survives_compaction() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
