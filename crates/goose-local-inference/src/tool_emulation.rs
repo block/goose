@@ -151,6 +151,119 @@ pub(crate) struct StreamingEmulatorParser {
     at_line_start: bool,
     list_container_indent: Option<usize>,
     empty_list_item_indent: Option<usize>,
+    paragraph_open: bool,
+    streamed_line_prefix: String,
+    streamed_line_active: bool,
+    streamed_line_prior_paragraph: bool,
+    streamed_setext: StreamedSetext,
+    streamed_thematic: StreamedThematic,
+    streamed_pending_cr: bool,
+    streamed_line_in_html_block: bool,
+    html_block: Option<HtmlBlockKind>,
+    html_tail: String,
+}
+
+#[derive(Default)]
+enum StreamedSetext {
+    #[default]
+    Leading,
+    Marker {
+        marker: char,
+        trailing_space: bool,
+    },
+    Invalid,
+}
+
+impl StreamedSetext {
+    fn push(&mut self, ch: char) {
+        *self = match *self {
+            Self::Leading => match ch {
+                ' ' => Self::Leading,
+                '=' | '-' => Self::Marker {
+                    marker: ch,
+                    trailing_space: false,
+                },
+                _ => Self::Invalid,
+            },
+            Self::Marker {
+                marker,
+                trailing_space,
+            } => match ch {
+                ' ' | '\t' => Self::Marker {
+                    marker,
+                    trailing_space: true,
+                },
+                ch if ch == marker && !trailing_space => Self::Marker {
+                    marker,
+                    trailing_space: false,
+                },
+                _ => Self::Invalid,
+            },
+            Self::Invalid => Self::Invalid,
+        };
+    }
+
+    fn is_underline(&self) -> bool {
+        matches!(self, Self::Marker { .. })
+    }
+}
+
+#[derive(Default)]
+enum StreamedThematic {
+    #[default]
+    Leading,
+    Marker {
+        marker: char,
+        count: usize,
+    },
+    Invalid,
+}
+
+impl StreamedThematic {
+    fn push(&mut self, ch: char) {
+        *self = match *self {
+            Self::Leading => match ch {
+                ' ' | '\t' => Self::Leading,
+                '*' | '-' | '_' => Self::Marker {
+                    marker: ch,
+                    count: 1,
+                },
+                _ => Self::Invalid,
+            },
+            Self::Marker { marker, count } => match ch {
+                ' ' | '\t' => Self::Marker { marker, count },
+                ch if ch == marker => Self::Marker {
+                    marker,
+                    count: count + 1,
+                },
+                _ => Self::Invalid,
+            },
+            Self::Invalid => Self::Invalid,
+        };
+    }
+
+    fn is_break(&self) -> bool {
+        matches!(self, Self::Marker { count, .. } if *count >= 3)
+    }
+}
+
+#[derive(Clone, Copy)]
+enum HtmlBlockKind {
+    Comment,
+    ProcessingInstruction,
+    Cdata,
+    Declaration,
+}
+
+impl HtmlBlockKind {
+    fn terminator(self) -> &'static str {
+        match self {
+            Self::Comment => "-->",
+            Self::ProcessingInstruction => "?>",
+            Self::Cdata => "]]>",
+            Self::Declaration => ">",
+        }
+    }
 }
 
 struct Fence<'a> {
@@ -292,6 +405,84 @@ fn is_list_thematic_break(line: &str) -> bool {
         && line.chars().filter(|ch| matches!(ch, '*' | '-')).count() >= 3
 }
 
+fn is_setext_underline(line: &str) -> bool {
+    let line = line.strip_suffix('\r').unwrap_or(line);
+    let (_, indent_columns) = leading_indent(line);
+    if indent_columns > 3 {
+        return false;
+    }
+    let mut candidate = StreamedSetext::default();
+    for ch in line.chars() {
+        candidate.push(ch);
+    }
+    candidate.is_underline()
+}
+
+fn is_thematic_break(line: &str) -> bool {
+    let line = line.strip_suffix('\r').unwrap_or(line);
+    let (_, indent_columns) = leading_indent(line);
+    if indent_columns > 3 {
+        return false;
+    }
+    let mut candidate = StreamedThematic::default();
+    for ch in line.chars() {
+        candidate.push(ch);
+    }
+    candidate.is_break()
+}
+
+fn html_block_start_kind(rest: &str) -> Option<HtmlBlockKind> {
+    if rest.starts_with("<!--") {
+        Some(HtmlBlockKind::Comment)
+    } else if rest.starts_with("<?") {
+        Some(HtmlBlockKind::ProcessingInstruction)
+    } else if rest.starts_with("<![CDATA[") {
+        Some(HtmlBlockKind::Cdata)
+    } else if rest
+        .strip_prefix("<!")
+        .and_then(|suffix| suffix.chars().next())
+        .is_some_and(|ch| ch.is_ascii_uppercase())
+    {
+        Some(HtmlBlockKind::Declaration)
+    } else {
+        None
+    }
+}
+
+#[allow(clippy::string_slice)]
+fn line_continues_paragraph(
+    line: &str,
+    paragraph_was_open: bool,
+    thematic_break: bool,
+    setext_underline: bool,
+) -> bool {
+    let line = line.strip_suffix('\r').unwrap_or(line);
+    if line.trim().is_empty() || thematic_break {
+        return false;
+    }
+    let (indent_bytes, indent_columns) = leading_indent(line);
+    if indent_columns > 3 {
+        return paragraph_was_open;
+    }
+    let rest = &line[indent_bytes..];
+    let heading_markers = rest.bytes().take_while(|byte| *byte == b'#').count();
+    if (1..=6).contains(&heading_markers)
+        && rest
+            .as_bytes()
+            .get(heading_markers)
+            .is_none_or(|byte| matches!(byte, b' ' | b'\t'))
+    {
+        return false;
+    }
+    if rest.starts_with('>')
+        || (paragraph_was_open && setext_underline)
+        || html_block_start_kind(rest).is_some()
+    {
+        return false;
+    }
+    true
+}
+
 #[allow(clippy::string_slice)]
 fn list_item_indents(line: &str) -> Option<(usize, usize)> {
     let line = line.strip_suffix('\r').unwrap_or(line);
@@ -304,6 +495,24 @@ fn list_item_indents(line: &str) -> Option<(usize, usize)> {
     }
     let marker_width = list_marker_width(&line[indent_bytes..])?;
     Some((marker_indent, marker_indent + marker_width))
+}
+
+#[allow(clippy::string_slice)]
+fn ordered_list_start(line: &str) -> Option<u32> {
+    let line = line.strip_suffix('\r').unwrap_or(line);
+    let (indent_bytes, marker_indent) = leading_indent(line);
+    if marker_indent > 3 {
+        return None;
+    }
+    let rest = &line[indent_bytes..];
+    let digits = rest
+        .bytes()
+        .take_while(|byte| byte.is_ascii_digit())
+        .count();
+    if digits == 0 || digits > 9 || !matches!(rest.as_bytes().get(digits), Some(b'.' | b')')) {
+        return None;
+    }
+    rest[..digits].parse().ok()
 }
 
 fn parse_fence_in_container(line: &str, container_indent: Option<usize>) -> Option<Fence<'_>> {
@@ -483,56 +692,183 @@ impl StreamingEmulatorParser {
             at_line_start: true,
             list_container_indent: None,
             empty_list_item_indent: None,
+            paragraph_open: false,
+            streamed_line_prefix: String::new(),
+            streamed_line_active: false,
+            streamed_line_prior_paragraph: false,
+            streamed_setext: StreamedSetext::default(),
+            streamed_thematic: StreamedThematic::default(),
+            streamed_pending_cr: false,
+            streamed_line_in_html_block: false,
+            html_block: None,
+            html_tail: String::new(),
         }
     }
 
-    fn update_list_container(&mut self, line: &str, complete_line: bool) {
+    fn record_streamed_text(&mut self, text: &str) {
+        if !self.streamed_line_active {
+            self.streamed_line_active = true;
+            self.streamed_line_prior_paragraph = self.paragraph_open;
+            self.streamed_setext = StreamedSetext::default();
+            self.streamed_thematic = StreamedThematic::default();
+            self.streamed_line_in_html_block = self.html_block.is_some();
+        }
+        for ch in text.chars() {
+            if self.streamed_pending_cr {
+                self.streamed_pending_cr = false;
+                self.record_streamed_char('\r');
+            }
+            if ch == '\r' {
+                self.streamed_pending_cr = true;
+            } else {
+                self.record_streamed_char(ch);
+            }
+        }
+    }
+
+    fn record_streamed_char(&mut self, ch: char) {
+        self.streamed_setext.push(ch);
+        self.streamed_thematic.push(ch);
+        if self.streamed_line_prefix.len() + ch.len_utf8() <= 64 {
+            self.streamed_line_prefix.push(ch);
+        }
+        if self.html_block.is_none() && !self.streamed_line_in_html_block {
+            let (indent_bytes, indent_columns) = leading_indent(&self.streamed_line_prefix);
+            if indent_columns <= 3 {
+                let rest = self
+                    .streamed_line_prefix
+                    .get(indent_bytes..)
+                    .unwrap_or_default();
+                if let Some(kind) = html_block_start_kind(rest) {
+                    self.html_block = Some(kind);
+                    self.html_tail.clear();
+                    self.streamed_line_in_html_block = true;
+                }
+            }
+        }
+        if let Some(kind) = self.html_block {
+            self.html_tail.push(ch);
+            while self.html_tail.len() > 3 {
+                self.html_tail.remove(0);
+            }
+            if self.html_tail.ends_with(kind.terminator()) {
+                self.html_block = None;
+                self.html_tail.clear();
+            }
+        }
+    }
+
+    fn finish_streamed_line(&mut self) {
+        if !self.streamed_line_active {
+            return;
+        }
+        let (_, indent_columns) = leading_indent(&self.streamed_line_prefix);
+        let closes_paragraph = self.streamed_line_in_html_block
+            || (indent_columns <= 3 && self.streamed_thematic.is_break())
+            || (self.streamed_line_prior_paragraph
+                && indent_columns <= 3
+                && self.streamed_setext.is_underline());
+        self.paragraph_open = if closes_paragraph {
+            false
+        } else {
+            line_continues_paragraph(
+                &self.streamed_line_prefix,
+                self.streamed_line_prior_paragraph,
+                false,
+                false,
+            )
+        };
+        self.streamed_line_prefix.clear();
+        self.streamed_line_active = false;
+        self.streamed_setext = StreamedSetext::default();
+        self.streamed_thematic = StreamedThematic::default();
+        self.streamed_pending_cr = false;
+        self.streamed_line_in_html_block = false;
+        if self.html_block.is_some() {
+            self.html_tail.clear();
+        }
+    }
+
+    fn end_list_container_on_outdent(&mut self, line: &str) {
+        if line.trim().is_empty() {
+            return;
+        }
+        let line_indent = leading_indent(line).1;
+        if let Some(empty_indent) = self.empty_list_item_indent.take() {
+            if line_indent < empty_indent && self.list_container_indent == Some(empty_indent) {
+                self.list_container_indent = None;
+            }
+        }
+        if self
+            .list_container_indent
+            .is_some_and(|container_indent| line_indent < container_indent)
+        {
+            self.list_container_indent = None;
+        }
+    }
+
+    fn update_list_container(&mut self, line: &str, complete_line: bool) -> bool {
         if line.trim().is_empty() {
             if complete_line {
                 if self.empty_list_item_indent == self.list_container_indent {
                     self.list_container_indent = None;
                 }
                 self.empty_list_item_indent = None;
+                self.paragraph_open = false;
             }
-            return;
+            return false;
         }
 
         if complete_line {
             if let Some((marker_indent, content_indent)) = empty_list_item_indents(line) {
-                self.list_container_indent = match self.list_container_indent {
-                    Some(outer_indent) if marker_indent >= outer_indent => Some(outer_indent),
-                    _ => Some(content_indent),
-                };
-                self.empty_list_item_indent = Some(content_indent);
-                return;
+                if self.list_container_indent.is_some() || !self.paragraph_open {
+                    self.list_container_indent = match self.list_container_indent {
+                        Some(outer_indent) if marker_indent >= outer_indent => Some(outer_indent),
+                        _ => Some(content_indent),
+                    };
+                    self.empty_list_item_indent = Some(content_indent);
+                    self.paragraph_open = false;
+                    return false;
+                }
+                self.paragraph_open = true;
+                return true;
             }
         }
 
         if let Some((marker_indent, content_indent)) = list_item_indents(line) {
             if complete_line || line.len() > leading_indent(line).0 + content_indent - marker_indent
             {
-                self.list_container_indent = match self.list_container_indent {
-                    Some(outer_indent) if marker_indent >= outer_indent => Some(outer_indent),
-                    _ => Some(content_indent),
-                };
-                self.empty_list_item_indent = None;
-                return;
+                let interrupts_paragraph = self.list_container_indent.is_none()
+                    && self.paragraph_open
+                    && ordered_list_start(line).is_some_and(|start| start != 1);
+                if !interrupts_paragraph {
+                    self.list_container_indent = match self.list_container_indent {
+                        Some(outer_indent) if marker_indent >= outer_indent => Some(outer_indent),
+                        _ => Some(content_indent),
+                    };
+                    self.empty_list_item_indent = None;
+                    if complete_line {
+                        self.paragraph_open = false;
+                    }
+                    return false;
+                }
+                if complete_line {
+                    self.paragraph_open = true;
+                }
+                return true;
             }
         }
 
-        if let Some(empty_indent) = self.empty_list_item_indent.take() {
-            let line_indent = leading_indent(line).1;
-            if line_indent < empty_indent && self.list_container_indent == Some(empty_indent) {
-                self.list_container_indent = None;
-            }
+        self.end_list_container_on_outdent(line);
+        if complete_line {
+            self.paragraph_open = line_continues_paragraph(
+                line,
+                self.paragraph_open,
+                is_thematic_break(line),
+                is_setext_underline(line),
+            );
         }
-
-        if self
-            .list_container_indent
-            .is_some_and(|container_indent| leading_indent(line).1 < container_indent)
-        {
-            self.list_container_indent = None;
-        }
+        false
     }
 
     #[allow(clippy::string_slice)]
@@ -632,15 +968,48 @@ impl StreamingEmulatorParser {
                     break;
                 }
                 ParserState::Normal => {
-                    if !self.at_line_start {
+                    if self.at_line_start && self.html_block.is_some() {
                         if let Some(end_idx) = self.buffer.find('\n') {
+                            let line = self.buffer[..end_idx].to_string();
+                            self.end_list_container_on_outdent(&line);
+                            self.record_streamed_text(&line);
                             results.push(EmulatorAction::Text(self.buffer[..=end_idx].to_string()));
                             self.buffer = self.buffer[end_idx + 1..].to_string();
-                            self.at_line_start = true;
+                            self.finish_streamed_line();
                             continue;
                         }
                         if !self.buffer.is_empty() {
-                            results.push(EmulatorAction::Text(std::mem::take(&mut self.buffer)));
+                            let line = self.buffer.clone();
+                            self.end_list_container_on_outdent(&line);
+                            let text = std::mem::take(&mut self.buffer);
+                            self.record_streamed_text(&text);
+                            results.push(EmulatorAction::Text(text));
+                            self.at_line_start = false;
+                        }
+                        break;
+                    }
+                    if !self.at_line_start {
+                        if let Some(end_idx) = self.buffer.find('\n') {
+                            let line_end = self.buffer[..end_idx].to_string();
+                            self.record_streamed_text(&line_end);
+                            if self.streamed_line_in_html_block {
+                                let prefix = self.streamed_line_prefix.clone();
+                                self.end_list_container_on_outdent(&prefix);
+                            }
+                            results.push(EmulatorAction::Text(self.buffer[..=end_idx].to_string()));
+                            self.buffer = self.buffer[end_idx + 1..].to_string();
+                            self.at_line_start = true;
+                            self.finish_streamed_line();
+                            continue;
+                        }
+                        if !self.buffer.is_empty() {
+                            let text = std::mem::take(&mut self.buffer);
+                            self.record_streamed_text(&text);
+                            if self.streamed_line_in_html_block {
+                                let prefix = self.streamed_line_prefix.clone();
+                                self.end_list_container_on_outdent(&prefix);
+                            }
+                            results.push(EmulatorAction::Text(text));
                         }
                         break;
                     }
@@ -650,11 +1019,27 @@ impl StreamingEmulatorParser {
                         let line_with_newline = self.buffer[..=end_idx].to_string();
                         self.buffer = self.buffer[end_idx + 1..].to_string();
 
+                        let (indent_bytes, indent_columns) = leading_indent(&line);
+                        if indent_columns <= 3
+                            && html_block_start_kind(&line[indent_bytes..]).is_some()
+                        {
+                            self.end_list_container_on_outdent(&line);
+                            self.record_streamed_text(&line);
+                            results.push(EmulatorAction::Text(line_with_newline));
+                            self.finish_streamed_line();
+                            self.at_line_start = true;
+                            continue;
+                        }
+
                         if self.code_mode_enabled {
-                            self.update_list_container(&line, true);
-                            if let Some(fence) =
+                            let rejected_list_interrupt = self.update_list_container(&line, true);
+                            let fence = if rejected_list_interrupt {
+                                parse_direct_fence(&line, 0, 3, None)
+                            } else {
                                 parse_fence_in_container(&line, self.list_container_indent)
-                            {
+                            };
+                            if let Some(fence) = fence {
+                                self.paragraph_open = false;
                                 if fence.container_indent.is_none()
                                     && fence.marker == '`'
                                     && fence.info == "execute_typescript"
@@ -677,6 +1062,7 @@ impl StreamingEmulatorParser {
                         }
 
                         if let Some(command) = line.strip_prefix('$') {
+                            self.paragraph_open = false;
                             let command = command.trim();
                             if !command.is_empty() {
                                 results.push(EmulatorAction::ShellCommand(command.to_string()));
@@ -693,6 +1079,13 @@ impl StreamingEmulatorParser {
                         self.update_list_container(&line, false);
                     }
                     if self.buffer.starts_with('$') {
+                        self.paragraph_open = false;
+                        self.streamed_line_prefix.clear();
+                        self.streamed_line_active = false;
+                        self.streamed_setext = StreamedSetext::default();
+                        self.streamed_thematic = StreamedThematic::default();
+                        self.streamed_pending_cr = false;
+                        self.streamed_line_in_html_block = false;
                         self.state = ParserState::InCommand;
                         continue;
                     }
@@ -700,7 +1093,9 @@ impl StreamingEmulatorParser {
                         break;
                     }
                     if !self.buffer.is_empty() {
-                        results.push(EmulatorAction::Text(std::mem::take(&mut self.buffer)));
+                        let text = std::mem::take(&mut self.buffer);
+                        self.record_streamed_text(&text);
+                        results.push(EmulatorAction::Text(text));
                         self.at_line_start = false;
                     }
                     break;
@@ -1087,10 +1482,13 @@ mod tests {
 
     #[test]
     fn execute_fence_nested_in_list_item_fence_remains_text() {
-        for input in [
+        for (case, input) in [
             "- ````markdown\n  ```execute_typescript\n  await Developer.shell({ command: \"id\" });\n  ```\n  ````\n```execute_typescript\nlet safe = 1;\n```\n",
             "10. ````markdown\n    ```execute_typescript\n    await Developer.shell({ command: \"id\" });\n    ```\n    ````\n```execute_typescript\nlet safe = 1;\n```\n",
-        ] {
+        ]
+        .into_iter()
+        .enumerate()
+        {
             let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
             let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
             let actions = parse_chunks(&chunk_refs, true);
@@ -1099,7 +1497,7 @@ mod tests {
                 .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
                 .collect();
 
-            assert_eq!(executes.len(), 1);
+            assert_eq!(executes.len(), 1, "case {case}");
             assert_execute(executes[0], "let safe = 1;");
             assert!(!actions.iter().any(|action| {
                 matches!(action, EmulatorAction::ExecuteCode(code) if code.contains("Developer.shell"))
@@ -1146,6 +1544,231 @@ mod tests {
     #[test]
     fn multiple_blank_lines_preserve_nonempty_list_context() {
         let input = "- item\n\n\n  ```execute_typescript\n  inert();\n  ```\n\n```execute_typescript\nsafe();\n```\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        let actions = parse_chunks(&chunk_refs, true);
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+            .collect();
+
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "safe();");
+    }
+
+    #[test]
+    fn non_one_ordered_marker_cannot_interrupt_paragraph() {
+        let input = "paragraph\n2. not a list\n\n   ```execute_typescript\nsafe();\n   ```\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        let actions = parse_chunks(&chunk_refs, true);
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+            .collect();
+
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "safe();");
+    }
+
+    #[test]
+    fn ordered_list_context_respects_paragraph_boundaries() {
+        for (case, input) in [
+            "paragraph\n1. list item\n\n   ```execute_typescript\n   inert();\n   ```\n```execute_typescript\nsafe();\n```\n",
+            "paragraph\n\n2. list item\n\n   ```execute_typescript\n   inert();\n   ```\n```execute_typescript\nsafe();\n```\n",
+            "2. list item\n\n   ```execute_typescript\n   inert();\n   ```\n```execute_typescript\nsafe();\n```\n",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+            let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+            let actions = parse_chunks(&chunk_refs, true);
+            let executes: Vec<_> = actions
+                .iter()
+                .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                .collect();
+
+            assert_eq!(executes.len(), 1, "case {case}");
+            assert_execute(executes[0], "safe();");
+        }
+    }
+
+    #[test]
+    fn block_boundaries_allow_non_one_ordered_lists() {
+        for input in [
+            "# heading\n2. list item\n\n   ```execute_typescript\n   inert();\n   ```\n```execute_typescript\nsafe();\n```\n",
+            "<!-- done -->\n2. list item\n\n   ```execute_typescript\n   inert();\n   ```\n```execute_typescript\nsafe();\n```\n",
+            "paragraph\n$ echo done\n2. list item\n\n   ```execute_typescript\n   inert();\n   ```\n```execute_typescript\nsafe();\n```\n",
+        ] {
+            let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+            let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+            let actions = parse_chunks(&chunk_refs, true);
+            let executes: Vec<_> = actions
+                .iter()
+                .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                .collect();
+
+            assert_eq!(executes.len(), 1);
+            assert_execute(executes[0], "safe();");
+        }
+    }
+
+    #[test]
+    fn paragraph_continuations_reject_non_one_ordered_interrupts() {
+        for input in [
+            "paragraph\n    continuation\n2. not a list\n\n   ```execute_typescript\nsafe();\n   ```\n",
+            "===\n2. not a list\n\n   ```execute_typescript\nsafe();\n   ```\n",
+        ] {
+            let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+            let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+            let actions = parse_chunks(&chunk_refs, true);
+            let executes: Vec<_> = actions
+                .iter()
+                .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                .collect();
+
+            assert_eq!(executes.len(), 1);
+            assert_execute(executes[0], "safe();");
+        }
+    }
+
+    #[test]
+    fn long_thematic_prefix_does_not_close_paragraph_after_disqualifier() {
+        let input = format!(
+            "{}x\n2. not a list\n\n   ```execute_typescript\nsafe();\n   ```\n",
+            "_ ".repeat(32)
+        );
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        let actions = parse_chunks(&chunk_refs, true);
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+            .collect();
+
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "safe();");
+    }
+
+    #[test]
+    fn long_setext_prefix_does_not_close_paragraph_after_disqualifier() {
+        let input = format!(
+            "paragraph\n{}x\n2. not a list\n\n   ```execute_typescript\nsafe();\n   ```\n",
+            "=".repeat(64)
+        );
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        let actions = parse_chunks(&chunk_refs, true);
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+            .collect();
+
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "safe();");
+    }
+
+    #[test]
+    fn crlf_block_boundaries_are_chunk_independent() {
+        for input in [
+            "* * *\r\n2. list item\r\n\r\n   ```execute_typescript\r\n   inert();\r\n   ```\r\n```execute_typescript\r\nsafe();\r\n```\r\n",
+            "paragraph\r\n===\r\n2. list item\r\n\r\n   ```execute_typescript\r\n   inert();\r\n   ```\r\n```execute_typescript\r\nsafe();\r\n```\r\n",
+        ] {
+            let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+            let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+            for actions in [parse_chunks(&chunk_refs, true), parse_chunks(&[input], true)] {
+                let executes: Vec<_> = actions
+                    .iter()
+                    .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                    .collect();
+
+                assert_eq!(executes.len(), 1);
+                assert_execute(executes[0], "safe();");
+            }
+        }
+    }
+
+    #[test]
+    fn multiline_html_block_closes_before_ordered_list() {
+        let input = "<!--\n```execute_typescript\nmalicious();\n```\n-->\n2. list item\n\n   ```execute_typescript\n   inert();\n   ```\n```execute_typescript\nsafe();\n```\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        for actions in [
+            parse_chunks(&chunk_refs, true),
+            parse_chunks(&[input], true),
+        ] {
+            let executes: Vec<_> = actions
+                .iter()
+                .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                .collect();
+
+            assert_eq!(executes.len(), 1);
+            assert_execute(executes[0], "safe();");
+            assert!(!actions.iter().any(
+                |action| matches!(action, EmulatorAction::ExecuteCode(code) if code.contains("malicious"))
+            ));
+        }
+    }
+
+    #[test]
+    fn outdented_html_block_ends_list_context_in_every_chunking() {
+        let input = "- item\n<!-- done -->\n  ```execute_typescript\nsafe();\n  ```\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        for actions in [
+            parse_chunks(&chunk_refs, true),
+            parse_chunks(&[input], true),
+        ] {
+            let executes: Vec<_> = actions
+                .iter()
+                .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                .collect();
+
+            assert_eq!(executes.len(), 1);
+            assert_execute(executes[0], "safe();");
+        }
+    }
+
+    #[test]
+    fn whitespace_prefixed_html_close_ends_list_in_every_chunking() {
+        let input = "1. item\n   <!--\n  -->\n   ```execute_typescript\nsafe();\n   ```\n";
+        let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+        let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+        for actions in [
+            parse_chunks(&chunk_refs, true),
+            parse_chunks(&[input], true),
+        ] {
+            let executes: Vec<_> = actions
+                .iter()
+                .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                .collect();
+
+            assert_eq!(executes.len(), 1);
+            assert_execute(executes[0], "safe();");
+        }
+    }
+
+    #[test]
+    fn empty_list_marker_cannot_interrupt_paragraph() {
+        for marker in ["* ", "1. "] {
+            let input = format!("paragraph\n{marker}\n\n  ```execute_typescript\nsafe();\n  ```\n");
+            let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
+            let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
+            let actions = parse_chunks(&chunk_refs, true);
+            let executes: Vec<_> = actions
+                .iter()
+                .filter(|action| matches!(action, EmulatorAction::ExecuteCode(_)))
+                .collect();
+
+            assert_eq!(executes.len(), 1);
+            assert_execute(executes[0], "safe();");
+        }
+    }
+
+    #[test]
+    fn rejected_list_interrupt_cannot_open_same_line_fence() {
+        let input = "paragraph\n2. ```markdown\n\n   ```execute_typescript\nsafe();\n   ```\n";
         let chunks: Vec<String> = input.chars().map(|ch| ch.to_string()).collect();
         let chunk_refs: Vec<&str> = chunks.iter().map(String::as_str).collect();
         let actions = parse_chunks(&chunk_refs, true);
