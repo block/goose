@@ -386,6 +386,23 @@
     "environmentVariables": []
   },
   {
+    "id": "humanpen-mcp",
+    "name": "HumanPen",
+    "description": "Lower a Word/PowerPoint/PDF document's AI-detection score so it reads as human-written",
+    "command": "npx -y humanpen-mcp",
+    "link": "https://github.com/humanpen/humanpen-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "HUMANPEN_API_KEY",
+        "description": "HumanPen API key (create one at https://humanpen.net/settings/api-keys)",
+        "required": true
+      }
+    ]
+  },
+  {
     "id": "jetbrains",
     "name": "JetBrains",
     "description": "Integrate with any JetBrains IDE (requires local setup, dependent on your IDE version)",
