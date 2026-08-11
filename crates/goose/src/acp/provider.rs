@@ -424,12 +424,12 @@ impl AcpProvider {
         response_rx.await.context("ACP request cancelled")?
     }
 
-    async fn cancel_pending_permissions(&self, request_ids: Vec<String>) {
+    async fn cancel_pending_permissions(&self) {
         let pending = {
             let mut pending = self.pending_confirmations.lock().await;
-            request_ids
-                .into_iter()
-                .filter_map(|request_id| pending.remove(&request_id))
+            pending
+                .drain()
+                .map(|(_, response_tx)| response_tx)
                 .collect::<Vec<_>>()
         };
         let cancellation = PermissionConfirmation {
@@ -566,13 +566,6 @@ impl Provider for AcpProvider {
             return Ok(false);
         }
 
-        let pending_permission_ids = self
-            .pending_confirmations
-            .lock()
-            .await
-            .keys()
-            .cloned()
-            .collect();
         let response = self
             .send_claude_steer(self.acp_session_id(), content)
             .await
@@ -580,8 +573,7 @@ impl Provider for AcpProvider {
 
         let delivered = claude_steering::delivery_confirmed(&response);
         if delivered {
-            self.cancel_pending_permissions(pending_permission_ids)
-                .await;
+            self.cancel_pending_permissions().await;
         }
         Ok(delivered)
     }

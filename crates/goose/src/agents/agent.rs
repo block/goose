@@ -2469,6 +2469,7 @@ impl Agent {
                 let mut provider_produced_content = false;
                 let mut native_steer_delivered = false;
                 let mut last_flushed_assistant = None;
+                let mut pre_steer_assistant_text = String::new();
                 let mut provider_reached_output_token_limit = false;
                 let mut pending_final_output: Option<String> = None;
                 let mut pending_turn_usage: Option<ProviderUsage> = None;
@@ -2489,6 +2490,10 @@ impl Agent {
                         }
                         ProviderStreamEvent::NativeSteerDelivered(mut message) => {
                             native_steer_delivered = true;
+                            if !last_assistant_text.is_empty() {
+                                pre_steer_assistant_text =
+                                    std::mem::take(&mut last_assistant_text);
+                            }
                             messages_to_add =
                                 apply_inference_metadata(messages_to_add, inference.as_ref());
 
@@ -3148,6 +3153,9 @@ impl Agent {
                             break;
                         }
                     }
+                }
+                if last_assistant_text.is_empty() {
+                    last_assistant_text = pre_steer_assistant_text;
                 }
                 can_drain_pending_steers = true;
                 steering_queue
@@ -4698,6 +4706,170 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         );
         assert_eq!(provider.stream_calls.load(Ordering::SeqCst), 1);
         assert!(!agent.has_pending_steers(&session_id).await);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn legacy_stop_hook_payload_uses_post_steer_assistant_text() -> Result<()> {
+        let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", None::<&str>)]);
+        let hook = StopHookTestEnv::new(RECORD_PAYLOAD_SCRIPT)?;
+        let (stream_tx, provider_stream) = controlled_stream();
+        let provider = NativeSteeringTestProvider::new([provider_stream], [Ok(true)]);
+        let (agent, session_id) =
+            create_test_agent(hook.data_dir(), hook.hook_manager(), provider.clone()).await?;
+        let reply = agent
+            .reply(
+                Message::user().with_text("start legacy work"),
+                SessionConfig {
+                    id: session_id.clone(),
+                    schedule_id: None,
+                    max_turns: Some(10),
+                    retry_config: None,
+                },
+                None,
+            )
+            .await?;
+        let (prefix_seen_tx, prefix_seen_rx) = tokio::sync::oneshot::channel();
+        let (steer_seen_tx, steer_seen_rx) = tokio::sync::oneshot::channel();
+
+        let observe = async {
+            tokio::pin!(reply);
+            let mut prefix_seen_tx = Some(prefix_seen_tx);
+            let mut steer_seen_tx = Some(steer_seen_tx);
+            while let Some(event) = reply.next().await {
+                if let AgentEvent::Message(message) = event? {
+                    match message.as_concat_text().as_str() {
+                        "before steer" => {
+                            if let Some(tx) = prefix_seen_tx.take() {
+                                tx.send(()).expect("prefix observer");
+                            }
+                        }
+                        "change direction" => {
+                            if let Some(tx) = steer_seen_tx.take() {
+                                tx.send(()).expect("steer observer");
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Ok::<_, anyhow::Error>(())
+        };
+        let drive = async {
+            provider.wait_for_stream_calls(1).await;
+            stream_tx
+                .send(Ok((
+                    Some(Message::assistant().with_text("before steer")),
+                    None,
+                )))
+                .expect("provider stream receiver");
+            prefix_seen_rx.await.expect("prefix event");
+            agent
+                .steer(&session_id, Message::user().with_text("change direction"))
+                .await;
+            provider.wait_for_native_calls(1).await;
+            steer_seen_rx.await.expect("steer event");
+            stream_tx
+                .send(Ok((
+                    Some(Message::assistant().with_text("after steer")),
+                    None,
+                )))
+                .expect("provider stream receiver");
+            drop(stream_tx);
+            Ok::<_, anyhow::Error>(())
+        };
+
+        timeout(LEGACY_STEERING_TEST_TIMEOUT, async {
+            tokio::try_join!(observe, drive)
+        })
+        .await
+        .expect("legacy native delivery should settle")?;
+        let payload = hook.stop_payload()?;
+        assert_eq!(
+            payload
+                .get("last_assistant_message")
+                .and_then(Value::as_str),
+            Some("after steer")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn legacy_stop_hook_payload_falls_back_to_pre_steer_text() -> Result<()> {
+        let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", None::<&str>)]);
+        let hook = StopHookTestEnv::new(RECORD_PAYLOAD_SCRIPT)?;
+        let (stream_tx, provider_stream) = controlled_stream();
+        let provider = NativeSteeringTestProvider::new([provider_stream], [Ok(true)]);
+        let (agent, session_id) =
+            create_test_agent(hook.data_dir(), hook.hook_manager(), provider.clone()).await?;
+        let reply = agent
+            .reply(
+                Message::user().with_text("start legacy work"),
+                SessionConfig {
+                    id: session_id.clone(),
+                    schedule_id: None,
+                    max_turns: Some(10),
+                    retry_config: None,
+                },
+                None,
+            )
+            .await?;
+        let (prefix_seen_tx, prefix_seen_rx) = tokio::sync::oneshot::channel();
+        let (steer_seen_tx, steer_seen_rx) = tokio::sync::oneshot::channel();
+
+        let observe = async {
+            tokio::pin!(reply);
+            let mut prefix_seen_tx = Some(prefix_seen_tx);
+            let mut steer_seen_tx = Some(steer_seen_tx);
+            while let Some(event) = reply.next().await {
+                if let AgentEvent::Message(message) = event? {
+                    match message.as_concat_text().as_str() {
+                        "before steer" => {
+                            if let Some(tx) = prefix_seen_tx.take() {
+                                tx.send(()).expect("prefix observer");
+                            }
+                        }
+                        "change direction" => {
+                            if let Some(tx) = steer_seen_tx.take() {
+                                tx.send(()).expect("steer observer");
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Ok::<_, anyhow::Error>(())
+        };
+        let drive = async {
+            provider.wait_for_stream_calls(1).await;
+            stream_tx
+                .send(Ok((
+                    Some(Message::assistant().with_text("before steer")),
+                    None,
+                )))
+                .expect("provider stream receiver");
+            prefix_seen_rx.await.expect("prefix event");
+            agent
+                .steer(&session_id, Message::user().with_text("change direction"))
+                .await;
+            provider.wait_for_native_calls(1).await;
+            steer_seen_rx.await.expect("steer event");
+            drop(stream_tx);
+            Ok::<_, anyhow::Error>(())
+        };
+
+        timeout(LEGACY_STEERING_TEST_TIMEOUT, async {
+            tokio::try_join!(observe, drive)
+        })
+        .await
+        .expect("legacy native delivery should settle")?;
+        let payload = hook.stop_payload()?;
+        assert_eq!(
+            payload
+                .get("last_assistant_message")
+                .and_then(Value::as_str),
+            Some("before steer")
+        );
         Ok(())
     }
 

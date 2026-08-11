@@ -294,7 +294,7 @@ async fn injected_response_confirms_delivery_and_message_boundary() {
 }
 
 #[tokio::test]
-async fn injected_steer_cancels_only_permissions_pending_when_it_started() {
+async fn injected_steer_cancels_permissions_that_arrive_while_delivery_is_pending() {
     timeout(TEST_TIMEOUT, async {
         let (provider, mut requests) = boundary_test_provider();
         let (before_tx, before_rx) = oneshot::channel();
@@ -320,7 +320,7 @@ async fn injected_steer_cancels_only_permissions_pending_when_it_started() {
             _ => panic!("expected steering request"),
         };
 
-        let (during_tx, mut during_rx) = oneshot::channel();
+        let (during_tx, during_rx) = oneshot::channel();
         provider
             .pending_confirmations
             .lock()
@@ -332,21 +332,8 @@ async fn injected_steer_cancels_only_permissions_pending_when_it_started() {
 
         assert!(steer.await.unwrap().unwrap());
         assert_eq!(before_rx.await.unwrap().permission, Permission::Cancel);
-        assert!(matches!(
-            during_rx.try_recv(),
-            Err(oneshot::error::TryRecvError::Empty)
-        ));
-
-        let confirmation = PermissionConfirmation {
-            principal_type: PrincipalType::Tool,
-            permission: Permission::AllowOnce,
-        };
-        assert!(
-            provider
-                .handle_permission_confirmation("during-steer", &confirmation)
-                .await
-        );
-        assert_eq!(during_rx.await.unwrap().permission, Permission::AllowOnce);
+        assert_eq!(during_rx.await.unwrap().permission, Permission::Cancel);
+        assert!(provider.pending_confirmations.lock().await.is_empty());
     })
     .await
     .expect("permission cancellation after steering should settle");

@@ -43,15 +43,12 @@ fn block_cap_warning(plugin: &str, cap: u32) -> Message {
     )
 }
 
-fn assistant_message_for_stop_hook<'a>(
-    conversation: &'a Conversation,
-    messages: &'a [Message],
-) -> Option<&'a Message> {
+fn assistant_message_for_stop_hook(messages: &[Message]) -> Option<&Message> {
     if ends_turn(messages) {
         return messages.last();
     }
 
-    let mut tail = conversation
+    let mut tail = messages
         .iter()
         .rev()
         .filter(|message| !message.is_turn_context());
@@ -59,10 +56,9 @@ fn assistant_message_for_stop_hook<'a>(
         return None;
     }
 
-    tail.find(|message| !was_native_steer_delivered(message) && !message.is_tool_response())
-        .filter(|message| {
-            message.role == rmcp::model::Role::Assistant && message.error_kind().is_none()
-        })
+    tail.find(|message| {
+        !was_native_steer_delivered(message) && ends_turn(std::slice::from_ref(message))
+    })
 }
 
 pub struct StopHookOperation {
@@ -92,7 +88,7 @@ impl Operation for StopHookOperation {
         emit: &Emitter,
     ) -> Result<OperationResult> {
         let messages = messages_since_kickoff(conversation)?;
-        let Some(last_assistant) = assistant_message_for_stop_hook(conversation, messages) else {
+        let Some(last_assistant) = assistant_message_for_stop_hook(messages) else {
             return not_applicable();
         };
         let last_assistant_text = last_assistant.as_concat_text();
@@ -123,5 +119,48 @@ impl Operation for StopHookOperation {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock};
+
+    use super::*;
+    use crate::agents::steering::mark_native_steer_delivered;
+
+    #[test]
+    fn stop_hook_skips_cancelled_tool_call_before_native_steer() {
+        let kickoff = Message::user().with_text("start work");
+        let assistant = Message::assistant().with_text("before tool call");
+        let tool_request = Message::assistant()
+            .with_text("tool preamble")
+            .with_tool_request("tool-id", Ok(CallToolRequestParams::new("tool")));
+        let tool_response = Message::user().with_tool_response(
+            "tool-id",
+            Ok(CallToolResult::error(vec![ContentBlock::text("cancelled")])),
+        );
+        let mut steer = Message::user().with_text("change direction");
+        mark_native_steer_delivered(&mut steer);
+        let conversation =
+            Conversation::new_unvalidated([kickoff, assistant, tool_request, tool_response, steer]);
+        let messages = messages_since_kickoff(&conversation).expect("kickoff message");
+
+        let selected =
+            assistant_message_for_stop_hook(messages).expect("assistant message before tool call");
+
+        assert_eq!(selected.as_concat_text(), "before tool call");
+    }
+
+    #[test]
+    fn stop_hook_not_applicable_when_steered_turn_has_no_assistant_output() {
+        let previous_answer = Message::assistant().with_text("previous turn answer");
+        let kickoff = Message::user().with_text("start work");
+        let mut steer = Message::user().with_text("change direction");
+        mark_native_steer_delivered(&mut steer);
+        let conversation = Conversation::new_unvalidated([previous_answer, kickoff, steer]);
+        let messages = messages_since_kickoff(&conversation).expect("kickoff message");
+
+        assert!(assistant_message_for_stop_hook(messages).is_none());
     }
 }
