@@ -89,6 +89,7 @@ process.on('SIGTERM', () => server.close(() => process.exit(0)));
 
 describe('E2E: gateway isolation - Goal: per-user goose instances behind Zitadel JWT', () => {
   let jwksServer: Server
+  let provisionServer: Server
   let issuer: string
   let privateKey: CryptoKey
   let supervisor: InstanceSupervisor
@@ -112,6 +113,25 @@ describe('E2E: gateway isolation - Goal: per-user goose instances behind Zitadel
     await new Promise<void>((r) => jwksServer.listen(0, '127.0.0.1', r))
     issuer = `http://127.0.0.1:${(jwksServer.address() as AddressInfo).port}`
 
+    provisionServer = createServer((req, res) => {
+      if (req.url === '/keys/provision' && req.method === 'POST') {
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(
+          JSON.stringify({
+            apiKey: 'sk-isolation-e2e',
+            baseUrl: 'https://dev.avocado.tech/llm',
+            userId: 'tenant1:isolation',
+            expiresAt: '2099-01-01T00:00:00.000Z',
+          })
+        )
+        return
+      }
+      res.writeHead(404)
+      res.end('no')
+    })
+    await new Promise<void>((r) => provisionServer.listen(0, '127.0.0.1', r))
+    const provisionUrl = `http://127.0.0.1:${(provisionServer.address() as AddressInfo).port}/keys/provision`
+
     const dir = await mkdtemp(path.join(tmpdir(), 'e2e-goose-'))
     const bin = await writeFakeGoose(dir)
     const dataRoot = await mkdtemp(path.join(tmpdir(), 'e2e-data-'))
@@ -119,6 +139,8 @@ describe('E2E: gateway isolation - Goal: per-user goose instances behind Zitadel
       gooseBin: bin,
       instanceConfig: { dataRoot },
       readinessTimeoutMs: 5_000,
+      avocadoProvisionUrl: provisionUrl,
+      avocadoHost: 'https://dev.avocado.tech/llm',
     })
     const settings: AuthSettings = {
       jwtRequired: true,
@@ -136,6 +158,7 @@ describe('E2E: gateway isolation - Goal: per-user goose instances behind Zitadel
   afterAll(async () => {
     await supervisor.stopAll()
     await new Promise<void>((r) => gatewayServer.close(() => r()))
+    await new Promise<void>((r) => provisionServer.close(() => r()))
     await new Promise<void>((r) => jwksServer.close(() => r()))
     resetJwksCacheForTests()
   })

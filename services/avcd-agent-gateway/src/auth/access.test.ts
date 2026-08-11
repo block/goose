@@ -275,4 +275,24 @@ describe('auth access + verify (covers AC-2, AC-6)', () => {
     expect(ctx.userId).toBe('u1')
     expect(ctx.roles).toEqual(['admin', 'agent-access'])
   })
+
+  it('GivenIssuerAndJwtSecret_ThenHs256Refused', async () => {
+    // covers AC-7 — stray JWT_SECRET must not mint access when Zitadel is configured
+    const hs256 = await new SignJWT({ sub: 'hs-user' })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuer('avcd')
+      .setAudience('avcd-agent')
+      .setExpirationTime('1h')
+      .sign(new TextEncoder().encode('dev-secret-that-must-not-work'))
+
+    await expect(
+      verifyBearerToken(
+        hs256,
+        settings({
+          zitadelIssuer: issuer,
+          jwtSecret: 'dev-secret-that-must-not-work',
+        })
+      )
+    ).rejects.toBeInstanceOf(BearerAuthError)
+  })
 })

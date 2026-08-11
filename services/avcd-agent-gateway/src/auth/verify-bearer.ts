@@ -128,6 +128,9 @@ export async function verifyBearerToken(
     } catch (error) {
       errors.push(error instanceof Error ? error.message : 'Zitadel validation failed')
     }
+    // When Zitadel is configured, never fall back to a shared HS256 secret —
+    // a stray JWT_SECRET must not mint agent-access tokens (AC-7).
+    throw new BearerAuthError(errors[0] ?? 'Zitadel authentication failed')
   }
 
   if (settings.jwtSecret) {

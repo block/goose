@@ -42,6 +42,41 @@ process.on('SIGINT', shutdown);
   return bin
 }
 
+
+function mockProvisionFetch(): typeof fetch {
+  return (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    if (url.includes('/keys/provision')) {
+      return new Response(
+        JSON.stringify({
+          apiKey: 'sk-test-unit',
+          baseUrl: 'https://dev.avocado.tech/llm',
+          userId: 't/u',
+          expiresAt: new Date().toISOString(),
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    }
+    // Pass through readiness /status and any other calls.
+    return fetch(input, init)
+  }) as typeof fetch
+}
+
+function withProvision(opts: {
+  gooseBin: string
+  instanceConfig: { dataRoot: string; [k: string]: unknown }
+  readinessTimeoutMs?: number
+  readinessIntervalMs?: number
+  killGraceMs?: number
+}): ConstructorParameters<typeof InstanceSupervisor>[0] {
+  return {
+    ...opts,
+    avocadoProvisionUrl: 'http://provision.test/keys/provision',
+    avocadoHost: 'https://dev.avocado.tech/llm',
+    fetchImpl: mockProvisionFetch(),
+  }
+}
+
 describe('InstanceSupervisor (covers AC-3)', () => {
   const supervisors: InstanceSupervisor[] = []
 
@@ -53,16 +88,16 @@ describe('InstanceSupervisor (covers AC-3)', () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'gw-sup-'))
     const bin = await writeFakeGoose(dir)
     const dataRoot = await mkdtemp(path.join(tmpdir(), 'gw-data-'))
-    const sup = new InstanceSupervisor({
+    const sup = new InstanceSupervisor(withProvision({
       gooseBin: bin,
       instanceConfig: { dataRoot },
       readinessTimeoutMs: 5_000,
-    })
+    }))
     supervisors.push(sup)
 
     const key = { tenantId: 't1', sub: 'u1', key: 't1/u1' }
-    const a = await sup.getOrStart(key)
-    const b = await sup.getOrStart(key)
+    const a = await sup.getOrStart(key, 'unit-token')
+    const b = await sup.getOrStart(key, 'unit-token')
     expect(a.pid).toBe(b.pid)
     expect(sup.list()).toHaveLength(1)
   })
@@ -71,15 +106,15 @@ describe('InstanceSupervisor (covers AC-3)', () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'gw-sup-'))
     const bin = await writeFakeGoose(dir)
     const dataRoot = await mkdtemp(path.join(tmpdir(), 'gw-data-'))
-    const sup = new InstanceSupervisor({
+    const sup = new InstanceSupervisor(withProvision({
       gooseBin: bin,
       instanceConfig: { dataRoot },
       readinessTimeoutMs: 5_000,
-    })
+    }))
     supervisors.push(sup)
 
-    const a = await sup.getOrStart({ tenantId: 't1', sub: 'u1', key: 't1/u1' })
-    const b = await sup.getOrStart({ tenantId: 't1', sub: 'u2', key: 't1/u2' })
+    const a = await sup.getOrStart({ tenantId: 't1', sub: 'u1', key: 't1/u1' }, 'unit-token')
+    const b = await sup.getOrStart({ tenantId: 't1', sub: 'u2', key: 't1/u2' }, 'unit-token')
     expect(a.pid).not.toBe(b.pid)
     expect(a.pathRoot).not.toBe(b.pathRoot)
     expect(a.secretKey).not.toBe(b.secretKey)
@@ -92,17 +127,17 @@ describe('InstanceSupervisor (covers AC-3)', () => {
     await writeFile(bin, `setInterval(() => {}, 10000);\n`, 'utf8')
     await chmod(bin, 0o755)
     const dataRoot = await mkdtemp(path.join(tmpdir(), 'gw-data-'))
-    const sup = new InstanceSupervisor({
+    const sup = new InstanceSupervisor(withProvision({
       gooseBin: bin,
       instanceConfig: { dataRoot },
       readinessTimeoutMs: 400,
       readinessIntervalMs: 50,
       killGraceMs: 200,
-    })
+    }))
     supervisors.push(sup)
 
     await expect(
-      sup.getOrStart({ tenantId: 't1', sub: 'u1', key: 't1/u1' })
+      sup.getOrStart({ tenantId: 't1', sub: 'u1', key: 't1/u1' }, 'unit-token')
     ).rejects.toThrow(/readiness timed out/)
     expect(sup.list()).toHaveLength(0)
   })
@@ -114,16 +149,16 @@ describe('InstanceSupervisor (covers AC-3)', () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'gw-sup-'))
     const bin = await writeFakeGoose(dir)
     const dataRoot = await mkdtemp(path.join(tmpdir(), 'gw-data-'))
-    const sup = new InstanceSupervisor({
+    const sup = new InstanceSupervisor(withProvision({
       gooseBin: bin,
       instanceConfig: { dataRoot },
       readinessTimeoutMs: 5_000,
       killGraceMs: 1_000,
-    })
+    }))
     supervisors.push(sup)
 
     const key = { tenantId: 't1', sub: 'u1', key: 't1/u1' }
-    const first = await sup.getOrStart(key)
+    const first = await sup.getOrStart(key, 'unit-token')
 
     process.kill(first.pid, 'SIGKILL')
 
@@ -131,7 +166,7 @@ describe('InstanceSupervisor (covers AC-3)', () => {
     // event lands, then respawns exactly once.
     let second = first
     await vi.waitFor(async () => {
-      second = await sup.getOrStart(key)
+      second = await sup.getOrStart(key, 'unit-token')
       expect(second.pid).not.toBe(first.pid)
     })
 
@@ -141,16 +176,16 @@ describe('InstanceSupervisor (covers AC-3)', () => {
 
   it('GivenMissingBinary_WhenStart_ThenRejectsWithSpawnErrorAndNoCrash', async () => {
     const dataRoot = await mkdtemp(path.join(tmpdir(), 'gw-data-'))
-    const sup = new InstanceSupervisor({
+    const sup = new InstanceSupervisor(withProvision({
       gooseBin: path.join(tmpdir(), 'definitely-not-a-real-goose-binary'),
       instanceConfig: { dataRoot },
       readinessTimeoutMs: 2_000,
       readinessIntervalMs: 50,
       killGraceMs: 200,
-    })
+    }))
     supervisors.push(sup)
 
-    await expect(sup.getOrStart({ tenantId: 't1', sub: 'u1', key: 't1/u1' })).rejects.toThrow(
+    await expect(sup.getOrStart({ tenantId: 't1', sub: 'u1', key: 't1/u1' }, 'unit-token')).rejects.toThrow(
       /spawnError=/
     )
     expect(sup.list()).toHaveLength(0)
@@ -160,17 +195,41 @@ describe('InstanceSupervisor (covers AC-3)', () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'gw-sup-'))
     const bin = await writeFakeGoose(dir)
     const dataRoot = await mkdtemp(path.join(tmpdir(), 'gw-data-'))
-    const sup = new InstanceSupervisor({
+    const sup = new InstanceSupervisor(withProvision({
       gooseBin: bin,
       instanceConfig: { dataRoot },
       readinessTimeoutMs: 5_000,
       killGraceMs: 1_000,
+    }))
+    supervisors.push(sup)
+
+    const inst = await sup.getOrStart({ tenantId: 't1', sub: 'u1', key: 't1/u1' }, 'unit-token')
+    await sup.stop(inst.key)
+    expect(sup.list()).toHaveLength(0)
+  })
+
+  it('GivenNoAvocadoProvisionUrl_WhenGetOrStart_ThenRefusesSharedKey', async () => {
+    // covers AC-5
+    const dir = await mkdtemp(path.join(tmpdir(), 'gw-sup-'))
+    const bin = await writeFakeGoose(dir)
+    const dataRoot = await mkdtemp(path.join(tmpdir(), 'gw-data-'))
+    const sup = new InstanceSupervisor({
+      gooseBin: bin,
+      instanceConfig: {
+        dataRoot,
+        providerApiKeyEnv: 'OPENROUTER_API_KEY',
+        providerApiKey: 'sk-shared-must-not-leak',
+      },
+      readinessTimeoutMs: 5_000,
     })
     supervisors.push(sup)
 
-    const inst = await sup.getOrStart({ tenantId: 't1', sub: 'u1', key: 't1/u1' })
-    await sup.stop(inst.key)
-    expect(sup.list()).toHaveLength(0)
+    await expect(
+      sup.getOrStart({ tenantId: 't1', sub: 'u1', key: 't1/u1' }, 'unit-token')
+    ).rejects.toBeInstanceOf(ProvisioningError)
+    await expect(
+      sup.getOrStart({ tenantId: 't1', sub: 'u1', key: 't1/u1' }, 'unit-token')
+    ).rejects.toThrow(/AVOCADO_PROVISION_URL/)
   })
 })
 

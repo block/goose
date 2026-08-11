@@ -225,7 +225,11 @@ export class InstanceSupervisor {
     accessToken: string | undefined
   ): Promise<InstanceConfig> {
     if (!this.avocadoProvisionUrl) {
-      return this.instanceConfig
+      // Fail closed: never inject a shared owner key (AC-5).
+      throw new ProvisioningError(
+        'AVOCADO_PROVISION_URL is required — refusing shared LLM credentials',
+        503
+      )
     }
     if (!accessToken) {
       throw new ProvisioningError('missing access token for provisioning', 401)
@@ -240,15 +244,20 @@ export class InstanceSupervisor {
       throw new ProvisioningError(result.error, result.statusCode)
     }
 
+    const extraEnv: Record<string, string> = {
+      ...this.instanceConfig.extraEnv,
+      AVOCADO_HOST: this.avocadoHost,
+    }
+    // Owner-level secrets must never reach the child process.
+    delete extraEnv.OPENROUTER_API_KEY
+    delete extraEnv.LITELLM_MASTER_KEY
+
     return {
       ...this.instanceConfig,
       gooseProvider: 'avocado',
       providerApiKeyEnv: 'AVOCADO_API_KEY',
       providerApiKey: result.apiKey,
-      extraEnv: {
-        ...this.instanceConfig.extraEnv,
-        AVOCADO_HOST: this.avocadoHost,
-      },
+      extraEnv,
     }
   }
 

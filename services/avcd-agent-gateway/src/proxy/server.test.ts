@@ -132,10 +132,28 @@ describe('gateway proxy (covers AC-2, AC-4, AC-5)', () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'gw-proxy-'))
     const bin = await writeFakeGoose(dir)
     const dataRoot = await mkdtemp(path.join(tmpdir(), 'gw-pdata-'))
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = String(input)
+      if (url.includes('/keys/provision')) {
+        return new Response(
+          JSON.stringify({
+            apiKey: 'sk-proxy-test',
+            baseUrl: 'https://dev.avocado.tech/llm',
+            userId: 'tenant1:proxy',
+            expiresAt: '2099-01-01T00:00:00.000Z',
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      }
+      return fetch(input, init)
+    }
     supervisor = new InstanceSupervisor({
       gooseBin: bin,
       instanceConfig: { dataRoot },
       readinessTimeoutMs: 5_000,
+      avocadoProvisionUrl: 'http://provision.test/keys/provision',
+      avocadoHost: 'https://dev.avocado.tech/llm',
+      fetchImpl,
     })
     const settings: AuthSettings = {
       jwtRequired: true,
