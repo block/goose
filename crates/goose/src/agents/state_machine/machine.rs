@@ -5,8 +5,8 @@ use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 
 use crate::agents::state_machine::operation::{
-    Emitter, Inference, InferenceInput, Operation, OperationFuture, OperationResult, StateEffect,
-    StepResult,
+    ConversationEffect, Emitter, GooseEffect, Inference, InferenceInput, Operation,
+    OperationFuture, OperationResult, StepResult,
 };
 use crate::agents::state_machine::usage;
 use crate::agents::AgentEvent;
@@ -38,7 +38,7 @@ pub trait StateMachineRuntime<S, E>: Send + Sync {
     }
 }
 
-pub enum Step<'a, S, E> {
+pub enum Step<'a, S, E = ConversationEffect> {
     Operation(Arc<dyn Operation<S, E> + 'a>),
     Inference(Arc<dyn Inference<S, E> + 'a>),
 }
@@ -52,7 +52,7 @@ impl<S, E: Send> Step<'_, S, E> {
     }
 }
 
-pub struct StateMachine<'a, S, E> {
+pub struct StateMachine<'a, S, E = ConversationEffect> {
     steps: Vec<Step<'a, S, E>>,
     cancel: CancellationToken,
 }
@@ -199,7 +199,7 @@ where
 }
 
 #[async_trait]
-impl StateMachineRuntime<Session, StateEffect> for SessionManager {
+impl StateMachineRuntime<Session, GooseEffect> for SessionManager {
     async fn load(&self, session_id: &str) -> Result<Session> {
         self.get_session(session_id, true).await
     }
@@ -207,7 +207,7 @@ impl StateMachineRuntime<Session, StateEffect> for SessionManager {
     async fn apply_effects(
         &self,
         session: &Session,
-        effects: &mut [StateEffect],
+        effects: &mut [GooseEffect],
         emit: &Emitter,
     ) -> Result<()> {
         for effect in effects.iter_mut() {
@@ -217,7 +217,7 @@ impl StateMachineRuntime<Session, StateEffect> for SessionManager {
 
         for effect in effects {
             match effect {
-                StateEffect::AppendMessage(message) => {
+                GooseEffect::Conversation(ConversationEffect::AppendMessage(message)) => {
                     self.add_message(&session.id, message).await?;
                     if let Some(usage) = message
                         .metadata
@@ -233,7 +233,18 @@ impl StateMachineRuntime<Session, StateEffect> for SessionManager {
                         .await;
                     }
                 }
-                StateEffect::ReplaceConversation {
+                GooseEffect::Conversation(ConversationEffect::ReplaceConversation(
+                    conversation,
+                )) => {
+                    self.replace_conversation(&session.id, conversation).await?;
+                    self.update(&session.id)
+                        .usage(usage::estimate_context(conversation).await?)
+                        .apply()
+                        .await?;
+                    emit.emit(AgentEvent::HistoryReplaced(conversation.clone()))
+                        .await;
+                }
+                GooseEffect::ReplaceConversation {
                     conversation,
                     usage: replacement_usage,
                 } => {
@@ -248,18 +259,18 @@ impl StateMachineRuntime<Session, StateEffect> for SessionManager {
                     emit.emit(AgentEvent::HistoryReplaced(conversation.clone()))
                         .await;
                 }
-                StateEffect::PatchToolRequestMeta {
+                GooseEffect::Conversation(ConversationEffect::PatchToolRequestMeta {
                     tool_call_id,
                     patch,
-                } => {
+                }) => {
                     self.update_tool_request_meta(&session.id, tool_call_id, patch.clone())
                         .await?;
                 }
-                StateEffect::SetMessageVisibility {
+                GooseEffect::Conversation(ConversationEffect::SetMessageVisibility {
                     message_id,
                     user_visible,
                     agent_visible,
-                } => {
+                }) => {
                     self.update_message_metadata(&session.id, message_id, |mut metadata| {
                         metadata.user_visible = *user_visible;
                         metadata.agent_visible = *agent_visible;
@@ -267,19 +278,19 @@ impl StateMachineRuntime<Session, StateEffect> for SessionManager {
                     })
                     .await?;
                 }
-                StateEffect::SetRecipe(recipe) => {
+                GooseEffect::SetRecipe(recipe) => {
                     self.update(&session.id)
                         .recipe(recipe.as_ref().clone())
                         .apply()
                         .await?;
                 }
-                StateEffect::SetExtensionData(extension_data) => {
+                GooseEffect::SetExtensionData(extension_data) => {
                     self.update(&session.id)
                         .extension_data(extension_data.clone())
                         .apply()
                         .await?;
                 }
-                StateEffect::RecordUsage(provider_usage) => {
+                GooseEffect::RecordUsage(provider_usage) => {
                     usage::record(self, session, provider_usage, false).await?;
                     emit.emit(AgentEvent::Usage(provider_usage.clone())).await;
                 }
@@ -290,11 +301,11 @@ impl StateMachineRuntime<Session, StateEffect> for SessionManager {
 
     fn usage(
         &self,
-        effect: &StateEffect,
+        effect: &GooseEffect,
     ) -> Option<goose_providers::conversation::token_usage::Usage> {
         match effect {
-            StateEffect::RecordUsage(usage)
-            | StateEffect::ReplaceConversation {
+            GooseEffect::RecordUsage(usage)
+            | GooseEffect::ReplaceConversation {
                 usage: Some(usage), ..
             } => Some(usage.usage),
             _ => None,

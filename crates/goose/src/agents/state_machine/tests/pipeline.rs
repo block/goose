@@ -16,8 +16,8 @@ use crate::agents::mcp_client::McpClientTrait;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::state_machine::{
     BangShellOperation, CompactionOperation, DoctorOperation, Emitter, EntryHookOperation,
-    ExitOnErrorOperation, InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation,
-    RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation, StateEffect,
+    ExitOnErrorOperation, GooseEffect, InferenceRunner, MaxTurnsOperation, Operation,
+    ProjectOperation, RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation,
     StateMachine, SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
     ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation,
 };
@@ -108,13 +108,13 @@ impl TestPipeline {
     pub(super) fn machine(
         &self,
         cancel: CancellationToken,
-    ) -> StateMachine<'_, Session, StateEffect> {
+    ) -> StateMachine<'_, Session, GooseEffect> {
         let provider = self.provider.clone();
         let tool_call_cutoff = crate::context_mgmt::compute_tool_call_cutoff(
             self.model_config.context_limit(),
             COMPACTION_THRESHOLD,
         );
-        let operations: Vec<Arc<dyn Operation<Session> + '_>> = vec![
+        let operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
             Arc::new(EntryHookOperation::new(self.hook_manager.clone())),
             Arc::new(SteerOperation::new(
                 self.steer_queue.clone(),
@@ -171,7 +171,7 @@ impl TestPipeline {
         ));
         let mut command_handlers = operations.clone();
         command_handlers.push(inference.clone());
-        let command_operation: Arc<dyn Operation<Session> + '_> =
+        let command_operation: Arc<dyn Operation<Session, GooseEffect> + '_> =
             Arc::new(SlashCommandOperation::new(command_handlers));
         let steps = std::iter::once(command_operation)
             .chain(operations)

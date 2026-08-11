@@ -28,8 +28,8 @@ use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::state_machine::{
     BangShellOperation, CompactionOperation, DoctorOperation, Emitter, EntryHookOperation,
-    ExitOnErrorOperation, InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation,
-    RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation, StateEffect,
+    ExitOnErrorOperation, GooseEffect, InferenceRunner, MaxTurnsOperation, Operation,
+    ProjectOperation, RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation,
     StateMachine, SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
     ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation, MAX_TURNS_MESSAGE,
 };
@@ -1595,7 +1595,7 @@ impl Agent {
         max_turns: Option<u32>,
         cancel: CancellationToken,
         steer_queue: SteerQueue,
-    ) -> StateMachine<'_, Session, StateEffect> {
+    ) -> StateMachine<'_, Session, GooseEffect> {
         let max_turns = max_turns.unwrap_or_else(|| {
             Config::global()
                 .get_param::<u32>("GOOSE_MAX_TURNS")
@@ -1628,7 +1628,7 @@ impl Agent {
         let tool_pair_compaction_enabled = crate::context_mgmt::tool_pair_summarization_enabled()
             && !provider.manages_own_context();
 
-        let operations: Vec<Arc<dyn Operation<Session> + '_>> = vec![
+        let operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
             Arc::new(EntryHookOperation::new(self.hook_manager.clone())),
             Arc::new(SteerOperation::new(steer_queue, self.hook_manager.clone())),
             Arc::new(MaxTurnsOperation::new(max_turns)),
@@ -1682,7 +1682,7 @@ impl Agent {
         ));
         let mut command_handlers = operations.clone();
         command_handlers.push(inference.clone());
-        let command_operation: Arc<dyn Operation<Session> + '_> =
+        let command_operation: Arc<dyn Operation<Session, GooseEffect> + '_> =
             Arc::new(SlashCommandOperation::new(command_handlers));
         let operations: Vec<_> = std::iter::once(command_operation)
             .chain(operations)

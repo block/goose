@@ -3,6 +3,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 
+use crate::agents::state_machine::operation::GooseEffect;
 use crate::agents::state_machine::operation::{
     applied, ends_turn, messages_since_kickoff, not_applicable, yielded, yielded_with, Emitter,
     Operation, OperationResult,
@@ -57,7 +58,7 @@ impl StopHookOperation {
 }
 
 #[async_trait]
-impl Operation<Session> for StopHookOperation {
+impl Operation<Session, GooseEffect> for StopHookOperation {
     fn name(&self) -> &'static str {
         "stop_hook"
     }
@@ -67,7 +68,7 @@ impl Operation<Session> for StopHookOperation {
         session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let messages = messages_since_kickoff(conversation)?;
         if !ends_turn(messages) {
             return not_applicable();

@@ -11,8 +11,8 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::agents::state_machine::operation::{
-    applied, messages_since_kickoff, not_applicable, yielded_with, Emitter, Operation,
-    OperationResult, SlashCommand, StateEffect,
+    applied, messages_since_kickoff, not_applicable, yielded_with, ConversationEffect, Emitter,
+    GooseEffect, Operation, OperationResult, SlashCommand,
 };
 use crate::agents::state_machine::ops_toolcalling::{
     pending_tool_requests, tool_span, ToolDisposition,
@@ -206,7 +206,7 @@ impl SkillOperation {
         conversation: &Conversation,
         message: String,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let command = messages_since_kickoff(conversation)?
             .first()
             .cloned()
@@ -222,18 +222,19 @@ impl SkillOperation {
         emit.message(command).await;
         let response = emit.message(response).await;
         yielded_with([
-            StateEffect::SetMessageVisibility {
+            ConversationEffect::SetMessageVisibility {
                 message_id,
                 user_visible: true,
                 agent_visible: false,
-            },
+            }
+            .into(),
             response.into(),
         ])
     }
 }
 
 #[async_trait]
-impl Operation<Session> for SkillOperation {
+impl Operation<Session, GooseEffect> for SkillOperation {
     fn name(&self) -> &'static str {
         "skills"
     }
@@ -244,7 +245,7 @@ impl Operation<Session> for SkillOperation {
         session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         if command.command == "skills" {
             return Self::command_response(
                 conversation,
@@ -273,11 +274,12 @@ impl Operation<Session> for SkillOperation {
             .clone()
             .ok_or_else(|| anyhow!("Persisted slash command message has no id"))?;
         applied([
-            StateEffect::SetMessageVisibility {
+            ConversationEffect::SetMessageVisibility {
                 message_id,
                 user_visible: true,
                 agent_visible: false,
-            },
+            }
+            .into(),
             Message::user()
                 .with_text(prompt)
                 .with_visibility(false, true)
@@ -305,7 +307,7 @@ impl Operation<Session> for SkillOperation {
         session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let pending: Vec<_> = pending_tool_requests(messages_since_kickoff(conversation)?)
             .into_iter()
             .filter(|(request, _)| {

@@ -7,8 +7,8 @@ use async_trait::async_trait;
 use tracing_futures::Instrument;
 
 use crate::agents::state_machine::operation::{
-    applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
-    StateEffect,
+    applied, messages_since_kickoff, not_applicable, ConversationEffect, Emitter, GooseEffect,
+    Operation, OperationResult,
 };
 use crate::agents::state_machine::ops_llm::chat_span;
 use crate::context_mgmt::{summarize_tool_call, tool_ids_to_summarize};
@@ -42,7 +42,7 @@ impl ToolPairCompactionOperation {
 }
 
 #[async_trait]
-impl Operation<Session> for ToolPairCompactionOperation {
+impl Operation<Session, GooseEffect> for ToolPairCompactionOperation {
     fn name(&self) -> &'static str {
         "tool_pair_compaction"
     }
@@ -52,7 +52,7 @@ impl Operation<Session> for ToolPairCompactionOperation {
         session: &Session,
         conversation: &Conversation,
         _emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         if !self.enabled {
             return not_applicable();
         }
@@ -66,7 +66,7 @@ impl Operation<Session> for ToolPairCompactionOperation {
         if tool_ids.is_empty() {
             return not_applicable();
         }
-        let mut effects: Vec<StateEffect> = Vec::new();
+        let mut effects: Vec<GooseEffect> = Vec::new();
         let mut hidden_messages: std::collections::HashSet<String> = Default::default();
         for tool_id in tool_ids {
             let pair: Vec<_> = conversation
@@ -146,11 +146,14 @@ impl Operation<Session> for ToolPairCompactionOperation {
                     continue;
                 };
                 hidden_messages.insert(message_id.clone());
-                effects.push(StateEffect::SetMessageVisibility {
-                    message_id,
-                    user_visible: message.is_user_visible(),
-                    agent_visible: false,
-                });
+                effects.push(
+                    ConversationEffect::SetMessageVisibility {
+                        message_id,
+                        user_visible: message.is_user_visible(),
+                        agent_visible: false,
+                    }
+                    .into(),
+                );
             }
             effects.push(summary.into());
         }

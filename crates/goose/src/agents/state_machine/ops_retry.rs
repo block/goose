@@ -8,8 +8,8 @@ use crate::agents::retry::{
     execute_on_failure_command_with_timeout, execute_success_checks_with_timeout,
 };
 use crate::agents::state_machine::operation::{
-    applied, ends_turn, messages_since_kickoff, not_applicable, yielded_with, Emitter, Operation,
-    OperationResult, SlashCommand, StateEffect,
+    applied, ends_turn, messages_since_kickoff, not_applicable, yielded_with, ConversationEffect,
+    Emitter, GooseEffect, Operation, OperationResult, SlashCommand,
 };
 use crate::agents::types::RetryConfig;
 use crate::conversation::message::{Message, MessageErrorKind, SystemNotificationType};
@@ -83,7 +83,7 @@ impl<'a> RetryOperation<'a> {
 }
 
 #[async_trait]
-impl Operation<Session> for RetryOperation<'_> {
+impl Operation<Session, GooseEffect> for RetryOperation<'_> {
     fn name(&self) -> &'static str {
         "retry"
     }
@@ -94,7 +94,7 @@ impl Operation<Session> for RetryOperation<'_> {
         _session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let target = match command.command {
             "goal" => &self.goal,
             "grind" => &self.grind,
@@ -152,11 +152,12 @@ impl Operation<Session> for RetryOperation<'_> {
         let response = emit.message(response).await;
 
         let mut effects = vec![
-            StateEffect::SetMessageVisibility {
+            ConversationEffect::SetMessageVisibility {
                 message_id,
                 user_visible: true,
                 agent_visible: false,
-            },
+            }
+            .into(),
             response.into(),
         ];
         if starts_turn {
@@ -179,7 +180,7 @@ impl Operation<Session> for RetryOperation<'_> {
         session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let messages = messages_since_kickoff(conversation)?;
         if !ends_turn(messages) {
             return not_applicable();

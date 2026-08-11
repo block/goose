@@ -1,6 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 
+use crate::agents::state_machine::operation::GooseEffect;
 use crate::agents::state_machine::operation::{
     messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
 };
@@ -20,7 +21,7 @@ impl EntryHookOperation {
 }
 
 #[async_trait]
-impl Operation<Session> for EntryHookOperation {
+impl Operation<Session, GooseEffect> for EntryHookOperation {
     fn name(&self) -> &'static str {
         "entry_hook"
     }
@@ -30,7 +31,7 @@ impl Operation<Session> for EntryHookOperation {
         session: &Session,
         conversation: &Conversation,
         _emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let messages = messages_since_kickoff(conversation)?;
         if messages.iter().any(|message| {
             message.role == rmcp::model::Role::Assistant

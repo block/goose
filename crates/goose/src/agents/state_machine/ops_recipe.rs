@@ -12,7 +12,7 @@ use crate::agents::final_output_tool::{
 };
 use crate::agents::state_machine::operation::{
     applied, ends_turn, last_effective_role, messages_since_kickoff, not_applicable, yielded_with,
-    Emitter, Operation, OperationResult, SlashCommand, StateEffect,
+    ConversationEffect, Emitter, GooseEffect, Operation, OperationResult, SlashCommand,
 };
 use crate::agents::state_machine::ops_toolcalling::{
     pending_tool_requests, tool_span, ToolDisposition,
@@ -77,7 +77,7 @@ impl RecipeOperation {
         conversation: &Conversation,
         message: String,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let command = messages_since_kickoff(conversation)?
             .first()
             .cloned()
@@ -93,18 +93,19 @@ impl RecipeOperation {
         emit.message(command).await;
         let response = emit.message(response).await;
         yielded_with([
-            StateEffect::SetMessageVisibility {
+            ConversationEffect::SetMessageVisibility {
                 message_id,
                 user_visible: true,
                 agent_visible: false,
-            },
+            }
+            .into(),
             response.into(),
         ])
     }
 }
 
 #[async_trait]
-impl Operation<Session> for RecipeOperation {
+impl Operation<Session, GooseEffect> for RecipeOperation {
     fn name(&self) -> &'static str {
         "recipe"
     }
@@ -115,7 +116,7 @@ impl Operation<Session> for RecipeOperation {
         _session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let (recipe, prompt) = match crate::slash_commands::recipe_slash_command::resolve_command(
             command.command,
             command.params_str,
@@ -144,12 +145,13 @@ impl Operation<Session> for RecipeOperation {
             .clone()
             .ok_or_else(|| anyhow!("Persisted slash command message has no id"))?;
         applied([
-            StateEffect::SetMessageVisibility {
+            ConversationEffect::SetMessageVisibility {
                 message_id,
                 user_visible: true,
                 agent_visible: false,
-            },
-            StateEffect::SetRecipe(Box::new(Some(recipe))),
+            }
+            .into(),
+            GooseEffect::SetRecipe(Box::new(Some(recipe))),
             Message::user()
                 .with_text(prompt)
                 .with_visibility(false, true)
@@ -182,7 +184,7 @@ impl Operation<Session> for RecipeOperation {
         session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let Some(mut final_output) = Self::final_output(session)? else {
             return not_applicable();
         };

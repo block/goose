@@ -5,8 +5,8 @@ use async_trait::async_trait;
 use rmcp::model::Role;
 
 use crate::agents::state_machine::operation::{
-    applied, messages_since_kickoff, not_applicable, yielded_with, Emitter, Operation,
-    OperationResult, SlashCommand, StateEffect,
+    applied, messages_since_kickoff, not_applicable, yielded_with, ConversationEffect, Emitter,
+    GooseEffect, Operation, OperationResult, SlashCommand,
 };
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
@@ -15,7 +15,7 @@ use crate::session::Session;
 pub struct DoctorOperation;
 
 #[async_trait]
-impl Operation<Session> for DoctorOperation {
+impl Operation<Session, GooseEffect> for DoctorOperation {
     fn name(&self) -> &'static str {
         "doctor"
     }
@@ -26,7 +26,7 @@ impl Operation<Session> for DoctorOperation {
         session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         if command.command != "doctor" {
             return not_applicable();
         }
@@ -55,21 +55,23 @@ impl Operation<Session> for DoctorOperation {
             emit.message(command_message).await;
             let result = emit.message(result).await;
             return yielded_with([
-                StateEffect::SetMessageVisibility {
+                ConversationEffect::SetMessageVisibility {
                     message_id,
                     user_visible: true,
                     agent_visible: false,
-                },
+                }
+                .into(),
                 result.into(),
             ]);
         }
 
         applied([
-            StateEffect::SetMessageVisibility {
+            ConversationEffect::SetMessageVisibility {
                 message_id,
                 user_visible: true,
                 agent_visible: false,
-            },
+            }
+            .into(),
             result.with_visibility(false, true).into(),
         ])
     }

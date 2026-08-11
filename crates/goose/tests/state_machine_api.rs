@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use async_trait::async_trait;
 use goose::agents::state_machine::{
-    yielded_with, Emitter, Inference, InferenceInput, Operation, OperationResult, StateEffect,
+    yielded_with, Emitter, GooseEffect, Inference, InferenceInput, Operation, OperationResult,
     StateMachine, Step,
 };
 use goose::agents::AgentEvent;
@@ -29,7 +29,7 @@ use tracing_subscriber::Layer;
 struct PromptPart;
 
 #[async_trait]
-impl Operation<Session> for PromptPart {
+impl Operation<Session, GooseEffect> for PromptPart {
     fn name(&self) -> &'static str {
         "prompt_part"
     }
@@ -46,14 +46,14 @@ impl Operation<Session> for PromptPart {
 struct TestInference;
 
 #[async_trait]
-impl Operation<Session> for TestInference {
+impl Operation<Session, GooseEffect> for TestInference {
     fn name(&self) -> &'static str {
         "test_inference"
     }
 }
 
 #[async_trait]
-impl Inference<Session> for TestInference {
+impl Inference<Session, GooseEffect> for TestInference {
     fn applies(&self, _conversation: &Conversation) -> bool {
         true
     }
@@ -64,7 +64,7 @@ impl Inference<Session> for TestInference {
         conversation: &Conversation,
         input: InferenceInput,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         assert_eq!(
             input.prompt_parts,
             [("test".to_string(), "custom context".to_string())]
@@ -80,8 +80,8 @@ impl Inference<Session> for TestInference {
             .message(Message::assistant().with_text(format!("{prompt} answered")))
             .await;
         yielded_with([
-            StateEffect::from(message),
-            StateEffect::RecordUsage(ProviderUsage::new(
+            GooseEffect::from(message),
+            GooseEffect::RecordUsage(ProviderUsage::new(
                 "test-model".to_string(),
                 Usage::new(Some(5), Some(7), Some(12)),
             )),

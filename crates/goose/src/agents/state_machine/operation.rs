@@ -76,7 +76,7 @@ pub fn ends_turn(messages: &[Message]) -> bool {
 }
 
 #[async_trait]
-pub trait Operation<S, E: Send + 'static = StateEffect>: Send + Sync {
+pub trait Operation<S, E: Send + 'static = ConversationEffect>: Send + Sync {
     fn name(&self) -> &'static str;
 
     /// Note on a message something this operation did, so that a pipeline rebuilt
@@ -145,7 +145,7 @@ pub struct InferenceInput {
 }
 
 #[async_trait]
-pub trait Inference<S, E: Send + 'static = StateEffect>: Operation<S, E> {
+pub trait Inference<S, E: Send + 'static = ConversationEffect>: Operation<S, E> {
     /// Whether the next step would reach the provider. The machine asks before
     /// firing the hooks that mark the start of a turn.
     fn applies(&self, conversation: &Conversation) -> bool;
@@ -159,12 +159,12 @@ pub trait Inference<S, E: Send + 'static = StateEffect>: Operation<S, E> {
     ) -> Result<OperationResult<E>>;
 }
 
-pub struct StepResult<E = StateEffect> {
+pub struct StepResult<E = ConversationEffect> {
     pub effects: Vec<E>,
     pub yield_to_client: bool,
 }
 
-pub enum OperationResult<E = StateEffect> {
+pub enum OperationResult<E = ConversationEffect> {
     NotApplicable,
     Applied(StepResult<E>),
 }
@@ -194,12 +194,9 @@ pub fn yielded_with<E>(effects: impl IntoIterator<Item = E>) -> Result<Operation
     }))
 }
 
-pub enum StateEffect {
+pub enum ConversationEffect {
     AppendMessage(Message),
-    ReplaceConversation {
-        conversation: Conversation,
-        usage: Option<ProviderUsage>,
-    },
+    ReplaceConversation(Conversation),
     PatchToolRequestMeta {
         tool_call_id: String,
         patch: serde_json::Value,
@@ -209,16 +206,13 @@ pub enum StateEffect {
         user_visible: bool,
         agent_visible: bool,
     },
-    SetRecipe(Box<Option<Recipe>>),
-    SetExtensionData(ExtensionData),
-    RecordUsage(ProviderUsage),
 }
 
-impl StateEffect {
+impl ConversationEffect {
     pub(super) fn ensure_message_ids(&mut self) {
         let messages = match self {
-            StateEffect::AppendMessage(message) => std::slice::from_mut(message),
-            StateEffect::ReplaceConversation { conversation, .. } => {
+            ConversationEffect::AppendMessage(message) => std::slice::from_mut(message),
+            ConversationEffect::ReplaceConversation(conversation) => {
                 conversation.messages_mut().as_mut_slice()
             }
             _ => return,
@@ -231,18 +225,60 @@ impl StateEffect {
     }
 }
 
-impl From<Message> for StateEffect {
+impl From<Message> for ConversationEffect {
     fn from(message: Message) -> Self {
-        StateEffect::AppendMessage(message)
+        ConversationEffect::AppendMessage(message)
     }
 }
 
-impl From<Conversation> for StateEffect {
+impl From<Conversation> for ConversationEffect {
     fn from(conversation: Conversation) -> Self {
-        StateEffect::ReplaceConversation {
-            conversation,
-            usage: None,
+        ConversationEffect::ReplaceConversation(conversation)
+    }
+}
+
+pub enum GooseEffect {
+    Conversation(ConversationEffect),
+    ReplaceConversation {
+        conversation: Conversation,
+        usage: Option<ProviderUsage>,
+    },
+    SetRecipe(Box<Option<Recipe>>),
+    SetExtensionData(ExtensionData),
+    RecordUsage(ProviderUsage),
+}
+
+impl GooseEffect {
+    pub(super) fn ensure_message_ids(&mut self) {
+        match self {
+            GooseEffect::Conversation(effect) => effect.ensure_message_ids(),
+            GooseEffect::ReplaceConversation { conversation, .. } => {
+                for message in conversation.messages_mut() {
+                    if message.id.is_none() {
+                        message.id = Some(format!("msg_{}", uuid::Uuid::new_v4()));
+                    }
+                }
+            }
+            _ => {}
         }
+    }
+}
+
+impl From<ConversationEffect> for GooseEffect {
+    fn from(effect: ConversationEffect) -> Self {
+        GooseEffect::Conversation(effect)
+    }
+}
+
+impl From<Message> for GooseEffect {
+    fn from(message: Message) -> Self {
+        ConversationEffect::from(message).into()
+    }
+}
+
+impl From<Conversation> for GooseEffect {
+    fn from(conversation: Conversation) -> Self {
+        ConversationEffect::from(conversation).into()
     }
 }
 
