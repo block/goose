@@ -327,11 +327,14 @@ fn create_and_restrict_request_log_state_directory_with_hook(
             )
             .into());
         }
-        let parent_mode = parent_metadata.permissions().mode();
-        if parent_mode & 0o022 != 0 && parent_mode & 0o1000 == 0 {
+        if !request_log_state_symlink_parent_is_trusted(
+            parent_metadata.uid(),
+            parent_metadata.permissions().mode(),
+            current_effective_uid(),
+        ) {
             return Err(Error::new(
                 ErrorKind::PermissionDenied,
-                "request log state directory symlink is replaceable by another user",
+                "request log state directory symlink parent is not trusted",
             )
             .into());
         }
@@ -439,6 +442,16 @@ fn request_log_state_directory_needs_restriction(
     } else {
         None
     }
+}
+
+#[cfg(unix)]
+fn request_log_state_symlink_parent_is_trusted(
+    owner_uid: libc::uid_t,
+    mode: u32,
+    effective_uid: libc::uid_t,
+) -> bool {
+    request_log_directory_link_owner_is_trusted(owner_uid, effective_uid)
+        && (mode & 0o022 == 0 || mode & 0o1000 != 0)
 }
 
 #[cfg(unix)]
@@ -1663,6 +1676,53 @@ mod tests {
             request_log_state_directory_needs_restriction(502, 0o700, user_uid),
             None
         );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn request_log_state_symlink_parent_policy() {
+        let user_uid = 501;
+
+        for owner_uid in [user_uid, 0] {
+            assert!(request_log_state_symlink_parent_is_trusted(
+                owner_uid, 0o755, user_uid
+            ));
+            assert!(request_log_state_symlink_parent_is_trusted(
+                owner_uid, 0o1777, user_uid
+            ));
+            assert!(!request_log_state_symlink_parent_is_trusted(
+                owner_uid, 0o777, user_uid
+            ));
+        }
+        for mode in [0o555, 0o755, 0o1777] {
+            assert!(!request_log_state_symlink_parent_is_trusted(
+                502, mode, user_uid
+            ));
+        }
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn request_log_state_directory_symlink_in_user_parent_is_supported() {
+        use std::os::unix::fs::{symlink, PermissionsExt};
+
+        let root = tempfile::tempdir().unwrap();
+        let target = root.path().join("state-target");
+        let state_dir = root.path().join("state");
+        std::fs::create_dir(&target).unwrap();
+        std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o377)).unwrap();
+        symlink(&target, &state_dir).unwrap();
+
+        create_and_restrict_request_log_state_directory(&state_dir).unwrap();
+
+        assert_eq!(
+            std::fs::metadata(&target).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        assert!(std::fs::symlink_metadata(&state_dir)
+            .unwrap()
+            .file_type()
+            .is_symlink());
     }
 
     #[test]
