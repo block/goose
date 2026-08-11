@@ -30,7 +30,7 @@ mod usage;
 #[cfg(test)]
 mod tests;
 
-pub use machine::{StateMachine, Step};
+pub use machine::{MachineSession, StateMachine, StateMachineRuntime, Step};
 pub use operation::{
     applied, not_applicable, yielded, yielded_with, Emitter, Inference, InferenceInput, Operation,
     OperationResult, SlashCommand, StateEffect, StepResult,

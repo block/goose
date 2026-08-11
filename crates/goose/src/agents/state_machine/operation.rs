@@ -76,7 +76,7 @@ pub fn ends_turn(messages: &[Message]) -> bool {
 }
 
 #[async_trait]
-pub trait Operation<S>: Send + Sync {
+pub trait Operation<S, E: Send + 'static = StateEffect>: Send + Sync {
     fn name(&self) -> &'static str;
 
     /// Note on a message something this operation did, so that a pipeline rebuilt
@@ -95,9 +95,9 @@ pub trait Operation<S>: Send + Sync {
         &self,
         _session: &S,
         _conversation: &Conversation,
-        result: OperationResult,
+        result: OperationResult<E>,
         _emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<E>> {
         Ok(result)
     }
 
@@ -107,7 +107,7 @@ pub trait Operation<S>: Send + Sync {
         _session: &S,
         _conversation: &Conversation,
         _emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<E>> {
         not_applicable()
     }
 
@@ -132,7 +132,7 @@ pub trait Operation<S>: Send + Sync {
         _session: &S,
         _conversation: &Conversation,
         _emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<E>> {
         not_applicable()
     }
 }
@@ -145,7 +145,7 @@ pub struct InferenceInput {
 }
 
 #[async_trait]
-pub trait Inference<S>: Operation<S> {
+pub trait Inference<S, E: Send + 'static = StateEffect>: Operation<S, E> {
     /// Whether the next step would reach the provider. The machine asks before
     /// firing the hooks that mark the start of a turn.
     fn applies(&self, conversation: &Conversation) -> bool;
@@ -156,46 +156,38 @@ pub trait Inference<S>: Operation<S> {
         conversation: &Conversation,
         input: InferenceInput,
         emit: &Emitter,
-    ) -> Result<OperationResult>;
+    ) -> Result<OperationResult<E>>;
 }
 
-pub struct StepResult {
-    pub effects: Vec<StateEffect>,
+pub struct StepResult<E = StateEffect> {
+    pub effects: Vec<E>,
     pub yield_to_client: bool,
 }
 
-impl StepResult {
-    pub(super) fn ensure_message_ids(&mut self) {
-        for effect in &mut self.effects {
-            effect.ensure_message_ids();
-        }
-    }
-}
-
-pub enum OperationResult {
+pub enum OperationResult<E = StateEffect> {
     NotApplicable,
-    Applied(StepResult),
+    Applied(StepResult<E>),
 }
 
-pub fn not_applicable() -> Result<OperationResult> {
+pub fn not_applicable<E>() -> Result<OperationResult<E>> {
     Ok(OperationResult::NotApplicable)
 }
 
-pub fn applied(effects: impl IntoIterator<Item = StateEffect>) -> Result<OperationResult> {
+pub fn applied<E>(effects: impl IntoIterator<Item = E>) -> Result<OperationResult<E>> {
     Ok(OperationResult::Applied(StepResult {
         effects: effects.into_iter().collect(),
         yield_to_client: false,
     }))
 }
 
-pub fn yielded() -> Result<OperationResult> {
+pub fn yielded<E>() -> Result<OperationResult<E>> {
     Ok(OperationResult::Applied(StepResult {
         effects: Vec::new(),
         yield_to_client: true,
     }))
 }
 
-pub fn yielded_with(effects: impl IntoIterator<Item = StateEffect>) -> Result<OperationResult> {
+pub fn yielded_with<E>(effects: impl IntoIterator<Item = E>) -> Result<OperationResult<E>> {
     Ok(OperationResult::Applied(StepResult {
         effects: effects.into_iter().collect(),
         yield_to_client: true,

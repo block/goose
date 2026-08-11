@@ -1,24 +1,51 @@
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
+use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 
 use crate::agents::state_machine::operation::{
-    messages_since_kickoff, Emitter, Inference, InferenceInput, Operation, OperationFuture,
-    OperationResult, StateEffect, StepResult,
+    Emitter, Inference, InferenceInput, Operation, OperationFuture, OperationResult, StateEffect,
+    StepResult,
 };
 use crate::agents::state_machine::usage;
 use crate::agents::AgentEvent;
 use crate::conversation::message::Message;
+use crate::conversation::Conversation;
 use crate::session::{Session, SessionManager};
 
-pub enum Step<'a, S> {
-    Operation(Arc<dyn Operation<S> + 'a>),
-    Inference(Arc<dyn Inference<S> + 'a>),
+pub trait MachineSession: Send + Sync {
+    fn id(&self) -> &str;
+    fn conversation(&self) -> Option<&Conversation>;
 }
 
-impl<S> Step<'_, S> {
-    fn operation(&self) -> &dyn Operation<S> {
+impl MachineSession for Session {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn conversation(&self) -> Option<&Conversation> {
+        self.conversation.as_ref()
+    }
+}
+
+#[async_trait]
+pub trait StateMachineRuntime<S, E>: Send + Sync {
+    async fn load(&self, session_id: &str) -> Result<S>;
+    async fn prepare_effects(&self, session: &S, effects: &mut [E]) -> Result<()>;
+    async fn apply_effect(&self, session: &S, effect: &E, emit: &Emitter) -> Result<()>;
+    fn usage(&self, _effect: &E) -> Option<goose_providers::conversation::token_usage::Usage> {
+        None
+    }
+}
+
+pub enum Step<'a, S, E> {
+    Operation(Arc<dyn Operation<S, E> + 'a>),
+    Inference(Arc<dyn Inference<S, E> + 'a>),
+}
+
+impl<S, E: Send> Step<'_, S, E> {
+    fn operation(&self) -> &dyn Operation<S, E> {
         match self {
             Step::Operation(operation) => operation.as_ref(),
             Step::Inference(inference) => inference.as_ref(),
@@ -26,20 +53,23 @@ impl<S> Step<'_, S> {
     }
 }
 
-pub struct StateMachine<'a, S> {
-    steps: Vec<Step<'a, S>>,
+pub struct StateMachine<'a, S, E> {
+    steps: Vec<Step<'a, S, E>>,
     cancel: CancellationToken,
 }
 
-impl<'a> StateMachine<'a, Session> {
-    pub fn new(steps: Vec<Step<'a, Session>>, cancel: CancellationToken) -> Self {
+impl<'a, S, E> StateMachine<'a, S, E>
+where
+    S: MachineSession,
+    E: Send + 'static,
+{
+    pub fn new(steps: Vec<Step<'a, S, E>>, cancel: CancellationToken) -> Self {
         Self { steps, cancel }
     }
 
-    pub async fn step(&self, session: &Session, emit: &Emitter) -> Result<Option<StepResult>> {
+    pub async fn step(&self, session: &S, emit: &Emitter) -> Result<Option<StepResult<E>>> {
         let conversation = session
-            .conversation
-            .as_ref()
+            .conversation()
             .ok_or_else(|| anyhow!("state-machine session loaded without conversation"))?;
 
         for step in &self.steps {
@@ -47,7 +77,7 @@ impl<'a> StateMachine<'a, Session> {
             let result = if self.cancel.is_cancelled() {
                 OperationResult::NotApplicable
             } else {
-                let step_fut: OperationFuture<'_, Result<OperationResult>> = match step {
+                let step_fut: OperationFuture<'_, Result<OperationResult<E>>> = match step {
                     Step::Operation(operation) => operation.run(session, conversation, emit),
                     Step::Inference(inference) => {
                         let mut input = InferenceInput::default();
@@ -79,9 +109,6 @@ impl<'a> StateMachine<'a, Session> {
             match result {
                 OperationResult::NotApplicable => {}
                 OperationResult::Applied(mut result) => {
-                    // `step` and `apply` are separate entry points; a caller that
-                    // drives steps itself still gets effects it can persist.
-                    result.ensure_message_ids();
                     if cancelled {
                         result.yield_to_client = true;
                     }
@@ -94,119 +121,35 @@ impl<'a> StateMachine<'a, Session> {
         Ok(None)
     }
 
-    pub async fn apply(
+    pub async fn apply<R>(
         &self,
-        session_manager: &SessionManager,
-        session: &Session,
-        result: &mut StepResult,
+        runtime: &R,
+        session: &S,
+        result: &mut StepResult<E>,
         emit: &Emitter,
-    ) -> Result<()> {
-        result.ensure_message_ids();
-        usage::enrich(session, &mut result.effects);
-
+    ) -> Result<()>
+    where
+        R: StateMachineRuntime<S, E>,
+    {
+        runtime
+            .prepare_effects(session, &mut result.effects)
+            .await?;
         for effect in &result.effects {
-            match effect {
-                StateEffect::AppendMessage(message) => {
-                    session_manager.add_message(&session.id, message).await?;
-                }
-                StateEffect::ReplaceConversation {
-                    conversation,
-                    usage: replacement_usage,
-                } => {
-                    if let Some(usage) = replacement_usage {
-                        usage::record(session_manager, session, usage, true).await?;
-                    }
-                    session_manager
-                        .replace_conversation(&session.id, conversation)
-                        .await?;
-                    session_manager
-                        .update(&session.id)
-                        .usage(usage::estimate_context(conversation).await?)
-                        .apply()
-                        .await?;
-                }
-                StateEffect::PatchToolRequestMeta {
-                    tool_call_id,
-                    patch,
-                } => {
-                    session_manager
-                        .update_tool_request_meta(&session.id, tool_call_id, patch.clone())
-                        .await?;
-                }
-                StateEffect::SetMessageVisibility {
-                    message_id,
-                    user_visible,
-                    agent_visible,
-                } => {
-                    session_manager
-                        .update_message_metadata(&session.id, message_id, |mut metadata| {
-                            metadata.user_visible = *user_visible;
-                            metadata.agent_visible = *agent_visible;
-                            metadata
-                        })
-                        .await?;
-                }
-                StateEffect::SetRecipe(recipe) => {
-                    session_manager
-                        .update(&session.id)
-                        .recipe(recipe.as_ref().clone())
-                        .apply()
-                        .await?;
-                }
-                StateEffect::SetExtensionData(extension_data) => {
-                    session_manager
-                        .update(&session.id)
-                        .extension_data(extension_data.clone())
-                        .apply()
-                        .await?;
-                }
-                StateEffect::RecordUsage(usage) => {
-                    usage::record(session_manager, session, usage, false).await?;
-                }
-            }
-        }
-
-        for effect in &result.effects {
-            match effect {
-                StateEffect::AppendMessage(message) => {
-                    if let Some(usage) = message
-                        .metadata
-                        .usage
-                        .as_deref()
-                        .filter(|_| !message.user_visible_content().content.is_empty())
-                        .cloned()
-                    {
-                        emit.emit(AgentEvent::MessageUsage {
-                            message_id: message.id.clone(),
-                            usage,
-                        })
-                        .await;
-                    }
-                }
-                StateEffect::ReplaceConversation { conversation, .. } => {
-                    emit.emit(AgentEvent::HistoryReplaced(conversation.clone()))
-                        .await;
-                }
-                StateEffect::RecordUsage(usage) => {
-                    emit.emit(AgentEvent::Usage(usage.clone())).await
-                }
-                _ => {}
-            }
+            runtime.apply_effect(session, effect, emit).await?;
         }
         Ok(())
     }
 
-    pub async fn run(
-        &self,
-        session_manager: &SessionManager,
-        session_id: &str,
-        emit: &Emitter,
-    ) -> Result<Session> {
-        let entry_session = session_manager.get_session(session_id, true).await?;
+    pub async fn run<R>(&self, runtime: &R, session_id: &str, emit: &Emitter) -> Result<S>
+    where
+        R: StateMachineRuntime<S, E>,
+    {
+        let entry_session = runtime.load(session_id).await?;
         if let Some(input) = entry_session
-            .conversation
-            .as_ref()
-            .and_then(|conversation| messages_since_kickoff(conversation).ok())
+            .conversation()
+            .and_then(|conversation| {
+                crate::agents::state_machine::operation::messages_since_kickoff(conversation).ok()
+            })
             .and_then(|messages| messages.first())
             .map(Message::user_visible_content)
             .map(|message| message.as_concat_text())
@@ -217,31 +160,27 @@ impl<'a> StateMachine<'a, Session> {
 
         let mut turn_usage = goose_providers::conversation::token_usage::Usage::default();
         loop {
-            let session = session_manager.get_session(session_id, true).await?;
+            let session = runtime.load(session_id).await?;
             let Some(mut result) = self.step(&session, emit).await? else {
                 break;
             };
             for effect in &result.effects {
-                match effect {
-                    StateEffect::RecordUsage(usage)
-                    | StateEffect::ReplaceConversation {
-                        usage: Some(usage), ..
-                    } => turn_usage += usage.usage,
-                    _ => {}
+                if let Some(usage) = runtime.usage(effect) {
+                    turn_usage += usage;
                 }
             }
-            self.apply(session_manager, &session, &mut result, emit)
-                .await?;
+            self.apply(runtime, &session, &mut result, emit).await?;
             if result.yield_to_client {
                 break;
             }
         }
 
-        let session = session_manager.get_session(session_id, true).await?;
+        let session = runtime.load(session_id).await?;
         let last_assistant_text = session
-            .conversation
-            .as_ref()
-            .and_then(|conversation| messages_since_kickoff(conversation).ok())
+            .conversation()
+            .and_then(|conversation| {
+                crate::agents::state_machine::operation::messages_since_kickoff(conversation).ok()
+            })
             .into_iter()
             .flatten()
             .rev()
@@ -260,7 +199,111 @@ impl<'a> StateMachine<'a, Session> {
             }
         }
         crate::agents::gen_ai_telemetry::record_usage(&tracing::Span::current(), &turn_usage);
-
         Ok(session)
+    }
+}
+
+#[async_trait]
+impl StateMachineRuntime<Session, StateEffect> for SessionManager {
+    async fn load(&self, session_id: &str) -> Result<Session> {
+        self.get_session(session_id, true).await
+    }
+
+    async fn prepare_effects(&self, session: &Session, effects: &mut [StateEffect]) -> Result<()> {
+        for effect in effects.iter_mut() {
+            effect.ensure_message_ids();
+        }
+        usage::enrich(session, effects);
+        Ok(())
+    }
+
+    async fn apply_effect(
+        &self,
+        session: &Session,
+        effect: &StateEffect,
+        emit: &Emitter,
+    ) -> Result<()> {
+        match effect {
+            StateEffect::AppendMessage(message) => {
+                self.add_message(&session.id, message).await?;
+                if let Some(usage) = message
+                    .metadata
+                    .usage
+                    .as_deref()
+                    .filter(|_| !message.user_visible_content().content.is_empty())
+                    .cloned()
+                {
+                    emit.emit(AgentEvent::MessageUsage {
+                        message_id: message.id.clone(),
+                        usage,
+                    })
+                    .await;
+                }
+            }
+            StateEffect::ReplaceConversation {
+                conversation,
+                usage: replacement_usage,
+            } => {
+                if let Some(provider_usage) = replacement_usage {
+                    usage::record(self, session, provider_usage, true).await?;
+                }
+                self.replace_conversation(&session.id, conversation).await?;
+                self.update(&session.id)
+                    .usage(usage::estimate_context(conversation).await?)
+                    .apply()
+                    .await?;
+                emit.emit(AgentEvent::HistoryReplaced(conversation.clone()))
+                    .await;
+            }
+            StateEffect::PatchToolRequestMeta {
+                tool_call_id,
+                patch,
+            } => {
+                self.update_tool_request_meta(&session.id, tool_call_id, patch.clone())
+                    .await?;
+            }
+            StateEffect::SetMessageVisibility {
+                message_id,
+                user_visible,
+                agent_visible,
+            } => {
+                self.update_message_metadata(&session.id, message_id, |mut metadata| {
+                    metadata.user_visible = *user_visible;
+                    metadata.agent_visible = *agent_visible;
+                    metadata
+                })
+                .await?;
+            }
+            StateEffect::SetRecipe(recipe) => {
+                self.update(&session.id)
+                    .recipe(recipe.as_ref().clone())
+                    .apply()
+                    .await?;
+            }
+            StateEffect::SetExtensionData(extension_data) => {
+                self.update(&session.id)
+                    .extension_data(extension_data.clone())
+                    .apply()
+                    .await?;
+            }
+            StateEffect::RecordUsage(provider_usage) => {
+                usage::record(self, session, provider_usage, false).await?;
+                emit.emit(AgentEvent::Usage(provider_usage.clone())).await;
+            }
+        }
+        Ok(())
+    }
+
+    fn usage(
+        &self,
+        effect: &StateEffect,
+    ) -> Option<goose_providers::conversation::token_usage::Usage> {
+        match effect {
+            StateEffect::RecordUsage(usage)
+            | StateEffect::ReplaceConversation {
+                usage: Some(usage), ..
+            } => Some(usage.usage),
+            _ => None,
+        }
     }
 }

@@ -17,8 +17,8 @@ use crate::agents::prompt_manager::PromptManager;
 use crate::agents::state_machine::{
     BangShellOperation, CompactionOperation, DoctorOperation, Emitter, EntryHookOperation,
     ExitOnErrorOperation, InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation,
-    RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation, StateMachine,
-    SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
+    RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation, StateEffect,
+    StateMachine, SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
     ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation,
 };
 use crate::agents::AgentEvent;
@@ -105,7 +105,10 @@ pub(super) struct TestPipeline {
 }
 
 impl TestPipeline {
-    pub(super) fn machine(&self, cancel: CancellationToken) -> StateMachine<'_, Session> {
+    pub(super) fn machine(
+        &self,
+        cancel: CancellationToken,
+    ) -> StateMachine<'_, Session, StateEffect> {
         let provider = self.provider.clone();
         let tool_call_cutoff = crate::context_mgmt::compute_tool_call_cutoff(
             self.model_config.context_limit(),
