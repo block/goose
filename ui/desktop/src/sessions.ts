@@ -7,6 +7,7 @@ import { acpChatSessionController } from './acp/chatSessionController';
 import { getConfiguredGooseExtensions, gooseExtensionName } from './acp/extensions';
 import { beginConfiguredRecipeParameterScope } from './acp/recipeParamRequests';
 import { getAcpFeatureCapabilities } from './acp/capabilities';
+import { RecipeParameterScopesUnsupportedError } from './acp/errors';
 
 export function getSessionDisplayName(session: Session): string {
   if (session.user_set_name) {
@@ -51,9 +52,7 @@ async function createAcpSession(
     if (configuredParameterScope) {
       const capabilities = await getAcpFeatureCapabilities();
       if (!capabilities.recipeParameterScopes) {
-        throw new Error(
-          'The connected Goose server does not support securely scoped deeplink recipe parameters. Update the server and try again.'
-        );
+        throw new RecipeParameterScopesUnsupportedError();
       }
     }
     const selectedNames = new Set(selectedExtensionConfigs(options).map((config) => config.name));
