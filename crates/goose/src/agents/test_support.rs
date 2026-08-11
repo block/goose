@@ -89,6 +89,10 @@ impl Provider for NativeSteeringTestProvider {
         "native-steering-test"
     }
 
+    fn manages_own_context(&self) -> bool {
+        true
+    }
+
     async fn stream(
         &self,
         _model_config: &ModelConfig,
