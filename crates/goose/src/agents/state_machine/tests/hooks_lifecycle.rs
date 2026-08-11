@@ -8,13 +8,13 @@ use super::pipeline::{test_pipeline, MessageKind::Agent, MessageKind::ToolRespon
 use crate::agents::state_machine::ops_stop_hook::DENIED;
 use crate::conversation::message::{Message, MessageContent, SystemNotificationType};
 
-struct HookTestEnv {
+pub(super) struct HookTestEnv {
     _temp_dir: tempfile::TempDir,
     plugin_dir: std::path::PathBuf,
 }
 
 impl HookTestEnv {
-    fn new(event: &str, script: &str) -> Self {
+    pub(super) fn new(event: &str, script: &str) -> Self {
         let temp_dir = tempfile::tempdir().unwrap();
         let plugin_dir = temp_dir.path().join("test-plugin");
         std::fs::create_dir_all(plugin_dir.join("hooks")).unwrap();
@@ -32,7 +32,7 @@ impl HookTestEnv {
         }
     }
 
-    fn hook_manager(&self) -> crate::hooks::HookManager {
+    pub(super) fn hook_manager(&self) -> crate::hooks::HookManager {
         use crate::plugins::discovery::{DiscoveredPlugin, PluginScope};
         crate::hooks::HookManager::from_plugins_for_test(vec![DiscoveredPlugin {
             name: "test-plugin".into(),
@@ -41,7 +41,7 @@ impl HookTestEnv {
         }])
     }
 
-    fn invocations(&self) -> usize {
+    pub(super) fn invocations(&self) -> usize {
         std::fs::read_to_string(self.plugin_dir.join("hook.log"))
             .unwrap_or_default()
             .lines()
@@ -49,7 +49,8 @@ impl HookTestEnv {
     }
 }
 
-const LOG_AND_ALLOW_SCRIPT: &str = "#!/bin/sh\necho ran >> \"$PLUGIN_ROOT/hook.log\"\nexit 0\n";
+pub(super) const LOG_AND_ALLOW_SCRIPT: &str =
+    "#!/bin/sh\necho ran >> \"$PLUGIN_ROOT/hook.log\"\nexit 0\n";
 const LOG_AND_BLOCK_SCRIPT: &str =
     "#!/bin/sh\necho blocked >> \"$PLUGIN_ROOT/hook.log\"\necho \"not done yet\" >&2\nexit 2\n";
 

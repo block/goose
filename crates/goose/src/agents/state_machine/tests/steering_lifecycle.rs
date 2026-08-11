@@ -10,6 +10,7 @@ use tokio::sync::mpsc;
 use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
+use super::hooks_lifecycle::{HookTestEnv, LOG_AND_ALLOW_SCRIPT};
 use super::pipeline::{self, test_pipeline, MessageKind::Agent};
 use crate::agents::state_machine::Emitter;
 use crate::agents::steering::was_native_steer_delivered;
@@ -158,8 +159,11 @@ async fn native_steering_cancels_unstarted_tool_request() -> Result<()> {
 async fn native_delivery_preserves_order_estimated_usage_and_prompt_boundary() -> Result<()> {
     let (stream_tx, provider_stream) = controlled_stream();
     let provider = NativeSteeringTestProvider::new([provider_stream], [Ok(true)]);
+    let stop_hook = HookTestEnv::new("Stop", LOG_AND_ALLOW_SCRIPT);
     let (pipeline, _) = test_pipeline().await?;
-    let pipeline = pipeline.with_provider(provider.clone());
+    let pipeline = pipeline
+        .with_provider(provider.clone())
+        .with_hook_manager(stop_hook.hook_manager());
     pipeline
         .seed([Message::user().with_text("start native work")])
         .await?;
@@ -238,6 +242,7 @@ async fn native_delivery_preserves_order_estimated_usage_and_prompt_boundary() -
             .as_concat_text()
             .contains("The model returned an empty response")
     }));
+    assert_eq!(stop_hook.invocations(), 1);
     assert_eq!(provider.stream_calls.load(Ordering::SeqCst), 1);
     timeout(TEST_TIMEOUT, pipeline.resume())
         .await

@@ -7,6 +7,7 @@ use crate::agents::state_machine::operation::{
     applied, ends_turn, messages_since_kickoff, not_applicable, yielded, yielded_with, Emitter,
     Operation, OperationResult,
 };
+use crate::agents::steering::was_native_steer_delivered;
 use crate::conversation::message::{Message, SystemNotificationType};
 use crate::conversation::Conversation;
 use crate::hooks::{HookContext, HookDecision, HookEvent, HookManager};
@@ -42,6 +43,29 @@ fn block_cap_warning(plugin: &str, cap: u32) -> Message {
     )
 }
 
+fn assistant_message_for_stop_hook<'a>(
+    conversation: &'a Conversation,
+    messages: &'a [Message],
+) -> Option<&'a Message> {
+    if ends_turn(messages) {
+        return messages.last();
+    }
+
+    let last = conversation.last()?;
+    if !was_native_steer_delivered(last) {
+        return None;
+    }
+
+    conversation
+        .iter()
+        .rev()
+        .skip(1)
+        .find(|message| !message.is_turn_context() && !message.is_tool_response())
+        .filter(|message| {
+            message.role == rmcp::model::Role::Assistant && message.error_kind().is_none()
+        })
+}
+
 pub struct StopHookOperation {
     hook_manager: HookManager,
     block_cap: u32,
@@ -69,13 +93,10 @@ impl Operation for StopHookOperation {
         emit: &Emitter,
     ) -> Result<OperationResult> {
         let messages = messages_since_kickoff(conversation)?;
-        if !ends_turn(messages) {
+        let Some(last_assistant) = assistant_message_for_stop_hook(conversation, messages) else {
             return not_applicable();
-        }
-        let last_assistant_text = conversation
-            .last()
-            .map(Message::as_concat_text)
-            .unwrap_or_default();
+        };
+        let last_assistant_text = last_assistant.as_concat_text();
 
         let context = HookContext::new(HookEvent::Stop, &session.id)
             .with_last_assistant_message(last_assistant_text);
