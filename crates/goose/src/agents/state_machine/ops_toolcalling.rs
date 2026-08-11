@@ -29,6 +29,61 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 use tracing_futures::Instrument;
 
+const TOOL_EXECUTION_OPERATION: &str = "tool_execution";
+const AUTHORIZED_TOOL_REQUEST_IDS_NOTE: &str = "authorizedToolRequestIds";
+
+fn mark_tool_dispatch_authorized(message: &mut Message, request_id: &str) {
+    let note = message
+        .metadata
+        .operations
+        .get_or_insert_with(Box::default)
+        .entry(TOOL_EXECUTION_OPERATION.to_string())
+        .or_default()
+        .entry(AUTHORIZED_TOOL_REQUEST_IDS_NOTE.to_string())
+        .or_insert_with(|| serde_json::Value::Array(Vec::new()));
+    let Some(ids) = note.as_array_mut() else {
+        return;
+    };
+    if !ids.iter().any(|id| id.as_str() == Some(request_id)) {
+        ids.push(serde_json::Value::String(request_id.to_string()));
+    }
+}
+
+fn tool_dispatch_was_authorized(message: &Message, request_id: &str) -> bool {
+    message
+        .metadata
+        .operation_note(TOOL_EXECUTION_OPERATION, AUTHORIZED_TOOL_REQUEST_IDS_NOTE)
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some(request_id)))
+}
+
+fn authorized_tool_requests(conversation: &Conversation) -> Vec<&ToolRequest> {
+    let mut requests = Vec::new();
+    let mut pending_by_id: HashMap<String, usize> = HashMap::new();
+    for message in conversation.messages() {
+        for content in &message.content {
+            match content {
+                MessageContent::ToolRequest(request) => {
+                    let index = requests.len();
+                    requests.push((request, false));
+                    pending_by_id.insert(request.id.clone(), index);
+                }
+                MessageContent::ToolResponse(response) => {
+                    let Some(index) = pending_by_id.remove(response.id.as_str()) else {
+                        continue;
+                    };
+                    requests[index].1 = tool_dispatch_was_authorized(message, &response.id);
+                }
+                _ => {}
+            }
+        }
+    }
+    requests
+        .into_iter()
+        .filter_map(|(request, authorized)| authorized.then_some(request))
+        .collect()
+}
+
 #[derive(Clone, Copy)]
 enum ToolCategory {
     Shell,
@@ -618,14 +673,11 @@ impl Operation for ToolExecutionOperation<'_> {
         conversation: &Conversation,
     ) -> Result<Vec<(String, String)>> {
         let mut hints = SubdirectoryHintTracker::new();
-        for message in conversation.messages() {
-            for content in &message.content {
-                if let MessageContent::ToolRequest(request) = content {
-                    if let Ok(tool_call) = &request.tool_call {
-                        hints.record_tool_arguments(&tool_call.arguments, &session.working_dir);
-                    }
-                }
-            }
+        for request in authorized_tool_requests(conversation) {
+            let Ok(tool_call) = &request.tool_call else {
+                continue;
+            };
+            hints.record_tool_arguments(&tool_call.arguments, &session.working_dir);
         }
         let mut prompt_parts = hints.load_new_hints(&session.working_dir);
 
@@ -736,6 +788,7 @@ impl Operation for ToolExecutionOperation<'_> {
         let mut extension_change_failed = false;
 
         let mut tool_streams = Vec::new();
+        let mut dispatch_authorization = HashMap::new();
         for (request, disposition) in &pending {
             if *disposition != ToolDisposition::Execute {
                 continue;
@@ -752,9 +805,13 @@ impl Operation for ToolExecutionOperation<'_> {
                     session,
                 )
                 .await;
-            let result = result.unwrap_or_else(|error_data| ToolCallResult::from(Err(error_data)));
+            let (result, dispatch_authorized) = match result {
+                Ok(result) => (result, true),
+                Err(error_data) => (ToolCallResult::from(Err(error_data)), false),
+            };
 
             let req_id = request.id.clone();
+            dispatch_authorization.insert(req_id.clone(), dispatch_authorized);
             let stream = tool_stream(
                 result
                     .notification_stream
@@ -764,7 +821,7 @@ impl Operation for ToolExecutionOperation<'_> {
                     .unwrap_or_else(|| Box::new(futures::stream::empty())),
                 result.result,
             )
-            .map(move |item| (req_id.clone(), item));
+            .map(move |item| (req_id.clone(), dispatch_authorized, item));
             tool_streams.push(stream);
         }
 
@@ -800,7 +857,7 @@ impl Operation for ToolExecutionOperation<'_> {
             tokio::select! {
                 biased;
                 item = combined.next() => {
-                    let Some((request_id, item)) = item else { break };
+                    let Some((request_id, dispatch_authorized, item)) = item else { break };
                     match item {
                         ToolStreamItem::Result(output) => {
                             if manage_extensions_ids.contains(request_id.as_str())
@@ -821,6 +878,9 @@ impl Operation for ToolExecutionOperation<'_> {
                                 .iter()
                                 .find(|r| r.id == request_id)
                                 .and_then(|r| r.metadata.as_ref());
+                            if dispatch_authorized {
+                                mark_tool_dispatch_authorized(&mut response, &request_id);
+                            }
                             response.add_tool_response_with_metadata(request_id, output, metadata);
                         }
                         ToolStreamItem::Message(msg) => {
@@ -844,6 +904,13 @@ impl Operation for ToolExecutionOperation<'_> {
             .collect();
         for request in &requests {
             if !answered.contains(request.id.as_str()) {
+                if dispatch_authorization
+                    .get(request.id.as_str())
+                    .copied()
+                    .unwrap_or(false)
+                {
+                    mark_tool_dispatch_authorized(&mut response, &request.id);
+                }
                 response.add_tool_response_with_metadata(
                     request.id.clone(),
                     Ok(CallToolResult::error(vec![ContentBlock::text(
@@ -867,6 +934,44 @@ impl Operation for ToolExecutionOperation<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn authorized_tool_dispatch_note_is_latest_paired_and_durable() {
+        let orphan_request = Message::assistant().with_tool_request_with_metadata(
+            "reused",
+            Ok(CallToolRequestParams::new("orphan")),
+            None,
+            None,
+        );
+        let authorized_request = Message::assistant().with_tool_request_with_metadata(
+            "reused",
+            Ok(CallToolRequestParams::new("authorized")),
+            None,
+            None,
+        );
+        let mut authorized_response = Message::user();
+        mark_tool_dispatch_authorized(&mut authorized_response, "reused");
+        authorized_response.add_tool_response_with_metadata(
+            "reused",
+            Err(ErrorData::invalid_params("authorized tool failure", None)),
+            None,
+        );
+
+        let conversation = Conversation::new_unvalidated([
+            orphan_request,
+            authorized_request,
+            authorized_response,
+        ]);
+        let serialized = serde_json::to_string(&conversation).unwrap();
+        let reconstructed: Conversation = serde_json::from_str(&serialized).unwrap();
+        let authorized = authorized_tool_requests(&reconstructed);
+
+        assert_eq!(authorized.len(), 1);
+        assert_eq!(
+            authorized[0].tool_call.as_ref().unwrap().name.as_ref(),
+            "authorized"
+        );
+    }
 
     #[test]
     fn reads_platform_notification_from_tool_result() {

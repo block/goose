@@ -230,6 +230,46 @@ async fn approvals_and_per_tool_permissions() -> Result<()> {
 }
 
 #[tokio::test]
+async fn nonexecuted_tool_requests_do_not_load_subdirectory_hints() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_goose_mode(GooseMode::Approve).await;
+    let protected = pipeline.working_dir().join("protected");
+    std::fs::create_dir_all(&protected)?;
+    std::fs::write(protected.join("AGENTS.md"), "PROTECTED_CONTEXT_SECRET")?;
+
+    api.on("deny protected").calls([(
+        "denied-path",
+        ADD,
+        json!({ "value": 1, "path": "protected/file.txt" }),
+    )]);
+    pipeline.run(["deny protected"]).await?;
+    pipeline
+        .confirm("denied-path", Permission::DenyOnce)
+        .await?;
+    api.on(DECLINED_RESPONSE).reply("denial acknowledged");
+    pipeline.resume().await?;
+    assert!(!api
+        .calls()
+        .last()
+        .unwrap()
+        .system_contains("PROTECTED_CONTEXT_SECRET"));
+
+    let pipeline = pipeline.with_goose_mode(GooseMode::Chat).await;
+    api.on("plan protected")
+        .call(ADD, json!({ "value": 1, "path": "protected/file.txt" }));
+    api.on(CHAT_MODE_TOOL_SKIPPED_RESPONSE)
+        .reply("planning acknowledged");
+    pipeline.run(["plan protected"]).await?;
+    assert!(!api
+        .calls()
+        .last()
+        .unwrap()
+        .system_contains("PROTECTED_CONTEXT_SECRET"));
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn execution_recovers_from_timeout_cancellation_and_filtered_output() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
 

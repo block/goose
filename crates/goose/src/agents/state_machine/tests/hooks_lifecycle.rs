@@ -1,4 +1,5 @@
 use anyhow::Result;
+use serde_json::json;
 
 use super::calculator_extension::{value, ADD};
 use super::pipeline::{test_pipeline, MessageKind::Agent, MessageKind::ToolResponse, MAX_TURNS};
@@ -156,6 +157,31 @@ async fn session_prompt_and_tool_hooks_fire_at_their_boundaries() -> Result<()> 
     let result = pipeline.run(["add one"]).await?;
     result.assert_message(-2, ToolResponse, "denied by policy hook");
     result.assert_message(-1, Agent, "understood");
+    assert_eq!(pre_tool.invocations(), 1);
+    assert_eq!(pipeline.calculator_total(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn denied_tool_call_does_not_load_subdirectory_hints() -> Result<()> {
+    let pre_tool = HookTestEnv::new("PreToolUse", LOG_AND_BLOCK_SCRIPT);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(pre_tool.hook_manager());
+    let protected = pipeline.working_dir().join("protected");
+    std::fs::create_dir_all(&protected)?;
+    std::fs::write(protected.join("AGENTS.md"), "PROTECTED_CONTEXT_SECRET")?;
+
+    api.on("read protected")
+        .call(ADD, json!({ "value": 1, "path": "protected/file.txt" }));
+    api.on("denied by policy hook").reply("understood");
+
+    let (pipeline, _, _) = pipeline
+        .run_reconstructing_each_step("read protected")
+        .await?;
+    let calls = api.calls();
+    assert_eq!(calls.len(), 2);
+    assert!(!calls[1].system_contains("PROTECTED_CONTEXT_SECRET"));
     assert_eq!(pre_tool.invocations(), 1);
     assert_eq!(pipeline.calculator_total(), 0);
 
