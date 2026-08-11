@@ -113,9 +113,16 @@ fn get_preprompt_context(messages: &Conversation) -> String {
 /// git checkout. Handles both regular checkouts (`.git` directory) and
 /// worktrees (`.git` file containing a `gitdir:` pointer). Never fails —
 /// returns None when anything is missing or unexpected.
-fn read_git_branch(working_dir: &Path) -> Option<String> {
+///
+/// The ancestor walk stops at `home` (exclusive): a `.git` at or above the
+/// home directory is almost always a dotfiles repo unrelated to the
+/// conversation, and the bound also keeps the walk short.
+fn read_git_branch(working_dir: &Path, home: Option<&Path>) -> Option<String> {
     let mut dir = working_dir.to_path_buf();
     let git_path = loop {
+        if home.is_some_and(|h| dir == h) {
+            return None;
+        }
         let candidate = dir.join(".git");
         if candidate.exists() {
             break candidate;
@@ -153,18 +160,64 @@ fn read_git_branch(working_dir: &Path) -> Option<String> {
 /// the folder name and, when available, the git branch. These often carry
 /// the distinguishing subject (ticket ID, feature name) even when the first
 /// user messages are purely mechanical.
-fn deterministic_hints(working_dir: Option<&Path>) -> String {
+///
+/// Sessions whose working directory is the home directory itself get no
+/// hints: the folder name is just the username, and any git repo there is
+/// typically a dotfiles checkout unrelated to the conversation.
+fn deterministic_hints_with_home(working_dir: Option<&Path>, home: Option<&Path>) -> String {
     let Some(working_dir) = working_dir else {
         return String::new();
     };
+    if home.is_some_and(|h| working_dir == h) {
+        return String::new();
+    }
     let mut hints = Vec::new();
     if let Some(folder) = working_dir.file_name().and_then(|f| f.to_str()) {
         hints.push(format!("working folder: {folder}"));
     }
-    if let Some(branch) = read_git_branch(working_dir) {
+    if let Some(branch) = read_git_branch(working_dir, home) {
         hints.push(format!("git branch: {branch}"));
     }
     hints.join("\n")
+}
+
+fn deterministic_hints(working_dir: Option<&Path>) -> String {
+    deterministic_hints_with_home(working_dir, dirs::home_dir().as_deref())
+}
+
+/// Assembles the user-role text for the naming request: optional preprompt
+/// background, optional deterministic hints, then the user messages wrapped
+/// in the markers that CLI providers use to strip this scaffolding.
+fn build_naming_user_text(context: &[String], preprompt_context: &str, hints: &str) -> String {
+    use crate::providers::cli_common::{
+        SESSION_NAME_BEGIN_MARKER, SESSION_NAME_END_MARKER, SESSION_NAME_SUFFIX,
+    };
+
+    let preprompt_section = if preprompt_context.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "---BEGIN BACKGROUND CONTEXT (for understanding only; you may borrow a ticket ID, feature, or project name from here, but do NOT base the title's topic on this)---\n{preprompt_context}\n---END BACKGROUND CONTEXT---\n\n"
+        )
+    };
+
+    let hints_section = if hints.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "---BEGIN HINTS (optional signals like folder and git branch; use identifiers from here when they clarify the subject)---\n{hints}\n---END HINTS---\n\n"
+        )
+    };
+
+    format!(
+        "{}{}{}\n{}\n{}\n\n{}",
+        preprompt_section,
+        hints_section,
+        SESSION_NAME_BEGIN_MARKER,
+        context.join("\n"),
+        SESSION_NAME_END_MARKER,
+        SESSION_NAME_SUFFIX,
+    )
 }
 
 /// Generate a session name/description based on the conversation history
@@ -183,37 +236,8 @@ pub(crate) async fn generate_session_name(
         &std::collections::HashMap::<String, String>::new(),
     )?;
 
-    use crate::providers::cli_common::{
-        SESSION_NAME_BEGIN_MARKER, SESSION_NAME_END_MARKER, SESSION_NAME_SUFFIX,
-    };
-
-    let preprompt_section = if preprompt_context.is_empty() {
-        String::new()
-    } else {
-        format!(
-            "---BEGIN BACKGROUND CONTEXT (for understanding only; you may borrow a ticket ID, feature, or project name from here, but do NOT base the title's topic on this)---\n{}\n---END BACKGROUND CONTEXT---\n\n",
-            preprompt_context
-        )
-    };
-
     let hints = deterministic_hints(working_dir);
-    let hints_section = if hints.is_empty() {
-        String::new()
-    } else {
-        format!(
-            "---BEGIN HINTS (optional signals like folder and git branch; use identifiers from here when they clarify the subject)---\n{hints}\n---END HINTS---\n\n"
-        )
-    };
-
-    let user_text = format!(
-        "{}{}{}\n{}\n{}\n\n{}",
-        preprompt_section,
-        hints_section,
-        SESSION_NAME_BEGIN_MARKER,
-        context.join("\n"),
-        SESSION_NAME_END_MARKER,
-        SESSION_NAME_SUFFIX,
-    );
+    let user_text = build_naming_user_text(&context, &preprompt_context, &hints);
     let message = Message::user().with_text(&user_text);
     let result = if provider.manages_own_context() {
         crate::providers::cli_common::generate_simple_session_description(
@@ -256,11 +280,58 @@ mod tests {
     }
 
     #[test]
+    fn test_naming_user_text_includes_hints_before_messages() {
+        let context = vec!["set up a worktree".to_string()];
+        let text = build_naming_user_text(
+            &context,
+            "",
+            "working folder: goose\ngit branch: tulsi/bot-1565-session-titles",
+        );
+        let hints_idx = text
+            .find("git branch: tulsi/bot-1565-session-titles")
+            .expect("hints must appear in the naming prompt");
+        let begin_idx = text
+            .find(crate::providers::cli_common::SESSION_NAME_BEGIN_MARKER)
+            .expect("user-message marker must appear");
+        assert!(
+            hints_idx < begin_idx,
+            "hints must precede the user messages section"
+        );
+        assert!(text.contains("---BEGIN HINTS"));
+        assert!(text.contains("set up a worktree"));
+    }
+
+    #[test]
+    fn test_naming_user_text_omits_empty_sections() {
+        let context = vec!["hello".to_string()];
+        let text = build_naming_user_text(&context, "", "");
+        assert!(!text.contains("---BEGIN HINTS"));
+        assert!(!text.contains("---BEGIN BACKGROUND CONTEXT"));
+        assert!(text.starts_with(crate::providers::cli_common::SESSION_NAME_BEGIN_MARKER));
+    }
+
+    #[test]
+    fn test_naming_prompt_matches_cli_description_detection() {
+        // CLI providers detect naming requests by string-matching the system
+        // prompt (see is_session_description_request). If this fails after a
+        // prompt edit, CLI-provider session naming silently breaks.
+        let system = crate::prompt_template::render_template(
+            "session_name.md",
+            &std::collections::HashMap::<String, String>::new(),
+        )
+        .unwrap();
+        assert!(
+            crate::providers::cli_common::is_session_description_request(&system),
+            "session_name.md must keep the phrase CLI providers match on"
+        );
+    }
+
+    #[test]
     fn test_deterministic_hints_folder_only() {
         let dir = tempfile::tempdir().unwrap();
         let project = dir.path().join("acme-renewal");
         std::fs::create_dir(&project).unwrap();
-        let hints = deterministic_hints(Some(&project));
+        let hints = deterministic_hints_with_home(Some(&project), None);
         assert_eq!(hints, "working folder: acme-renewal");
     }
 
@@ -275,7 +346,7 @@ mod tests {
             "ref: refs/heads/tulsi/bot-1565-session-titles\n",
         )
         .unwrap();
-        let hints = deterministic_hints(Some(&repo));
+        let hints = deterministic_hints_with_home(Some(&repo), None);
         assert_eq!(
             hints,
             "working folder: goose-internal\ngit branch: tulsi/bot-1565-session-titles"
@@ -291,8 +362,52 @@ mod tests {
         std::fs::create_dir_all(&nested).unwrap();
         std::fs::create_dir_all(&git).unwrap();
         std::fs::write(git.join("HEAD"), "ref: refs/heads/main\n").unwrap();
-        let hints = deterministic_hints(Some(&nested));
+        let hints = deterministic_hints_with_home(Some(&nested), None);
         assert_eq!(hints, "working folder: goose\ngit branch: main");
+    }
+
+    #[test]
+    fn test_deterministic_hints_suppressed_for_home_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let home = dir.path().join("tulsi");
+        let git = home.join(".git");
+        std::fs::create_dir_all(&git).unwrap();
+        std::fs::write(git.join("HEAD"), "ref: refs/heads/main\n").unwrap();
+        // Even with a dotfiles repo at $HOME, sessions started in the home
+        // directory get no hints — the folder name is just the username.
+        assert_eq!(deterministic_hints_with_home(Some(&home), Some(&home)), "");
+    }
+
+    #[test]
+    fn test_git_branch_walk_stops_at_home_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let home = dir.path().join("tulsi");
+        let git = home.join(".git");
+        std::fs::create_dir_all(&git).unwrap();
+        std::fs::write(git.join("HEAD"), "ref: refs/heads/main\n").unwrap();
+        // A plain (non-repo) folder under home must not inherit the dotfiles
+        // repo's branch from the ancestor walk.
+        let project = home.join("Documents").join("notes");
+        std::fs::create_dir_all(&project).unwrap();
+        assert_eq!(read_git_branch(&project, Some(&home)), None);
+        assert_eq!(
+            deterministic_hints_with_home(Some(&project), Some(&home)),
+            "working folder: notes"
+        );
+    }
+
+    #[test]
+    fn test_git_branch_found_below_home_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let home = dir.path().join("tulsi");
+        let repo = home.join("code").join("payments");
+        let git = repo.join(".git");
+        std::fs::create_dir_all(&git).unwrap();
+        std::fs::write(git.join("HEAD"), "ref: refs/heads/fix/refund-timeout\n").unwrap();
+        assert_eq!(
+            read_git_branch(&repo, Some(&home)),
+            Some("fix/refund-timeout".to_string())
+        );
     }
 
     #[test]
@@ -316,7 +431,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            read_git_branch(&worktree),
+            read_git_branch(&worktree, None),
             Some("feature/wt-branch".to_string())
         );
     }
@@ -328,7 +443,7 @@ mod tests {
         let git = repo.join(".git");
         std::fs::create_dir_all(&git).unwrap();
         std::fs::write(git.join("HEAD"), "1c1bd5299a243f309cb251d2bbe429c7f4\n").unwrap();
-        assert_eq!(read_git_branch(&repo), None);
+        assert_eq!(read_git_branch(&repo, None), None);
     }
 
     #[test]
