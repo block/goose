@@ -69,6 +69,54 @@ impl ExpansionBudget {
     }
 }
 
+fn contains_git_metadata_component(path: &Path) -> bool {
+    path.components().any(|component| {
+        component
+            .as_os_str()
+            .to_str()
+            .is_some_and(|component| component.eq_ignore_ascii_case(".git"))
+    })
+}
+
+fn validate_canonical_path(
+    canonical: PathBuf,
+    boundary_canonical: &Path,
+    original: &Path,
+) -> Result<PathBuf, std::io::Error> {
+    let relative = canonical.strip_prefix(boundary_canonical).map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            format!(
+                "Include: '{}' is outside the import boundary '{}'",
+                original.display(),
+                boundary_canonical.display()
+            ),
+        )
+    })?;
+    if contains_git_metadata_component(relative) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            format!("Git metadata path not allowed: '{}'", original.display()),
+        ));
+    }
+    Ok(canonical)
+}
+
+fn canonical_import_boundary(import_boundary: &Path) -> Result<PathBuf, std::io::Error> {
+    import_boundary.canonicalize().map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Import boundary directory not found",
+        )
+    })
+}
+
+fn sanitize_existing_path(path: &Path, import_boundary: &Path) -> Result<PathBuf, std::io::Error> {
+    let boundary_canonical = canonical_import_boundary(import_boundary)?;
+    let canonical = path.canonicalize()?;
+    validate_canonical_path(canonical, &boundary_canonical, path)
+}
+
 fn sanitize_reference_path(
     reference: &Path,
     including_file_path: &Path,
@@ -80,28 +128,19 @@ fn sanitize_reference_path(
             "Absolute paths not allowed in file references",
         ));
     }
+    if contains_git_metadata_component(reference) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            format!("Git metadata path not allowed: '{}'", reference.display()),
+        ));
+    }
     let resolved = including_file_path.join(reference);
-    let boundary_canonical = import_boundary.canonicalize().map_err(|_| {
-        std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "Import boundary directory not found",
-        )
-    })?;
+    let boundary_canonical = canonical_import_boundary(import_boundary)?;
 
-    if let Ok(canonical) = resolved.canonicalize() {
-        if !canonical.starts_with(&boundary_canonical) {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::PermissionDenied,
-                format!(
-                    "Include: '{}' is outside the import boundary '{}'",
-                    resolved.display(),
-                    import_boundary.display()
-                ),
-            ));
-        }
-        Ok(canonical)
-    } else {
-        Ok(resolved) // File doesn't exist, but path structure is safe
+    match resolved.canonicalize() {
+        Ok(canonical) => validate_canonical_path(canonical, &boundary_canonical, &resolved),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(resolved),
+        Err(error) => Err(error),
     }
 }
 
@@ -311,17 +350,24 @@ fn read_referenced_files_with_budget(
     ignore_patterns: &Gitignore,
     budget: &mut ExpansionBudget,
 ) -> String {
-    let content = match std::fs::read_to_string(file_path) {
+    let safe_file_path = match sanitize_existing_path(file_path, import_boundary) {
+        Ok(path) => path,
+        Err(e) => {
+            tracing::warn!("Skipping unsafe hint file {:?}: {}", file_path, e);
+            return String::new();
+        }
+    };
+    let content = match std::fs::read_to_string(&safe_file_path) {
         Ok(content) => content,
         Err(e) => {
-            tracing::warn!("Could not read file {:?}: {}", file_path, e);
+            tracing::warn!("Could not read file {:?}: {}", safe_file_path, e);
             return String::new();
         }
     };
 
     expand_file_content(
         &content,
-        file_path,
+        &safe_file_path,
         import_boundary,
         visited,
         depth,
@@ -500,6 +546,84 @@ mod tests {
             assert!(expanded.contains("Main content"));
             assert!(expanded.contains("Level 1 content"));
             assert!(expanded.contains("Level 2 content"));
+        }
+
+        #[test]
+        fn test_git_metadata_references_are_not_imported() {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let import_boundary = temp_dir.path();
+            std::fs::create_dir_all(import_boundary.join("docs")).unwrap();
+            std::fs::create_dir_all(import_boundary.join("nested/.git")).unwrap();
+            std::fs::create_dir_all(import_boundary.join(".github")).unwrap();
+            std::fs::create_dir(import_boundary.join(".git")).unwrap();
+            create_file(import_boundary, ".git/config", "ROOT_GIT_SECRET");
+            create_file(import_boundary, "nested/.git/config", "NESTED_GIT_SECRET");
+            create_file(import_boundary, "docs/config.md", "legitimate config");
+            create_file(
+                import_boundary,
+                ".github/instructions.md",
+                "legitimate github instructions",
+            );
+            create_file(import_boundary, ".gitignore", "legitimate gitignore");
+            let main_file = create_file(
+                import_boundary,
+                "main.md",
+                "@.git/config\n@docs/../.git/config\n@nested/.git/config\n@docs/config.md\n@.github/instructions.md\n@.gitignore",
+            );
+            let ignore_patterns = create_ignore_patterns(import_boundary);
+            let mut visited = HashSet::new();
+
+            let expanded = read_referenced_files(
+                &main_file,
+                import_boundary,
+                &mut visited,
+                0,
+                &ignore_patterns,
+            );
+
+            assert!(!expanded.contains("ROOT_GIT_SECRET"));
+            assert!(!expanded.contains("NESTED_GIT_SECRET"));
+            assert!(expanded.contains("@.git/config"));
+            assert!(expanded.contains("@docs/../.git/config"));
+            assert!(expanded.contains("@nested/.git/config"));
+            assert!(expanded.contains("legitimate config"));
+            assert!(expanded.contains("legitimate github instructions"));
+            assert!(expanded.contains("legitimate gitignore"));
+        }
+
+        #[cfg(unix)]
+        #[test]
+        fn test_symlink_aliases_into_git_metadata_are_not_imported() {
+            use std::os::unix::fs::symlink;
+
+            let temp_dir = tempfile::tempdir().unwrap();
+            let import_boundary = temp_dir.path();
+            let git_dir = import_boundary.join(".git");
+            std::fs::create_dir(&git_dir).unwrap();
+            create_file(import_boundary, ".git/config", "ALIASED_GIT_SECRET");
+            symlink(git_dir.join("config"), import_boundary.join("metadata.md")).unwrap();
+            let main_file = create_file(import_boundary, "main.md", "@metadata.md");
+            let ignore_patterns = create_ignore_patterns(import_boundary);
+            let mut visited = HashSet::new();
+
+            let expanded = read_referenced_files(
+                &main_file,
+                import_boundary,
+                &mut visited,
+                0,
+                &ignore_patterns,
+            );
+            let mut root_visited = HashSet::new();
+            let aliased_root = read_referenced_files(
+                &import_boundary.join("metadata.md"),
+                import_boundary,
+                &mut root_visited,
+                0,
+                &ignore_patterns,
+            );
+
+            assert_eq!(expanded, "@metadata.md");
+            assert!(aliased_root.is_empty());
         }
 
         #[test]
