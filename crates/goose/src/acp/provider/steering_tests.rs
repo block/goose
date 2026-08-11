@@ -179,10 +179,10 @@ fn boundary_test_provider() -> (Arc<AcpProvider>, mpsc::Receiver<ClientRequest>)
         assistant_message_boundary_pending: Arc::new(AtomicBool::new(false)),
         goose_mode: Arc::new(Mutex::new(GooseMode::Auto)),
         mode_mapping: HashMap::new(),
-        session: AcpSession {
+        session: Mutex::new(AcpSession {
             id: SessionId::new(ACP_SESSION_ID),
             response: NewSessionResponse::new(ACP_SESSION_ID),
-        },
+        }),
         pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
         pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
         handoff_context_sent: AtomicBool::new(false),
