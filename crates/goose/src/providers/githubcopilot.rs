@@ -19,6 +19,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
+use url::{Host, Url};
 
 // Task-local so complete() and stream() can't race on the same provider instance.
 tokio::task_local! {
@@ -89,6 +90,30 @@ fn normalize_host(host: &str) -> String {
     let host = host.trim_end_matches('/');
     let host = host.strip_prefix("https://").unwrap_or(host);
     host.to_string()
+}
+
+fn validate_copilot_api_endpoint(endpoint: &str) -> Result<bool, ProviderError> {
+    let url = Url::parse(endpoint).map_err(|_| {
+        ProviderError::RequestFailed("Invalid GitHub Copilot API endpoint".to_string())
+    })?;
+    let host = url.host().ok_or_else(|| {
+        ProviderError::RequestFailed("Invalid GitHub Copilot API endpoint".to_string())
+    })?;
+    let is_loopback = match host {
+        Host::Domain(host) => host.eq_ignore_ascii_case("localhost"),
+        Host::Ipv4(address) => address.is_loopback(),
+        Host::Ipv6(address) => address.is_loopback(),
+    };
+
+    if url.scheme() == "https" {
+        Ok(true)
+    } else if url.scheme() == "http" && is_loopback {
+        Ok(false)
+    } else {
+        Err(ProviderError::RequestFailed(
+            "GitHub Copilot API endpoint must use HTTPS unless it targets loopback".to_string(),
+        ))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -228,6 +253,28 @@ impl GithubCopilotProvider {
         })
     }
 
+    fn authenticated_api_client(
+        &self,
+        endpoint: String,
+        token: String,
+        headers: http::HeaderMap,
+    ) -> Result<ApiClient, ProviderError> {
+        let https_only = validate_copilot_api_endpoint(&endpoint)?;
+        let mut client = ApiClient::new_with_tls(
+            endpoint,
+            AuthMethod::BearerToken(token),
+            self.tls_config.clone(),
+        )?
+        .with_request_builder(crate::session_context::session_id_request_builder())
+        .with_headers(headers)?;
+        if https_only {
+            client = client.with_https_only()?;
+        } else {
+            client = client.with_loopback_http_only()?;
+        }
+        Ok(client)
+    }
+
     pub async fn from_env(
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
@@ -268,16 +315,13 @@ impl GithubCopilotProvider {
         streaming: bool,
     ) -> Result<Response, ProviderError> {
         let (endpoint, token) = self.get_api_info().await?;
-        let auth = AuthMethod::BearerToken(token);
         let mut headers = self.get_github_headers();
         if has_images {
             headers.insert("Copilot-Vision-Request", "true".parse().unwrap());
         }
         let initiator = if is_user_initiated { "user" } else { "agent" };
         headers.insert("X-Initiator", initiator.parse().unwrap());
-        let api_client = ApiClient::new_with_tls(endpoint.clone(), auth, self.tls_config.clone())?
-            .with_request_builder(crate::session_context::session_id_request_builder())
-            .with_headers(headers)?;
+        let api_client = self.authenticated_api_client(endpoint, token, headers)?;
 
         api_client
             .request(path)
@@ -293,15 +337,17 @@ impl GithubCopilotProvider {
 
         if let Some(state) = guard.borrow().as_ref() {
             if state.expires_at > Utc::now() {
+                validate_copilot_api_endpoint(&state.info.endpoints.api)?;
                 return Ok((state.info.endpoints.api.clone(), state.info.token.clone()));
             }
         }
 
         if let Some(state) = self.cache.load().await {
-            if guard.borrow().is_none() {
-                guard.replace(Some(state.clone()));
-            }
             if state.expires_at > Utc::now() {
+                validate_copilot_api_endpoint(&state.info.endpoints.api)?;
+                if guard.borrow().is_none() {
+                    guard.replace(Some(state.clone()));
+                }
                 return Ok((state.info.endpoints.api, state.info.token));
             }
         }
@@ -364,6 +410,7 @@ impl GithubCopilotProvider {
         tracing::trace!("copilot token response: {}", resp);
         let info: CopilotTokenInfo = serde_json::from_str(&resp)
             .map_err(|error| ProviderError::RequestFailed(error.to_string()))?;
+        validate_copilot_api_endpoint(&info.endpoints.api)?;
         Ok(info)
     }
 
@@ -628,7 +675,6 @@ impl Provider for GithubCopilotProvider {
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let (endpoint, token) = self.get_api_info().await?;
-        let url = format!("{}/models", endpoint);
 
         let mut headers = http::HeaderMap::new();
         headers.insert(http::header::ACCEPT, "application/json".parse().unwrap());
@@ -637,12 +683,8 @@ impl Provider for GithubCopilotProvider {
             "application/json".parse().unwrap(),
         );
         headers.insert("Copilot-Integration-Id", "vscode-chat".parse().unwrap());
-        headers.insert(
-            http::header::AUTHORIZATION,
-            format!("Bearer {}", token).parse().unwrap(),
-        );
-
-        let response = self.client.get(url).headers(headers).send().await?;
+        let api_client = self.authenticated_api_client(endpoint, token, headers)?;
+        let response = api_client.response_get("models").await?;
 
         let json: serde_json::Value = response.json().await?;
 
@@ -734,6 +776,30 @@ mod tests {
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
+    #[test]
+    fn copilot_api_endpoint_policy_requires_https_or_loopback() {
+        assert!(validate_copilot_api_endpoint("https://api.example.com").unwrap());
+        for endpoint in [
+            "http://localhost:8080",
+            "http://127.0.0.1:8080",
+            "http://[::1]:8080",
+        ] {
+            assert!(!validate_copilot_api_endpoint(endpoint).unwrap());
+        }
+        for endpoint in [
+            "http://api.example.com",
+            "http://localhost.example",
+            "ftp://127.0.0.1/resource",
+            "not a URL",
+            "https://",
+        ] {
+            assert!(
+                validate_copilot_api_endpoint(endpoint).is_err(),
+                "accepted invalid endpoint {endpoint}"
+            );
+        }
+    }
+
     #[cfg(unix)]
     #[tokio::test]
     async fn disk_cache_saves_owner_only_file() {
@@ -807,6 +873,88 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn get_api_info_rejects_plaintext_legacy_cache() {
+        let directory = tempfile::tempdir().unwrap();
+        let cache = DiskCache {
+            cache_path: directory.path().join("info.json"),
+        };
+        let state = CopilotState {
+            expires_at: Utc::now() + chrono::Duration::minutes(10),
+            info: CopilotTokenInfo {
+                token: "copilot-secret".to_string(),
+                expires_at: 1,
+                refresh_in: 600,
+                endpoints: CopilotTokenEndpoints {
+                    api: "http://api.example.com".to_string(),
+                    _extra: HashMap::new(),
+                },
+                _extra: HashMap::new(),
+            },
+        };
+        cache.save(&state).await.unwrap();
+        let provider = GithubCopilotProvider {
+            client: Client::new(),
+            cache,
+            mu: tokio::sync::Mutex::new(RefCell::new(None)),
+            urls: GithubCopilotUrls::new("github.com", None),
+            client_id: DEFAULT_GITHUB_COPILOT_CLIENT_ID.to_string(),
+            name: GITHUB_COPILOT_PROVIDER_NAME.to_string(),
+            tls_config: None,
+        };
+
+        let error = provider.get_api_info().await.unwrap_err();
+
+        assert!(matches!(error, ProviderError::RequestFailed(_)));
+        assert!(provider.mu.lock().await.borrow().is_none());
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_accepts_loopback_api_endpoint() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": [{ "id": "gpt-test" }]
+            })))
+            .mount(&server)
+            .await;
+        let directory = tempfile::tempdir().unwrap();
+        let cache = DiskCache {
+            cache_path: directory.path().join("info.json"),
+        };
+        cache
+            .save(&CopilotState {
+                expires_at: Utc::now() + chrono::Duration::minutes(10),
+                info: CopilotTokenInfo {
+                    token: "copilot-secret".to_string(),
+                    expires_at: 1,
+                    refresh_in: 600,
+                    endpoints: CopilotTokenEndpoints {
+                        api: server.uri(),
+                        _extra: HashMap::new(),
+                    },
+                    _extra: HashMap::new(),
+                },
+            })
+            .await
+            .unwrap();
+        let provider = GithubCopilotProvider {
+            client: Client::new(),
+            cache,
+            mu: tokio::sync::Mutex::new(RefCell::new(None)),
+            urls: GithubCopilotUrls::new("github.com", None),
+            client_id: DEFAULT_GITHUB_COPILOT_CLIENT_ID.to_string(),
+            name: GITHUB_COPILOT_PROVIDER_NAME.to_string(),
+            tls_config: None,
+        };
+
+        assert_eq!(
+            provider.fetch_supported_models().await.unwrap(),
+            vec!["gpt-test".to_string()]
+        );
+    }
+
+    #[tokio::test]
     async fn refresh_api_info_returns_authentication_for_rejected_token() {
         for status in [401, 403] {
             let server = MockServer::start().await;
@@ -836,6 +984,76 @@ mod tests {
 
             assert!(matches!(error, ProviderError::Authentication(_)));
         }
+    }
+
+    #[tokio::test]
+    async fn refresh_api_info_rejects_plaintext_remote_endpoint() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/copilot-token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "token": "copilot-secret",
+                "expires_at": 0,
+                "refresh_in": 600,
+                "endpoints": { "api": "http://api.example.com" }
+            })))
+            .mount(&server)
+            .await;
+        let directory = tempfile::tempdir().unwrap();
+        let provider = GithubCopilotProvider {
+            client: Client::new(),
+            cache: DiskCache {
+                cache_path: directory.path().join("info.json"),
+            },
+            mu: tokio::sync::Mutex::new(RefCell::new(None)),
+            urls: GithubCopilotUrls {
+                device_code_url: String::new(),
+                access_token_url: String::new(),
+                copilot_token_url: format!("{}/copilot-token", server.uri()),
+            },
+            client_id: DEFAULT_GITHUB_COPILOT_CLIENT_ID.to_string(),
+            name: GITHUB_COPILOT_PROVIDER_NAME.to_string(),
+            tls_config: None,
+        };
+
+        let error = provider.refresh_api_info("github-token").await.unwrap_err();
+
+        assert!(matches!(error, ProviderError::RequestFailed(_)));
+    }
+
+    #[tokio::test]
+    async fn refresh_api_info_accepts_loopback_endpoint() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/copilot-token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "token": "copilot-secret",
+                "expires_at": 0,
+                "refresh_in": 600,
+                "endpoints": { "api": server.uri() }
+            })))
+            .mount(&server)
+            .await;
+        let directory = tempfile::tempdir().unwrap();
+        let provider = GithubCopilotProvider {
+            client: Client::new(),
+            cache: DiskCache {
+                cache_path: directory.path().join("info.json"),
+            },
+            mu: tokio::sync::Mutex::new(RefCell::new(None)),
+            urls: GithubCopilotUrls {
+                device_code_url: String::new(),
+                access_token_url: String::new(),
+                copilot_token_url: format!("{}/copilot-token", server.uri()),
+            },
+            client_id: DEFAULT_GITHUB_COPILOT_CLIENT_ID.to_string(),
+            name: GITHUB_COPILOT_PROVIDER_NAME.to_string(),
+            tls_config: None,
+        };
+
+        let info = provider.refresh_api_info("github-token").await.unwrap();
+
+        assert_eq!(info.endpoints.api, server.uri());
     }
 
     #[test]
