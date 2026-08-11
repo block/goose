@@ -68,8 +68,18 @@ if [[ ! -d node_modules ]]; then
   npm ci
 fi
 
-nohup npm run dev >"${LOG_FILE}" 2>&1 &
+# Start in a new session so the gateway survives the caller's process group
+# being terminated (e.g. `make dev-ui` finishing, or the launching terminal
+# closing). `nohup` alone only blocks SIGHUP and is not enough.
+if command -v setsid >/dev/null 2>&1; then
+  setsid npm run dev >"${LOG_FILE}" 2>&1 &
+else
+  # macOS has no setsid(1); POSIX::setsid via perl, then exec keeps the pid.
+  nohup perl -e 'use POSIX (); POSIX::setsid(); exec @ARGV or die $!;' \
+    npm run dev >"${LOG_FILE}" 2>&1 &
+fi
 echo $! >"${PID_FILE}"
+disown %% 2>/dev/null || true
 
 deadline=$((SECONDS + 45))
 until curl -sf "${GATEWAY_URL}/healthz" >/dev/null 2>&1; do

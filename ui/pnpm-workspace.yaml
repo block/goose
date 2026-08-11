@@ -7,8 +7,8 @@ registry: https://registry.npmjs.org/
 preferOffline: true
 nodeLinker: hoisted
 supportedArchitectures:
-  os: [current, linux, darwin, win32]
-  cpu: [current, x64, arm64]
+  os: [ current, linux, darwin, win32 ]
+  cpu: [ current, x64, arm64 ]
 overrides:
   react: ^19.2.8
   react-dom: ^19.2.8
@@ -17,5 +17,7 @@ allowBuilds:
   electron: true
   electron-winstaller: true
   esbuild: true
+  fs-xattr: true
+  macos-alias: true
 # Electron Forge resolves @electron/node-gyp from git.
 blockExoticSubdeps: false

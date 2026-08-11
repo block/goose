@@ -81,7 +81,9 @@ if auth_mode:
         [
             "GOOSE_EXTERNAL_BACKEND=true",
             f"GOOSE_EXTERNAL_BACKEND_URL=http://127.0.0.1:{gateway_port}",
-            "GOOSE_WORKING_DIR=/workspace",
+            # No GOOSE_WORKING_DIR: the gateway spawns goose natively on the
+            # host, so host paths resolve and the directory picker must win.
+            # /workspace only exists inside the legacy Docker ACP container.
             "GOOSE_MODE=smart_approve",
             f"GOOSE_DEFAULT_PROVIDER={provider}",
             f"GOOSE_DEFAULT_MODEL={default_model}",
