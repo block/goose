@@ -20,15 +20,18 @@ pub struct SlashCommand<'a> {
     pub params_str: &'a str,
 }
 
+fn is_turn_kickoff(message: &Message) -> bool {
+    message.role == rmcp::model::Role::User
+        && message.is_user_visible()
+        && !message.is_tool_response()
+        && !message.metadata.steer
+}
+
 pub fn messages_since_kickoff(conversation: &Conversation) -> Result<&[Message]> {
     let messages = conversation.messages();
     let start = messages
         .iter()
-        .rposition(|message| {
-            message.role == rmcp::model::Role::User
-                && message.is_user_visible()
-                && !message.is_tool_response()
-        })
+        .rposition(is_turn_kickoff)
         .ok_or_else(|| anyhow!("state machine conversation has no kickoff message"))?;
     Ok(&messages[start..])
 }

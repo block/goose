@@ -51,16 +51,15 @@ fn assistant_message_for_stop_hook<'a>(
         return messages.last();
     }
 
-    let last = conversation.last()?;
-    if !was_native_steer_delivered(last) {
+    let mut tail = conversation
+        .iter()
+        .rev()
+        .filter(|message| !message.is_turn_context());
+    if !tail.next().is_some_and(was_native_steer_delivered) {
         return None;
     }
 
-    conversation
-        .iter()
-        .rev()
-        .skip(1)
-        .find(|message| !message.is_turn_context() && !message.is_tool_response())
+    tail.find(|message| !was_native_steer_delivered(message) && !message.is_tool_response())
         .filter(|message| {
             message.role == rmcp::model::Role::Assistant && message.error_kind().is_none()
         })

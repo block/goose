@@ -4702,17 +4702,18 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     }
 
     #[tokio::test]
-    async fn legacy_native_delivery_ends_without_empty_retry() -> Result<()> {
+    async fn legacy_consecutive_native_steers_end_cleanly_and_run_stop_hook() -> Result<()> {
         let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", None::<&str>)]);
-        let temp_dir = tempfile::tempdir()?;
+        let hook = StopHookTestEnv::new(
+            r#"#!/bin/sh
+echo allowed >> "$PLUGIN_ROOT/hook.log"
+exit 0
+"#,
+        )?;
         let (stream_tx, provider_stream) = controlled_stream();
-        let provider = NativeSteeringTestProvider::new([provider_stream], [Ok(true)]);
-        let (agent, session_id) = create_test_agent(
-            temp_dir.path().join("data"),
-            crate::hooks::HookManager::from_plugins_for_test(vec![]),
-            provider.clone(),
-        )
-        .await?;
+        let provider = NativeSteeringTestProvider::new([provider_stream], [Ok(true), Ok(true)]);
+        let (agent, session_id) =
+            create_test_agent(hook.data_dir(), hook.hook_manager(), provider.clone()).await?;
         let reply = agent
             .reply(
                 Message::user().with_text("start legacy work"),
@@ -4733,7 +4734,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             let mut emitted = Vec::new();
             while let Some(event) = reply.next().await {
                 if let AgentEvent::Message(message) = event? {
-                    if message.as_concat_text() == "change direction" {
+                    if message.as_concat_text() == "second direction" {
                         if let Some(tx) = steer_seen_tx.take() {
                             tx.send(()).expect("steer observer");
                         }
@@ -4749,11 +4750,20 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 .steer(
                     &session_id,
                     Message::user()
-                        .with_id("legacy-native-empty-steer")
-                        .with_text("change direction"),
+                        .with_id("legacy-native-empty-steer-1")
+                        .with_text("first direction"),
                 )
                 .await;
             provider.wait_for_native_calls(1).await;
+            agent
+                .steer(
+                    &session_id,
+                    Message::user()
+                        .with_id("legacy-native-empty-steer-2")
+                        .with_text("second direction"),
+                )
+                .await;
+            provider.wait_for_native_calls(2).await;
             steer_seen_rx.await.expect("steer event");
             drop(stream_tx);
             Ok::<_, anyhow::Error>(())
@@ -4765,18 +4775,94 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         .await
         .expect("legacy native empty completion should settle")?;
         assert_eq!(provider.stream_calls.load(Ordering::SeqCst), 1);
-        assert_eq!(provider.native_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(provider.native_calls.load(Ordering::SeqCst), 2);
         assert_eq!(
             emitted
                 .iter()
-                .filter(|message| message.as_concat_text() == "change direction")
+                .filter(|message| { crate::agents::steering::was_native_steer_delivered(message) })
                 .count(),
-            1
+            2
         );
         assert!(!emitted
             .iter()
             .any(|message| message.as_concat_text() == EMPTY_TURN_MESSAGE));
+        assert_eq!(hook.hook_invocations(), 1);
         assert!(!agent.has_pending_steers(&session_id).await);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn legacy_recipe_retry_restarts_from_original_kickoff_after_native_steer() -> Result<()> {
+        let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", None::<&str>)]);
+        let temp_dir = tempfile::tempdir()?;
+        let (first_stream_tx, first_stream) = controlled_stream();
+        let second_stream = stream_from_single_message(
+            Message::assistant().with_text("second attempt"),
+            ProviderUsage::new("mock-model".to_string(), Usage::default()),
+        );
+        let provider = NativeSteeringTestProvider::new([first_stream, second_stream], [Ok(true)]);
+        let (agent, session_id) = create_test_agent(
+            temp_dir.path().join("data"),
+            crate::hooks::HookManager::from_plugins_for_test(vec![]),
+            provider.clone(),
+        )
+        .await?;
+        let reply = agent
+            .reply(
+                Message::user().with_text("start retry work"),
+                SessionConfig {
+                    id: session_id.clone(),
+                    schedule_id: None,
+                    max_turns: Some(10),
+                    retry_config: Some(crate::agents::types::RetryConfig {
+                        max_retries: 1,
+                        checks: vec![crate::agents::types::SuccessCheck::Shell {
+                            command: "exit 1".to_string(),
+                        }],
+                        on_failure: None,
+                        timeout_seconds: None,
+                        on_failure_timeout_seconds: None,
+                    }),
+                },
+                None,
+            )
+            .await?;
+
+        let observe = async {
+            tokio::pin!(reply);
+            while let Some(event) = reply.next().await {
+                event?;
+            }
+            Ok::<_, anyhow::Error>(())
+        };
+        let drive = async {
+            provider.wait_for_stream_calls(1).await;
+            agent
+                .steer(&session_id, Message::user().with_text("retry direction"))
+                .await;
+            provider.wait_for_native_calls(1).await;
+            first_stream_tx
+                .send(Ok((
+                    Some(Message::assistant().with_text("first attempt")),
+                    None,
+                )))
+                .expect("provider stream receiver");
+            drop(first_stream_tx);
+            Ok::<_, anyhow::Error>(())
+        };
+
+        timeout(LEGACY_STEERING_TEST_TIMEOUT, async {
+            tokio::try_join!(observe, drive)
+        })
+        .await
+        .expect("legacy steering retry should settle")?;
+
+        assert_eq!(provider.stream_calls.load(Ordering::SeqCst), 2);
+        let prompts = provider.prompts();
+        assert!(prompts[1]
+            .iter()
+            .any(|message| message.as_concat_text().contains("start retry work")));
+        assert!(!prompts[1].iter().any(|message| message.metadata.steer));
         Ok(())
     }
 

@@ -72,7 +72,6 @@ impl<'a> StateMachine<'a> {
 
         let prompt = messages
             .first()
-            .filter(|message| !message.metadata.steer)
             .map(Message::as_concat_text)
             .unwrap_or_default();
         if !prompt.is_empty() {

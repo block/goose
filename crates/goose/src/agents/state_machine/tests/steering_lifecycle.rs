@@ -11,13 +11,15 @@ use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
 use super::hooks_lifecycle::{HookTestEnv, LOG_AND_ALLOW_SCRIPT};
-use super::pipeline::{self, test_pipeline, MessageKind::Agent};
+use super::pipeline::{self, test_pipeline, MessageKind::Agent, MessageKind::Error};
 use crate::agents::state_machine::Emitter;
 use crate::agents::steering::was_native_steer_delivered;
 use crate::agents::test_support::{controlled_stream, NativeSteeringTestProvider};
+use crate::agents::types::{RetryConfig, SuccessCheck};
 use crate::agents::AgentEvent;
 use crate::conversation::message::Message;
 use crate::providers::base::MessageStream;
+use crate::recipe::Recipe;
 
 const SUMMARIZE_HISTORY: &str = "Please summarize the conversation history";
 const TEST_TIMEOUT: Duration = Duration::from_secs(2);
@@ -91,22 +93,11 @@ async fn native_steering_cancels_unstarted_tool_request() -> Result<()> {
             message.as_concat_text() == "change direction"
         })
         .await;
-        let persisted = pipeline.session().await.expect("persisted session");
-        let messages = persisted
-            .conversation
-            .as_ref()
-            .expect("persisted conversation")
-            .messages();
-        let steer = messages
-            .iter()
-            .find(|message| message.as_concat_text() == "change direction")
-            .expect("persisted native steer");
-        assert_eq!(steer.id, emitted.id);
-        assert_eq!(steer.id.as_deref(), Some("native-cancel-steer"));
         cancel.cancel();
+        emitted.id
     };
 
-    let (session, ()) = timeout(TEST_TIMEOUT, async { tokio::join!(run, observe) })
+    let (session, emitted_steer_id) = timeout(TEST_TIMEOUT, async { tokio::join!(run, observe) })
         .await
         .expect("native delivery should settle");
     let session = session?;
@@ -127,6 +118,8 @@ async fn native_steering_cancels_unstarted_tool_request() -> Result<()> {
         .iter()
         .position(|message| message.as_concat_text() == "change direction")
         .expect("persisted steer");
+    assert_eq!(messages[steer].id, emitted_steer_id);
+    assert_eq!(messages[steer].id.as_deref(), Some("native-cancel-steer"));
     let responses = messages
         .iter()
         .enumerate()
@@ -252,7 +245,137 @@ async fn native_delivery_preserves_order_estimated_usage_and_prompt_boundary() -
 }
 
 #[tokio::test]
-async fn usage_reported_after_native_delivery_updates_the_flushed_assistant() -> Result<()> {
+async fn consecutive_native_steers_run_stop_hook_once() -> Result<()> {
+    let (stream_tx, provider_stream) = controlled_stream();
+    let provider = NativeSteeringTestProvider::new([provider_stream], [Ok(true), Ok(true)]);
+    let stop_hook = HookTestEnv::new("Stop", LOG_AND_ALLOW_SCRIPT);
+    let (pipeline, _) = test_pipeline().await?;
+    let pipeline = pipeline
+        .with_provider(provider.clone())
+        .with_hook_manager(stop_hook.hook_manager());
+    pipeline
+        .seed([Message::user().with_text("start native work")])
+        .await?;
+
+    let cancel = CancellationToken::new();
+    let machine = pipeline.machine(cancel.clone());
+    let (event_tx, mut events) = mpsc::channel(32);
+    let emit = Emitter::new(event_tx, cancel);
+    let run = machine.run(
+        pipeline.session_manager.as_ref(),
+        &pipeline.session_id,
+        &emit,
+    );
+    let steer = async {
+        provider.wait_for_stream_calls(1).await;
+        stream_tx
+            .send(Ok((
+                Some(Message::assistant().with_text("before steers")),
+                None,
+            )))
+            .expect("provider stream receiver");
+        next_message(&mut events, |message| {
+            message.as_concat_text() == "before steers"
+        })
+        .await;
+
+        pipeline
+            .steer(Message::user().with_text("first direction"))
+            .await;
+        next_message(&mut events, |message| {
+            message.as_concat_text() == "first direction"
+        })
+        .await;
+        pipeline
+            .steer(Message::user().with_text("second direction"))
+            .await;
+        next_message(&mut events, |message| {
+            message.as_concat_text() == "second direction"
+        })
+        .await;
+        drop(stream_tx);
+    };
+
+    let (session, ()) = timeout(TEST_TIMEOUT, async { tokio::join!(run, steer) })
+        .await
+        .expect("native delivery should settle");
+    let session = session?;
+    let messages = session
+        .conversation
+        .as_ref()
+        .expect("final conversation")
+        .messages();
+    assert_eq!(
+        messages
+            .iter()
+            .filter(|message| was_native_steer_delivered(message))
+            .count(),
+        2
+    );
+    assert_eq!(stop_hook.invocations(), 1);
+    assert_eq!(provider.stream_calls.load(Ordering::SeqCst), 1);
+    Ok(())
+}
+
+#[tokio::test]
+async fn recipe_retry_restarts_from_original_kickoff_after_native_steer() -> Result<()> {
+    let (first_stream_tx, first_stream) = controlled_stream();
+    let second_stream = completed_stream(Message::assistant().with_text("retried response"));
+    let provider = NativeSteeringTestProvider::new([first_stream, second_stream], [Ok(true)]);
+    let (pipeline, _) = test_pipeline().await?;
+    let pipeline = pipeline.with_provider(provider.clone());
+    pipeline
+        .set_recipe(
+            Recipe::builder()
+                .title("native steering retry")
+                .description("native steering retry")
+                .prompt("start retry work")
+                .retry(RetryConfig {
+                    max_retries: 1,
+                    checks: vec![SuccessCheck::Shell {
+                        command: "exit 1".to_string(),
+                    }],
+                    on_failure: None,
+                    timeout_seconds: None,
+                    on_failure_timeout_seconds: None,
+                })
+                .build()
+                .expect("valid recipe"),
+        )
+        .await?;
+
+    let run = pipeline.run(["start retry work"]);
+    let steer = async {
+        provider.wait_for_stream_calls(1).await;
+        pipeline
+            .steer(Message::user().with_text("change retry direction"))
+            .await;
+        provider.wait_for_native_calls(1).await;
+        first_stream_tx
+            .send(Ok((
+                Some(Message::assistant().with_text("response after steer")),
+                None,
+            )))
+            .expect("provider stream receiver");
+        drop(first_stream_tx);
+    };
+
+    let (result, ()) = timeout(TEST_TIMEOUT, async { tokio::join!(run, steer) })
+        .await
+        .expect("recipe retry should settle");
+    let result = result?;
+    assert_eq!(provider.stream_calls.load(Ordering::SeqCst), 2);
+    let prompts = provider.prompts();
+    assert!(prompts[1]
+        .iter()
+        .any(|message| message.as_concat_text().contains("start retry work")));
+    assert!(!prompts[1].iter().any(|message| message.metadata.steer));
+    result.assert_message(-1, Error, "Maximum retry attempts (1) exceeded");
+    Ok(())
+}
+
+#[tokio::test]
+async fn usage_reported_after_native_delivery_updates_the_assistant_before_steer() -> Result<()> {
     let (stream_tx, provider_stream) = controlled_stream();
     let provider = NativeSteeringTestProvider::new([provider_stream], [Ok(true)]);
     let (pipeline, _) = test_pipeline().await?;
