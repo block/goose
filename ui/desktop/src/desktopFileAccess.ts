@@ -61,7 +61,7 @@ function failedRead(filePath: string, message: string): FileReadResult {
 }
 
 type WorkingDirectoryBinding =
-  | { status: 'ready'; path: string }
+  | { status: 'ready'; path: string; dev: bigint; ino: bigint }
   | { status: 'missing'; path: string }
   | { status: 'error'; path: string };
 
@@ -76,11 +76,37 @@ export class DesktopFileAccess {
     return binding;
   }
 
+  private async bindingMatchesDirectory(binding: WorkingDirectoryBinding): Promise<boolean> {
+    if (binding.status !== 'ready') {
+      return false;
+    }
+    try {
+      const metadata = await fs.lstat(binding.path, { bigint: true });
+      return (
+        metadata.isDirectory() &&
+        !metadata.isSymbolicLink() &&
+        metadata.dev === binding.dev &&
+        metadata.ino === binding.ino
+      );
+    } catch {
+      return false;
+    }
+  }
+
   async bindWindow(windowId: number, workingDirectory: string): Promise<void> {
     const resolvedPath = path.resolve(workingDirectory);
     try {
       const canonicalPath = await fs.realpath(resolvedPath);
-      this.workingDirectories.set(windowId, { status: 'ready', path: canonicalPath });
+      const metadata = await fs.lstat(canonicalPath, { bigint: true });
+      if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
+        throw new Error('Working directory is not a regular directory');
+      }
+      this.workingDirectories.set(windowId, {
+        status: 'ready',
+        path: canonicalPath,
+        dev: metadata.dev,
+        ino: metadata.ino,
+      });
     } catch (error) {
       this.workingDirectories.set(windowId, {
         status: isMissingFile(error) ? 'missing' : 'error',
@@ -101,6 +127,9 @@ export class DesktopFileAccess {
     }
     if (binding.status === 'error') {
       return failedRead(filePath, 'Unable to resolve the working directory');
+    }
+    if (!(await this.bindingMatchesDirectory(binding))) {
+      return failedRead(filePath, 'The working directory changed after it was authorized');
     }
 
     try {
@@ -127,6 +156,9 @@ export class DesktopFileAccess {
         if (openedMetadata.dev !== metadata.dev || openedMetadata.ino !== metadata.ino) {
           return failedRead(filePath, '.goosehints changed while it was being opened');
         }
+        if (!(await this.bindingMatchesDirectory(binding))) {
+          return failedRead(filePath, 'The working directory changed after it was authorized');
+        }
         return {
           file: await handle.readFile('utf8'),
           filePath,
@@ -149,6 +181,9 @@ export class DesktopFileAccess {
     if (binding.status !== 'ready' || typeof content !== 'string') {
       return false;
     }
+    if (!(await this.bindingMatchesDirectory(binding))) {
+      return false;
+    }
 
     const filePath = path.join(binding.path, '.goosehints');
     const noFollow = process.platform === 'win32' ? 0 : fsConstants.O_NOFOLLOW;
@@ -160,6 +195,9 @@ export class DesktopFileAccess {
         if (!isMissingFile(error)) {
           return false;
         }
+        if (!(await this.bindingMatchesDirectory(binding))) {
+          return false;
+        }
 
         const handle = await fs.open(
           filePath,
@@ -168,6 +206,9 @@ export class DesktopFileAccess {
         );
         try {
           if (!(await handle.stat()).isFile()) {
+            return false;
+          }
+          if (!(await this.bindingMatchesDirectory(binding))) {
             return false;
           }
           await handle.writeFile(content, 'utf8');
@@ -189,6 +230,9 @@ export class DesktopFileAccess {
           openedMetadata.dev !== metadata.dev ||
           openedMetadata.ino !== metadata.ino
         ) {
+          return false;
+        }
+        if (!(await this.bindingMatchesDirectory(binding))) {
           return false;
         }
         await handle.truncate(0);

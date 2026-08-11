@@ -69,6 +69,166 @@ describe('DesktopFileAccess', () => {
     expect(fs.readFileSync(filePath, 'utf8')).toBe('updated guidance');
   });
 
+  it.skipIf(process.platform === 'win32')(
+    'rejects a canonical working directory replaced by a symlink',
+    async () => {
+      const root = makeTempDirectory();
+      const workingDirectory = path.join(root, 'project');
+      const originalDirectory = path.join(root, 'original-project');
+      const replacementDirectory = path.join(root, 'replacement-project');
+      fs.mkdirSync(workingDirectory);
+      fs.mkdirSync(replacementDirectory);
+      fs.writeFileSync(path.join(workingDirectory, '.goosehints'), 'original guidance');
+      fs.writeFileSync(path.join(replacementDirectory, '.goosehints'), 'replacement guidance');
+      const access = new DesktopFileAccess();
+      await access.bindWindow(7, workingDirectory);
+
+      fs.renameSync(workingDirectory, originalDirectory);
+      fs.symlinkSync(replacementDirectory, workingDirectory);
+
+      const result = await access.readGoosehints(7);
+      await expect(access.writeGoosehints(7, 'new guidance')).resolves.toBe(false);
+      expect(result.found).toBe(false);
+      expect(result.error).toContain('working directory changed');
+      expect(fs.readFileSync(path.join(originalDirectory, '.goosehints'), 'utf8')).toBe(
+        'original guidance'
+      );
+      expect(fs.readFileSync(path.join(replacementDirectory, '.goosehints'), 'utf8')).toBe(
+        'replacement guidance'
+      );
+    }
+  );
+
+  it('rejects a canonical working directory replaced by another directory', async () => {
+    const root = makeTempDirectory();
+    const workingDirectory = path.join(root, 'project');
+    const originalDirectory = path.join(root, 'original-project');
+    fs.mkdirSync(workingDirectory);
+    fs.writeFileSync(path.join(workingDirectory, '.goosehints'), 'original guidance');
+    const access = new DesktopFileAccess();
+    await access.bindWindow(7, workingDirectory);
+
+    fs.renameSync(workingDirectory, originalDirectory);
+    fs.mkdirSync(workingDirectory);
+    fs.writeFileSync(path.join(workingDirectory, '.goosehints'), 'replacement guidance');
+
+    const result = await access.readGoosehints(7);
+    await expect(access.writeGoosehints(7, 'new guidance')).resolves.toBe(false);
+    expect(result.found).toBe(false);
+    expect(result.error).toContain('working directory changed');
+    expect(fs.readFileSync(path.join(originalDirectory, '.goosehints'), 'utf8')).toBe(
+      'original guidance'
+    );
+    expect(fs.readFileSync(path.join(workingDirectory, '.goosehints'), 'utf8')).toBe(
+      'replacement guidance'
+    );
+  });
+
+  it('rejects a bound working directory that was renamed away', async () => {
+    const root = makeTempDirectory();
+    const workingDirectory = path.join(root, 'project');
+    const renamedDirectory = path.join(root, 'renamed-project');
+    fs.mkdirSync(workingDirectory);
+    fs.writeFileSync(path.join(workingDirectory, '.goosehints'), 'original guidance');
+    const access = new DesktopFileAccess();
+    await access.bindWindow(7, workingDirectory);
+
+    fs.renameSync(workingDirectory, renamedDirectory);
+
+    const result = await access.readGoosehints(7);
+    await expect(access.writeGoosehints(7, 'new guidance')).resolves.toBe(false);
+    expect(result.found).toBe(false);
+    expect(result.error).toContain('working directory changed');
+    expect(fs.readFileSync(path.join(renamedDirectory, '.goosehints'), 'utf8')).toBe(
+      'original guidance'
+    );
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'rechecks the working directory before truncating an opened .goosehints',
+    async () => {
+      const root = makeTempDirectory();
+      const workingDirectory = path.join(root, 'project');
+      const renamedDirectory = path.join(root, 'renamed-project');
+      const filePath = path.join(workingDirectory, '.goosehints');
+      fs.mkdirSync(workingDirectory);
+      fs.writeFileSync(filePath, 'original guidance');
+      const access = new DesktopFileAccess();
+      await access.bindWindow(7, workingDirectory);
+      const open = fsPromises.open.bind(fsPromises);
+      vi.spyOn(fsPromises, 'open').mockImplementationOnce(async (...args) => {
+        fs.renameSync(workingDirectory, renamedDirectory);
+        fs.mkdirSync(workingDirectory);
+        fs.linkSync(
+          path.join(renamedDirectory, '.goosehints'),
+          path.join(workingDirectory, '.goosehints')
+        );
+        return open(...args);
+      });
+
+      await expect(access.writeGoosehints(7, 'new guidance')).resolves.toBe(false);
+      expect(fs.readFileSync(path.join(renamedDirectory, '.goosehints'), 'utf8')).toBe(
+        'original guidance'
+      );
+    }
+  );
+
+  it.skipIf(process.platform === 'win32')(
+    'rechecks the working directory before reading an opened .goosehints',
+    async () => {
+      const root = makeTempDirectory();
+      const workingDirectory = path.join(root, 'project');
+      const renamedDirectory = path.join(root, 'renamed-project');
+      const filePath = path.join(workingDirectory, '.goosehints');
+      fs.mkdirSync(workingDirectory);
+      fs.writeFileSync(filePath, 'original guidance');
+      const access = new DesktopFileAccess();
+      await access.bindWindow(7, workingDirectory);
+      const open = fsPromises.open.bind(fsPromises);
+      vi.spyOn(fsPromises, 'open').mockImplementationOnce(async (...args) => {
+        fs.renameSync(workingDirectory, renamedDirectory);
+        fs.mkdirSync(workingDirectory);
+        fs.linkSync(
+          path.join(renamedDirectory, '.goosehints'),
+          path.join(workingDirectory, '.goosehints')
+        );
+        return open(...args);
+      });
+
+      const result = await access.readGoosehints(7);
+
+      expect(result.found).toBe(false);
+      expect(result.file).toBe('');
+      expect(result.error).toContain('working directory changed');
+    }
+  );
+
+  it('rechecks the working directory before creating a missing .goosehints', async () => {
+    const root = makeTempDirectory();
+    const workingDirectory = path.join(root, 'project');
+    const renamedDirectory = path.join(root, 'renamed-project');
+    fs.mkdirSync(workingDirectory);
+    const access = new DesktopFileAccess();
+    await access.bindWindow(7, workingDirectory);
+    const lstat = fsPromises.lstat.bind(fsPromises);
+    vi.spyOn(fsPromises, 'lstat').mockImplementation(async (...args) => {
+      try {
+        return await lstat(...args);
+      } catch (error) {
+        if (path.basename(args[0].toString()) === '.goosehints') {
+          fs.renameSync(workingDirectory, renamedDirectory);
+          fs.mkdirSync(workingDirectory);
+        }
+        throw error;
+      }
+    });
+    const open = vi.spyOn(fsPromises, 'open');
+
+    await expect(access.writeGoosehints(7, 'new guidance')).resolves.toBe(false);
+    expect(open).not.toHaveBeenCalled();
+    expect(fs.existsSync(path.join(workingDirectory, '.goosehints'))).toBe(false);
+  });
+
   it('rejects a renderer without a bound working directory', async () => {
     const access = new DesktopFileAccess();
 
