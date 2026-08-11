@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::extension_manager::{ExtensionManager, ExtensionManagerCapabilities};
-use goose::agents::GoosePlatform;
+use goose::agents::{GoosePlatform, MCP_PROTOCOL_VERSION};
 use goose_providers::model::ModelConfig;
 
 use test_case::test_case;
@@ -151,16 +151,16 @@ enum TestMode {
     ],
     vec!["GITHUB_PERSONAL_ACCESS_TOKEN"]
 )]
-// #[test_case(
-//     vec!["uv", "run", "--with", "fastmcp==2.14.4", "fastmcp", "run", "tests/fastmcp_test_server.py"],
-//     vec![
-//         CallToolRequestParams::new("divide").with_arguments(object!({
-//             "dividend": 10,
-//             "divisor": 2
-//         }))
-//     ],
-//     vec![]
-// )]
+#[test_case(
+    vec!["uv", "run", "--with", "fastmcp==2.14.4", "fastmcp", "run", "tests/fastmcp_test_server.py"],
+    vec![
+        CallToolRequestParams::new("divide").with_arguments(object!({
+            "dividend": 10,
+            "divisor": 2
+        }))
+    ],
+    vec![]
+)]
 #[tokio::test]
 async fn test_replayed_session(
     command: Vec<&str>,
@@ -258,7 +258,7 @@ async fn test_replayed_session(
             mcpui: true,
             host_info: None,
             elicitation_handler: None,
-            protocol_version: None,
+            protocol_version: Some(MCP_PROTOCOL_VERSION),
         },
         true,
     ));

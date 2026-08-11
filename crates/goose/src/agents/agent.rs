@@ -73,7 +73,7 @@ use goose_providers::thinking::ThinkingEffort;
 use regex::Regex;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, ContentBlock, ElicitationAction, ErrorCode, ErrorData,
-    GetPromptResult, Prompt, Tool,
+    GetPromptResult, Prompt, ProtocolVersion, Tool,
 };
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
@@ -92,6 +92,8 @@ fn provider_creation_error(error: anyhow::Error, context: impl fmt::Display) -> 
     let message = format!("{context}: {error}");
     error.context(message)
 }
+
+pub const MCP_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion::V_2025_11_25;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ToolCategory {
@@ -226,7 +228,7 @@ impl AgentConfig {
             goose_platform,
             mcp_host_info: None,
             elicitation_handler: None,
-            mcp_protocol_version: None,
+            mcp_protocol_version: Some(MCP_PROTOCOL_VERSION),
             session_name_update_tx: None,
             use_login_shell_path: None,
             is_subagent: false,
