@@ -1438,16 +1438,27 @@ fn select_mode_id(candidates: &[String], modes: Option<&SessionModeState>) -> Op
 /// Extension configs are persisted unresolved: secrets stay in the keyring behind
 /// `env_keys`, and uris/headers may still hold `${VAR}` placeholders. Resolve them
 /// before handing the servers to the downstream agent, which launches them itself
-/// and so needs the real values.
+/// and so needs the real values. An extension that fails to resolve (e.g. a stale
+/// `env_keys` entry with no stored secret) is logged and skipped rather than
+/// failing the whole provider build, matching how the local extension path
+/// contains load errors to the one extension.
 pub async fn resolve_extension_configs_to_mcp_servers(
     configs: Vec<ExtensionConfig>,
     config: &Config,
-) -> Result<Vec<McpServer>> {
+) -> Vec<McpServer> {
     let mut resolved = Vec::with_capacity(configs.len());
     for extension in configs {
-        resolved.push(extension.resolve(config).await?);
+        let name = extension.name();
+        match extension.resolve(config).await {
+            Ok(extension) => resolved.push(extension),
+            Err(error) => tracing::warn!(
+                extension = %name,
+                %error,
+                "skipping extension that failed to resolve; it will not be forwarded to the ACP agent"
+            ),
+        }
     }
-    Ok(extension_configs_to_mcp_servers(&resolved))
+    extension_configs_to_mcp_servers(&resolved)
 }
 
 fn extension_configs_to_mcp_servers(configs: &[ExtensionConfig]) -> Vec<McpServer> {
@@ -2656,8 +2667,7 @@ mod tests {
             ],
             &config,
         )
-        .await
-        .unwrap();
+        .await;
 
         let McpServer::Stdio(stdio) = &servers[0] else {
             panic!("expected stdio server");
@@ -2670,6 +2680,53 @@ mod tests {
             panic!("expected http server");
         };
         assert_eq!(http.headers[0].value, "Bearer ghp_xxxxxxxxxxxx");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_extension_configs_to_mcp_servers_skips_unresolvable() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config::new_with_file_secrets(
+            dir.path().join("config.yaml"),
+            dir.path().join("secrets.yaml"),
+        )
+        .unwrap();
+
+        let servers = resolve_extension_configs_to_mcp_servers(
+            vec![
+                ExtensionConfig::Stdio {
+                    name: "missing-secret".into(),
+                    description: String::new(),
+                    cmd: "/path/to/server".into(),
+                    args: vec![],
+                    envs: Envs::default(),
+                    env_keys: vec!["NEVER_STORED_KEY".into()],
+                    timeout: None,
+                    cwd: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+                ExtensionConfig::Stdio {
+                    name: "resolvable".into(),
+                    description: String::new(),
+                    cmd: "/path/to/server".into(),
+                    args: vec![],
+                    envs: Envs::default(),
+                    env_keys: vec![],
+                    timeout: None,
+                    cwd: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+            ],
+            &config,
+        )
+        .await;
+
+        assert_eq!(servers.len(), 1);
+        let McpServer::Stdio(stdio) = &servers[0] else {
+            panic!("expected stdio server");
+        };
+        assert_eq!(stdio.name, "resolvable");
     }
 
     #[test]

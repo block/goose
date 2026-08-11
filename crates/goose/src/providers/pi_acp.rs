@@ -78,7 +78,7 @@ impl ProviderDef for PiAcpProvider {
                 env: vec![],
                 env_remove: vec![],
                 work_dir: working_dir,
-                mcp_servers: resolve_extension_configs_to_mcp_servers(extensions, config).await?,
+                mcp_servers: resolve_extension_configs_to_mcp_servers(extensions, config).await,
                 session_mode_id: None,
                 session_config_options,
                 model_config_option_id: Some("model".to_string()),
