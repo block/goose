@@ -412,20 +412,7 @@ struct ResolvedTool {
     resource_uri: Option<String>,
 }
 
-fn clone_command(command: &Command) -> Command {
-    let command = command.as_std();
-    let mut cloned = Command::new(command.get_program());
-    cloned.args(command.get_args()).env_clear().envs(
-        command
-            .get_envs()
-            .filter_map(|(key, value)| value.map(|value| (key, value))),
-    );
-    if let Some(current_dir) = command.get_current_dir() {
-        cloned.current_dir(current_dir);
-    }
-    cloned
-}
-
+#[allow(clippy::too_many_arguments)]
 async fn child_process_client(
     mut command: Command,
     timeout: &Option<u64>,
