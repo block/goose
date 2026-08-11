@@ -33,7 +33,7 @@ use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex};
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 
 use crate::acp::{map_permission_response, PermissionDecision};
-use crate::config::{ExtensionConfig, GooseMode};
+use crate::config::{Config, ExtensionConfig, GooseMode};
 use crate::context_mgmt::format_message_for_compacting;
 use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
 use crate::conversation::Conversation;
@@ -1435,7 +1435,22 @@ fn select_mode_id(candidates: &[String], modes: Option<&SessionModeState>) -> Op
     }
 }
 
-pub fn extension_configs_to_mcp_servers(configs: &[ExtensionConfig]) -> Vec<McpServer> {
+/// Extension configs are persisted unresolved: secrets stay in the keyring behind
+/// `env_keys`, and uris/headers may still hold `${VAR}` placeholders. Resolve them
+/// before handing the servers to the downstream agent, which launches them itself
+/// and so needs the real values.
+pub async fn resolve_extension_configs_to_mcp_servers(
+    configs: Vec<ExtensionConfig>,
+    config: &Config,
+) -> Result<Vec<McpServer>> {
+    let mut resolved = Vec::with_capacity(configs.len());
+    for extension in configs {
+        resolved.push(extension.resolve(config).await?);
+    }
+    Ok(extension_configs_to_mcp_servers(&resolved))
+}
+
+fn extension_configs_to_mcp_servers(configs: &[ExtensionConfig]) -> Vec<McpServer> {
     let mut servers = Vec::new();
 
     for config in configs {
@@ -2595,6 +2610,66 @@ mod tests {
                 _ => panic!("server type mismatch"),
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_resolve_extension_configs_to_mcp_servers_fills_in_secrets() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config::new_with_file_secrets(
+            dir.path().join("config.yaml"),
+            dir.path().join("secrets.yaml"),
+        )
+        .unwrap();
+        config
+            .set("GITHUB_TOKEN", &"ghp_xxxxxxxxxxxx", true)
+            .unwrap();
+
+        let servers = resolve_extension_configs_to_mcp_servers(
+            vec![
+                ExtensionConfig::Stdio {
+                    name: "github-stdio".into(),
+                    description: String::new(),
+                    cmd: "/path/to/github-mcp-server".into(),
+                    args: vec![],
+                    envs: Envs::default(),
+                    env_keys: vec!["GITHUB_TOKEN".into()],
+                    timeout: None,
+                    cwd: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+                ExtensionConfig::StreamableHttp {
+                    name: "github-http".into(),
+                    description: String::new(),
+                    uri: "https://api.githubcopilot.com/mcp/".into(),
+                    envs: Envs::default(),
+                    env_keys: vec!["GITHUB_TOKEN".into()],
+                    headers: HashMap::from([(
+                        "Authorization".into(),
+                        "Bearer ${GITHUB_TOKEN}".into(),
+                    )]),
+                    timeout: None,
+                    socket: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+            ],
+            &config,
+        )
+        .await
+        .unwrap();
+
+        let McpServer::Stdio(stdio) = &servers[0] else {
+            panic!("expected stdio server");
+        };
+        assert_eq!(stdio.env.len(), 1);
+        assert_eq!(stdio.env[0].name, "GITHUB_TOKEN");
+        assert_eq!(stdio.env[0].value, "ghp_xxxxxxxxxxxx");
+
+        let McpServer::Http(http) = &servers[1] else {
+            panic!("expected http server");
+        };
+        assert_eq!(http.headers[0].value, "Bearer ghp_xxxxxxxxxxxx");
     }
 
     #[test]
