@@ -7,6 +7,7 @@ import type { GooseExtension, GooseExtensionEntry } from '@aaif/goose-sdk';
 import { getConfiguredGooseExtensions } from '../acp/extensions';
 import { acpChatSessionController } from '../acp/chatSessionController';
 import { beginConfiguredRecipeParameterScope } from '../acp/recipeParamRequests';
+import { getAcpFeatureCapabilities } from '../acp/capabilities';
 
 vi.mock('../acp/extensions', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../acp/extensions')>();
@@ -24,6 +25,10 @@ vi.mock('../acp/chatSessionController', () => ({
 
 vi.mock('../acp/recipeParamRequests', () => ({
   beginConfiguredRecipeParameterScope: vi.fn(),
+}));
+
+vi.mock('../acp/capabilities', () => ({
+  getAcpFeatureCapabilities: vi.fn(),
 }));
 
 const testSession: Session = {
@@ -61,6 +66,7 @@ const gooseExtensionEntry = (name: string): GooseExtensionEntry => ({
 const mockedGetConfiguredGooseExtensions = vi.mocked(getConfiguredGooseExtensions);
 const mockedCreateAcpSession = vi.mocked(acpChatSessionController.createSession);
 const mockedBeginConfiguredRecipeParameterScope = vi.mocked(beginConfiguredRecipeParameterScope);
+const mockedGetAcpFeatureCapabilities = vi.mocked(getAcpFeatureCapabilities);
 const finishConfiguredRecipeParameterScope = vi.fn();
 
 describe('createSession ACP session extensions', () => {
@@ -77,6 +83,11 @@ describe('createSession ACP session extensions', () => {
     mockedBeginConfiguredRecipeParameterScope.mockReturnValue({
       id: 'scope-1',
       finish: finishConfiguredRecipeParameterScope,
+    });
+    mockedGetAcpFeatureCapabilities.mockReset();
+    mockedGetAcpFeatureCapabilities.mockResolvedValue({
+      localInference: false,
+      recipeParameterScopes: true,
     });
   });
 
@@ -154,6 +165,22 @@ describe('createSession ACP session extensions', () => {
     ).rejects.toThrow('extension lookup failed');
 
     expect(mockedBeginConfiguredRecipeParameterScope).toHaveBeenCalledOnce();
+    expect(mockedCreateAcpSession).not.toHaveBeenCalled();
+    expect(finishConfiguredRecipeParameterScope).toHaveBeenCalledOnce();
+  });
+
+  it('reports incompatible Goose servers before sending scoped parameters', async () => {
+    mockedGetAcpFeatureCapabilities.mockResolvedValueOnce({
+      localInference: false,
+      recipeParameterScopes: false,
+    });
+
+    await expect(
+      createSession('/tmp', { recipeDeeplink: 'goose://recipe?url=example' })
+    ).rejects.toThrow(
+      'The connected Goose server does not support securely scoped deeplink recipe parameters. Update the server and try again.'
+    );
+
     expect(mockedCreateAcpSession).not.toHaveBeenCalled();
     expect(finishConfiguredRecipeParameterScope).toHaveBeenCalledOnce();
   });
