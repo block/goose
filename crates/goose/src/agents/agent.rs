@@ -331,6 +331,10 @@ fn agent_visible_message_text(message: &Message) -> String {
     message.agent_visible_content().as_concat_text()
 }
 
+fn user_visible_message_text(message: &Message) -> String {
+    message.user_visible_content().as_concat_text()
+}
+
 fn attach_turn_usage(
     messages: &mut Conversation,
     usage: &ProviderUsage,
@@ -1886,7 +1890,8 @@ impl Agent {
         }
 
         if super::state_machine::enabled()
-            || super::state_machine::bang_shell_command(&message_text_for_trace).is_some()
+            || super::state_machine::bang_shell_command(&user_visible_message_text(&user_message))
+                .is_some()
         {
             tracing::info!("dispatching reply via experimental state machine");
             return self

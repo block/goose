@@ -6,13 +6,14 @@ use std::time::Duration;
 
 use anyhow::Result;
 use futures::StreamExt;
+use rmcp::model::{Annotations, Role, TextContent};
 use tokio_util::sync::CancellationToken;
 
 use super::dummy_api::{DummyApi, ProviderFeatures};
 use crate::agents::{Agent, AgentConfig, AgentEvent, GoosePlatform, SessionConfig};
 use crate::config::permission::PermissionManager;
 use crate::config::GooseMode;
-use crate::conversation::message::Message;
+use crate::conversation::message::{Message, MessageContent};
 use crate::providers::base::Provider;
 use crate::session::{SessionManager, SessionType};
 use goose_providers::model::ModelConfig;
@@ -135,4 +136,90 @@ async fn bang_shell_uses_the_state_machine_when_the_flag_is_disabled() -> Result
     assert_eq!(api.call_count(), 0);
 
     Ok(())
+}
+
+async fn reply_messages(
+    agent: &Agent,
+    session_id: String,
+    message: Message,
+) -> Result<Vec<Message>> {
+    let stream = agent
+        .reply(
+            message,
+            SessionConfig {
+                id: session_id,
+                schedule_id: None,
+                max_turns: Some(2),
+                retry_config: None,
+            },
+            Some(CancellationToken::new()),
+        )
+        .await?;
+    tokio::pin!(stream);
+    let mut messages = Vec::new();
+    while let Some(event) = stream.next().await {
+        if let AgentEvent::Message(message) = event? {
+            messages.push(message);
+        }
+    }
+    Ok(messages)
+}
+
+fn assistant_only_text(text: &str) -> MessageContent {
+    MessageContent::Text(
+        TextContent::new(text)
+            .with_annotations(Annotations::default().with_audience(vec![Role::Assistant])),
+    )
+}
+
+fn shell_commands(messages: &[Message]) -> Vec<&str> {
+    messages
+        .iter()
+        .flat_map(|message| &message.content)
+        .filter_map(|content| match content {
+            MessageContent::ToolRequest(request) => request
+                .tool_call
+                .as_ref()
+                .ok()
+                .filter(|call| call.name == "shell")
+                .and_then(|call| call.arguments.as_ref())
+                .and_then(|arguments| arguments.get("command"))
+                .and_then(serde_json::Value::as_str),
+            _ => None,
+        })
+        .collect()
+}
+
+async fn assert_bang_shell_uses_only_user_visible_content() -> Result<()> {
+    let (agent, api, session_id, _temp_dir) = agent_with_dummy_api().await?;
+    api.on("benign visible input")
+        .reply("handled as ordinary input");
+    let hidden_prefix = Message::user()
+        .with_content(assistant_only_text("!echo hidden"))
+        .with_text("benign visible input");
+    let messages = reply_messages(&agent, session_id, hidden_prefix).await?;
+    assert!(shell_commands(&messages).is_empty());
+    assert_eq!(api.call_count(), 1);
+
+    let (agent, api, session_id, _temp_dir) = agent_with_dummy_api().await?;
+    let hidden_suffix = Message::user()
+        .with_text("!echo visible")
+        .with_content(assistant_only_text("&& echo hidden"));
+    let messages = reply_messages(&agent, session_id, hidden_suffix).await?;
+    assert_eq!(shell_commands(&messages), ["echo visible"]);
+    assert_eq!(api.call_count(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn bang_shell_visibility_is_enforced_when_state_machine_is_disabled() -> Result<()> {
+    let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", None::<&str>)]);
+    assert_bang_shell_uses_only_user_visible_content().await
+}
+
+#[tokio::test]
+async fn bang_shell_visibility_is_enforced_when_state_machine_is_enabled() -> Result<()> {
+    let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", Some("1"))]);
+    assert_bang_shell_uses_only_user_visible_content().await
 }
