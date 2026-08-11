@@ -45,9 +45,18 @@ pub struct RemoveSessionExtensionRequest {
     pub name: String,
 }
 
-/// Rebuild the session's provider with its current provider and model so
-/// extension changes reach providers that forward extensions to a downstream
-/// session (e.g. ACP harness providers like claude-acp and codex-acp).
+/// Recreate the session's provider, keeping its current provider and model,
+/// so that the session's current extension list takes effect.
+///
+/// Useful after adding or removing session extensions when the provider
+/// forwards extensions to a downstream session (ACP harness providers such as
+/// claude-acp and codex-acp). Those providers snapshot the extension list when
+/// they are built, so extension changes only reach them on rebuild: the
+/// provider is replaced with a new instance whose downstream session is
+/// created with the updated extension list.
+///
+/// Providers that don't forward extensions pick up extension changes
+/// immediately; for them this call is not required.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/session/extensions/apply", response = EmptyResponse)]
 #[serde(rename_all = "camelCase")]
