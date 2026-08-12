@@ -11,7 +11,7 @@ use crate::agents::final_output_tool::{
     FinalOutputTool, FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
 };
 use crate::agents::state_machine::ops_toolcalling::{
-    pending_tool_requests, tool_span, ToolDisposition,
+    emit_post_tool_use, pending_tool_requests, run_pre_tool_hooks, tool_span, ToolDisposition,
 };
 use crate::agents::state_machine::{
     applied, ends_turn, last_effective_role, messages_since_kickoff, not_applicable, yielded_with,
@@ -19,11 +19,18 @@ use crate::agents::state_machine::{
 };
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{Conversation, EffectiveRole};
+use crate::hooks::HookManager;
 use crate::session::Session;
 
-pub struct RecipeOperation;
+pub struct RecipeOperation {
+    hook_manager: HookManager,
+}
 
 impl RecipeOperation {
+    pub fn new(hook_manager: HookManager) -> Self {
+        Self { hook_manager }
+    }
+
     fn final_output(session: &Session) -> Result<Option<FinalOutputTool>> {
         session
             .recipe
@@ -204,11 +211,53 @@ impl Operation<Session, GooseEffect> for RecipeOperation {
                 .tool_call
                 .map_err(|error| anyhow!("final output tool call could not be parsed: {error}"))?;
             let span = tool_span(&tool_call.name, &request.id, &session.id);
-            let result = final_output
-                .execute_tool_call(tool_call)
-                .instrument(span.clone())
-                .await;
-            let output = result.result.instrument(span.clone()).await;
+            // `recipe__final_output` is executed here rather than by
+            // ToolExecutionOperation, which is registered after this one. Run the
+            // same hook lifecycle it would have run, so the state machine and the
+            // legacy loop agree on what a final-output call emits.
+            let tool_input = tool_call
+                .arguments
+                .as_ref()
+                .map(|arguments| serde_json::Value::Object(arguments.clone()));
+            let output = match run_pre_tool_hooks(
+                &self.hook_manager,
+                session,
+                &request.id,
+                &tool_call.name,
+                tool_input.as_ref(),
+            )
+            .instrument(span.clone())
+            .await
+            {
+                // A denial returns before execution and emits no post event, the
+                // same shape ToolExecutionOperation has: its dispatch returns the
+                // denial before the post-hook wrapper is ever applied.
+                Err(denial) => Err(denial),
+                Ok(()) => {
+                    let result = final_output
+                        .execute_tool_call(tool_call.clone())
+                        .instrument(span.clone())
+                        .await;
+                    let output = result.result.instrument(span.clone()).await;
+                    // Post event carries the same tool_call_id as the pre events.
+                    // The large-response rewrite ToolExecutionOperation applies is
+                    // deliberately not reused: the recipe's structured output is
+                    // the deliverable, not a payload to offload to a temp file.
+                    emit_post_tool_use(
+                        &self.hook_manager,
+                        &session.id,
+                        &session.working_dir.to_string_lossy(),
+                        &tool_call.name,
+                        &request.id,
+                        tool_input.as_ref(),
+                        &output,
+                    )
+                    .instrument(span.clone())
+                    .await;
+                    output
+                }
+            };
+
             match &output {
                 Ok(result) if result.is_error == Some(true) => {
                     span.record("error.type", "tool_error");

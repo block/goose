@@ -144,7 +144,7 @@ impl TestPipeline {
             Arc::new(DoctorOperation),
             Arc::new(ProjectOperation),
             Arc::new(SkillOperation),
-            Arc::new(RecipeOperation),
+            Arc::new(RecipeOperation::new(self.hook_manager.clone())),
             Arc::new(ToolExecutionOperation::new(
                 &self.goose_mode,
                 self.extension_manager.clone(),

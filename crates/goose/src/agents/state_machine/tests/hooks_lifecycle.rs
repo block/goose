@@ -2,6 +2,7 @@ use anyhow::Result;
 
 use super::calculator_extension::{value, ADD};
 use super::pipeline::{test_pipeline, MessageKind::Agent, MessageKind::ToolResponse, MAX_TURNS};
+use crate::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME;
 use crate::agents::state_machine::ops_stop_hook::DENIED;
 use crate::conversation::message::{MessageContent, SystemNotificationType};
 
@@ -366,5 +367,168 @@ async fn pre_tool_use_result_reports_allow_and_unevaluated_when_no_hook_matches(
     assert_eq!(results[0]["policy_evaluated"], false);
     assert!(results[0].get("blocked_by").is_none());
     assert!(results[0].get("reason").is_none());
+    Ok(())
+}
+
+/// Builds a recipe whose structured response forces the model through
+/// `recipe__final_output`, which `RecipeOperation` executes itself rather than
+/// handing to `ToolExecutionOperation`.
+fn final_output_recipe() -> crate::recipe::Recipe {
+    crate::recipe::Recipe::builder()
+        .title("Hook parity recipe")
+        .description("Exercises the final-output hook lifecycle")
+        .instructions("Return a structured answer")
+        .response(crate::recipe::Response {
+            json_schema: Some(serde_json::json!({
+                "type": "object",
+                "properties": { "answer": { "type": "string" } },
+                "required": ["answer"]
+            })),
+        })
+        .build()
+        .expect("valid recipe")
+}
+
+/// recipe final-output parity: the call `RecipeOperation` executes directly still
+/// emits `PreToolUse` and `PreToolUseResult`, correlated by one `tool_call_id`.
+#[tokio::test]
+async fn recipe_final_output_emits_pre_tool_use_and_result_with_matching_id() -> Result<()> {
+    let env = RecordingHookEnv::new(&[
+        ("PreToolUse", "", "pre.sh", RECORD_PRE_SCRIPT),
+        ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+    ]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(env.hook_manager());
+    pipeline.set_recipe(final_output_recipe()).await?;
+    api.on("produce the answer").call(
+        FINAL_OUTPUT_TOOL_NAME,
+        serde_json::json!({ "answer": "done" }),
+    );
+
+    pipeline.run(["produce the answer"]).await?;
+
+    let pres = env.payloads("pre.log");
+    let results = env.payloads("result.log");
+    assert_eq!(
+        pres.len(),
+        1,
+        "PreToolUse must fire for recipe final output"
+    );
+    assert_eq!(
+        results.len(),
+        1,
+        "PreToolUseResult must fire for recipe final output"
+    );
+    assert_eq!(pres[0]["tool_name"], FINAL_OUTPUT_TOOL_NAME);
+    assert_eq!(results[0]["tool_name"], FINAL_OUTPUT_TOOL_NAME);
+    assert_eq!(results[0]["event"], "PreToolUseResult");
+    assert_eq!(results[0]["decision"], "allow");
+    assert_eq!(
+        pres[0]["tool_call_id"], results[0]["tool_call_id"],
+        "PreToolUse and PreToolUseResult must carry the same tool_call_id"
+    );
+    assert!(pres[0]["tool_call_id"]
+        .as_str()
+        .is_some_and(|id| !id.is_empty()));
+    Ok(())
+}
+
+/// recipe final-output parity: the post-tool event fires once the call completes,
+/// carrying the id the pre events carried.
+#[tokio::test]
+async fn recipe_final_output_emits_post_tool_event() -> Result<()> {
+    let env = RecordingHookEnv::new(&[
+        ("PreToolUse", "", "pre.sh", RECORD_PRE_SCRIPT),
+        ("PostToolUse", "", "post.sh", RECORD_POST_SCRIPT),
+        (
+            "PostToolUseFailure",
+            "",
+            "postfail.sh",
+            RECORD_POST_FAILURE_SCRIPT,
+        ),
+    ]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(env.hook_manager());
+    pipeline.set_recipe(final_output_recipe()).await?;
+    api.on("produce the answer").call(
+        FINAL_OUTPUT_TOOL_NAME,
+        serde_json::json!({ "answer": "done" }),
+    );
+
+    pipeline.run(["produce the answer"]).await?;
+
+    let pres = env.payloads("pre.log");
+    let posts = env.payloads("post.log");
+    assert_eq!(pres.len(), 1);
+    assert_eq!(
+        posts.len(),
+        1,
+        "PostToolUse must fire for a successful recipe final output"
+    );
+    assert_eq!(posts[0]["event"], "PostToolUse");
+    assert_eq!(posts[0]["tool_name"], FINAL_OUTPUT_TOOL_NAME);
+    assert_eq!(
+        posts[0]["tool_call_id"], pres[0]["tool_call_id"],
+        "the post event must carry the same tool_call_id as the pre events"
+    );
+    Ok(())
+}
+
+/// recipe final-output parity: a denying hook stops the call. The final-output
+/// tool never runs, so the recipe never reports a successful structured answer,
+/// and no post event fires — the same shape a denied ordinary tool call has.
+#[tokio::test]
+async fn recipe_final_output_denied_by_hook_does_not_execute() -> Result<()> {
+    let env = RecordingHookEnv::new(&[
+        ("PreToolUse", "", "pre.sh", DENY_AND_RECORD_SCRIPT),
+        ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+        ("PostToolUse", "", "post.sh", RECORD_POST_SCRIPT),
+        (
+            "PostToolUseFailure",
+            "",
+            "postfail.sh",
+            RECORD_POST_FAILURE_SCRIPT,
+        ),
+    ]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(env.hook_manager());
+    pipeline.set_recipe(final_output_recipe()).await?;
+    api.on("produce the answer").call(
+        FINAL_OUTPUT_TOOL_NAME,
+        serde_json::json!({ "answer": "done" }),
+    );
+    api.on("denied by policy hook").reply("understood");
+    // Denied, so the recipe never gets its structured answer and re-prompts to
+    // the turn cap. Answer the compaction request that cap triggers, otherwise
+    // the dummy API panics on an unmatched rule and buries the real assertions.
+    api.on("Please summarize the conversation history")
+        .reply("summary");
+
+    let result = pipeline.run(["produce the answer"]).await?;
+
+    let results = env.payloads("result.log");
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0]["decision"], "deny");
+    assert_eq!(results[0]["blocked_by"], "test-plugin");
+    assert_eq!(results[0]["tool_name"], FINAL_OUTPUT_TOOL_NAME);
+
+    assert!(
+        env.payloads("post.log").is_empty(),
+        "PostToolUse must not fire for a denied final-output call"
+    );
+    assert!(
+        env.payloads("postfail.log").is_empty(),
+        "PostToolUseFailure must not fire for a denied final-output call"
+    );
+
+    let produced_answer = result
+        .conversation()
+        .messages()
+        .iter()
+        .any(|message| message.as_concat_text().contains("\"answer\""));
+    assert!(
+        !produced_answer,
+        "a denied final-output call must not execute the tool"
+    );
     Ok(())
 }
