@@ -158,7 +158,21 @@ impl MemoryServer {
         category: &str,
         is_global: bool,
         working_dir: Option<&PathBuf>,
-    ) -> PathBuf {
+    ) -> io::Result<PathBuf> {
+        if category.is_empty()
+            || category == "*"
+            || category == "."
+            || category == ".."
+            || category.contains('/')
+            || category.contains('\\')
+            || category.contains(':')
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "memory category must be a single filename component",
+            ));
+        }
+
         let base_dir = if is_global {
             self.global_memory_dir.clone()
         } else {
@@ -168,7 +182,7 @@ impl MemoryServer {
                 .unwrap_or_else(|| PathBuf::from("."));
             local_base.join(".goose").join("memory")
         };
-        base_dir.join(format!("{}.txt", category))
+        Ok(base_dir.join(format!("{}.txt", category)))
     }
 
     pub fn retrieve_all(
@@ -211,7 +225,7 @@ impl MemoryServer {
         is_global: bool,
         working_dir: Option<&PathBuf>,
     ) -> io::Result<()> {
-        let memory_file_path = self.get_memory_file(category, is_global, working_dir);
+        let memory_file_path = self.get_memory_file(category, is_global, working_dir)?;
 
         if let Some(parent) = memory_file_path.parent() {
             fs::create_dir_all(parent)?;
@@ -235,7 +249,7 @@ impl MemoryServer {
         is_global: bool,
         working_dir: Option<&PathBuf>,
     ) -> io::Result<HashMap<String, Vec<String>>> {
-        let memory_file_path = self.get_memory_file(category, is_global, working_dir);
+        let memory_file_path = self.get_memory_file(category, is_global, working_dir)?;
         if !memory_file_path.exists() {
             return Ok(HashMap::new());
         }
@@ -276,7 +290,7 @@ impl MemoryServer {
         is_global: bool,
         working_dir: Option<&PathBuf>,
     ) -> io::Result<()> {
-        let memory_file_path = self.get_memory_file(category, is_global, working_dir);
+        let memory_file_path = self.get_memory_file(category, is_global, working_dir)?;
         if !memory_file_path.exists() {
             return Ok(());
         }
@@ -303,7 +317,7 @@ impl MemoryServer {
         is_global: bool,
         working_dir: Option<&PathBuf>,
     ) -> io::Result<()> {
-        let memory_file_path = self.get_memory_file(category, is_global, working_dir);
+        let memory_file_path = self.get_memory_file(category, is_global, working_dir)?;
         if memory_file_path.exists() {
             fs::remove_file(memory_file_path)?;
         }
@@ -664,5 +678,96 @@ mod tests {
             .values()
             .any(|v| v.iter().any(|content| content.contains("keep_this")));
         assert!(has_kept);
+    }
+
+    #[test]
+    fn test_memory_operations_reject_escape_capable_categories() {
+        let temp_dir = tempdir().unwrap();
+        let working_dir = temp_dir.path().join("working");
+        let outside_file = temp_dir.path().join("outside.txt");
+        fs::write(&outside_file, "secret").unwrap();
+
+        let router = MemoryServer {
+            tool_router: ToolRouter::new(),
+            instructions: String::new(),
+            global_memory_dir: temp_dir.path().join("global"),
+        };
+
+        for category in [
+            "",
+            "*",
+            ".",
+            "..",
+            "../../../outside",
+            "/tmp/outside",
+            r"..\..\outside",
+            "C:outside",
+            r"C:\outside",
+        ] {
+            assert_eq!(
+                router
+                    .remember(
+                        "context",
+                        category,
+                        "malicious",
+                        &[],
+                        false,
+                        Some(&working_dir)
+                    )
+                    .unwrap_err()
+                    .kind(),
+                io::ErrorKind::InvalidInput
+            );
+            assert_eq!(
+                router
+                    .retrieve(category, false, Some(&working_dir))
+                    .unwrap_err()
+                    .kind(),
+                io::ErrorKind::InvalidInput
+            );
+            assert_eq!(
+                router
+                    .remove_specific_memory_internal(category, "secret", false, Some(&working_dir),)
+                    .unwrap_err()
+                    .kind(),
+                io::ErrorKind::InvalidInput
+            );
+            assert_eq!(
+                router
+                    .clear_memory(category, false, Some(&working_dir))
+                    .unwrap_err()
+                    .kind(),
+                io::ErrorKind::InvalidInput
+            );
+        }
+
+        assert_eq!(fs::read_to_string(outside_file).unwrap(), "secret");
+        assert!(!working_dir.join(".goose").exists());
+    }
+
+    #[test]
+    fn test_memory_category_allows_safe_filename_characters() {
+        let temp_dir = tempdir().unwrap();
+        let working_dir = temp_dir.path().join("working");
+        let router = MemoryServer {
+            tool_router: ToolRouter::new(),
+            instructions: String::new(),
+            global_memory_dir: temp_dir.path().join("global"),
+        };
+
+        router
+            .remember(
+                "context",
+                "project notes_2026",
+                "safe",
+                &[],
+                false,
+                Some(&working_dir),
+            )
+            .unwrap();
+
+        assert!(working_dir
+            .join(".goose/memory/project notes_2026.txt")
+            .is_file());
     }
 }
