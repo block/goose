@@ -1642,9 +1642,7 @@ fn effective_max_tokens_for_reasoning(
     // no headroom to reserve a thinking budget — topping up would push the
     // request past the model's hard cap. Skip the top-up, mirroring the
     // Responses-API exemption above.
-    if provider_output_cap(&model_config.model_name)
-        .is_some_and(|cap| base_max_tokens >= cap)
-    {
+    if provider_output_cap(&model_config.model_name).is_some_and(|cap| base_max_tokens >= cap) {
         return base_max_tokens;
     }
     base_max_tokens.max(MIN_ANSWER_TOKENS) + thinking_budget_for_effort(effort)
