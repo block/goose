@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   acpAuthenticateProvider,
   acpRefreshProviderDetails,
@@ -170,7 +170,7 @@ function AcpProviderForm({
   const setupSteps = provider.metadata.setup_steps ?? [];
   const canContinue = status.is_configured && connectionChecked && !readinessError;
 
-  const check = async () => {
+  const check = useCallback(async () => {
     setIsChecking(true);
     try {
       const result = await acpRefreshProviderDetails(provider.name);
@@ -182,7 +182,11 @@ function AcpProviderForm({
     } finally {
       setIsChecking(false);
     }
-  };
+  }, [onError, provider.name]);
+
+  useEffect(() => {
+    void check();
+  }, [check]);
 
   return (
     <div className="space-y-4">
