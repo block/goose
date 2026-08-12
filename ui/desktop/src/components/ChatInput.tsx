@@ -17,6 +17,7 @@ import { AlertType, useAlerts } from './alerts';
 import { useModelAndProvider } from './ModelAndProviderContext';
 import { acpListProviderDetails } from '../acp/providers';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
+import { useFocusOnTyping } from '../hooks/useFocusOnTyping';
 import { toastError } from '../toasts';
 import MentionPopover, { DisplayItemWithMatch } from './MentionPopover';
 import { COST_TRACKING_ENABLED } from '../updates';
@@ -573,6 +574,8 @@ export default function ChatInput({
       textAreaRef.current.focus();
     }
   }, [textAreaRef]);
+
+  useFocusOnTyping(textAreaRef, !isRecording);
 
   // Load providers and get current model's token limit
   const loadProviderDetails = async () => {
