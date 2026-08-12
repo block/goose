@@ -1621,8 +1621,9 @@ fn thinking_budget_for_effort(effort: ThinkingEffort) -> i32 {
 /// reasoning inside the completion cap, and inflating it risks exceeding the
 /// model's hard output cap. The chat `max_tokens` path applies the same
 /// caution: when the base budget is already at (or beyond) the provider's
-/// advertised output cap, the top-up is skipped so the request never exceeds
-/// the model's hard cap.
+/// advertised output cap the top-up is skipped, and when a top-up would push
+/// the total past the cap it is clamped so the request never exceeds the
+/// model's hard cap.
 fn effective_max_tokens_for_reasoning(
     model_config: &ModelConfig,
     base_max_tokens: i32,
@@ -1637,15 +1638,23 @@ fn effective_max_tokens_for_reasoning(
     if effort == ThinkingEffort::Off {
         return base_max_tokens;
     }
+    let Some(cap) = provider_output_cap(&model_config.model_name) else {
+        // Unknown model (e.g. local llama.cpp / vLLM / Ollama): keep the
+        // existing thinking top-up.
+        return base_max_tokens.max(MIN_ANSWER_TOKENS) + thinking_budget_for_effort(effort);
+    };
     // When the base max_tokens is already at (or beyond) the provider's
     // advertised output cap (e.g. x-ai/grok-4.3, limit.output 30000), there is
     // no headroom to reserve a thinking budget — topping up would push the
     // request past the model's hard cap. Skip the top-up, mirroring the
     // Responses-API exemption above.
-    if provider_output_cap(&model_config.model_name).is_some_and(|cap| base_max_tokens >= cap) {
+    if base_max_tokens >= cap {
         return base_max_tokens;
     }
-    base_max_tokens.max(MIN_ANSWER_TOKENS) + thinking_budget_for_effort(effort)
+    // Below the cap: reserve a thinking budget, but clamp the total so the
+    // request never exceeds the model's hard cap (e.g. GOOSE_MAX_TOKENS=20000
+    // + High effort on grok-4.3 must yield 30000, not 36384).
+    (base_max_tokens.max(MIN_ANSWER_TOKENS) + thinking_budget_for_effort(effort)).min(cap)
 }
 
 /// Best-effort resolution of a model's advertised max output tokens
@@ -3073,6 +3082,33 @@ mod tests {
         assert!(obj.get("thinking_effort").is_none());
 
         Ok(())
+    }
+
+    #[test]
+    fn test_thinking_budget_topup_is_clamped_to_provider_cap() {
+        // Regression for the review on #11145: when the base budget is below the
+        // provider's advertised output cap but the thinking top-up would push it
+        // over (e.g. GOOSE_MAX_TOKENS=20000 + High effort on x-ai/grok-4.3,
+        // whose cap is 30000), the total must be clamped to the cap instead of
+        // sending an out-of-cap max_tokens.
+        let cap = provider_output_cap("grok-4.3").expect("grok-4.3 resolves to a canonical cap");
+        assert_eq!(cap, 30_000, "x-ai/grok-4.3 advertised output cap");
+
+        // Base below the cap: the top-up is attempted but clamped so the request
+        // never exceeds the model's hard cap.
+        let model_config =
+            test_model_config("grok-4.3").with_thinking_effort(ThinkingEffort::High);
+        assert_eq!(effective_max_tokens_for_reasoning(&model_config, 20_000, false), cap);
+
+        // Base already at the cap: no headroom, the top-up is skipped.
+        assert_eq!(effective_max_tokens_for_reasoning(&model_config, cap, false), cap);
+
+        // Plenty of headroom: the normal top-up is preserved.
+        let low = test_model_config("grok-4.3").with_thinking_effort(ThinkingEffort::Low);
+        assert_eq!(
+            effective_max_tokens_for_reasoning(&low, 1_000, false),
+            MIN_ANSWER_TOKENS + thinking_budget_for_effort(ThinkingEffort::Low)
+        );
     }
 
     struct StreamingUsageTestResult {
