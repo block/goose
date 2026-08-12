@@ -185,7 +185,7 @@ pub fn is_context_length_exceeded_message(text: &str) -> bool {
         "content length",
         "request size",
         "payload size",
-        "request body",
+        "request body size",
         "body size",
     ]
     .iter()
