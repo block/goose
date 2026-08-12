@@ -18,7 +18,6 @@ tokio::task_local! {
     static DEVICE_CODE_ANNOUNCE: Box<dyn Fn(String, String, u64) + Send + Sync>;
 }
 
-/// Run `fut` with a custom device-code announce callback active for its duration.
 pub async fn with_device_code_announce<F, T>(
     announce: Box<dyn Fn(String, String, u64) + Send + Sync>,
     fut: F,
@@ -339,12 +338,12 @@ async fn send_request<T: Serialize + ?Sized>(
 
 fn announce_user_action(device: &DeviceCodeResponse) {
     let verify_url = device.verification_url().to_string();
-    let expires_in = device
-        .expires_in
-        .unwrap_or(DEFAULT_DEVICE_CODE_LIFETIME_SECS);
 
     if DEVICE_CODE_ANNOUNCE
-        .try_with(|f| f(device.user_code.clone(), verify_url.clone(), expires_in))
+        .try_with(|f| {
+            let expires_in = device.expires_in.unwrap_or(DEFAULT_DEVICE_CODE_LIFETIME_SECS);
+            f(device.user_code.clone(), verify_url.clone(), expires_in)
+        })
         .is_ok()
     {
         return;

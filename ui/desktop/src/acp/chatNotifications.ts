@@ -46,6 +46,10 @@ function maybeHandleLivePlatformEvent(notification: SessionNotification): void {
 export function handleAcpGooseSessionNotification(
   notification: GooseSessionNotification_unstable
 ): Promise<void> {
+  if (notification.update.sessionUpdate === 'device_code_update') {
+    window.dispatchEvent(new CustomEvent('goose:device-code', { detail: notification.update }));
+    return Promise.resolve();
+  }
   acpChatSessionActions.applyAcpGooseSessionNotification(notification);
   return Promise.resolve();
 }
