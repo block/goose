@@ -29,23 +29,37 @@ fn truncate_with_ellipsis(s: &str, max_len: usize) -> String {
     }
 }
 
+// Plain String rather than `ExtensionError`: the only variant this function
+// ever constructs is `ConfigError(String)`, but clippy's `result_large_err`
+// sizes an error type by its largest variant, and `ExtensionError` carries a
+// `ClientError`/`ClientInitializeError` far past the 128-byte default
+// threshold. Callers wrap this back into `ExtensionError::ConfigError`.
 fn disambiguate_stdio_extension_names(
     extensions: &mut [(String, ExtensionConfig)],
     renameable: &HashSet<usize>,
-) -> Result<(), ExtensionError> {
+) -> Result<(), String> {
     let mut counts: HashMap<String, usize> = HashMap::new();
-    for (_, config) in extensions.iter() {
-        *counts.entry(config.key()).or_default() += 1;
+    // Only entries the caller marked fixed (explicitly named, or not a CLI
+    // stdio extension at all) can make this an error — a fixed name colliding
+    // with a renameable one is exactly the case the loop below resolves by
+    // renaming the renameable side, not a real conflict.
+    let mut fixed_counts: HashMap<String, usize> = HashMap::new();
+    for (idx, (_, config)) in extensions.iter().enumerate() {
+        let key = config.key();
+        *counts.entry(key.clone()).or_default() += 1;
+        if !renameable.contains(&idx) {
+            *fixed_counts.entry(key).or_default() += 1;
+        }
     }
 
     let duplicate_fixed_names = extensions.iter().enumerate().find(|(index, (_, config))| {
-        !renameable.contains(index) && counts.get(&config.key()).copied().unwrap_or(0) > 1
+        !renameable.contains(index) && fixed_counts.get(&config.key()).copied().unwrap_or(0) > 1
     });
     if let Some((_, (_, config))) = duplicate_fixed_names {
-        return Err(ExtensionError::ConfigError(format!(
+        return Err(format!(
             "extension name '{}' is already in use",
             config.name()
-        )));
+        ));
     }
 
     let mut taken: HashSet<String> = counts.keys().cloned().collect();
@@ -618,7 +632,8 @@ async fn collect_extension_configs(
             .into_iter()
             .map(|(label, config, _)| (label, config)),
     );
-    disambiguate_stdio_extension_names(&mut all, &renameable)?;
+    disambiguate_stdio_extension_names(&mut all, &renameable)
+        .map_err(ExtensionError::ConfigError)?;
 
     Ok(all.into_iter().map(|(_, config)| config).collect())
 }
@@ -970,6 +985,35 @@ mod tests {
         disambiguate_stdio_extension_names(&mut extensions, &HashSet::from([1])).unwrap();
         assert_eq!(extensions[0].1.name(), "npx");
         assert_eq!(extensions[1].1.name(), "npx_cli-server");
+    }
+
+    #[test]
+    fn test_fixed_counted_per_key_not_globally() {
+        // `duplicate_fixed_names` must count *fixed entries sharing a key*,
+        // not "is there more than one fixed entry at all" -- otherwise a
+        // fixed entry with a unique name, sitting alongside a fixed+renameable
+        // collision on a different key, would wrongly trip the same error.
+        let mut extensions = vec![
+            (
+                "configured a".to_string(),
+                // Fixed, name "word" -- unique, no collision with anything.
+                CliSession::parse_stdio_extension("word:npx server-a").unwrap(),
+            ),
+            (
+                "configured b".to_string(),
+                // Fixed, name "npx" -- collides with the renameable entry below.
+                CliSession::parse_stdio_extension("npx server-b").unwrap(),
+            ),
+            (
+                "cli".to_string(),
+                // Renameable, also defaults to "npx".
+                CliSession::parse_stdio_extension("npx cli-server").unwrap(),
+            ),
+        ];
+        disambiguate_stdio_extension_names(&mut extensions, &HashSet::from([2])).unwrap();
+        assert_eq!(extensions[0].1.name(), "word");
+        assert_eq!(extensions[1].1.name(), "npx");
+        assert_eq!(extensions[2].1.name(), "npx_cli-server");
     }
 
     #[test]
