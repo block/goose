@@ -20,6 +20,25 @@ use std::{
 
 const WORKING_DIR_HEADER: &str = "agent-working-dir";
 
+fn is_reserved_windows_category(category: &str) -> bool {
+    let basename = category
+        .split('.')
+        .next()
+        .unwrap_or(category)
+        .trim_end_matches([' ', '.']);
+    let uppercase = basename.to_ascii_uppercase();
+
+    matches!(uppercase.as_str(), "CON" | "PRN" | "AUX" | "NUL" | "CLOCK$")
+        || ["COM", "LPT"].iter().any(|prefix| {
+            uppercase.strip_prefix(prefix).is_some_and(|suffix| {
+                matches!(
+                    suffix,
+                    "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³"
+                )
+            })
+        })
+}
+
 fn extract_working_dir_from_meta(meta: &MetaObject) -> Option<PathBuf> {
     meta.0
         .get(WORKING_DIR_HEADER)
@@ -166,6 +185,7 @@ impl MemoryServer {
             || category.contains('/')
             || category.contains('\\')
             || category.contains(':')
+            || is_reserved_windows_category(category)
         {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -715,6 +735,11 @@ mod tests {
             r"..\..\outside",
             "C:outside",
             r"C:\outside",
+            "NUL",
+            "con",
+            "AUX.log",
+            "COM1",
+            "lpt9",
         ] {
             assert_eq!(
                 router
