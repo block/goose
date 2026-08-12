@@ -175,6 +175,25 @@ pub fn is_context_length_exceeded_message(text: &str) -> bool {
         .iter()
         .any(|phrase| text_lower.contains(phrase));
 
+    // Gateways/proxies in front of a provider often cap the request *body* in
+    // bytes (not tokens) and return 400 rather than 413 when it is exceeded.
+    // Image-heavy sessions pass every token check yet blow through such a byte
+    // cap, so recognize byte-size phrasings and route them to the same
+    // context-length-exceeded (compaction) path instead of a generic
+    // RequestFailed that leaves the session permanently stuck.
+    let mentions_byte_limit = [
+        "content length",
+        "request size",
+        "payload size",
+        "request body",
+        "body size",
+    ]
+    .iter()
+    .any(|phrase| text_lower.contains(phrase));
+    if mentions_byte_limit && mentions_overflow {
+        return true;
+    }
+
     mentions_prompt_input_tokens && mentions_limit && mentions_overflow
 }
 
