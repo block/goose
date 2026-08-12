@@ -172,6 +172,8 @@ function AcpProviderForm({
 
   const check = useCallback(async () => {
     setIsChecking(true);
+    setConnectionChecked(false);
+    setReadinessError(null);
     try {
       const result = await acpRefreshProviderDetails(provider.name);
       setStatus(result.provider);
@@ -206,7 +208,7 @@ function AcpProviderForm({
         {connectionChecked && !readinessError && (
           <div className="text-sm text-text-secondary">{intl.formatMessage(i18n.connected)}</div>
         )}
-        {status.is_configured && !connectionChecked && !readinessError && (
+        {!isChecking && status.is_configured && !connectionChecked && !readinessError && (
           <div className="text-sm text-text-secondary">
             {intl.formatMessage(i18n.connectionNotChecked)}
           </div>
@@ -231,10 +233,12 @@ function AcpProviderForm({
       )}
 
       <div className="flex gap-2">
-        <Button variant="outline" onClick={check} disabled={isChecking} className="flex-1">
-          <RefreshCw className={`mr-2 h-4 w-4 ${isChecking ? 'animate-spin' : ''}`} />
-          {intl.formatMessage(isChecking ? i18n.checking : i18n.checkAgain)}
-        </Button>
+        {!isChecking && (
+          <Button variant="outline" onClick={check} className="flex-1">
+            <RefreshCw className="mr-2 h-4 w-4" />
+            {intl.formatMessage(i18n.checkAgain)}
+          </Button>
+        )}
         {canContinue && (
           <Button onClick={() => onConfigured(status.name)} className="flex-1">
             {intl.formatMessage(i18n.continue)}
