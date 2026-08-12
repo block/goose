@@ -129,6 +129,12 @@ pub fn ensure_gh_authenticated() -> Result<()> {
 }
 
 fn temp_child_name(name: &str) -> Result<String> {
+    if !name.is_empty() && name.trim_end_matches([' ', '.']).is_empty() {
+        return Err(anyhow!(
+            "Recipe name does not map to a safe temporary directory"
+        ));
+    }
+
     let mut child = String::with_capacity(name.len());
     for ch in name.chars() {
         match ch {
@@ -142,12 +148,6 @@ fn temp_child_name(name: &str) -> Result<String> {
 
     if child.is_empty() {
         child.push('_');
-    }
-
-    if child.chars().all(|ch| ch == '.') {
-        return Err(anyhow!(
-            "Recipe name does not map to a safe temporary directory"
-        ));
     }
 
     let mut components = Path::new(&child).components();
@@ -423,7 +423,7 @@ mod tests {
     fn temp_child_path_rejects_reserved_components() {
         let parent = Path::new("goose-recipes");
 
-        for name in [".", "..", "...", "...."] {
+        for name in [".", "..", "...", "....", ". ", ".. ", ". .", ".. ."] {
             assert!(temp_child_path(parent, name).is_err(), "accepted {name}");
         }
     }
@@ -436,6 +436,7 @@ mod tests {
             ("daily-report", "daily-report"),
             ("team/weekly", "team__weekly"),
             ("../outside", "..__outside"),
+            ("daily report ", "daily_report_"),
             ("", "_"),
         ] {
             assert_eq!(temp_child_path(parent, name).unwrap(), parent.join(child));
@@ -452,7 +453,7 @@ mod tests {
         fs::write(&parent_sentinel, "keep").unwrap();
         fs::write(&child_sentinel, "keep").unwrap();
 
-        for name in [".", "..", "...", "...."] {
+        for name in [".", "..", "...", "....", ". ", ".. ", ". .", ".. ."] {
             assert!(clean_temp_child_path(&parent, name).is_err());
             assert!(parent_sentinel.exists());
             assert!(child_sentinel.exists());
