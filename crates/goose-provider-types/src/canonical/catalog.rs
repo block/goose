@@ -184,8 +184,6 @@ pub struct ProviderSetupMetadata {
     pub setup_method: ProviderSetupMethod,
     pub group: ProviderSetupGroup,
     #[serde(default)]
-    pub description: Option<String>,
-    #[serde(default)]
     pub docs_url: Option<String>,
     #[serde(default)]
     pub aliases: Vec<String>,
@@ -222,7 +220,6 @@ impl ProviderSetupMetadata {
             acp: false,
             setup_method,
             group,
-            description: None,
             docs_url: None,
             aliases: Vec::new(),
             native_connect_query: None,
@@ -254,11 +251,6 @@ impl ProviderSetupMetadata {
             ProviderSetupMethod::SingleApiKey,
             group,
         )
-    }
-
-    pub fn with_description(mut self, description: &str) -> Self {
-        self.description = Some(description.to_string());
-        self
     }
 
     pub fn with_docs_url(mut self, docs_url: &str) -> Self {
@@ -381,7 +373,7 @@ fn setup_entry_from_metadata(metadata: ProviderMetadata) -> Option<ProviderSetup
         display_name: metadata.display_name,
         category: setup.category,
         acp: setup.acp,
-        description: setup.description.unwrap_or(metadata.description),
+        description: metadata.description,
         setup_method: setup.setup_method,
         docs_url: setup
             .docs_url

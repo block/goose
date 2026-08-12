@@ -22,7 +22,6 @@ impl ProviderDescriptor for DatabricksProviderDef {
                 crate::providers::catalog::ProviderSetupMethod::HostWithOauthFallback,
                 crate::providers::catalog::ProviderSetupGroup::Default,
             )
-            .with_description("Databricks Foundation Models")
             .with_capabilities(false, true, false)
             .with_field(
                 "DATABRICKS_HOST",

@@ -38,7 +38,6 @@ impl goose_providers::base::ProviderDescriptor for CodexAcpProvider {
         .with_setup(
             ProviderSetupMetadata::cli_agent(CODEX_ACP_PROVIDER_NAME, &["codex-acp", "codex_cli", "codex"])
                 .with_acp()
-                .with_description("OpenAI's coding agent")
                 .with_docs_url("https://github.com/openai/codex")
                 .with_capabilities(true, true, true),
         )

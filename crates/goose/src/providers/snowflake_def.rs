@@ -17,7 +17,6 @@ impl ProviderDescriptor for SnowflakeProviderDef {
                 crate::providers::catalog::ProviderSetupMethod::ConfigFields,
                 crate::providers::catalog::ProviderSetupGroup::Additional,
             )
-            .with_description("Snowflake Cortex")
             .with_field(
                 "SNOWFLAKE_HOST",
                 "Host URL",

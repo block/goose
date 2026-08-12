@@ -96,7 +96,6 @@ impl goose_providers::base::ProviderDescriptor for CopilotAcpProvider {
                 &["copilot-acp", "github_copilot", "github_copilot_cli"],
             )
             .with_acp()
-            .with_description("GitHub's AI pair programmer")
             .with_docs_url("https://docs.github.com/en/copilot/github-copilot-in-the-cli")
             .with_capabilities(true, true, false),
         )

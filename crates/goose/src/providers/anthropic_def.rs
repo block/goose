@@ -19,7 +19,6 @@ impl ProviderDescriptor for AnthropicProviderDef {
             crate::providers::catalog::ProviderSetupMetadata::api_key(
                 crate::providers::catalog::ProviderSetupGroup::Default,
             )
-            .with_description("Claude models")
             .with_docs_url("https://console.anthropic.com/settings/keys"),
         )
     }

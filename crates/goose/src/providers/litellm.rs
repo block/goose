@@ -198,7 +198,6 @@ impl goose_providers::base::ProviderDescriptor for LiteLLMProvider {
                 crate::providers::catalog::ProviderSetupMethod::ConfigFields,
                 crate::providers::catalog::ProviderSetupGroup::Additional,
             )
-            .with_description("LiteLLM proxy gateway")
             .with_field(
                 "LITELLM_HOST",
                 "Host URL",

@@ -481,7 +481,6 @@ impl goose_providers::base::ProviderDescriptor for CursorAgentProvider {
                 "cursor-agent",
                 &["cursor-agent", "cursor_agent", "cursor"],
             )
-            .with_description("Cursor's AI agent")
             .with_docs_url("https://docs.cursor.com/en/cli/overview")
             .with_capabilities(true, true, true),
         )

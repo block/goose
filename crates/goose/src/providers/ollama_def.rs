@@ -28,7 +28,6 @@ impl ProviderDescriptor for OllamaProviderDef {
                 crate::providers::catalog::ProviderSetupMethod::ConfigFields,
                 crate::providers::catalog::ProviderSetupGroup::Default,
             )
-            .with_description("Run local or self-hosted models")
             .with_docs_url("https://ollama.com")
             .with_field(
                 "OLLAMA_HOST",

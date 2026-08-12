@@ -80,7 +80,6 @@ impl goose_providers::base::ProviderDescriptor for PiAcpProvider {
         .with_setup(
             ProviderSetupMetadata::cli_agent(PI_ACP_BINARY, &["pi-acp", "pi"])
                 .with_acp()
-                .with_description("Open-source AI coding agent")
                 .with_docs_url("https://github.com/badlogic/pi-mono")
                 .show_only_when_installed(),
         )

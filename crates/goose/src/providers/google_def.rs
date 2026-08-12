@@ -15,7 +15,6 @@ impl ProviderDescriptor for GoogleProviderDef {
             crate::providers::catalog::ProviderSetupMetadata::api_key(
                 crate::providers::catalog::ProviderSetupGroup::Default,
             )
-            .with_description("Gemini models")
             .with_docs_url("https://aistudio.google.com/apikey"),
         )
     }

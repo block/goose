@@ -38,7 +38,6 @@ impl goose_providers::base::ProviderDescriptor for AmpAcpProvider {
         .with_setup(
             ProviderSetupMetadata::cli_agent(AMP_ACP_BINARY, &["amp-acp", "amp"])
                 .with_acp()
-                .with_description("Sourcegraph's coding agent")
                 .with_docs_url("https://ampcode.com")
                 .with_capabilities(true, true, true),
         )
