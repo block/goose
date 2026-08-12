@@ -44,6 +44,7 @@ fn inventory_entry_to_dto(entry: ProviderInventoryEntry) -> ProviderInventoryEnt
         configured: entry.configured,
         provider_type: format!("{:?}", entry.provider_type),
         category: provider_setup_category_to_dto(entry.category),
+        acp: entry.acp,
         visible_in_setup: entry.visible_in_setup,
         deprecated: entry.deprecated,
         replacement: entry.replacement,
@@ -217,6 +218,7 @@ fn provider_setup_entry_to_dto(
         provider_id: entry.provider_id,
         name: entry.display_name,
         category: provider_setup_category_to_dto(entry.category),
+        acp: entry.acp,
         description: entry.description,
         setup_method: provider_setup_method_to_dto(entry.setup_method),
         native_connect_query: entry.native_connect_query,
@@ -511,9 +513,7 @@ impl GooseAcpAgent {
             .provider_inventory
             .find_entry_for_provider(&req.provider_id)
             .await;
-        if !provider.is_some_and(|entry| {
-            entry.category == crate::providers::catalog::ProviderSetupCategory::Agent
-        }) {
+        if !provider.is_some_and(|entry| entry.acp) {
             return Err(agent_client_protocol::Error::invalid_params().data(format!(
                 "Provider is not an ACP provider: {}",
                 req.provider_id

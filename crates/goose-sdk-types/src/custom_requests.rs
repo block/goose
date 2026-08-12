@@ -1128,6 +1128,9 @@ pub struct ProviderSetupCatalogEntryDto {
     pub provider_id: String,
     pub name: String,
     pub category: ProviderSetupCategoryDto,
+    /// Whether this provider communicates through ACP.
+    #[serde(default)]
+    pub acp: bool,
     pub description: String,
     pub setup_method: ProviderSetupMethodDto,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1808,6 +1811,9 @@ pub struct ProviderInventoryEntryDto {
     pub provider_type: String,
     /// Whether this inventory entry represents an agent provider or a model provider.
     pub category: ProviderSetupCategoryDto,
+    /// Whether this provider communicates through ACP.
+    #[serde(default)]
+    pub acp: bool,
     /// Whether this provider should appear in normal provider setup UIs.
     pub visible_in_setup: bool,
     /// Whether this provider is retained only for compatibility.

@@ -606,7 +606,6 @@ impl goose_providers::base::ProviderDescriptor for GithubCopilotProvider {
                 crate::providers::catalog::ProviderSetupMethod::OauthDeviceCode,
                 crate::providers::catalog::ProviderSetupGroup::Default,
             )
-            .with_display_name("GitHub Copilot Models")
             .with_description("Models via GitHub Copilot subscription")
             .with_native_connect_query("GitHub Copilot")
             .with_capabilities(false, true, false),

@@ -48,6 +48,7 @@ export type ProviderDetails = {
   name: string;
   provider_type: ProviderType;
   setup_category: 'agent' | 'model';
+  uses_acp: boolean;
   saved_model?: string | null;
 };
 

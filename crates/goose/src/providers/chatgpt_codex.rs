@@ -976,7 +976,6 @@ impl goose_providers::base::ProviderDescriptor for ChatGptCodexProvider {
                 crate::providers::catalog::ProviderSetupMethod::OauthDeviceCode,
                 crate::providers::catalog::ProviderSetupGroup::Default,
             )
-            .with_display_name("ChatGPT")
             .with_description("OpenAI via ChatGPT subscription")
             .with_docs_url("https://chatgpt.com")
             .with_native_connect_query("ChatGPT Codex")

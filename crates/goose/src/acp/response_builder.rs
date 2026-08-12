@@ -459,6 +459,7 @@ mod tests {
             configured: true,
             provider_type: crate::providers::base::ProviderType::Builtin,
             category: crate::providers::catalog::ProviderSetupCategory::Model,
+            acp: false,
             visible_in_setup: true,
             deprecated: false,
             replacement: None,

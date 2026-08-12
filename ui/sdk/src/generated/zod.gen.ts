@@ -796,6 +796,7 @@ export const zProviderInventoryEntryDto = z.object({
     configured: z.boolean(),
     providerType: z.string(),
     category: zProviderSetupCategoryDto,
+    acp: z.boolean().optional().default(false),
     visibleInSetup: z.boolean(),
     deprecated: z.boolean(),
     replacement: z.union([
@@ -907,6 +908,7 @@ export const zProviderSetupCatalogEntryDto = z.object({
     providerId: z.string(),
     name: z.string(),
     category: zProviderSetupCategoryDto,
+    acp: z.boolean().optional().default(false),
     description: z.string(),
     setupMethod: zProviderSetupMethodDto,
     nativeConnectQuery: z.union([

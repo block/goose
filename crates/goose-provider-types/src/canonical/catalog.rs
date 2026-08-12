@@ -162,6 +162,7 @@ pub struct ProviderSetupCatalogEntry {
     pub provider_id: String,
     pub display_name: String,
     pub category: ProviderSetupCategory,
+    pub acp: bool,
     pub description: String,
     pub setup_method: ProviderSetupMethod,
     pub docs_url: Option<String>,
@@ -178,10 +179,10 @@ pub struct ProviderSetupCatalogEntry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderSetupMetadata {
     pub category: ProviderSetupCategory,
+    #[serde(default)]
+    pub acp: bool,
     pub setup_method: ProviderSetupMethod,
     pub group: ProviderSetupGroup,
-    #[serde(default)]
-    pub display_name: Option<String>,
     #[serde(default)]
     pub description: Option<String>,
     #[serde(default)]
@@ -218,9 +219,9 @@ impl ProviderSetupMetadata {
     ) -> Self {
         Self {
             category,
+            acp: false,
             setup_method,
             group,
-            display_name: None,
             description: None,
             docs_url: None,
             aliases: Vec::new(),
@@ -255,11 +256,6 @@ impl ProviderSetupMetadata {
         )
     }
 
-    pub fn with_display_name(mut self, display_name: &str) -> Self {
-        self.display_name = Some(display_name.to_string());
-        self
-    }
-
     pub fn with_description(mut self, description: &str) -> Self {
         self.description = Some(description.to_string());
         self
@@ -286,6 +282,11 @@ impl ProviderSetupMetadata {
             auth,
             auth_status,
         };
+        self
+    }
+
+    pub fn with_acp(mut self) -> Self {
+        self.acp = true;
         self
     }
 
@@ -377,8 +378,9 @@ fn setup_entry_from_metadata(metadata: ProviderMetadata) -> Option<ProviderSetup
         .collect();
     Some(ProviderSetupCatalogEntry {
         provider_id: metadata.name,
-        display_name: setup.display_name.unwrap_or(metadata.display_name),
+        display_name: metadata.display_name,
         category: setup.category,
+        acp: setup.acp,
         description: setup.description.unwrap_or(metadata.description),
         setup_method: setup.setup_method,
         docs_url: setup
@@ -442,6 +444,7 @@ pub fn get_setup_catalog_entries(
         provider_id: "goose".to_string(),
         display_name: "Goose".to_string(),
         category: ProviderSetupCategory::Agent,
+        acp: false,
         description: "Block's open-source coding agent".to_string(),
         setup_method: ProviderSetupMethod::None,
         docs_url: None,

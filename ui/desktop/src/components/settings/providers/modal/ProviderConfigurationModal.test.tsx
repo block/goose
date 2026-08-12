@@ -21,6 +21,7 @@ vi.mock('../../../../acp/providers', () => ({
   acpDeleteProviderConfig: vi.fn(),
   acpRefreshProviderDetails: vi.fn(),
   acpSaveProviderConfig: vi.fn(),
+  isAcpProvider: (provider: ProviderDetails) => provider.uses_acp,
 }));
 
 const oauthProvider: ProviderDetails = {
@@ -29,6 +30,8 @@ const oauthProvider: ProviderDetails = {
   visible_in_setup: true,
   deprecated: false,
   provider_type: 'Builtin',
+  setup_category: 'model',
+  uses_acp: false,
   metadata: {
     name: 'github_copilot',
     display_name: 'GitHub Copilot',
@@ -62,6 +65,8 @@ describe('ProviderConfigurationModal', () => {
     const acpProvider: ProviderDetails = {
       ...oauthProvider,
       name: 'claude-acp',
+      setup_category: 'agent',
+      uses_acp: true,
       metadata: {
         ...oauthProvider.metadata,
         name: 'claude-acp',

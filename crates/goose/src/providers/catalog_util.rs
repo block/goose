@@ -81,6 +81,12 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn groq_uses_its_canonical_display_name() {
+        let groq = crate::providers::get_from_registry("groq").await.unwrap();
+        assert_eq!(groq.metadata().display_name, "Groq");
+    }
+
+    #[tokio::test]
     async fn setup_catalog_includes_goose_and_curated_fields() {
         let entries = get_setup_catalog_entries().await;
 
@@ -89,8 +95,23 @@ mod tests {
             .find(|entry| entry.provider_id == "goose")
             .expect("setup catalog should include synthetic goose");
         assert_eq!(goose.category, ProviderSetupCategory::Agent);
+        assert!(!goose.acp);
         assert_eq!(goose.setup_method, ProviderSetupMethod::None);
         assert!(goose.fields.is_empty());
+
+        let cursor = entries
+            .iter()
+            .find(|entry| entry.provider_id == "cursor-agent")
+            .expect("setup catalog should include cursor-agent");
+        assert_eq!(cursor.category, ProviderSetupCategory::Agent);
+        assert!(!cursor.acp);
+
+        let claude = entries
+            .iter()
+            .find(|entry| entry.provider_id == "claude-acp")
+            .expect("setup catalog should include claude-acp");
+        assert_eq!(claude.category, ProviderSetupCategory::Agent);
+        assert!(claude.acp);
 
         let ollama = entries
             .iter()

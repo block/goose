@@ -28,6 +28,7 @@ function providerEntryToDetails(entry: ProviderInventoryEntryDto): ProviderDetai
     replacement: entry.replacement ?? null,
     provider_type: entry.providerType as ProviderDetails['provider_type'],
     setup_category: entry.category,
+    uses_acp: entry.acp ?? false,
     metadata: {
       name: entry.providerId,
       display_name: entry.providerName,
@@ -55,7 +56,7 @@ function providerEntryToDetails(entry: ProviderInventoryEntryDto): ProviderDetai
 }
 
 export function isAcpProvider(provider: ProviderDetails): boolean {
-  return provider.setup_category === 'agent';
+  return provider.uses_acp;
 }
 
 function updateRequestToCreate(

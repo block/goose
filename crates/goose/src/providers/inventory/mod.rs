@@ -36,6 +36,7 @@ pub struct ProviderInventoryEntry {
     pub configured: bool,
     pub provider_type: ProviderType,
     pub category: ProviderSetupCategory,
+    pub acp: bool,
     pub visible_in_setup: bool,
     pub deprecated: bool,
     pub replacement: Option<String>,
@@ -265,6 +266,7 @@ struct ProviderDescriptor {
     configured: bool,
     provider_type: ProviderType,
     category: ProviderSetupCategory,
+    acp: bool,
     visible_in_setup: bool,
     deprecated: bool,
     replacement: Option<String>,
@@ -311,6 +313,7 @@ impl ProviderInventoryService {
             configured: descriptor.configured,
             provider_type: descriptor.provider_type,
             category: descriptor.category,
+            acp: descriptor.acp,
             visible_in_setup: descriptor.visible_in_setup,
             deprecated: descriptor.deprecated,
             replacement: descriptor.replacement,
@@ -731,6 +734,7 @@ impl ProviderInventoryService {
                 .as_ref()
                 .map(|setup| setup.category)
                 .unwrap_or(ProviderSetupCategory::Model),
+            acp: metadata.setup.as_ref().is_some_and(|setup| setup.acp),
             visible_in_setup: !metadata.hidden_from_setup && metadata.deprecated.is_none(),
             deprecated: metadata.deprecated.is_some(),
             replacement: metadata

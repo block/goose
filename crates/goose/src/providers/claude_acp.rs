@@ -39,6 +39,7 @@ impl goose_providers::base::ProviderDescriptor for ClaudeAcpProvider {
                 CLAUDE_ACP_BINARY,
                 &["claude-acp", "claude_code", "claude"],
             )
+            .with_acp()
             .with_description("Anthropic's agentic coding tool")
             .with_docs_url("https://docs.anthropic.com/en/docs/claude-code")
             .with_capabilities(true, true, true),

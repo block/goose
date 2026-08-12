@@ -904,6 +904,10 @@ export type ProviderInventoryEntryDto = {
      */
     category: ProviderSetupCategoryDto;
     /**
+     * Whether this provider communicates through ACP.
+     */
+    acp?: boolean;
+    /**
      * Whether this provider should appear in normal provider setup UIs.
      */
     visibleInSetup: boolean;
@@ -1047,6 +1051,10 @@ export type ProviderSetupCatalogEntryDto = {
     providerId: string;
     name: string;
     category: ProviderSetupCategoryDto;
+    /**
+     * Whether this provider communicates through ACP.
+     */
+    acp?: boolean;
     description: string;
     setupMethod: ProviderSetupMethodDto;
     nativeConnectQuery?: string | null;

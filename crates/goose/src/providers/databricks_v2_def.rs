@@ -21,7 +21,6 @@ impl ProviderDescriptor for DatabricksV2ProviderDef {
                 crate::providers::catalog::ProviderSetupMethod::HostWithOauthFallback,
                 crate::providers::catalog::ProviderSetupGroup::Additional,
             )
-            .with_display_name("Databricks AI Gateway")
             .with_description("Models on Databricks AI Gateway v2")
             .with_docs_url("https://docs.databricks.com/en/generative-ai/ai-gateway/")
             .with_aliases(&["databricks_ai_gateway"])

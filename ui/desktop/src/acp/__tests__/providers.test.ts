@@ -142,16 +142,18 @@ describe('ACP providers', () => {
     expect((await acpGetProviderDetails('claude-code')).replacement).toBe('claude-acp');
   });
 
-  it('uses the inventory category instead of the provider id to identify ACP providers', async () => {
+  it('uses the explicit ACP capability instead of category or provider id', async () => {
     const custom = providerEntry({
       providerId: 'custom_example-acp',
       providerType: 'Custom',
       category: 'model',
+      acp: false,
     });
-    const agent = providerEntry({ providerId: 'pi', category: 'agent' });
+    const agent = providerEntry({ providerId: 'cursor-agent', category: 'agent', acp: false });
+    const acp = providerEntry({ providerId: 'pi-acp', category: 'agent', acp: true });
     const client = {
       goose: {
-        providersList_unstable: vi.fn().mockResolvedValue({ entries: [custom, agent] }),
+        providersList_unstable: vi.fn().mockResolvedValue({ entries: [custom, agent, acp] }),
       },
     };
     vi.mocked(getAcpClient).mockResolvedValue(
@@ -161,7 +163,8 @@ describe('ACP providers', () => {
     const providers = await acpListProviderDetails();
 
     expect(isAcpProvider(providers[0])).toBe(false);
-    expect(isAcpProvider(providers[1])).toBe(true);
+    expect(isAcpProvider(providers[1])).toBe(false);
+    expect(isAcpProvider(providers[2])).toBe(true);
   });
 
   it('probes an installed ACP adapter and returns its refreshed models', async () => {
@@ -233,6 +236,7 @@ function providerEntry(overrides: Record<string, unknown> = {}) {
     configured: true,
     providerType: 'Builtin',
     category: 'agent',
+    acp: true,
     visibleInSetup: true,
     deprecated: false,
     configKeys: [],

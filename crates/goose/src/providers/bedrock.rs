@@ -742,7 +742,6 @@ impl goose_providers::base::ProviderDescriptor for BedrockProvider {
                 crate::providers::catalog::ProviderSetupMethod::CloudCredentials,
                 crate::providers::catalog::ProviderSetupGroup::Additional,
             )
-            .with_display_name("AWS Bedrock")
             .with_description("Models on AWS")
             .with_field("AWS_REGION", "AWS Region", Some("us-west-2"), None),
         )

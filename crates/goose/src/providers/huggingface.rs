@@ -193,7 +193,6 @@ impl goose_providers::base::ProviderDescriptor for HuggingFaceProvider {
             crate::providers::catalog::ProviderSetupMetadata::api_key(
                 crate::providers::catalog::ProviderSetupGroup::Default,
             )
-            .with_display_name("Hugging Face")
             .with_description("Hugging Face Inference Providers")
             .with_docs_url("https://huggingface.co/docs/inference-providers")
             .with_aliases(&["huggingface", "hf"]),

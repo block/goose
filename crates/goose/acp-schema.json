@@ -1706,6 +1706,11 @@
           "$ref": "#/$defs/ProviderSetupCategoryDto",
           "description": "Whether this inventory entry represents an agent provider or a model provider."
         },
+        "acp": {
+          "type": "boolean",
+          "description": "Whether this provider communicates through ACP.",
+          "default": false
+        },
         "visibleInSetup": {
           "type": "boolean",
           "description": "Whether this provider should appear in normal provider setup UIs."
@@ -2025,6 +2030,11 @@
         },
         "category": {
           "$ref": "#/$defs/ProviderSetupCategoryDto"
+        },
+        "acp": {
+          "type": "boolean",
+          "description": "Whether this provider communicates through ACP.",
+          "default": false
         },
         "description": {
           "type": "string"
