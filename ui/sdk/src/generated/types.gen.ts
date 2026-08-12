@@ -2560,7 +2560,9 @@ export type GooseSessionUpdate = ({
     sessionUpdate: 'status_message';
 } & StatusMessageUpdate) | ({
     sessionUpdate: 'message_usage';
-} & MessageUsageUpdate);
+} & MessageUsageUpdate) | ({
+    sessionUpdate: 'device_code_update';
+} & DeviceCodeUpdate);
 
 /**
  * Streaming context-window usage update for a session.
@@ -2686,4 +2688,13 @@ export type ExtAgentResponse = {
         data?: unknown;
     };
     id: string;
+};
+
+/**
+ * Live device-code prompt forwarded to the desktop during OAuth device-code flow.
+ */
+export type DeviceCodeUpdate = {
+    userCode: string;
+    verificationUri: string;
+    expiresIn: number;
 };

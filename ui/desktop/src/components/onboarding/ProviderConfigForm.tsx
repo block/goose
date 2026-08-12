@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { acpAuthenticateProvider } from '../../acp/providers';
 import type { ProviderDetails } from '../../types/providers';
 import DefaultProviderSetupForm, {
@@ -67,6 +67,8 @@ function parseLinks(text: string) {
   );
 }
 
+type DeviceCode = { userCode: string; verificationUri: string; expiresIn: number };
+
 function OAuthForm({
   provider,
   onConfigured,
@@ -78,9 +80,17 @@ function OAuthForm({
 }) {
   const intl = useIntl();
   const [isLoading, setIsLoading] = useState(false);
+  const [deviceCode, setDeviceCode] = useState<DeviceCode | null>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => setDeviceCode((e as CustomEvent<DeviceCode>).detail);
+    window.addEventListener('goose:device-code', handler);
+    return () => window.removeEventListener('goose:device-code', handler);
+  }, []);
 
   const handleLogin = async () => {
     setIsLoading(true);
+    setDeviceCode(null);
     try {
       await acpAuthenticateProvider(provider.name);
       await onConfigured(provider.name);
@@ -106,11 +116,42 @@ function OAuthForm({
           ? intl.formatMessage(i18n.signingIn)
           : intl.formatMessage(i18n.signInWith, { providerName: provider.metadata.display_name })}
       </Button>
-      <p className="text-xs text-text-muted text-center">
-        {isDeviceCodeFlow
-          ? intl.formatMessage(i18n.deviceCodeFlowHint)
-          : intl.formatMessage(i18n.browserWindowOpen)}
-      </p>
+      {isDeviceCodeFlow && isLoading && deviceCode ? (
+        <div className="flex flex-col items-center gap-2 w-full">
+          <p className="text-xs text-text-muted text-center">
+            Visit{' '}
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                window.electron.openExternal(deviceCode.verificationUri);
+              }}
+              className="underline"
+            >
+              {deviceCode.verificationUri}
+            </a>{' '}
+            and enter:
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="text-lg font-mono tracking-widest bg-background-muted px-3 py-1 rounded">
+              {deviceCode.userCode}
+            </code>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(deviceCode.userCode)}
+              className="text-xs text-text-muted hover:text-text-default underline"
+            >
+              Copy
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs text-text-muted text-center">
+          {isDeviceCodeFlow
+            ? intl.formatMessage(i18n.deviceCodeFlowHint)
+            : intl.formatMessage(i18n.browserWindowOpen)}
+        </p>
+      )}
     </div>
   );
 }

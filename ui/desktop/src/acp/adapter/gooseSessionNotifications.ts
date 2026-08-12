@@ -28,6 +28,17 @@ export function applyGooseSessionNotification(
       return applyStatusMessage(state, notification.sessionId, update);
     case 'message_usage':
       return applyMessageUsage(state, update);
+    case 'device_code_update':
+      window.dispatchEvent(
+        new CustomEvent('goose:device-code', {
+          detail: {
+            userCode: update.userCode,
+            verificationUri: update.verificationUri,
+            expiresIn: update.expiresIn,
+          },
+        })
+      );
+      return [];
     default:
       return [];
   }

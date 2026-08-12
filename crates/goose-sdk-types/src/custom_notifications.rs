@@ -26,13 +26,24 @@ pub struct GooseSessionNotification {
     "mapping": {
         "usage_update": "#/$defs/SessionUsageUpdate",
         "status_message": "#/$defs/StatusMessageUpdate",
-        "message_usage": "#/$defs/MessageUsageUpdate"
+        "message_usage": "#/$defs/MessageUsageUpdate",
+        "device_code_update": "#/$defs/DeviceCodeUpdate"
     }
 }))]
 pub enum GooseSessionUpdate {
     UsageUpdate(SessionUsageUpdate),
     StatusMessage(StatusMessageUpdate),
     MessageUsage(MessageUsageUpdate),
+    DeviceCodeUpdate(DeviceCodeUpdate),
+}
+
+/// Live device-code prompt forwarded to the desktop during OAuth device-code flow.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceCodeUpdate {
+    pub user_code: String,
+    pub verification_uri: String,
+    pub expires_in: u64,
 }
 
 impl Default for GooseSessionUpdate {

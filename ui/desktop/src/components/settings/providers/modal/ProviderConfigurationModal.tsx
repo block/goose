@@ -1,4 +1,4 @@
-import { useState, Fragment } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -176,6 +176,18 @@ export default function ProviderConfigurationModal({
   const [isActiveProvider, setIsActiveProvider] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isOAuthLoading, setIsOAuthLoading] = useState(false);
+  const [deviceCode, setDeviceCode] = useState<{
+    userCode: string;
+    verificationUri: string;
+    expiresIn: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) =>
+      setDeviceCode((e as CustomEvent).detail as typeof deviceCode);
+    window.addEventListener('goose:device-code', handler);
+    return () => window.removeEventListener('goose:device-code', handler);
+  }, []);
 
   let primaryParameters = provider.metadata.config_keys.filter((param) => param.primary);
   if (primaryParameters.length === 0) {
@@ -213,6 +225,7 @@ export default function ProviderConfigurationModal({
 
   const handleOAuthLogin = async () => {
     setIsOAuthLoading(true);
+    setDeviceCode(null);
     setError(null);
     try {
       if (hasConfig) {
@@ -390,11 +403,42 @@ export default function ProviderConfigurationModal({
                             providerName: provider.metadata.display_name,
                           })}
                     </Button>
-                    <p className="text-sm text-text-secondary text-center">
-                      {hasDeviceCodeFlow
-                        ? intl.formatMessage(i18n.deviceCodeFlowHint)
-                        : intl.formatMessage(i18n.browserWindowHint)}
-                    </p>
+                    {hasDeviceCodeFlow && isOAuthLoading && deviceCode ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <p className="text-sm text-text-secondary text-center">
+                          Visit{' '}
+                          <a
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              window.electron.openExternal(deviceCode.verificationUri);
+                            }}
+                            className="underline"
+                          >
+                            {deviceCode.verificationUri}
+                          </a>{' '}
+                          and enter:
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <code className="text-xl font-mono tracking-widest bg-background-muted px-4 py-2 rounded">
+                            {deviceCode.userCode}
+                          </code>
+                          <button
+                            type="button"
+                            onClick={() => navigator.clipboard.writeText(deviceCode.userCode)}
+                            className="text-xs text-text-muted hover:text-text-default underline"
+                          >
+                            Copy
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-text-secondary text-center">
+                        {hasDeviceCodeFlow
+                          ? intl.formatMessage(i18n.deviceCodeFlowHint)
+                          : intl.formatMessage(i18n.browserWindowHint)}
+                      </p>
+                    )}
                   </div>
                 )}
 

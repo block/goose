@@ -901,7 +901,7 @@
           "description": "Complete resource contents embedded directly in the message.\n\nPreferred for including context as it avoids extra round-trips.\n\nRequires the `embeddedContext` prompt capability when included in prompts."
         }
       ],
-      "description": "Content blocks represent displayable information in the Agent Client Protocol.\n\nThey provide a structured way to handle various types of user-facing content—whether\nit's text from language models, images for analysis, or embedded resources for context.\n\nContent blocks appear in:\n- User prompts sent via `session/prompt`\n- Language model output streamed through `session/update` notifications\n- Progress updates and results from tool calls\n\nThis structure is compatible with the Model Context Protocol (MCP), enabling\nagents to seamlessly forward content from MCP tool outputs without transformation.\n\nSee protocol docs: [Content](https://agentclientprotocol.com/protocol/content)",
+      "description": "Content blocks represent displayable information in the Agent Client Protocol.\n\nThey provide a structured way to handle various types of user-facing content\u2014whether\nit's text from language models, images for analysis, or embedded resources for context.\n\nContent blocks appear in:\n- User prompts sent via `session/prompt`\n- Language model output streamed through `session/update` notifications\n- Progress updates and results from tool calls\n\nThis structure is compatible with the Model Context Protocol (MCP), enabling\nagents to seamlessly forward content from MCP tool outputs without transformation.\n\nSee protocol docs: [Content](https://agentclientprotocol.com/protocol/content)",
       "discriminator": {
         "propertyName": "type"
       }
@@ -3493,7 +3493,7 @@
       "required": [
         "data"
       ],
-      "description": "Export session response — raw JSON of the goose session with `conversation`,\nor a markdown transcript when `format` is `markdown`.",
+      "description": "Export session response \u2014 raw JSON of the goose session with `conversation`,\nor a markdown transcript when `format` is `markdown`.",
       "x-side": "agent",
       "x-method": "_goose/unstable/session/export"
     },
@@ -3550,7 +3550,7 @@
         "sessionId",
         "messageCount"
       ],
-      "description": "Import session response — metadata about the newly created session.",
+      "description": "Import session response \u2014 metadata about the newly created session.",
       "x-side": "agent",
       "x-method": "_goose/unstable/session/import"
     },
@@ -5508,7 +5508,7 @@
       "required": [
         "providers"
       ],
-      "description": "Dictation config response — map of provider name to status.",
+      "description": "Dictation config response \u2014 map of provider name to status.",
       "x-side": "agent",
       "x-method": "_goose/unstable/dictation/config"
     },
@@ -6671,7 +6671,7 @@
         "sessionId",
         "update"
       ],
-      "description": "Goose-custom session update notification — a parallel to ACP's\n`session/update` carrying goose-specific update variants.",
+      "description": "Goose-custom session update notification \u2014 a parallel to ACP's\n`session/update` carrying goose-specific update variants.",
       "x-side": "agent",
       "x-method": "_goose/unstable/session/update"
     },
@@ -6715,6 +6715,19 @@
           "required": [
             "sessionUpdate"
           ]
+        },
+        {
+          "$ref": "#/$defs/DeviceCodeUpdate",
+          "type": "object",
+          "properties": {
+            "sessionUpdate": {
+              "type": "string",
+              "const": "device_code_update"
+            }
+          },
+          "required": [
+            "sessionUpdate"
+          ]
         }
       ],
       "description": "Discriminated union of goose-specific session update payloads.\nVariant tag matches ACP's convention (`sessionUpdate: \"<snake_case>\"`).\n\n`discriminator.mapping` is what makes TS codegen (`@hey-api/openapi-ts`)\nemit the correct snake_case tag value even when this enum has a single\nvariant. Add a mapping entry per variant.",
@@ -6723,7 +6736,8 @@
         "mapping": {
           "usage_update": "#/$defs/SessionUsageUpdate",
           "status_message": "#/$defs/StatusMessageUpdate",
-          "message_usage": "#/$defs/MessageUsageUpdate"
+          "message_usage": "#/$defs/MessageUsageUpdate",
+          "device_code_update": "#/$defs/DeviceCodeUpdate"
         }
       }
     },
@@ -8820,6 +8834,28 @@
         }
       ],
       "x-docs-ignore": true
+    },
+    "DeviceCodeUpdate": {
+      "type": "object",
+      "description": "Live device-code prompt forwarded to the desktop during OAuth device-code flow.",
+      "properties": {
+        "userCode": {
+          "type": "string"
+        },
+        "verificationUri": {
+          "type": "string"
+        },
+        "expiresIn": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "userCode",
+        "verificationUri",
+        "expiresIn"
+      ]
     }
   },
   "anyOf": [
@@ -8829,7 +8865,7 @@
           "$ref": "#/$defs/ExtRequest"
         }
       ],
-      "description": "Extension request (client → agent)",
+      "description": "Extension request (client \u2192 agent)",
       "title": "Request"
     },
     {
@@ -8838,7 +8874,7 @@
           "$ref": "#/$defs/ExtResponse"
         }
       ],
-      "description": "Extension response (agent → client)",
+      "description": "Extension response (agent \u2192 client)",
       "title": "Response"
     },
     {
@@ -8847,7 +8883,7 @@
           "$ref": "#/$defs/ExtNotification"
         }
       ],
-      "description": "Extension notification (agent → client, fire-and-forget)",
+      "description": "Extension notification (agent \u2192 client, fire-and-forget)",
       "title": "Notification"
     },
     {
@@ -8856,7 +8892,7 @@
           "$ref": "#/$defs/ExtAgentRequest"
         }
       ],
-      "description": "Extension agent request (agent → client)",
+      "description": "Extension agent request (agent \u2192 client)",
       "title": "AgentRequest"
     },
     {
@@ -8865,7 +8901,7 @@
           "$ref": "#/$defs/ExtAgentResponse"
         }
       ],
-      "description": "Extension agent response (client → agent)",
+      "description": "Extension agent response (client \u2192 agent)",
       "title": "AgentResponse"
     }
   ]

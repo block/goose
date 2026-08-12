@@ -1075,10 +1075,33 @@ impl GooseAcpAgent {
                 .create_with_default_model(Vec::new())
                 .await
                 .internal_err_ctx("Failed to initialize provider")?;
-            provider
-                .configure_oauth()
-                .await
-                .internal_err_ctx("Failed to authenticate provider")?;
+
+            let client_cx = self.client_cx.get().cloned();
+            let announce: Box<dyn Fn(String, String, u64) + Send + Sync> =
+                Box::new(move |user_code, verification_uri, expires_in| {
+                    if let Err(e) = webbrowser::open(&verification_uri) {
+                        tracing::warn!("Failed to open browser: {}", e);
+                    }
+                    if let Some(ref cx) = client_cx {
+                        let notification = GooseSessionNotification {
+                            session_id: String::new(),
+                            update: GooseSessionUpdate::DeviceCodeUpdate(DeviceCodeUpdate {
+                                user_code,
+                                verification_uri,
+                                expires_in,
+                            }),
+                        };
+                        if let Err(e) = cx.send_notification(notification) {
+                            tracing::warn!("Failed to send device code notification: {}", e);
+                        }
+                    }
+                });
+            crate::providers::oauth_device_flow::with_device_code_announce(
+                announce,
+                provider.configure_oauth(),
+            )
+            .await
+            .internal_err_ctx("Failed to authenticate provider")?;
         }
         Config::global().invalidate_secrets_cache();
 
