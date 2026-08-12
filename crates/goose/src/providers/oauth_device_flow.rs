@@ -5,10 +5,10 @@
 //! polling loop with RFC 8628 `authorization_pending` / `slow_down` semantics,
 //! and optional `refresh_token` grant (RFC 6749 §6).
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use chrono::{DateTime, Duration, Utc};
-use reqwest::Client;
 use reqwest::header::HeaderMap;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 /// Fallback poll interval when the server omits `interval` (RFC 8628 §3.2).
