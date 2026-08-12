@@ -388,7 +388,7 @@
   {
     "id": "humanpen-mcp",
     "name": "HumanPen",
-    "description": "Lower a Word/PowerPoint/PDF document's AI-detection score so it reads as human-written",
+    "description": "Rewrite a .docx/.pptx so it reads as human-written and scores lower on AI detectors",
     "command": "npx -y humanpen-mcp",
     "link": "https://github.com/humanpen/humanpen-mcp",
     "installation_notes": "Install using npx package manager.",
