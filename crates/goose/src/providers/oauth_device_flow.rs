@@ -5,10 +5,10 @@
 //! polling loop with RFC 8628 `authorization_pending` / `slow_down` semantics,
 //! and optional `refresh_token` grant (RFC 6749 §6).
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use chrono::{DateTime, Duration, Utc};
-use reqwest::header::HeaderMap;
 use reqwest::Client;
+use reqwest::header::HeaderMap;
 use serde::{Deserialize, Serialize};
 
 /// Fallback poll interval when the server omits `interval` (RFC 8628 §3.2).
@@ -320,19 +320,20 @@ async fn send_request<T: Serialize + ?Sized>(
 }
 
 fn announce_user_action(device: &DeviceCodeResponse) {
-    if let Ok(mut clipboard) = arboard::Clipboard::new() {
-        if let Err(e) = clipboard.set_text(&device.user_code) {
-            tracing::warn!("Failed to copy verification code to clipboard: {}", e);
-        }
-    }
+    let copied = arboard::Clipboard::new()
+        .ok()
+        .and_then(|mut cb| cb.set_text(&device.user_code).ok())
+        .is_some();
+
     let verify_url = device.verification_url();
     if let Err(e) = webbrowser::open(verify_url) {
         tracing::warn!("Failed to open browser: {}", e);
     }
     // stderr keeps stdout clean for CLI workflows parsing provider output.
+    let clipboard_hint = if copied { " (copied to clipboard)" } else { "" };
     eprintln!(
-        "Please visit {} and enter code {}",
-        verify_url, device.user_code
+        "Please visit {} and enter code {}{}",
+        verify_url, device.user_code, clipboard_hint
     );
 }
 
