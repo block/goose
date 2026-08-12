@@ -1619,7 +1619,10 @@ fn thinking_budget_for_effort(effort: ThinkingEffort) -> i32 {
 /// at [`MIN_ANSWER_TOKENS`]. Requests to the OpenAI Responses API
 /// (`max_completion_tokens`) are left untouched: that API already counts
 /// reasoning inside the completion cap, and inflating it risks exceeding the
-/// model's hard output cap.
+/// model's hard output cap. The chat `max_tokens` path applies the same
+/// caution: when the base budget is already at (or beyond) the provider's
+/// advertised output cap, the top-up is skipped so the request never exceeds
+/// the model's hard cap.
 fn effective_max_tokens_for_reasoning(
     model_config: &ModelConfig,
     base_max_tokens: i32,
@@ -1634,7 +1637,30 @@ fn effective_max_tokens_for_reasoning(
     if effort == ThinkingEffort::Off {
         return base_max_tokens;
     }
+    // When the base max_tokens is already at (or beyond) the provider's
+    // advertised output cap (e.g. x-ai/grok-4.3, limit.output 30000), there is
+    // no headroom to reserve a thinking budget — topping up would push the
+    // request past the model's hard cap. Skip the top-up, mirroring the
+    // Responses-API exemption above.
+    if provider_output_cap(&model_config.model_name)
+        .is_some_and(|cap| base_max_tokens >= cap)
+    {
+        return base_max_tokens;
+    }
     base_max_tokens.max(MIN_ANSWER_TOKENS) + thinking_budget_for_effort(effort)
+}
+
+/// Best-effort resolution of a model's advertised max output tokens
+/// (`limit.output`) from the bundled canonical registry. The generic chat path
+/// carries no provider name, so the lookup leans on the registry's model-name
+/// inference (e.g. "grok-4.3" -> x-ai). Returns `None` for models that are not
+/// in the registry (e.g. local llama.cpp / vLLM / Ollama), in which case the
+/// caller keeps the existing thinking top-up.
+fn provider_output_cap(model_name: &str) -> Option<i32> {
+    let (base_model, _) = extract_reasoning_effort(model_name);
+    crate::canonical::maybe_get_canonical_model("", &base_model)
+        .and_then(|canonical| canonical.limit.output)
+        .map(|output| output as i32)
 }
 
 pub fn create_request(

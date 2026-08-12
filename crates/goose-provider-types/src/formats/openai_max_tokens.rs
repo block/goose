@@ -105,3 +105,57 @@ fn responses_model_max_completion_tokens_unchanged() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn chat_reasoning_model_max_tokens_clamped_at_provider_output_cap() -> anyhow::Result<()> {
+    // A hosted OpenAI-compatible reasoning model whose canonical max_tokens is
+    // ALREADY the provider's advertised output limit (x-ai/grok-4.3,
+    // limit.output 30000). Reserving a thinking budget on top would push the
+    // request past the model's hard cap (30000 + 16384 = 46384), so the chat
+    // `max_tokens` must stay at the cap.
+    let model_config = ModelConfig::new("grok-4.3")
+        .with_canonical_limits("xai")
+        .with_thinking_effort(ThinkingEffort::High);
+
+    // Sanity check: the canonical output limit is what landed in max_tokens.
+    assert_eq!(model_config.max_tokens, Some(30000));
+
+    let request = create_request(
+        &model_config,
+        "system",
+        &[],
+        &[],
+        &ImageFormat::OpenAi,
+        true,
+    )?;
+
+    // Effective max_tokens stays at the provider cap, not 30000 + 16384.
+    assert_eq!(request["max_tokens"], json!(30000));
+
+    Ok(())
+}
+
+#[test]
+fn chat_reasoning_model_max_tokens_still_tops_up_with_headroom() -> anyhow::Result<()> {
+    // Same hosted reasoning model, but the user set max_tokens below the cap
+    // (GOOSE_MAX_TOKENS=10000 < limit.output 30000). The thinking top-up must
+    // still be applied because there is headroom left under the hard cap.
+    let model_config = ModelConfig::new("grok-4.3")
+        .with_max_tokens(Some(10000))
+        .with_canonical_limits("xai")
+        .with_thinking_effort(ThinkingEffort::High);
+
+    let request = create_request(
+        &model_config,
+        "system",
+        &[],
+        &[],
+        &ImageFormat::OpenAi,
+        true,
+    )?;
+
+    // 10000 content budget + 16384 thinking budget = 26384 (<= 30000 cap).
+    assert_eq!(request["max_tokens"], json!(26384));
+
+    Ok(())
+}
