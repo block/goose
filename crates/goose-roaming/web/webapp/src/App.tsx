@@ -605,7 +605,7 @@ export function App({ roam }: { roam: RoamClient }) {
   }, [push, refreshSessions]);
 
   const openSession = useCallback(
-    async (hostId: string, id: string, force = false) => {
+    async (hostId: string, id: string, force = false, keepExternalGuard = false) => {
       const host = hostsRef.current.get(hostId);
       if (!host) return;
       if (id === sessionRef.current && hostId === activeHostRef.current && !force) return;
@@ -617,8 +617,13 @@ export function App({ roam }: { roam: RoamClient }) {
         setLogWindow(80);
         activeRunRef.current = null;
         setActiveRun(null);
-        setExternalActive(false);
-        setExternalOverride(false);
+        // A follow-mode refresh must not clear the loop-boundary guard the
+        // poll just raised — resetting here re-enabled the composer while a
+        // foreign loop was still driving the session.
+        if (!keepExternalGuard) {
+          setExternalActive(false);
+          setExternalOverride(false);
+        }
         setConfigOptions([]);
         setShowConfig(false);
         const info = sessions.find((x) => x._host === hostId && x.sessionId === id);
@@ -693,9 +698,10 @@ export function App({ roam }: { roam: RoamClient }) {
         const stamp = (mine as { updatedAt?: string } | undefined)?.updatedAt ?? null;
         const advanced =
           stamp !== null && lastSeenUpdate.current !== null && stamp !== lastSeenUpdate.current;
-        setExternalActive(advanced && !activeRunRef.current);
+        const foreign = advanced && !activeRunRef.current;
+        setExternalActive(foreign);
         if (advanced) {
-          await openSession(hid, sid, true);
+          await openSession(hid, sid, true, foreign);
         }
         if (stamp) lastSeenUpdate.current = stamp;
       } catch {
