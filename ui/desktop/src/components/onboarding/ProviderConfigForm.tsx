@@ -212,18 +212,28 @@ function ApiKeyForm({
 interface ProviderConfigFormProps {
   provider: ProviderDetails;
   onConfigured: OnConfigured;
+  onError?: (message: string) => void;
 }
 
-export default function ProviderConfigForm({ provider, onConfigured }: ProviderConfigFormProps) {
+export default function ProviderConfigForm({
+  provider,
+  onConfigured,
+  onError,
+}: ProviderConfigFormProps) {
   const [error, setError] = useState<string | null>(null);
+
+  const reportError = (message: string) => {
+    setError(message);
+    onError?.(message);
+  };
 
   const isOAuthProvider = provider.metadata.config_keys.some((key) => key.oauth_flow);
 
   const renderForm = () => {
     if (isOAuthProvider) {
-      return <OAuthForm provider={provider} onConfigured={onConfigured} onError={setError} />;
+      return <OAuthForm provider={provider} onConfigured={onConfigured} onError={reportError} />;
     }
-    return <ApiKeyForm provider={provider} onConfigured={onConfigured} onError={setError} />;
+    return <ApiKeyForm provider={provider} onConfigured={onConfigured} onError={reportError} />;
   };
 
   return (

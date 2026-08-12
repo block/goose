@@ -3,10 +3,10 @@
 //!
 //! Phase 0: fails until avocado_auth + provider OAuth wiring exist.
 
-use goose::providers::avocado::{AVOCADO_PROVIDER_NAME, AvocadoProvider};
+use goose::providers::avocado::{AvocadoProvider, AVOCADO_PROVIDER_NAME};
 use goose::providers::avocado_auth::{
-    ProvisionError, clear_configured_key, complete_oauth_from_access_token, has_configured_key,
-    resolve_api_key,
+    clear_configured_key, complete_oauth_from_access_token, has_configured_key, resolve_api_key,
+    ProvisionError,
 };
 use goose::providers::base::{Provider, ProviderDescriptor};
 use goose_providers::model::ModelConfig;
@@ -40,8 +40,8 @@ where
 
 #[tokio::test]
 #[serial]
-async fn given_mock_oauth_and_provision_when_configure_then_stream_then_chat_uses_virtual_key_not_jwt()
- {
+async fn given_mock_oauth_and_provision_when_configure_then_stream_then_chat_uses_virtual_key_not_jwt(
+) {
     // covers AC-2, AC-3, AC-8
     with_temp_goose_root(|| async {
         let provision = MockServer::start().await;

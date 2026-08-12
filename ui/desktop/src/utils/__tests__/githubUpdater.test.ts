@@ -13,7 +13,7 @@ const releaseAssetsPath = resolve(
 describe('resolveUpdateAssetName', () => {
   it('resolves darwin/win32 assets to the release-assets contract', () => {
     const { getReleaseAssets } = require(releaseAssetsPath) as {
-      getReleaseAssets: () => {
+      getReleaseAssets: (bundleName?: string) => {
         macArm64: { update: string };
         macX64: { update: string };
         winX64: { update: string };

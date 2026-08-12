@@ -3,11 +3,11 @@
 //! Flow: browser Auth Code + PKCE → access JWT → POST /keys/provision →
 //! store LiteLLM virtual key as AVOCADO_API_KEY (secret + private cache).
 
-use crate::config::Config;
 use crate::config::paths::Paths;
+use crate::config::Config;
 use crate::providers::private_file::write_private_file;
-use anyhow::{Result, anyhow};
-use axum::{Router, extract::Query, response::Html, routing::get};
+use anyhow::{anyhow, Result};
+use axum::{extract::Query, response::Html, routing::get, Router};
 use base64::Engine;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
-use tokio::sync::{Mutex as TokioMutex, oneshot};
+use tokio::sync::{oneshot, Mutex as TokioMutex};
 
 pub const AVOCADO_API_KEY_SECRET: &str = "AVOCADO_API_KEY";
 pub const AVOCADO_OAUTH_CACHE_PATH: &str = "avocado/oauth/tokens.json";
@@ -337,7 +337,7 @@ fn generate_state() -> String {
     nanoid::nanoid!(32)
 }
 
-pub fn build_authorize_url(
+fn build_authorize_url(
     config: &ZitadelOidcConfig,
     pkce: &PkceChallenge,
     state: &str,

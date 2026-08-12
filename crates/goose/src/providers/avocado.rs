@@ -15,7 +15,7 @@ use goose_providers::images::ImageFormat;
 
 use goose_providers::formats::openai::create_request;
 use goose_providers::model::ModelConfig;
-use goose_providers::request_log::{LoggerHandleExt, start_log};
+use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
 use serde_json::Value;
 

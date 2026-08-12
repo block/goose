@@ -11,7 +11,6 @@ import {
   type NavItem,
 } from '../../hooks/useNavigationItems';
 import { AppEvents } from '../../constants/events';
-import { AccountMenu } from '../auth/AccountMenu';
 import { InlineEditText } from '../common/InlineEditText';
 import { SessionIndicators } from '../SessionIndicators';
 import { acpRenameSession, type SessionListItem } from '../../acp/sessions';
@@ -406,7 +405,6 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
           active={isActive(SETTINGS_NAV_ITEM.path)}
           onClick={() => handleNavClick(SETTINGS_NAV_ITEM.path)}
         />
-        <AccountMenu />
       </div>
     </motion.div>
   );

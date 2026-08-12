@@ -49,7 +49,7 @@ use crate::{
     config::declarative_providers::register_declarative_providers,
     providers::provider_registry::ProviderEntry,
 };
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use std::collections::HashSet;
 use tokio::sync::OnceCell;
 
@@ -431,6 +431,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_huggingface_provider_registry_wiring() {
+        let _guard = env_lock::lock_env([("GOOSE_PROVIDER_ALLOWLIST", None::<&str>)]);
         let huggingface = get_from_registry("huggingface")
             .await
             .expect("huggingface provider should be registered");
@@ -439,11 +440,10 @@ mod tests {
         assert_eq!(huggingface.provider_type(), ProviderType::Preferred);
         assert_eq!(meta.display_name, "Hugging Face");
         assert_eq!(meta.default_model, "Qwen/Qwen3-Coder-480B-A35B-Instruct");
-        assert!(
-            meta.config_keys
-                .iter()
-                .any(|key| key.name == "HF_TOKEN" && key.secret)
-        );
+        assert!(meta
+            .config_keys
+            .iter()
+            .any(|key| key.name == "HF_TOKEN" && key.secret));
     }
 
     #[tokio::test]
@@ -625,6 +625,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_litellm_supports_inventory_refresh() {
+        let _guard = env_lock::lock_env([("GOOSE_PROVIDER_ALLOWLIST", None::<&str>)]);
         let entry = get_from_registry("litellm")
             .await
             .expect("litellm should be registered");
@@ -636,6 +637,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_api_backed_model_providers_are_registered_for_refresh() {
+        let _guard = env_lock::lock_env([("GOOSE_PROVIDER_ALLOWLIST", None::<&str>)]);
         for provider_name in [
             "avocado",
             "gcp_vertex_ai",
@@ -659,6 +661,7 @@ mod tests {
     #[tokio::test]
     async fn test_litellm_configured_without_api_key() {
         let _guard = env_lock::lock_env([
+            ("GOOSE_PROVIDER_ALLOWLIST", None::<&str>),
             ("LITELLM_API_KEY", None::<&str>),
             ("LITELLM_HOST", Some("http://localhost:4000")),
         ]);
@@ -675,6 +678,7 @@ mod tests {
     #[tokio::test]
     async fn test_litellm_not_configured_without_any_settings() {
         let _guard = env_lock::lock_env([
+            ("GOOSE_PROVIDER_ALLOWLIST", None::<&str>),
             ("LITELLM_API_KEY", None::<&str>),
             ("LITELLM_HOST", None::<&str>),
         ]);

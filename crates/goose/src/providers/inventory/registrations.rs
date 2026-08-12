@@ -1,6 +1,6 @@
 use super::{
-    InventoryIdentityInput, InventoryRegistration, config_secret_value, default_inventory_identity,
-    default_inventory_identity_resolver, serialize_string_map,
+    config_secret_value, default_inventory_identity, default_inventory_identity_resolver,
+    serialize_string_map, InventoryIdentityInput, InventoryRegistration,
 };
 use crate::config::{self, Config};
 use crate::providers::acp_tooling::{acp_adapter_installed, resolved_acp_command};
@@ -21,7 +21,7 @@ use crate::providers::ollama::OLLAMA_PROVIDER_NAME;
 use crate::providers::openai::{OPEN_AI_DEFAULT_BASE_PATH, OPEN_AI_PROVIDER_NAME};
 use crate::providers::pi_acp::{PI_ACP_BINARY, PI_ACP_PROVIDER_NAME};
 use crate::providers::xai_oauth::TokenCache as XaiOAuthTokenCache;
-use goose_providers::azure_foundry::{AZURE_FOUNDRY_PROVIDER_NAME, EndpointKind, endpoint_kind};
+use goose_providers::azure_foundry::{endpoint_kind, EndpointKind, AZURE_FOUNDRY_PROVIDER_NAME};
 
 pub fn openai_inventory() -> InventoryRegistration {
     InventoryRegistration::new(true, || {

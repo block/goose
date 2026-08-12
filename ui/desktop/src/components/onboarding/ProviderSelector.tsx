@@ -57,11 +57,13 @@ interface ProviderOption {
 interface ProviderSelectorProps {
   onConfigured: (providerName: string, modelId?: string) => void | Promise<void>;
   onFirstSelection?: () => void;
+  onConfigError?: (message: string) => void;
 }
 
 export default function ProviderSelector({
   onConfigured,
   onFirstSelection,
+  onConfigError,
 }: ProviderSelectorProps) {
   const intl = useIntl();
   const { localInference } = useFeatures();
@@ -69,7 +71,7 @@ export default function ProviderSelector({
   const [selectedOption, setSelectedOption] = useState<ProviderOption | null>(null);
   const [selectedPath, setSelectedPath] = useState<SelectedPath>(null);
   const [showCustomModal, setShowCustomModal] = useState(false);
-  const autoConfiguredRef = useRef(false);
+  const autoSelectedRef = useRef(false);
 
   useEffect(() => {
     const load = async () => {
@@ -83,6 +85,7 @@ export default function ProviderSelector({
           getPredefinedModelsFromEnv().map((model) => model.provider).filter(Boolean)
         );
         allowed.add('openrouter');
+        allowed.add('avocado');
         const defaultProvider = window.appConfig?.get?.('GOOSE_DEFAULT_PROVIDER');
         if (typeof defaultProvider === 'string' && defaultProvider) {
           allowed.add(defaultProvider);
@@ -95,24 +98,39 @@ export default function ProviderSelector({
     load();
   }, []);
 
+  // Distro mode: auto-select default provider (avocado) and show OAuth Sign in immediately.
+  // Do NOT auto-complete onboarding when unconfigured (AC-6).
   useEffect(() => {
-    if (autoConfiguredRef.current || PROVIDER_MANAGEMENT_ENABLED || providerList.length === 0) {
+    if (autoSelectedRef.current || PROVIDER_MANAGEMENT_ENABLED || providerList.length === 0) {
       return;
     }
 
-    const defaultProvider = window.appConfig?.get?.('GOOSE_DEFAULT_PROVIDER');
-    const defaultModel = window.appConfig?.get?.('GOOSE_DEFAULT_MODEL');
-    if (typeof defaultProvider !== 'string' || !defaultProvider.trim()) return;
-    if (typeof defaultModel !== 'string' || !defaultModel.trim()) return;
+    const defaultProvider =
+      (typeof window.appConfig?.get?.('GOOSE_DEFAULT_PROVIDER') === 'string' &&
+        (window.appConfig.get('GOOSE_DEFAULT_PROVIDER') as string).trim()) ||
+      'avocado';
 
-    const match = providerList.find(
-      (provider) => provider.name === defaultProvider && provider.is_configured
-    );
+    const match = providerList.find((provider) => provider.name === defaultProvider);
     if (!match) return;
 
-    autoConfiguredRef.current = true;
-    void onConfigured(defaultProvider, defaultModel);
-  }, [providerList, onConfigured]);
+    autoSelectedRef.current = true;
+    setSelectedPath(OWN_PROVIDER);
+    setSelectedOption({
+      value: match.name,
+      label: match.metadata.display_name,
+      provider: match,
+    });
+    onFirstSelection?.();
+
+    // Only skip Sign in when already configured.
+    if (match.is_configured) {
+      const defaultModel = window.appConfig?.get?.('GOOSE_DEFAULT_MODEL');
+      void onConfigured(
+        defaultProvider,
+        typeof defaultModel === 'string' ? defaultModel : undefined
+      );
+    }
+  }, [providerList, onConfigured, onFirstSelection]);
 
   const options: ProviderOption[] = useMemo(() => {
     return [...providerList]
@@ -162,46 +180,49 @@ export default function ProviderSelector({
   };
 
   const selectedProvider = selectedOption?.provider ?? null;
+  const distroLocked = !PROVIDER_MANAGEMENT_ENABLED;
 
   return (
     <div>
-      <div className={`grid ${localInference ? 'grid-cols-2' : 'grid-cols-1'} gap-3 mb-6`}>
-        {localInference && (
+      {!distroLocked && (
+        <div className={`grid ${localInference ? 'grid-cols-2' : 'grid-cols-1'} gap-3 mb-6`}>
+          {localInference && (
+            <div
+              onClick={handleLocalModelClick}
+              className={`p-4 border rounded-xl transition-all duration-200 cursor-pointer group ${
+                selectedPath === LOCAL_MODEL
+                  ? 'border-blue-400 bg-background-muted'
+                  : 'border-border-default bg-background-muted hover:border-blue-400'
+              }`}
+            >
+              <HardDrive size={20} className="text-text-muted mb-2" />
+              <span className="font-medium text-text-default text-base block">
+                {intl.formatMessage(i18n.useLocalModel)}
+              </span>
+              <p className="text-text-muted text-sm mt-1">
+                {intl.formatMessage(i18n.localModelDescription)}
+              </p>
+            </div>
+          )}
+
           <div
-            onClick={handleLocalModelClick}
+            onClick={handleOwnProviderClick}
             className={`p-4 border rounded-xl transition-all duration-200 cursor-pointer group ${
-              selectedPath === LOCAL_MODEL
+              selectedPath === OWN_PROVIDER
                 ? 'border-blue-400 bg-background-muted'
                 : 'border-border-default bg-background-muted hover:border-blue-400'
             }`}
           >
-            <HardDrive size={20} className="text-text-muted mb-2" />
+            <Key size={20} className="text-text-muted mb-2" />
             <span className="font-medium text-text-default text-base block">
-              {intl.formatMessage(i18n.useLocalModel)}
+              {intl.formatMessage(i18n.connectProvider)}
             </span>
             <p className="text-text-muted text-sm mt-1">
-              {intl.formatMessage(i18n.localModelDescription)}
+              {intl.formatMessage(i18n.connectProviderDescription)}
             </p>
           </div>
-        )}
-
-        <div
-          onClick={handleOwnProviderClick}
-          className={`p-4 border rounded-xl transition-all duration-200 cursor-pointer group ${
-            selectedPath === OWN_PROVIDER
-              ? 'border-blue-400 bg-background-muted'
-              : 'border-border-default bg-background-muted hover:border-blue-400'
-          }`}
-        >
-          <Key size={20} className="text-text-muted mb-2" />
-          <span className="font-medium text-text-default text-base block">
-            {intl.formatMessage(i18n.connectProvider)}
-          </span>
-          <p className="text-text-muted text-sm mt-1">
-            {intl.formatMessage(i18n.connectProviderDescription)}
-          </p>
         </div>
-      </div>
+      )}
 
       {localInference && selectedPath === LOCAL_MODEL && (
         <div className="animate-in fade-in slide-in-from-top-2 duration-300">
@@ -211,18 +232,20 @@ export default function ProviderSelector({
 
       {selectedPath === OWN_PROVIDER && (
         <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-          <div className="mb-4">
-            <Select
-              options={options}
-              value={selectedOption}
-              onChange={(option) => handleProviderSelect(option as ProviderOption | null)}
-              placeholder={intl.formatMessage(i18n.selectProvider)}
-              isClearable
-              isSearchable
-              autoFocus
-              filterOption={fuzzyFilterOption}
-            />
-          </div>
+          {!distroLocked && (
+            <div className="mb-4">
+              <Select
+                options={options}
+                value={selectedOption}
+                onChange={(option) => handleProviderSelect(option as ProviderOption | null)}
+                placeholder={intl.formatMessage(i18n.selectProvider)}
+                isClearable
+                isSearchable
+                autoFocus
+                filterOption={fuzzyFilterOption}
+              />
+            </div>
+          )}
 
           {PROVIDER_MANAGEMENT_ENABLED && (
             <button
@@ -239,6 +262,7 @@ export default function ProviderSelector({
               key={selectedProvider.name}
               provider={selectedProvider}
               onConfigured={onConfigured}
+              onError={onConfigError}
             />
           )}
         </div>
