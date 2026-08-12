@@ -306,7 +306,7 @@
     "env": [
       "CORTECS_API_KEY"
     ],
-    "model_count": 105
+    "model_count": 104
   },
   {
     "id": "crof",
@@ -373,7 +373,7 @@
     "env": [
       "DIGITALOCEAN_ACCESS_TOKEN"
     ],
-    "model_count": 90
+    "model_count": 91
   },
   {
     "id": "dinference",
@@ -409,6 +409,17 @@
     "model_count": 4
   },
   {
+    "id": "edenai",
+    "display_name": "Eden AI",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.edenai.run/v3",
+    "doc": "https://docs.edenai.co",
+    "env": [
+      "EDENAI_API_KEY"
+    ],
+    "model_count": 16
+  },
+  {
     "id": "empiriolabs",
     "display_name": "EmpirioLabs AI",
     "npm": "@ai-sdk/openai-compatible",
@@ -417,7 +428,7 @@
     "env": [
       "EMPIRIOLABS_API_KEY"
     ],
-    "model_count": 42
+    "model_count": 43
   },
   {
     "id": "evroc",
@@ -494,7 +505,7 @@
     "env": [
       "GITHUB_TOKEN"
     ],
-    "model_count": 30
+    "model_count": 31
   },
   {
     "id": "gmicloud",
@@ -538,7 +549,7 @@
     "env": [
       "HETZNER_API_KEY"
     ],
-    "model_count": 1
+    "model_count": 4
   },
   {
     "id": "hpc-ai",
@@ -693,7 +704,7 @@
     "env": [
       "KILO_API_KEY"
     ],
-    "model_count": 346
+    "model_count": 353
   },
   {
     "id": "kimi-for-coding",
@@ -737,7 +748,7 @@
     "env": [
       "LLMGATEWAY_API_KEY"
     ],
-    "model_count": 186
+    "model_count": 185
   },
   {
     "id": "llmtr",
@@ -979,7 +990,7 @@
     "env": [
       "NANO_GPT_API_KEY"
     ],
-    "model_count": 618
+    "model_count": 593
   },
   {
     "id": "nearai",
@@ -1057,7 +1068,7 @@
     "env": [
       "NVIDIA_API_KEY"
     ],
-    "model_count": 98
+    "model_count": 99
   },
   {
     "id": "ofox",
@@ -1090,7 +1101,7 @@
     "env": [
       "OPENCODE_API_KEY"
     ],
-    "model_count": 87
+    "model_count": 88
   },
   {
     "id": "opencode-go",
@@ -1179,7 +1190,7 @@
       "PRIVATEMODE_API_KEY",
       "PRIVATEMODE_ENDPOINT"
     ],
-    "model_count": 6
+    "model_count": 7
   },
   {
     "id": "qihang-ai",
