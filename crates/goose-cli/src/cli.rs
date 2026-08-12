@@ -1410,6 +1410,73 @@ struct ServeCommandArgs {
     roam: bool,
 }
 
+/// Roaming is an app-level service: every backend loads the same persisted
+/// identity, so only one process may advertise the endpoint at a time. An OS
+/// advisory lock decides ownership across all goose processes (desktop
+/// windows, CLI serves); it auto-releases when the owner dies — even on
+/// SIGKILL — so a standby can promote itself and paired devices keep access.
+#[cfg(feature = "roaming")]
+fn try_acquire_roam_lock() -> Result<std::fs::File> {
+    use fs2::FileExt as _;
+    use std::io::Write as _;
+
+    let lock_path = goose::config::paths::Paths::data_dir().join("roam/serve.lock");
+    if let Some(parent) = lock_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&lock_path)?;
+    file.try_lock_exclusive().map_err(|_| {
+        anyhow::anyhow!("another goose process is already running the roaming endpoint")
+    })?;
+    file.set_len(0)?;
+    writeln!(file, "{}", std::process::id())?;
+    Ok(file)
+}
+
+#[cfg(feature = "roaming")]
+type RoamShareSlot =
+    std::sync::Arc<tokio::sync::RwLock<Option<std::sync::Arc<goose_roaming::RoamingNode>>>>;
+
+#[cfg(feature = "roaming")]
+fn spawn_roam_share(
+    server: std::sync::Arc<goose::acp::server_factory::AcpServer>,
+) -> RoamShareSlot {
+    let slot = RoamShareSlot::default();
+    let task_slot = slot.clone();
+    tokio::spawn(async move {
+        let mut standing_by = false;
+        loop {
+            match try_acquire_roam_lock() {
+                Ok(lock) => match start_roam_share(server.clone()).await {
+                    Ok(node) => {
+                        *task_slot.write().await = Some(node);
+                        let _lock = lock;
+                        std::future::pending::<()>().await;
+                    }
+                    Err(error) => {
+                        tracing::error!("roam share failed to start: {error}");
+                        drop(lock);
+                    }
+                },
+                Err(_) => {
+                    if !standing_by {
+                        standing_by = true;
+                        eprintln!(
+                            "another goose process owns the roaming endpoint; standing by to take over if it exits"
+                        );
+                    }
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        }
+    });
+    slot
+}
+
 #[cfg(feature = "roaming")]
 async fn start_roam_share(
     server: std::sync::Arc<goose::acp::server_factory::AcpServer>,
@@ -1565,8 +1632,8 @@ async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
         warn!("Scheduler failed to start; scheduled jobs will not run until a client connects: {error}");
     }
     #[cfg(feature = "roaming")]
-    let _roam_node = if roam {
-        Some(start_roam_share(server.clone()).await?)
+    let roam_share = if roam {
+        Some(spawn_roam_share(server.clone()))
     } else {
         None
     };
@@ -1628,8 +1695,10 @@ async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
     }
 
     #[cfg(feature = "roaming")]
-    if let Some(node) = _roam_node {
-        let _ = node.shutdown().await;
+    if let Some(slot) = roam_share {
+        if let Some(node) = slot.write().await.take() {
+            let _ = node.shutdown().await;
+        }
     }
 
     Ok(())

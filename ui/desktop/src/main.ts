@@ -1001,13 +1001,6 @@ function getRegularWindows(): BrowserWindow[] {
 
 const gooseServeLeases = new GooseServeLeaseRegistry(log);
 
-// Only one local backend may own the roaming endpoint: every backend loads
-// the same persisted roam identity, so two --roam processes would advertise
-// the same endpoint id and race each other (last writer wins). The first
-// window's backend hosts the share; when it exits, the next new window's
-// backend picks it up.
-let roamServeActive = false;
-
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
 // Track pending initial messages per window
 const pendingInitialMessages = new Map<number, string>(); // windowId -> initialMessage
@@ -1183,14 +1176,13 @@ const createChat = async (
 
     const loginShellPath = await getLoginShellPath(log);
 
-    const roamThisBackend = getSettings().roamEnabled && !roamServeActive;
     let gooseServeResult: Awaited<ReturnType<typeof startGooseServe>>;
     try {
       gooseServeResult = await startGooseServe({
         serverSecret,
         dir: workingDir,
         tls: true,
-        roam: roamThisBackend,
+        roam: getSettings().roamEnabled,
         env: {
           GOOSE_PATH_ROOT: appConfig.GOOSE_PATH_ROOT as string | undefined,
         },
@@ -1242,17 +1234,8 @@ const createChat = async (
         await cleanupGooseServe();
       } finally {
         localCertificateTrust.release();
-        if (roamThisBackend) {
-          roamServeActive = false;
-        }
       }
     };
-    if (roamThisBackend) {
-      roamServeActive = true;
-      gooseServeResult.process.once('exit', () => {
-        roamServeActive = false;
-      });
-    }
     gooseServeLease = gooseServeLeases.create(gooseServeResult, serverSecret);
   }
 

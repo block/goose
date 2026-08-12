@@ -32,7 +32,11 @@ export interface StartGooseServeOptions extends FindGooseBinaryOptions {
   dir?: string;
   serverSecret: string;
   tls?: boolean;
-  /** Pass --roam so the server is also reachable over goose-roaming (p2p). */
+  /**
+   * Pass --roam so the server is also reachable over goose-roaming (p2p).
+   * Safe to pass to every backend: an OS advisory lock inside goose serve
+   * elects a single owner; the rest stand by and promote when it exits.
+   */
   roam?: boolean;
   env?: Record<string, string | undefined>;
   /** PATH from the user's login shell, appended so goosed can find CLI providers. */

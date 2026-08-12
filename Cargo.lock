@@ -5374,6 +5374,7 @@ dependencies = [
  "dotenvy",
  "env-lock",
  "etcetera 0.11.0",
+ "fs2",
  "futures",
  "goose",
  "goose-mcp",
