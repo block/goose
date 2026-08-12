@@ -5,6 +5,7 @@ vi.mock('../toasts', () => ({
   toastService: {
     error: vi.fn(),
     extensionLoading: vi.fn(),
+    dismiss: vi.fn(),
   },
 }));
 
@@ -21,11 +22,12 @@ describe('showExtensionLoadResults', () => {
     expect(toastService.extensionLoading).not.toHaveBeenCalled();
   });
 
-  it('shows nothing when all extensions succeed', () => {
+  it('dismisses stale toast when all extensions succeed', () => {
     showExtensionLoadResults([
       { name: 'ext-a', success: true },
       { name: 'ext-b', success: true },
     ]);
+    expect(toastService.dismiss).toHaveBeenCalledWith('extension-loading');
     expect(toastService.error).not.toHaveBeenCalled();
     expect(toastService.extensionLoading).not.toHaveBeenCalled();
   });
