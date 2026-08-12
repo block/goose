@@ -4,7 +4,7 @@ use crate::providers::api_client::{AuthProvider, RequestBuilderDecorator};
 use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use crate::providers::openai_compatible::handle_status;
 use crate::providers::private_file::write_private_file;
-use crate::providers::retry::ProviderRetry;
+use crate::providers::retry::{ProviderRetry, RetryConfig};
 use anyhow::{anyhow, Result};
 use async_stream::try_stream;
 use async_trait::async_trait;
@@ -41,6 +41,9 @@ const OAUTH_PORT: u16 = 1455;
 // Allow time for users to complete the browser-based OAuth flow.
 const OAUTH_TIMEOUT_SECS: u64 = 300;
 const HTML_AUTO_CLOSE_TIMEOUT_MS: u64 = 2000;
+const CHATGPT_CODEX_MAX_RETRIES: usize = 8;
+const CHATGPT_CODEX_INITIAL_RETRY_INTERVAL_MS: u64 = 2_000;
+const CHATGPT_CODEX_MAX_RETRY_INTERVAL_MS: u64 = 30_000;
 
 const CHATGPT_CODEX_PROVIDER_NAME: &str = "chatgpt_codex";
 pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.5";
@@ -936,7 +939,7 @@ impl ChatGptCodexProvider {
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))?
             .send()
             .await
-            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+            .map_err(|e| ProviderError::NetworkError(e.to_string()))?;
 
         handle_status(response).await
     }
@@ -977,6 +980,16 @@ impl ProviderDef for ChatGptCodexProvider {
 impl Provider for ChatGptCodexProvider {
     fn get_name(&self) -> &str {
         &self.name
+    }
+
+    fn retry_config(&self) -> RetryConfig {
+        RetryConfig::new(
+            CHATGPT_CODEX_MAX_RETRIES,
+            CHATGPT_CODEX_INITIAL_RETRY_INTERVAL_MS,
+            2.0,
+            CHATGPT_CODEX_MAX_RETRY_INTERVAL_MS,
+        )
+        .transient_only()
     }
 
     async fn stream(
