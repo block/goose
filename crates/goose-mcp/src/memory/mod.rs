@@ -204,10 +204,22 @@ impl MemoryServer {
             for entry in fs::read_dir(&base_dir)? {
                 let entry = entry?;
                 if entry.file_type()?.is_file() {
-                    let category = entry.file_name().to_string_lossy().replace(".txt", "");
-                    let category_memories = self.retrieve(&category, is_global, working_dir)?;
+                    let file_name = entry.file_name();
+                    let Some(category) = file_name
+                        .to_str()
+                        .and_then(|name| name.strip_suffix(".txt"))
+                    else {
+                        continue;
+                    };
+                    if self
+                        .get_memory_file(category, is_global, working_dir)
+                        .is_err()
+                    {
+                        continue;
+                    }
+                    let category_memories = self.retrieve(category, is_global, working_dir)?;
                     memories.insert(
-                        category,
+                        category.to_string(),
                         category_memories.into_values().flatten().collect(),
                     );
                 }
@@ -769,5 +781,28 @@ mod tests {
         assert!(working_dir
             .join(".goose/memory/project notes_2026.txt")
             .is_file());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_retrieve_all_skips_invalid_legacy_categories() {
+        let temp_dir = tempdir().unwrap();
+        let working_dir = temp_dir.path().join("working");
+        let memory_dir = working_dir.join(".goose/memory");
+        fs::create_dir_all(&memory_dir).unwrap();
+        fs::write(memory_dir.join("valid.txt"), "kept").unwrap();
+        fs::write(memory_dir.join("work:api.txt"), "legacy").unwrap();
+        fs::write(memory_dir.join(r"work\api.txt"), "legacy").unwrap();
+
+        let router = MemoryServer {
+            tool_router: ToolRouter::new(),
+            instructions: String::new(),
+            global_memory_dir: temp_dir.path().join("global"),
+        };
+
+        let memories = router.retrieve_all(false, Some(&working_dir)).unwrap();
+
+        assert_eq!(memories.len(), 1);
+        assert!(memories["valid"].iter().any(|entry| entry == "kept"));
     }
 }
