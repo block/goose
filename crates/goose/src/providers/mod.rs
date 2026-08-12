@@ -9,6 +9,7 @@ pub mod api_client {
 }
 pub mod avian;
 pub mod avocado;
+pub mod avocado_auth;
 pub mod azure;
 pub mod azure_foundry_def;
 pub mod azureauth;
@@ -98,4 +99,4 @@ pub use init::{
     create_with_working_dir, get_from_registry, inventory_identity, providers,
     refresh_custom_providers,
 };
-pub use retry::{retry_operation, RetryConfig};
+pub use retry::{RetryConfig, retry_operation};

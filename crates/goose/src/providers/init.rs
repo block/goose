@@ -49,7 +49,7 @@ use crate::{
     config::declarative_providers::register_declarative_providers,
     providers::provider_registry::ProviderEntry,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::collections::HashSet;
 use tokio::sync::OnceCell;
 
@@ -150,8 +150,10 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             Some(registrations::anthropic_inventory()),
         );
         registry.register::<AvianProvider>(false);
-        registry
-            .register_with_inventory::<AvocadoProvider>(true, Some(registrations::refresh_only()));
+        registry.register_with_inventory::<AvocadoProvider>(
+            true,
+            Some(registrations::avocado_inventory()),
+        );
         registry.register::<AzureProvider>(false);
         registry.register_with_inventory::<AzureFoundryProviderDef>(
             true,
@@ -437,10 +439,11 @@ mod tests {
         assert_eq!(huggingface.provider_type(), ProviderType::Preferred);
         assert_eq!(meta.display_name, "Hugging Face");
         assert_eq!(meta.default_model, "Qwen/Qwen3-Coder-480B-A35B-Instruct");
-        assert!(meta
-            .config_keys
-            .iter()
-            .any(|key| key.name == "HF_TOKEN" && key.secret));
+        assert!(
+            meta.config_keys
+                .iter()
+                .any(|key| key.name == "HF_TOKEN" && key.secret)
+        );
     }
 
     #[tokio::test]
@@ -756,9 +759,6 @@ mod tests {
         // covers AC-4 / R4
         let _guard = env_lock::lock_env([("GOOSE_PROVIDER_ALLOWLIST", Some(""))]);
         let err = resolve_provider_allowlist().expect_err("empty allowlist must error");
-        assert!(
-            err.to_string().contains("empty"),
-            "unexpected error: {err}"
-        );
+        assert!(err.to_string().contains("empty"), "unexpected error: {err}");
     }
 }

@@ -1,4 +1,5 @@
-use super::api_client::{ApiClient, AuthMethod};
+use super::api_client::{ApiClient, AuthMethod, AuthProvider};
+use super::avocado_auth;
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::openai_compatible::{
     handle_response_openai_compat, handle_status, map_http_error_to_provider_error,
@@ -14,7 +15,7 @@ use goose_providers::images::ImageFormat;
 
 use goose_providers::formats::openai::create_request;
 use goose_providers::model::ModelConfig;
-use goose_providers::request_log::{start_log, LoggerHandleExt};
+use goose_providers::request_log::{LoggerHandleExt, start_log};
 use rmcp::model::Tool;
 use serde_json::Value;
 
@@ -39,6 +40,20 @@ pub const AVOCADO_KNOWN_MODELS: &[&str] = &[
     "google/gemini-2.5-pro",
 ];
 
+struct AvocadoBearerAuth;
+
+#[async_trait]
+impl AuthProvider for AvocadoBearerAuth {
+    async fn get_auth_header(&self) -> Result<(String, String)> {
+        let key = avocado_auth::resolve_api_key().ok_or_else(|| {
+            anyhow::anyhow!(
+                "Avocado is not configured. Sign in with Avocado to obtain a virtual API key."
+            )
+        })?;
+        Ok(("Authorization".to_string(), format!("Bearer {key}")))
+    }
+}
+
 #[derive(serde::Serialize)]
 pub struct AvocadoProvider {
     #[serde(skip)]
@@ -52,12 +67,12 @@ impl AvocadoProvider {
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
-        let api_key: String = config.get_secret("AVOCADO_API_KEY")?;
         let host: String = config
             .get_param("AVOCADO_HOST")
             .unwrap_or_else(|_| AVOCADO_DEFAULT_HOST.to_string());
 
-        let auth = AuthMethod::BearerToken(api_key);
+        // Lazy auth so ACP authenticate can construct the provider before OAuth.
+        let auth = AuthMethod::Custom(Box::new(AvocadoBearerAuth));
         let api_client = ApiClient::new_with_tls(host, auth, tls_config)?
             .with_request_builder(crate::session_context::session_id_request_builder())
             .with_header("HTTP-Referer", "https://goose-docs.ai")?
@@ -130,7 +145,7 @@ impl goose_providers::base::ProviderDescriptor for AvocadoProvider {
             AVOCADO_KNOWN_MODELS.to_vec(),
             AVOCADO_DOC_URL,
             vec![
-                ConfigKey::new("AVOCADO_API_KEY", true, true, None, true),
+                ConfigKey::new_oauth("AVOCADO_API_KEY", true, true, None, true),
                 ConfigKey::new(
                     "AVOCADO_HOST",
                     false,
@@ -160,6 +175,12 @@ impl Provider for AvocadoProvider {
         &self.name
     }
 
+    async fn configure_oauth(&self) -> Result<(), ProviderError> {
+        avocado_auth::configure_oauth()
+            .await
+            .map_err(|e| ProviderError::Authentication(e.to_string()))
+    }
+
     async fn stream(
         &self,
         model_config: &ModelConfig,
@@ -167,6 +188,13 @@ impl Provider for AvocadoProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
+        if avocado_auth::resolve_api_key().is_none() {
+            return Err(ProviderError::Authentication(
+                "Avocado is not configured. Sign in with Avocado to obtain a virtual API key."
+                    .to_string(),
+            ));
+        }
+
         let payload = create_request(
             model_config,
             system,
@@ -375,6 +403,7 @@ mod tests {
         assert!(api_key.required);
         assert!(api_key.secret);
         assert!(api_key.primary);
+        assert!(api_key.oauth_flow, "AC-1: oauth_flow must be true");
 
         let host = meta
             .config_keys
