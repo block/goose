@@ -69,6 +69,7 @@ module.exports = [
         setInterval: 'readonly',
         clearTimeout: 'readonly',
         CustomEvent: 'readonly',
+        Element: 'readonly',
         HTMLElement: 'readonly',
         HTMLInputElement: 'readonly',
         HTMLSelectElement: 'readonly',
