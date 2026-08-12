@@ -330,7 +330,43 @@ extensions:
     type: stdio
     timeout: 300
 ```
-    
+
+#### Remote extensions with a pre-registered OAuth client
+
+Remote (`streamable_http`) extensions that require OAuth normally obtain a
+client ID automatically, using Client ID Metadata Documents or Dynamic Client
+Registration. Some authorization servers support neither and instead require a
+client that was registered out of band. For those servers, set `client_id` —
+and, for confidential clients, `client_secret_key` — on the extension:
+
+```yaml
+extensions:
+  remote-example:
+    name: Remote Example
+    type: streamable_http
+    uri: https://example.com/mcp
+    client_id: <YOUR_REGISTERED_CLIENT_ID>
+    client_secret_key: REMOTE_EXAMPLE_OAUTH_SECRET
+    scopes:
+      - example.readonly
+    enabled: true
+    timeout: 300
+```
+
+- `client_id`: the OAuth client ID registered with the server's authorization
+  server. When set, it takes priority over Client ID Metadata Documents and
+  Dynamic Client Registration. Supports `$VAR`/`${VAR}` substitution.
+- `client_secret_key`: the name of an env/secret key holding the client
+  secret, resolved from `envs`/`env_keys` or goose's secret store (`goose
+  configure` > extension secrets). The secret value itself never goes in the
+  config file. Omit it for public clients that authenticate with PKCE alone.
+- `scopes`: the OAuth scopes to request. When omitted, scopes are selected
+  from the server's advertised metadata, which may be broader than the
+  extension needs.
+
+The OAuth callback is served on `127.0.0.1` with an ephemeral port; set
+`GOOSE_OAUTH_CALLBACK_PORT` if the authorization server only allows a
+pre-registered redirect URI with a fixed port.
 
 ## Enabling/Disabling Extensions
 

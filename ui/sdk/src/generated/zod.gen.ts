@@ -175,6 +175,15 @@ export const zGooseExtension = z.union([
             z.string(),
             z.null()
         ]).optional(),
+        clientId: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        clientSecretKey: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        scopes: z.array(z.string()).optional(),
         bundled: z.union([
             z.boolean(),
             z.null()
@@ -1586,6 +1595,15 @@ export const zRecipeExtensionDto = z.union([
             z.string(),
             z.null()
         ]).optional(),
+        client_id: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        client_secret_key: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        scopes: z.array(z.string()).optional(),
         bundled: z.union([
             z.boolean(),
             z.null()

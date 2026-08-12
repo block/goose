@@ -8,7 +8,9 @@ use axum::routing::get;
 use axum::Router;
 use minijinja::render;
 use oauth2::TokenResponse;
-use rmcp::transport::auth::{AuthorizationRequest, CredentialStore, OAuthState, StoredCredentials};
+use rmcp::transport::auth::{
+    AuthorizationRequest, CredentialStore, OAuthClientConfig, OAuthState, StoredCredentials,
+};
 use rmcp::transport::AuthorizationManager;
 use serde::Deserialize;
 use std::net::SocketAddr;
@@ -83,25 +85,104 @@ async fn wait_for_callback(
     }
 }
 
+/// OAuth client credentials registered with the authorization server out of
+/// band, for servers whose authorization server supports neither Dynamic
+/// Client Registration nor Client ID Metadata Documents.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StaticOAuthClientConfig {
+    pub client_id: String,
+    /// Secret paired with the client ID. Optional: public clients using PKCE
+    /// have no secret.
+    pub client_secret: Option<String>,
+    /// Scopes to request. When empty, scopes are selected from server
+    /// metadata, which may be broader than the extension needs.
+    pub scopes: Vec<String>,
+}
+
+/// A stored grant satisfies the configured scopes when every requested scope
+/// was granted. A broader stored grant is accepted: forcing re-authorization
+/// until granted == requested would loop on servers that grant supersets or
+/// let users decline individual scopes.
+fn granted_scopes_cover_requested(granted: &[String], requested: &[String]) -> bool {
+    requested
+        .iter()
+        .all(|scope| granted.iter().any(|granted_scope| granted_scope == scope))
+}
+
+fn build_authorization_request(
+    redirect_uri: String,
+    static_client: Option<&StaticOAuthClientConfig>,
+) -> AuthorizationRequest {
+    let mut request = AuthorizationRequest::new(redirect_uri).with_client_name("goose");
+    match static_client {
+        Some(client) => {
+            request = request.with_preregistered_client(client.client_id.clone());
+            if let Some(secret) = &client.client_secret {
+                request = request.with_client_secret(secret.clone());
+            }
+            if !client.scopes.is_empty() {
+                request = request.with_scopes(client.scopes.clone());
+            }
+        }
+        None => {
+            request = request.with_client_metadata_url(CLIENT_METADATA_URL);
+        }
+    }
+    request
+}
+
 pub async fn oauth_flow(
     mcp_server_url: &String,
     name: &String,
+    static_client: Option<&StaticOAuthClientConfig>,
 ) -> Result<AuthorizationManager, anyhow::Error> {
     let credential_store = GooseCredentialStore::new(name.clone());
     let mut auth_manager = AuthorizationManager::new(mcp_server_url).await?;
     auth_manager.set_credential_store(credential_store.clone());
 
     if auth_manager.initialize_from_store().await? {
-        match auth_manager.refresh_token().await {
-            Ok(_) => {
-                return Ok(auth_manager);
+        // Refreshing keeps the stored grant's scopes, so a configured scope
+        // the stored grant lacks can only be obtained by authorizing again.
+        let scopes_satisfied = match static_client {
+            Some(client) if !client.scopes.is_empty() => {
+                let granted = credential_store
+                    .load()
+                    .await?
+                    .map(|credentials| credentials.granted_scopes)
+                    .unwrap_or_default();
+                granted_scopes_cover_requested(&granted, &client.scopes)
             }
-            Err(e) => {
-                warn!(
-                    "[OAuth:{}] Token refresh failed: {} - clearing stored credentials and falling back to browser auth",
-                    name, e
-                );
+            _ => true,
+        };
+
+        if scopes_satisfied {
+            // initialize_from_store configures the client from the stored
+            // client_id alone; a confidential client must present its secret
+            // at the token endpoint for the refresh to succeed.
+            if let Some(client) = static_client {
+                let mut config =
+                    OAuthClientConfig::new(client.client_id.clone(), mcp_server_url.clone());
+                if let Some(secret) = &client.client_secret {
+                    config = config.with_client_secret(secret.clone());
+                }
+                auth_manager.configure_client(config)?;
             }
+            match auth_manager.refresh_token().await {
+                Ok(_) => {
+                    return Ok(auth_manager);
+                }
+                Err(e) => {
+                    warn!(
+                        "[OAuth:{}] Token refresh failed: {} - clearing stored credentials and falling back to browser auth",
+                        name, e
+                    );
+                }
+            }
+        } else {
+            warn!(
+                "[OAuth:{}] Stored grant is missing configured scopes - starting browser authorization to request them",
+                name
+            );
         }
 
         if let Err(e) = credential_store.clear().await {
@@ -147,11 +228,7 @@ pub async fn oauth_flow(
 
     let redirect_uri = format!("http://127.0.0.1:{}/oauth_callback", used_addr.port());
     oauth_state
-        .start_authorization(
-            AuthorizationRequest::new(redirect_uri)
-                .with_client_name("goose")
-                .with_client_metadata_url(CLIENT_METADATA_URL),
-        )
+        .start_authorization(build_authorization_request(redirect_uri, static_client))
         .await?;
 
     let authorization_url = oauth_state.get_authorization_url().await?;
@@ -286,6 +363,82 @@ mod tests {
         let Query(params) = Query::<CallbackParams>::try_from_uri(&uri).unwrap();
 
         assert_eq!(params.iss, None);
+    }
+
+    #[test]
+    fn granted_scopes_cover_requested_accepts_exact_and_superset_grants() {
+        let requested = vec!["scope.read".to_string()];
+
+        assert!(granted_scopes_cover_requested(&requested, &requested));
+        assert!(granted_scopes_cover_requested(
+            &["scope.read".to_string(), "scope.write".to_string()],
+            &requested
+        ));
+        assert!(granted_scopes_cover_requested(&[], &[]));
+    }
+
+    #[test]
+    fn granted_scopes_cover_requested_rejects_missing_scopes() {
+        assert!(!granted_scopes_cover_requested(
+            &["scope.read".to_string()],
+            &["scope.read".to_string(), "scope.write".to_string()]
+        ));
+        assert!(!granted_scopes_cover_requested(
+            &[],
+            &["scope.read".to_string()]
+        ));
+    }
+
+    #[test]
+    fn authorization_request_uses_client_metadata_url_without_static_client() {
+        let request =
+            build_authorization_request("http://127.0.0.1:1234/oauth_callback".to_string(), None);
+
+        assert_eq!(request.client_id, None);
+        assert_eq!(request.client_secret, None);
+        assert_eq!(
+            request.client_metadata_url.as_deref(),
+            Some(CLIENT_METADATA_URL)
+        );
+        assert!(request.scopes.is_empty());
+    }
+
+    #[test]
+    fn authorization_request_prefers_static_client_over_client_metadata_url() {
+        let static_client = StaticOAuthClientConfig {
+            client_id: "registered-client".to_string(),
+            client_secret: Some("registered-secret".to_string()),
+            scopes: vec!["scope.read".to_string(), "scope.write".to_string()],
+        };
+
+        let request = build_authorization_request(
+            "http://127.0.0.1:1234/oauth_callback".to_string(),
+            Some(&static_client),
+        );
+
+        assert_eq!(request.client_id.as_deref(), Some("registered-client"));
+        assert_eq!(request.client_secret.as_deref(), Some("registered-secret"));
+        assert_eq!(request.client_metadata_url, None);
+        assert_eq!(request.scopes, vec!["scope.read", "scope.write"]);
+    }
+
+    #[test]
+    fn authorization_request_omits_secret_and_scopes_for_public_static_client() {
+        let static_client = StaticOAuthClientConfig {
+            client_id: "registered-client".to_string(),
+            client_secret: None,
+            scopes: vec![],
+        };
+
+        let request = build_authorization_request(
+            "http://127.0.0.1:1234/oauth_callback".to_string(),
+            Some(&static_client),
+        );
+
+        assert_eq!(request.client_id.as_deref(), Some("registered-client"));
+        assert_eq!(request.client_secret, None);
+        assert_eq!(request.client_metadata_url, None);
+        assert!(request.scopes.is_empty());
     }
 
     #[tokio::test]

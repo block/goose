@@ -36,6 +36,18 @@ export type GooseExtension = {
     description?: string | null;
     timeout?: number | null;
     socket?: string | null;
+    /**
+     * Pre-registered OAuth client ID for the server's authorization server.
+     */
+    clientId?: string | null;
+    /**
+     * Name of the env/secret key holding the OAuth client secret.
+     */
+    clientSecretKey?: string | null;
+    /**
+     * OAuth scopes to request with `client_id`.
+     */
+    scopes?: Array<string>;
     bundled?: boolean | null;
     /**
      * Tool allowlist for this extension. Omit this field to allow all tools.
@@ -1634,6 +1646,18 @@ export type RecipeExtensionDto = {
     };
     timeout?: number | null;
     socket?: string | null;
+    /**
+     * Pre-registered OAuth client ID for the server's authorization server.
+     */
+    client_id?: string | null;
+    /**
+     * Name of the env/secret key holding the OAuth client secret.
+     */
+    client_secret_key?: string | null;
+    /**
+     * OAuth scopes to request with `client_id`.
+     */
+    scopes?: Array<string>;
     bundled?: boolean | null;
     /**
      * Tool allowlist for this extension. Omit this field to allow all tools.

@@ -361,7 +361,7 @@ pub enum GooseExtension {
         available_tools: Option<Vec<String>>,
     },
     Mcp {
-        server: McpServer,
+        server: Box<McpServer>,
         #[serde(default, rename = "envKeys", skip_serializing_if = "Vec::is_empty")]
         env_keys: Vec<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -370,6 +370,19 @@ pub enum GooseExtension {
         timeout: Option<u64>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         socket: Option<String>,
+        /// Pre-registered OAuth client ID for the server's authorization server.
+        #[serde(default, rename = "clientId", skip_serializing_if = "Option::is_none")]
+        client_id: Option<String>,
+        /// Name of the env/secret key holding the OAuth client secret.
+        #[serde(
+            default,
+            rename = "clientSecretKey",
+            skip_serializing_if = "Option::is_none"
+        )]
+        client_secret_key: Option<String>,
+        /// OAuth scopes to request with `client_id`.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        scopes: Vec<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         bundled: Option<bool>,
         /// Tool allowlist for this extension. Omit this field to allow all tools.

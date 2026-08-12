@@ -148,6 +148,27 @@
                 "null"
               ]
             },
+            "clientId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Pre-registered OAuth client ID for the server's authorization server."
+            },
+            "clientSecretKey": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Name of the env/secret key holding the OAuth client secret."
+            },
+            "scopes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "OAuth scopes to request with `client_id`."
+            },
             "bundled": {
               "type": [
                 "boolean",
@@ -3975,6 +3996,27 @@
                 "string",
                 "null"
               ]
+            },
+            "client_id": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Pre-registered OAuth client ID for the server's authorization server."
+            },
+            "client_secret_key": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Name of the env/secret key holding the OAuth client secret."
+            },
+            "scopes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "OAuth scopes to request with `client_id`."
             },
             "bundled": {
               "type": [
