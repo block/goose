@@ -47,6 +47,15 @@ fn extract_working_dir_from_meta(meta: &MetaObject) -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
+fn memory_error(error: io::Error) -> ErrorData {
+    let code = if error.kind() == io::ErrorKind::InvalidInput {
+        ErrorCode::INVALID_PARAMS
+    } else {
+        ErrorCode::INTERNAL_ERROR
+    };
+    ErrorData::new(code, error.to_string(), None)
+}
+
 /// Parameters for the remember_memory tool
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct RememberMemoryParams {
@@ -407,7 +416,7 @@ impl MemoryServer {
             params.is_global,
             working_dir.as_ref(),
         )
-        .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+        .map_err(memory_error)?;
 
         Ok(CallToolResult::success(vec![ContentBlock::text(format!(
             "Stored memory in category: {}",
@@ -433,7 +442,7 @@ impl MemoryServer {
         } else {
             self.retrieve(&params.category, params.is_global, working_dir.as_ref())
         }
-        .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+        .map_err(memory_error)?;
 
         Ok(CallToolResult::success(vec![ContentBlock::text(format!(
             "Retrieved memories: {:?}",
@@ -456,14 +465,14 @@ impl MemoryServer {
 
         let message = if params.category == "*" {
             self.clear_all_global_or_local_memories(params.is_global, working_dir.as_ref())
-                .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+                .map_err(memory_error)?;
             format!(
                 "Cleared all memory {} categories",
                 if params.is_global { "global" } else { "local" }
             )
         } else {
             self.clear_memory(&params.category, params.is_global, working_dir.as_ref())
-                .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+                .map_err(memory_error)?;
             format!("Cleared memories in category: {}", params.category)
         };
 
@@ -489,7 +498,7 @@ impl MemoryServer {
             params.is_global,
             working_dir.as_ref(),
         )
-        .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+        .map_err(memory_error)?;
 
         Ok(CallToolResult::success(vec![ContentBlock::text(format!(
             "Removed specific memory from category: {}",
@@ -829,5 +838,14 @@ mod tests {
 
         assert_eq!(memories.len(), 1);
         assert!(memories["valid"].iter().any(|entry| entry == "kept"));
+    }
+
+    #[test]
+    fn test_memory_error_preserves_invalid_parameter_distinction() {
+        let invalid = memory_error(io::Error::new(io::ErrorKind::InvalidInput, "bad category"));
+        assert_eq!(invalid.code, ErrorCode::INVALID_PARAMS);
+
+        let filesystem = memory_error(io::Error::new(io::ErrorKind::PermissionDenied, "denied"));
+        assert_eq!(filesystem.code, ErrorCode::INTERNAL_ERROR);
     }
 }
