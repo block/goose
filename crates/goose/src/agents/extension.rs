@@ -511,7 +511,16 @@ impl ExtensionConfig {
                 bundled,
                 available_tools,
             } => {
-                let merged = merge_environments(&envs, &env_keys, &name, config).await?;
+                // Resolve the OAuth client secret alongside env_keys so that
+                // rotating it changes the resolved config, which is what
+                // add_extension compares to decide whether to restart.
+                let mut secret_keys = env_keys;
+                if let Some(key) = &client_secret_key {
+                    if !secret_keys.contains(key) {
+                        secret_keys.push(key.clone());
+                    }
+                }
+                let merged = merge_environments(&envs, &secret_keys, &name, config).await?;
                 let headers = headers
                     .into_iter()
                     .map(|(k, v)| {
@@ -1095,6 +1104,43 @@ timeout: 300",
             available_tools: vec![],
         }
         ; "http_client_id_substitution_and_oauth_fields_preserved"
+    )]
+    #[test_case(
+        ExtensionConfig::StreamableHttp {
+            name: "test".into(),
+            description: String::new(),
+            uri: "https://example.com/mcp".into(),
+            envs: extension::Envs::default(),
+            env_keys: vec![],
+            headers: std::collections::HashMap::new(),
+            timeout: None,
+            socket: None,
+            client_id: Some("registered-client".into()),
+            client_secret_key: Some("MY_SECRET".into()),
+            scopes: vec![],
+            bundled: None,
+            available_tools: vec![],
+        },
+        ExtensionConfig::StreamableHttp {
+            name: "test".into(),
+            description: String::new(),
+            uri: "https://example.com/mcp".into(),
+            envs: extension::Envs::new({
+                let mut m = std::collections::HashMap::new();
+                m.insert("MY_SECRET".to_string(), "secret_value".to_string());
+                m
+            }),
+            env_keys: vec![],
+            headers: std::collections::HashMap::new(),
+            timeout: None,
+            socket: None,
+            client_id: Some("registered-client".into()),
+            client_secret_key: Some("MY_SECRET".into()),
+            scopes: vec![],
+            bundled: None,
+            available_tools: vec![],
+        }
+        ; "http_client_secret_key_resolved_without_env_keys_entry"
     )]
     #[tokio::test]
     async fn test_resolve(config: ExtensionConfig, expected: ExtensionConfig) {

@@ -109,6 +109,21 @@ fn granted_scopes_cover_requested(granted: &[String], requested: &[String]) -> b
         .all(|scope| granted.iter().any(|granted_scope| granted_scope == scope))
 }
 
+/// RFC 6749 section 5.1 makes the token response's `scope` optional when the
+/// granted scopes are identical to those requested, so an omitted scope list
+/// means the requested scopes were granted.
+fn resolve_granted_scopes(
+    token_scopes: Option<Vec<String>>,
+    static_client: Option<&StaticOAuthClientConfig>,
+) -> Vec<String> {
+    match token_scopes {
+        Some(scopes) => scopes,
+        None => static_client
+            .map(|client| client.scopes.clone())
+            .unwrap_or_default(),
+    }
+}
+
 fn build_authorization_request(
     redirect_uri: String,
     static_client: Option<&StaticOAuthClientConfig>,
@@ -263,11 +278,13 @@ pub async fn oauth_flow(
         .into_authorization_manager()
         .ok_or_else(|| anyhow::anyhow!("Failed to get authorization manager"))?;
 
-    let granted_scopes: Vec<String> = token_response
-        .as_ref()
-        .and_then(|tr| tr.scopes())
-        .map(|scopes| scopes.iter().map(|s| s.to_string()).collect())
-        .unwrap_or_default();
+    let granted_scopes = resolve_granted_scopes(
+        token_response
+            .as_ref()
+            .and_then(|tr| tr.scopes())
+            .map(|scopes| scopes.iter().map(|s| s.to_string()).collect()),
+        static_client,
+    );
 
     credential_store
         .save(StoredCredentials::new(
@@ -363,6 +380,35 @@ mod tests {
         let Query(params) = Query::<CallbackParams>::try_from_uri(&uri).unwrap();
 
         assert_eq!(params.iss, None);
+    }
+
+    #[test]
+    fn resolve_granted_scopes_prefers_the_token_response_scopes() {
+        let static_client = StaticOAuthClientConfig {
+            client_id: "registered-client".to_string(),
+            client_secret: None,
+            scopes: vec!["scope.read".to_string()],
+        };
+
+        assert_eq!(
+            resolve_granted_scopes(Some(vec!["scope.other".to_string()]), Some(&static_client)),
+            vec!["scope.other"]
+        );
+    }
+
+    #[test]
+    fn resolve_granted_scopes_falls_back_to_requested_scopes_when_omitted() {
+        let static_client = StaticOAuthClientConfig {
+            client_id: "registered-client".to_string(),
+            client_secret: None,
+            scopes: vec!["scope.read".to_string(), "scope.write".to_string()],
+        };
+
+        assert_eq!(
+            resolve_granted_scopes(None, Some(&static_client)),
+            vec!["scope.read", "scope.write"]
+        );
+        assert!(resolve_granted_scopes(None, None).is_empty());
     }
 
     #[test]
