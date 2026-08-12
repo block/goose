@@ -550,7 +550,7 @@
     "description": "Render on-brand images, PDFs, and video from reusable templates",
     "type": "streamable-http",
     "url": "https://mcp.orshot.com/mcp",
-    "link": "https://orshot.com/docs/integrations/mcp-server",
+    "link": "https://orshot.com/agents",
     "installation_notes": "Hosted remote server. Sign in with your Orshot account via OAuth on first connect. No API key required.",
     "is_builtin": false,
     "endorsed": false,
