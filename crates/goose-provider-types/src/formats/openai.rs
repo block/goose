@@ -3096,12 +3096,17 @@ mod tests {
 
         // Base below the cap: the top-up is attempted but clamped so the request
         // never exceeds the model's hard cap.
-        let model_config =
-            test_model_config("grok-4.3").with_thinking_effort(ThinkingEffort::High);
-        assert_eq!(effective_max_tokens_for_reasoning(&model_config, 20_000, false), cap);
+        let model_config = test_model_config("grok-4.3").with_thinking_effort(ThinkingEffort::High);
+        assert_eq!(
+            effective_max_tokens_for_reasoning(&model_config, 20_000, false),
+            cap
+        );
 
         // Base already at the cap: no headroom, the top-up is skipped.
-        assert_eq!(effective_max_tokens_for_reasoning(&model_config, cap, false), cap);
+        assert_eq!(
+            effective_max_tokens_for_reasoning(&model_config, cap, false),
+            cap
+        );
 
         // Plenty of headroom: the normal top-up is preserved.
         let low = test_model_config("grok-4.3").with_thinking_effort(ThinkingEffort::Low);
