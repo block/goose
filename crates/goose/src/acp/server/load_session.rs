@@ -312,8 +312,20 @@ impl GooseAcpAgent {
                     .data(format!("Session not found: {}", session_id_str))
             })?;
 
+        // Mirror the session/new cwd seam: a host-imposed cwd wins, and a
+        // remote client with no meaningful cwd (e.g. the roam web client)
+        // sends "/" — never let that rewrite the session's stored working
+        // dir; keep what the session already has.
+        let cwd = if let Some(host_cwd) = &self.session_cwd {
+            host_cwd.clone()
+        } else if args.cwd == std::path::Path::new("/") {
+            session.working_dir.clone()
+        } else {
+            args.cwd.clone()
+        };
+
         session = self
-            .prepare_session_for_activation(session, args.cwd.clone(), args.mcp_servers, true)
+            .prepare_session_for_activation(session, cwd, args.mcp_servers, true)
             .await?;
 
         let replayed_from = replay_conversation_to_client(

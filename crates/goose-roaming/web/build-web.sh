@@ -20,16 +20,32 @@ WASM_FILE="${WASM_CRATE_DIR}/target/wasm32-unknown-unknown/release/goose_roaming
 [[ -f "${WASM_FILE}" ]] || { echo "error: wasm not found at ${WASM_FILE}" >&2; exit 1; }
 
 # 2. locate (or fetch) a version-matched wasm-bindgen CLI
+wb_release_triple() {
+  case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64) echo "aarch64-apple-darwin" ;;
+    Darwin-x86_64) echo "x86_64-apple-darwin" ;;
+    Linux-x86_64) echo "x86_64-unknown-linux-musl" ;;
+    Linux-aarch64) echo "aarch64-unknown-linux-gnu" ;;
+    *) return 1 ;;
+  esac
+}
+
 find_wasm_bindgen() {
   if command -v wasm-bindgen >/dev/null 2>&1 &&
      [[ "$(wasm-bindgen --version | awk '{print $2}')" == "${WB_VERSION}" ]]; then
     command -v wasm-bindgen
     return 0
   fi
-  local cached="/tmp/wasm-bindgen-${WB_VERSION}-aarch64-apple-darwin/wasm-bindgen"
+  local triple
+  triple="$(wb_release_triple)" || {
+    echo "error: no prebuilt wasm-bindgen for $(uname -s)/$(uname -m); install it:" >&2
+    echo "  cargo install wasm-bindgen-cli --version ${WB_VERSION}" >&2
+    return 1
+  }
+  local cached="/tmp/wasm-bindgen-${WB_VERSION}-${triple}/wasm-bindgen"
   if [[ -x "${cached}" ]]; then echo "${cached}"; return 0; fi
-  echo "fetching wasm-bindgen ${WB_VERSION}..." >&2
-  local url="https://github.com/rustwasm/wasm-bindgen/releases/download/${WB_VERSION}/wasm-bindgen-${WB_VERSION}-aarch64-apple-darwin.tar.gz"
+  echo "fetching wasm-bindgen ${WB_VERSION} (${triple})..." >&2
+  local url="https://github.com/rustwasm/wasm-bindgen/releases/download/${WB_VERSION}/wasm-bindgen-${WB_VERSION}-${triple}.tar.gz"
   curl -sSL -m 120 -o "/tmp/wb-${WB_VERSION}.tar.gz" "${url}"
   tar xzf "/tmp/wb-${WB_VERSION}.tar.gz" -C /tmp
   echo "${cached}"

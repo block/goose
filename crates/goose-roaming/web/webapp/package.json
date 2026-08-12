@@ -5,7 +5,9 @@
   "type": "module",
   "description": "CDN-hostable, stateless browser client for a goose roam agent over iroh (in-browser wasm). Reuses goose desktop componentry (MarkdownContent, tool status) via React.",
   "scripts": {
+    "predev": "node scripts/ensure-i18n.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/ensure-i18n.mjs",
     "build": "vite build",
     "preview": "vite preview"
   },

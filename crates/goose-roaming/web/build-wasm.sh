@@ -25,17 +25,39 @@
 #   brew install llvm            # provides a wasm-capable clang
 set -euo pipefail
 
-TOOLCHAIN="${ROAM_WASM_TOOLCHAIN:-1.96.1-aarch64-apple-darwin}"
+RUST_VERSION="${ROAM_WASM_RUST_VERSION:-1.96.1}"
+HOST_TRIPLE="$(rustc -vV 2>/dev/null | awk '/^host:/ {print $2}')"
+[[ -n "${HOST_TRIPLE}" ]] || { echo "error: rustc not found; install rustup" >&2; exit 1; }
+TOOLCHAIN="${ROAM_WASM_TOOLCHAIN:-${RUST_VERSION}-${HOST_TRIPLE}}"
 TCBIN="${HOME}/.rustup/toolchains/${TOOLCHAIN}/bin"
-LLVM="${ROAM_WASM_LLVM:-/opt/homebrew/opt/llvm/bin}"
+
+# Find a wasm-capable clang: Homebrew LLVM on macOS (Apple clang cannot emit
+# wasm32), plain clang elsewhere (Linux distro clang can).
+find_llvm_bin() {
+  if [[ -n "${ROAM_WASM_LLVM:-}" ]]; then echo "${ROAM_WASM_LLVM}"; return 0; fi
+  local candidate
+  for candidate in /opt/homebrew/opt/llvm/bin /usr/local/opt/llvm/bin; do
+    [[ -x "${candidate}/clang" ]] && { echo "${candidate}"; return 0; }
+  done
+  if [[ "$(uname -s)" != "Darwin" ]] && command -v clang >/dev/null 2>&1; then
+    dirname "$(command -v clang)"
+    return 0
+  fi
+  return 1
+}
+LLVM="$(find_llvm_bin)" || {
+  echo "error: wasm-capable clang not found (macOS: brew install llvm; Linux: install clang)" >&2
+  echo "or set ROAM_WASM_LLVM to a bin dir containing a wasm32-capable clang" >&2
+  exit 1
+}
 
 if [[ ! -x "${TCBIN}/cargo" ]]; then
   echo "error: toolchain ${TOOLCHAIN} not found at ${TCBIN}" >&2
-  echo "install it: rustup toolchain install ${TOOLCHAIN%%-*} && rustup target add wasm32-unknown-unknown --toolchain ${TOOLCHAIN%%-*}" >&2
+  echo "install it: rustup toolchain install ${RUST_VERSION} && rustup target add wasm32-unknown-unknown --toolchain ${RUST_VERSION}" >&2
   exit 1
 fi
 if [[ ! -x "${LLVM}/clang" ]]; then
-  echo "error: wasm-capable clang not found at ${LLVM}/clang (brew install llvm)" >&2
+  echo "error: wasm-capable clang not found at ${LLVM}/clang" >&2
   exit 1
 fi
 if ! "${TCBIN}/rustc" --print target-list | grep -q '^wasm32-unknown-unknown$'; then
