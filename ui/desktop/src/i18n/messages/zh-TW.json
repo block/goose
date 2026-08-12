@@ -4624,5 +4624,50 @@
   },
   "modelsBottomBar.recentModels": {
     "defaultMessage": "最近"
+  },
+  "providerConfigForm.adapterFound": {
+    "defaultMessage": "ACP adapter found"
+  },
+  "providerConfigForm.adapterNotFound": {
+    "defaultMessage": "ACP adapter not found"
+  },
+  "providerConfigForm.authenticationHelp": {
+    "defaultMessage": "Sign in through the provider CLI, then check again."
+  },
+  "providerConfigForm.checkAgain": {
+    "defaultMessage": "Check again"
+  },
+  "providerConfigForm.checking": {
+    "defaultMessage": "Checking..."
+  },
+  "providerConfigForm.connected": {
+    "defaultMessage": "Connected successfully"
+  },
+  "providerConfigForm.connectionNotChecked": {
+    "defaultMessage": "Check your account connection before continuing."
+  },
+  "providerConfigurationModal.adapterFound": {
+    "defaultMessage": "ACP adapter found"
+  },
+  "providerConfigurationModal.adapterNotFound": {
+    "defaultMessage": "ACP adapter not found"
+  },
+  "providerConfigurationModal.authenticationHelp": {
+    "defaultMessage": "Sign in through the provider CLI, then check again."
+  },
+  "providerConfigurationModal.checkAgain": {
+    "defaultMessage": "Check again"
+  },
+  "providerConfigurationModal.checking": {
+    "defaultMessage": "Checking..."
+  },
+  "providerConfigurationModal.chooseModel": {
+    "defaultMessage": "Choose model"
+  },
+  "providerConfigurationModal.connectionNotChecked": {
+    "defaultMessage": "Check your account connection before continuing."
+  },
+  "providerConfigurationModal.connectionSuccessful": {
+    "defaultMessage": "Connected successfully"
   }
 }
