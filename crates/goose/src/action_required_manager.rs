@@ -50,17 +50,11 @@ pub(crate) struct ActionRequiredManager {
 }
 
 impl ActionRequiredManager {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             pending: Arc::new(RwLock::new(HashMap::new())),
             action_required_senders: Mutex::new(HashMap::new()),
         }
-    }
-
-    pub(crate) fn global() -> &'static Self {
-        static INSTANCE: once_cell::sync::Lazy<ActionRequiredManager> =
-            once_cell::sync::Lazy::new(ActionRequiredManager::new);
-        &INSTANCE
     }
 
     pub(crate) async fn request_and_wait(

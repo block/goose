@@ -1,14 +1,19 @@
+#![recursion_limit = "256"]
 #[allow(dead_code)]
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
 use agent_client_protocol::schema::v1::{
-    ListSessionsRequest, ListSessionsResponse, NewSessionRequest, SessionConfigKind,
-    SessionConfigOptionCategory, SessionConfigOptionValue, SessionInfo,
-    SetSessionConfigOptionRequest,
+    ContentBlock, ListSessionsRequest, ListSessionsResponse, NewSessionRequest, PromptRequest,
+    SessionConfigKind, SessionConfigOptionCategory, SessionConfigOptionValue, SessionInfo,
+    SetSessionConfigOptionRequest, StopReason, TextContent,
 };
 use agent_client_protocol::ErrorCode;
-use common_tests::fixtures::server::AcpServerConnection;
-use common_tests::fixtures::{run_test, Connection, OpenAiFixture, Session, TestConnectionConfig};
+use common_tests::fixtures::server::{
+    assert_session_response_precedes_available_commands, AcpServerConnection,
+};
+use common_tests::fixtures::{
+    run_test, spawn_acp_server_in_process, Connection, OpenAiFixture, Session, TestConnectionConfig,
+};
 #[cfg(feature = "code-mode")]
 use common_tests::run_prompt_codemode;
 use common_tests::{
@@ -21,7 +26,8 @@ use common_tests::{
     run_new_session_uses_current_config_mode, run_permission_persistence, run_prompt_basic,
     run_prompt_error, run_prompt_image, run_prompt_image_attachment, run_prompt_mcp,
     run_prompt_model_mismatch, run_prompt_skill, run_session_name_update_notification,
-    run_shell_terminal_false, run_shell_terminal_true,
+    run_shell_terminal_false, run_shell_terminal_true, GENERATED_SESSION_TITLE,
+    OPENAI_SESSION_NAME_RESPONSE, TURN_CONTEXT_OPEN,
 };
 use goose::config::GooseMode;
 use goose::conversation::message::{Message, MessageMetadata};
@@ -117,6 +123,51 @@ async fn get_session_info_request(
 fn assert_invalid_params(error: anyhow::Error) {
     let acp_error = error.downcast::<agent_client_protocol::Error>().unwrap();
     assert_eq!(acp_error.code, ErrorCode::InvalidParams);
+}
+
+fn session_title_meta(value: serde_json::Value) -> serde_json::Map<String, serde_json::Value> {
+    let mut meta = serde_json::Map::new();
+    meta.insert("sessionTitle".to_string(), value);
+    meta
+}
+
+async fn new_session_with_meta(
+    conn: &AcpServerConnection,
+    work_dir: &Path,
+    meta: serde_json::Map<String, serde_json::Value>,
+) -> anyhow::Result<String> {
+    let response = conn
+        .cx()
+        .send_request(NewSessionRequest::new(work_dir).meta(meta))
+        .block_task()
+        .await?;
+    Ok(response.session_id.0.to_string())
+}
+
+/// Returns the session's title and whether it is recorded as user-set.
+async fn session_title(conn: &AcpServerConnection, session_id: &str) -> (String, bool) {
+    let response = get_session_info_request(
+        conn,
+        GetSessionInfoRequest {
+            session_id: session_id.to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let user_set_name = response
+        .session
+        .meta
+        .as_ref()
+        .and_then(|meta| meta.get("userSetName"))
+        .and_then(serde_json::Value::as_bool)
+        .expect("session info should include userSetName");
+    (
+        response
+            .session
+            .title
+            .expect("session info should include a title"),
+        user_set_name,
+    )
 }
 
 fn include_last_message_snippet_meta(
@@ -631,6 +682,38 @@ fn test_new_session_uses_current_config_mode() {
 }
 
 #[test]
+fn test_new_session_response_precedes_available_commands() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let work_dir = tempfile::tempdir().unwrap();
+        let openai = OpenAiFixture::new(
+            vec![],
+            <AcpServerConnection as Connection>::expected_session_id(),
+        )
+        .await;
+        let (transport, _handle, _permission_manager) = spawn_acp_server_in_process(
+            openai.uri(),
+            &[],
+            data_root.path(),
+            GooseMode::default(),
+            None,
+            goose_test_support::TEST_MODEL,
+            true,
+        )
+        .await;
+        assert_session_response_precedes_available_commands(
+            transport,
+            "session/new",
+            serde_json::json!({
+                "cwd": work_dir.path(),
+                "mcpServers": []
+            }),
+        )
+        .await;
+    });
+}
+
+#[test]
 fn test_new_session_honors_recipe_model_without_recipe_provider() {
     run_test(async {
         let data_root = tempfile::tempdir().unwrap();
@@ -712,6 +795,199 @@ fn test_new_session_cleans_up_when_config_fails() {
             .await
             .unwrap();
         assert!(sessions.is_empty());
+    });
+}
+
+#[test]
+fn test_new_session_titles_session_from_meta_session_title() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let conn = new_connection(data_root.path()).await;
+        let work_dir = tempfile::tempdir().unwrap();
+
+        let session_id = new_session_with_meta(
+            &conn,
+            work_dir.path(),
+            session_title_meta(serde_json::json!("  Duncan in #general  ")),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            session_title(&conn, &session_id).await,
+            ("Duncan in #general".to_string(), true)
+        );
+    });
+}
+
+#[test]
+fn test_new_session_prefers_recipe_title_over_meta_session_title() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let conn = new_connection(data_root.path()).await;
+        let work_dir = tempfile::tempdir().unwrap();
+        let recipe = Recipe::builder()
+            .title("Recipe title")
+            .description("A recipe with a title")
+            .instructions("Follow the recipe")
+            .build()
+            .unwrap();
+        let mut meta = session_title_meta(serde_json::json!("Client title"));
+        meta.insert(
+            "recipeDeeplink".to_string(),
+            serde_json::Value::String(recipe_deeplink::encode(&recipe).unwrap()),
+        );
+
+        let session_id = new_session_with_meta(&conn, work_dir.path(), meta)
+            .await
+            .unwrap();
+
+        // The recipe title wins, and the session is not marked user-set so
+        // goose's own recipe-title naming path still applies.
+        assert_eq!(
+            session_title(&conn, &session_id).await,
+            ("Recipe title".to_string(), false)
+        );
+    });
+}
+
+#[test]
+fn test_new_session_without_meta_session_title_uses_default_name() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let conn = new_connection(data_root.path()).await;
+        let work_dir = tempfile::tempdir().unwrap();
+
+        for meta in [
+            serde_json::Map::new(),
+            session_title_meta(serde_json::Value::Null),
+            session_title_meta(serde_json::json!("   ")),
+        ] {
+            let session_id = new_session_with_meta(&conn, work_dir.path(), meta)
+                .await
+                .unwrap();
+
+            assert_eq!(
+                session_title(&conn, &session_id).await,
+                ("New Chat".to_string(), false)
+            );
+        }
+    });
+}
+
+#[test]
+fn test_new_session_rejects_non_string_meta_session_title() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let conn = new_connection(data_root.path()).await;
+        let work_dir = tempfile::tempdir().unwrap();
+        let recipe = Recipe::builder()
+            .title("Recipe title")
+            .description("A recipe with a title")
+            .instructions("Follow the recipe")
+            .build()
+            .unwrap();
+
+        // Rejected on its own, and also when a recipe title would have won —
+        // validation does not depend on precedence.
+        let mut with_recipe = session_title_meta(serde_json::json!(42));
+        with_recipe.insert(
+            "recipeDeeplink".to_string(),
+            serde_json::Value::String(recipe_deeplink::encode(&recipe).unwrap()),
+        );
+        for meta in [session_title_meta(serde_json::json!(42)), with_recipe] {
+            let error = new_session_with_meta(&conn, work_dir.path(), meta)
+                .await
+                .unwrap_err();
+            assert_invalid_params(error);
+        }
+
+        let sessions = SessionManager::new(data_root.path().to_path_buf())
+            .list_all_sessions()
+            .await
+            .unwrap();
+        assert!(sessions.is_empty());
+    });
+}
+
+/// Drives one naming-enabled turn and returns the session's title once name
+/// generation has had a chance to run.
+async fn title_after_naming_turn(
+    data_root: &Path,
+    meta: serde_json::Map<String, serde_json::Value>,
+) -> (String, bool) {
+    let openai = OpenAiFixture::new(
+        vec![
+            (
+                format!("what is 1+1{TURN_CONTEXT_OPEN}"),
+                include_str!("acp_test_data/openai_basic.txt"),
+            ),
+            (
+                "Generate a short title for the above messages.".to_string(),
+                OPENAI_SESSION_NAME_RESPONSE,
+            ),
+        ],
+        <AcpServerConnection as Connection>::expected_session_id(),
+    )
+    .await;
+    let conn = <AcpServerConnection as Connection>::new(
+        TestConnectionConfig {
+            data_root: data_root.to_path_buf(),
+            disable_session_naming: false,
+            ..Default::default()
+        },
+        openai,
+    )
+    .await;
+    let work_dir = tempfile::tempdir().unwrap();
+    let session_id = new_session_with_meta(&conn, work_dir.path(), meta)
+        .await
+        .unwrap();
+
+    let response = conn
+        .cx()
+        .send_request(PromptRequest::new(
+            agent_client_protocol::schema::v1::SessionId::new(session_id.clone()),
+            vec![ContentBlock::Text(TextContent::new("what is 1+1"))],
+        ))
+        .block_task()
+        .await
+        .unwrap();
+    assert_eq!(response.stop_reason, StopReason::EndTurn);
+
+    // Naming runs in a spawned task: wait for it to land, or for the deadline
+    // to prove it never will.
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+    loop {
+        let title = session_title(&conn, &session_id).await;
+        if title.0 == GENERATED_SESSION_TITLE || tokio::time::Instant::now() >= deadline {
+            return title;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+}
+
+#[test]
+fn test_generated_name_does_not_replace_meta_session_title() {
+    run_test(async {
+        // Control arm: with no client title, generation names the session.
+        let data_root = tempfile::tempdir().unwrap();
+        assert_eq!(
+            title_after_naming_turn(data_root.path(), serde_json::Map::new()).await,
+            (GENERATED_SESSION_TITLE.to_string(), false),
+            "name generation must work here, or the assertion below proves nothing"
+        );
+
+        // A client title is recorded as user-set, which generation must respect.
+        let data_root = tempfile::tempdir().unwrap();
+        assert_eq!(
+            title_after_naming_turn(
+                data_root.path(),
+                session_title_meta(serde_json::json!("Client title"))
+            )
+            .await,
+            ("Client title".to_string(), true)
+        );
     });
 }
 

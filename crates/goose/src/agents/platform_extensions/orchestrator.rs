@@ -336,12 +336,13 @@ impl OrchestratorClient {
     ) -> Result<String, String> {
         let provider = self.get_provider().await?;
 
-        let conversation_text = Conversation::new_unvalidated(messages.iter().cloned())
-            .agent_visible_messages()
-            .iter()
-            .map(format_message_for_compacting)
-            .collect::<Vec<_>>()
-            .join("\n");
+        let conversation_text = agent_visible_session_messages(&Conversation::new_unvalidated(
+            messages.iter().cloned(),
+        ))
+        .iter()
+        .map(format_message_for_compacting)
+        .collect::<Vec<_>>()
+        .join("\n");
 
         let system =
             "You are a helpful assistant. Summarize the following conversation concisely, \
@@ -578,7 +579,11 @@ impl OrchestratorClient {
 }
 
 fn agent_visible_session_messages(conversation: &Conversation) -> Vec<Message> {
-    conversation.agent_visible_messages()
+    conversation
+        .agent_visible_messages()
+        .into_iter()
+        .filter(|message| !message.is_turn_context())
+        .collect()
 }
 
 #[async_trait]

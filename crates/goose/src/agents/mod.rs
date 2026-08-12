@@ -15,6 +15,7 @@ pub mod prompt_manager;
 pub mod reply_parts;
 pub mod retry;
 mod schedule_tool;
+pub mod state_machine;
 pub mod subagent_execution_tool;
 pub(crate) mod subagent_handler;
 pub(crate) mod subagent_task_config;
@@ -30,7 +31,21 @@ pub use execute_commands::COMPACT_TRIGGERS;
 pub use extension::{ExtensionConfig, ExtensionError};
 pub use extension_manager::ExtensionManager;
 pub use prompt_manager::PromptManager;
+pub use schedule_tool::ScheduleTool;
 pub use subagent_handler::SUBAGENT_TOOL_REQUEST_TYPE;
 pub use subagent_task_config::TaskConfig;
 pub use tool_execution::ToolCallContext;
 pub use types::{FrontendTool, RetryConfig, SessionConfig, SuccessCheck};
+
+fn latest_provider_session_id<'a>(
+    messages: &'a [crate::conversation::message::Message],
+    provider: &str,
+) -> Option<&'a str> {
+    let inference = messages
+        .iter()
+        .rev()
+        .find_map(|message| message.metadata.inference.as_ref())?;
+    (inference.provider == provider)
+        .then_some(inference.provider_session_id.as_deref())
+        .flatten()
+}

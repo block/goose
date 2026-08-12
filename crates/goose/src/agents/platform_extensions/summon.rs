@@ -715,17 +715,10 @@ impl SummonClient {
     ) -> Result<Option<SourceEntry>, String> {
         let sources = self.get_sources(session_id, working_dir).await;
 
-        if let Some(mut source) = sources.iter().find(|s| s.name == name).cloned() {
-            if source.source_type == SourceType::Subrecipe && source.content.is_empty() {
-                source.content = self.load_subrecipe_content(session_id, &source.name).await;
-            }
-            return Ok(Some(source));
-        }
-
-        Ok(None)
+        Ok(sources.iter().find(|s| s.name == name).cloned())
     }
 
-    async fn load_subrecipe_content(&self, session_id: &str, name: &str) -> String {
+    async fn load_subrecipe_content(&self, session_id: &str, name: &str) -> Result<String, String> {
         let session = match self
             .context
             .session_manager
@@ -733,35 +726,36 @@ impl SummonClient {
             .await
         {
             Ok(s) => s,
-            Err(_) => return String::new(),
+            Err(_) => return Ok(String::new()),
         };
 
         let sub_recipes = match session.recipe.as_ref().and_then(|r| r.sub_recipes.as_ref()) {
             Some(sr) => sr,
-            None => return String::new(),
+            None => return Ok(String::new()),
         };
 
         let sr = match sub_recipes.iter().find(|sr| sr.name == name) {
             Some(sr) => sr,
-            None => return String::new(),
+            None => return Ok(String::new()),
         };
 
         match load_local_recipe_file(&sr.path) {
-            Ok(recipe_file) => match Recipe::from_content(&recipe_file.content) {
-                Ok(recipe) => {
-                    let mut content = recipe.instructions.unwrap_or_default();
-                    if let Some(params) = &recipe.parameters {
-                        if !params.is_empty() {
-                            content.push_str("\n\n");
-                            content.push_str(&Self::format_parameters(params));
-                        }
-                    }
-                    content
-                }
-                Err(_) => recipe_file.content,
-            },
-            Err(_) => String::new(),
+            Ok(recipe_file) => Self::format_subrecipe_content(name, &recipe_file.content),
+            Err(_) => Ok(String::new()),
         }
+    }
+
+    fn format_subrecipe_content(name: &str, raw_content: &str) -> Result<String, String> {
+        let recipe = Recipe::from_content(raw_content)
+            .map_err(|_| format!("Subrecipe '{}' is not a valid recipe", name))?;
+        let mut content = recipe.instructions.unwrap_or_default();
+        if let Some(params) = &recipe.parameters {
+            if !params.is_empty() {
+                content.push_str("\n\n");
+                content.push_str(&Self::format_parameters(params));
+            }
+        }
+        Ok(content)
     }
 
     fn discover_filesystem_sources(&self, working_dir: &Path) -> Vec<SourceEntry> {
@@ -1200,7 +1194,12 @@ impl SummonClient {
         let source = self.resolve_source(session_id, name, working_dir).await?;
 
         match source {
-            Some(source) => {
+            Some(mut source) => {
+                if source.source_type == SourceType::Subrecipe && source.content.is_empty() {
+                    source.content = self
+                        .load_subrecipe_content(session_id, &source.name)
+                        .await?;
+                }
                 let content = source.to_load_text();
 
                 let output = format!(
@@ -1291,7 +1290,7 @@ impl SummonClient {
         // Subagents must use Auto until get_agent_messages forwards
         // ActionRequired messages to the parent. Until then, any mode
         // that requires approval will hang on the subagent's confirmation_rx.
-        let agent_config = AgentConfig::new(
+        let mut agent_config = AgentConfig::new(
             self.context.session_manager.clone(),
             crate::config::permission::PermissionManager::instance(),
             None,
@@ -1300,6 +1299,7 @@ impl SummonClient {
             crate::agents::GoosePlatform::GooseCli,
         )
         .with_use_login_shell_path(self.context.use_login_shell_path);
+        agent_config.is_subagent = true;
 
         let subagent_session = self
             .create_subagent_session(&task_config, "Delegated task".to_string())
@@ -1847,7 +1847,7 @@ impl SummonClient {
         // Subagents must use Auto until get_agent_messages forwards
         // ActionRequired messages to the parent. Until then, any mode
         // that requires approval will hang on the subagent's confirmation_rx.
-        let agent_config = AgentConfig::new(
+        let mut agent_config = AgentConfig::new(
             self.context.session_manager.clone(),
             crate::config::permission::PermissionManager::instance(),
             None,
@@ -1856,6 +1856,7 @@ impl SummonClient {
             crate::agents::GoosePlatform::GooseCli,
         )
         .with_use_login_shell_path(self.context.use_login_shell_path);
+        agent_config.is_subagent = true;
 
         let subagent_session = self
             .create_subagent_session(&task_config, description.clone())
@@ -2113,6 +2114,7 @@ mod tests {
         PlatformExtensionContext {
             extension_manager: None,
             session_manager: Arc::new(crate::session::SessionManager::instance()),
+            scheduler: None,
             session: None,
             use_login_shell_path: false,
         }
@@ -2338,6 +2340,37 @@ You review code."#;
         assert!(text.contains("deploy"));
         assert!(text.contains("Run deploy steps"));
         assert!(text.contains("now available in your context"));
+    }
+
+    #[test]
+    fn test_invalid_external_subrecipe_content_is_not_returned() {
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("invalid.yaml");
+        fs::write(&path, "api_key: SUPERSECRET\n").unwrap();
+
+        let recipe_file = load_local_recipe_file(path.to_str().unwrap()).unwrap();
+        let error =
+            SummonClient::format_subrecipe_content("invalid", &recipe_file.content).unwrap_err();
+
+        assert_eq!(error, "Subrecipe 'invalid' is not a valid recipe");
+        assert!(!error.contains("SUPERSECRET"));
+    }
+
+    #[test]
+    fn test_valid_external_subrecipe_content_still_loads() {
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("child.yaml");
+        fs::write(
+            &path,
+            "title: Child\ndescription: External child\ninstructions: Run child steps",
+        )
+        .unwrap();
+
+        let recipe_file = load_local_recipe_file(path.to_str().unwrap()).unwrap();
+        let content =
+            SummonClient::format_subrecipe_content("child", &recipe_file.content).unwrap();
+
+        assert_eq!(content, "Run child steps");
     }
 
     #[tokio::test]

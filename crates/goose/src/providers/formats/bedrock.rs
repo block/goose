@@ -17,9 +17,11 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::providers::bedrock::BEDROCK_PROVIDER_NAME;
 use crate::providers::canonical::maybe_get_canonical_model;
 use crate::providers::formats::anthropic::{
-    adaptive_output_effort, model_supports_temperature, thinking_budget_tokens,
-    thinking_type_for_provider, ThinkingType, ANTHROPIC_PROVIDER_NAME, MIN_ANSWER_TOKENS,
+    adaptive_output_effort, model_supports_temperature, thinking_block_is_stale,
+    thinking_budget_tokens, thinking_type_for_provider, ThinkingType, ANTHROPIC_PROVIDER_NAME,
+    MIN_ANSWER_TOKENS,
 };
+use crate::utils::sanitize_unicode_tags;
 use goose_providers::conversation::token_usage::Usage;
 use goose_providers::model::ModelConfig;
 use once_cell::sync::Lazy;
@@ -152,10 +154,22 @@ fn bedrock_model_supports_temperature(model_config: &ModelConfig) -> bool {
 pub fn to_bedrock_message_with_caching(
     message: &Message,
     enable_caching: bool,
+    current_model: Option<&str>,
 ) -> Result<bedrock::Message> {
+    let thinking_is_stale = thinking_block_is_stale(message, current_model);
     let mut content_blocks: Vec<bedrock::ContentBlock> = message
         .content
         .iter()
+        .filter(|content| {
+            if !thinking_is_stale {
+                return true;
+            }
+            match content {
+                MessageContent::Thinking(thinking) => thinking.signature.is_empty(),
+                MessageContent::RedactedThinking(_) => false,
+                _ => true,
+            }
+        })
         .map(to_bedrock_message_content)
         .collect::<Result<_>>()?;
 
@@ -209,6 +223,9 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
         MessageContent::SystemNotification(_) => {
             bail!("SystemNotification should not get passed to the provider")
         }
+        MessageContent::Error(_) => {
+            bail!("Error content should not get passed to the provider")
+        }
         MessageContent::ToolRequest(tool_req) => {
             let tool_use_id = tool_req.id.to_string();
             let tool_use = if let Ok(call) = tool_req.tool_call.as_ref() {
@@ -261,11 +278,10 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                         .collect::<Result<_>>()?,
                 ),
                 Err(error) => {
-                    // For errors, create a text content block with the error message
-                    Some(vec![bedrock::ToolResultContentBlock::Text(format!(
-                        "The tool call returned the following error:\n{}",
-                        error
-                    ))])
+                    let message = format!("The tool call returned the following error:\n{}", error);
+                    Some(vec![bedrock::ToolResultContentBlock::Text(
+                        crate::utils::sanitize_unicode_tags(&message),
+                    )])
                 }
             };
             bedrock::ContentBlock::ToolResult(
@@ -303,7 +319,9 @@ pub fn to_bedrock_tool_result_content_block(
             ResourceContents::TextResourceContents { text, .. } => {
                 match to_bedrock_document(tool_use_id, &resource.resource)? {
                     Some(doc) => bedrock::ToolResultContentBlock::Document(doc),
-                    None => bedrock::ToolResultContentBlock::Text(text.to_string()),
+                    None => {
+                        bedrock::ToolResultContentBlock::Text(sanitize_unicode_tags(text.as_str()))
+                    }
                 }
             }
             ResourceContents::BlobResourceContents { .. } => {
@@ -419,7 +437,9 @@ fn to_bedrock_document(
     content: &ResourceContents,
 ) -> Result<Option<bedrock::DocumentBlock>> {
     let (uri, text) = match content {
-        ResourceContents::TextResourceContents { uri, text, .. } => (uri, text),
+        ResourceContents::TextResourceContents { uri, text, .. } => {
+            (uri, sanitize_unicode_tags(text))
+        }
         ResourceContents::BlobResourceContents { .. } => {
             bail!("Blob resource content is not supported by Bedrock provider yet")
         }
@@ -822,6 +842,35 @@ mod tests {
     }
 
     #[test]
+    fn test_to_bedrock_tool_result_sanitizes_text_resource_fallback() -> Result<()> {
+        let content = ContentBlock::embedded_text("file:///result.bin", "visible\u{E0041}text");
+        let result = to_bedrock_tool_result_content_block("test_id", content)?;
+
+        let bedrock::ToolResultContentBlock::Text(text) = result else {
+            panic!("expected text fallback");
+        };
+        assert_eq!(text, "visibletext");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_bedrock_tool_result_sanitizes_document_resource() -> Result<()> {
+        let content = ContentBlock::embedded_text("file:///result.txt", "visible\u{E0041}text");
+        let result = to_bedrock_tool_result_content_block("test_id", content)?;
+
+        let bedrock::ToolResultContentBlock::Document(document) = result else {
+            panic!("expected document");
+        };
+        let Some(bedrock::DocumentSource::Bytes(bytes)) = document.source() else {
+            panic!("expected document bytes");
+        };
+        assert_eq!(bytes.as_ref(), b"visibletext");
+
+        Ok(())
+    }
+
+    #[test]
     fn test_to_bedrock_message_with_caching() -> Result<()> {
         use chrono::Utc;
         use rmcp::model::Role;
@@ -835,7 +884,7 @@ mod tests {
                 MessageContent::text("Second text"),
             ],
         );
-        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
+        let bedrock_message = to_bedrock_message_with_caching(&message, true, None)?;
         assert_eq!(bedrock_message.content.len(), 3);
         if let bedrock::ContentBlock::Text(text) = &bedrock_message.content[0] {
             assert_eq!(text, "First text");
@@ -853,7 +902,7 @@ mod tests {
         ));
 
         // Caching disabled: no cache point added
-        let no_cache = to_bedrock_message_with_caching(&message, false)?;
+        let no_cache = to_bedrock_message_with_caching(&message, false, None)?;
         assert_eq!(no_cache.content.len(), 2);
         for block in &no_cache.content {
             assert!(!matches!(block, bedrock::ContentBlock::CachePoint(_)));
@@ -861,9 +910,54 @@ mod tests {
 
         // Empty content: no cache point added even with caching enabled
         let empty = Message::new(Role::User, Utc::now().timestamp(), vec![]);
-        let empty_msg = to_bedrock_message_with_caching(&empty, true)?;
+        let empty_msg = to_bedrock_message_with_caching(&empty, true, None)?;
         assert_eq!(empty_msg.content.len(), 0);
 
+        Ok(())
+    }
+
+    fn signed_thinking_from_model(model: &str) -> Message {
+        use crate::conversation::message::InferenceMetadata;
+
+        Message::assistant()
+            .with_content(MessageContent::thinking("internal", "sig-abc"))
+            .with_text("answer")
+            .with_inference(InferenceMetadata {
+                provider: "aws_bedrock".to_string(),
+                requested_model: model.to_string(),
+                resolved_model: None,
+                provider_session_id: None,
+            })
+    }
+
+    #[test]
+    fn keeps_signed_thinking_from_the_same_model() -> Result<()> {
+        let message = signed_thinking_from_model("anthropic.claude-sonnet-4");
+        let formatted =
+            to_bedrock_message_with_caching(&message, false, Some("anthropic.claude-sonnet-4"))?;
+
+        assert!(matches!(
+            formatted.content[0],
+            bedrock::ContentBlock::ReasoningContent(_)
+        ));
+        assert!(matches!(
+            formatted.content[1],
+            bedrock::ContentBlock::Text(_)
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn drops_signed_thinking_from_a_different_model() -> Result<()> {
+        let message = signed_thinking_from_model("anthropic.claude-opus-4");
+        let formatted =
+            to_bedrock_message_with_caching(&message, false, Some("anthropic.claude-sonnet-4"))?;
+
+        assert_eq!(formatted.content.len(), 1);
+        assert!(matches!(
+            formatted.content[0],
+            bedrock::ContentBlock::Text(_)
+        ));
         Ok(())
     }
 
@@ -1208,7 +1302,7 @@ mod tests {
             ],
         );
 
-        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
+        let bedrock_message = to_bedrock_message_with_caching(&message, true, None)?;
 
         // Verify cache point is added after all content blocks (text + tool request + cache point)
         assert_eq!(bedrock_message.content.len(), 3);
@@ -1251,6 +1345,49 @@ mod tests {
     }
 
     #[test]
+    fn tool_response_error_sanitizes_unicode_tags() -> Result<()> {
+        let error = ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            "visible\u{E0041}\u{E0042} error".to_string(),
+            None,
+        );
+        let content = MessageContent::tool_response("call_hidden".to_string(), Err(error));
+
+        let bedrock::ContentBlock::ToolResult(result) = to_bedrock_message_content(&content)?
+        else {
+            panic!("expected ToolResult");
+        };
+        let bedrock::ToolResultContentBlock::Text(text) = &result.content[0] else {
+            panic!("expected text error content");
+        };
+
+        assert!(!crate::utils::contains_unicode_tags(text.as_str()));
+        assert!(text.contains("visible error"));
+        Ok(())
+    }
+
+    #[test]
+    fn tool_response_error_preserves_ordinary_text() -> Result<()> {
+        let error = ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            "ordinary tool failure".to_string(),
+            None,
+        );
+        let content = MessageContent::tool_response("call_error".to_string(), Err(error));
+
+        let bedrock::ContentBlock::ToolResult(result) = to_bedrock_message_content(&content)?
+        else {
+            panic!("expected ToolResult");
+        };
+        let bedrock::ToolResultContentBlock::Text(text) = &result.content[0] else {
+            panic!("expected text error content");
+        };
+
+        assert!(text.contains("ordinary tool failure"));
+        Ok(())
+    }
+
+    #[test]
     fn test_cache_points_with_tool_response_messages() -> Result<()> {
         use chrono::Utc;
         use rmcp::model::{CallToolResult, Role};
@@ -1266,7 +1403,7 @@ mod tests {
             )],
         );
 
-        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
+        let bedrock_message = to_bedrock_message_with_caching(&message, true, None)?;
 
         // Verify cache point is added after tool response content
         assert_eq!(bedrock_message.content.len(), 2);
@@ -1306,7 +1443,7 @@ mod tests {
             ],
         );
 
-        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
+        let bedrock_message = to_bedrock_message_with_caching(&message, true, None)?;
 
         // Verify cache point is added at the end after all tool requests
         assert_eq!(bedrock_message.content.len(), 4);

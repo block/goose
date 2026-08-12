@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 #[allow(dead_code)]
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
@@ -48,7 +49,7 @@ fn write_acp_global_config(contents: &str) -> PathBuf {
 struct MockProvider {
     name: String,
     recommended_models: Vec<String>,
-    supported_models: Vec<String>,
+    supported_models: Result<Vec<String>, ProviderError>,
 }
 
 #[async_trait::async_trait]
@@ -75,7 +76,7 @@ impl Provider for MockProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        Ok(self.supported_models.clone())
+        self.supported_models.clone()
     }
 }
 
@@ -393,6 +394,35 @@ fn test_custom_session_extensions_add_list_remove() {
             list_extension().await.is_none(),
             "removed session extension should not be listed"
         );
+    });
+}
+
+#[test]
+#[serial]
+fn test_custom_session_extensions_apply_recreates_provider() {
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+    run_test(async move {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let mut conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+
+        let SessionData { session, .. } = conn.new_session().await.unwrap();
+        let session_id = session.session_id().0.clone();
+
+        let result = send_custom(
+            conn.cx(),
+            "_goose/unstable/session/extensions/apply",
+            serde_json::json!({ "sessionId": session_id.clone() }),
+        )
+        .await;
+        assert!(result.is_ok(), "expected ok, got: {:?}", result);
+
+        let result = send_custom(
+            conn.cx(),
+            "_goose/unstable/session/extensions/apply",
+            serde_json::json!({ "sessionId": "missing-session" }),
+        )
+        .await;
+        assert!(result.is_err(), "apply for unknown session should fail");
     });
 }
 
@@ -1179,10 +1209,10 @@ fn test_custom_provider_supported_models_lists_raw_provider_models() {
                     Ok(Arc::new(MockProvider {
                         name: provider_name,
                         recommended_models: vec!["canonical-filtered-model".to_string()],
-                        supported_models: vec![
+                        supported_models: Ok(vec![
                             "goose-claude-opus-4-8".to_string(),
                             "raw-databricks-endpoint".to_string(),
-                        ],
+                        ]),
                     }) as Arc<dyn Provider>)
                 })
             });
@@ -1214,5 +1244,81 @@ fn test_custom_provider_supported_models_lists_raw_provider_models() {
                 "raw-databricks-endpoint"
             ]))
         );
+    });
+}
+
+#[test]
+#[serial]
+fn test_custom_provider_supported_models_maps_not_configured_error() {
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+    run_test(async move {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let provider_factory: AcpProviderFactory = Arc::new(|provider_name, _, _| {
+            Box::pin(async move {
+                Ok(Arc::new(MockProvider {
+                    name: provider_name,
+                    recommended_models: Vec::new(),
+                    supported_models: Err(ProviderError::NotConfigured),
+                }) as Arc<dyn Provider>)
+            })
+        });
+        let conn = AcpServerConnection::new(
+            TestConnectionConfig {
+                provider_factory: Some(provider_factory),
+                ..Default::default()
+            },
+            openai,
+        )
+        .await;
+
+        let error = send_custom(
+            conn.cx(),
+            "_goose/unstable/providers/supported-models/list",
+            serde_json::json!({ "providerId": "openai" }),
+        )
+        .await
+        .expect_err("not configured should be returned to the client");
+
+        assert_eq!(error.code, agent_client_protocol::ErrorCode::InvalidParams);
+        assert!(error.to_string().contains("Provider is not configured"));
+    });
+}
+
+#[test]
+#[serial]
+fn test_custom_provider_supported_models_maps_authentication_error() {
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+    run_test(async move {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let provider_factory: AcpProviderFactory = Arc::new(|provider_name, _, _| {
+            Box::pin(async move {
+                Ok(Arc::new(MockProvider {
+                    name: provider_name,
+                    recommended_models: Vec::new(),
+                    supported_models: Err(ProviderError::Authentication(
+                        "credentials rejected".to_string(),
+                    )),
+                }) as Arc<dyn Provider>)
+            })
+        });
+        let conn = AcpServerConnection::new(
+            TestConnectionConfig {
+                provider_factory: Some(provider_factory),
+                ..Default::default()
+            },
+            openai,
+        )
+        .await;
+
+        let error = send_custom(
+            conn.cx(),
+            "_goose/unstable/providers/supported-models/list",
+            serde_json::json!({ "providerId": "openai" }),
+        )
+        .await
+        .expect_err("authentication failure should be returned to the client");
+
+        assert_eq!(error.code, agent_client_protocol::ErrorCode::AuthRequired);
+        assert!(error.to_string().contains("credentials rejected"));
     });
 }

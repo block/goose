@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import BaseChat from './BaseChat';
 import { ChatType } from '../types/chat';
 import { UserInput } from '../types/message';

@@ -1,5 +1,5 @@
 ---
-name: compare_tasks
+name: compare-tasks
 description: Compare how two harbor benchmark runs performed on a single shared task
 ---
 

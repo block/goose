@@ -46,11 +46,12 @@ macro_rules! string_enum {
 
 string_enum!(ThinkingType { Adaptive => "adaptive", Enabled => "enabled", Disabled => "disabled" });
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AnthropicFormatOptions {
     pub preserve_unsigned_thinking: bool,
     pub preserve_thinking_context: bool,
     pub thinking_disabled: bool,
+    pub current_model: Option<String>,
 }
 
 impl AnthropicFormatOptions {
@@ -69,8 +70,26 @@ impl AnthropicFormatOptions {
             preserve_unsigned_thinking,
             preserve_thinking_context,
             thinking_disabled,
+            current_model: self
+                .current_model
+                .or_else(|| Some(model_config.model_name.clone())),
         }
     }
+}
+
+pub fn thinking_block_is_stale(message: &Message, current_model: Option<&str>) -> bool {
+    let Some(current_model) = current_model else {
+        return false;
+    };
+    let Some(inference) = message.metadata.inference.as_ref() else {
+        return false;
+    };
+    let requested = inference.requested_model.as_str();
+    let resolved = inference.resolved_model.as_deref().unwrap_or("");
+    if requested.is_empty() && resolved.is_empty() {
+        return false;
+    }
+    current_model != requested && current_model != resolved
 }
 
 fn canonical_thinking_mode(provider_name: &str, model_name: &str) -> Option<ThinkingMode> {
@@ -177,12 +196,12 @@ fn args_to_input_value(arguments: Option<JsonObject>) -> Value {
 
 /// Convert internal Message format to Anthropic's API message specification
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
-    format_messages_with_options(messages, AnthropicFormatOptions::default())
+    format_messages_with_options(messages, &AnthropicFormatOptions::default())
 }
 
 fn format_messages_with_options(
     messages: &[Message],
-    options: AnthropicFormatOptions,
+    options: &AnthropicFormatOptions,
 ) -> Vec<Value> {
     let mut anthropic_messages = Vec::new();
 
@@ -191,6 +210,8 @@ fn format_messages_with_options(
             Role::User => USER_ROLE,
             Role::Assistant => ASSISTANT_ROLE,
         };
+
+        let thinking_is_stale = thinking_block_is_stale(message, options.current_model.as_deref());
 
         let mut content = Vec::new();
         for msg_content in &message.content {
@@ -339,18 +360,20 @@ fn format_messages_with_options(
                 MessageContentBlock::ActionRequired(_action_required) => {
                     // Skip action required messages - they're for UI only
                 }
-                MessageContentBlock::SystemNotification(_) => {
+                MessageContentBlock::SystemNotification(_) | MessageContentBlock::Error(_) => {
                     // Skip
                 }
                 MessageContentBlock::Thinking(thinking) => {
                     // Anthropic rejects thinking blocks sent without a matching thinking config.
                     if !options.thinking_disabled {
                         if !thinking.signature.is_empty() {
-                            content.push(json!({
-                                TYPE_FIELD: THINKING_TYPE,
-                                THINKING_TYPE: thinking.thinking,
-                                SIGNATURE_FIELD: thinking.signature
-                            }));
+                            if !thinking_is_stale {
+                                content.push(json!({
+                                    TYPE_FIELD: THINKING_TYPE,
+                                    THINKING_TYPE: thinking.thinking,
+                                    SIGNATURE_FIELD: thinking.signature
+                                }));
+                            }
                         } else if options.preserve_unsigned_thinking
                             && !thinking.thinking.is_empty()
                         {
@@ -362,7 +385,7 @@ fn format_messages_with_options(
                     }
                 }
                 MessageContentBlock::RedactedThinking(redacted) => {
-                    if !options.thinking_disabled {
+                    if !options.thinking_disabled && !thinking_is_stale {
                         content.push(json!({
                             TYPE_FIELD: REDACTED_THINKING_TYPE,
                             DATA_FIELD: redacted.data
@@ -404,27 +427,16 @@ fn format_messages_with_options(
         }));
     }
 
-    // The volatile turn-context must sit after every cache breakpoint, or it invalidates the
-    // message-level cached prefix (Anthropic hashes tools -> system -> messages). Move it to the
-    // tail and place cache_control on the last non-turn-context block.
-    relocate_turn_context_to_tail(&mut anthropic_messages);
-
+    // The last two user messages extend the cached prefix each turn.
     let mut user_count = 0;
     for message in anthropic_messages.iter_mut().rev() {
         if message.get(ROLE_FIELD) != Some(&json!(USER_ROLE)) {
             continue;
         }
-        let Some(content_array) = message
+        if let Some(block) = message
             .get_mut(CONTENT_FIELD)
             .and_then(|content| content.as_array_mut())
-        else {
-            continue;
-        };
-        let Some(target) = cache_control_target_index(content_array) else {
-            continue;
-        };
-        if let Some(block) = content_array
-            .get_mut(target)
+            .and_then(|content_array| content_array.last_mut())
             .and_then(|b| b.as_object_mut())
         {
             block.insert(
@@ -439,52 +451,6 @@ fn format_messages_with_options(
     }
 
     anthropic_messages
-}
-
-fn relocate_turn_context_to_tail(messages: &mut [Value]) {
-    let Some(last) = messages.len().checked_sub(1) else {
-        return;
-    };
-    let source = messages.iter().enumerate().rev().find_map(|(mi, m)| {
-        m.get(CONTENT_FIELD)
-            .and_then(|c| c.as_array())
-            .and_then(|a| a.iter().position(is_turn_context_block))
-            .map(|bi| (mi, bi))
-    });
-    let Some((mi, bi)) = source else {
-        return;
-    };
-    if mi != last
-        && messages[mi]
-            .get(CONTENT_FIELD)
-            .and_then(|c| c.as_array())
-            .map_or(0, |a| a.len())
-            <= 1
-    {
-        return;
-    }
-    let block = messages[mi][CONTENT_FIELD]
-        .as_array_mut()
-        .unwrap()
-        .remove(bi);
-    messages[last][CONTENT_FIELD]
-        .as_array_mut()
-        .unwrap()
-        .push(block);
-}
-
-fn cache_control_target_index(content_array: &[Value]) -> Option<usize> {
-    content_array
-        .iter()
-        .rposition(|block| !is_turn_context_block(block))
-}
-
-fn is_turn_context_block(block: &Value) -> bool {
-    block.get(TYPE_FIELD).and_then(Value::as_str) == Some(TEXT_TYPE)
-        && block
-            .get(TEXT_TYPE)
-            .and_then(Value::as_str)
-            .is_some_and(crate::conversation::is_turn_context_text)
 }
 
 fn anthropic_flavored_input_schema(input_schema: Arc<JsonObject>) -> Arc<JsonObject> {
@@ -798,7 +764,7 @@ pub fn create_request_for_model(
     options: AnthropicFormatOptions,
 ) -> Result<Value> {
     let options = options.for_model(model_config);
-    let anthropic_messages = format_messages_with_options(messages, options);
+    let anthropic_messages = format_messages_with_options(messages, &options);
     let tool_specs = format_tools(tools);
     let system_spec = format_system(system);
 
@@ -1177,7 +1143,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::conversation::message::Message;
+    use crate::conversation::message::{Message, MessageContent};
     use crate::model::ModelConfig;
     use rmcp::object;
     use serde_json::json;
@@ -1373,10 +1339,11 @@ mod tests {
 
         let spec = format_messages_with_options(
             &messages,
-            AnthropicFormatOptions {
+            &AnthropicFormatOptions {
                 preserve_unsigned_thinking: true,
                 preserve_thinking_context: false,
                 thinking_disabled: false,
+                current_model: None,
             },
         );
 
@@ -1386,6 +1353,64 @@ mod tests {
         assert_eq!(spec[0]["content"][0]["thinking"], "internal");
         assert!(spec[0]["content"][0].get("signature").is_none());
         assert_eq!(spec[1]["content"][0]["text"], "Hi there");
+    }
+
+    fn signed_thinking_from_model(model: &str) -> Message {
+        use crate::conversation::message::InferenceMetadata;
+        Message::assistant()
+            .with_content(MessageContent::thinking("internal", "sig-abc"))
+            .with_text("answer")
+            .with_inference(InferenceMetadata {
+                provider: "anthropic".to_string(),
+                requested_model: model.to_string(),
+                resolved_model: None,
+                provider_session_id: None,
+            })
+    }
+
+    #[test]
+    fn drops_signed_thinking_from_a_different_model() {
+        let messages = vec![signed_thinking_from_model("claude-opus-4-1")];
+        let opts = AnthropicFormatOptions {
+            current_model: Some("claude-sonnet-4-5".to_string()),
+            ..Default::default()
+        };
+        let spec = format_messages_with_options(&messages, &opts);
+        let types: Vec<&str> = spec[0]["content"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| c["type"].as_str().unwrap())
+            .collect();
+        assert!(
+            !types.contains(&"thinking"),
+            "stale thinking must be dropped"
+        );
+        assert!(types.contains(&"text"), "text content must be preserved");
+    }
+
+    #[test]
+    fn keeps_signed_thinking_from_the_same_model() {
+        let messages = vec![signed_thinking_from_model("claude-sonnet-4-5")];
+        let opts = AnthropicFormatOptions {
+            current_model: Some("claude-sonnet-4-5".to_string()),
+            ..Default::default()
+        };
+        let spec = format_messages_with_options(&messages, &opts);
+        assert_eq!(spec[0]["content"][0]["type"], "thinking");
+        assert_eq!(spec[0]["content"][0]["signature"], "sig-abc");
+    }
+
+    #[test]
+    fn keeps_signed_thinking_when_provenance_unknown() {
+        let messages =
+            vec![Message::assistant().with_content(MessageContent::thinking("internal", "sig"))];
+        let opts = AnthropicFormatOptions {
+            current_model: Some("claude-sonnet-4-5".to_string()),
+            ..Default::default()
+        };
+        let spec = format_messages_with_options(&messages, &opts);
+        assert_eq!(spec[0]["content"][0]["type"], "thinking");
     }
 
     #[test]
@@ -1611,6 +1636,7 @@ mod tests {
                 preserve_unsigned_thinking: true,
                 preserve_thinking_context: true,
                 thinking_disabled: false,
+                current_model: None,
             },
         )?;
 
@@ -2543,28 +2569,11 @@ mod tests {
         assert!(parts.tool_errors.is_empty());
     }
 
-    /// Anthropic prefix caching only pays off when the bytes up to a cache
-    /// breakpoint are identical turn over turn. The per-turn turn-context block
-    /// (timestamp, turn budget, compaction state) changes on every call, so if
-    /// it ever lands inside a cached prefix every request becomes a cache write
-    /// instead of a read. These tests pin the property that keeps caching alive
-    /// so a future refactor of the formatter or the turn-context format can't
-    /// silently regress it.
-    mod cache_prefix_stability {
+    /// Placement shape only; cross-request prefix stability is covered by
+    /// `tests/prefix_invariance.rs`.
+    mod cache_breakpoint_placement {
         use super::*;
         use rmcp::model::CallToolResult;
-
-        /// A turn-context block whose shape matches what `is_turn_context_text`
-        /// recognizes, varying only the volatile fields.
-        fn turn_context(time: &str, turn_budget: &str) -> String {
-            format!(
-                "<turn-context>\n\
-                 <current-time>{time}</current-time>\n\
-                 <working-directory>/Users/me/code/goose</working-directory>\n\
-                 <turn-budget>{turn_budget}</turn-budget>\n\
-                 </turn-context>"
-            )
-        }
 
         fn sample_tools() -> Vec<Tool> {
             vec![
@@ -2587,11 +2596,21 @@ mod tests {
             ]
         }
 
-        /// A realistic multi-turn conversation. `inject_moim` prepends the
-        /// turn-context block to the latest genuine user message, so it sits as
-        /// the first text block of the final user message here.
-        fn conversation(turn_context_block: &str) -> Vec<Message> {
-            vec![
+        fn breakpoints(messages: &[Value]) -> Vec<(usize, usize)> {
+            let mut found = Vec::new();
+            for (mi, message) in messages.iter().enumerate() {
+                for (bi, block) in message["content"].as_array().unwrap().iter().enumerate() {
+                    if block.get(CACHE_CONTROL_FIELD).is_some() {
+                        found.push((mi, bi));
+                    }
+                }
+            }
+            found
+        }
+
+        #[test]
+        fn breakpoints_cover_tools_system_and_last_two_user_messages() {
+            let messages = vec![
                 Message::user().with_text("What does the main entrypoint do?"),
                 Message::assistant().with_tool_request(
                     "tool_1",
@@ -2605,200 +2624,45 @@ mod tests {
                     ])),
                 ),
                 Message::assistant().with_text("It calls `run()`."),
-                Message::user()
-                    .with_text(turn_context_block)
-                    .with_text("Now add error handling to it."),
-            ]
-        }
-
-        /// The (message index, block index) of the last block carrying a
-        /// `cache_control` marker, scanning in canonical order. This is the far
-        /// edge of the furthest cached prefix.
-        fn last_breakpoint(messages: &[Value]) -> Option<(usize, usize)> {
-            let mut found = None;
-            for (mi, message) in messages.iter().enumerate() {
-                for (bi, block) in message["content"].as_array().unwrap().iter().enumerate() {
-                    if block.get(CACHE_CONTROL_FIELD).is_some() {
-                        found = Some((mi, bi));
-                    }
-                }
-            }
-            found
-        }
-
-        fn find_turn_context(messages: &[Value]) -> Option<(usize, usize)> {
-            messages.iter().enumerate().find_map(|(mi, message)| {
-                message["content"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .position(is_turn_context_block)
-                    .map(|bi| (mi, bi))
-            })
-        }
-
-        /// The exact bytes Anthropic hashes for its furthest cache breakpoint:
-        /// tools, then system, then messages truncated at the last
-        /// `cache_control` marker. Everything after that point is outside every
-        /// cached prefix and may change freely turn to turn.
-        fn cached_prefix(payload: &Value) -> String {
-            let messages = payload["messages"].as_array().unwrap();
-            let (last_mi, last_bi) = last_breakpoint(messages)
-                .expect("request must carry at least one cache_control breakpoint");
-
-            let prefix_messages: Vec<Value> = messages
-                .iter()
-                .take(last_mi + 1)
-                .enumerate()
-                .map(|(mi, message)| {
-                    let mut message = message.clone();
-                    if mi == last_mi {
-                        message["content"]
-                            .as_array_mut()
-                            .unwrap()
-                            .truncate(last_bi + 1);
-                    }
-                    message
-                })
-                .collect();
-
-            json!({
-                "tools": payload.get("tools"),
-                "system": payload.get("system"),
-                "messages": prefix_messages,
-            })
-            .to_string()
-        }
-
-        /// The production tool-loop case: `inject_moim` prepends turn-context to
-        /// the latest *genuine* user message, but the request then ends with a
-        /// later `tool_result` message. The block must be relocated *across*
-        /// messages to land after the trailing breakpoint, not merely reordered
-        /// within its own message.
-        fn tool_loop_conversation(turn_context_block: &str) -> Vec<Message> {
-            vec![
-                Message::user().with_text("What does the main entrypoint do?"),
-                Message::assistant().with_text("Let me read it."),
-                Message::user()
-                    .with_text(turn_context_block)
-                    .with_text("Now add error handling to it."),
-                Message::assistant().with_tool_request(
-                    "tool_1",
-                    Ok(CallToolRequestParams::new("read_file")
-                        .with_arguments(object!({"path": "src/main.rs"}))),
-                ),
-                Message::user().with_tool_response(
-                    "tool_1",
-                    Ok(CallToolResult::success(vec![
-                        rmcp::model::ContentBlock::text("fn main() { run(); }"),
-                    ])),
-                ),
-            ]
-        }
-
-        fn request_with(messages: &[Message]) -> Value {
-            create_request_with_default_options(
+                Message::user().with_text("Now add error handling to it."),
+            ];
+            let req = create_request_with_default_options(
                 &cfg("claude-sonnet-4-5"),
                 "You are a careful coding assistant.",
-                messages,
+                &messages,
                 &sample_tools(),
             )
-            .unwrap()
-        }
+            .unwrap();
 
-        fn request(turn_context_block: &str) -> Value {
-            request_with(&conversation(turn_context_block))
-        }
+            let tools = req["tools"].as_array().unwrap();
+            assert!(tools[0].get(CACHE_CONTROL_FIELD).is_none());
+            assert!(tools[1].get(CACHE_CONTROL_FIELD).is_some());
+            assert!(req["system"][0].get(CACHE_CONTROL_FIELD).is_some());
 
-        #[test]
-        fn cached_prefix_is_invariant_to_turn_context_changes() {
-            let req_a = request(&turn_context("2026-06-25 12:00:00", "14/40 used"));
-            let req_b = request(&turn_context("2026-06-25 13:47:00", "31/40 used"));
-
-            assert_ne!(
-                req_a.to_string(),
-                req_b.to_string(),
-                "test setup is vacuous: the two requests are byte-identical, so the \
-                 turn-context never reached the request body"
-            );
-
+            let request_messages = req["messages"].as_array().unwrap();
+            let marked = breakpoints(request_messages);
             assert_eq!(
-                cached_prefix(&req_a),
-                cached_prefix(&req_b),
-                "the cached prefix changed when only the volatile turn-context changed; \
-                 prefix caching will collapse into a per-turn cache write"
-            );
-
-            assert!(
-                !cached_prefix(&req_a).contains("12:00:00"),
-                "the volatile turn-context timestamp leaked into the cached prefix"
+                marked,
+                vec![(2, 0), (4, 0)],
+                "message breakpoints should sit on the last block of the last two user messages"
             );
         }
 
         #[test]
-        fn turn_context_sits_after_every_cache_breakpoint() {
-            let req = request(&turn_context("2026-06-25 12:00:00", "14/40 used"));
-            let messages = req["messages"].as_array().unwrap();
+        fn breakpoints_land_on_the_last_content_block() {
+            let messages = vec![Message::user()
+                .with_text("Here is the context.")
+                .with_text("And the question.")];
+            let req = create_request_with_default_options(
+                &cfg("claude-sonnet-4-5"),
+                "You are a careful coding assistant.",
+                &messages,
+                &sample_tools(),
+            )
+            .unwrap();
 
-            for message in messages {
-                for block in message["content"].as_array().unwrap() {
-                    if block.get(CACHE_CONTROL_FIELD).is_some() {
-                        assert!(
-                            !is_turn_context_block(block),
-                            "a cache_control breakpoint landed on the volatile turn-context block"
-                        );
-                    }
-                }
-            }
-
-            let breakpoint = last_breakpoint(messages).expect("a breakpoint should exist");
-            let turn_context = find_turn_context(messages)
-                .expect("the turn-context block should survive into the formatted request");
-            assert!(
-                turn_context > breakpoint,
-                "turn-context at {turn_context:?} is not after the last cache breakpoint at \
-                 {breakpoint:?}, so it sits inside a cached prefix"
-            );
-        }
-
-        /// Guards the tool-loop path: turn-context is injected onto an earlier
-        /// genuine user message while the request ends with a `tool_result`, so
-        /// keeping it out of the cached prefix requires relocating it across
-        /// messages. A regression that only reorders within a message would
-        /// pass the tests above but fail here.
-        #[test]
-        fn cached_prefix_is_invariant_in_tool_loop() {
-            let req_a = request_with(&tool_loop_conversation(&turn_context(
-                "2026-06-25 12:00:00",
-                "14/40",
-            )));
-            let req_b = request_with(&tool_loop_conversation(&turn_context(
-                "2026-06-25 13:47:00",
-                "31/40",
-            )));
-
-            assert_ne!(
-                req_a.to_string(),
-                req_b.to_string(),
-                "test setup is vacuous: turn-context never reached the request body"
-            );
-
-            assert_eq!(
-                cached_prefix(&req_a),
-                cached_prefix(&req_b),
-                "the cached prefix changed when only the volatile turn-context changed during a \
-                 tool loop; the block was not relocated past the trailing tool_result breakpoint"
-            );
-
-            let messages = req_a["messages"].as_array().unwrap();
-            let breakpoint = last_breakpoint(messages).expect("a breakpoint should exist");
-            let turn_context = find_turn_context(messages)
-                .expect("the turn-context block should survive into the formatted request");
-            assert!(
-                turn_context > breakpoint,
-                "turn-context at {turn_context:?} was not relocated across messages to after the \
-                 last breakpoint at {breakpoint:?}"
-            );
+            let request_messages = req["messages"].as_array().unwrap();
+            assert_eq!(breakpoints(request_messages), vec![(0, 1)]);
         }
     }
 }

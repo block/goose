@@ -918,6 +918,24 @@ mod tests {
     }
 
     #[test]
+    fn test_message_to_google_spec_sanitizes_resource_tool_response() {
+        let messages = vec![set_up_tool_response_message(
+            "response_id",
+            vec![ContentBlock::embedded_text(
+                "file:///result.txt",
+                "visible\u{E0041}text",
+            )],
+        )];
+
+        let payload = format_messages(&messages, false);
+
+        assert_eq!(
+            payload[0]["parts"][0]["functionResponse"]["response"]["content"]["text"],
+            "visibletext"
+        );
+    }
+
+    #[test]
     fn test_function_response_matches_function_call() {
         let messages = vec![
             set_up_tool_request_message("call_123", CallToolRequestParams::new("read_file")),

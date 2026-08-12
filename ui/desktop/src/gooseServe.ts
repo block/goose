@@ -33,6 +33,8 @@ export interface StartGooseServeOptions extends FindGooseBinaryOptions {
   serverSecret: string;
   tls?: boolean;
   env?: Record<string, string | undefined>;
+  /** PATH from the user's login shell, appended so goosed can find CLI providers. */
+  loginShellPath?: string | null;
   logger?: Logger;
   diagnosticsDir?: string;
   readinessFetch?: ReadinessFetch;
@@ -288,7 +290,8 @@ const withStartupDiagnosticsPath = (
 const buildGooseServeEnv = (
   serverSecret: string,
   binaryPath: string,
-  additionalEnv: Record<string, string | undefined>
+  additionalEnv: Record<string, string | undefined>,
+  loginShellPath?: string | null
 ): Record<string, string | undefined> => {
   const homeDir = process.env.HOME || os.homedir();
   const pathKey = process.platform === 'win32' ? 'Path' : 'PATH';
@@ -297,7 +300,9 @@ const buildGooseServeEnv = (
   const env: Record<string, string | undefined> = {
     ...process.env,
     HOME: homeDir,
-    [pathKey]: `${path.dirname(binaryPath)}${path.delimiter}${currentPath}`,
+    [pathKey]: [path.dirname(binaryPath), currentPath, loginShellPath]
+      .filter(Boolean)
+      .join(path.delimiter),
   };
 
   if (process.platform === 'win32') {
@@ -322,6 +327,7 @@ export const startGooseServe = async ({
   serverSecret,
   tls = false,
   env: additionalEnv = {},
+  loginShellPath,
   isPackaged,
   resourcesPath,
   logger = defaultLogger,
@@ -385,7 +391,7 @@ export const startGooseServe = async ({
   }
 
   const spawnOptions = {
-    env: buildGooseServeEnv(secretKey, goosePath, additionalEnv),
+    env: buildGooseServeEnv(secretKey, goosePath, additionalEnv, loginShellPath),
     cwd: workingDir,
     windowsHide: true,
     shell: false as const,
