@@ -1703,20 +1703,45 @@ impl ComputerControllerServer {
                 ))]))
             }
             CacheCommand::Clear => {
-                fs::remove_dir_all(&self.cache_dir).map_err(|e| {
+                let cache_dir = self.cache_dir_handle.as_ref().ok_or_else(|| {
                     ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
-                        format!("Failed to clear cache directory: {}", e),
+                        "Failed to open cache directory".to_string(),
                         None,
                     )
                 })?;
-                fs::create_dir_all(&self.cache_dir).map_err(|e| {
+                for entry in cache_dir.entries().map_err(|e| {
                     ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
-                        format!("Failed to recreate cache directory: {}", e),
+                        format!("Failed to read cache directory: {e}"),
                         None,
                     )
-                })?;
+                })? {
+                    let entry = entry.map_err(|e| {
+                        ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            format!("Failed to read cache entry: {e}"),
+                            None,
+                        )
+                    })?;
+                    let file_name = entry.file_name();
+                    let result = if entry
+                        .file_type()
+                        .map(|file_type| file_type.is_dir())
+                        .unwrap_or(false)
+                    {
+                        cache_dir.remove_dir_all(&file_name)
+                    } else {
+                        cache_dir.remove_file(&file_name)
+                    };
+                    result.map_err(|e| {
+                        ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            format!("Failed to clear cache entry: {e}"),
+                            None,
+                        )
+                    })?;
+                }
 
                 // Clear active resources
                 self.active_resources.lock().unwrap().clear();
@@ -1949,5 +1974,28 @@ mod cache_tests {
             fs::read_to_string(outside_dir.join("victim.txt")).unwrap(),
             "outside"
         );
+    }
+
+    #[tokio::test]
+    async fn cache_remains_usable_after_clear() {
+        let temp_dir = TempDir::new().unwrap();
+        let cache_dir = temp_dir.path().join("cache");
+        fs::create_dir(&cache_dir).unwrap();
+        fs::write(cache_dir.join("old.txt"), "old").unwrap();
+        fs::create_dir(cache_dir.join("nested")).unwrap();
+        fs::write(cache_dir.join("nested/old.txt"), "old").unwrap();
+
+        let server = server_with_cache_dir(&cache_dir);
+        call_cache(&server, CacheCommand::Clear, "").await.unwrap();
+        assert!(fs::read_dir(&cache_dir).unwrap().next().is_none());
+
+        fs::write(cache_dir.join("new.txt"), "new").unwrap();
+        let view = call_cache(&server, CacheCommand::View, "new.txt")
+            .await
+            .unwrap();
+        let ContentBlock::Text(view) = &view.content[0] else {
+            panic!("expected text content");
+        };
+        assert!(view.text.contains("new"));
     }
 }
