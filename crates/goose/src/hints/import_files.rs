@@ -175,8 +175,7 @@ fn is_structural_git_directory(path: &Path) -> bool {
     is_regular_file_following_symlinks(&path.join("HEAD"))
         && ((is_directory_following_symlinks(&path.join("objects"))
             && is_directory_following_symlinks(&path.join("refs")))
-            || (is_regular_file_without_following_symlinks(&path.join("commondir"))
-                && is_regular_file_without_following_symlinks(&path.join("gitdir"))))
+            || is_regular_file_without_following_symlinks(&path.join("commondir")))
 }
 
 fn has_structural_git_ancestor(canonical: &Path, boundary_canonical: &Path) -> bool {
@@ -797,7 +796,7 @@ mod tests {
         }
 
         #[test]
-        fn test_nested_worktree_git_directories_are_not_imported() {
+        fn test_nested_worktree_without_gitdir_backpointer_is_not_imported() {
             let temp_dir = tempfile::tempdir().unwrap();
             let import_boundary = temp_dir.path();
             std::fs::create_dir(import_boundary.join("vendor")).unwrap();
@@ -819,11 +818,6 @@ mod tests {
                 import_boundary,
                 ".vendor-git/worktrees/topic/HEAD",
                 "ref: refs/heads/topic\n",
-            );
-            create_file(
-                import_boundary,
-                ".vendor-git/worktrees/topic/gitdir",
-                "../../../../vendor/.git\n",
             );
             create_file(
                 import_boundary,
