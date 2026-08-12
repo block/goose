@@ -159,6 +159,15 @@ fn is_regular_file_following_symlinks(path: &Path) -> bool {
         .is_some_and(|metadata| metadata.is_file())
 }
 
+fn is_regular_file_or_symlink(path: &Path) -> bool {
+    std::fs::symlink_metadata(path)
+        .ok()
+        .is_some_and(|metadata| {
+            let file_type = metadata.file_type();
+            file_type.is_file() || file_type.is_symlink()
+        })
+}
+
 fn is_directory_following_symlinks(path: &Path) -> bool {
     std::fs::metadata(path)
         .ok()
@@ -166,7 +175,7 @@ fn is_directory_following_symlinks(path: &Path) -> bool {
 }
 
 fn is_structural_git_directory(path: &Path) -> bool {
-    is_regular_file_following_symlinks(&path.join("HEAD"))
+    is_regular_file_or_symlink(&path.join("HEAD"))
         && ((is_directory_following_symlinks(&path.join("objects"))
             && is_directory_following_symlinks(&path.join("refs")))
             || is_regular_file_following_symlinks(&path.join("commondir")))
@@ -1026,6 +1035,32 @@ mod tests {
 
             assert!(!expanded.contains("NESTED_GIT_SECRET"));
             assert!(expanded.contains("legitimate project data"));
+        }
+
+        #[cfg(unix)]
+        #[test]
+        fn test_unborn_git_directory_with_dangling_head_symlink_is_not_imported() {
+            use std::os::unix::fs::symlink;
+
+            let temp_dir = tempfile::tempdir().unwrap();
+            let import_boundary = temp_dir.path();
+            std::fs::create_dir_all(import_boundary.join(".vendor-git/objects")).unwrap();
+            std::fs::create_dir_all(import_boundary.join(".vendor-git/refs/heads")).unwrap();
+            create_file(import_boundary, ".vendor-git/config", "UNBORN_GIT_SECRET");
+            symlink("refs/heads/topic", import_boundary.join(".vendor-git/HEAD")).unwrap();
+            let main_file = create_file(import_boundary, "main.md", "@.vendor-git/config");
+            let ignore_patterns = create_ignore_patterns(import_boundary);
+            let mut visited = HashSet::new();
+
+            let expanded = read_referenced_files(
+                &main_file,
+                import_boundary,
+                &mut visited,
+                0,
+                &ignore_patterns,
+            );
+
+            assert_eq!(expanded, "@.vendor-git/config");
         }
 
         #[cfg(unix)]
