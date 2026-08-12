@@ -96,6 +96,12 @@ fn canonical_thinking_mode(provider_name: &str, model_name: &str) -> Option<Thin
     maybe_get_canonical_model(provider_name, model_name).and_then(|model| model.thinking_mode)
 }
 
+/// Adaptive models run adaptive thinking when `thinking` is omitted, so turning
+/// it off takes an explicit disable. Always-on models reject that disable.
+pub fn requires_explicit_thinking_disable(provider_name: &str, model_name: &str) -> bool {
+    canonical_thinking_mode(provider_name, model_name) == Some(ThinkingMode::Adaptive)
+}
+
 fn canonical_reasoning(provider_name: &str, model_config: &ModelConfig) -> Option<bool> {
     maybe_get_canonical_model(provider_name, &model_config.model_name)
         .and_then(|model| model.reasoning)
@@ -732,6 +738,12 @@ fn apply_thinking_config(
         if let Some(thinking) = obj.get_mut("thinking").and_then(|t| t.as_object_mut()) {
             thinking.insert("clear_thinking".to_string(), json!(false));
         }
+    }
+
+    if !obj.contains_key("thinking")
+        && requires_explicit_thinking_disable(provider_name, &model_config.model_name)
+    {
+        obj.insert("thinking".to_string(), json!({"type": "disabled"}));
     }
 }
 
@@ -1609,6 +1621,12 @@ mod tests {
         assert!(payload.get("thinking").is_none());
         assert!(payload.get("output_config").is_none());
 
+        // Adaptive models treat an omitted field as adaptive, so off must be explicit.
+        let config = cfg_with_effort("claude-opus-5", "off");
+        let payload = create_request_with_default_options(&config, "system", &messages, &[])?;
+
+        assert_eq!(payload["thinking"], json!({"type": "disabled"}));
+
         Ok(())
     }
 
@@ -1649,6 +1667,22 @@ mod tests {
         assert!(payload["messages"][0]["content"][0]
             .get("signature")
             .is_none());
+
+        // Preserved context still wins on models that need an explicit thinking disable.
+        let mut config = cfg("claude-opus-5");
+        config.max_tokens = Some(64000);
+        let payload = create_request_with_options_provider(
+            &config,
+            "system",
+            &messages,
+            &[],
+            AnthropicFormatOptions {
+                preserve_thinking_context: true,
+                ..Default::default()
+            },
+        )?;
+
+        assert_eq!(payload["thinking"]["type"], "enabled");
 
         Ok(())
     }
