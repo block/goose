@@ -512,7 +512,7 @@ fn read_referenced_files_with_budget(
 
     expand_file_content(
         &content,
-        &safe_file_path,
+        file_path,
         &import_boundary,
         visited,
         depth,
@@ -901,6 +901,37 @@ mod tests {
             );
 
             assert_eq!(expanded, "@.vendor-git/worktrees/topic/config.worktree");
+        }
+
+        #[cfg(unix)]
+        #[test]
+        fn test_symlinked_hint_resolves_references_from_symlink_directory() {
+            use std::os::unix::fs::symlink;
+
+            let temp_dir = tempfile::tempdir().unwrap();
+            let import_boundary = temp_dir.path();
+            std::fs::create_dir(import_boundary.join("docs")).unwrap();
+            create_file(import_boundary, "root-only.md", "ROOT_RELATIVE_CONTENT");
+            create_file(
+                import_boundary,
+                "docs/root-only.md",
+                "TARGET_RELATIVE_CONTENT",
+            );
+            create_file(import_boundary, "docs/shared.md", "@root-only.md");
+            symlink("docs/shared.md", import_boundary.join("AGENTS.md")).unwrap();
+            let ignore_patterns = create_ignore_patterns(import_boundary);
+            let mut visited = HashSet::new();
+
+            let expanded = read_referenced_files(
+                &import_boundary.join("AGENTS.md"),
+                import_boundary,
+                &mut visited,
+                0,
+                &ignore_patterns,
+            );
+
+            assert!(expanded.contains("ROOT_RELATIVE_CONTENT"));
+            assert!(!expanded.contains("TARGET_RELATIVE_CONTENT"));
         }
 
         #[cfg(unix)]
