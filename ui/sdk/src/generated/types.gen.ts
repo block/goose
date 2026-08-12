@@ -2628,6 +2628,15 @@ export type MessageUsageUpdate = {
     usage: MessageUsageData;
 };
 
+/**
+ * Live device-code prompt forwarded to the desktop during OAuth device-code flow.
+ */
+export type DeviceCodeUpdate = {
+    userCode: string;
+    verificationUri: string;
+    expiresIn: number;
+};
+
 export type RequestRecipeParams_unstable = {
     sessionId: string;
     parameters: Array<RecipeParameterDto>;
@@ -2688,13 +2697,4 @@ export type ExtAgentResponse = {
         data?: unknown;
     };
     id: string;
-};
-
-/**
- * Live device-code prompt forwarded to the desktop during OAuth device-code flow.
- */
-export type DeviceCodeUpdate = {
-    userCode: string;
-    verificationUri: string;
-    expiresIn: number;
 };
