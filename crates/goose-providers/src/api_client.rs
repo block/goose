@@ -321,7 +321,22 @@ impl ApiClient {
         transport_policy: TransportPolicy,
     ) -> reqwest::ClientBuilder {
         match transport_policy {
-            TransportPolicy::Default => client_builder,
+            TransportPolicy::Default => client_builder.redirect(Policy::custom(|attempt| {
+                if attempt.previous().len() > 10 {
+                    return attempt.error("too many redirects");
+                }
+                let previous = attempt.previous().last();
+                let same_host = previous.and_then(|url| url.host_str()).is_some()
+                    && previous.and_then(|url| url.host_str()) == attempt.url().host_str();
+                let downgrade_to_http =
+                    previous.map(|url| url.scheme() == "https").unwrap_or(false)
+                        && attempt.url().scheme() == "http";
+                if same_host && !downgrade_to_http {
+                    attempt.follow()
+                } else {
+                    attempt.error("redirect violates the default transport policy")
+                }
+            })),
             TransportPolicy::HttpsOnly => client_builder.https_only(true),
             TransportPolicy::LoopbackHttp => {
                 client_builder
