@@ -341,7 +341,9 @@ fn announce_user_action(device: &DeviceCodeResponse) {
 
     if DEVICE_CODE_ANNOUNCE
         .try_with(|f| {
-            let expires_in = device.expires_in.unwrap_or(DEFAULT_DEVICE_CODE_LIFETIME_SECS);
+            let expires_in = device
+                .expires_in
+                .unwrap_or(DEFAULT_DEVICE_CODE_LIFETIME_SECS);
             f(device.user_code.clone(), verify_url.clone(), expires_in)
         })
         .is_ok()
