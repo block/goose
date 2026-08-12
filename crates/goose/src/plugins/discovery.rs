@@ -79,7 +79,7 @@ fn discover_enabled_plugins_with_config(
 
     let enabled_by_settings: Vec<DiscoveredPlugin> = found
         .into_values()
-        .filter(|plugin| is_enabled(&plugin.name, &scoped_settings))
+        .filter(|plugin| is_enabled(&plugin.name, plugin.scope, &scoped_settings))
         .collect();
 
     filter_by_config(enabled_by_settings, config)
@@ -119,7 +119,11 @@ fn filter_by_config(plugins: Vec<DiscoveredPlugin>, config: &Config) -> Vec<Disc
     enabled
 }
 
-fn is_enabled(plugin_name: &str, scoped_settings: &[(SettingsScope, PluginSettings)]) -> bool {
+fn is_enabled(
+    plugin_name: &str,
+    plugin_scope: PluginScope,
+    scoped_settings: &[(SettingsScope, PluginSettings)],
+) -> bool {
     for scope in [
         SettingsScope::Local,
         SettingsScope::Project,
@@ -143,7 +147,10 @@ fn is_enabled(plugin_name: &str, scoped_settings: &[(SettingsScope, PluginSettin
         }
     }
 
-    true
+    // Project-scoped plugins live inside the checked-out repo and can run code
+    // (MCP servers, hooks), so an unlisted one stays disabled until explicitly
+    // enabled. User-scoped plugins the user installed themselves default on.
+    plugin_scope == PluginScope::User
 }
 
 fn project_plugin_dir(project_root: &Path) -> PathBuf {
@@ -264,6 +271,10 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let project = tmp.path();
         write_plugin_dir(&project.join(".agents").join("plugins"), "demo");
+        write_settings(
+            &project.join(".config").join("goose"),
+            r#"{"enabledPlugins":["demo"]}"#,
+        );
 
         let found = discover(project);
         let names: Vec<_> = found.iter().map(|p| p.name.as_str()).collect();
@@ -302,7 +313,21 @@ mod tests {
         let found = discover(project);
         let names: Vec<_> = found.iter().map(|p| p.name.as_str()).collect();
         assert!(names.contains(&"demo"), "got: {names:?}");
-        assert!(names.contains(&"other"), "got: {names:?}");
+        assert!(!names.contains(&"other"), "got: {names:?}");
+    }
+
+    #[test]
+    fn unlisted_project_plugin_is_disabled() {
+        let tmp = tempfile::tempdir().unwrap();
+        let project = tmp.path();
+        write_plugin_dir(&project.join(".agents").join("plugins"), "demo");
+
+        let found = discover(project);
+        assert!(
+            found.iter().all(|p| p.name != "demo"),
+            "unlisted project plugin must not auto-enable; got: {:?}",
+            found.iter().map(|p| &p.name).collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -365,6 +390,10 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let project = tmp.path();
         write_plugin_dir(&project.join(".agents").join("plugins"), "demo");
+        write_settings(
+            &project.join(".config").join("goose"),
+            r#"{"enabledPlugins":["demo"]}"#,
+        );
 
         let cfg_dir = tempfile::tempdir().unwrap();
         let config = test_config(cfg_dir.path());
@@ -412,6 +441,10 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let project = tmp.path();
         write_plugin_dir(&project.join(".agents").join("plugins"), "demo");
+        write_settings(
+            &project.join(".config").join("goose"),
+            r#"{"enabledPlugins":["demo"]}"#,
+        );
 
         let cfg_dir = tempfile::tempdir().unwrap();
         let config = test_config(cfg_dir.path());
