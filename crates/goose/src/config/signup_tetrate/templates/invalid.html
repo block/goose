@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invalid Request - Tetrate Agent Router Service</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+        }
+        .warning-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 20px;
+            background: #f59e0b;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .warning-icon svg {
+            width: 32px;
+            height: 32px;
+            fill: white;
+        }
+        h1 {
+            color: #1f2937;
+            font-size: 24px;
+            margin: 0 0 10px;
+        }
+        p {
+            color: #6b7280;
+            font-size: 16px;
+            line-height: 1.5;
+            margin: 0 0 20px;
+        }
+        .note {
+            background: #fffbeb;
+            border: 1px solid #fef3c7;
+            border-radius: 8px;
+            padding: 12px;
+            color: #92400e;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="warning-icon">
+            <svg viewBox="0 0 24 24">
+                <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5zm0 10h0m0 4h0"/>
+            </svg>
+        </div>
+        <h1>Invalid Request</h1>
+        <p>The authentication request is missing required parameters.</p>
+        <div class="note">
+            Please ensure you're accessing this page through the proper authentication flow.
+        </div>
+    </div>
+</body>
+</html>

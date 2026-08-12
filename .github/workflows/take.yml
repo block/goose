@@ -1,0 +1,33 @@
+name: Auto-assign issue to contributor
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  assign:
+    name: Take an issue
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Check if it's October
+        id: check-month
+        run: |
+          current_month=$(date -u +%m)
+          if [[ $current_month == "10" ]]; then
+            echo "is_october=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_october=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Take the issue
+        if: steps.check-month.outputs.is_october == 'true'
+        uses: bdougie/take-action@1439165ac45a7461c2d89a59952cd7d941964b87
+        with:
+          message: Thanks for taking this issue! Let us know if you have any questions!
+          trigger: .take
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log when outside October
+        if: steps.check-month.outputs.is_october == 'false'
+        run: echo "Action skipped because the current date is not in October."

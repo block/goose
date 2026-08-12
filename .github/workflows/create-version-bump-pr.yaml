@@ -1,0 +1,101 @@
+name: Create Version Bump PR
+
+on:
+  workflow_call:
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: false
+      OPENAI_API_KEY:
+        required: false
+      GOOGLE_API_KEY:
+        required: false
+      OPENROUTER_API_KEY:
+        required: false
+      XAI_API_KEY:
+        required: false
+      TETRATE_API_KEY:
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-version-bump:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: cashapp/activate-hermit@cea9af7913204a965fd488637a8d1811bba2e616 # v1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+      - name: install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
+
+      - name: Compute version and create bump branch
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          TETRATE_API_KEY: ${{ secrets.TETRATE_API_KEY }}
+        run: |
+          VERSION=$(just get-next-minor-version)
+          echo "version=$VERSION" >> $GITHUB_ENV
+          echo "Version: $VERSION (minor bump on main)"
+
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          BRANCH_NAME="version-bump/$VERSION"
+          git switch -C "$BRANCH_NAME"
+
+          just prepare-release $VERSION
+
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
+
+      - name: Push bump branch
+        run: |
+          git push --force-with-lease origin "${{ env.branch_name }}"
+
+      - name: Create Pull Request if needed
+        run: |
+          EXISTING_PR_URL=$(gh pr list \
+            --base main \
+            --head "${{ env.branch_name }}" \
+            --state open \
+            --json url \
+            --jq '.[0].url // empty')
+
+          if [ -n "$EXISTING_PR_URL" ]; then
+            echo "Existing PR found: $EXISTING_PR_URL"
+            echo "pr_url=$EXISTING_PR_URL" >> $GITHUB_ENV
+            exit 0
+          fi
+
+          PR_BODY=$(cat <<'EOF'
+          Bumps version to **${{ env.version }}**.
+
+          **Please follow these steps:**
+
+          1. Approve workflows for this PR to trigger CI checks.
+          2. Review and resolve any merge conflicts.
+          3. Approve and merge this PR.
+          4. The `release/${{ env.version }}` PR will be created automatically.
+          EOF
+          )
+          PR_URL=$(gh pr create \
+            -B main \
+            -H "${{ env.branch_name }}" \
+            --title "chore(release): bump version to ${{ env.version }} (minor)" \
+            --body "$PR_BODY")
+          echo "pr_url=$PR_URL" >> $GITHUB_ENV
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

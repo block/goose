@@ -1,0 +1,71 @@
+version: "1.0.0"
+title: "OpenAPI Spec Analyzer"
+description: "Parse and analyze OpenAPI specification to extract endpoints, schemas, and auth details"
+instructions: |
+  You are an API specification expert. Parse the OpenAPI/Swagger specification file
+  and extract all relevant information for load test generation.
+
+  Your analysis should include:
+  - List of all endpoints grouped by tags/categories
+  - HTTP methods, paths, and parameters for each endpoint
+  - Request/response schemas and content types
+  - Authentication and security schemes
+  - Rate limits and other constraints if defined
+
+  Output Format:
+  Create a structured analysis with:
+  1. API metadata (title, version, description)
+  2. Base servers/URLs
+  3. Authentication methods used
+  4. Endpoint groups with their operations
+  5. Common schemas and data models
+  6. Recommended test scenarios based on endpoint relationships
+
+parameters:
+  - key: output_dir
+    input_type: string
+    requirement: required
+    description: "Output directory"
+
+  - key: openapi_spec_path
+    input_type: string
+    requirement: required
+    description: "Path to the OpenAPI specification file"
+
+  - key: analysis_depth
+    input_type: string
+    requirement: optional
+    default: "standard"
+    description: "Depth of analysis: basic, standard, or comprehensive"
+
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true
+
+prompt: |
+  Analyze the OpenAPI specification at {{ openapi_spec_path }}.
+  Perform a {{ analysis_depth }} analysis.
+
+  Steps:
+  1. Read and parse the spec file (handle both JSON and YAML formats)
+  2. Extract API metadata and server information
+  3. Identify all authentication/security schemes
+  4. Group endpoints by tags or logical categories
+  5. For each endpoint, document:
+     - HTTP method and path
+     - Path/query/header parameters
+     - Request body schema (if applicable)
+     - Response schemas
+     - Security requirements
+  6. Identify endpoint relationships (e.g., POST /users before GET /users/{id})
+  7. Suggest realistic test scenarios and user flows
+
+  Save the analysis to {{ output_dir }}/analysis.json for use by other sub-recipes.
+
+  Present a summary with:
+  - Total number of endpoints
+  - Endpoints grouped by category
+  - Authentication types used
+  - Recommended test flow sequences

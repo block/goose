@@ -1,0 +1,15 @@
+{
+  "name": "inception",
+  "engine": "openai",
+  "display_name": "Inception",
+  "description": "Mercury models from Inception leveraging diffusion for lightning speeds",
+  "api_key_env": "INCEPTION_API_KEY",
+  "base_url": "https://api.inceptionlabs.ai",
+  "models": [
+    {
+      "name": "mercury-coder",
+      "context_limit": 128000
+    }
+  ],
+  "supports_streaming": true
+}

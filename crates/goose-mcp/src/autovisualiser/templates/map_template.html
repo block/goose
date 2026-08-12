@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map</title>
+
+    <style>{{LEAFLET_CSS}}</style>
+    <style>{{MCP_APP_BASE_CSS}}</style>
+    <style>
+        body { padding: 0; }
+
+        .map-header {
+            padding: 12px 16px;
+            text-align: center;
+        }
+
+        .map-header:empty { display: none; }
+
+        .map-title {
+            font-size: var(--font-heading-md-size);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-text-primary);
+            margin-bottom: 4px;
+        }
+
+        .map-subtitle {
+            font-size: var(--font-text-md-size);
+            color: var(--color-text-secondary);
+        }
+
+        .map-title:empty, .map-subtitle:empty { display: none; }
+
+        #map { width: 100%; height: 440px; }
+
+        :root[data-display-mode="fullscreen"] body,
+        :root[data-display-mode="pip"] body {
+            padding: 0;
+            justify-content: stretch;
+        }
+
+        :root[data-display-mode="fullscreen"] #mapRoot,
+        :root[data-display-mode="pip"] #mapRoot {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+        }
+
+        :root[data-display-mode="fullscreen"] #map,
+        :root[data-display-mode="pip"] #map {
+            flex: 1;
+            height: auto;
+        }
+
+        .custom-popup h3 {
+            margin: 0 0 6px 0;
+            font-size: var(--font-text-sm-size);
+            font-weight: var(--font-weight-semibold);
+        }
+
+        .custom-popup p {
+            margin: 3px 0;
+            font-size: var(--font-text-xs-size);
+            color: var(--color-text-secondary);
+        }
+
+        .marker-cluster { border-radius: 50%; }
+        .marker-cluster-small { background-color: rgba(92,152,249,0.35); }
+        .marker-cluster-small div { background-color: rgba(92,152,249,0.7); }
+        .marker-cluster-medium { background-color: rgba(240,160,60,0.35); }
+        .marker-cluster-medium div { background-color: rgba(240,160,60,0.7); }
+        .marker-cluster-large { background-color: rgba(249,112,102,0.35); }
+        .marker-cluster-large div { background-color: rgba(249,112,102,0.7); }
+        .marker-cluster-small div, .marker-cluster-medium div, .marker-cluster-large div {
+            width: 30px; height: 30px; margin-left: 5px; margin-top: 5px;
+            text-align: center; border-radius: 15px;
+            font: 12px var(--font-sans, sans-serif);
+            line-height: 30px; color: #fff; font-weight: var(--font-weight-semibold);
+        }
+    </style>
+</head>
+<body>
+    <div class="av-loading" id="loadingIndicator">Waiting for data…</div>
+    <div id="mapRoot" style="display:none;width:100%;">
+        <div class="map-header">
+            <div class="map-title" id="mapTitle"></div>
+            <div class="map-subtitle" id="mapSubtitle"></div>
+        </div>
+        <div id="map"></div>
+    </div>
+
+    <script>{{LEAFLET_JS}}</script>
+    <script>{{MARKERCLUSTER_JS}}</script>
+    <script>{{MCP_APP_BRIDGE}}</script>
+    <script>
+    (function () {
+        "use strict";
+
+        var map, markerClusterGroup, savedBounds, tileLayer;
+
+        var markerPalette = ["#5c98f9", "#47c9a2", "#f0a03c", "#f97066", "#9b8afb"];
+
+        function getColorByValue(value, maxValue) {
+            var ratio = value / maxValue;
+            var idx = Math.min(Math.floor(ratio * markerPalette.length), markerPalette.length - 1);
+            return markerPalette[idx];
+        }
+
+        function initMap(mapData) {
+            if (map) { map.remove(); map = null; }
+            markerClusterGroup = null;
+
+            var lat = mapData.center ? mapData.center.lat : 39.8283;
+            var lng = mapData.center ? mapData.center.lng : -98.5795;
+            var zoom = mapData.zoom || 4;
+
+            map = L.map("map").setView([lat, lng], zoom);
+
+            var isDark = document.documentElement.style.colorScheme === "dark";
+            var tileUrl = isDark
+                ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+            tileLayer = L.tileLayer(tileUrl, {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+                maxZoom: 19,
+                subdomains: "abcd",
+            }).addTo(map);
+
+            if (mapData.clustering !== false) {
+                markerClusterGroup = L.markerClusterGroup({
+                    chunkedLoading: true,
+                    maxClusterRadius: mapData.clusterRadius || 50,
+                    iconCreateFunction: function (cluster) {
+                        var count = cluster.getChildCount();
+                        var cls = count > 100 ? "marker-cluster-large" : count > 10 ? "marker-cluster-medium" : "marker-cluster-small";
+                        return new L.DivIcon({ html: "<div><span>" + count + "</span></div>", className: "marker-cluster " + cls, iconSize: new L.Point(40, 40) });
+                    },
+                });
+            }
+        }
+
+        function renderMarkers(mapData) {
+            var markers = mapData.markers || [];
+            var maxValue = Math.max.apply(null, markers.map(function (m) { return m.value || 1; }).concat([1]));
+
+            markers.forEach(function (point) {
+                var value = point.value || 1;
+                var size = Math.max(10, Math.min(28, (value / maxValue) * 28));
+                var color = point.color || getColorByValue(value, maxValue);
+
+                var icon = L.divIcon({
+                    className: "custom-marker",
+                    html: '<div style="background:' + color + ';width:' + size + 'px;height:' + size + 'px;border-radius:50%;border:2px solid rgba(255,255,255,0.9);box-shadow:0 1px 4px rgba(0,0,0,0.25);"></div>',
+                    iconSize: [size, size],
+                    iconAnchor: [size / 2, size / 2],
+                });
+
+                var marker = L.marker([point.lat, point.lng], { icon: point.useDefaultIcon ? new L.Icon.Default() : icon });
+
+                if (point.popup || point.name || point.description) {
+                    var html = point.popup || '<div class="custom-popup">' +
+                        (point.name ? "<h3>" + point.name + "</h3>" : "") +
+                        (point.value !== undefined ? "<p><strong>Value:</strong> " + point.value.toLocaleString() + "</p>" : "") +
+                        "<p>" + point.lat.toFixed(4) + ", " + point.lng.toFixed(4) + "</p>" +
+                        (point.description ? "<p>" + point.description + "</p>" : "") +
+                        "</div>";
+                    marker.bindPopup(html);
+                }
+
+                if (markerClusterGroup) markerClusterGroup.addLayer(marker);
+                else marker.addTo(map);
+            });
+
+            if (markerClusterGroup) map.addLayer(markerClusterGroup);
+
+            if (mapData.autoFit !== false && markers.length > 0) {
+                var group = new L.featureGroup(markers.map(function (m) { return L.marker([m.lat, m.lng]); }));
+                savedBounds = group.getBounds();
+                map.fitBounds(savedBounds.pad(0.05));
+            }
+        }
+
+        function renderData(mapData) {
+            document.getElementById("loadingIndicator").classList.add("hidden");
+            document.getElementById("mapRoot").style.display = "";
+
+            document.getElementById("mapTitle").textContent = mapData.title || "";
+            document.getElementById("mapSubtitle").textContent = mapData.subtitle || "";
+
+            initMap(mapData);
+            renderMarkers(mapData);
+            setTimeout(McpAppBridge.reportSize, 80);
+        }
+
+        function safeRender(data) {
+            try { renderData(data); }
+            catch (e) { McpAppBridge.showError(e.message || e); }
+        }
+
+        McpAppBridge.init({
+            appName: "autovisualiser-map",
+            onData: safeRender,
+            onTheme: function () {
+                if (map) setTimeout(function () {
+                    map.invalidateSize();
+                    if (savedBounds) map.fitBounds(savedBounds.pad(0.05));
+                    var isDark = document.documentElement.style.colorScheme === "dark";
+                    var newUrl = isDark
+                        ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                        : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+                    if (tileLayer) {
+                        tileLayer.setUrl(newUrl);
+                    }
+                }, 100);
+            },
+            extractData: function (msg) {
+                var sc = msg.params && msg.params.structuredContent;
+                if (sc) {
+                    if (sc.data) return sc.data;
+                    if (sc.markers) return sc;
+                }
+                var args = msg.params && msg.params.arguments;
+                if (args) {
+                    if (args.data) return args.data;
+                    if (args.markers) return args;
+                }
+                return null;
+            },
+        });
+    })();
+    </script>
+</body>
+</html>

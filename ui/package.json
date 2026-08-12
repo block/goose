@@ -1,0 +1,17 @@
+{
+  "private": true,
+  "workspaces": [
+    "acp",
+    "text",
+    "desktop",
+    "goose-binary/*"
+  ],
+  "scripts": {
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.1"
+  }
+}

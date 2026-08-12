@@ -1,0 +1,39 @@
+GOOSE_PROVIDER: ${GOOSE_PROVIDER}
+GOOSE_MODEL: ${GOOSE_MODEL}
+GOOSE_THINKING_EFFORT: "off"
+GOOSE_CLI_MIN_PRIORITY: 0.1
+extensions:
+  developer:
+    bundled: true
+    enabled: false
+    name: developer
+    type: builtin
+    timeout: 300
+  todo:
+    bundled: true
+    enabled: false
+    name: todo
+    type: platform
+  computercontroller:
+    bundled: true
+    enabled: false
+    name: computercontroller
+    type: builtin
+    timeout: 300
+  memory:
+    bundled: true
+    enabled: false
+    name: memory
+    type: builtin
+    timeout: 300
+  summon:
+    bundled: true
+    enabled: false
+    name: summon
+    type: platform
+  codemode:
+    bundled: true
+    enabled: false
+    name: codemode
+    type: builtin
+    timeout: 300

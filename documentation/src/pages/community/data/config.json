@@ -1,0 +1,45 @@
+{
+  "availableMonths": [
+    {
+      "id": "april-2025",
+      "display": "April 2025",
+      "file": "april-2025.json"
+    },
+    {
+      "id": "may-2025",
+      "display": "May 2025",
+      "file": "may-2025.json"
+    },
+    {
+      "id": "june-2025",
+      "display": "June 2025",
+      "file": "june-2025.json"
+    },
+    {
+      "id": "july-2025",
+      "display": "July 2025",
+      "file": "july-2025.json"
+    },
+    {
+      "id": "august-2025",
+      "display": "August 2025",
+      "file": "august-2025.json"
+    },
+    {
+      "id": "september-2025",
+      "display": "September 2025",
+      "file": "september-2025.json"
+    },
+    {
+      "id": "october-2025",
+      "display": "October 2025",
+      "file": "october-2025.json"
+    },
+    {
+      "id": "november-2025",
+      "display": "November 2025",
+      "file": "november-2025.json"
+    }
+  ],
+  "defaultMonth": "november-2025"
+}

@@ -1,0 +1,115 @@
+version: 1.0.0
+title: "Technical Debt Tracker"
+description: "Comprehensive analysis of technical debt in a code repository including complexity, test coverage, documentation, dependencies, and code duplication"
+author:
+  contact: Better-Boy
+
+instructions: |
+  You are a senior software engineer conducting a comprehensive technical debt analysis.
+  
+  Your workflow:
+  1. First, examine the repository structure at {{ repository_path }} to understand the project
+  2. Identify the primary programming language(s) and frameworks used
+  3. Run each sub-recipe to gather specific technical debt metrics:
+     - complexity_analyzer: Identify complex code that needs refactoring
+     - test_coverage_analyzer: Find untested or poorly tested code
+     - documentation_analyzer: Identify missing or outdated documentation
+     - dependency_analyzer: Check for outdated or vulnerable dependencies
+     - duplication_detector: Find duplicated code that should be refactored
+  
+  4. After all analyses complete, create a consolidated report that:
+     - Prioritizes issues by severity (Critical, High, Medium, Low)
+     - Groups related issues together
+     - Provides actionable recommendations with estimated effort
+     - Creates a technical debt reduction roadmap
+  
+  5. Save the report as {{ output_file }} in markdown format
+  
+  Be thorough but focused on issues that will have the most impact on code quality and maintainability.
+
+parameters:
+  - key: repository_path
+    input_type: string
+    requirement: required
+    description: "Path to the code repository to analyze"
+  
+  - key: output_file
+    input_type: string
+    requirement: optional
+    default: "technical-debt-report.md"
+    description: "Output file name for the technical debt report"
+  
+  - key: complexity_threshold
+    input_type: number
+    requirement: optional
+    default: 15
+    description: "Cyclomatic complexity threshold (functions above this are flagged)"
+  
+  - key: min_test_coverage
+    input_type: number
+    requirement: optional
+    default: 80
+    description: "Minimum acceptable test coverage percentage"
+  
+  - key: max_dependency_age_days
+    input_type: number
+    requirement: optional
+    default: 365
+    description: "Flag dependencies older than this many days"
+
+sub_recipes:
+  - name: "complexity_analyzer"
+    path: "./subrecipes/complexity-analysis.yaml"
+    values:
+      complexity_threshold: "{{ complexity_threshold }}"
+  
+  - name: "test_coverage_analyzer"
+    path: "./subrecipes/test-coverage-analysis.yaml"
+    values:
+      min_coverage: "{{ min_test_coverage }}"
+  
+  - name: "documentation_analyzer"
+    path: "./subrecipes/documentation-analysis.yaml"
+    values:
+      check_readme: "true"
+      check_api_docs: "true"
+  
+  - name: "dependency_analyzer"
+    path: "./subrecipes/dependency-analysis.yaml"
+    values:
+      max_age_days: "{{ max_dependency_age_days }}"
+      check_vulnerabilities: "true"
+  
+  - name: "duplication_detector"
+    path: "./subrecipes/duplication-detection.yaml"
+    values:
+      min_lines: "10"
+      similarity_threshold: "0.85"
+
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true
+    description: "File system and code analysis tools"
+
+prompt: |
+  Analyze the code repository at {{ repository_path }} for technical debt.
+  
+  Run a comprehensive analysis covering:
+  - Code complexity and maintainability
+  - Test coverage gaps
+  - Documentation quality
+  - Dependency health and security
+  - Code duplication
+  
+  Create a prioritized technical debt report and save it to {{ output_file }}.
+
+activities:
+  - "Scan repository structure"
+  - "Analyze code complexity"
+  - "Check test coverage"
+  - "Review documentation"
+  - "Audit dependencies"
+  - "Detect code duplication"
+  - "Generate prioritized report"

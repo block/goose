@@ -1,0 +1,28 @@
+flowchart TD
+    Start([rule_description]) --> WS[workflow_setup]
+    
+    WS --> SRA{similar_rule_analyzer}
+    
+    SRA --> SSEA{schema_and_sample_events_analyzer}
+    
+    SRA -.-> |"Skip if not needed"| RC
+    
+    SSEA --> RC[rule_creator]
+    
+    SSEA -.-> |"Skip if not needed"| RC
+    
+    RC --> TV[testing_validator]
+    
+    TV --> PRC{pr_creator}
+    
+    TV -.-> |"Skip if not creating PR"| End([Workflow Complete])
+    
+    PRC --> End
+    
+    classDef required fill:#e1f5fe,stroke:#01579b,stroke-width:3px
+    classDef conditional fill:#fff3e0,stroke:#e65100,stroke-width:2px,stroke-dasharray: 5 5
+    classDef startEnd fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
+    
+    class WS,RC,TV required
+    class SRA,SSEA,PRC conditional
+    class Start,End startEnd

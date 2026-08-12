@@ -1,0 +1,4 @@
+provider: github
+owner: aaif-goose
+repo: goose
+updaterCacheDirName: goose-updater

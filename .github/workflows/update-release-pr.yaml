@@ -1,0 +1,67 @@
+name: Update Release Notes
+
+on:
+  pull_request:
+    types:
+      - synchronize
+    branches:
+      - main
+      - release/**
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  update-release-notes:
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.pull_request.head.ref, 'release/') && github.event.pull_request.user.login == 'github-actions[bot]'
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      with:
+        fetch-depth: 0
+
+    - uses: cashapp/activate-hermit@cea9af7913204a965fd488637a8d1811bba2e616 # v1
+    - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+
+    - name: Extract version from branch name
+      env:
+        REF_NAME: ${{ github.head_ref }}
+      run: |
+        BRANCH_NAME="$REF_NAME"
+        VERSION=$(echo "$BRANCH_NAME" | sed 's/release\///')
+        echo "version=$VERSION" >> $GITHUB_ENV
+        echo "Version: $VERSION"
+
+    - name: Get prior version
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        PRIOR_TAG=$(just get-prior-version "${{ env.version }}")
+        if [[ -z "$PRIOR_TAG" ]]; then
+          echo "No prior version (first release), using first commit"
+          PRIOR_TAG=$(git rev-list --max-parents=0 HEAD)
+        fi
+        echo "prior_ref=$PRIOR_TAG" >> $GITHUB_ENV
+        echo "Prior ref: $PRIOR_TAG"
+
+    - name: Generate release notes
+      uses: ./.github/actions/generate-release-pr-body
+      with:
+        version: ${{ env.version }}
+        head_ref: ${{ github.event.pull_request.head.sha }}
+        prior_ref: ${{ env.prior_ref }}
+
+    - name: Update Pull Request
+      env:
+        REF_NAME: ${{ github.head_ref }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        PR_NUMBER=$(gh pr list --head "$REF_NAME" --json number --jq '.[0].number')
+
+        if [[ -z "$PR_NUMBER" || "$PR_NUMBER" == "null" ]]; then
+          echo "No PR found for branch $REF_NAME"
+          exit 1
+        fi
+
+        gh pr edit "$PR_NUMBER" --body-file pr_body.txt

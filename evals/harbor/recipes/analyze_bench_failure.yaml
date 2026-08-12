@@ -1,0 +1,188 @@
+version: 1.0.0
+title: analyze a single harbor benchmark failure
+description: compare one task across two runs, theorize why the target failed, propose what could change
+author:
+  contact: douwe@block.xyz
+
+parameters:
+  - key: target
+    input_type: string
+    requirement: required
+    description: "the run we want to improve (typically a goose run)"
+  - key: reference
+    input_type: string
+    requirement: required
+    description: "the run that succeeded on this task"
+  - key: task
+    input_type: string
+    requirement: required
+    description: "bare task name, e.g. extract-elf (not terminal-bench/extract-elf)"
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 600
+    bundled: true
+    description: Core tool for file operations, shell commands, and code analysis
+
+instructions: analyze why goose (the target run) failed a task that the reference run passed, and suggest what might change in goose to fix it
+
+prompt: |
+  you are analyzing a single harbor benchmark task where the reference run
+  succeeded and the target run (typically goose) failed. the goal is to
+  form a theory about *why* target failed and suggest what we could change
+  in goose to fix it. this is analysis, not implementation — no code
+  changes, no worktrees.
+
+  target run (the one that failed):     {{ target }}
+  reference run (the one that passed):  {{ reference }}
+  task:                                 {{ task }}
+
+  this recipe assumes it is launched from the root of the goose repo
+  (the current working directory contains `evals/harbor/`). all paths
+  below are relative to that.
+
+  ## step 1: headline facts
+
+  cmd.py task prints status, reward, duration, tokens, turns, cost, error,
+  and a tail of the verifier output. start there for both runs:
+
+  ```
+  ./evals/harbor/cmd.py task {{ reference }} {{ task }}
+  ./evals/harbor/cmd.py task {{ target }} {{ task }}
+  ```
+
+  ## step 2: find the trial directories
+
+  harbor 0.8 names trial dirs `<task>__<random-suffix>`. discover them
+  from disk — don't guess the suffix:
+
+  ```
+  TARGET_DIR=$(ls -d evals/harbor/runs/{{ target }}/{{ task }}__*/ 2>/dev/null | head -1)
+  REF_DIR=$(ls -d evals/harbor/runs/{{ reference }}/{{ task }}__*/ 2>/dev/null | head -1)
+  echo "target: $TARGET_DIR"
+  echo "ref:    $REF_DIR"
+  ```
+
+  if either is empty the run didn't include this task — stop and report.
+
+  ## step 3: read the task spec
+
+  the task definition lives in harbor's task cache. package-backed tasks
+  (the common case, including all of terminal-bench-2) land under
+  `~/.cache/harbor/tasks/packages/<org>/<task>/<digest>/`. the digest is
+  per task version and changes when the task is republished, so discover
+  the directory rather than guessing:
+
+  ```
+  TASK_DIR=$(ls -d ~/.cache/harbor/tasks/packages/terminal-bench/{{ task }}/*/ 2>/dev/null | head -1)
+  echo "$TASK_DIR"
+  ls "$TASK_DIR"
+  ```
+
+  if that's empty, fall back to a broader search in case the task came
+  from a git source or a different org. note that `find` returns the
+  parent (one level above the digest), so descend one more level. guard
+  against `$PARENT` being empty — otherwise the glob expands to `/*/` and
+  matches the filesystem root:
+
+  ```
+  PARENT=$(find ~/.cache/harbor/tasks -type d -name "{{ task }}" 2>/dev/null | head -1)
+  if [ -n "$PARENT" ]; then
+    TASK_DIR=$(ls -d "$PARENT"/*/ 2>/dev/null | head -1)
+  fi
+  ```
+
+  if both come up empty the task isn't cached locally — say so and continue
+  with what you can learn from the trial dirs alone (the verifier stdout
+  often reveals what was being checked).
+
+  read these three when present:
+
+  - `instruction.md` — what the agent was asked to do
+  - `tests/test_outputs.py` or `run-tests.sh` — what the verifier checks
+  - `solution/solution.sh` — the reference correct answer
+
+  when describing a failure later, **quote the assertion that failed**
+  rather than paraphrasing — paraphrase is where wrong conclusions sneak in.
+
+  ## step 4: read each agent's trajectory
+
+  two sources per trial, prefer the first:
+
+  - `$TRIAL_DIR/agent/trajectory.json` — harbor's ATIF format, one entry
+    per agent step. compact view:
+    `jq '.steps[] | {step_id, source, message, tool_calls: [.tool_calls[]?.function_name]}' "$TRIAL_DIR/agent/trajectory.json"`
+  - `$TRIAL_DIR/agent/<harness>.txt` — raw log. filename varies by harness
+    (commonly `goose.txt` or `pi.txt`). don't guess; run
+    `ls "$TRIAL_DIR/agent/"` and use whatever .txt is there.
+
+  for each side identify:
+
+  - the approach the agent took
+  - the final artifacts it left in the container (files created / modified)
+  - for the target (the failure), the failure mode — pick one:
+    - misread the spec (wrong assumption about input/output)
+    - right approach, shallow bug (off-by-one, wrong encoding, wrong path)
+    - ran out of clock — but note whether it was making real progress or
+      thrashing. a thrashing timeout is really a logic failure.
+    - diverged into an unproductive thread (debugging a non-issue)
+    - the verifier expected something the spec didn't telegraph
+
+  ## step 5: read the verifier output
+
+  `$TRIAL_DIR/verifier/test-stdout.txt` is usually the most diagnostic
+  file — it shows exactly which assertion failed and what the agent's
+  output looked like at that point.
+
+  ```
+  tail -80 "$TARGET_DIR/verifier/test-stdout.txt"
+  ```
+
+  ## step 6: look at goose source for a theory
+
+  the target is (typically) goose. once you have a failure mode, dig into
+  the goose source (the current working directory) to see if there's
+  something there that could plausibly be improved. relevant places
+  depending on what you saw:
+
+  - `crates/goose/src/agents/` — agent loop, tool-call handling,
+    context management
+  - `crates/goose/src/providers/` — provider-specific quirks (prompt
+    shape, streaming, tool-call format)
+  - `crates/goose-mcp/src/developer/` — the developer extension, where
+    most shell/file tools live
+  - `crates/goose/src/prompts/` and any system-prompt strings — what
+    we're telling the model about how to behave
+  - `crates/goose-cli/src/` — cli-side behavior (less likely to matter
+    for bench)
+
+  use `rg` to search; don't grep the world. if the reference run used a
+  different harness (e.g. pi, opencode, claude-code), think about what
+  that harness does differently — sometimes it's just a prompt difference,
+  sometimes it's a tool-shape difference, sometimes it's a timeout or
+  retry policy.
+
+  ## step 7: write up the analysis
+
+  produce markdown with these sections:
+
+  - **task** — one-line restatement of what the task wanted
+  - **outcome** — reference vs target headline (status, reward, duration,
+    turns) and which assertion the target failed on (quote it)
+  - **what reference did** — 2–4 sentences on the winning approach
+  - **what target did** — 2–4 sentences on the losing approach, with the
+    failure mode named
+  - **theory** — why target failed in mechanism terms, not vibes. "the
+    developer extension's text_editor truncates files >2MB and the task
+    output was 3MB" beats "goose got confused".
+  - **what we might change in goose** — concrete, but open-ended. could be
+    a prompt tweak, a tool behavior change, a default config, a new
+    capability, or "this is a one-off task quirk and not worth chasing".
+    cite the source files you looked at. it's fine to list more than one
+    candidate, and fine to say "not sure, would want to look at more
+    failures with this shape first".
+
+  stop there. no code changes, no PRs, no issues filed. the user will
+  triage the suggestions across all the tabs once everything has run.

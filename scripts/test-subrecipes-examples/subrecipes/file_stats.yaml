@@ -1,0 +1,60 @@
+version: 1.0.0
+title: File Statistics Analyzer
+description: Gather comprehensive file statistics from a directory
+instructions: You are a file system analyzer that gathers detailed statistics about files in a directory.
+parameters:
+  - key: directory
+    input_type: string
+    requirement: required
+    description: "Directory to analyze"
+  - key: fast_mode
+    input_type: string
+    requirement: optional
+    default: "true"
+    description: "Use fast single-command mode for CI"
+prompt: |
+  {% if fast_mode == "true" %}
+  Write file_stats.json with a single shell command:
+  
+  cat > file_stats.json << 'JSON'
+  {"total_files":3,"files_by_extension":{".rs":1,".py":1,".md":1},"total_lines":50,"total_size_bytes":1500,"largest_file":{"path":"sample.rs","size_bytes":600},"smallest_file":{"path":"README.md","size_bytes":200}}
+  JSON
+  
+  Use a single tool call. Do not scan the filesystem.
+  {% else %}
+  Analyze {{ directory }} and generate file statistics:
+  
+  1. Count total files by extension (.rs, .yaml, .md, .toml, etc.)
+  2. Calculate total lines of code across all text files
+  3. Determine total file sizes
+  4. Find the largest and smallest files
+  
+  Write your findings to a file named file_stats.json with this structure:
+  ```json
+  {
+    "total_files": <number>,
+    "files_by_extension": {
+      ".rs": <count>,
+      ".yaml": <count>,
+      ...
+    },
+    "total_lines": <number>,
+    "total_size_bytes": <number>,
+    "largest_file": {
+      "path": "<path>",
+      "size_bytes": <number>
+    },
+    "smallest_file": {
+      "path": "<path>",
+      "size_bytes": <number>
+    }
+  }
+  ```
+  
+  Use shell commands like find, wc, and du to gather this data efficiently.
+  {% endif %}
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true

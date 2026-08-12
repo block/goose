@@ -1,0 +1,54 @@
+version: 1.0.0
+title: Create Kafka Topic
+author:
+  contact: danielst-block
+description: Create a new Kafka topic with specified parameters.
+activities:
+  - Check for existing topic name conflicts
+  - Validate publisher and subscriber names
+  - Calculate optimal partition count
+  - Generate Kafka topic configuration
+  - Create topic directory and config files
+parameters:
+  - key: topic_name
+    input_type: string
+    requirement: required
+    description: The name of the Kafka topic to create
+  - key: owner
+    input_type: string
+    requirement: required
+    description: The name/identifier of owner.
+  - key: publisher
+    input_type: string
+    requirement: required
+    description: The name/identifier of the publisher service or application
+  - key: subscribers
+    input_type: string
+    requirement: required
+    description: Comma-separated list of subscriber services or applications that will consume from this topic (e.g., "service1,service2,service3")
+  - key: throughput
+    input_type: string
+    requirement: optional
+    description: Expected throughput. Used to calculate optimal number of partitions for the topic
+    default: unknown
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 300
+    bundled: true
+instructions: |
+  You are a Kafka topic creation assistant. Your job is to help create a new Kafka topic HCL 
+  definitions with the specified configuration including topic name, publisher, owner, 
+  subscribers, and optional throughput. Follow the existing folder structure and conventions.
+prompt: |
+  1. Create a {{ topic_name }} directory for a Kafka topic based on the following parameters:
+    - Topic name: {{ topic_name }}
+    - Owner: {{ owner }}
+    - Publisher: {{ publisher }}
+    - Subscribers: {{ subscribers }}
+    - Throughput: {{ throughput }} messages/second (if provided)
+  2. Ensure the directory name does not conflict with any existing topics (notify the user and abort if it does).
+  3. Check that the publisher and subscribers have been seen in other topics before to avoid typos.
+  4. If throughput is provided - calculate the optimal number of partitions. Otherwise, default to 4 partitions.
+  5. Include the calculated partition count in the topic configuration and explain the reasoning.

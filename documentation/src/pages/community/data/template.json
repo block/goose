@@ -1,0 +1,54 @@
+{
+  "month": "MONTH YEAR",
+  "communityStars": [
+    {
+      "name": "Full Name 1",
+      "handle": "github-username-1"
+    },
+    {
+      "name": "Full Name 2",
+      "handle": "github-username-2"
+    },
+    {
+      "name": "Full Name 3",
+      "handle": "github-username-3"
+    },
+    {
+      "name": "Full Name 4",
+      "handle": "github-username-4"
+    },
+    {
+      "name": "Full Name 5",
+      "handle": "github-username-5"
+    }
+  ],
+  "teamStars": [
+    {
+      "name": "Full Name 1",
+      "handle": "github-username-1"
+    },
+    {
+      "name": "Full Name 2",
+      "handle": "github-username-2"
+    },
+    {
+      "name": "Full Name 3",
+      "handle": "github-username-3"
+    },
+    {
+      "name": "Full Name 4",
+      "handle": "github-username-4"
+    },
+    {
+      "name": "Full Name 5",
+      "handle": "github-username-5"
+    }
+  ],
+  "leaderboard": [
+    { "handle": "github-username-1", "rank": 1, "medal": "🥇" },
+    { "handle": "github-username-2", "rank": 2, "medal": "🥈" },
+    { "handle": "github-username-3", "rank": 3, "medal": "🥉" },
+    { "handle": "github-username-4", "rank": 4 },
+    { "handle": "github-username-5", "rank": 5 }
+  ]
+}

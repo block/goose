@@ -1,0 +1,70 @@
+{
+  "month": "July 2025",
+  "communityStars": [
+    {
+      "name": "The-Best-Codes",
+      "handle": "The-Best-Codes"
+    },
+    {
+      "name": "rolznz",
+      "handle": "rolznz"
+    },
+    {
+      "name": "toyamagu-2021",
+      "handle": "toyamagu-2021"
+    },
+    {
+      "name": "dcieslak19973",
+      "handle": "dcieslak19973"
+    },
+    {
+      "name": "shelajev",
+      "handle": "shelajev"
+    }
+  ],
+  "teamStars": [
+    {
+      "name": "cloud-on-prem",
+      "handle": "cloud-on-prem"
+    },
+    {
+      "name": "jsibbison-square",
+      "handle": "jsibbison-square"
+    },
+    {
+      "name": "glenn-sq",
+      "handle": "glenn-sq"
+    },
+    {
+      "name": "aharvard",
+      "handle": "aharvard"
+    },
+    {
+      "name": "chaitanyarahalkar",
+      "handle": "chaitanyarahalkar"
+    }
+  ],
+  "leaderboard": [
+    { "handle": "The-Best-Codes", "rank": 1, "medal": "🥇" },
+    { "handle": "cloud-on-prem", "rank": 2, "medal": "🥈" },
+    { "handle": "jsibbison-square", "rank": 3, "medal": "🥉" },
+    { "handle": "glenn-sq", "rank": 4 },
+    { "handle": "aharvard", "rank": 5 },
+    { "handle": "rolznz", "rank": 6 },
+    { "handle": "toyamagu-2021", "rank": 7 },
+    { "handle": "dcieslak19973", "rank": 8 },
+    { "handle": "shelajev", "rank": 9 },
+    { "handle": "necaris", "rank": 10 },
+    { "handle": "Jay4242", "rank": 11 },
+    { "handle": "Developerayo", "rank": 12 },
+    { "handle": "uddhav", "rank": 13 },
+    { "handle": "mr-brobot", "rank": 14 },
+    { "handle": "sfc-gh-twhite", "rank": 15 },
+    { "handle": "GaryZhous", "rank": 16 },
+    { "handle": "chaitanyarahalkar", "rank": 17 },
+    { "handle": "simonsickle", "rank": 18 },
+    { "handle": "LordMelkor", "rank": 19 },
+    { "handle": "cgwalters", "rank": 20 },
+    { "handle": "alexrrouse", "rank": 21 }
+  ]
+}

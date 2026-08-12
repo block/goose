@@ -1,0 +1,65 @@
+{
+  "month": "August 2025",
+  "communityStars": [
+    {
+      "name": "Abhijay007",
+      "handle": "Abhijay007"
+    },
+    {
+      "name": "johnlanda",
+      "handle": "johnlanda"
+    },
+    {
+      "name": "Developerayo",
+      "handle": "Developerayo"
+    },
+    {
+      "name": "cgwalters",
+      "handle": "cgwalters"
+    },
+    {
+      "name": "par5ul1",
+      "handle": "par5ul1"
+    }
+  ],
+  "teamStars": [
+    {
+      "name": "lifeizhou-ap",
+      "handle": "lifeizhou-ap"
+    },
+    {
+      "name": "tlongwell-block",
+      "handle": "tlongwell-block"
+    },
+    {
+      "name": "GaryZhous",
+      "handle": "GaryZhous"
+    },
+    {
+      "name": "aharvard",
+      "handle": "aharvard"
+    },
+    {
+      "name": "tiensi",
+      "handle": "tiensi"
+    }
+  ],
+  "leaderboard": [
+    { "handle": "lifeizhou-ap", "rank": 1, "medal": "🥇" },
+    { "handle": "Abhijay007", "rank": 2, "medal": "🥈" },
+    { "handle": "johnlanda", "rank": 3, "medal": "🥉" },
+    { "handle": "Developerayo", "rank": 4 },
+    { "handle": "cgwalters", "rank": 5 },
+    { "handle": "tlongwell-block", "rank": 6 },
+    { "handle": "par5ul1", "rank": 7 },
+    { "handle": "GaryZhous", "rank": 8 },
+    { "handle": "aharvard", "rank": 9 },
+    { "handle": "ayax79", "rank": 10 },
+    { "handle": "codefromthecrypt", "rank": 11 },
+    { "handle": "tiensi", "rank": 12 },
+    { "handle": "shellz-n-stuff", "rank": 13 },
+    { "handle": "JJSwigut", "rank": 14 },
+    { "handle": "exitcode0", "rank": 15 },
+    { "handle": "inmzhang", "rank": 16 }
+  ]
+}

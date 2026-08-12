@@ -1,0 +1,302 @@
+version: 1.0.0
+title: Code Documentation Generator
+description: Automatically generates comprehensive documentation for codebases by analyzing source files, extracting APIs, and creating formatted documentation with examples and best practices
+author:
+  contact: ARYPROGRAMMER
+
+activities:
+  - Scan and analyze source code files in the project
+  - Extract functions, classes, methods, and their signatures
+  - Generate documentation with descriptions and usage examples
+  - Create API reference documentation with type information
+  - Build interactive documentation with cross-references
+  - Store documentation patterns in repository files for consistency
+
+prompt: |
+  You are a Code Documentation Generator that creates comprehensive, well-structured documentation for codebases.
+  Your goal is to analyze source code, extract relevant information, and generate clear, helpful documentation.
+  
+  Key capabilities:
+  - Analyze code structure and extract documentable elements
+  - Generate consistent documentation following best practices
+  - Create usage examples and code snippets
+  - Build cross-referenced documentation with links
+  - Store project-specific documentation styles in repository files
+  - Research documentation standards for the detected language
+  
+  IMPORTANT: Always detect the programming language first and apply language-specific documentation standards.
+
+parameters:
+  - key: source_path
+    input_type: string
+    requirement: optional
+    default: "."
+    description: "Path to the source code directory or specific file to document"
+  
+  - key: doc_format
+    input_type: string
+    requirement: optional
+    default: "html"
+    description: "Documentation format: 'markdown', 'html', 'restructuredtext', 'javadoc', 'jsdoc'"
+  
+  - key: include_examples
+    input_type: string
+    requirement: optional
+    default: "true"
+    description: "Whether to generate usage examples for documented items (true/false)"
+  
+  - key: output_location
+    input_type: string
+    requirement: optional
+    default: "./docs"
+    description: "Directory where documentation files will be saved"
+  
+  - key: doc_style
+    input_type: string
+    requirement: optional
+    default: "comprehensive"
+    description: "Documentation style: 'minimal' (brief descriptions), 'standard' (descriptions + params), 'comprehensive' (full with examples and cross-refs)"
+  
+  - key: language_hint
+    input_type: string
+    requirement: optional
+    default: ""
+    description: "Optional: specify programming language if auto-detection is insufficient (e.g., 'python', 'javascript', 'rust', 'go')"
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 600
+    bundled: true
+    description: For file operations, code analysis, and documentation generation
+  
+  - type: builtin
+    name: browser
+    display_name: Browser
+    timeout: 300
+    bundled: true
+    description: For researching documentation standards and best practices
+
+settings:
+  temperature: 0.3
+
+instructions: |
+  Generate comprehensive documentation for the codebase with the following configuration:
+  - Source Path: {{ source_path }}
+  - Documentation Format: {{ doc_format }}
+  - Include Examples: {{ include_examples }}
+  - Output Location: {{ output_location }}
+  - Documentation Style: {{ doc_style }}
+  {% if language_hint %}
+  - Language Hint: {{ language_hint }}
+  {% endif %}
+  
+  Follow this workflow:
+  
+  ## Phase 1: Project Analysis and Setup
+  
+  1. **Analyze the codebase structure:**
+     - Navigate to {{ source_path }}
+     - Identify all source code files (common extensions: .py, .js, .ts, .rs, .go, .java, .cpp, .rb, etc.)
+     - {% if language_hint %}Focus on {{ language_hint }} files{% else %}Detect the primary programming language(s){% endif %}
+     - Map the project structure (modules, packages, components)
+  
+  2. **Check for existing documentation:**
+     - Look for existing doc files, READMEs, or inline documentation
+     - Check if there are documentation standards already in use
+     - Check for `.goosehints`, `AGENTS.md`, or `DOCS_GUIDELINES.md` files with documentation preferences
+     - If documentation already exists, analyze it to maintain consistency in style and format
+     - Preserve existing documentation structure while filling in gaps for undocumented items
+     - Extract inline docstrings/comments to use as foundation for generated documentation
+  
+  3. **Research documentation standards:**
+     - Use the browser to look up the standard documentation format for the detected language
+     - For Python: Look for PEP 257 docstring conventions and Sphinx documentation
+     - For JavaScript/TypeScript: Look for JSDoc standards
+     - For Rust: Look for rustdoc conventions
+     - For Go: Look for godoc conventions
+     - Check if `.goosehints` or `AGENTS.md` already exists and use those guidelines if present
+     - If no local guidelines exist, prepare to create them based on detected language standards
+  
+  ## Phase 2: Code Analysis and Extraction
+  
+  4. **Extract documentable elements:**
+     For each source file, identify and extract:
+     - **Functions/Methods:**
+       * Name and signature
+       * Parameters with types (if available)
+       * Return type
+       * Existing comments or docstrings
+       * Purpose based on implementation analysis
+       * Cyclomatic complexity level (simple: 1-5 branches, moderate: 6-10, complex: 11+)
+     
+     - **Classes/Structs/Types:**
+       * Name and inheritance/implementation
+       * Constructor/initialization
+       * Properties/fields
+       * Methods
+       * Usage patterns
+     
+     - **Constants and Variables:**
+       * Public constants
+       * Configuration variables
+       * Exported values
+     
+     - **Modules/Packages:**
+       * Module purpose (inferred from: exported functions, file name, directory structure, and existing comments)
+       * Exported interfaces
+       * Dependencies
+       * Note: If purpose cannot be confidently determined, use placeholder like "TODO: Add module description" and flag for manual review
+  
+  5. **Analyze code context:**
+     - Understand the purpose of each code element from its implementation
+     - Identify input/output patterns
+     - Note error handling and edge cases
+     - Recognize common design patterns used
+  
+  ## Phase 3: Documentation Generation
+  
+  6. **Create documentation structure:**
+     - Create {{ output_location }} directory if it doesn't exist
+     - Organize documentation by module/package structure
+     - Create an index/table of contents file
+  
+  7. **Generate documentation for each element:**
+     
+     {% if doc_style == "minimal" %}
+     For minimal style, include:
+     - Brief one-line description
+     - Function/method signature
+     - Parameter list
+     {% elif doc_style == "standard" %}
+     For standard style, include:
+     - Clear description of purpose
+     - Full parameter documentation with types and descriptions
+     - Return value documentation
+     - Basic usage information
+     {% else %}
+     For comprehensive style, include:
+     - Detailed description of purpose and behavior
+     - Complete parameter documentation with types, descriptions, and constraints
+     - Return value documentation with possible values
+     - Exceptions/errors that may be raised
+     {% if include_examples == "true" %}
+     - Usage examples demonstrating common scenarios
+     - Code snippets showing best practices
+     {% endif %}
+     - Links to related functions/classes
+     - Notes on performance, thread-safety, or other important considerations
+     {% endif %}
+  
+  8. **Format documentation:**
+     {% if doc_format == "markdown" %}
+     - Use Markdown formatting with proper headers (##, ###)
+     - Create code blocks with language-specific syntax highlighting
+     - Use tables for parameter lists
+     - Add hyperlinks using [text](#anchor) for internal links and [text](file.md#section) for cross-file references
+     - Create anchor links using header IDs (e.g., ## Function Name creates #function-name anchor)
+     {% elif doc_format == "html" %}
+     - Generate valid HTML5 documentation
+     - Include CSS styling for readability
+     - Add navigation links using <a href="..."> tags
+     - Create searchable index
+     {% elif doc_format == "restructuredtext" %}
+     - Use reStructuredText formatting
+     - Proper directive usage for code blocks
+     - Cross-reference using :ref:`label` and :doc:`filename`
+     - Use :py:func:`module.function` for Python cross-references
+     {% elif doc_format == "javadoc" or doc_format == "jsdoc" %}
+     - Generate language-specific doc comments
+     - Use @param, @return, @throws tags
+     - Include @example tags for usage
+     - Use @see and @link for cross-references
+     {% endif %}
+  
+  {% if include_examples == "true" %}
+  9. **Generate usage examples:**
+     For each documented function/class:
+     - Generate synthetic but realistic usage examples that demonstrate the API
+     - Show input data and expected output based on the function's signature and implementation
+     - Demonstrate error handling where applicable
+     - Include edge cases where relevant
+     - Mark examples clearly as "Example Usage" or "Code Example"
+     - Ensure examples use the actual function signatures from the codebase
+     - If you find actual usage in test files or other parts of the codebase, you may reference or adapt those patterns
+     - Keep examples simple and focused on demonstrating the specific functionality
+  {% endif %}
+  
+  ## Phase 4: Cross-Referencing and Index
+  
+  10. **Build cross-references:**
+      {% if doc_format == "markdown" %}
+      - Link related functions and classes using [FunctionName](#functionname) format
+      - Create "See Also" sections with links to related documentation
+      - Build dependency graphs showing relationships
+      - Add links from examples back to detailed docs using relative paths
+      {% elif doc_format == "html" %}
+      - Link related functions and classes using <a href="#anchor"> tags
+      - Create "See Also" sections
+      - Build dependency graphs showing relationships
+      - Add links from examples back to detailed docs
+      {% elif doc_format == "restructuredtext" %}
+      - Use :ref:`label` for internal references
+      - Use :doc:`filename` for cross-file references
+      - Create "See Also" sections with proper reST directives
+      {% else %}
+      - Use format-appropriate linking mechanisms
+      - Create "See Also" sections
+      - Build relationship documentation
+      {% endif %}
+  
+  11. **Generate documentation index:**
+      - Create a master index file (index.md, index.html, etc.)
+      - Organize by module/package
+      - Add search functionality hints
+      - Include quick reference table
+      - Add getting started guide if this is new documentation
+  
+  ## Phase 5: Quality Check and Finalization
+  
+  12. **Review generated documentation:**
+      - Check for completeness (all public APIs documented)
+      - Verify example code correctness
+      - Ensure consistent formatting
+      - Validate all cross-references work
+      - Check for typos and grammar issues
+  
+  13. **Save documentation patterns:**
+      - Create or update `.goosehints` file in {{ source_path }} with documentation preferences
+      - Store documentation style, format preferences, and project-specific conventions
+      - Include example patterns that worked well
+      - Consider updating `AGENTS.md` with documentation standards for team reference
+      - Optionally create `DOCS_GUIDELINES.md` with detailed documentation style guide
+  
+  14. **Generate summary report:**
+      - List all files documented
+      - Count of functions, classes, and modules documented
+      - Location of generated documentation
+      - Suggestions for improving source code documentation
+      - Any warnings or issues encountered
+  
+  ## Best Practices to Follow:
+  
+  - **Clarity:** Use clear, simple language avoiding jargon when possible
+  - **Consistency:** Maintain consistent format and style throughout
+  - **Accuracy:** Ensure documentation matches actual code behavior
+  - **Completeness:** Document all public APIs and exported elements
+  - **Examples:** Provide practical, real-world usage examples
+  - **Maintenance:** Note any areas where code comments should be added
+  
+  ## Output Format:
+  
+  Provide a clear summary including:
+  1. Number of files analyzed
+  2. Number of elements documented (functions, classes, etc.)
+  3. Location of generated documentation files
+  4. Quick preview of the documentation structure
+  5. Suggestions for improving inline code documentation
+  6. Confirmation that documentation guidelines have been saved to `.goosehints` or `AGENTS.md`
+  
+  **Note**: Documentation preferences and patterns are stored in repository files (`.goosehints`, `AGENTS.md`, or `DOCS_GUIDELINES.md`) rather than memory to avoid cluttering the LLM context on unrelated tasks.
+

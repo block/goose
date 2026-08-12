@@ -1,0 +1,145 @@
+version: "1.0.0"
+title: "RPI Research Codebase"
+author:
+  contact: angiejones
+description: "Research and document codebase for a specific topic using parallel sub-agents"
+
+instructions: |
+  **CRITICAL: THIS IS A STRUCTURED WORKFLOW. FOLLOW THESE STEPS EXACTLY IN ORDER.**
+  **DO NOT improvise. DO NOT skip steps. DO NOT use tools outside this workflow.**
+  **YOU MUST use the subrecipes (find_files, analyze_code, find_patterns) - they are your sub-agents.**
+  
+  ## YOUR ONLY JOB: DOCUMENT THE CODEBASE AS IT EXISTS TODAY
+  - DO NOT suggest improvements or changes
+  - DO NOT critique the implementation
+  - ONLY describe what exists, where it exists, and how it works
+  - You are creating a technical map, not a code review
+  
+  ---
+  
+  ## MANDATORY WORKFLOW - EXECUTE IN ORDER:
+  
+  ### STEP 1: Read Mentioned Files First
+  If the user mentions specific files, read them FULLY before anything else.
+  
+  ### STEP 2: Decompose the Research Question
+  Break down the query into 3-5 specific research areas.
+  
+  ### STEP 3: SPAWN PARALLEL SUBRECIPES (REQUIRED)
+  You MUST call these subrecipe tools to do the research:
+  
+  - **find_files**: Find WHERE files and components live
+  - **analyze_code**: Understand HOW specific code works  
+  - **find_patterns**: Find examples of existing patterns
+  
+  Call multiple subrecipes in parallel. Example:
+  ```
+  I'll spawn 3 parallel research tasks:
+  1. find_files: "MCP extension loading"
+  2. analyze_code: "extension configuration files"
+  3. find_patterns: "how other extensions are structured"
+  ```
+  
+  **DO NOT skip this step. DO NOT do the research yourself. USE THE SUBRECIPES.**
+  
+  ### STEP 4: Wait for All Results
+  Wait for ALL subrecipe tasks to complete before proceeding.
+  Compile and connect findings across components.
+  
+  ### STEP 5: Gather Git Metadata
+  Run these commands:
+  ```bash
+  date -Iseconds
+  git rev-parse HEAD
+  git branch --show-current
+  basename $(git rev-parse --show-toplevel)
+  ```
+  
+  ### STEP 6: Write Research Document
+  Create `thoughts/research/YYYY-MM-DD-HHmm-topic.md` (e.g., `2025-01-15-1430-auth-flow.md`) with this structure:
+  
+  ```markdown
+  ---
+  date: [ISO date from step 5]
+  git_commit: [commit hash]
+  branch: [branch name]
+  repository: [repo name]
+  topic: "[Research Topic]"
+  tags: [research, codebase, relevant-tags]
+  status: complete
+  ---
+  
+  # Research: [Topic]
+  
+  ## Research Question
+  [Original query]
+  
+  ## Summary
+  [High-level findings]
+  
+  ## Detailed Findings
+  
+  ### [Component 1]
+  - What exists (file:line references)
+  - How it connects to other components
+  
+  ## Code References
+  - `path/to/file.py:123` - Description
+  
+  ## Open Questions
+  [Areas needing further investigation]
+  ```
+  
+  ### STEP 7: Present Summary
+  Show the user a concise summary with key file references.
+  Ask if they have follow-up questions.
+  
+  ---
+  
+  ## REMEMBER:
+  - Use subrecipes for research, not your own tools
+  - Document what IS, not what SHOULD BE
+  - Include specific file:line references
+  - Write the research doc to thoughts/research/
+
+parameters:
+  - key: topic
+    input_type: string
+    requirement: user_prompt
+    description: "What to research in the codebase"
+
+sub_recipes:
+  - name: "find_files"
+    path: "./subrecipes/rpi-codebase-locator.yaml"
+  
+  - name: "analyze_code"
+    path: "./subrecipes/rpi-codebase-analyzer.yaml"
+  
+  - name: "find_patterns"
+    path: "./subrecipes/rpi-pattern-finder.yaml"
+
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true
+
+prompt: |
+  **EXECUTE THE RESEARCH WORKFLOW NOW.**
+  
+  {% if topic %}
+  **Research Topic:** {{ topic }}
+  {% else %}
+  What would you like me to research? Provide your topic and I will execute the full research workflow.
+  {% endif %}
+  
+  **I will now follow the mandatory steps:**
+  1. Read any mentioned files
+  2. Decompose into research areas
+  3. **Spawn parallel subrecipes** (find_files, analyze_code, find_patterns)
+  4. Wait for results and synthesize
+  5. Gather git metadata
+  6. Write research document to `thoughts/research/`
+  7. Present summary
+  
+  Beginning research workflow...

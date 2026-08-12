@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Enable strict mode to exit on errors and unset variables
+set -euo pipefail
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source the common setup script
+source "${SCRIPT_DIR}/node-setup-common.sh"
+
+# Final step: Execute npx with passed arguments
+log "Executing 'npx' command with arguments: ${*}"
+npx "${@}" || log "Failed to execute 'npx' with arguments: ${*}"
+
+log "npx script completed successfully."

@@ -1,0 +1,94 @@
+name: Create Patch Release
+
+permissions:
+  contents: write
+  pull-requests: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: 'Release branch for patch (e.g. release/1.25.0)'
+        required: true
+        type: string
+
+jobs:
+  create-patch-release:
+    runs-on: ubuntu-latest
+    env:
+      TARGET_BRANCH: ${{ inputs.target_branch }}
+
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      with:
+        ref: ${{ inputs.target_branch }}
+        fetch-depth: 0
+
+    - uses: cashapp/activate-hermit@cea9af7913204a965fd488637a8d1811bba2e616 # v1
+    - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+
+    - name: install dependencies
+      run: |
+        sudo apt update -y
+        sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
+
+    - name: Compute version and create release branch
+      env:
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+        TETRATE_API_KEY: ${{ secrets.TETRATE_API_KEY }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        VERSION=$(just get-next-patch-version)
+        echo "version=$VERSION" >> $GITHUB_ENV
+        echo "Version: $VERSION (patch on $TARGET_BRANCH)"
+
+        PRIOR_TAG=$(just get-prior-version "$VERSION")
+        if [[ -z "$PRIOR_TAG" ]]; then
+          echo "No prior version (first release), using first commit"
+          PRIOR_TAG=$(git rev-list --max-parents=0 HEAD)
+        fi
+        echo "prior_ref=$PRIOR_TAG" >> $GITHUB_ENV
+        echo "Prior ref: $PRIOR_TAG"
+
+        git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+
+        BRANCH_NAME="release/$VERSION"
+        git switch -c "$BRANCH_NAME"
+
+        just prepare-release $VERSION
+
+        git push origin "$BRANCH_NAME"
+
+        HEAD_REF=$(git rev-parse HEAD)
+        echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
+        echo "head_ref=$HEAD_REF" >> $GITHUB_ENV
+
+    - name: Generate release notes
+      uses: ./.github/actions/generate-release-pr-body
+      with:
+        version: ${{ env.version }}
+        head_ref: ${{ env.head_ref }}
+        prior_ref: ${{ env.prior_ref }}
+
+    - name: Create Release PR
+      run: |
+        PR_URL=$(gh pr create \
+          -B "$TARGET_BRANCH" \
+          -H "${{ env.branch_name }}" \
+          --title "chore(release): release version ${{ env.version }} (patch)" \
+          --body-file pr_body.txt)
+        echo "pr_url=$PR_URL" >> $GITHUB_ENV
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Post release checklist comment
+      run: |
+        sed 's/{{VERSION}}/${{ env.version }}/g' RELEASE_CHECKLIST.md > checklist_comment.md
+        gh pr comment "${{ env.pr_url }}" --body-file checklist_comment.md
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

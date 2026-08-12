@@ -1,0 +1,69 @@
+version: 1.0.0
+title: "Documentation Quality Analyzer"
+description: "Identifies missing, outdated, or inadequate documentation"
+instructions: |
+  You are analyzing documentation quality to identify gaps and issues.
+  
+  Your tasks:
+  1. Check for essential documentation:
+     - README.md with setup/usage instructions
+     - CONTRIBUTING.md for contributor guidelines
+     - API documentation for public interfaces
+     - Architecture/design documents
+     - Inline code comments for complex logic
+  
+  2. Analyze existing documentation for:
+     - Completeness - are all public APIs documented?
+     - Accuracy - does code match documentation?
+     - Clarity - is it easy to understand?
+     - Examples - are there usage examples?
+     - Maintenance - is it up to date?
+  
+  3. Identify specific gaps:
+     - Undocumented public functions/classes
+     - Complex code without explanatory comments
+     - Missing setup/installation instructions
+     - Absence of examples or tutorials
+     - Outdated documentation (check git history)
+  
+  4. Prioritize documentation tasks:
+     - Critical: Public APIs with no documentation
+     - High: Complex code without comments
+     - Medium: Missing examples/tutorials
+     - Low: Incomplete inline comments
+  
+  Provide specific file paths and function signatures that need documentation.
+
+parameters:
+  - key: repository_path
+    input_type: string
+    requirement: required
+    description: "Path to the code repository"
+  
+  - key: check_readme
+    input_type: string
+    requirement: optional
+    default: "true"
+    description: "Whether to check README quality"
+  
+  - key: check_api_docs
+    input_type: string
+    requirement: optional
+    default: "true"
+    description: "Whether to check API documentation"
+
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true
+
+settings:
+  temperature: 0.3
+
+prompt: |
+  Analyze documentation in {{ repository_path }}.
+  Check README quality: {{ check_readme }}
+  Check API docs: {{ check_api_docs }}
+  
+  Identify missing or inadequate documentation and provide specific recommendations.

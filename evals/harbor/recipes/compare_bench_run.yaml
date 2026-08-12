@@ -1,0 +1,98 @@
+version: 1.0.0
+title: compare harbor benchmark runs
+description: find tasks where one run succeeded but another failed, and fan out per-task analysis
+author:
+  contact: douwe@block.xyz
+
+parameters:
+  - key: target
+    input_type: string
+    requirement: required
+    description: "the run we want to improve (typically a goose run)"
+  - key: reference
+    input_type: string
+    requirement: required
+    description: "the run to learn from (the one that did better)"
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 600
+    bundled: true
+    description: Core tool for file operations, shell commands, and code analysis
+
+instructions: orchestrate per-task analysis of a benchmark regression
+
+prompt: |
+  you are comparing two harbor benchmark runs to find tasks where the
+  `reference` run passed but the `target` run did not, then fanning out
+  one agent per such task to analyze why.
+
+  target run (the one we want to improve): {{ target }}
+  reference run (the one to learn from):   {{ reference }}
+
+  this recipe assumes it is launched from the root of the goose repo
+  (i.e. the current working directory contains `evals/harbor/`). all paths
+  below are relative to that.
+
+  step 1: locate the runs.
+
+  confirm both run directories exist:
+
+  ```
+  ls evals/harbor/runs/{{ target }}/
+  ls evals/harbor/runs/{{ reference }}/
+  ```
+
+  if either is missing, stop and tell the user.
+
+  step 2: find the divergent tasks.
+
+  use cmd.py compare with -v to get the per-task breakdown:
+
+  ```
+  ./evals/harbor/cmd.py compare {{ reference }} {{ target }} -v
+  ```
+
+  note the argument order: we pass `reference` as A and `target` as B, so
+  the "Only A solved" section is exactly the list we want — tasks the
+  reference passed and the target did not.
+
+  do NOT filter out timeouts. a timeout often masks a real failure — the
+  agent kept going down a wrong path until the clock ran out. the per-task
+  analyzer will call out timeouts that are genuinely "right approach, ran
+  out of clock" versus ones that are really logic failures wearing a
+  timeout costume.
+
+  step 3: show the user the list and ask for confirmation.
+
+  print the list of tasks that will be analyzed, with the count, and ask
+  for explicit agreement before launching. mention that each task will get
+  its own iTerm tab running `analyze_bench_failure.yaml`.
+
+  step 4: on agreement, launch one tab per task.
+
+  for each task in the list, run (substituting `$PWD` and `<TASK>`):
+
+  ```
+  REPO=$PWD
+  osascript <<APPLESCRIPT
+  tell application "iTerm"
+      tell current window
+          create tab with default profile
+          tell current session to write text "cd $REPO && goose run --recipe evals/harbor/recipes/analyze_bench_failure.yaml --interactive --params=target={{ target }} --params=reference={{ reference }} --params=task=<TASK>"
+      end tell
+  end tell
+  APPLESCRIPT
+  ```
+
+  the `cd $REPO` matters: new iTerm tabs open in the user's home directory
+  by default, but the analyzer recipe expects to run from the repo root.
+
+  put a 1 second sleep between launches, otherwise keystrokes may go to
+  the wrong tab. use the bare task name (e.g. `extract-elf`), not the
+  qualified form (`terminal-bench/extract-elf`) — the analyzer recipe and
+  cmd.py both expect the bare name.
+
+  after launching, print a one-line summary of how many tabs you opened.

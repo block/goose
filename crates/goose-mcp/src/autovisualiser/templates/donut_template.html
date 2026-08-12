@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Donut &amp; Pie Charts</title>
+
+    <script>{{CHART_MIN}}</script>
+
+    <style>{{MCP_APP_BASE_CSS}}</style>
+    <style>
+        body { padding: 32px 16px; }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
+        }
+
+        .chart-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .chart-card-title {
+            font-size: var(--font-heading-md-size);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-text-primary);
+            text-align: center;
+            margin-bottom: 12px;
+        }
+
+        .chart-card-title:empty { display: none; }
+
+        .chart-canvas-wrap {
+            position: relative;
+            width: 100%;
+            max-width: 280px;
+            height: 280px;
+        }
+
+        .chart-legend {
+            margin-top: 12px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+            font-size: var(--font-text-sm-size);
+        }
+
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .legend-label { color: var(--color-text-secondary); }
+        .legend-value { color: var(--color-text-primary); font-weight: var(--font-weight-medium); }
+
+        @media (max-width: 640px) { .charts-grid { grid-template-columns: 1fr; } }
+
+        :root[data-display-mode="fullscreen"] body,
+        :root[data-display-mode="pip"] body {
+            padding: 24px;
+        }
+
+        :root[data-display-mode="fullscreen"] .charts-grid,
+        :root[data-display-mode="pip"] .charts-grid {
+            height: 100%;
+            align-content: center;
+        }
+
+        :root[data-display-mode="fullscreen"] .chart-canvas-wrap,
+        :root[data-display-mode="pip"] .chart-canvas-wrap {
+            max-width: 520px;
+            height: 520px;
+        }
+    </style>
+</head>
+<body>
+    <div class="av-loading" id="loadingIndicator">Waiting for data…</div>
+    <div class="charts-grid" id="chartsGrid" style="width:100%;"></div>
+
+    <script>{{MCP_APP_BRIDGE}}</script>
+    <script>
+    (function () {
+        "use strict";
+
+        var charts = [];
+
+        var palette = [
+            "#5c98f9", "#f97066", "#47c9a2", "#f0a03c",
+            "#9b8afb", "#e87fa0", "#3cc0e0", "#8bba5a",
+            "#d4a05a", "#6bc4a6", "#c47ecf", "#7aa3d4",
+        ];
+
+        function processCharts(data) {
+            var list = Array.isArray(data) ? data : [data];
+            return list.map(function (c) {
+                var items = c.values || c.data || [];
+                var labels = c.labels || items.map(function (d, i) { return (typeof d === "object" && d.label) ? d.label : "Item " + (i + 1); });
+                var values = items.map(function (d) { return typeof d === "object" ? d.value : d; });
+                var colors = values.map(function (_, i) { return palette[i % palette.length]; });
+                return { title: c.title || "", type: c.type || "doughnut", labels: labels, values: values, colors: colors };
+            });
+        }
+
+        function renderDonut(data) {
+            document.getElementById("loadingIndicator").classList.add("hidden");
+            var grid = document.getElementById("chartsGrid");
+            grid.innerHTML = "";
+            charts.forEach(function (c) { c.destroy(); });
+            charts = [];
+
+            var cv = McpAppBridge.cssVar;
+            var fontFamily = cv("--font-sans") || "sans-serif";
+
+            var processed = processCharts(data);
+            processed.forEach(function (cd, idx) {
+                var card = document.createElement("div");
+                card.className = "chart-card";
+
+                var titleEl = document.createElement("div");
+                titleEl.className = "chart-card-title";
+                titleEl.textContent = cd.title;
+                card.appendChild(titleEl);
+
+                var wrap = document.createElement("div");
+                wrap.className = "chart-canvas-wrap";
+                var canvas = document.createElement("canvas");
+                canvas.id = "chart-" + idx;
+                wrap.appendChild(canvas);
+                card.appendChild(wrap);
+
+                var legendEl = document.createElement("div");
+                legendEl.className = "chart-legend";
+                var total = cd.values.reduce(function (a, b) { return a + b; }, 0);
+                cd.labels.forEach(function (label, i) {
+                    var pct = total > 0 ? ((cd.values[i] / total) * 100).toFixed(1) : "0";
+                    legendEl.innerHTML += '<div class="legend-item"><div class="legend-dot" style="background:' + cd.colors[i] + '"></div>' +
+                        '<span class="legend-label">' + label + '</span>' +
+                        '<span class="legend-value">' + pct + '%</span></div>';
+                });
+                card.appendChild(legendEl);
+                grid.appendChild(card);
+
+                var ctx = canvas.getContext("2d");
+                var c = new Chart(ctx, {
+                    type: cd.type,
+                    data: {
+                        labels: cd.labels,
+                        datasets: [{
+                            data: cd.values,
+                            backgroundColor: cd.colors,
+                            borderColor: "transparent",
+                            borderWidth: 0,
+                            hoverOffset: 4,
+                        }],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: cv("--color-background-inverse") || "rgba(0,0,0,0.85)",
+                                titleColor: cv("--color-text-inverse") || "#fff",
+                                bodyColor: cv("--color-text-inverse") || "#fff",
+                                borderWidth: 0,
+                                cornerRadius: 6,
+                                padding: { top: 8, bottom: 8, left: 10, right: 10 },
+                                titleFont: { size: 12, weight: "600", family: fontFamily },
+                                bodyFont: { size: 12, family: fontFamily },
+                                callbacks: {
+                                    label: function (ctx) {
+                                        var val = ctx.parsed;
+                                        var t = ctx.dataset.data.reduce(function (a, b) { return a + b; }, 0);
+                                        return ctx.label + ": " + val.toLocaleString() + " (" + ((val / t) * 100).toFixed(1) + "%)";
+                                    },
+                                },
+                            },
+                        },
+                        cutout: cd.type === "doughnut" ? "55%" : "0%",
+                        animation: { animateRotate: true, duration: 500, easing: "easeOutQuart" },
+                    },
+                });
+                charts.push(c);
+            });
+
+            setTimeout(McpAppBridge.reportSize, 80);
+        }
+
+        function safeRender(data) {
+            try { renderDonut(data); }
+            catch (e) { McpAppBridge.showError(e.message || e); }
+        }
+
+        McpAppBridge.init({
+            appName: "autovisualiser-donut",
+            onData: safeRender,
+            onTheme: function () {
+                if (McpAppBridge.currentData) safeRender(McpAppBridge.currentData);
+            },
+        });
+    })();
+    </script>
+</body>
+</html>

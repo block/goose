@@ -1,0 +1,70 @@
+---
+title: Multi-Model Configuration
+hide_title: true
+description: Approaches for configuring model-switching behavior to optimize for cost, performance, and results.
+---
+
+import Card from '@site/src/components/Card';
+import styles from '@site/src/components/Card/styles.module.css';
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+import VideoCarousel from '@site/src/components/VideoCarousel';
+
+<h1 className={styles.pageTitle}>Multi-Model Configuration</h1>
+<p className={styles.pageDescription}>
+  goose supports several approaches for using different models within a single session, allowing you to optimize for cost, performance, and task specialization. Strategies range from manual or turn-based model selection to dynamic, context-aware switching.
+</p>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📚 Documentation & Guides</h2>
+  <div className={styles.cardGrid}>
+    <Card 
+      title="Planner + Execution Model Setup"
+      description="Use a dedicated planner model for strategic reasoning and a separate default model for execution."
+      link="/docs/guides/context-engineering/creating-plans"
+    />
+    <Card 
+      title="Creating Plans Before Working"
+      description="Manual planning mode that optionally uses a dedicated model to break complex projects into detailed, actionable steps."
+      link="/docs/guides/context-engineering/creating-plans"
+    />
+    <Card 
+      title="Planning Complex Tasks"
+      description="Uses the Plan feature to transform a complex devcontainer setup into a systematic, executable roadmap."
+      link="/docs/tutorials/plan-feature-devcontainer-setup"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📝 Featured Blog Posts</h2>
+  <div className={styles.cardGrid}>
+    <Card
+      title="Treating LLMs Like Tools in a Toolbox: A Multi-Model Approach to Smarter AI Agents"
+      description="LLMs are specialized tools, and multi-model approaches create smarter, more efficient AI agents."
+      link="/blog/2025/06/16/multi-model-in-goose"
+    />
+    <Card
+      title="The AI Skeptic's Guide to Context Windows"
+      description="Learn practical ways to manage context windows and token usage in long-running sessions."
+      link="/blog/2025/08/18/understanding-context-windows"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>🎥 More Videos</h2>
+
+<VideoCarousel
+  id="more-videos"
+  videos={[
+    { 
+      type: 'iframe', 
+      src: 'https://www.youtube.com/embed/ZyhUTsChFUw',
+      title: 'goose\'s Multi-Model Setup',
+      description: 'Learn practical multi-model workflows in goose',
+      duration: '5:01'
+    }
+  ]}
+/>
+</div>

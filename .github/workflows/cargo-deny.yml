@@ -1,0 +1,29 @@
+name: "Cargo Deny"
+on:
+  push:
+    paths:
+      # Run if workflow changes
+      - '.github/workflows/cargo-deny.yml'
+      # Run on changed dependencies
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
+      # Run if the configuration file changes
+      - 'deny.toml'
+  # Rerun periodically to pick up new advisories
+  schedule:
+    - cron: '0 0 * * *'
+  # Run manually
+  workflow_dispatch:
+
+jobs:
+  deny:
+    runs-on: ubuntu-latest
+    if: github.repository == 'aaif-goose/goose'
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+      # https://github.com/EmbarkStudios/cargo-deny-action v2.0.15
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25
+        with:
+          command: check advisories

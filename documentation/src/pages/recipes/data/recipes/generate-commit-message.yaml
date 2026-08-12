@@ -1,0 +1,47 @@
+version: "1.0.0"
+title: "Generate Commit Message"
+author:
+  contact: Better-Boy
+description: "Generate a descriptive commit message based on staged changes"
+instructions: |
+  You are a Git expert. Your task is to:
+  1. Review the currently staged changes using git diff --staged
+  2. Analyze what changes were made (new features, bug fixes, refactoring, etc.)
+  3. Generate a clear, concise commit message following the {{commit_format}} format:
+     
+     **If conventional format:**
+     - Use type prefixes: feat:, fix:, docs:, style:, refactor:, test:, chore:
+     - Format: <type>(<scope>): <subject>
+     - Example: "feat(auth): add JWT token validation"
+     
+     **If standard format:**
+     - Use imperative mood (Add, Fix, Update, not Added, Fixed)
+     - Keep the subject line under 50 characters
+     - Add a body with details if changes are complex
+     
+     **If custom format:**
+     - Ask the user for their preferred commit message format/style
+     
+     **General best practices:**
+     - Use imperative mood
+     - Keep the subject line under 50 characters
+     - Add a body with details if changes are complex
+     - Group related changes logically
+  4. Present the commit message for review
+  5. If approved, commit the changes with the generated message
+prompt: "Generate a commit message for the staged changes"
+parameters:
+  - key: commit_format
+    input_type: string
+    requirement: optional
+    default: "conventional"
+    description: "Commit format style (conventional, standard, custom)"
+activities:
+  - "Create a commit message for my staged changes"
+  - "Generate a conventional commit message"
+  - "Write a detailed commit message for complex changes"
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true
