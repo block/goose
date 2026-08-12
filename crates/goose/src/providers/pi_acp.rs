@@ -4,7 +4,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::acp::{
-    resolve_extension_configs_to_mcp_servers, AcpProvider, AcpProviderConfig, ACP_CURRENT_MODEL,
+    configured_model_for_provider, resolve_extension_configs_to_mcp_servers, AcpProvider,
+    AcpProviderConfig, ACP_CURRENT_MODEL,
 };
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
@@ -63,9 +64,7 @@ impl ProviderDef for PiAcpProvider {
             let config = Config::global();
             let resolved_command = SearchPaths::builder().with_npm().resolve(PI_ACP_BINARY)?;
             let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
-            let model = config
-                .get_goose_model()
-                .unwrap_or_else(|_| ACP_CURRENT_MODEL.to_string());
+            let model = configured_model_for_provider(config, PI_ACP_PROVIDER_NAME);
 
             // pi-acp advertises a "model" config option (MODEL_CONFIG_ID = "model")
             // and applies it via setSessionModel → proc.setModel(provider, id).

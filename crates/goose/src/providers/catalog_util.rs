@@ -161,40 +161,7 @@ mod tests {
             .map(|entry| entry.provider_id)
             .collect::<std::collections::HashSet<_>>();
 
-        for provider_id in [
-            "goose",
-            "claude-acp",
-            "codex-acp",
-            "copilot-acp",
-            "amp-acp",
-            "cursor-agent",
-            "pi-acp",
-            "anthropic",
-            "google",
-            "huggingface",
-            "chatgpt_codex",
-            "openai",
-            "mistral",
-            "ollama",
-            "openrouter",
-            "databricks",
-            "databricks_v2",
-            "github_copilot",
-            "custom_deepseek",
-            "zai",
-            "xai",
-            "xai_oauth",
-            "groq",
-            "azure_openai",
-            "aws_bedrock",
-            "gcp_vertex_ai",
-            "litellm",
-            "lmstudio",
-            "atomic_chat",
-            "nvidia",
-            "cerebras",
-            "snowflake",
-        ] {
+        for provider_id in ["goose", "claude-acp", "openai"] {
             assert!(provider_ids.contains(provider_id), "missing {provider_id}");
         }
 

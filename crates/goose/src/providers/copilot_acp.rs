@@ -4,7 +4,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::acp::{
-    resolve_extension_configs_to_mcp_servers, AcpProvider, AcpProviderConfig, ACP_CURRENT_MODEL,
+    configured_model_for_provider, resolve_extension_configs_to_mcp_servers, AcpProvider,
+    AcpProviderConfig, ACP_CURRENT_MODEL,
 };
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
@@ -72,9 +73,7 @@ impl ProviderDef for CopilotAcpProvider {
                 .with_npm()
                 .resolve(COPILOT_ACP_BINARY)?;
             let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
-            let model = config
-                .get_goose_model()
-                .unwrap_or_else(|_| ACP_CURRENT_MODEL.to_string());
+            let model = configured_model_for_provider(config, COPILOT_ACP_PROVIDER_NAME);
 
             let args = vec!["--acp".to_string()];
             let session_config_options = if model == ACP_CURRENT_MODEL {
