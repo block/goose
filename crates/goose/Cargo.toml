@@ -51,7 +51,7 @@ rustls-tls = [
     "reqwest/rustls",
     "rmcp/reqwest",
     "smithy-transport-reqwest?/rustls",
-    "sqlx/runtime-tokio-rustls",
+    "sqlx/tls-rustls",
     "jsonwebtoken/aws_lc_rs",
     "oauth2/reqwest",
     "oauth2/rustls-tls",
@@ -69,7 +69,7 @@ native-tls = [
     "reqwest/native-tls",
     "rmcp/reqwest-native-tls",
     "smithy-transport-reqwest?/native-tls",
-    "sqlx/runtime-tokio-native-tls",
+    "sqlx/tls-native-tls",
     "jsonwebtoken/rust_crypto",
     "oauth2/reqwest",
     "oauth2/native-tls",
@@ -143,7 +143,7 @@ rand = { workspace = true }
 tokio-cron-scheduler = { version = "0.15", default-features = false }
 urlencoding = { workspace = true }
 v_htmlescape = { version = "0.17", default-features = false, features = ["std"] }
-sqlx = { version = "0.8.5", default-features = false, features = [
+sqlx = { version = "0.9.0", default-features = false, features = [
     "runtime-tokio",
     "sqlite",
     "chrono",
