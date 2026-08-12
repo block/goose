@@ -19,7 +19,13 @@ use rmcp::{
     tool, tool_handler, tool_router, RoleServer, ServerHandler,
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs, path::PathBuf, sync::Arc, sync::Mutex};
+use std::{
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+    sync::Arc,
+    sync::Mutex,
+};
 use tokio::process::Command;
 
 #[cfg(target_os = "macos")]
@@ -554,6 +560,59 @@ impl ComputerControllerServer {
         let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
         self.cache_dir
             .join(format!("{}_{}.{}", prefix, timestamp, extension))
+    }
+
+    fn cache_file_candidate(&self, path: &str) -> PathBuf {
+        let requested_path = Path::new(path);
+        if requested_path.is_absolute() {
+            requested_path.to_path_buf()
+        } else {
+            self.cache_dir.join(requested_path)
+        }
+    }
+
+    fn resolve_cache_file(&self, path: &str) -> Result<PathBuf, ErrorData> {
+        let candidate = self.cache_file_candidate(path);
+
+        let metadata = fs::symlink_metadata(&candidate).map_err(|_| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Path must identify an existing cached file".to_string(),
+                None,
+            )
+        })?;
+        if metadata.file_type().is_symlink() {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Cache path must not be a symbolic link".to_string(),
+                None,
+            ));
+        }
+
+        let cache_dir = fs::canonicalize(&self.cache_dir).map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to resolve cache directory: {e}"),
+                None,
+            )
+        })?;
+        let resolved_path = fs::canonicalize(&candidate).map_err(|_| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Path must identify an existing cached file".to_string(),
+                None,
+            )
+        })?;
+
+        if !resolved_path.starts_with(&cache_dir) || !resolved_path.is_file() {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Path must identify a regular file inside the cache directory".to_string(),
+                None,
+            ));
+        }
+
+        Ok(resolved_path)
     }
 
     // Helper function to save content to cache
@@ -1544,8 +1603,9 @@ impl ComputerControllerServer {
                         None,
                     )
                 })?;
+                let resolved_path = self.resolve_cache_file(path)?;
 
-                let content = fs::read_to_string(path).map_err(|e| {
+                let content = fs::read_to_string(resolved_path).map_err(|e| {
                     ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
                         format!("Failed to read file: {}", e),
@@ -1566,8 +1626,10 @@ impl ComputerControllerServer {
                         None,
                     )
                 })?;
+                let candidate_path = self.cache_file_candidate(path);
+                let resolved_path = self.resolve_cache_file(path)?;
 
-                fs::remove_file(path).map_err(|e| {
+                fs::remove_file(&resolved_path).map_err(|e| {
                     ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
                         format!("Failed to delete file: {}", e),
@@ -1576,11 +1638,11 @@ impl ComputerControllerServer {
                 })?;
 
                 // Remove from active resources if present
-                if let Ok(url) = Url::from_file_path(path) {
-                    self.active_resources
-                        .lock()
-                        .unwrap()
-                        .remove(&url.to_string());
+                let mut active_resources = self.active_resources.lock().unwrap();
+                for resource_path in [&candidate_path, &resolved_path] {
+                    if let Ok(url) = Url::from_file_path(resource_path) {
+                        active_resources.remove(&url.to_string());
+                    }
                 }
 
                 Ok(CallToolResult::success(vec![ContentBlock::text(format!(
@@ -1670,5 +1732,132 @@ impl ServerHandler for ComputerControllerServer {
 
         // Clone the resource to return
         Ok(ReadResourceResult::new(vec![resource.clone()]).into())
+    }
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn server_with_cache_dir(cache_dir: &Path) -> ComputerControllerServer {
+        let mut server = ComputerControllerServer::new();
+        server.cache_dir = cache_dir.to_path_buf();
+        server
+    }
+
+    async fn call_cache(
+        server: &ComputerControllerServer,
+        command: CacheCommand,
+        path: impl Into<String>,
+    ) -> Result<CallToolResult, ErrorData> {
+        server
+            .cache(Parameters(CacheParams {
+                command,
+                path: Some(path.into()),
+            }))
+            .await
+    }
+
+    #[tokio::test]
+    async fn cache_accepts_relative_and_listed_absolute_file_paths() {
+        let temp_dir = TempDir::new().unwrap();
+        let cache_dir = temp_dir.path().join("cache");
+        let nested_dir = cache_dir.join("nested");
+        fs::create_dir_all(&nested_dir).unwrap();
+        let cached_file = nested_dir.join("result.txt");
+        fs::write(&cached_file, "cached content").unwrap();
+
+        let server = server_with_cache_dir(&cache_dir);
+        let relative_result = call_cache(&server, CacheCommand::View, "nested/result.txt").await;
+        assert!(relative_result.is_ok());
+
+        server
+            .register_as_resource(&cached_file, "text/plain")
+            .unwrap();
+        let resource_url = Url::from_file_path(&cached_file).unwrap().to_string();
+        assert!(server
+            .active_resources
+            .lock()
+            .unwrap()
+            .contains_key(&resource_url));
+
+        let delete_result =
+            call_cache(&server, CacheCommand::Delete, cached_file.to_string_lossy()).await;
+        assert!(delete_result.is_ok());
+        assert!(!cached_file.exists());
+        assert!(!server
+            .active_resources
+            .lock()
+            .unwrap()
+            .contains_key(&resource_url));
+    }
+
+    #[tokio::test]
+    async fn cache_rejects_absolute_and_traversal_paths_outside_cache() {
+        let temp_dir = TempDir::new().unwrap();
+        let cache_dir = temp_dir.path().join("cache");
+        fs::create_dir(&cache_dir).unwrap();
+        let outside_file = temp_dir.path().join("outside.txt");
+        fs::write(&outside_file, "outside content").unwrap();
+
+        let server = server_with_cache_dir(&cache_dir);
+        for path in [
+            outside_file.to_string_lossy().into_owned(),
+            "../outside.txt".to_string(),
+        ] {
+            assert!(call_cache(&server, CacheCommand::View, path.clone())
+                .await
+                .is_err());
+            assert!(call_cache(&server, CacheCommand::Delete, path)
+                .await
+                .is_err());
+            assert_eq!(
+                fs::read_to_string(&outside_file).unwrap(),
+                "outside content"
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn cache_rejects_intermediate_symlink_escape() {
+        let temp_dir = TempDir::new().unwrap();
+        let cache_dir = temp_dir.path().join("cache");
+        let outside_dir = temp_dir.path().join("outside");
+        fs::create_dir(&cache_dir).unwrap();
+        fs::create_dir(&outside_dir).unwrap();
+        let outside_file = outside_dir.join("secret.txt");
+        fs::write(&outside_file, "secret").unwrap();
+        std::os::unix::fs::symlink(&outside_dir, cache_dir.join("escape")).unwrap();
+
+        let server = server_with_cache_dir(&cache_dir);
+        for command in [CacheCommand::View, CacheCommand::Delete] {
+            assert!(call_cache(&server, command, "escape/secret.txt")
+                .await
+                .is_err());
+        }
+        assert_eq!(fs::read_to_string(outside_file).unwrap(), "secret");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn cache_rejects_final_symlinks_without_removing_them() {
+        let temp_dir = TempDir::new().unwrap();
+        let cache_dir = temp_dir.path().join("cache");
+        fs::create_dir(&cache_dir).unwrap();
+        let outside_file = temp_dir.path().join("secret.txt");
+        fs::write(&outside_file, "secret").unwrap();
+        let link = cache_dir.join("secret-link.txt");
+        std::os::unix::fs::symlink(&outside_file, &link).unwrap();
+
+        let server = server_with_cache_dir(&cache_dir);
+        for command in [CacheCommand::View, CacheCommand::Delete] {
+            assert!(call_cache(&server, command, link.to_string_lossy())
+                .await
+                .is_err());
+        }
+        assert!(link.symlink_metadata().unwrap().file_type().is_symlink());
+        assert_eq!(fs::read_to_string(outside_file).unwrap(), "secret");
     }
 }
