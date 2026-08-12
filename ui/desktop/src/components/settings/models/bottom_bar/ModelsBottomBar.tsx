@@ -10,8 +10,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../../../ui/dropdown-menu';
-import { getProviderMetadata } from '../modelInterface';
+import { getProviderMetadata, fetchModelReasoning } from '../modelInterface';
 import { getModelDisplayName } from '../predefinedModelsUtils';
+import { acpReadThinkingEffort } from '../../../../acp/providers';
 
 import { ModelSettingsPanel } from '../../localInference/ModelSettingsPanel';
 import { ScrollArea } from '../../../ui/scroll-area';
@@ -164,7 +165,19 @@ export default function ModelsBottomBar({
   const handleRecentModelClick = async (recent: RecentModel) => {
     const previousModel = currentModel;
     const previousProvider = currentProvider;
-    const success = await changeModel(sessionId, { name: recent.model, provider: recent.provider });
+
+    const [reasoning, savedEffort] = await Promise.all([
+      fetchModelReasoning(recent.provider, recent.model),
+      acpReadThinkingEffort(),
+    ]);
+    const modelArg = reasoning
+      ? {
+          name: recent.model,
+          provider: recent.provider,
+          request_params: { thinking_effort: savedEffort ?? 'off' },
+        }
+      : { name: recent.model, provider: recent.provider };
+    const success = await changeModel(sessionId, modelArg);
     if (success) {
       trackModelChanged(recent.provider, recent.model);
       if (previousModel && previousProvider) {
