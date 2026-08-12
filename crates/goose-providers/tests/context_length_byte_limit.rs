@@ -1,20 +1,18 @@
-//! Regression tests for byte-size request-limit errors (see goose#11171).
-//!
-//! A gateway/proxy that caps the request body in *bytes* returns HTTP 400
-//! (not 413) when the limit is exceeded. `is_context_length_exceeded_message`
-//! must recognize those byte-size phrasings so the error is classified as
-//! `ContextLengthExceeded` (which triggers compaction) rather than a generic
-//! `RequestFailed` that leaves an image-heavy session permanently stuck.
-
-use goose_providers::http_status::is_context_length_exceeded_message;
+use goose_providers::errors::ProviderError;
+use goose_providers::http_status::{
+    is_context_length_exceeded_message, map_http_error_to_provider_error,
+};
+use reqwest::StatusCode;
+use serde_json::json;
 
 #[test]
 fn byte_size_limit_messages_classify_as_context_length_exceeded() {
     let messages = [
-        // Exact error from a gateway enforcing a 32 MiB request-body limit.
         "Server received a request which exceeds maximum allowed content length. RequestSize(bytes): 34021227, Limit(bytes): 33554432.",
         "Request body size exceeds the maximum allowed limit",
-        "content length exceeds the maximum allowed limit",
+        "Request body is too large",
+        "Request payload too large",
+        "Content-Length exceeds the maximum allowed request size",
     ];
 
     for message in messages {
@@ -26,11 +24,28 @@ fn byte_size_limit_messages_classify_as_context_length_exceeded() {
 }
 
 #[test]
+fn byte_size_limit_bad_request_maps_to_context_length_exceeded() {
+    let message = "Server received a request which exceeds maximum allowed content length. RequestSize(bytes): 34021227, Limit(bytes): 33554432.";
+    let error = map_http_error_to_provider_error(
+        StatusCode::BAD_REQUEST,
+        Some(json!({ "error": { "message": message } })),
+        "https://example.com/v1/messages",
+    );
+
+    assert_eq!(
+        error,
+        ProviderError::ContextLengthExceeded(message.to_string())
+    );
+}
+
+#[test]
 fn generic_length_errors_are_not_context_length_exceeded() {
     let messages = [
         "metadata length exceeds maximum allowed",
         "temperature exceeds maximum allowed value",
         "Invalid request body: temperature exceeds maximum allowed value",
+        "tools[0].description content length exceeds maximum allowed",
+        "response content length exceeds maximum allowed",
         "max_tokens must be less than or equal to 4096",
     ];
 
