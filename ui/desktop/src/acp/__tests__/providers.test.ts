@@ -6,6 +6,7 @@ import {
   acpListSetupProviderDetails,
   acpRefreshProviderDetails,
   acpSetSessionProviderModel,
+  isAcpProvider,
 } from '../providers';
 
 vi.mock('../acpConnection', () => ({
@@ -139,6 +140,28 @@ describe('ACP providers', () => {
       'claude-acp',
     ]);
     expect((await acpGetProviderDetails('claude-code')).replacement).toBe('claude-acp');
+  });
+
+  it('uses the inventory category instead of the provider id to identify ACP providers', async () => {
+    const custom = providerEntry({
+      providerId: 'custom_example-acp',
+      providerType: 'Custom',
+      category: 'model',
+    });
+    const agent = providerEntry({ providerId: 'pi', category: 'agent' });
+    const client = {
+      goose: {
+        providersList_unstable: vi.fn().mockResolvedValue({ entries: [custom, agent] }),
+      },
+    };
+    vi.mocked(getAcpClient).mockResolvedValue(
+      client as unknown as Awaited<ReturnType<typeof getAcpClient>>
+    );
+
+    const providers = await acpListProviderDetails();
+
+    expect(isAcpProvider(providers[0])).toBe(false);
+    expect(isAcpProvider(providers[1])).toBe(true);
   });
 
   it('probes an installed ACP adapter and returns its refreshed models', async () => {

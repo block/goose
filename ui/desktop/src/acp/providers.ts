@@ -27,6 +27,7 @@ function providerEntryToDetails(entry: ProviderInventoryEntryDto): ProviderDetai
     deprecated: entry.deprecated,
     replacement: entry.replacement ?? null,
     provider_type: entry.providerType as ProviderDetails['provider_type'],
+    setup_category: entry.category,
     metadata: {
       name: entry.providerId,
       display_name: entry.providerName,
@@ -51,6 +52,10 @@ function providerEntryToDetails(entry: ProviderInventoryEntryDto): ProviderDetai
       setup_steps: entry.setupSteps,
     },
   };
+}
+
+export function isAcpProvider(provider: ProviderDetails): boolean {
+  return provider.setup_category === 'agent';
 }
 
 function updateRequestToCreate(

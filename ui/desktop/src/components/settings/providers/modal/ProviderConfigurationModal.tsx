@@ -19,6 +19,7 @@ import {
   acpDeleteCustomProvider,
   acpDeleteProviderConfig,
   acpRefreshProviderDetails,
+  isAcpProvider,
   acpSaveProviderConfig,
 } from '../../../../acp/providers';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
@@ -236,7 +237,7 @@ export default function ProviderConfigurationModal({
     provider.metadata.config_keys.length === 0 &&
     provider.metadata.setup_steps &&
     provider.metadata.setup_steps.length > 0;
-  const isAcpProvider = isExternalSetup && provider.name.endsWith('-acp');
+  const usesAcpSetup = isExternalSetup && isAcpProvider(provider);
   const canUseExternalProvider =
     isConfigured && hasCheckedExternalProvider && !externalReadinessError;
 
@@ -487,7 +488,7 @@ export default function ProviderConfigurationModal({
 
                 {isExternalSetup && (
                   <div className="space-y-3">
-                    {isAcpProvider && (
+                    {usesAcpSetup && (
                       <div className="rounded-md border border-border-primary p-3 space-y-2">
                         <div className="flex items-center gap-2 text-sm font-medium">
                           {isCheckingExternalProvider ? (
@@ -590,7 +591,7 @@ export default function ProviderConfigurationModal({
                   </Button>
                 )}
               </div>
-            ) : isAcpProvider && !showDeleteConfirmation ? (
+            ) : usesAcpSetup && !showDeleteConfirmation ? (
               <div className="flex w-full justify-end gap-2 border-t border-border-primary pt-4">
                 <Button
                   type="button"

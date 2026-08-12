@@ -47,6 +47,7 @@ export type ProviderDetails = {
   metadata: ProviderMetadata;
   name: string;
   provider_type: ProviderType;
+  setup_category: 'agent' | 'model';
   saved_model?: string | null;
 };
 

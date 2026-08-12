@@ -20,6 +20,48 @@ pub(crate) const PI_ACP_BINARY: &str = "pi-acp";
 
 pub struct PiAcpProvider;
 
+impl PiAcpProvider {
+    fn create(
+        extensions: Vec<crate::config::ExtensionConfig>,
+        working_dir: PathBuf,
+        use_default_model: bool,
+    ) -> BoxFuture<'static, Result<AcpProvider>> {
+        Box::pin(async move {
+            let config = Config::global();
+            let resolved_command = SearchPaths::builder().with_npm().resolve(PI_ACP_BINARY)?;
+            let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
+            let model = if use_default_model {
+                ACP_CURRENT_MODEL.to_string()
+            } else {
+                configured_model_for_provider(config, PI_ACP_PROVIDER_NAME)
+            };
+
+            let session_config_options = if model == ACP_CURRENT_MODEL {
+                vec![]
+            } else {
+                vec![("model".to_string(), model)]
+            };
+
+            let provider_config = AcpProviderConfig {
+                command: resolved_command,
+                args: vec![],
+                env: vec![],
+                env_remove: vec![],
+                work_dir: working_dir,
+                mcp_servers: resolve_extension_configs_to_mcp_servers(extensions, config).await,
+                session_mode_id: None,
+                session_config_options,
+                model_config_option_id: Some("model".to_string()),
+                mode_mapping: HashMap::new(),
+                notification_callback: None,
+            };
+
+            let metadata = Self::metadata();
+            AcpProvider::connect(metadata.name, goose_mode, provider_config).await
+        })
+    }
+}
+
 impl goose_providers::base::ProviderDescriptor for PiAcpProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
@@ -60,39 +102,13 @@ impl ProviderDef for PiAcpProvider {
         working_dir: PathBuf,
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<AcpProvider>> {
-        Box::pin(async move {
-            let config = Config::global();
-            let resolved_command = SearchPaths::builder().with_npm().resolve(PI_ACP_BINARY)?;
-            let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
-            let model = configured_model_for_provider(config, PI_ACP_PROVIDER_NAME);
+        Self::create(extensions, working_dir, false)
+    }
 
-            // pi-acp advertises a "model" config option (MODEL_CONFIG_ID = "model")
-            // and applies it via setSessionModel → proc.setModel(provider, id).
-            // Wire it up so model selection from goose config or Buzz's set_model
-            // actually reaches the Pi Droid session instead of being silently dropped.
-            let session_config_options = if model == ACP_CURRENT_MODEL {
-                vec![]
-            } else {
-                vec![("model".to_string(), model)]
-            };
-
-            let provider_config = AcpProviderConfig {
-                command: resolved_command,
-                args: vec![],
-                env: vec![],
-                env_remove: vec![],
-                work_dir: working_dir,
-                mcp_servers: resolve_extension_configs_to_mcp_servers(extensions, config).await,
-                session_mode_id: None,
-                session_config_options,
-                model_config_option_id: Some("model".to_string()),
-                // pi-acp exposes thinking levels as ACP modes, not permission modes.
-                mode_mapping: HashMap::new(),
-                notification_callback: None,
-            };
-
-            let metadata = Self::metadata();
-            AcpProvider::connect(metadata.name, goose_mode, provider_config).await
-        })
+    fn from_env_with_default_model(
+        extensions: Vec<crate::config::ExtensionConfig>,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> BoxFuture<'static, Result<AcpProvider>> {
+        Self::create(extensions, current_working_dir(), true)
     }
 }

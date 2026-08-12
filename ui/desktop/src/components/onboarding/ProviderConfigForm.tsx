@@ -1,5 +1,9 @@
 import { useState } from 'react';
-import { acpAuthenticateProvider, acpRefreshProviderDetails } from '../../acp/providers';
+import {
+  acpAuthenticateProvider,
+  acpRefreshProviderDetails,
+  isAcpProvider,
+} from '../../acp/providers';
 import type { ProviderDetails } from '../../types/providers';
 import DefaultProviderSetupForm, {
   ConfigInput,
@@ -343,7 +347,7 @@ export default function ProviderConfigForm({ provider, onConfigured }: ProviderC
   const isOAuthProvider = provider.metadata.config_keys.some((key) => key.oauth_flow);
 
   const renderForm = () => {
-    if (provider.name.endsWith('-acp')) {
+    if (isAcpProvider(provider)) {
       return <AcpProviderForm provider={provider} onConfigured={onConfigured} onError={setError} />;
     }
     if (isOAuthProvider) {

@@ -23,6 +23,58 @@ const MODE_PLAN: &str = "https://agentclientprotocol.com/protocol/session-modes#
 
 pub struct CopilotAcpProvider;
 
+impl CopilotAcpProvider {
+    fn create(
+        extensions: Vec<crate::config::ExtensionConfig>,
+        working_dir: PathBuf,
+        use_default_model: bool,
+    ) -> BoxFuture<'static, Result<AcpProvider>> {
+        Box::pin(async move {
+            let config = Config::global();
+            let resolved_command = SearchPaths::builder()
+                .with_npm()
+                .resolve(COPILOT_ACP_BINARY)?;
+            let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
+            let model = if use_default_model {
+                ACP_CURRENT_MODEL.to_string()
+            } else {
+                configured_model_for_provider(config, COPILOT_ACP_PROVIDER_NAME)
+            };
+
+            let args = vec!["--acp".to_string()];
+            let session_config_options = if model == ACP_CURRENT_MODEL {
+                vec![]
+            } else {
+                vec![("model".to_string(), model)]
+            };
+
+            let mode_mapping = HashMap::from([
+                (GooseMode::Auto, vec![MODE_AGENT.to_string()]),
+                (GooseMode::Approve, vec![MODE_AGENT.to_string()]),
+                (GooseMode::SmartApprove, vec![MODE_AGENT.to_string()]),
+                (GooseMode::Chat, vec![MODE_PLAN.to_string()]),
+            ]);
+
+            let provider_config = AcpProviderConfig {
+                command: resolved_command,
+                args,
+                env: vec![],
+                env_remove: vec![],
+                work_dir: working_dir,
+                mcp_servers: resolve_extension_configs_to_mcp_servers(extensions, config).await,
+                session_mode_id: mode_mapping[&goose_mode].first().cloned(),
+                session_config_options,
+                model_config_option_id: Some("model".to_string()),
+                mode_mapping,
+                notification_callback: None,
+            };
+
+            let metadata = Self::metadata();
+            AcpProvider::connect(metadata.name, goose_mode, provider_config).await
+        })
+    }
+}
+
 impl goose_providers::base::ProviderDescriptor for CopilotAcpProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
@@ -66,47 +118,13 @@ impl ProviderDef for CopilotAcpProvider {
         working_dir: PathBuf,
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<AcpProvider>> {
-        Box::pin(async move {
-            let config = Config::global();
-            // with_npm() includes npm global bin dir (desktop app PATH may not)
-            let resolved_command = SearchPaths::builder()
-                .with_npm()
-                .resolve(COPILOT_ACP_BINARY)?;
-            let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
-            let model = configured_model_for_provider(config, COPILOT_ACP_PROVIDER_NAME);
+        Self::create(extensions, working_dir, false)
+    }
 
-            let args = vec!["--acp".to_string()];
-            let session_config_options = if model == ACP_CURRENT_MODEL {
-                vec![]
-            } else {
-                vec![("model".to_string(), model)]
-            };
-
-            // Copilot modes are full protocol URIs.
-            // No approve-specific mode; permissions are handled separately.
-            let mode_mapping = HashMap::from([
-                (GooseMode::Auto, vec![MODE_AGENT.to_string()]),
-                (GooseMode::Approve, vec![MODE_AGENT.to_string()]),
-                (GooseMode::SmartApprove, vec![MODE_AGENT.to_string()]),
-                (GooseMode::Chat, vec![MODE_PLAN.to_string()]),
-            ]);
-
-            let provider_config = AcpProviderConfig {
-                command: resolved_command,
-                args,
-                env: vec![],
-                env_remove: vec![],
-                work_dir: working_dir,
-                mcp_servers: resolve_extension_configs_to_mcp_servers(extensions, config).await,
-                session_mode_id: mode_mapping[&goose_mode].first().cloned(),
-                session_config_options,
-                model_config_option_id: Some("model".to_string()),
-                mode_mapping,
-                notification_callback: None,
-            };
-
-            let metadata = Self::metadata();
-            AcpProvider::connect(metadata.name, goose_mode, provider_config).await
-        })
+    fn from_env_with_default_model(
+        extensions: Vec<crate::config::ExtensionConfig>,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> BoxFuture<'static, Result<AcpProvider>> {
+        Self::create(extensions, current_working_dir(), true)
     }
 }

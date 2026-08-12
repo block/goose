@@ -1203,8 +1203,9 @@ fn test_custom_provider_supported_models_lists_raw_provider_models() {
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
-        let provider_factory: AcpProviderFactory =
-            Arc::new(|provider_name, _extensions, _working_dir| {
+        let provider_factory: AcpProviderFactory = Arc::new(
+            |provider_name, _extensions, _working_dir, use_default_model| {
+                assert!(use_default_model);
                 Box::pin(async move {
                     Ok(Arc::new(MockProvider {
                         name: provider_name,
@@ -1215,7 +1216,8 @@ fn test_custom_provider_supported_models_lists_raw_provider_models() {
                         ]),
                     }) as Arc<dyn Provider>)
                 })
-            });
+            },
+        );
         let conn = AcpServerConnection::new(
             TestConnectionConfig {
                 provider_factory: Some(provider_factory),
@@ -1253,7 +1255,7 @@ fn test_custom_provider_supported_models_maps_not_configured_error() {
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
-        let provider_factory: AcpProviderFactory = Arc::new(|provider_name, _, _| {
+        let provider_factory: AcpProviderFactory = Arc::new(|provider_name, _, _, _| {
             Box::pin(async move {
                 Ok(Arc::new(MockProvider {
                     name: provider_name,
@@ -1290,7 +1292,7 @@ fn test_custom_provider_supported_models_maps_authentication_error() {
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
-        let provider_factory: AcpProviderFactory = Arc::new(|provider_name, _, _| {
+        let provider_factory: AcpProviderFactory = Arc::new(|provider_name, _, _, _| {
             Box::pin(async move {
                 Ok(Arc::new(MockProvider {
                     name: provider_name,

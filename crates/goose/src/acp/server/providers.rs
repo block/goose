@@ -478,7 +478,7 @@ impl GooseAcpAgent {
         req: ProviderSupportedModelsListRequest,
     ) -> Result<ProviderSupportedModelsListResponse, agent_client_protocol::Error> {
         let provider = self
-            .create_provider(&req.provider_id, Vec::new(), None)
+            .create_provider(&req.provider_id, Vec::new(), None, true)
             .await
             .internal_err_ctx("Failed to initialize provider")?;
         let models = match provider.fetch_supported_models().await {
@@ -507,7 +507,13 @@ impl GooseAcpAgent {
         &self,
         req: ProviderReadinessCheckRequest,
     ) -> Result<ProviderReadinessCheckResponse, agent_client_protocol::Error> {
-        if !req.provider_id.ends_with("-acp") {
+        let provider = self
+            .provider_inventory
+            .find_entry_for_provider(&req.provider_id)
+            .await;
+        if !provider.is_some_and(|entry| {
+            entry.category == crate::providers::catalog::ProviderSetupCategory::Agent
+        }) {
             return Err(agent_client_protocol::Error::invalid_params().data(format!(
                 "Provider is not an ACP provider: {}",
                 req.provider_id
@@ -516,7 +522,7 @@ impl GooseAcpAgent {
 
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(30),
-            self.create_provider(&req.provider_id, Vec::new(), None),
+            self.create_provider(&req.provider_id, Vec::new(), None, true),
         )
         .await;
         let (ready, error) = match result {
@@ -795,7 +801,7 @@ impl GooseAcpAgent {
             tokio::spawn(async move {
                 let mut refresh_guard = provider_inventory.refresh_guard(&identity);
                 let provider_result = AssertUnwindSafe(async {
-                    provider_factory(provider_id.clone(), Vec::new(), None).await
+                    provider_factory(provider_id.clone(), Vec::new(), None, true).await
                 })
                 .catch_unwind()
                 .await;
