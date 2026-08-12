@@ -171,6 +171,11 @@ function modelFromConfigOptions(opts: ConfigOption[] | null | undefined): string
 declare const __BUILD_STAMP__: string;
 const BUILD = typeof __BUILD_STAMP__ !== "undefined" ? __BUILD_STAMP__ : "dev";
 
+// How many trailing messages to ask the server to replay on session open.
+// The server rounds up to a turn boundary and reports how many older
+// messages it skipped via replaySkipped in the response meta.
+const REPLAY_TAIL = 200;
+
 let nextId = 1;
 
 export function App({ roam }: { roam: RoamClient }) {
@@ -625,9 +630,25 @@ export function App({ roam }: { roam: RoamClient }) {
         sessionRef.current = id;
         setSessionId(id);
         replayBuf.current = [];
-        await host.agent.loadSession({ sessionId: id, cwd: "/", mcpServers: [] });
+        // Ask the server to replay only the trailing messages (it rounds up
+        // to a turn boundary); replaySkipped in the response meta says how
+        // much older history was left out.
+        const res = await host.agent.loadSession({
+          sessionId: id,
+          cwd: "/",
+          mcpServers: [],
+          _meta: { replayTail: REPLAY_TAIL },
+        });
         const buf = replayBuf.current ?? [];
         replayBuf.current = null;
+        const skipped = (res?._meta as Record<string, unknown> | undefined)?.replaySkipped;
+        if (typeof skipped === "number" && skipped > 0) {
+          buf.unshift({
+            kind: "system",
+            id: nextId++,
+            text: `… ${skipped} earlier messages not shown`,
+          });
+        }
         setItems(buf);
         streamRole.current = null;
         setStatus("connected");
