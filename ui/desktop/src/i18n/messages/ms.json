@@ -4626,48 +4626,48 @@
     "defaultMessage": "Terkini"
   },
   "providerConfigForm.adapterFound": {
-    "defaultMessage": "ACP adapter found"
+    "defaultMessage": "Penyesuai ACP ditemui"
   },
   "providerConfigForm.adapterNotFound": {
-    "defaultMessage": "ACP adapter not found"
+    "defaultMessage": "Penyesuai ACP tidak ditemui"
   },
   "providerConfigForm.authenticationHelp": {
-    "defaultMessage": "Sign in through the provider CLI, then check again."
+    "defaultMessage": "Log masuk melalui CLI penyedia, kemudian semak semula."
   },
   "providerConfigForm.checkAgain": {
-    "defaultMessage": "Check again"
+    "defaultMessage": "Semak semula"
   },
   "providerConfigForm.checking": {
-    "defaultMessage": "Checking..."
+    "defaultMessage": "Menyemak..."
   },
   "providerConfigForm.connected": {
-    "defaultMessage": "Connected successfully"
+    "defaultMessage": "Berjaya disambungkan"
   },
   "providerConfigForm.connectionNotChecked": {
-    "defaultMessage": "Check your account connection before continuing."
+    "defaultMessage": "Semak sambungan akaun anda sebelum meneruskan."
   },
   "providerConfigurationModal.adapterFound": {
-    "defaultMessage": "ACP adapter found"
+    "defaultMessage": "Penyesuai ACP ditemui"
   },
   "providerConfigurationModal.adapterNotFound": {
-    "defaultMessage": "ACP adapter not found"
+    "defaultMessage": "Penyesuai ACP tidak ditemui"
   },
   "providerConfigurationModal.authenticationHelp": {
-    "defaultMessage": "Sign in through the provider CLI, then check again."
+    "defaultMessage": "Log masuk melalui CLI penyedia, kemudian semak semula."
   },
   "providerConfigurationModal.checkAgain": {
-    "defaultMessage": "Check again"
+    "defaultMessage": "Semak semula"
   },
   "providerConfigurationModal.checking": {
-    "defaultMessage": "Checking..."
+    "defaultMessage": "Menyemak..."
   },
   "providerConfigurationModal.chooseModel": {
-    "defaultMessage": "Choose model"
+    "defaultMessage": "Pilih Model"
   },
   "providerConfigurationModal.connectionNotChecked": {
-    "defaultMessage": "Check your account connection before continuing."
+    "defaultMessage": "Semak sambungan akaun anda sebelum meneruskan."
   },
   "providerConfigurationModal.connectionSuccessful": {
-    "defaultMessage": "Connected successfully"
+    "defaultMessage": "Berjaya disambungkan"
   }
 }

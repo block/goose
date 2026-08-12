@@ -4626,48 +4626,48 @@
     "defaultMessage": "最近"
   },
   "providerConfigForm.adapterFound": {
-    "defaultMessage": "ACP adapter found"
+    "defaultMessage": "已找到 ACP 适配器"
   },
   "providerConfigForm.adapterNotFound": {
-    "defaultMessage": "ACP adapter not found"
+    "defaultMessage": "未找到 ACP 适配器"
   },
   "providerConfigForm.authenticationHelp": {
-    "defaultMessage": "Sign in through the provider CLI, then check again."
+    "defaultMessage": "请通过提供商 CLI 登录，然后再次检查。"
   },
   "providerConfigForm.checkAgain": {
-    "defaultMessage": "Check again"
+    "defaultMessage": "再次检查"
   },
   "providerConfigForm.checking": {
-    "defaultMessage": "Checking..."
+    "defaultMessage": "正在检查…"
   },
   "providerConfigForm.connected": {
-    "defaultMessage": "Connected successfully"
+    "defaultMessage": "连接成功"
   },
   "providerConfigForm.connectionNotChecked": {
-    "defaultMessage": "Check your account connection before continuing."
+    "defaultMessage": "请先检查账户连接，然后再继续。"
   },
   "providerConfigurationModal.adapterFound": {
-    "defaultMessage": "ACP adapter found"
+    "defaultMessage": "已找到 ACP 适配器"
   },
   "providerConfigurationModal.adapterNotFound": {
-    "defaultMessage": "ACP adapter not found"
+    "defaultMessage": "未找到 ACP 适配器"
   },
   "providerConfigurationModal.authenticationHelp": {
-    "defaultMessage": "Sign in through the provider CLI, then check again."
+    "defaultMessage": "请通过提供商 CLI 登录，然后再次检查。"
   },
   "providerConfigurationModal.checkAgain": {
-    "defaultMessage": "Check again"
+    "defaultMessage": "再次检查"
   },
   "providerConfigurationModal.checking": {
-    "defaultMessage": "Checking..."
+    "defaultMessage": "正在检查…"
   },
   "providerConfigurationModal.chooseModel": {
-    "defaultMessage": "Choose model"
+    "defaultMessage": "选择模型"
   },
   "providerConfigurationModal.connectionNotChecked": {
-    "defaultMessage": "Check your account connection before continuing."
+    "defaultMessage": "请先检查账户连接，然后再继续。"
   },
   "providerConfigurationModal.connectionSuccessful": {
-    "defaultMessage": "Connected successfully"
+    "defaultMessage": "连接成功"
   }
 }

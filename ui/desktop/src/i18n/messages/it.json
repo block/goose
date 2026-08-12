@@ -4626,48 +4626,48 @@
     "defaultMessage": "Recenti"
   },
   "providerConfigForm.adapterFound": {
-    "defaultMessage": "ACP adapter found"
+    "defaultMessage": "Adattatore ACP trovato"
   },
   "providerConfigForm.adapterNotFound": {
-    "defaultMessage": "ACP adapter not found"
+    "defaultMessage": "Adattatore ACP non trovato"
   },
   "providerConfigForm.authenticationHelp": {
-    "defaultMessage": "Sign in through the provider CLI, then check again."
+    "defaultMessage": "Accedi tramite la CLI del provider, quindi verifica di nuovo."
   },
   "providerConfigForm.checkAgain": {
-    "defaultMessage": "Check again"
+    "defaultMessage": "Verifica di nuovo"
   },
   "providerConfigForm.checking": {
-    "defaultMessage": "Checking..."
+    "defaultMessage": "Verifica in corso..."
   },
   "providerConfigForm.connected": {
-    "defaultMessage": "Connected successfully"
+    "defaultMessage": "Connessione riuscita"
   },
   "providerConfigForm.connectionNotChecked": {
-    "defaultMessage": "Check your account connection before continuing."
+    "defaultMessage": "Verifica la connessione del tuo account prima di continuare."
   },
   "providerConfigurationModal.adapterFound": {
-    "defaultMessage": "ACP adapter found"
+    "defaultMessage": "Adattatore ACP trovato"
   },
   "providerConfigurationModal.adapterNotFound": {
-    "defaultMessage": "ACP adapter not found"
+    "defaultMessage": "Adattatore ACP non trovato"
   },
   "providerConfigurationModal.authenticationHelp": {
-    "defaultMessage": "Sign in through the provider CLI, then check again."
+    "defaultMessage": "Accedi tramite la CLI del provider, quindi verifica di nuovo."
   },
   "providerConfigurationModal.checkAgain": {
-    "defaultMessage": "Check again"
+    "defaultMessage": "Verifica di nuovo"
   },
   "providerConfigurationModal.checking": {
-    "defaultMessage": "Checking..."
+    "defaultMessage": "Verifica in corso..."
   },
   "providerConfigurationModal.chooseModel": {
-    "defaultMessage": "Choose model"
+    "defaultMessage": "Scegli modello"
   },
   "providerConfigurationModal.connectionNotChecked": {
-    "defaultMessage": "Check your account connection before continuing."
+    "defaultMessage": "Verifica la connessione del tuo account prima di continuare."
   },
   "providerConfigurationModal.connectionSuccessful": {
-    "defaultMessage": "Connected successfully"
+    "defaultMessage": "Connessione riuscita"
   }
 }

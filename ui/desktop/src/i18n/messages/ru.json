@@ -4626,48 +4626,48 @@
     "defaultMessage": "Недавние"
   },
   "providerConfigForm.adapterFound": {
-    "defaultMessage": "ACP adapter found"
+    "defaultMessage": "Адаптер ACP найден"
   },
   "providerConfigForm.adapterNotFound": {
-    "defaultMessage": "ACP adapter not found"
+    "defaultMessage": "Адаптер ACP не найден"
   },
   "providerConfigForm.authenticationHelp": {
-    "defaultMessage": "Sign in through the provider CLI, then check again."
+    "defaultMessage": "Войдите через CLI провайдера, затем повторите проверку."
   },
   "providerConfigForm.checkAgain": {
-    "defaultMessage": "Check again"
+    "defaultMessage": "Проверить снова"
   },
   "providerConfigForm.checking": {
-    "defaultMessage": "Checking..."
+    "defaultMessage": "Проверка..."
   },
   "providerConfigForm.connected": {
-    "defaultMessage": "Connected successfully"
+    "defaultMessage": "Подключение выполнено"
   },
   "providerConfigForm.connectionNotChecked": {
-    "defaultMessage": "Check your account connection before continuing."
+    "defaultMessage": "Проверьте подключение учетной записи, прежде чем продолжить."
   },
   "providerConfigurationModal.adapterFound": {
-    "defaultMessage": "ACP adapter found"
+    "defaultMessage": "Адаптер ACP найден"
   },
   "providerConfigurationModal.adapterNotFound": {
-    "defaultMessage": "ACP adapter not found"
+    "defaultMessage": "Адаптер ACP не найден"
   },
   "providerConfigurationModal.authenticationHelp": {
-    "defaultMessage": "Sign in through the provider CLI, then check again."
+    "defaultMessage": "Войдите через CLI провайдера, затем повторите проверку."
   },
   "providerConfigurationModal.checkAgain": {
-    "defaultMessage": "Check again"
+    "defaultMessage": "Проверить снова"
   },
   "providerConfigurationModal.checking": {
-    "defaultMessage": "Checking..."
+    "defaultMessage": "Проверка..."
   },
   "providerConfigurationModal.chooseModel": {
-    "defaultMessage": "Choose model"
+    "defaultMessage": "Выбрать модель"
   },
   "providerConfigurationModal.connectionNotChecked": {
-    "defaultMessage": "Check your account connection before continuing."
+    "defaultMessage": "Проверьте подключение учетной записи, прежде чем продолжить."
   },
   "providerConfigurationModal.connectionSuccessful": {
-    "defaultMessage": "Connected successfully"
+    "defaultMessage": "Подключение выполнено"
   }
 }
