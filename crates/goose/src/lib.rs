@@ -47,6 +47,8 @@ pub mod skills;
 pub mod slash_commands;
 pub mod source_roots;
 pub mod sources;
+#[cfg(unix)]
+pub mod stack_overflow;
 pub mod subprocess;
 pub mod token_counter;
 mod tool_call_labels;

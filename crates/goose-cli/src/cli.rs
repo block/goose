@@ -1394,6 +1394,9 @@ async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
     use std::sync::Arc;
     use tracing::{info, warn};
 
+    #[cfg(unix)]
+    goose::stack_overflow::install_backtrace_handler();
+
     let ServeCommandArgs {
         host,
         port,
