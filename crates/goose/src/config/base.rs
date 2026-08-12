@@ -1034,15 +1034,21 @@ impl Config {
         *cache = None;
     }
 
-    /// Check if an error string indicates a keyring availability issue that should trigger fallback
+    /// Check if a keyring error means the platform store is unavailable and
+    /// secrets should fall back to file storage.
+    ///
+    /// Only `PlatformFailure` and `NoStorageAccess` signal that the backend
+    /// itself is missing or unreachable (no secret service, no keychain). The
+    /// other variants mean the store answered: `NoEntry` is a plain miss and
+    /// the rest are real read errors, none of which warrant a fallback.
+    /// Matching on variants avoids the earlier substring check that depended on
+    /// locale-specific error text.
     #[cfg(feature = "system-keyring")]
-    fn is_keyring_availability_error(&self, error_str: &str) -> bool {
-        let lower = error_str.to_lowercase();
-        lower.contains("keyring")
-            || lower.contains("dbus")
-            || lower.contains("org.freedesktop.secrets")
-            || lower.contains("platform secure storage")
-            || lower.contains("no secret service")
+    fn is_keyring_availability_error(&self, error: &keyring::Error) -> bool {
+        matches!(
+            error,
+            keyring::Error::PlatformFailure(_) | keyring::Error::NoStorageAccess(_)
+        )
     }
 
     /// Get a keyring entry for the specified service
@@ -1058,7 +1064,7 @@ impl Config {
         keyring_err: &keyring::Error,
         fallback_values: Option<&HashMap<String, Value>>,
     ) -> Result<T, ConfigError> {
-        if self.is_keyring_availability_error(&keyring_err.to_string()) {
+        if self.is_keyring_availability_error(keyring_err) {
             std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
             tracing::warn!("Keyring unavailable. Using file storage for secrets.");
 
