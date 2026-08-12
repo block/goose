@@ -4,7 +4,7 @@ use crate::formats::anthropic::{
     adaptive_output_effort, model_supports_temperature, thinking_block_is_stale,
     thinking_budget_tokens, thinking_type_for_provider, ThinkingType,
 };
-use crate::model::ModelConfig;
+use crate::model::{is_goose_internal_request_param, ModelConfig};
 
 use crate::formats::openai::{
     extract_reasoning_effort, is_openai_responses_model, is_valid_function_name,
@@ -584,6 +584,7 @@ pub fn create_request_for_provider(
     }
 
     if CacheSemantics::for_model("databricks", &model_config.model_name).uses_explicit_breakpoints()
+        && !model_config.prompt_cache_disabled()
     {
         apply_chat_payload_breakpoints(&mut payload);
     }
@@ -592,7 +593,7 @@ pub fn create_request_for_provider(
     if let Some(params) = &model_config.request_params {
         if let Some(obj) = payload.as_object_mut() {
             for (key, value) in params {
-                if key == "thinking_effort" {
+                if is_goose_internal_request_param(key) {
                     continue;
                 }
                 obj.insert(key.clone(), value.clone());
@@ -1252,6 +1253,30 @@ mod tests {
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         assert_eq!(request["model"], "databricks-gpt-5.4");
         assert_eq!(request["reasoning_effort"], "high");
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_one_shot_claude() -> anyhow::Result<()> {
+        let model_config = ModelConfig::new("databricks-claude-sonnet-4-5")
+            .with_merged_request_params(std::collections::HashMap::from([
+                ("anthropic_beta".to_string(), serde_json::json!(["ctx-1m"])),
+                ("disable_prompt_cache".to_string(), serde_json::json!(true)),
+            ]));
+        let messages = vec![Message::user().with_text("Summarize the conversation above.")];
+
+        let request = create_request(
+            &model_config,
+            "system",
+            &messages,
+            &[],
+            &ImageFormat::OpenAi,
+        )?;
+
+        assert_eq!(request["anthropic_beta"], serde_json::json!(["ctx-1m"]));
+        assert!(request.get("disable_prompt_cache").is_none());
+        assert!(!request.to_string().contains("cache_control"));
+
         Ok(())
     }
 

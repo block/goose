@@ -237,7 +237,7 @@ impl BedrockProvider {
         let enabled = config
             .get_param::<bool>("BEDROCK_ENABLE_CACHING")
             .unwrap_or(false);
-        enabled && model.model_name.contains("anthropic.claude")
+        enabled && model.model_name.contains("anthropic.claude") && !model.prompt_cache_disabled()
     }
 
     async fn post_mantle_streaming(
@@ -1090,6 +1090,15 @@ mod tests {
         assert!(
             provider.should_enable_caching(&model),
             "Caching should be enabled for Claude models when BEDROCK_ENABLE_CACHING=true"
+        );
+
+        let one_shot = model.with_merged_request_params(HashMap::from([(
+            "disable_prompt_cache".to_string(),
+            serde_json::json!(true),
+        )]));
+        assert!(
+            !provider.should_enable_caching(&one_shot),
+            "One-shot requests must not create cache points"
         );
 
         std::env::remove_var("BEDROCK_ENABLE_CACHING");

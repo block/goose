@@ -52,6 +52,7 @@ pub struct AnthropicFormatOptions {
     pub preserve_thinking_context: bool,
     pub thinking_disabled: bool,
     pub current_model: Option<String>,
+    pub prompt_cache_disabled: bool,
 }
 
 impl AnthropicFormatOptions {
@@ -73,6 +74,7 @@ impl AnthropicFormatOptions {
             current_model: self
                 .current_model
                 .or_else(|| Some(model_config.model_name.clone())),
+            prompt_cache_disabled: model_config.prompt_cache_disabled(),
         }
     }
 }
@@ -427,6 +429,10 @@ fn format_messages_with_options(
         }));
     }
 
+    if options.prompt_cache_disabled {
+        return anthropic_messages;
+    }
+
     // The last two user messages extend the cached prefix each turn.
     let mut user_count = 0;
     for message in anthropic_messages.iter_mut().rev() {
@@ -463,7 +469,7 @@ fn anthropic_flavored_input_schema(input_schema: Arc<JsonObject>) -> Arc<JsonObj
 }
 
 /// Convert internal Tool format to Anthropic's API tool specification
-pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
+pub fn format_tools(tools: &[Tool], options: &AnthropicFormatOptions) -> Vec<Value> {
     let mut unique_tools = HashSet::new();
     let mut tool_specs = Vec::new();
 
@@ -475,6 +481,10 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
                 "input_schema": anthropic_flavored_input_schema(tool.input_schema.clone())
             }));
         }
+    }
+
+    if options.prompt_cache_disabled {
+        return tool_specs;
     }
 
     // Add "cache_control" to the last tool spec, if any. This means that all tool definitions,
@@ -490,7 +500,13 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
 }
 
 /// Convert system message to Anthropic's API system specification
-pub fn format_system(system: &str) -> Value {
+pub fn format_system(system: &str, options: &AnthropicFormatOptions) -> Value {
+    if options.prompt_cache_disabled {
+        return json!([{
+            TYPE_FIELD: TEXT_TYPE,
+            TEXT_TYPE: system
+        }]);
+    }
     json!([{
         TYPE_FIELD: TEXT_TYPE,
         TEXT_TYPE: system,
@@ -765,8 +781,8 @@ pub fn create_request_for_model(
 ) -> Result<Value> {
     let options = options.for_model(model_config);
     let anthropic_messages = format_messages_with_options(messages, &options);
-    let tool_specs = format_tools(tools);
-    let system_spec = format_system(system);
+    let tool_specs = format_tools(tools, &options);
+    let system_spec = format_system(system, &options);
 
     if anthropic_messages.is_empty() {
         return Err(anyhow!("No valid messages to send to Anthropic API"));
@@ -1341,9 +1357,7 @@ mod tests {
             &messages,
             &AnthropicFormatOptions {
                 preserve_unsigned_thinking: true,
-                preserve_thinking_context: false,
-                thinking_disabled: false,
-                current_model: None,
+                ..Default::default()
             },
         );
 
@@ -1444,7 +1458,7 @@ mod tests {
             ),
         ];
 
-        let spec = format_tools(&tools);
+        let spec = format_tools(&tools, &AnthropicFormatOptions::default());
 
         assert_eq!(spec.len(), 2);
         assert_eq!(spec[0]["name"], "calculator");
@@ -1459,7 +1473,7 @@ mod tests {
     #[test]
     fn test_system_to_anthropic_spec() {
         let system = "You are a helpful assistant.";
-        let spec = format_system(system);
+        let spec = format_system(system, &AnthropicFormatOptions::default());
 
         assert!(spec.is_array());
         let spec_array = spec.as_array().unwrap();
@@ -1635,8 +1649,7 @@ mod tests {
             AnthropicFormatOptions {
                 preserve_unsigned_thinking: true,
                 preserve_thinking_context: true,
-                thinking_disabled: false,
-                current_model: None,
+                ..Default::default()
             },
         )?;
 
@@ -2646,6 +2659,25 @@ mod tests {
                 vec![(2, 0), (4, 0)],
                 "message breakpoints should sit on the last block of the last two user messages"
             );
+        }
+
+        #[test]
+        fn disable_prompt_cache_removes_every_breakpoint() {
+            let config = cfg("claude-sonnet-4-5").with_merged_request_params(
+                std::collections::HashMap::from([(
+                    "disable_prompt_cache".to_string(),
+                    json!(true),
+                )]),
+            );
+            let req = create_request_with_default_options(
+                &config,
+                "You are a summarizer.",
+                &[Message::user().with_text("Summarize the conversation above.")],
+                &sample_tools(),
+            )
+            .unwrap();
+
+            assert!(!req.to_string().contains(CACHE_CONTROL_FIELD));
         }
 
         #[test]
