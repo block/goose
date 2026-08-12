@@ -323,6 +323,7 @@ pub struct XlsxToolParams {
 pub struct ComputerControllerServer {
     tool_router: ToolRouter<Self>,
     cache_dir: PathBuf,
+    cache_dir_handle: Option<Arc<Dir>>,
     active_resources: Arc<Mutex<HashMap<String, ResourceContents>>>,
     http_client: Client,
     instructions: String,
@@ -354,6 +355,9 @@ impl ComputerControllerServer {
                 cache_dir
             )
         });
+        let cache_dir_handle = Dir::open_ambient_dir(&cache_dir, ambient_authority())
+            .ok()
+            .map(Arc::new);
 
         let system_automation: Arc<Box<dyn SystemAutomation + Send + Sync>> =
             Arc::new(create_system_automation());
@@ -552,6 +556,7 @@ impl ComputerControllerServer {
         Self {
             tool_router,
             cache_dir,
+            cache_dir_handle,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
             http_client: Client::builder().user_agent("goose/1.0").build().unwrap(),
             instructions,
@@ -611,16 +616,15 @@ impl ComputerControllerServer {
         Ok((relative_path.clone(), self.cache_dir.join(&relative_path)))
     }
 
-    fn cache_file_capability(&self, path: &str) -> Result<(Dir, PathBuf, PathBuf), ErrorData> {
+    fn cache_file_capability(&self, path: &str) -> Result<(Arc<Dir>, PathBuf, PathBuf), ErrorData> {
         let (relative_path, candidate_path) = self.cache_file_location(path)?;
-        let cache_dir =
-            Dir::open_ambient_dir(&self.cache_dir, ambient_authority()).map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to open cache directory: {e}"),
-                    None,
-                )
-            })?;
+        let cache_dir = self.cache_dir_handle.clone().ok_or_else(|| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                "Failed to open cache directory".to_string(),
+                None,
+            )
+        })?;
         let metadata = cache_dir.symlink_metadata(&relative_path).map_err(|_| {
             ErrorData::new(
                 ErrorCode::INVALID_PARAMS,
@@ -1791,6 +1795,9 @@ mod cache_tests {
     fn server_with_cache_dir(cache_dir: &Path) -> ComputerControllerServer {
         let mut server = ComputerControllerServer::new();
         server.cache_dir = cache_dir.to_path_buf();
+        server.cache_dir_handle = Some(Arc::new(
+            Dir::open_ambient_dir(cache_dir, ambient_authority()).unwrap(),
+        ));
         server
     }
 
@@ -1907,5 +1914,40 @@ mod cache_tests {
         }
         assert!(link.symlink_metadata().unwrap().file_type().is_symlink());
         assert_eq!(fs::read_to_string(outside_file).unwrap(), "secret");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn cache_operations_remain_anchored_after_root_replacement() {
+        let temp_dir = TempDir::new().unwrap();
+        let cache_dir = temp_dir.path().join("cache");
+        let moved_cache_dir = temp_dir.path().join("moved-cache");
+        let outside_dir = temp_dir.path().join("outside");
+        fs::create_dir(&cache_dir).unwrap();
+        fs::create_dir(&outside_dir).unwrap();
+        fs::write(cache_dir.join("victim.txt"), "cached").unwrap();
+        fs::write(outside_dir.join("victim.txt"), "outside").unwrap();
+
+        let server = server_with_cache_dir(&cache_dir);
+        fs::rename(&cache_dir, &moved_cache_dir).unwrap();
+        std::os::unix::fs::symlink(&outside_dir, &cache_dir).unwrap();
+
+        let view = call_cache(&server, CacheCommand::View, "victim.txt")
+            .await
+            .unwrap();
+        let ContentBlock::Text(view) = &view.content[0] else {
+            panic!("expected text content");
+        };
+        assert!(view.text.contains("cached"));
+        assert!(!view.text.contains("outside"));
+
+        call_cache(&server, CacheCommand::Delete, "victim.txt")
+            .await
+            .unwrap();
+        assert!(!moved_cache_dir.join("victim.txt").exists());
+        assert_eq!(
+            fs::read_to_string(outside_dir.join("victim.txt")).unwrap(),
+            "outside"
+        );
     }
 }
