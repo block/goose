@@ -3,6 +3,11 @@ use crate::subprocess::merged_path;
 use crate::subprocess::SubprocessExt;
 #[cfg(target_os = "macos")]
 use base64::Engine;
+use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
+use cap_std::{
+    ambient_authority,
+    fs::{Dir, OpenOptions},
+};
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::{formatdoc, indoc};
 use reqwest::{Client, Url};
@@ -22,6 +27,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fs,
+    io::Read,
     path::{Path, PathBuf},
     sync::Arc,
     sync::Mutex,
@@ -562,41 +568,60 @@ impl ComputerControllerServer {
             .join(format!("{}_{}.{}", prefix, timestamp, extension))
     }
 
-    fn cache_file_candidate(&self, path: &str) -> PathBuf {
+    fn cache_file_location(&self, path: &str) -> Result<(PathBuf, PathBuf), ErrorData> {
         let requested_path = Path::new(path);
-        if requested_path.is_absolute() {
-            requested_path.to_path_buf()
+        let relative_path = if requested_path.is_absolute() {
+            if let Ok(relative_path) = requested_path.strip_prefix(&self.cache_dir) {
+                relative_path.to_path_buf()
+            } else {
+                let canonical_cache_dir = fs::canonicalize(&self.cache_dir).map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to resolve cache directory: {e}"),
+                        None,
+                    )
+                })?;
+                requested_path
+                    .strip_prefix(canonical_cache_dir)
+                    .map(Path::to_path_buf)
+                    .map_err(|_| {
+                        ErrorData::new(
+                            ErrorCode::INVALID_PARAMS,
+                            "Cache path must stay inside the cache directory".to_string(),
+                            None,
+                        )
+                    })?
+            }
         } else {
-            self.cache_dir.join(requested_path)
-        }
-    }
+            requested_path.to_path_buf()
+        };
 
-    fn resolve_cache_file(&self, path: &str) -> Result<PathBuf, ErrorData> {
-        let candidate = self.cache_file_candidate(path);
-
-        let metadata = fs::symlink_metadata(&candidate).map_err(|_| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                "Path must identify an existing cached file".to_string(),
-                None,
-            )
-        })?;
-        if metadata.file_type().is_symlink() {
+        if relative_path.as_os_str().is_empty()
+            || !relative_path
+                .components()
+                .all(|component| matches!(component, std::path::Component::Normal(_)))
+        {
             return Err(ErrorData::new(
                 ErrorCode::INVALID_PARAMS,
-                "Cache path must not be a symbolic link".to_string(),
+                "Cache path must identify a file inside the cache directory".to_string(),
                 None,
             ));
         }
 
-        let cache_dir = fs::canonicalize(&self.cache_dir).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to resolve cache directory: {e}"),
-                None,
-            )
-        })?;
-        let resolved_path = fs::canonicalize(&candidate).map_err(|_| {
+        Ok((relative_path.clone(), self.cache_dir.join(&relative_path)))
+    }
+
+    fn cache_file_capability(&self, path: &str) -> Result<(Dir, PathBuf, PathBuf), ErrorData> {
+        let (relative_path, candidate_path) = self.cache_file_location(path)?;
+        let cache_dir =
+            Dir::open_ambient_dir(&self.cache_dir, ambient_authority()).map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to open cache directory: {e}"),
+                    None,
+                )
+            })?;
+        let metadata = cache_dir.symlink_metadata(&relative_path).map_err(|_| {
             ErrorData::new(
                 ErrorCode::INVALID_PARAMS,
                 "Path must identify an existing cached file".to_string(),
@@ -604,7 +629,7 @@ impl ComputerControllerServer {
             )
         })?;
 
-        if !resolved_path.starts_with(&cache_dir) || !resolved_path.is_file() {
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
             return Err(ErrorData::new(
                 ErrorCode::INVALID_PARAMS,
                 "Path must identify a regular file inside the cache directory".to_string(),
@@ -612,7 +637,7 @@ impl ComputerControllerServer {
             ));
         }
 
-        Ok(resolved_path)
+        Ok((cache_dir, relative_path, candidate_path))
     }
 
     // Helper function to save content to cache
@@ -1603,9 +1628,30 @@ impl ComputerControllerServer {
                         None,
                     )
                 })?;
-                let resolved_path = self.resolve_cache_file(path)?;
+                let (cache_dir, relative_path, _) = self.cache_file_capability(path)?;
+                let mut options = OpenOptions::new();
+                options.read(true).follow(FollowSymlinks::No);
+                let mut file = cache_dir.open_with(&relative_path, &options).map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        format!("Failed to open cached file: {e}"),
+                        None,
+                    )
+                })?;
+                if !file
+                    .metadata()
+                    .map(|metadata| metadata.is_file())
+                    .unwrap_or(false)
+                {
+                    return Err(ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        "Path must identify a regular file inside the cache directory".to_string(),
+                        None,
+                    ));
+                }
 
-                let content = fs::read_to_string(resolved_path).map_err(|e| {
+                let mut content = String::new();
+                file.read_to_string(&mut content).map_err(|e| {
                     ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
                         format!("Failed to read file: {}", e),
@@ -1626,10 +1672,11 @@ impl ComputerControllerServer {
                         None,
                     )
                 })?;
-                let candidate_path = self.cache_file_candidate(path);
-                let resolved_path = self.resolve_cache_file(path)?;
+                let (cache_dir, relative_path, candidate_path) =
+                    self.cache_file_capability(path)?;
+                let canonical_path = fs::canonicalize(&candidate_path).ok();
 
-                fs::remove_file(&resolved_path).map_err(|e| {
+                cache_dir.remove_file(&relative_path).map_err(|e| {
                     ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
                         format!("Failed to delete file: {}", e),
@@ -1639,7 +1686,8 @@ impl ComputerControllerServer {
 
                 // Remove from active resources if present
                 let mut active_resources = self.active_resources.lock().unwrap();
-                for resource_path in [&candidate_path, &resolved_path] {
+                for resource_path in std::iter::once(&candidate_path).chain(canonical_path.as_ref())
+                {
                     if let Ok(url) = Url::from_file_path(resource_path) {
                         active_resources.remove(&url.to_string());
                     }
