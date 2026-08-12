@@ -168,7 +168,7 @@ export default function ModelsBottomBar({
 
     const [reasoning, savedEffort] = await Promise.all([
       fetchModelReasoning(recent.provider, recent.model),
-      acpReadThinkingEffort(),
+      acpReadThinkingEffort().catch(() => null),
     ]);
     const modelArg = reasoning
       ? {
