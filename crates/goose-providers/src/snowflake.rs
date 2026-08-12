@@ -17,6 +17,7 @@ use crate::utils::get_model;
 use crate::model::ModelConfig;
 use crate::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
+use url::Url;
 
 const SNOWFLAKE_PROVIDER_NAME: &str = "snowflake";
 pub const SNOWFLAKE_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
@@ -65,17 +66,33 @@ impl SnowflakeProvider {
         // Convert host to lowercase
         host = host.to_lowercase();
 
-        // Ensure host ends with snowflakecomputing.com
-        if !host.ends_with("snowflakecomputing.com") {
-            host = format!("{}.snowflakecomputing.com", host);
+        // Bare account identifiers get the Snowflake domain and https scheme.
+        if !host.contains("://") {
+            if !host.contains("snowflakecomputing.com") {
+                host = format!("{}.snowflakecomputing.com", host);
+            }
+            host = format!("https://{}", host);
         }
 
-        // Ensure host has https:// prefix
-        let base_url = if !host.starts_with("https://") && !host.starts_with("http://") {
-            format!("https://{}", host)
-        } else {
-            host
-        };
+        let url = Url::parse(&host)
+            .map_err(|e| anyhow::anyhow!("Invalid Snowflake host '{}': {}", host, e))?;
+
+        if url.scheme() != "https" {
+            anyhow::bail!("Snowflake host must use https, got '{}'", url.scheme());
+        }
+
+        let host_allowed = matches!(
+            url.host_str(),
+            Some(h) if h == "snowflakecomputing.com" || h.ends_with(".snowflakecomputing.com")
+        );
+        if !host_allowed {
+            anyhow::bail!(
+                "Snowflake host must be under snowflakecomputing.com, got '{}'",
+                url.host_str().unwrap_or_default()
+            );
+        }
+
+        let base_url = url.to_string();
 
         let auth = AuthMethod::BearerToken(token);
         let mut api_client = ApiClient::new_with_tls(base_url, auth, tls_config)?;
