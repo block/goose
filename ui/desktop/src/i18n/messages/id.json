@@ -4687,5 +4687,8 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "Hapus gambar dari pesan"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "Terbaru"
   }
 }

@@ -4687,5 +4687,8 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "संदेश से छवि हटाएँ"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "हाल के"
   }
 }

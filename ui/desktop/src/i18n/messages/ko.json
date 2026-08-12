@@ -4687,5 +4687,8 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "메시지에서 이미지 제거"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "최근"
   }
 }

@@ -4687,5 +4687,8 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "从消息中移除图片"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "最近"
   }
 }

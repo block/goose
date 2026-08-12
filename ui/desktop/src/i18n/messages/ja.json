@@ -4687,5 +4687,8 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "メッセージから画像を削除"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "最近"
   }
 }
