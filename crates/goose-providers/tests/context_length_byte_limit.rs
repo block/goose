@@ -30,6 +30,7 @@ fn generic_length_errors_are_not_context_length_exceeded() {
     let messages = [
         "metadata length exceeds maximum allowed",
         "temperature exceeds maximum allowed value",
+        "Invalid request body: temperature exceeds maximum allowed value",
         "max_tokens must be less than or equal to 4096",
     ];
 
