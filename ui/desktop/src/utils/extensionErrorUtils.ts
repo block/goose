@@ -45,6 +45,7 @@ export function showExtensionLoadResults(results: ExtensionLoadResult[] | null |
   const failedExtensions = results.filter((r) => !r.success);
 
   if (failedExtensions.length === 0) {
+    toastService.dismiss('extension-loading');
     return;
   }
 
