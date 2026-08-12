@@ -67,7 +67,7 @@ export const zMcpServerAcpId = z.string();
  */
 export const zMcpServerAcp = z.object({
     name: z.string(),
-    id: zMcpServerAcpId,
+    serverId: zMcpServerAcpId,
     _meta: z.union([
         z.record(z.unknown()),
         z.null()
