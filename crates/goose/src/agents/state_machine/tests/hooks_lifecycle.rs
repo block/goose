@@ -532,3 +532,145 @@ async fn recipe_final_output_denied_by_hook_does_not_execute() -> Result<()> {
     );
     Ok(())
 }
+
+/// Writes a skill `SkillOperation` can load, and returns the tool arguments that
+/// load it. `load_skill` is executed by `SkillOperation`, which is registered
+/// ahead of `ToolExecutionOperation`, so it never reaches the hook wrapper.
+fn install_skill(working_dir: &std::path::Path) -> serde_json::Value {
+    let skill_dir = working_dir.join(".agents/skills/review");
+    std::fs::create_dir_all(&skill_dir).expect("skill dir");
+    std::fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: review\ndescription: Review helper\n---\nSKILL_BODY_CONTENT\n",
+    )
+    .expect("skill file");
+    serde_json::json!({ "name": "review" })
+}
+
+/// load_skill parity: the call `SkillOperation` executes directly still emits
+/// `PreToolUse` and `PreToolUseResult`, correlated by one `tool_call_id`.
+#[tokio::test]
+async fn load_skill_emits_pre_tool_use_and_result_with_matching_id() -> Result<()> {
+    let env = RecordingHookEnv::new(&[
+        ("PreToolUse", "", "pre.sh", RECORD_PRE_SCRIPT),
+        ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+    ]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(env.hook_manager());
+    let arguments = install_skill(pipeline.working_dir());
+    api.on("use the skill").call("load_skill", arguments);
+    api.on("SKILL_BODY_CONTENT").reply("skill loaded");
+
+    pipeline.run(["use the skill"]).await?;
+
+    let pres = env.payloads("pre.log");
+    let results = env.payloads("result.log");
+    assert_eq!(pres.len(), 1, "PreToolUse must fire for load_skill");
+    assert_eq!(
+        results.len(),
+        1,
+        "PreToolUseResult must fire for load_skill"
+    );
+    assert_eq!(pres[0]["tool_name"], "load_skill");
+    assert_eq!(results[0]["tool_name"], "load_skill");
+    assert_eq!(results[0]["event"], "PreToolUseResult");
+    assert_eq!(results[0]["decision"], "allow");
+    assert_eq!(
+        pres[0]["tool_call_id"], results[0]["tool_call_id"],
+        "PreToolUse and PreToolUseResult must carry the same tool_call_id"
+    );
+    assert!(pres[0]["tool_call_id"]
+        .as_str()
+        .is_some_and(|id| !id.is_empty()));
+    Ok(())
+}
+
+/// load_skill parity: the post-tool event fires once the skill load completes,
+/// carrying the id the pre events carried.
+#[tokio::test]
+async fn load_skill_emits_post_tool_event() -> Result<()> {
+    let env = RecordingHookEnv::new(&[
+        ("PreToolUse", "", "pre.sh", RECORD_PRE_SCRIPT),
+        ("PostToolUse", "", "post.sh", RECORD_POST_SCRIPT),
+        (
+            "PostToolUseFailure",
+            "",
+            "postfail.sh",
+            RECORD_POST_FAILURE_SCRIPT,
+        ),
+    ]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(env.hook_manager());
+    let arguments = install_skill(pipeline.working_dir());
+    api.on("use the skill").call("load_skill", arguments);
+    api.on("SKILL_BODY_CONTENT").reply("skill loaded");
+
+    pipeline.run(["use the skill"]).await?;
+
+    let pres = env.payloads("pre.log");
+    let posts = env.payloads("post.log");
+    assert_eq!(pres.len(), 1);
+    assert_eq!(
+        posts.len(),
+        1,
+        "PostToolUse must fire for a successful load_skill"
+    );
+    assert_eq!(posts[0]["event"], "PostToolUse");
+    assert_eq!(posts[0]["tool_name"], "load_skill");
+    assert_eq!(
+        posts[0]["tool_call_id"], pres[0]["tool_call_id"],
+        "the post event must carry the same tool_call_id as the pre events"
+    );
+    Ok(())
+}
+
+/// load_skill parity: a denying hook stops the call. The skill body never
+/// reaches the conversation and no post event fires — the same shape a denied
+/// ordinary tool call has.
+#[tokio::test]
+async fn load_skill_denied_by_hook_does_not_execute() -> Result<()> {
+    let env = RecordingHookEnv::new(&[
+        ("PreToolUse", "", "pre.sh", DENY_AND_RECORD_SCRIPT),
+        ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+        ("PostToolUse", "", "post.sh", RECORD_POST_SCRIPT),
+        (
+            "PostToolUseFailure",
+            "",
+            "postfail.sh",
+            RECORD_POST_FAILURE_SCRIPT,
+        ),
+    ]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(env.hook_manager());
+    let arguments = install_skill(pipeline.working_dir());
+    api.on("use the skill").call("load_skill", arguments);
+    api.on("denied by policy hook").reply("understood");
+
+    let result = pipeline.run(["use the skill"]).await?;
+
+    let results = env.payloads("result.log");
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0]["decision"], "deny");
+    assert_eq!(results[0]["blocked_by"], "test-plugin");
+    assert_eq!(results[0]["tool_name"], "load_skill");
+
+    assert!(
+        env.payloads("post.log").is_empty(),
+        "PostToolUse must not fire for a denied load_skill call"
+    );
+    assert!(
+        env.payloads("postfail.log").is_empty(),
+        "PostToolUseFailure must not fire for a denied load_skill call"
+    );
+
+    let loaded_body = result
+        .conversation()
+        .messages()
+        .iter()
+        .any(|message| message.as_concat_text().contains("SKILL_BODY_CONTENT"));
+    assert!(
+        !loaded_body,
+        "a denied load_skill call must not execute the skill load"
+    );
+    Ok(())
+}

@@ -5,13 +5,14 @@ use std::path::{Path, PathBuf};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use goose_sdk_types::custom_requests::{SourceEntry, SourceType};
-use rmcp::model::{CallToolResult, ContentBlock, JsonObject, Tool};
+use rmcp::model::{CallToolResult, ContentBlock, ErrorData, JsonObject, Tool};
 use schemars::{schema_for, JsonSchema};
 use serde::Deserialize;
 use serde_json::Value;
+use tracing_futures::Instrument;
 
 use crate::agents::state_machine::ops_toolcalling::{
-    pending_tool_requests, tool_span, ToolDisposition,
+    emit_post_tool_use, pending_tool_requests, run_pre_tool_hooks, tool_span, ToolDisposition,
 };
 use crate::agents::state_machine::{
     applied, messages_since_kickoff, not_applicable, yielded_with, ConversationEffect, Emitter,
@@ -21,11 +22,14 @@ use crate::agents::tool_execution::{CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RE
 use crate::config::GooseMode;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
+use crate::hooks::HookManager;
 use crate::session::Session;
 
 const LOAD_SKILL_TOOL_NAME: &str = "load_skill";
 
-pub struct SkillOperation;
+pub struct SkillOperation {
+    hook_manager: HookManager,
+}
 
 #[derive(Deserialize, JsonSchema)]
 struct LoadSkillParams {
@@ -202,6 +206,10 @@ fn load_supporting_file(
 }
 
 impl SkillOperation {
+    pub fn new(hook_manager: HookManager) -> Self {
+        Self { hook_manager }
+    }
+
     async fn command_response(
         conversation: &Conversation,
         message: String,
@@ -323,38 +331,80 @@ impl Operation<Session, GooseEffect> for SkillOperation {
 
         let mut response = Message::user();
         for (request, disposition) in pending {
-            let result = match disposition {
+            let result: std::result::Result<CallToolResult, ErrorData> = match disposition {
                 ToolDisposition::Execute if session.goose_mode == GooseMode::Chat => {
-                    CallToolResult::success(vec![ContentBlock::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)])
+                    // Nothing executes in chat mode, so no tool lifecycle runs.
+                    Ok(CallToolResult::success(vec![ContentBlock::text(
+                        CHAT_MODE_TOOL_SKIPPED_RESPONSE,
+                    )]))
                 }
                 ToolDisposition::Execute => {
                     let tool_call = request.tool_call.as_ref().map_err(|error| {
                         anyhow!("load_skill tool call could not be parsed: {error}")
                     })?;
                     let span = tool_span(&tool_call.name, &request.id, &session.id);
-                    let result = {
-                        let _entered = span.enter();
-                        execute_skill(&session.working_dir, tool_call.arguments.clone())
-                    };
-                    if result.is_error == Some(true) {
-                        span.record("error.type", "tool_error");
+                    // `load_skill` is executed here rather than by
+                    // ToolExecutionOperation, which is registered after this one.
+                    // Run the same hook lifecycle it would have run, so the state
+                    // machine and the legacy loop agree on what a skill load emits.
+                    let tool_input = tool_call
+                        .arguments
+                        .as_ref()
+                        .map(|arguments| Value::Object(arguments.clone()));
+                    match run_pre_tool_hooks(
+                        &self.hook_manager,
+                        session,
+                        &request.id,
+                        &tool_call.name,
+                        tool_input.as_ref(),
+                    )
+                    .instrument(span.clone())
+                    .await
+                    {
+                        // A denial returns before execution and emits no post
+                        // event, the same shape ToolExecutionOperation has: its
+                        // dispatch returns the denial before the post-hook wrapper
+                        // is ever applied.
+                        Err(denial) => Err(denial),
+                        Ok(()) => {
+                            let result = {
+                                let _entered = span.enter();
+                                execute_skill(&session.working_dir, tool_call.arguments.clone())
+                            };
+                            if result.is_error == Some(true) {
+                                span.record("error.type", "tool_error");
+                            }
+                            let output = Ok(result);
+                            // Post event carries the same tool_call_id as the pre
+                            // events. The large-response rewrite
+                            // ToolExecutionOperation applies is deliberately not
+                            // reused: a skill body is content the model is meant to
+                            // read, not a payload to offload to a temp file.
+                            emit_post_tool_use(
+                                &self.hook_manager,
+                                &session.id,
+                                &session.working_dir.to_string_lossy(),
+                                &tool_call.name,
+                                &request.id,
+                                tool_input.as_ref(),
+                                &output,
+                            )
+                            .instrument(span.clone())
+                            .await;
+                            output
+                        }
                     }
-                    result
                 }
-                ToolDisposition::Decline => {
-                    CallToolResult::error(vec![ContentBlock::text(DECLINED_RESPONSE)])
-                }
+                ToolDisposition::Decline => Ok(CallToolResult::error(vec![ContentBlock::text(
+                    DECLINED_RESPONSE,
+                )])),
                 ToolDisposition::ParseError(error) => {
-                    CallToolResult::error(vec![ContentBlock::text(format!(
+                    Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                         "The tool call could not be parsed: {error}. Correct the arguments and try again."
-                    ))])
+                    ))]))
                 }
             };
-            response.add_tool_response_with_metadata(
-                request.id,
-                Ok(result),
-                request.metadata.as_ref(),
-            );
+            response.add_tool_response_with_metadata(request.id, result, request.metadata.as_ref());
         }
         let response = emit.message(response).await;
         applied([response.into()])
