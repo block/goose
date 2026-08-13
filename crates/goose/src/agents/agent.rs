@@ -1171,6 +1171,7 @@ impl Agent {
             gen_ai.tool.call.id = %request_id,
             gen_ai.tool.call.arguments = tracing::field::Empty,
             gen_ai.tool.call.result = tracing::field::Empty,
+            error.type = tracing::field::Empty,
         )
     )]
     pub async fn dispatch_tool_call(
@@ -1225,15 +1226,13 @@ impl Agent {
         )
         .await;
 
-        if let crate::hooks::HookDecision::Deny { reason, plugin } = pre_tool_outcome.decision {
+        if let Some(denial) = pre_tool_outcome.denial() {
+            tracing::Span::current().record("error.type", denial.error_type);
             return (
                 request_id,
                 Err(ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
-                    format!(
-                        "Tool call denied by policy hook `{plugin}`: {reason}. \
-                         Do not retry; this is a policy denial, not a transient failure."
-                    ),
+                    denial.message,
                     None,
                 )),
             );
@@ -5677,6 +5676,15 @@ echo start >> "$PLUGIN_ROOT/hook.log"
 
     impl RecordingHookEnv {
         fn new(specs: &[HookSpec<'_>]) -> Self {
+            Self::with_on_failure(specs, "")
+        }
+
+        /// Same fixture with `"on_failure": "block"` on every command action.
+        fn blocking_on_failure(specs: &[HookSpec<'_>]) -> Self {
+            Self::with_on_failure(specs, r#", "on_failure": "block""#)
+        }
+
+        fn with_on_failure(specs: &[HookSpec<'_>], on_failure: &str) -> Self {
             let temp_dir = tempfile::tempdir().unwrap();
             let plugin_dir = temp_dir.path().join("test-plugin");
             std::fs::create_dir_all(plugin_dir.join("hooks")).unwrap();
@@ -5689,7 +5697,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                         format!(r#""matcher": "{matcher}", "#)
                     };
                     format!(
-                        r#""{event}": [{{{matcher}"hooks": [{{"type": "command", "command": "sh ${{PLUGIN_ROOT}}/{script}"}}]}}]"#
+                        r#""{event}": [{{{matcher}"hooks": [{{"type": "command", "command": "sh ${{PLUGIN_ROOT}}/{script}"{on_failure}}}]}}]"#
                     )
                 })
                 .collect();
@@ -5739,6 +5747,13 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     /// non-zero. That is a hook that ran but never returned a decision.
     const ABNORMAL_EXIT_AND_RECORD_SCRIPT: &str =
         "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/pre.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/pre.log\"\necho boom >&2\nexit 3\n";
+    /// What `ABNORMAL_EXIT_AND_RECORD_SCRIPT` under `on_failure: block` reports back.
+    /// The state-machine loop asserts this same string; both loops build it
+    /// through `HookChainOutcome::denial`, so they cannot word it differently.
+    const HOOK_FAILURE_REFUSAL: &str =
+        "Tool call blocked because policy hook `test-plugin` could not be evaluated: \
+         the hook exited with status 3 and no usable decision. \
+         That plugin is configured to block when its hook returns no decision.";
 
     async fn agent_with_hooks(
         hook_manager: crate::hooks::HookManager,
@@ -5997,5 +6012,62 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             env.payloads("post.log").is_empty(),
             "PostToolUse must not fire for a tool that never ran",
         );
+    }
+
+    /// A hook that returns no decision is ignored, which is how hooks behaved
+    /// before `on_failure` existed. The lifecycle event says so.
+    #[tokio::test]
+    async fn pre_tool_use_hook_failure_allows_by_default() {
+        let env = RecordingHookEnv::new(&[
+            ("PreToolUse", "", "pre.sh", ABNORMAL_EXIT_AND_RECORD_SCRIPT),
+            ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+        ]);
+        let (agent, session, _data_dir) = agent_with_hooks(env.hook_manager()).await;
+
+        let (_, result) = agent
+            .dispatch_tool_call(shell_call(), "call-open-1".to_string(), None, &session)
+            .await;
+        assert!(result.is_ok(), "a broken hook must not block the call");
+
+        assert_eq!(env.payloads("pre.log").len(), 1);
+        let results = env.payloads("result.log");
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0]["decision"], "allow");
+        assert_eq!(results[0]["cause"], "hook_failure");
+        assert_eq!(results[0]["policy_evaluated"], false);
+    }
+
+    /// `on_failure: block` turns that same failure into a refusal. The wording
+    /// comes from the shared formatter, so the state-machine loop asserts the
+    /// identical string in `state_machine::tests::hooks_lifecycle`.
+    #[tokio::test]
+    async fn pre_tool_use_hook_failure_blocks_when_configured() {
+        let env = RecordingHookEnv::blocking_on_failure(&[
+            ("PreToolUse", "", "pre.sh", ABNORMAL_EXIT_AND_RECORD_SCRIPT),
+            ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+            ("PostToolUse", "", "post.sh", RECORD_POST_SCRIPT),
+        ]);
+        let (agent, session, _data_dir) = agent_with_hooks(env.hook_manager()).await;
+
+        let (_, result) = agent
+            .dispatch_tool_call(shell_call(), "call-closed-1".to_string(), None, &session)
+            .await;
+
+        let Err(error) = result else {
+            panic!("a fail-closed hook failure must not dispatch");
+        };
+        assert_eq!(error.message, HOOK_FAILURE_REFUSAL);
+        assert!(
+            env.payloads("post.log").is_empty(),
+            "PostToolUse must not fire for a blocked call"
+        );
+
+        let results = env.payloads("result.log");
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0]["decision"], "deny");
+        assert_eq!(results[0]["cause"], "hook_failure");
+        assert_eq!(results[0]["policy_evaluated"], false);
+        assert_eq!(results[0]["blocked_by"], "test-plugin");
+        assert_eq!(results[0]["tool_call_id"], "call-closed-1");
     }
 }

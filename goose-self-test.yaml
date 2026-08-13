@@ -174,6 +174,13 @@ prompt: |
   1. Run `cargo test -p goose test_gondola_provider_registry_wiring` to verify Gondola is registered with the correct name, default model (`deepseek-v4-flash`), and a secret `GONDOLA_API_KEY` config key.
   If the source checkout or Rust toolchain is unavailable, mark this validation as skipped rather than failed.
 
+  ### PreToolUse Hook on_failure Validation
+  When running from a goose source checkout:
+  1. Run `cargo test -p goose --lib hooks` to verify that a command action parses `on_failure` and defaults to `allow` when the key is absent, that any other value is rejected, that every exit-status and stdout boundary classifies correctly, that spawn, timeout, stdin delivery and serialization failures are treated as hook failures, and that `Stop` stays fail-open.
+  2. Run `cargo test -p goose --lib pre_tool_use_hook_failure` to verify that both agent loops, the legacy loop and the state machine, allow by default and deny when `on_failure` is set to `block`.
+  If the source checkout or Rust toolchain is unavailable, mark this validation as skipped rather than failed.
+  A plugin `hooks.json` cannot be exercised from inside this recipe: the session's hook rules are read once when the agent is constructed, before any prompt step runs, and subagents are built without hooks, so a plugin this recipe installs or enables cannot affect the session that installed it.
+
   Log results to: {{ workspace_dir }}/phase1_basic_tools.md
   {% endif %}
 

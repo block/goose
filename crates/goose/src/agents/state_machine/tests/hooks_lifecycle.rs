@@ -338,6 +338,15 @@ type HookSpec<'a> = (&'a str, &'a str, &'a str, &'a str);
 
 impl RecordingHookEnv {
     fn new(specs: &[HookSpec<'_>]) -> Self {
+        Self::with_on_failure(specs, "")
+    }
+
+    /// Same fixture with `"on_failure": "block"` on every command action.
+    fn blocking_on_failure(specs: &[HookSpec<'_>]) -> Self {
+        Self::with_on_failure(specs, r#", "on_failure": "block""#)
+    }
+
+    fn with_on_failure(specs: &[HookSpec<'_>], on_failure: &str) -> Self {
         let temp_dir = tempfile::tempdir().unwrap();
         let plugin_dir = temp_dir.path().join("test-plugin");
         std::fs::create_dir_all(plugin_dir.join("hooks")).unwrap();
@@ -350,7 +359,7 @@ impl RecordingHookEnv {
                     format!(r#""matcher": "{matcher}", "#)
                 };
                 format!(
-                    r#""{event}": [{{{matcher}"hooks": [{{"type": "command", "command": "sh ${{PLUGIN_ROOT}}/{script}"}}]}}]"#
+                    r#""{event}": [{{{matcher}"hooks": [{{"type": "command", "command": "sh ${{PLUGIN_ROOT}}/{script}"{on_failure}}}]}}]"#
                 )
             })
             .collect();
@@ -403,6 +412,14 @@ const DENY_AND_RECORD_SCRIPT: &str =
 /// non-zero. That is a hook that ran but never returned a decision.
 const ABNORMAL_EXIT_AND_RECORD_SCRIPT: &str =
     "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/pre.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/pre.log\"\necho boom >&2\nexit 3\n";
+/// What `ABNORMAL_EXIT_AND_RECORD_SCRIPT` under `on_failure: block` reports
+/// back. The legacy loop asserts this same string in `agents::agent::tests`;
+/// both loops build it through `HookChainOutcome::denial`, so they cannot word
+/// it differently.
+const HOOK_FAILURE_REFUSAL: &str =
+    "Tool call blocked because policy hook `test-plugin` could not be evaluated: \
+     the hook exited with status 3 and no usable decision. \
+     That plugin is configured to block when its hook returns no decision.";
 
 /// deny-invisible: the tool never dispatches, neither post event fires, and a
 /// PreToolUseResult subscriber still sees the denial with blocked_by and reason.
@@ -1595,6 +1612,86 @@ async fn final_output_waits_for_ordinary_sibling_and_answers_every_request() -> 
     assert!(
         sibling_answer < published,
         "final output must wait until the ordinary sibling finishes"
+    );
+    Ok(())
+}
+
+/// A hook that returns no decision is ignored, which is how hooks behaved
+/// before `on_failure` existed. The tool still runs and the lifecycle event
+/// records why the chain evaluated no policy.
+#[tokio::test]
+async fn pre_tool_use_hook_failure_allows_by_default() -> Result<()> {
+    let env = RecordingHookEnv::new(&[
+        ("PreToolUse", "", "pre.sh", ABNORMAL_EXIT_AND_RECORD_SCRIPT),
+        ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+        ("PostToolUse", "", "post.sh", RECORD_POST_SCRIPT),
+    ]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(env.hook_manager());
+    api.on("add one").call(ADD, value(1));
+    api.on("result: 1").reply("done");
+
+    pipeline.run(["add one"]).await?;
+
+    assert_eq!(
+        pipeline.calculator_total(),
+        1,
+        "a broken hook must not block"
+    );
+    assert_eq!(env.payloads("post.log").len(), 1);
+    let results = env.payloads("result.log");
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0]["decision"], "allow");
+    assert_eq!(results[0]["cause"], "hook_failure");
+    assert_eq!(results[0]["policy_evaluated"], false);
+    Ok(())
+}
+
+/// `on_failure: block` turns that same failure into a refusal, worded by the
+/// formatter both loops share and separate from a policy denial.
+#[tokio::test]
+async fn pre_tool_use_hook_failure_blocks_when_configured() -> Result<()> {
+    let env = RecordingHookEnv::blocking_on_failure(&[
+        ("PreToolUse", "", "pre.sh", ABNORMAL_EXIT_AND_RECORD_SCRIPT),
+        ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+        ("PostToolUse", "", "post.sh", RECORD_POST_SCRIPT),
+    ]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(env.hook_manager());
+    api.on("add one").call(ADD, value(1));
+    api.on("could not be evaluated").reply("understood");
+
+    let result = pipeline.run(["add one"]).await?;
+
+    assert_eq!(pipeline.calculator_total(), 0, "tool must not dispatch");
+    assert!(
+        env.payloads("post.log").is_empty(),
+        "PostToolUse must not fire for a blocked call"
+    );
+
+    let results = env.payloads("result.log");
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0]["decision"], "deny");
+    assert_eq!(results[0]["cause"], "hook_failure");
+    assert_eq!(results[0]["policy_evaluated"], false);
+    assert_eq!(results[0]["blocked_by"], "test-plugin");
+
+    let tool_error = result
+        .conversation()
+        .messages()
+        .iter()
+        .flat_map(|message| &message.content)
+        .find_map(|content| match content {
+            MessageContent::ToolResponse(response) => response.tool_result.as_ref().err(),
+            _ => None,
+        })
+        .expect("blocked tool response");
+    // Read here after the error code has been rendered in; the legacy loop
+    // asserts the same string on the ErrorData it returns.
+    assert!(
+        tool_error.message.ends_with(HOOK_FAILURE_REFUSAL),
+        "expected the shared refusal, got {}",
+        tool_error.message
     );
     Ok(())
 }
