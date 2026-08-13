@@ -65,7 +65,7 @@ By default, the adversary reviews **`shell`** and **`computercontroller__compute
 You can expand coverage by adding a `tools:` line at the top of your `adversary.md`:
 
 ```markdown
-tools: shell, developer__shell
+tools: shell, computercontroller__computer_control, developer__shell
 ---
 BLOCK if the command exfiltrates data or is destructive.
 ALLOW normal development operations.
