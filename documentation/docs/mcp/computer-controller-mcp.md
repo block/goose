@@ -96,31 +96,17 @@ script: ...
 
 
 
-2. Now, let's research the AI models. I'll use web search and scraping to gather
- information from official sources:
+2. Now, let's research the AI models. I'll gather information from official sources:
 
-─── web_search | computercontroller ──────────────────────────
-query: Claude
-
-
-
-
-─── web_search | computercontroller ──────────────────────────
-query: GPT4
-
-
-
-
-─── web_search | computercontroller ──────────────────────────
-query: Gemini
+─── shell | developer ──────────────────────────
+command: ...
 
 
 
 3. Let's create the CSV file with the collected information:
 
-─── automation_script | computercontroller ──────────────────────────
-language: shell
-script: ...
+─── shell | developer ──────────────────────────
+command: ...
 
 
 
