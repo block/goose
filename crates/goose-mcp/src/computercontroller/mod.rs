@@ -1617,12 +1617,16 @@ impl ComputerControllerServer {
             PdfOperation::ExtractImages => "extract_images",
         };
 
-        let cache_dir = self.cache_dir_capability()?;
+        let cache_dir = match operation {
+            PdfOperation::ExtractText => None,
+            PdfOperation::ExtractImages => Some(self.cache_dir_capability()?),
+        };
         let result = crate::computercontroller::pdf_tool::pdf_tool(
             path,
             operation_str,
-            &cache_dir,
-            &self.cache_dir,
+            cache_dir
+                .as_deref()
+                .map(|directory| (directory, self.cache_dir.as_path())),
         )
         .await
         .map_err(|e| ErrorData::new(e.code, e.message, e.data))?;
@@ -1880,6 +1884,23 @@ mod cache_tests {
                 path: Some(path.into()),
             }))
             .await
+    }
+
+    #[tokio::test]
+    async fn pdf_text_extraction_does_not_require_cache() {
+        let mut server = ComputerControllerServer::new();
+        server.cache_dir_handle = None;
+        let test_pdf_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src/computercontroller/tests/data/test.pdf");
+
+        let result = server
+            .pdf_tool(Parameters(PdfToolParams {
+                path: test_pdf_path.to_string_lossy().into_owned(),
+                operation: PdfOperation::ExtractText,
+            }))
+            .await;
+
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
