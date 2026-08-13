@@ -1,11 +1,13 @@
+use cap_std::fs::Dir;
 use lopdf::{content::Content as PdfContent, Document, Object};
 use rmcp::model::{ContentBlock, ErrorCode, ErrorData};
-use std::{fs, path::Path};
+use std::path::Path;
 
 pub async fn pdf_tool(
     path: &str,
     operation: &str,
-    cache_dir: &Path,
+    cache_dir: &Dir,
+    cache_dir_path: &Path,
 ) -> Result<Vec<ContentBlock>, ErrorData> {
     // Open and parse the PDF file
     let doc = Document::load(path).map_err(|e| {
@@ -117,8 +119,8 @@ pub async fn pdf_tool(
         }
 
         "extract_images" => {
-            let cache_dir = cache_dir.join("pdf_images");
-            fs::create_dir_all(&cache_dir).map_err(|e| {
+            let image_dir = Path::new("pdf_images");
+            cache_dir.create_dir_all(image_dir).map_err(|e| {
                 ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
                     format!("Failed to create image cache directory: {}", e),
@@ -305,7 +307,7 @@ pub async fn pdf_tool(
 
                                     // Get the image data
                                     if let Ok(data) = stream.get_plain_content() {
-                                        let image_path = cache_dir.join(format!(
+                                        let relative_path = image_dir.join(format!(
                                             "page{}_obj{}_{}{}",
                                             page_num,
                                             xobject_id.0,
@@ -313,7 +315,7 @@ pub async fn pdf_tool(
                                             extension
                                         ));
 
-                                        fs::write(&image_path, &data).map_err(|e| {
+                                        cache_dir.write(&relative_path, &data).map_err(|e| {
                                             ErrorData::new(
                                                 ErrorCode::INTERNAL_ERROR,
                                                 format!("Failed to write image: {}", e),
@@ -323,7 +325,7 @@ pub async fn pdf_tool(
 
                                         images.push(format!(
                                             "Saved image to: {} ({}x{}, {} bits per component)",
-                                            image_path.display(),
+                                            cache_dir_path.join(&relative_path).display(),
                                             width,
                                             height,
                                             bpc
@@ -364,15 +366,27 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
+    fn cache_dir() -> (tempfile::TempDir, Dir) {
+        let directory = tempfile::tempdir().unwrap();
+        let handle = Dir::open_ambient_dir(directory.path(), cap_std::ambient_authority()).unwrap();
+        (directory, handle)
+    }
+
     #[tokio::test]
     async fn test_pdf_text_extraction() {
         let test_pdf_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("src/computercontroller/tests/data/test.pdf");
-        let cache_dir = tempfile::tempdir().unwrap().keep();
+        let (cache_dir_path, cache_dir) = cache_dir();
 
         println!("Testing text extraction from: {}", test_pdf_path.display());
 
-        let result = pdf_tool(test_pdf_path.to_str().unwrap(), "extract_text", &cache_dir).await;
+        let result = pdf_tool(
+            test_pdf_path.to_str().unwrap(),
+            "extract_text",
+            &cache_dir,
+            cache_dir_path.path(),
+        )
+        .await;
 
         assert!(result.is_ok(), "PDF text extraction should succeed");
         let content = result.unwrap();
@@ -390,7 +404,7 @@ mod tests {
     async fn test_pdf_image_extraction() {
         let test_pdf_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("src/computercontroller/tests/data/test_image.pdf");
-        let cache_dir = tempfile::tempdir().unwrap().keep();
+        let (cache_dir_path, cache_dir) = cache_dir();
 
         println!("Testing image extraction from: {}", test_pdf_path.display());
 
@@ -399,6 +413,7 @@ mod tests {
             test_pdf_path.to_str().unwrap(),
             "extract_images",
             &cache_dir,
+            cache_dir_path.path(),
         )
         .await;
 
@@ -436,8 +451,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_pdf_invalid_path() {
-        let cache_dir = tempfile::tempdir().unwrap().keep();
-        let result = pdf_tool("nonexistent.pdf", "extract_text", &cache_dir).await;
+        let (cache_dir_path, cache_dir) = cache_dir();
+        let result = pdf_tool(
+            "nonexistent.pdf",
+            "extract_text",
+            &cache_dir,
+            cache_dir_path.path(),
+        )
+        .await;
 
         assert!(result.is_err(), "Should fail with invalid path");
     }
@@ -446,12 +467,13 @@ mod tests {
     async fn test_pdf_invalid_operation() {
         let test_pdf_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("src/computercontroller/tests/data/test.pdf");
-        let cache_dir = tempfile::tempdir().unwrap().keep();
+        let (cache_dir_path, cache_dir) = cache_dir();
 
         let result = pdf_tool(
             test_pdf_path.to_str().unwrap(),
             "invalid_operation",
             &cache_dir,
+            cache_dir_path.path(),
         )
         .await;
 

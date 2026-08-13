@@ -3,7 +3,7 @@ use crate::subprocess::merged_path;
 use crate::subprocess::SubprocessExt;
 #[cfg(target_os = "macos")]
 use base64::Engine;
-use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
+use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
 use cap_std::{
     ambient_authority,
     fs::{Dir, OpenOptions},
@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fs,
-    io::Read,
+    io::{self, Read},
     path::{Path, PathBuf},
     sync::Arc,
     sync::Mutex,
@@ -340,6 +340,24 @@ impl Default for ComputerControllerServer {
 
 #[tool_router(router = tool_router)]
 impl ComputerControllerServer {
+    fn open_cache_dir(cache_dir: &Path) -> io::Result<Dir> {
+        let parent_path = cache_dir.parent().ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, "Cache directory has no parent")
+        })?;
+        let cache_name = cache_dir.file_name().ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, "Cache directory has no name")
+        })?;
+
+        fs::create_dir_all(parent_path)?;
+        let parent = Dir::open_ambient_dir(parent_path, ambient_authority())?;
+        match parent.create_dir(cache_name) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(error),
+        }
+        parent.open_dir_nofollow(cache_name)
+    }
+
     pub fn new() -> Self {
         // choose_app_strategy().cache_dir()
         // - macOS/Linux: ~/.cache/goose/computer_controller/
@@ -349,15 +367,16 @@ impl ComputerControllerServer {
             .map(|strategy| strategy.in_cache_dir("computer_controller"))
             .unwrap_or_else(|_| create_system_automation().get_temp_path());
 
-        fs::create_dir_all(&cache_dir).unwrap_or_else(|_| {
-            println!(
-                "Warning: Failed to create cache directory at {:?}",
-                cache_dir
-            )
-        });
-        let cache_dir_handle = Dir::open_ambient_dir(&cache_dir, ambient_authority())
-            .ok()
-            .map(Arc::new);
+        let cache_dir_handle = match Self::open_cache_dir(&cache_dir) {
+            Ok(directory) => Some(Arc::new(directory)),
+            Err(error) => {
+                println!(
+                    "Warning: Failed to securely open cache directory at {:?}: {}",
+                    cache_dir, error
+                );
+                None
+            }
+        };
 
         let system_automation: Arc<Box<dyn SystemAutomation + Send + Sync>> =
             Arc::new(create_system_automation());
@@ -573,30 +592,29 @@ impl ComputerControllerServer {
             .join(format!("{}_{}.{}", prefix, timestamp, extension))
     }
 
+    fn cache_dir_capability(&self) -> Result<Arc<Dir>, ErrorData> {
+        self.cache_dir_handle.clone().ok_or_else(|| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                "Failed to securely open cache directory".to_string(),
+                None,
+            )
+        })
+    }
+
     fn cache_file_location(&self, path: &str) -> Result<(PathBuf, PathBuf), ErrorData> {
         let requested_path = Path::new(path);
         let relative_path = if requested_path.is_absolute() {
-            if let Ok(relative_path) = requested_path.strip_prefix(&self.cache_dir) {
-                relative_path.to_path_buf()
-            } else {
-                let canonical_cache_dir = fs::canonicalize(&self.cache_dir).map_err(|e| {
+            requested_path
+                .strip_prefix(&self.cache_dir)
+                .map(Path::to_path_buf)
+                .map_err(|_| {
                     ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("Failed to resolve cache directory: {e}"),
+                        ErrorCode::INVALID_PARAMS,
+                        "Cache path must stay inside the cache directory".to_string(),
                         None,
                     )
-                })?;
-                requested_path
-                    .strip_prefix(canonical_cache_dir)
-                    .map(Path::to_path_buf)
-                    .map_err(|_| {
-                        ErrorData::new(
-                            ErrorCode::INVALID_PARAMS,
-                            "Cache path must stay inside the cache directory".to_string(),
-                            None,
-                        )
-                    })?
-            }
+                })?
         } else {
             requested_path.to_path_buf()
         };
@@ -618,13 +636,7 @@ impl ComputerControllerServer {
 
     fn cache_file_capability(&self, path: &str) -> Result<(Arc<Dir>, PathBuf, PathBuf), ErrorData> {
         let (relative_path, candidate_path) = self.cache_file_location(path)?;
-        let cache_dir = self.cache_dir_handle.clone().ok_or_else(|| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                "Failed to open cache directory".to_string(),
-                None,
-            )
-        })?;
+        let cache_dir = self.cache_dir_capability()?;
         let metadata = cache_dir.symlink_metadata(&relative_path).map_err(|_| {
             ErrorData::new(
                 ErrorCode::INVALID_PARAMS,
@@ -652,13 +664,22 @@ impl ComputerControllerServer {
         extension: &str,
     ) -> Result<PathBuf, ErrorData> {
         let cache_path = self.get_cache_path(prefix, extension);
-        fs::write(&cache_path, content).map_err(|e| {
+        let relative_path = cache_path.file_name().ok_or_else(|| {
             ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
-                format!("Failed to write to cache: {}", e),
+                "Invalid cache file name".to_string(),
                 None,
             )
         })?;
+        self.cache_dir_capability()?
+            .write(relative_path, content)
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to write to cache: {}", e),
+                    None,
+                )
+            })?;
         Ok(cache_path)
     }
 
@@ -1211,19 +1232,27 @@ impl ComputerControllerServer {
 
         let is_see = args[0] == "see";
         let is_image = args[0] == "image";
-        let screenshot_path = if is_see || is_image {
-            Some(self.get_cache_path(&args[0], "png"))
+        let manages_screenshot = (is_see || is_image) && !args.iter().any(|arg| arg == "--path");
+        let screenshot_dir = if manages_screenshot {
+            Some(tempfile::tempdir().map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to create screenshot directory: {e}"),
+                    None,
+                )
+            })?)
         } else {
             None
         };
+        let screenshot_path = screenshot_dir
+            .as_ref()
+            .map(|directory| directory.path().join(format!("{}.png", args[0])));
 
         let mut full_args: Vec<String> = args.clone();
 
         if let Some(ref path) = screenshot_path {
-            if !full_args.iter().any(|a| a == "--path") {
-                full_args.push("--path".to_string());
-                full_args.push(path.to_string_lossy().to_string());
-            }
+            full_args.push("--path".to_string());
+            full_args.push(path.to_string_lossy().to_string());
         }
         if is_see && !full_args.iter().any(|a| a == "--json-output") {
             full_args.push("--json-output".to_string());
@@ -1254,6 +1283,12 @@ impl ComputerControllerServer {
             };
             if image_path.exists() {
                 if let Ok(bytes) = fs::read(&image_path) {
+                    let prefix = if image_path == *path {
+                        args[0].as_str()
+                    } else {
+                        "see_annotated"
+                    };
+                    self.save_to_cache(&bytes, prefix, "png").await?;
                     let data = base64::prelude::BASE64_STANDARD.encode(&bytes);
                     contents.push(ContentBlock::image(data, "image/png"));
                 }
@@ -1261,7 +1296,14 @@ impl ComputerControllerServer {
         }
 
         if params.capture_screenshot && screenshot_path.is_none() {
-            let cap_path = self.get_cache_path("peekaboo_capture", "png");
+            let capture_dir = tempfile::tempdir().map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to create screenshot directory: {e}"),
+                    None,
+                )
+            })?;
+            let cap_path = capture_dir.path().join("capture.png");
             let cap_path_str = cap_path.to_string_lossy().to_string();
             if self
                 .run_peekaboo_cmd(&["image", "--mode", "frontmost", "--path", &cap_path_str])
@@ -1269,6 +1311,8 @@ impl ComputerControllerServer {
                 && cap_path.exists()
             {
                 if let Ok(bytes) = fs::read(&cap_path) {
+                    self.save_to_cache(&bytes, "peekaboo_capture", "png")
+                        .await?;
                     let data = base64::prelude::BASE64_STANDARD.encode(&bytes);
                     contents.push(ContentBlock::image(data, "image/png"));
                 }
@@ -1573,10 +1617,15 @@ impl ComputerControllerServer {
             PdfOperation::ExtractImages => "extract_images",
         };
 
-        let result =
-            crate::computercontroller::pdf_tool::pdf_tool(path, operation_str, &self.cache_dir)
-                .await
-                .map_err(|e| ErrorData::new(e.code, e.message, e.data))?;
+        let cache_dir = self.cache_dir_capability()?;
+        let result = crate::computercontroller::pdf_tool::pdf_tool(
+            path,
+            operation_str,
+            &cache_dir,
+            &self.cache_dir,
+        )
+        .await
+        .map_err(|e| ErrorData::new(e.code, e.message, e.data))?;
 
         Ok(CallToolResult::success(result))
     }
@@ -1602,7 +1651,7 @@ impl ComputerControllerServer {
         match command {
             CacheCommand::List => {
                 let mut files = Vec::new();
-                for entry in fs::read_dir(&self.cache_dir).map_err(|e| {
+                for entry in self.cache_dir_capability()?.entries().map_err(|e| {
                     ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
                         format!("Failed to read cache directory: {}", e),
@@ -1616,7 +1665,7 @@ impl ComputerControllerServer {
                             None,
                         )
                     })?;
-                    files.push(format!("{}", entry.path().display()));
+                    files.push(self.cache_dir.join(entry.file_name()).display().to_string());
                 }
                 files.sort();
                 Ok(CallToolResult::success(vec![ContentBlock::text(format!(
@@ -1703,13 +1752,7 @@ impl ComputerControllerServer {
                 ))]))
             }
             CacheCommand::Clear => {
-                let cache_dir = self.cache_dir_handle.as_ref().ok_or_else(|| {
-                    ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        "Failed to open cache directory".to_string(),
-                        None,
-                    )
-                })?;
+                let cache_dir = self.cache_dir_capability()?;
                 for entry in cache_dir.entries().map_err(|e| {
                     ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
@@ -1966,6 +2009,23 @@ mod cache_tests {
         assert!(view.text.contains("cached"));
         assert!(!view.text.contains("outside"));
 
+        let saved_path = server
+            .save_to_cache(b"new cached content", "new", "txt")
+            .await
+            .unwrap();
+        let saved_name = saved_path.file_name().unwrap();
+        assert_eq!(
+            fs::read_to_string(moved_cache_dir.join(saved_name)).unwrap(),
+            "new cached content"
+        );
+        assert!(!outside_dir.join(saved_name).exists());
+
+        let list = call_cache(&server, CacheCommand::List, "").await.unwrap();
+        let ContentBlock::Text(list) = &list.content[0] else {
+            panic!("expected text content");
+        };
+        assert!(list.text.contains(&saved_path.display().to_string()));
+
         call_cache(&server, CacheCommand::Delete, "victim.txt")
             .await
             .unwrap();
@@ -1974,6 +2034,18 @@ mod cache_tests {
             fs::read_to_string(outside_dir.join("victim.txt")).unwrap(),
             "outside"
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_rejects_a_symlinked_root() {
+        let temp_dir = TempDir::new().unwrap();
+        let outside_dir = temp_dir.path().join("outside");
+        let cache_dir = temp_dir.path().join("cache");
+        fs::create_dir(&outside_dir).unwrap();
+        std::os::unix::fs::symlink(&outside_dir, &cache_dir).unwrap();
+
+        assert!(ComputerControllerServer::open_cache_dir(&cache_dir).is_err());
     }
 
     #[tokio::test]
@@ -1989,8 +2061,8 @@ mod cache_tests {
         call_cache(&server, CacheCommand::Clear, "").await.unwrap();
         assert!(fs::read_dir(&cache_dir).unwrap().next().is_none());
 
-        fs::write(cache_dir.join("new.txt"), "new").unwrap();
-        let view = call_cache(&server, CacheCommand::View, "new.txt")
+        let new_path = server.save_to_cache(b"new", "new", "txt").await.unwrap();
+        let view = call_cache(&server, CacheCommand::View, new_path.to_string_lossy())
             .await
             .unwrap();
         let ContentBlock::Text(view) = &view.content[0] else {
