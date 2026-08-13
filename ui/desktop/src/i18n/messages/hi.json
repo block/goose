@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "कनेक्शन टूट गया। फिर से कनेक्ट किया जा रहा है…"
   },
+  "baseChat.retry": {
+    "defaultMessage": "पुनः प्रयास करें"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "एक्सटेंशन अपडेट किया गया"
   },
