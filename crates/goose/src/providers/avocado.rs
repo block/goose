@@ -17,7 +17,9 @@ use goose_providers::formats::openai::create_request;
 use goose_providers::model::ModelConfig;
 use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
+use serde::Deserialize;
 use serde_json::Value;
+use std::sync::{LazyLock, RwLock};
 
 pub const AVOCADO_PROVIDER_NAME: &str = "avocado";
 pub const AVOCADO_DOC_URL: &str = "https://dev.avocado.tech/llm-api";
@@ -33,6 +35,9 @@ const BUDGET_MARKERS: &[&str] = &[
     "over budget",
 ];
 
+/// Offline fallback ids when the server catalog is unreachable.
+/// Authoritative curated list (alias/subtext/order) is served by avcd-llm
+/// at `GET /models/catalog`.
 pub const AVOCADO_KNOWN_MODELS: &[&str] = &[
     "deepseek/deepseek-v4-flash",
     "moonshotai/kimi-k3",
@@ -51,6 +56,92 @@ pub const AVOCADO_KNOWN_MODELS: &[&str] = &[
     "anthropic/claude-haiku-4.5",
     "openai/gpt-4.1-mini",
 ];
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogModelEntry {
+    pub name: String,
+    pub alias: String,
+    pub subtext: String,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AvocadoModelCatalog {
+    pub provider: String,
+    pub default_model: String,
+    pub models: Vec<CatalogModelEntry>,
+}
+
+static LAST_FETCHED_CATALOG: LazyLock<RwLock<Option<AvocadoModelCatalog>>> =
+    LazyLock::new(|| RwLock::new(None));
+
+/// Derive `GET /models/catalog` from the provision URL.
+pub fn catalog_url_from_provision_url(provision_url: &str) -> String {
+    let trimmed = provision_url.trim_end_matches('/');
+    if let Some(base) = trimmed.strip_suffix("/keys/provision") {
+        return format!("{base}/models/catalog");
+    }
+    format!("{trimmed}/models/catalog")
+}
+
+pub fn take_last_fetched_catalog() -> Option<AvocadoModelCatalog> {
+    LAST_FETCHED_CATALOG
+        .read()
+        .ok()
+        .and_then(|guard| guard.clone())
+}
+
+pub fn clear_last_fetched_catalog() {
+    if let Ok(mut guard) = LAST_FETCHED_CATALOG.write() {
+        *guard = None;
+    }
+}
+
+pub async fn fetch_model_catalog_from_url(
+    catalog_url: &str,
+) -> Result<AvocadoModelCatalog, ProviderError> {
+    let response = reqwest::Client::new()
+        .get(catalog_url)
+        .send()
+        .await
+        .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+
+    if !response.status().is_success() {
+        return Err(ProviderError::RequestFailed(format!(
+            "catalog endpoint returned {}",
+            response.status()
+        )));
+    }
+
+    let catalog: AvocadoModelCatalog = response
+        .json()
+        .await
+        .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+
+    if catalog.models.is_empty() {
+        return Err(ProviderError::RequestFailed(
+            "catalog models empty".to_string(),
+        ));
+    }
+    if catalog.default_model != catalog.models[0].name {
+        return Err(ProviderError::RequestFailed(
+            "catalog defaultModel must equal models[0].name".to_string(),
+        ));
+    }
+
+    if let Ok(mut guard) = LAST_FETCHED_CATALOG.write() {
+        *guard = Some(catalog.clone());
+    }
+
+    Ok(catalog)
+}
+
+pub async fn fetch_model_catalog() -> Result<AvocadoModelCatalog, ProviderError> {
+    let provision_url = avocado_auth::ZitadelOidcConfig::from_env().provision_url;
+    let catalog_url = catalog_url_from_provision_url(&provision_url);
+    fetch_model_catalog_from_url(&catalog_url).await
+}
 
 struct AvocadoBearerAuth;
 
@@ -191,10 +282,27 @@ impl Provider for AvocadoProvider {
         &self.name
     }
 
+    fn skip_canonical_filtering(&self) -> bool {
+        true
+    }
+
     async fn configure_oauth(&self) -> Result<(), ProviderError> {
         avocado_auth::configure_oauth()
             .await
             .map_err(|e| ProviderError::Authentication(e.to_string()))
+    }
+
+    async fn fetch_recommended_models(
+        &self,
+        _toolshim: bool,
+    ) -> Result<Vec<String>, ProviderError> {
+        match fetch_model_catalog().await {
+            Ok(catalog) => Ok(catalog.models.into_iter().map(|m| m.name).collect()),
+            Err(_) => Ok(AVOCADO_KNOWN_MODELS
+                .iter()
+                .map(|s| (*s).to_string())
+                .collect()),
+        }
     }
 
     async fn stream(
@@ -271,6 +379,11 @@ impl Provider for AvocadoProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        // Prefer curated catalog order from avcd-llm; fall back to LiteLLM /v1/models.
+        if let Ok(catalog) = fetch_model_catalog().await {
+            return Ok(catalog.models.into_iter().map(|m| m.name).collect());
+        }
+
         let response = self
             .api_client
             .response_get("v1/models")
@@ -287,11 +400,10 @@ impl Provider for AvocadoProvider {
         let arr = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
             ProviderError::RequestFailed("Missing 'data' array in models response".to_string())
         })?;
-        let mut models: Vec<String> = arr
+        let models: Vec<String> = arr
             .iter()
             .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
             .collect();
-        models.sort();
         Ok(models)
     }
 }

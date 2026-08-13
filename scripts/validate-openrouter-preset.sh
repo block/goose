@@ -1,10 +1,19 @@
 #!/usr/bin/env bash
-
+# Validate server-owned model catalog + desktop env defaults (no baked model list).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CATALOG="${ROOT}/config/avcd-openrouter-models.json"
-AVCD_AI_CATALOG="${ROOT}/../avcd-ai/config/avcd-librechat.yaml"
+# Prefer FIW sibling, then primary checkout sibling.
+if [[ -f "${ROOT}/../avcd-llm/config/models-catalog.json" ]]; then
+  CATALOG="${ROOT}/../avcd-llm/config/models-catalog.json"
+  LLM_ROOT="${ROOT}/../avcd-llm"
+elif [[ -f "${ROOT}/../../avcd/avcd-llm/config/models-catalog.json" ]]; then
+  CATALOG="${ROOT}/../../avcd/avcd-llm/config/models-catalog.json"
+  LLM_ROOT="${ROOT}/../../avcd/avcd-llm"
+else
+  CATALOG=""
+  LLM_ROOT=""
+fi
 MODE="${1:-offline}"
 EXPECTED_PROVIDER="avocado"
 EXPECTED_MODEL="deepseek/deepseek-v4-flash"
@@ -23,6 +32,10 @@ fail() {
 }
 
 validate_catalog() {
+  if [[ -z "${CATALOG}" || ! -f "${CATALOG}" ]]; then
+    fail "avcd-llm config/models-catalog.json not found next to avcd-agent"
+  fi
+
   local model_count
   model_count="$(
     python3 - "${CATALOG}" "${EXPECTED_PROVIDER}" "${EXPECTED_MODEL}" <<'PY'
@@ -33,10 +46,6 @@ from pathlib import Path
 path = Path(sys.argv[1])
 expected_provider = sys.argv[2]
 expected_model = sys.argv[3]
-
-if not path.is_file():
-    raise SystemExit(f"catalog not found: {path}")
-
 catalog = json.loads(path.read_text())
 models = catalog.get("models")
 if catalog.get("provider") != expected_provider:
@@ -44,17 +53,13 @@ if catalog.get("provider") != expected_provider:
 if catalog.get("defaultModel") != expected_model:
     raise SystemExit(f"defaultModel must be {expected_model!r}")
 if not isinstance(models, list) or len(models) < 1:
-    raise SystemExit(f"models must be a non-empty list, found {len(models or [])}")
-
+    raise SystemExit("models must be a non-empty list")
 names = []
 for index, model in enumerate(models):
-    if not isinstance(model, dict):
-        raise SystemExit(f"models[{index}] must be an object")
     for key in ("name", "alias", "subtext"):
         if not isinstance(model.get(key), str) or not model[key].strip():
             raise SystemExit(f"models[{index}].{key} must be a non-empty string")
     names.append(model["name"])
-
 if len(set(names)) != len(names):
     raise SystemExit("model names must be unique")
 if names[0] != expected_model:
@@ -62,47 +67,19 @@ if names[0] != expected_model:
 print(len(models))
 PY
   )"
-  pass "catalog has ${model_count} unique models with the AVCD default first"
+  pass "server catalog has ${model_count} unique models with the AVCD default first"
 
-  if [[ ! -f "${AVCD_AI_CATALOG}" ]]; then
-    warn "avcd-ai catalog not found; skipped sibling catalog comparison"
-    return
-  fi
-
-  if python3 - "${CATALOG}" "${AVCD_AI_CATALOG}" <<'PY'
-import json
-import re
-import sys
-from pathlib import Path
-
-catalog = json.loads(Path(sys.argv[1]).read_text())
-expected = [model["name"] for model in catalog["models"]]
-lines = Path(sys.argv[2]).read_text().splitlines()
-
-in_default_models = False
-actual = []
-for line in lines:
-    if line == "        default:":
-        in_default_models = True
-        continue
-    if in_default_models and line == "        fetch: false":
-        break
-    if in_default_models:
-        match = re.fullmatch(r"\s{10}- ['\"]([^'\"]+)['\"]", line)
-        if match:
-            actual.append(match.group(1))
-
-if actual != expected:
-    raise SystemExit(
-        "avcd-ai model IDs differ from Avocado Work catalog\n"
-        f"  avcd-ai: {actual}\n"
-        f"  agent:   {expected}"
-    )
-PY
-  then
-    pass "catalog model IDs match avcd-ai deploy configuration"
+  if [[ -n "${LLM_ROOT}" && -x "${LLM_ROOT}/scripts/validate-catalog.sh" ]]; then
+    (cd "${LLM_ROOT}" && ./scripts/validate-catalog.sh) \
+      || fail "avcd-llm catalog/litellm sync validation failed"
+    pass "avcd-llm catalog ⊆ litellm.yaml"
+  elif [[ -n "${LLM_ROOT}" && -f "${LLM_ROOT}/scripts/validate-catalog.sh" ]]; then
+    chmod +x "${LLM_ROOT}/scripts/validate-catalog.sh"
+    (cd "${LLM_ROOT}" && ./scripts/validate-catalog.sh) \
+      || fail "avcd-llm catalog/litellm sync validation failed"
+    pass "avcd-llm catalog ⊆ litellm.yaml"
   else
-    warn "catalog differs from avcd-ai; update both catalogs deliberately"
+    warn "avcd-llm validate-catalog.sh not found; skipped litellm sync check"
   fi
 }
 
@@ -119,16 +96,12 @@ validate_desktop_env() {
       fail "desktop environment generation failed"
     }
 
-  if ! python3 - "${temp_env}" "${CATALOG}" "${EXPECTED_PROVIDER}" "${EXPECTED_MODEL}" <<'PY'
-import json
+  if ! python3 - "${temp_env}" "${EXPECTED_PROVIDER}" "${EXPECTED_MODEL}" <<'PY'
 import sys
 from pathlib import Path
 
-catalog = json.loads(Path(sys.argv[2]).read_text())
-expected_provider = sys.argv[3]
-expected_model = sys.argv[4]
-expected_count = len(catalog["models"])
-
+expected_provider = sys.argv[2]
+expected_model = sys.argv[3]
 values = {}
 for raw_line in Path(sys.argv[1]).read_text().splitlines():
     line = raw_line.strip()
@@ -143,22 +116,16 @@ if values.get("GOOSE_DEFAULT_PROVIDER") != expected_provider:
     raise SystemExit("desktop default provider is missing or incorrect")
 if values.get("GOOSE_DEFAULT_MODEL") != expected_model:
     raise SystemExit("desktop default model is missing or incorrect")
-
-models = json.loads(values.get("GOOSE_PREDEFINED_MODELS", "null"))
-if not isinstance(models, list) or len(models) != expected_count:
-    raise SystemExit(
-        f"desktop predefined model list must contain {expected_count} entries"
-    )
-if any(model.get("provider") != expected_provider for model in models):
-    raise SystemExit(f"every desktop predefined model must use the {expected_provider} provider")
+if "GOOSE_PREDEFINED_MODELS" in values:
+    raise SystemExit("GOOSE_PREDEFINED_MODELS must not be generated (server catalog owns the list)")
 PY
   then
     rm -f "${temp_env}"
-    fail "generated desktop environment does not match the model catalog preset"
+    fail "generated desktop environment does not match server-driven catalog expectations"
   fi
 
   rm -f "${temp_env}"
-  pass "desktop environment contains predefined models from the catalog"
+  pass "desktop environment sets defaults without baking GOOSE_PREDEFINED_MODELS"
 }
 
 validate_compose() {
@@ -169,56 +136,8 @@ validate_compose() {
   pass "Docker Compose provider configuration is valid"
 }
 
-read_openrouter_key() {
-  if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
-    printf '%s' "${OPENROUTER_API_KEY}"
-    return
-  fi
-
-  python3 - "${ROOT}/.env.local" <<'PY'
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-if not path.is_file():
-    raise SystemExit(0)
-for raw_line in path.read_text().splitlines():
-    line = raw_line.strip()
-    if not line or line.startswith("#") or "=" not in line:
-        continue
-    key, value = line.split("=", 1)
-    if key.strip() == "OPENROUTER_API_KEY":
-        value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
-            value = value[1:-1]
-        print(value, end="")
-        break
-PY
-}
-
 validate_online() {
-  local key info
-  key="$(read_openrouter_key)"
-  if [[ -z "${key}" ]]; then
-    printf 'SKIP: online provider check (OPENROUTER_API_KEY is not set)\n'
-    return
-  fi
-
-  info="$(
-    cd "${ROOT}"
-    docker compose --profile cli run --rm \
-      -e "OPENROUTER_API_KEY=${key}" \
-      cli info -v 2>&1
-  )" || {
-    printf '%s\n' "${info}" >&2
-    fail "goose info failed with the configured OpenRouter key"
-  }
-
-  [[ "${info}" == *"${EXPECTED_PROVIDER}"* ]] \
-    || fail "goose info did not report provider ${EXPECTED_PROVIDER}"
-  [[ "${info}" == *"${EXPECTED_MODEL}"* ]] \
-    || fail "goose info did not report model ${EXPECTED_MODEL}"
-  pass "goose info reports the AVCD provider and default model"
+  printf 'SKIP: online provider check (model catalog is served by avcd-llm)\n'
 }
 
 case "${MODE}" in

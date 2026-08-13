@@ -971,6 +971,14 @@ export type ProviderInventoryModelDto = {
      */
     name: string;
     /**
+     * Curated short label for picker rows (server catalog).
+     */
+    alias?: string | null;
+    /**
+     * Secondary line under the alias (server catalog).
+     */
+    subtext?: string | null;
+    /**
      * Model family for grouping in UI.
      */
     family?: string | null;

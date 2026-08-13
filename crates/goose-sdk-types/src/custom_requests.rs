@@ -1764,6 +1764,12 @@ pub struct ProviderInventoryModelDto {
     pub id: String,
     /// Human-readable display name.
     pub name: String,
+    /// Curated short label for picker rows (server catalog).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alias: Option<String>,
+    /// Secondary line under the alias (server catalog).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subtext: Option<String>,
     /// Model family for grouping in UI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub family: Option<String>,

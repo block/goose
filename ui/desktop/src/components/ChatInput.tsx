@@ -29,7 +29,7 @@ import { detectInterruption } from '../utils/interruptionDetector';
 import { DiagnosticsModal } from './ui/Diagnostics';
 import type { Message } from '../types/message';
 import { getInitialWorkingDir } from '../utils/workingDir';
-import { getPredefinedModelsFromEnv } from './settings/models/predefinedModelsUtils';
+import { getCuratedModels } from './settings/models/predefinedModelsUtils';
 import { trackFileAttached, trackVoiceDictation, trackDiagnosticsOpened } from '../utils/analytics';
 import { getNavigationShortcutText } from '../utils/keyboardShortcuts';
 import { UserInput, ImageData } from '../types/message';
@@ -605,8 +605,8 @@ export default function ChatInput({
         return;
       }
 
-      // Priority 1: Check predefined models from environment
-      const predefinedModels = getPredefinedModelsFromEnv();
+      // Priority 1: Check curated models (server catalog cache or env fallback)
+      const predefinedModels = getCuratedModels();
       const predefinedModel = predefinedModels.find((m) => m.name === model);
       if (predefinedModel?.context_limit) {
         setTokenLimit(predefinedModel.context_limit);

@@ -1,5 +1,19 @@
 import Model from './modelInterface';
 
+let curatedModelsCache: Model[] = [];
+
+/** Update in-memory curated models from ACP inventory (server catalog). */
+export function setCuratedModels(models: Model[]): void {
+  curatedModelsCache = models;
+}
+
+export function getCuratedModels(): Model[] {
+  if (curatedModelsCache.length > 0) {
+    return curatedModelsCache;
+  }
+  return getPredefinedModelsFromEnv();
+}
+
 // Helper functions for predefined models - shared across components
 export function getPredefinedModelsFromEnv(): Model[] {
   try {
@@ -14,17 +28,17 @@ export function getPredefinedModelsFromEnv(): Model[] {
 }
 
 export function shouldShowPredefinedModels(): boolean {
-  return getPredefinedModelsFromEnv().length > 0;
+  return getCuratedModels().length > 0;
 }
 
 export function getModelDisplayName(modelName: string): string {
-  const predefinedModels = getPredefinedModelsFromEnv();
-  const matchingModel = predefinedModels.find((model) => model.name === modelName);
+  const models = getCuratedModels();
+  const matchingModel = models.find((model) => model.name === modelName);
   return matchingModel?.alias || modelName;
 }
 
 export function getProviderDisplayName(modelName: string): string {
-  const predefinedModels = getPredefinedModelsFromEnv();
-  const matchingModel = predefinedModels.find((model) => model.name === modelName);
+  const models = getCuratedModels();
+  const matchingModel = models.find((model) => model.name === modelName);
   return matchingModel?.subtext || '';
 }

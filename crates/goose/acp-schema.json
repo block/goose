@@ -1866,6 +1866,20 @@
           "type": "string",
           "description": "Human-readable display name."
         },
+        "alias": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Curated short label for picker rows (server catalog)."
+        },
+        "subtext": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Secondary line under the alias (server catalog)."
+        },
         "family": {
           "type": [
             "string",

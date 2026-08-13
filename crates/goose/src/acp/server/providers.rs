@@ -58,6 +58,8 @@ fn inventory_entry_to_dto(entry: ProviderInventoryEntry) -> ProviderInventoryEnt
             .map(|m| ProviderInventoryModelDto {
                 id: m.id,
                 name: m.name,
+                alias: m.alias,
+                subtext: m.subtext,
                 family: m.family,
                 context_limit: m.context_limit,
                 reasoning: m.reasoning,
@@ -786,7 +788,7 @@ impl GooseAcpAgent {
 
                 match fetch_result {
                     Ok(models) => match provider_inventory
-                        .store_refreshed_models_for_identity(&identity, &models)
+                        .store_refreshed_models_preferring_catalog(&provider_id, &identity, &models)
                         .await
                     {
                         Ok(()) => refresh_guard.complete(),

@@ -771,6 +771,14 @@ export const zProviderConfigKey = z.object({
 export const zProviderInventoryModelDto = z.object({
     id: z.string(),
     name: z.string(),
+    alias: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    subtext: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
     family: z.union([
         z.string(),
         z.null()
