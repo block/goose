@@ -281,11 +281,11 @@ impl Operation<Session, GooseEffect> for InferenceRunner<'_> {
             return not_applicable();
         }
 
-        let context_limit = self
-            .provider
-            .get_context_limit(&self.model_config)
-            .await
-            .unwrap_or_else(|_| self.model_config.context_limit());
+        let context_limit = crate::context_limit::get_context_limit(
+            self.provider.as_ref(),
+            &self.model_config.model_name,
+        )
+        .await?;
         let context_tokens = session.usage.total_tokens.unwrap_or(0).max(0) as usize;
         let lifetime_tokens = session.accumulated_usage.total_tokens.unwrap_or(0).max(0) as usize;
         let context_pct = if context_limit > 0 {
@@ -433,11 +433,8 @@ impl Inference<Session, GooseEffect> for InferenceRunner<'_> {
                 }
             }
 
-            let context_limit = self
-                .provider
-                .get_context_limit(&self.model_config)
-                .await
-                .unwrap_or_else(|_| self.model_config.context_limit());
+            let context_limit = crate::context_limit::get_context_limit(self.provider.as_ref(), &self.model_config.model_name)
+                .await?;
             let provider_name = self.provider.get_name();
             if let Some(session_id) = super::super::latest_provider_session_id(
                 conversation.messages(),

@@ -103,7 +103,9 @@ mod tests {
             .unwrap();
         AnthropicProviderBuilder::new(api_client)
             .name("custom_anthropic")
-            .custom_models(custom_models)
+            .custom_models(
+                custom_models.map(|models| models.into_iter().map(ModelInfo::new).collect()),
+            )
             .dynamic_models(dynamic_models)
             .build()
     }
@@ -184,8 +186,10 @@ mod tests {
 
     #[test]
     fn from_custom_config_honors_explicit_timeout_seconds() {
-        let mut config =
-            base_declarative_config(vec![ModelInfo::new("m1".to_string(), 200000)], Some(false));
+        let mut config = base_declarative_config(
+            vec![ModelInfo::new("m1").with_context_limit(200000)],
+            Some(false),
+        );
         config.timeout_seconds = Some(120);
         assert_eq!(built_timeout(config), std::time::Duration::from_secs(120));
     }
@@ -194,8 +198,10 @@ mod tests {
     fn from_custom_config_defaults_timeout_when_unset() {
         // timeout_seconds: None in base config → 600s default, unchanged
         // behavior for providers that don't set the field.
-        let config =
-            base_declarative_config(vec![ModelInfo::new("m1".to_string(), 200000)], Some(false));
+        let config = base_declarative_config(
+            vec![ModelInfo::new("m1").with_context_limit(200000)],
+            Some(false),
+        );
         assert_eq!(built_timeout(config), std::time::Duration::from_secs(600));
     }
 }

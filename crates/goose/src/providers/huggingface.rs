@@ -439,8 +439,8 @@ mod tests {
         config.requires_auth = false;
         config.dynamic_models = Some(false);
         config.models = vec![
-            ModelInfo::new("static-a".to_string(), 128000),
-            ModelInfo::new("static-b".to_string(), 128000),
+            ModelInfo::new("static-a").with_context_limit(128000),
+            ModelInfo::new("static-b").with_context_limit(128000),
         ];
 
         let provider = HuggingFaceProvider::from_custom_config(config, None).unwrap();

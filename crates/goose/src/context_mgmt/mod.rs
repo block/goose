@@ -244,10 +244,8 @@ pub async fn check_if_compaction_needed(
         .model_config
         .clone()
         .unwrap_or_else(|| ModelConfig::new("unknown"));
-    let context_limit = provider
-        .get_context_limit(&model_config)
-        .await
-        .unwrap_or_else(|_| model_config.context_limit());
+    let context_limit =
+        crate::context_limit::get_context_limit(provider, &model_config.model_name).await?;
 
     let (current_tokens, _token_source) = match session.usage.total_tokens {
         Some(tokens) => (tokens as usize, "session metadata"),
@@ -633,11 +631,8 @@ mod tests {
             Ok(stream_from_single_message(message, usage))
         }
 
-        async fn get_context_limit(
-            &self,
-            _model_config: &ModelConfig,
-        ) -> Result<usize, ProviderError> {
-            Ok(self.config.context_limit())
+        async fn get_context_limit(&self, _model: &str, override_limit: Option<usize>) -> usize {
+            override_limit.unwrap_or_else(|| self.config.context_limit())
         }
     }
 

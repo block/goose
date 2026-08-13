@@ -13,7 +13,7 @@ export type ConfigKey = {
 };
 
 export type ModelInfo = {
-  context_limit: number;
+  context_limit?: number | null;
   currency?: string | null;
   input_token_cost?: number | null;
   name: string;
@@ -61,7 +61,7 @@ export type UpdateCustomProviderRequest = {
   display_name: string;
   engine: string;
   headers?: Record<string, string> | null;
-  models: string[];
+  models: Array<{ name: string; contextLimit?: number | null }>;
   preserves_thinking?: boolean | null;
   requires_auth?: boolean;
   supports_streaming?: boolean | null;

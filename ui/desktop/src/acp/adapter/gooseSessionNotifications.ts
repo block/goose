@@ -15,6 +15,7 @@ export function applyGooseSessionNotification(
           type: 'tokenState',
           tokenState: {
             totalTokens: update.used,
+            contextLimit: update.contextLimit,
             accumulatedInputTokens: update.accumulatedInputTokens,
             accumulatedOutputTokens: update.accumulatedOutputTokens,
             accumulatedTotalTokens: update.accumulatedInputTokens + update.accumulatedOutputTokens,

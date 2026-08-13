@@ -38,6 +38,7 @@ pub fn is_goose_internal_request_param(key: &str) -> bool {
 #[derive(Debug, Clone, Serialize)]
 pub struct ModelConfig {
     pub model_name: String,
+    #[serde(skip)]
     pub context_limit: Option<usize>,
     pub temperature: Option<f32>,
     pub max_tokens: Option<i32>,
@@ -62,7 +63,8 @@ impl<'de> Deserialize<'de> for ModelConfig {
         #[derive(Deserialize)]
         struct RawModelConfig {
             model_name: String,
-            context_limit: Option<usize>,
+            #[serde(rename = "context_limit")]
+            _context_limit: Option<usize>,
             temperature: Option<f32>,
             max_tokens: Option<i32>,
             toolshim: bool,
@@ -76,7 +78,7 @@ impl<'de> Deserialize<'de> for ModelConfig {
         let raw = RawModelConfig::deserialize(deserializer)?;
         let mut config = Self {
             model_name: raw.model_name,
-            context_limit: raw.context_limit,
+            context_limit: None,
             temperature: raw.temperature,
             max_tokens: raw.max_tokens,
             toolshim: raw.toolshim,
@@ -124,9 +126,6 @@ impl ModelConfig {
             );
 
         if let Some(canonical) = canonical {
-            if self.context_limit.is_none() {
-                self.context_limit = Some(canonical.limit.context);
-            }
             if self.max_tokens.is_none() {
                 self.max_tokens = canonical
                     .limit
@@ -608,23 +607,8 @@ mod tests {
                 ("GOOSE_CONTEXT_LIMIT", None::<&str>),
             ]);
             let config = ModelConfig::new("gpt-4o").with_canonical_limits("openai");
-
-            assert_eq!(config.context_limit, Some(128_000));
             assert_eq!(config.max_tokens, Some(16_384));
             assert_eq!(config.reasoning, Some(false));
-        }
-
-        #[test]
-        fn does_not_override_existing_context_limit() {
-            let _guard = env_lock::lock_env([
-                ("GOOSE_MAX_TOKENS", None::<&str>),
-                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
-            ]);
-            let mut config = ModelConfig::new("gpt-4o");
-            config.context_limit = Some(64_000);
-            let config = config.with_canonical_limits("openai");
-
-            assert_eq!(config.context_limit, Some(64_000));
         }
 
         #[test]
@@ -647,8 +631,6 @@ mod tests {
                 ("GOOSE_CONTEXT_LIMIT", None::<&str>),
             ]);
             let config = ModelConfig::new("moonshotai/kimi-k2.6").with_canonical_limits("nvidia");
-
-            assert_eq!(config.context_limit, Some(262_144));
             assert_eq!(config.max_tokens, None);
             assert_eq!(config.max_output_tokens(), 4_096);
         }
@@ -661,8 +643,6 @@ mod tests {
             ]);
             let config = ModelConfig::new("global.anthropic.claude-sonnet-5")
                 .with_canonical_limits("aws_bedrock");
-
-            assert_eq!(config.context_limit, Some(1_000_000));
             assert_eq!(config.max_tokens, Some(128_000));
             assert_eq!(config.reasoning, Some(true));
         }
@@ -687,18 +667,8 @@ mod tests {
                 ("GOOSE_CONTEXT_LIMIT", None::<&str>),
             ]);
 
-            // "databricks-gpt-5.4-high" should resolve via "databricks-gpt-5.4"
-            let config =
-                ModelConfig::new("databricks-gpt-5.4-high").with_canonical_limits("databricks");
-            assert_eq!(config.context_limit, Some(1_050_000));
-
-            // "gpt-5.4-xhigh" should resolve via "gpt-5.4"
-            let config = ModelConfig::new("gpt-5.4-xhigh").with_canonical_limits("openai");
-            assert_eq!(config.context_limit, Some(1_050_000));
-
             // "gpt-5.6-sol-xhigh" should resolve via "gpt-5.6-sol"
             let config = ModelConfig::new("gpt-5.6-sol-xhigh").with_canonical_limits("openai");
-            assert_eq!(config.context_limit, Some(1_050_000));
             assert_eq!(config.max_tokens, Some(128_000));
             assert_eq!(config.reasoning, Some(true));
             let canonical = crate::canonical::maybe_get_canonical_model("openai", "gpt-5.6-sol")
@@ -706,13 +676,8 @@ mod tests {
             assert_eq!(canonical.temperature, Some(false));
 
             let config = ModelConfig::new("gpt-5.6-sol").with_canonical_limits("chatgpt_codex");
-            assert_eq!(config.context_limit, Some(1_050_000));
             assert_eq!(config.max_tokens, Some(128_000));
             assert_eq!(config.reasoning, Some(true));
-
-            // "gpt-5.4-nano-low" should resolve via "gpt-5.4-nano"
-            let config = ModelConfig::new("gpt-5.4-nano-low").with_canonical_limits("openai");
-            assert_eq!(config.context_limit, Some(400_000));
         }
     }
 

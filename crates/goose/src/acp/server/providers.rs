@@ -2,6 +2,7 @@ use super::*;
 use crate::config::declarative_providers;
 use crate::providers::inventory::ensure_refresh_identity_current;
 use crate::providers::provider_secrets;
+use goose_providers::base::ModelInfo;
 use std::str::FromStr;
 
 const ACP_READINESS_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
@@ -344,9 +345,9 @@ fn normalize_custom_provider_upsert(
     provider.models = provider
         .models
         .into_iter()
-        .filter_map(|model| {
-            let model = model.trim().to_string();
-            (!model.is_empty()).then_some(model)
+        .filter_map(|mut model| {
+            model.name = model.name.trim().to_string();
+            (!model.name.is_empty()).then_some(model)
         })
         .collect();
     if provider.models.is_empty() {
@@ -421,7 +422,10 @@ fn custom_provider_config_to_dto(
         models: config
             .models
             .iter()
-            .map(|model| model.name.clone())
+            .map(|model| CustomProviderModelDto {
+                name: model.name.clone(),
+                context_limit: model.context_limit,
+            })
             .collect(),
         supports_streaming: config.supports_streaming,
         headers: config.headers.clone().unwrap_or_default(),
@@ -618,7 +622,13 @@ impl GooseAcpAgent {
                 display_name: provider.display_name,
                 api_url: provider.api_url,
                 api_key: provider.api_key,
-                models: provider.models,
+                models: provider
+                    .models
+                    .into_iter()
+                    .map(|model| {
+                        ModelInfo::new(model.name).with_optional_context_limit(model.context_limit)
+                    })
+                    .collect(),
                 supports_streaming: provider.supports_streaming,
                 headers: custom_provider_headers(provider.headers),
                 requires_auth: provider.requires_auth,
@@ -687,7 +697,13 @@ impl GooseAcpAgent {
                 display_name: provider.display_name,
                 api_url: provider.api_url,
                 api_key: provider.api_key,
-                models: provider.models,
+                models: provider
+                    .models
+                    .into_iter()
+                    .map(|model| {
+                        ModelInfo::new(model.name).with_optional_context_limit(model.context_limit)
+                    })
+                    .collect(),
                 supports_streaming: provider.supports_streaming,
                 headers: Some(provider.headers),
                 requires_auth: provider.requires_auth,

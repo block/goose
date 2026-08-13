@@ -389,7 +389,6 @@ pub struct ProviderModelConfig {
 impl ProviderModelConfig {
     fn to_goose_model_config(&self) -> Result<ModelConfig, GooseError> {
         let mut config = ModelConfig::new(&self.model_name)
-            .with_context_limit(self.context_limit.map(|limit| limit.max(0) as usize))
             .with_temperature(self.temperature)
             .with_max_tokens(self.max_tokens)
             .with_toolshim(self.toolshim)
@@ -615,6 +614,15 @@ impl ProviderHandle {
         self.provider.get_name().to_string()
     }
 
+    async fn context_limit(&self, model: ProviderModelConfig) -> usize {
+        self.provider
+            .get_context_limit(
+                &model.model_name,
+                model.context_limit.map(|limit| limit.max(0) as usize),
+            )
+            .await
+    }
+
     async fn stream(
         &self,
         model: ProviderModelConfig,
@@ -734,6 +742,10 @@ impl Provider {
             features.push(Feature::Reasoning);
         }
         features
+    }
+
+    pub async fn context_limit(&self, model: ProviderModelConfig) -> u64 {
+        self.handle.context_limit(model).await as u64
     }
 
     pub async fn stream(

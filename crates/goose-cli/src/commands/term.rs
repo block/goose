@@ -355,16 +355,32 @@ pub async fn handle_term_info() -> Result<()> {
         })
         .unwrap_or_else(|| "?".to_string());
 
-    let context_limit = config
-        .get_goose_model()
-        .ok()
-        .and_then(|model_name| {
-            config.get_goose_provider().ok().and_then(|provider_name| {
-                goose::model_config::model_config_from_user_config(&provider_name, &model_name).ok()
-            })
-        })
-        .map(|mc| mc.context_limit())
-        .unwrap_or(128_000);
+    let context_limit = if let Some(session) = session.as_ref() {
+        let provider_name = session
+            .provider_name
+            .clone()
+            .or_else(|| config.get_goose_provider().ok());
+        let model = session
+            .model_config
+            .as_ref()
+            .map(|model| model.model_name.clone())
+            .or_else(|| config.get_goose_model().ok());
+        match (provider_name, model) {
+            (Some(provider_name), Some(model)) => {
+                match goose::providers::create(&provider_name, vec![]).await {
+                    Ok(provider) => {
+                        goose::context_limit::get_context_limit(provider.as_ref(), &model)
+                            .await
+                            .unwrap_or(goose_providers::model::DEFAULT_CONTEXT_LIMIT)
+                    }
+                    Err(_) => goose_providers::model::DEFAULT_CONTEXT_LIMIT,
+                }
+            }
+            _ => goose_providers::model::DEFAULT_CONTEXT_LIMIT,
+        }
+    } else {
+        goose_providers::model::DEFAULT_CONTEXT_LIMIT
+    };
 
     let percentage = if context_limit > 0 {
         ((total_tokens as f64 / context_limit as f64) * 100.0).round() as usize

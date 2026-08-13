@@ -969,26 +969,11 @@ impl CliSession {
             return Ok(());
         }
 
-        if let Some(model_info) = target_entry
-            .metadata()
-            .known_models
-            .iter()
-            .find(|m| m.name == target_model_name)
-        {
-            if model_info.context_limit < current_model_config.context_limit.unwrap_or(0) {
-                eprintln!(
-                    "{}",
-                    console::style(format!(
-                        "Warning: '{}' has a smaller context window ({} tokens) than the current session ({} tokens). \
-                        You may need to use /compact.",
-                        target_model_name,
-                        model_info.context_limit,
-                        current_model_config.context_limit.unwrap_or(0)
-                    ))
-                    .yellow()
-                );
-            }
-        }
+        let current_context_limit = goose::context_limit::get_context_limit(
+            provider.as_ref(),
+            &current_model_config.model_name,
+        )
+        .await?;
 
         let extensions = self.agent.get_extension_configs().await;
         let new_provider = match goose::providers::create(target_provider_name, extensions).await {
@@ -1010,6 +995,22 @@ impl CliSession {
                 target_provider_name
             ));
             return Ok(());
+        }
+
+        let new_context_limit = goose::context_limit::get_context_limit(
+            new_provider.as_ref(),
+            &new_model_config.model_name,
+        )
+        .await?;
+        if new_context_limit < current_context_limit {
+            eprintln!(
+                "{}",
+                console::style(format!(
+                    "Warning: '{}' has a smaller context window ({} tokens) than the current session ({} tokens). You may need to use /compact.",
+                    target_model_name, new_context_limit, current_context_limit
+                ))
+                .yellow()
+            );
         }
 
         self.agent
@@ -1942,10 +1943,9 @@ impl CliSession {
             .agent
             .model_config_for_session(&self.session_id)
             .await?;
-        let context_limit = provider
-            .get_context_limit(&model_config)
-            .await
-            .unwrap_or_else(|_| model_config.context_limit());
+        let context_limit =
+            goose::context_limit::get_context_limit(provider.as_ref(), &model_config.model_name)
+                .await?;
 
         let config = Config::global();
         let show_cost = config

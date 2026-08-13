@@ -854,6 +854,7 @@ describe('createAcpSessionNotificationAdapter', () => {
           type: 'tokenState',
           tokenState: {
             totalTokens: 42,
+            contextLimit: 200,
             accumulatedInputTokens: 10,
             accumulatedOutputTokens: 15,
             accumulatedTotalTokens: 25,

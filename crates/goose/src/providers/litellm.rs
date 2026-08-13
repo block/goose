@@ -125,11 +125,13 @@ impl LiteLLMProvider {
                 }
 
                 let model_info = &model_data["model_info"];
-                let context_length =
-                    model_info["max_input_tokens"].as_u64().unwrap_or(128000) as usize;
+                let context_length = model_info["max_input_tokens"]
+                    .as_u64()
+                    .map(|limit| limit as usize);
                 let supports_cache_control = model_info["supports_prompt_caching"].as_bool();
 
-                let mut model_info_obj = ModelInfo::new(model_name, context_length);
+                let mut model_info_obj =
+                    ModelInfo::new(model_name).with_optional_context_limit(context_length);
                 model_info_obj.supports_cache_control = supports_cache_control;
                 models.push(model_info_obj);
             }
@@ -231,25 +233,16 @@ impl Provider for LiteLLMProvider {
         &self.name
     }
 
-    async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
-        if let Some(limit) = model_config.context_limit {
-            return Ok(limit);
-        }
-
-        // The cache is populated lazily by the first stream() call (via
-        // supports_cache_control). On turn 1 this will be None and we fall
-        // back to DEFAULT_CONTEXT_LIMIT, which is fine — the conversation is
-        // too small to trigger compaction. From turn 2 onward the real limit
-        // from /model/info is used.
-        if let Some(models) = self.cached_model_info.get() {
-            if let Some(info) = models.iter().find(|m| m.name == model_config.model_name) {
-                if info.context_limit > 0 {
-                    return Ok(info.context_limit);
-                }
-            }
-        }
-
-        Ok(model_config.context_limit())
+    async fn get_context_limit(&self, model: &str, override_limit: Option<usize>) -> usize {
+        goose_providers::context_limit::ContextLimitResolver::new(&self.name)
+            .resolve(model, override_limit, || async {
+                let models = self.get_or_fetch_models().await?;
+                Ok(models
+                    .iter()
+                    .find(|info| info.name == model)
+                    .and_then(|info| info.context_limit))
+            })
+            .await
     }
 
     async fn stream(

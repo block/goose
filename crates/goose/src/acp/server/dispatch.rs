@@ -50,11 +50,12 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                     let session_setup =
                                         agent.prepare_session_setup_by_id(&session_id).await;
                                     responder.respond(response)?;
-                                    if let Err(error) = session_setup.and_then(|(session, totals)| {
+                                    if let Err(error) = session_setup.and_then(|(session, totals, context_limit)| {
                                         send_session_setup_notifications(
                                             &cx_clone,
                                             &session,
                                             &totals,
+                                            context_limit,
                                             agent.supports_goose_custom_notifications(),
                                         )
                                     }) {
@@ -422,11 +423,12 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                     let session_setup =
                                         agent.prepare_session_setup_by_id(&session_id).await;
                                     responder.respond(response)?;
-                                    if let Err(error) = session_setup.and_then(|(session, totals)| {
+                                    if let Err(error) = session_setup.and_then(|(session, totals, context_limit)| {
                                         send_session_setup_notifications(
                                             &cx_spawn,
                                             &session,
                                             &totals,
+                                            context_limit,
                                             agent.supports_goose_custom_notifications(),
                                         )
                                     }) {

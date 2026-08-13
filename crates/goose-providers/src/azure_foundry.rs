@@ -352,10 +352,7 @@ fn model_info_for_deployment(deployment_name: &str, model_name: &str) -> ModelIn
     ModelInfo {
         name: deployment_name.to_string(),
         resolved_model: Some(model_name.to_string()),
-        context_limit: canonical
-            .as_ref()
-            .map(|model| model.limit.context)
-            .unwrap_or_else(|| ModelConfig::new(model_name).context_limit()),
+        context_limit: canonical.as_ref().map(|model| model.limit.context),
         input_token_cost: None,
         output_token_cost: None,
         currency: None,
@@ -456,14 +453,14 @@ impl Provider for AzureFoundryProvider {
         Ok(model_info_for_deployment(model_name, &resolved_model))
     }
 
-    async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
-        if let Some(context_limit) = model_config.context_limit {
-            return Ok(context_limit);
-        }
-        Ok(self
-            .fetch_model_info(&model_config.model_name)
-            .await?
-            .context_limit)
+    async fn get_context_limit(&self, model: &str, override_limit: Option<usize>) -> usize {
+        goose_provider_types::context_limit::ContextLimitResolver::new(self.get_name())
+            .resolve(model, override_limit, || async {
+                self.fetch_model_info(model)
+                    .await
+                    .map(|info| info.context_limit)
+            })
+            .await
     }
 
     async fn stream(
@@ -738,7 +735,7 @@ mod tests {
         let info = model_info_for_deployment("production-chat", "gpt-5");
         assert_eq!(info.name, "production-chat");
         assert_eq!(info.resolved_model.as_deref(), Some("gpt-5"));
-        assert_eq!(info.context_limit, 400_000);
+        assert_eq!(info.context_limit, Some(400_000));
         assert_eq!(info.input_token_cost, None);
         assert_eq!(info.output_token_cost, None);
     }
@@ -747,7 +744,7 @@ mod tests {
     fn gpt_5_6_sol_uses_its_full_context_window() {
         let info = model_info_for_deployment("gpt-5.6-sol", "gpt-5.6-sol");
 
-        assert_eq!(info.context_limit, 1_050_000);
+        assert_eq!(info.context_limit, Some(1_050_000));
         assert!(info.reasoning);
     }
 
@@ -815,10 +812,7 @@ mod tests {
 
         let provider = project_provider(&server);
         assert_eq!(
-            provider
-                .get_context_limit(&ModelConfig::new("production-chat"))
-                .await
-                .unwrap(),
+            provider.get_context_limit("production-chat", None).await,
             400_000
         );
     }
@@ -842,16 +836,24 @@ mod tests {
 
         let provider = project_provider(&server);
         let config = raw_model_config("gpt-5-high");
-        assert_eq!(provider.get_context_limit(&config).await.unwrap(), 128_000);
+        assert_eq!(
+            provider.get_context_limit(&config.model_name, None).await,
+            128_000
+        );
     }
 
     #[tokio::test]
-    async fn explicit_context_limit_overrides_deployment_metadata() {
+    async fn caller_override_precedes_deployment_metadata() {
         let server = MockServer::start().await;
         let provider = project_provider(&server);
-        let config = raw_model_config("gpt-5-high").with_context_limit(Some(64_000));
+        let config = raw_model_config("gpt-5-high");
 
-        assert_eq!(provider.get_context_limit(&config).await.unwrap(), 64_000);
+        assert_eq!(
+            provider
+                .get_context_limit(&config.model_name, Some(64_000))
+                .await,
+            64_000
+        );
         assert!(server.received_requests().await.unwrap().is_empty());
     }
 

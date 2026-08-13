@@ -310,7 +310,6 @@ pub async fn create_with_named_model(
 mod tests {
     use super::*;
     use crate::config::paths::Paths;
-    use goose_providers::model::ModelConfig;
     use std::fs;
 
     #[tokio::test]
@@ -428,24 +427,20 @@ mod tests {
         let inf_entry = get_from_registry("custom_inf")
             .await
             .expect("custom_inf entry should exist");
-        let inf_config = inf_entry
-            .normalize_model_config(
-                crate::model_config::model_config_from_user_config("custom_inf", "kimi-k2.5")
-                    .expect("custom_inf model config should resolve"),
-            )
-            .expect("custom_inf model config should normalize");
-        assert_eq!(inf_config.context_limit, Some(256_000));
+        let provider = inf_entry
+            .create(vec![])
+            .await
+            .expect("custom_inf provider should be created");
+        assert_eq!(provider.get_context_limit("kimi-k2.5", None).await, 256_000);
 
         let zero_entry = get_from_registry("custom_zero")
             .await
             .expect("custom_zero entry should exist");
-        let zero_config = zero_entry
-            .normalize_model_config(
-                crate::model_config::model_config_from_user_config("custom_zero", "zero-model")
-                    .expect("custom_zero model config should resolve"),
-            )
-            .expect("custom_zero model config should normalize");
-        assert_eq!(zero_config.context_limit, None);
+        let zero_provider = zero_entry
+            .create(vec![])
+            .await
+            .expect("custom_zero provider should be created");
+        assert_eq!(zero_provider.get_context_limit("zero-model", None).await, 0);
 
         std::env::remove_var("GOOSE_PATH_ROOT");
     }
@@ -465,10 +460,16 @@ mod tests {
         let openai = get_from_registry("openai")
             .await
             .expect("openai provider should be registered");
-        let unknown = openai
-            .normalize_model_config(ModelConfig::new("totally-unknown-model"))
-            .expect("unknown model config should normalize");
-        assert_eq!(unknown.context_limit(), 1_000_000);
+        let openai_provider = openai
+            .create(vec![])
+            .await
+            .expect("openai provider should be created");
+        assert_eq!(
+            openai_provider
+                .get_context_limit("totally-unknown-model", Some(1_000_000))
+                .await,
+            1_000_000
+        );
 
         let temp_dir = tempfile::tempdir().expect("tempdir should be created");
         std::env::set_var("GOOSE_PATH_ROOT", temp_dir.path());
@@ -498,10 +499,16 @@ mod tests {
         let inf_entry = get_from_registry("custom_inf")
             .await
             .expect("custom_inf entry should exist");
-        let inf_config = inf_entry
-            .normalize_model_config(ModelConfig::new("kimi-k2.5"))
-            .expect("custom_inf model config should normalize");
-        assert_eq!(inf_config.context_limit(), 1_000_000);
+        let inf_provider = inf_entry
+            .create(vec![])
+            .await
+            .expect("custom_inf provider should be created");
+        assert_eq!(
+            inf_provider
+                .get_context_limit("kimi-k2.5", Some(1_000_000))
+                .await,
+            1_000_000
+        );
 
         std::env::remove_var("GOOSE_PATH_ROOT");
     }

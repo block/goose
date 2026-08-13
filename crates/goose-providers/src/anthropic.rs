@@ -65,7 +65,7 @@ pub struct AnthropicProvider {
     api_client: ApiClient,
     supports_streaming: bool,
     name: String,
-    custom_models: Option<Vec<String>>,
+    custom_models: Option<Vec<ModelInfo>>,
     dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     #[serde(skip)]
@@ -82,7 +82,7 @@ pub struct AnthropicProviderBuilder {
     api_client: ApiClient,
     supports_streaming: bool,
     name: String,
-    custom_models: Option<Vec<String>>,
+    custom_models: Option<Vec<ModelInfo>>,
     dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     format_options: AnthropicFormatOptions,
@@ -129,7 +129,7 @@ impl AnthropicProviderBuilder {
         self
     }
 
-    pub fn custom_models(mut self, custom_models: Option<Vec<String>>) -> Self {
+    pub fn custom_models(mut self, custom_models: Option<Vec<ModelInfo>>) -> Self {
         self.custom_models = custom_models;
         self
     }
@@ -284,7 +284,7 @@ impl ProviderDescriptor for AnthropicProvider {
     fn metadata() -> ProviderMetadata {
         let models: Vec<ModelInfo> = ANTHROPIC_KNOWN_MODELS
             .iter()
-            .map(|&model_name| ModelInfo::new(model_name, 200_000))
+            .map(|&model_name| ModelInfo::new(model_name).with_context_limit(200_000))
             .collect();
 
         ProviderMetadata::with_models(
@@ -331,10 +331,25 @@ impl Provider for AnthropicProvider {
         self.skip_canonical_filtering
     }
 
+    async fn get_context_limit(&self, model: &str, override_limit: Option<usize>) -> usize {
+        let configured_limits = self
+            .custom_models
+            .iter()
+            .flatten()
+            .filter_map(|model| model.context_limit.map(|limit| (model.name.clone(), limit)));
+        crate::context_limit::ContextLimitResolver::new(&self.name)
+            .with_configured_limits(configured_limits)
+            .resolve(model, override_limit, || async { Ok(None) })
+            .await
+    }
+
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         if let Some(custom_models) = &self.custom_models {
             if self.dynamic_models == Some(false) {
-                return Ok(custom_models.clone());
+                return Ok(custom_models
+                    .iter()
+                    .map(|model| model.name.clone())
+                    .collect());
             }
             match self.fetch_models_from_api().await {
                 Ok(models) => return Ok(models),
@@ -344,7 +359,10 @@ impl Provider for AnthropicProvider {
                         self.name,
                         e
                     );
-                    return Ok(custom_models.clone());
+                    return Ok(custom_models
+                        .iter()
+                        .map(|model| model.name.clone())
+                        .collect());
                 }
                 Err(e) => return Err(e),
             }
@@ -385,13 +403,7 @@ pub fn from_declarative_config(
     key_resolver: impl KeyResolver,
 ) -> Result<AnthropicProviderBuilder> {
     let custom_models = if !config.models.is_empty() {
-        Some(
-            config
-                .models
-                .iter()
-                .map(|m| m.name.clone())
-                .collect::<Vec<String>>(),
-        )
+        Some(config.models.clone())
     } else {
         None
     };
@@ -487,7 +499,7 @@ mod tests {
                 .unwrap(),
             supports_streaming: true,
             name: "test-provider".to_string(),
-            custom_models: Some(custom_models),
+            custom_models: Some(custom_models.into_iter().map(ModelInfo::new).collect()),
             dynamic_models: Some(true),
             skip_canonical_filtering: false,
             format_options: AnthropicFormatOptions::default(),

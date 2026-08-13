@@ -1113,7 +1113,7 @@ fn configured_models_to_inventory(
     let mut result: Vec<InventoryModel> = Vec::new();
     let mut seen_names: HashSet<String> = HashSet::new();
     for model in models {
-        let enriched = enriched_model(provider_family, &model.name, Some(model.context_limit));
+        let enriched = enriched_model(provider_family, &model.name, model.context_limit);
         if seen_names.insert(enriched.name.clone()) {
             result.push(enriched);
         }
@@ -1320,8 +1320,10 @@ mod tests {
 
     #[test]
     fn configured_models_use_canonical_enrichment() {
-        let models =
-            configured_models_to_inventory("anthropic", &[ModelInfo::new("claude-sonnet-4-5", 0)]);
+        let models = configured_models_to_inventory(
+            "anthropic",
+            &[ModelInfo::new("claude-sonnet-4-5").with_context_limit(0)],
+        );
 
         assert_eq!(models.len(), 1);
         assert!(models[0].name.contains("Claude"));
@@ -1349,7 +1351,7 @@ mod tests {
 
     #[test]
     fn inventory_uses_configured_models_before_first_successful_refresh() {
-        let configured_models = [ModelInfo::new("claude-sonnet-4-5", 0)];
+        let configured_models = [ModelInfo::new("claude-sonnet-4-5").with_context_limit(0)];
         let snapshot = InventorySnapshot {
             models: vec![],
             last_updated_at: None,
@@ -1366,7 +1368,7 @@ mod tests {
 
     #[test]
     fn inventory_preserves_empty_models_after_successful_refresh() {
-        let configured_models = [ModelInfo::new("claude-sonnet-4-5", 0)];
+        let configured_models = [ModelInfo::new("claude-sonnet-4-5").with_context_limit(0)];
         let snapshot = InventorySnapshot {
             models: vec![],
             last_updated_at: Some(Utc::now()),
@@ -1382,7 +1384,7 @@ mod tests {
 
     #[test]
     fn inventory_ignores_stale_snapshots_for_static_providers() {
-        let configured_models = [ModelInfo::new("gpt-5.6", 0)];
+        let configured_models = [ModelInfo::new("gpt-5.6").with_context_limit(0)];
         let snapshot = InventorySnapshot {
             models: vec![InventoryModel {
                 id: "gpt-5.5".to_string(),

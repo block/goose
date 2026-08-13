@@ -637,6 +637,14 @@ impl Provider for LocalInferenceProvider {
         &self.name
     }
 
+    async fn get_context_limit(&self, model: &str, override_limit: Option<usize>) -> usize {
+        goose_provider_types::context_limit::ContextLimitResolver::new(&self.name)
+            .resolve(model, override_limit, || async {
+                Ok(resolve_model_path(model).map(|resolved| resolved.context_limit))
+            })
+            .await
+    }
+
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         use crate::local_model_registry::get_registry;
 

@@ -453,9 +453,9 @@ impl DatabricksProvider {
 
     fn model_info_from_endpoint(info: DatabricksEndpointInfo) -> ModelInfo {
         let context_model = info.upstream_model_name.as_deref().unwrap_or(&info.name);
-        let context_limit = ModelConfig::new(context_model)
-            .with_canonical_limits(DATABRICKS_PROVIDER_NAME)
-            .context_limit();
+        let context_limit =
+            crate::canonical::maybe_get_canonical_model(DATABRICKS_PROVIDER_NAME, context_model)
+                .map(|model| model.limit.context);
         let reasoning = info
             .reasoning
             .unwrap_or_else(|| ModelConfig::new(context_model).is_reasoning_model());

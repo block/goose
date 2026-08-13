@@ -551,14 +551,15 @@ pub(super) struct UsageUpdates {
 pub(super) fn build_usage_updates(
     session: &Session,
     totals: &SessionUsageTotals,
-) -> Option<UsageUpdates> {
+    context_limit: usize,
+) -> UsageUpdates {
     let used = session.usage.total_tokens.unwrap_or(0).max(0) as u64;
-    let ctx_limit = session.model_config.as_ref()?.context_limit() as u64;
+    let ctx_limit = context_limit as u64;
     let accumulated_input_tokens =
         to_nonnegative_u64(totals.accumulated_usage.input_tokens).unwrap_or(0);
     let accumulated_output_tokens =
         to_nonnegative_u64(totals.accumulated_usage.output_tokens).unwrap_or(0);
-    Some(UsageUpdates {
+    UsageUpdates {
         custom: GooseSessionNotification {
             session_id: session.id.clone(),
             update: GooseSessionUpdate::UsageUpdate(SessionUsageUpdate {
@@ -576,7 +577,7 @@ pub(super) fn build_usage_updates(
             }
             standard
         },
-    })
+    }
 }
 
 pub(super) fn validate_absolute_cwd(cwd: &Path) -> Result<(), agent_client_protocol::Error> {
@@ -615,10 +616,23 @@ impl GooseAcpAgent {
             .get_session_usage_totals(&session.id)
             .await
             .unwrap_or_default();
+        let agent = self.get_session_agent(&session.id).await?;
+        let provider = agent
+            .provider()
+            .await
+            .internal_err_ctx("Failed to resolve session provider")?;
+        let model = session.model_config.as_ref().ok_or_else(|| {
+            agent_client_protocol::Error::internal_error().data("Session has no model")
+        })?;
+        let context_limit =
+            crate::context_limit::get_context_limit(provider.as_ref(), &model.model_name)
+                .await
+                .internal_err_ctx("Failed to resolve context limit")?;
         send_session_setup_notifications(
             cx,
             session,
             &totals,
+            context_limit,
             self.supports_goose_custom_notifications(),
         )
     }
@@ -626,7 +640,7 @@ impl GooseAcpAgent {
     pub(super) async fn prepare_session_setup_by_id(
         &self,
         session_id: &str,
-    ) -> Result<(Session, SessionUsageTotals), agent_client_protocol::Error> {
+    ) -> Result<(Session, SessionUsageTotals, usize), agent_client_protocol::Error> {
         let session = self
             .session_manager
             .get_session(session_id, false)
@@ -637,7 +651,19 @@ impl GooseAcpAgent {
             .get_session_usage_totals(session_id)
             .await
             .unwrap_or_default();
-        Ok((session, totals))
+        let agent = self.get_session_agent(session_id).await?;
+        let provider = agent
+            .provider()
+            .await
+            .internal_err_ctx("Failed to resolve session provider")?;
+        let model = session.model_config.as_ref().ok_or_else(|| {
+            agent_client_protocol::Error::internal_error().data("Session has no model")
+        })?;
+        let context_limit =
+            crate::context_limit::get_context_limit(provider.as_ref(), &model.model_name)
+                .await
+                .internal_err_ctx("Failed to resolve context limit")?;
+        Ok((session, totals, context_limit))
     }
 
     pub(super) fn supports_recipe_param_requests(&self) -> bool {
@@ -1974,18 +2000,25 @@ impl GooseAcpAgent {
             .get_session_usage_totals(&session_id)
             .await
             .unwrap_or_default();
-        if let Some(updates) = build_usage_updates(&session, &totals) {
-            if self.supports_goose_custom_notifications() {
-                cx.send_notification(updates.custom)?;
-            }
-            // Standard ACP notification — emitted alongside the custom one for
-            // backwards compatibility. Remove once all known clients have
-            // migrated to `_goose/unstable/session/update`.
-            cx.send_notification(SessionNotification::new(
-                args.session_id.clone(),
-                SessionUpdate::UsageUpdate(updates.standard),
-            ))?;
+        let provider = agent
+            .provider()
+            .await
+            .internal_err_ctx("Failed to resolve session provider")?;
+        let model = session.model_config.as_ref().ok_or_else(|| {
+            agent_client_protocol::Error::internal_error().data("Session has no model")
+        })?;
+        let context_limit =
+            crate::context_limit::get_context_limit(provider.as_ref(), &model.model_name)
+                .await
+                .internal_err_ctx("Failed to resolve context limit")?;
+        let updates = build_usage_updates(&session, &totals, context_limit);
+        if self.supports_goose_custom_notifications() {
+            cx.send_notification(updates.custom)?;
         }
+        cx.send_notification(SessionNotification::new(
+            args.session_id.clone(),
+            SessionUpdate::UsageUpdate(updates.standard),
+        ))?;
 
         let stop_reason = prompt_stop_reason(was_cancelled, output_token_limit_reached);
 
@@ -2786,8 +2819,7 @@ print(\"hello, world\")
             accumulated_usage: session.accumulated_usage,
             accumulated_cost: session.accumulated_cost,
         };
-        let updates =
-            build_usage_updates(&session, &totals).expect("usage updates should be present");
+        let updates = build_usage_updates(&session, &totals, 258_000);
         assert_eq!(updates.custom.session_id, "session-1");
         let usage = match updates.custom.update {
             GooseSessionUpdate::UsageUpdate(usage) => usage,
@@ -2797,15 +2829,6 @@ print(\"hello, world\")
         assert_eq!(usage.context_limit, 258_000);
         assert_eq!(updates.standard.used, 0);
         assert_eq!(updates.standard.size, 258_000);
-    }
-
-    #[test]
-    fn test_build_usage_update_requires_model_config() {
-        let session = make_session_with_usage(
-            TokenUsage::new(Some(80), Some(40), Some(120)),
-            TokenUsage::default(),
-        );
-        assert!(build_usage_updates(&session, &SessionUsageTotals::default()).is_none());
     }
 
     #[test]

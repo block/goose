@@ -820,10 +820,12 @@ impl Agent {
             Ok(v) => v,
             Err(_) => {
                 let context_limit = match self.provider().await {
-                    Ok(provider) => provider
-                        .get_context_limit(&model_config)
-                        .await
-                        .unwrap_or_else(|_| model_config.context_limit()),
+                    Ok(provider) => crate::context_limit::get_context_limit(
+                        provider.as_ref(),
+                        &model_config.model_name,
+                    )
+                    .await
+                    .unwrap_or(goose_providers::model::DEFAULT_CONTEXT_LIMIT),
                     Err(_) => goose_providers::model::DEFAULT_CONTEXT_LIMIT,
                 };
                 let compaction_threshold = Config::global()
@@ -1776,10 +1778,9 @@ impl Agent {
             }
         };
 
-        let context_limit = provider
-            .get_context_limit(&model_config)
-            .await
-            .unwrap_or_else(|_| model_config.context_limit());
+        let context_limit =
+            crate::context_limit::get_context_limit(provider.as_ref(), &model_config.model_name)
+                .await?;
         let steer_queue = self.steer_queue(&session_id).await;
         let machine = self.create_state_machine(
             provider,
@@ -3439,10 +3440,6 @@ impl Agent {
     ) -> Result<()> {
         let provider_name = provider.get_name().to_string();
 
-        // Normalize against the provider entry so custom/declarative providers
-        // backfill `context_limit` from their known models before the config is
-        // persisted as the session source of truth; otherwise auto-compaction
-        // would fall back to DEFAULT_CONTEXT_LIMIT.
         let model_config = match crate::providers::get_from_registry(&provider_name).await {
             Ok(entry) => entry
                 .normalize_model_config(model_config.clone())

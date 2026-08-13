@@ -138,7 +138,7 @@ pub struct CreateCustomProviderParams {
     pub display_name: String,
     pub api_url: String,
     pub api_key: Option<String>,
-    pub models: Vec<String>,
+    pub models: Vec<ModelInfo>,
     pub supports_streaming: Option<bool>,
     pub headers: Option<HashMap<String, String>>,
     pub requires_auth: bool,
@@ -154,7 +154,7 @@ pub struct UpdateCustomProviderParams {
     pub display_name: String,
     pub api_url: String,
     pub api_key: Option<String>,
-    pub models: Vec<String>,
+    pub models: Vec<ModelInfo>,
     pub supports_streaming: Option<bool>,
     pub headers: Option<HashMap<String, String>>,
     pub requires_auth: bool,
@@ -183,11 +183,7 @@ pub fn create_custom_provider(
         String::new()
     };
 
-    let model_infos: Vec<ModelInfo> = params
-        .models
-        .into_iter()
-        .map(|name| ModelInfo::new(name, 128000))
-        .collect();
+    let model_infos = params.models;
 
     let engine = ProviderEngine::from_str(&params.engine)?;
     let preserves_thinking = params
@@ -256,11 +252,7 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
     };
 
     if editable {
-        let model_infos: Vec<ModelInfo> = params
-            .models
-            .into_iter()
-            .map(|name| ModelInfo::new(name, 128000))
-            .collect();
+        let model_infos = params.models;
 
         let engine = ProviderEngine::from_str(&params.engine)?;
         let preserves_thinking = match params.preserves_thinking {
@@ -545,7 +537,7 @@ mod tests {
             models: vec![ModelInfo {
                 name: "test/model".to_string(),
                 resolved_model: None,
-                context_limit: 128_000,
+                context_limit: Some(128_000),
                 input_token_cost: None,
                 output_token_cost: None,
                 currency: None,
@@ -677,6 +669,47 @@ mod tests {
     }
 
     #[test]
+    fn custom_provider_update_preserves_context_limit() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_root = temp_dir.path().display().to_string();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(temp_root.as_str()))]);
+
+        let created = create_custom_provider(CreateCustomProviderParams {
+            engine: "openai".to_string(),
+            display_name: "Large Context".to_string(),
+            api_url: "https://example.invalid/v1".to_string(),
+            api_key: None,
+            models: vec![ModelInfo::new("large-model").with_context_limit(1_048_576)],
+            supports_streaming: Some(true),
+            headers: None,
+            requires_auth: false,
+            catalog_provider_id: None,
+            base_path: None,
+            preserves_thinking: None,
+        })
+        .unwrap();
+
+        update_custom_provider(UpdateCustomProviderParams {
+            id: created.name.clone(),
+            engine: "openai".to_string(),
+            display_name: created.display_name.clone(),
+            api_url: created.base_url.clone(),
+            api_key: None,
+            models: created.models.clone(),
+            supports_streaming: Some(true),
+            headers: None,
+            requires_auth: false,
+            catalog_provider_id: None,
+            base_path: None,
+            preserves_thinking: None,
+        })
+        .unwrap();
+
+        let loaded = load_provider(&created.name).unwrap();
+        assert_eq!(loaded.config.models[0].context_limit, Some(1_048_576));
+    }
+
+    #[test]
     fn test_custom_openai_provider_missing_preserves_thinking_defaults_true() {
         let json = r#"{
             "name": "custom_reasoning",
@@ -771,7 +804,7 @@ mod tests {
             display_name: "Z.AI Updated".to_string(),
             api_url: "https://updated.example.invalid/v1/chat/completions".to_string(),
             api_key: None,
-            models: vec!["z-model".to_string()],
+            models: vec![ModelInfo::new("z-model")],
             supports_streaming: Some(true),
             headers: None,
             requires_auth: false,

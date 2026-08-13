@@ -209,31 +209,26 @@ impl Provider for OllamaCloudProvider {
         self.get_or_fetch_model_names().await
     }
 
-    async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
-        if let Some(limit) = model_config.context_limit {
-            return Ok(limit);
-        }
+    async fn get_context_limit(&self, model: &str, override_limit: Option<usize>) -> usize {
+        goose_providers::context_limit::ContextLimitResolver::new(self.get_name())
+            .resolve(model, override_limit, || async {
+                if let Some(cached) = SHOW_INFO_CACHE
+                    .lock()
+                    .ok()
+                    .and_then(|cache| cache.get(model).copied())
+                {
+                    return Ok(Some(cached));
+                }
 
-        if let Some(cached) = SHOW_INFO_CACHE
-            .lock()
-            .ok()
-            .and_then(|cache| cache.get(&model_config.model_name).copied())
-        {
-            return Ok(cached);
-        }
-
-        if let Some(limit) = self
-            .fetch_context_limit_from_show(&model_config.model_name)
+                let limit = self.fetch_context_limit_from_show(model).await;
+                if let Some(limit) = limit {
+                    if let Ok(mut cache) = SHOW_INFO_CACHE.lock() {
+                        cache.insert(model.to_string(), limit);
+                    }
+                }
+                Ok(limit)
+            })
             .await
-        {
-            if let Ok(mut cache) = SHOW_INFO_CACHE.lock() {
-                cache.insert(model_config.model_name.clone(), limit);
-            }
-
-            return Ok(limit);
-        }
-
-        Ok(model_config.context_limit())
     }
 }
 
@@ -299,7 +294,7 @@ mod tests {
         let provider = build_provider(
             server.uri(),
             Some(false),
-            vec![ModelInfo::new("static-model", 4096)],
+            vec![ModelInfo::new("static-model").with_context_limit(4096)],
         );
 
         assert_eq!(
@@ -314,7 +309,7 @@ mod tests {
         let provider = build_provider(
             server.uri(),
             None,
-            vec![ModelInfo::new("static-model", 4096)],
+            vec![ModelInfo::new("static-model").with_context_limit(4096)],
         );
 
         assert_eq!(
@@ -329,7 +324,7 @@ mod tests {
         let provider = build_provider(
             server.uri(),
             Some(true),
-            vec![ModelInfo::new("static-model", 4096)],
+            vec![ModelInfo::new("static-model").with_context_limit(4096)],
         );
 
         let models = provider.fetch_supported_models().await.unwrap();
@@ -351,7 +346,9 @@ mod tests {
         let provider = build_provider(server.uri(), Some(true), vec![]);
 
         let model_config = ModelConfig::new("gemma3:4b");
-        let limit = provider.get_context_limit(&model_config).await.unwrap();
+        let limit = provider
+            .get_context_limit(&model_config.model_name, None)
+            .await;
         assert_eq!(limit, 131072);
     }
 
@@ -361,7 +358,9 @@ mod tests {
         let provider = build_provider(server.uri(), Some(true), vec![]);
 
         let model_config = ModelConfig::new("qwen3-coder:480b");
-        let limit = provider.get_context_limit(&model_config).await.unwrap();
+        let limit = provider
+            .get_context_limit(&model_config.model_name, None)
+            .await;
         assert_eq!(limit, 262144);
     }
 
@@ -371,7 +370,9 @@ mod tests {
         let provider = build_provider(server.uri(), Some(true), vec![]);
 
         let model_config = ModelConfig::new("unknown-model").with_context_limit(Some(8000));
-        let limit = provider.get_context_limit(&model_config).await.unwrap();
+        let limit = provider
+            .get_context_limit(&model_config.model_name, None)
+            .await;
         assert_eq!(limit, 8000);
     }
 

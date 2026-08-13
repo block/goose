@@ -1220,13 +1220,21 @@ pub struct ProviderCatalogTemplateResponse {
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
+pub struct CustomProviderModelDto {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_limit: Option<usize>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CustomProviderConfigDto {
     pub provider_id: String,
     pub engine: String,
     pub display_name: String,
     pub api_url: String,
     #[serde(default)]
-    pub models: Vec<String>,
+    pub models: Vec<CustomProviderModelDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub supports_streaming: Option<bool>,
     #[serde(default)]
@@ -1251,7 +1259,7 @@ pub struct CustomProviderUpsertDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_key: Option<String>,
     #[serde(default)]
-    pub models: Vec<String>,
+    pub models: Vec<CustomProviderModelDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub supports_streaming: Option<bool>,
     #[serde(default)]
