@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CATALOG="${ROOT}/config/avcd-openrouter-models.json"
 AVCD_AI_CATALOG="${ROOT}/../avcd-ai/config/avcd-librechat.yaml"
 MODE="${1:-offline}"
-EXPECTED_PROVIDER="openrouter"
+EXPECTED_PROVIDER="avocado"
 EXPECTED_MODEL="deepseek/deepseek-v4-flash"
 
 pass() {
@@ -23,7 +23,9 @@ fail() {
 }
 
 validate_catalog() {
-  python3 - "${CATALOG}" "${EXPECTED_PROVIDER}" "${EXPECTED_MODEL}" <<'PY'
+  local model_count
+  model_count="$(
+    python3 - "${CATALOG}" "${EXPECTED_PROVIDER}" "${EXPECTED_MODEL}" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -41,8 +43,8 @@ if catalog.get("provider") != expected_provider:
     raise SystemExit(f"provider must be {expected_provider!r}")
 if catalog.get("defaultModel") != expected_model:
     raise SystemExit(f"defaultModel must be {expected_model!r}")
-if not isinstance(models, list) or len(models) != 13:
-    raise SystemExit(f"models must contain exactly 13 entries, found {len(models or [])}")
+if not isinstance(models, list) or len(models) < 1:
+    raise SystemExit(f"models must be a non-empty list, found {len(models or [])}")
 
 names = []
 for index, model in enumerate(models):
@@ -57,8 +59,10 @@ if len(set(names)) != len(names):
     raise SystemExit("model names must be unique")
 if names[0] != expected_model:
     raise SystemExit("the default model must be the first catalog entry")
+print(len(models))
 PY
-  pass "catalog has 13 unique OpenRouter models and the AVCD default"
+  )"
+  pass "catalog has ${model_count} unique models with the AVCD default first"
 
   if [[ ! -f "${AVCD_AI_CATALOG}" ]]; then
     warn "avcd-ai catalog not found; skipped sibling catalog comparison"
@@ -115,10 +119,15 @@ validate_desktop_env() {
       fail "desktop environment generation failed"
     }
 
-  if ! python3 - "${temp_env}" "${EXPECTED_PROVIDER}" "${EXPECTED_MODEL}" <<'PY'
+  if ! python3 - "${temp_env}" "${CATALOG}" "${EXPECTED_PROVIDER}" "${EXPECTED_MODEL}" <<'PY'
 import json
 import sys
 from pathlib import Path
+
+catalog = json.loads(Path(sys.argv[2]).read_text())
+expected_provider = sys.argv[3]
+expected_model = sys.argv[4]
+expected_count = len(catalog["models"])
 
 values = {}
 for raw_line in Path(sys.argv[1]).read_text().splitlines():
@@ -130,24 +139,26 @@ for raw_line in Path(sys.argv[1]).read_text().splitlines():
         value = value[1:-1]
     values[key] = value
 
-if values.get("GOOSE_DEFAULT_PROVIDER") != sys.argv[2]:
+if values.get("GOOSE_DEFAULT_PROVIDER") != expected_provider:
     raise SystemExit("desktop default provider is missing or incorrect")
-if values.get("GOOSE_DEFAULT_MODEL") != sys.argv[3]:
+if values.get("GOOSE_DEFAULT_MODEL") != expected_model:
     raise SystemExit("desktop default model is missing or incorrect")
 
 models = json.loads(values.get("GOOSE_PREDEFINED_MODELS", "null"))
-if not isinstance(models, list) or len(models) != 13:
-    raise SystemExit("desktop predefined model list must contain 13 entries")
-if any(model.get("provider") != sys.argv[2] for model in models):
-    raise SystemExit("every desktop predefined model must use the openrouter provider")
+if not isinstance(models, list) or len(models) != expected_count:
+    raise SystemExit(
+        f"desktop predefined model list must contain {expected_count} entries"
+    )
+if any(model.get("provider") != expected_provider for model in models):
+    raise SystemExit(f"every desktop predefined model must use the {expected_provider} provider")
 PY
   then
     rm -f "${temp_env}"
-    fail "generated desktop environment does not match the OpenRouter preset"
+    fail "generated desktop environment does not match the model catalog preset"
   fi
 
   rm -f "${temp_env}"
-  pass "desktop environment contains 13 predefined OpenRouter models"
+  pass "desktop environment contains predefined models from the catalog"
 }
 
 validate_compose() {
@@ -207,7 +218,7 @@ validate_online() {
     || fail "goose info did not report provider ${EXPECTED_PROVIDER}"
   [[ "${info}" == *"${EXPECTED_MODEL}"* ]] \
     || fail "goose info did not report model ${EXPECTED_MODEL}"
-  pass "goose info reports the AVCD OpenRouter provider and default model"
+  pass "goose info reports the AVCD provider and default model"
 }
 
 case "${MODE}" in

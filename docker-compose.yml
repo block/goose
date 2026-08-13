@@ -17,7 +17,7 @@ services:
       - .env.local
     environment:
       GOOSE_DISABLE_KEYRING: "true"
-      GOOSE_MODEL: ${GOOSE_MODEL:-anthropic/claude-sonnet-4.6}
+      GOOSE_MODEL: ${GOOSE_MODEL:-deepseek/deepseek-v4-flash}
       GOOSE_PROVIDER: ${GOOSE_PROVIDER:-avocado}
       GOOSE_SERVER__SECRET_KEY: ${GOOSE_SERVER__SECRET_KEY:-avcd-agent-local-development-key}
       GOOSE_TELEMETRY_OFF: "true"
@@ -48,7 +48,7 @@ services:
       - .env.local
     environment:
       GOOSE_DISABLE_KEYRING: "true"
-      GOOSE_MODEL: ${GOOSE_MODEL:-anthropic/claude-sonnet-4.6}
+      GOOSE_MODEL: ${GOOSE_MODEL:-deepseek/deepseek-v4-flash}
       GOOSE_PROVIDER: ${GOOSE_PROVIDER:-avocado}
       GOOSE_SERVER__SECRET_KEY: ${GOOSE_SERVER__SECRET_KEY:-avcd-agent-local-development-key}
       GOOSE_TELEMETRY_OFF: "true"

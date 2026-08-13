@@ -22,7 +22,7 @@ use serde_json::Value;
 pub const AVOCADO_PROVIDER_NAME: &str = "avocado";
 pub const AVOCADO_DOC_URL: &str = "https://dev.avocado.tech/llm-api";
 pub const AVOCADO_BILLING_URL: &str = "https://dev.avocado.tech/llm-api/billing";
-pub const AVOCADO_DEFAULT_MODEL: &str = "anthropic/claude-sonnet-4.6";
+pub const AVOCADO_DEFAULT_MODEL: &str = "deepseek/deepseek-v4-flash";
 pub const AVOCADO_DEFAULT_HOST: &str = "https://dev.avocado.tech/llm";
 
 const BUDGET_MARKERS: &[&str] = &[
@@ -34,10 +34,22 @@ const BUDGET_MARKERS: &[&str] = &[
 ];
 
 pub const AVOCADO_KNOWN_MODELS: &[&str] = &[
-    "anthropic/claude-sonnet-4.6",
-    "anthropic/claude-opus-4.1",
-    "openai/gpt-4.1",
-    "google/gemini-2.5-pro",
+    "deepseek/deepseek-v4-flash",
+    "moonshotai/kimi-k3",
+    "z-ai/glm-5.2",
+    "deepseek/deepseek-v4-pro",
+    "moonshotai/kimi-k2.6",
+    "qwen/qwen3.7-flash",
+    "z-ai/glm-5.1",
+    "minimax/minimax-m3",
+    "qwen/qwen3.6-35b-a3b",
+    "qwen/qwen3-coder-next",
+    "z-ai/glm-5-turbo",
+    "openai/gpt-oss-120b",
+    "nvidia/nemotron-3-super-120b-a12b",
+    "google/gemini-2.5-flash",
+    "anthropic/claude-haiku-4.5",
+    "openai/gpt-4.1-mini",
 ];
 
 struct AvocadoBearerAuth;
@@ -82,6 +94,10 @@ impl AvocadoProvider {
             api_client,
             name: AVOCADO_PROVIDER_NAME.to_string(),
         })
+    }
+
+    pub async fn cleanup() -> Result<()> {
+        avocado_auth::clear_configured_key()
     }
 
     fn enrich_credits_error(err: ProviderError) -> ProviderError {
@@ -139,8 +155,8 @@ impl goose_providers::base::ProviderDescriptor for AvocadoProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             AVOCADO_PROVIDER_NAME,
-            "Avocado LLM API",
-            "AVCD OpenAI-compatible LLM gateway",
+            "Avocado",
+            "Sign in to your Avocado account",
             AVOCADO_DEFAULT_MODEL,
             AVOCADO_KNOWN_MODELS.to_vec(),
             AVOCADO_DOC_URL,

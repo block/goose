@@ -1203,6 +1203,8 @@ const createChat = async (
         tls: true,
         env: {
           GOOSE_PATH_ROOT: appConfig.GOOSE_PATH_ROOT as string | undefined,
+          AVOCADO_HOST: process.env.AVOCADO_HOST,
+          AVOCADO_PROVISION_URL: process.env.AVOCADO_PROVISION_URL,
         },
         loginShellPath,
         isPackaged: app.isPackaged,

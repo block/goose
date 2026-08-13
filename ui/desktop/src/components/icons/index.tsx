@@ -1,12 +1,6 @@
 import ArrowDown from './ArrowDown';
 import ArrowUp from './ArrowUp';
 import Attach from './Attach';
-import { Bird1 } from './Bird1';
-import { Bird2 } from './Bird2';
-import { Bird3 } from './Bird3';
-import { Bird4 } from './Bird4';
-import { Bird5 } from './Bird5';
-import { Bird6 } from './Bird6';
 import Check from './Check';
 import Close from './Close';
 import { CodeXml } from './CodeXml';
@@ -20,7 +14,6 @@ import { GlassWater } from './GlassWater';
 import { Grape } from './Grape';
 import { Gear } from './Gear';
 import { Avocado } from './Avocado';
-import { Goose } from './Goose';
 import { Microphone } from './Microphone';
 import { Watch0 } from './Watch0';
 import { Watch1 } from './Watch1';
@@ -35,12 +28,6 @@ export {
   ArrowUp,
   Attach,
   Avocado,
-  Bird1,
-  Bird2,
-  Bird3,
-  Bird4,
-  Bird5,
-  Bird6,
   Check,
   Close,
   CodeXml,
@@ -61,5 +48,4 @@ export {
   Watch4,
   Watch5,
   Watch6,
-  Goose,
 };

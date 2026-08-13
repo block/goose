@@ -8,6 +8,7 @@ import { Avocado } from '../icons';
 import { Button } from '../ui/button';
 import ProviderSelector from './ProviderSelector';
 import OnboardingSuccess from './OnboardingSuccess';
+import { PROVIDER_MANAGEMENT_ENABLED } from '../../updates';
 import {
   trackOnboardingStarted,
   trackOnboardingCompleted,
@@ -24,7 +25,7 @@ const i18n = defineMessages({
   },
   welcomeDescription: {
     id: 'onboardingGuard.welcomeDescription',
-    defaultMessage: 'Your local AI agent. Sign in with Avocado to connect the billed LLM.',
+    defaultMessage: 'Your local AI agent. Connect a provider to get started.',
   },
   checkProviderErrorTitle: {
     id: 'onboardingGuard.checkProviderErrorTitle',
@@ -254,8 +255,32 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
     );
   }
 
+  // Distro mode auto-selects Avocado, so the welcome header would only flash before
+  // collapsing. Show the sign-in on its own, vertically centred.
+  if (!PROVIDER_MANAGEMENT_ENABLED) {
+    return (
+      <div
+        className="h-screen w-full bg-background-default overflow-hidden"
+        data-testid="onboarding-signin"
+      >
+        <div className="h-full overflow-y-auto flex items-center justify-center p-4">
+          <div className="max-w-sm w-full mx-auto">
+            <ProviderSelector
+              onConfigured={handleConfigured}
+              onFirstSelection={() => setHasSelection(true)}
+              onConfigError={handleConfigError}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-screen w-full bg-background-default overflow-hidden">
+    <div
+      className="h-screen w-full bg-background-default overflow-hidden"
+      data-testid="onboarding-signin"
+    >
       <div className="h-full overflow-y-auto">
         <div
           className={`flex flex-col items-center p-4 pb-8 transition-all duration-500 ease-in-out ${hasSelection ? 'pt-8' : 'pt-[15vh]'}`}
@@ -270,7 +295,7 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
               <h1 className="text-2xl sm:text-4xl font-light mb-3">
                 {intl.formatMessage(i18n.welcomeTitle)}
               </h1>
-              <p className="text-text-muted text-base sm:text-lg">
+              <p className="text-text-secondary text-base sm:text-lg">
                 {intl.formatMessage(i18n.welcomeDescription)}
               </p>
             </div>

@@ -263,7 +263,7 @@ describe('App Component - Brand New State', () => {
       expect(mockElectron.reactReady).toHaveBeenCalled();
     });
 
-    expect(screen.getByText(/^Welcome to Avocado Work/)).toBeInTheDocument();
+    expect(screen.getByTestId('onboarding-signin')).toBeInTheDocument();
   });
 
   it('should not redirect when provider is configured', async () => {

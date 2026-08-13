@@ -7,6 +7,7 @@ import { toastError } from '../../../toasts';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import ResetProviderSection from '../reset_provider/ResetProviderSection';
+import SignOutSection from '../app/SignOutSection';
 import { defineMessages, useIntl } from '../../../i18n';
 import { PROVIDER_MANAGEMENT_ENABLED } from '../../../updates';
 
@@ -111,6 +112,7 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
           <ModelSettingsButtons setView={setView} />
         </CardContent>
       </Card>
+      <SignOutSection />
       {PROVIDER_MANAGEMENT_ENABLED && (
         <Card className="pb-2 rounded-lg">
           <CardHeader className="pb-0">

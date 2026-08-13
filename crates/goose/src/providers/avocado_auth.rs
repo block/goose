@@ -293,7 +293,12 @@ pub async fn provision_virtual_key(
         .text()
         .await
         .map_err(|e| ProvisionError::Other(anyhow!("provision body error: {e}")))?;
-    parse_provision_response(status, &body)
+    parse_provision_response(status, &body).map_err(|err| match err {
+        ProvisionError::Other(inner) => {
+            ProvisionError::Other(anyhow!("POST {provision_url}: {inner}"))
+        }
+        other => other,
+    })
 }
 
 /// After a Zitadel access token is available: provision + persist virtual key.
@@ -586,8 +591,8 @@ mod tests {
         assert!(load_cache().and_then(|c| c.virtual_api_key).is_none());
     }
 
-    #[test]
-    fn given_stored_api_key_in_cache_when_resolve_then_returns_key() {
+    #[tokio::test]
+    async fn given_stored_api_key_in_cache_when_provider_cleanup_then_key_and_cache_gone() {
         let dir = TempDir::new().unwrap();
         let root = dir.path().to_string_lossy().to_string();
         let _guard = env_lock::lock_env([
@@ -609,8 +614,11 @@ mod tests {
         )
         .unwrap();
         assert_eq!(resolve_api_key().as_deref(), Some("sk-cached"));
-        clear_configured_key().unwrap();
+        crate::providers::avocado::AvocadoProvider::cleanup()
+            .await
+            .unwrap();
         assert!(load_cache().is_none());
+        assert!(resolve_api_key().is_none());
     }
 
     #[test]

@@ -97,7 +97,7 @@ dev-ui:
 	$(WITH_NODE) 24 bash -c 'cd ui/desktop && \
 		set -a && . ./.env && set +a && \
 		DOTENV_CONFIG_PATH="$$(pwd)/.env" \
-		pnpm install --frozen-lockfile && pnpm run start-gui'
+		CI=true pnpm install --frozen-lockfile && pnpm run start-gui'
 
 build-desktop-binary:
 	cargo build -p goose-cli --bin goose --no-default-features \

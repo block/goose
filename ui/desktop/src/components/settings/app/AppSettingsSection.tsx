@@ -12,12 +12,12 @@ import {
   DropdownMenuTrigger,
 } from '../../ui/dropdown-menu';
 import UpdateSection from './UpdateSection';
+import SignOutSection from './SignOutSection';
 
 import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import ThemeSelector from '../../GooseSidebar/ThemeSelector';
-import BlockLogoBlack from './icons/block-lockup_black.png';
-import BlockLogoWhite from './icons/block-lockup_white.png';
+import { Avocado } from '../../icons/Avocado';
 import TelemetrySettings from './TelemetrySettings';
 import { trackSettingToggled } from '../../../utils/analytics';
 import type { LanguageSetting } from '../../../utils/settings';
@@ -41,7 +41,8 @@ const i18n = defineMessages({
   },
   taskNotificationsDesc: {
     id: 'settings.notifications.task.description',
-    defaultMessage: 'Notify when Avocado Work finishes a task while the window is in the background',
+    defaultMessage:
+      'Notify when Avocado Work finishes a task while the window is in the background',
   },
   menuBarIcon: { id: 'settings.menuBarIcon.title', defaultMessage: 'Menu bar icon' },
   menuBarIconDesc: {
@@ -188,28 +189,11 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [showPricing, setShowPricing] = useState(true);
   const [language, setLanguage] = useState<LanguageSetting>('system');
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const updateSectionRef = useRef<HTMLDivElement>(null);
   const shouldShowUpdates = !window.appConfig.get('GOOSE_VERSION');
 
   useEffect(() => {
     setIsMacOS(window.electron.platform === 'darwin');
-  }, []);
-
-  useEffect(() => {
-    const updateTheme = () => {
-      setIsDarkMode(document.documentElement.classList.contains('dark'));
-    };
-
-    updateTheme();
-
-    const observer = new MutationObserver(updateTheme);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class'],
-    });
-
-    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -332,6 +316,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
 
   return (
     <div className="space-y-4 pr-4 pb-8 mt-1">
+      <SignOutSection />
       <Card className="rounded-lg">
         <CardHeader className="pb-0">
           <CardTitle className="">{intl.formatMessage(i18n.appearanceTitle)}</CardTitle>
@@ -544,11 +529,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           </CardHeader>
           <CardContent className="pt-4 px-4">
             <div className="flex items-center gap-3">
-              <img
-                src={isDarkMode ? BlockLogoWhite : BlockLogoBlack}
-                alt="Block Logo" // TODO: replace with AAIF logo asset
-                className="h-8 w-auto"
-              />
+              <Avocado className="size-8 text-black dark:text-white" />
+              <span className="text-lg font-medium text-black dark:text-white">Avocado Work</span>
               <span className="text-2xl font-mono text-black dark:text-white">
                 {String(window.appConfig.get('GOOSE_VERSION') || 'Development')}
               </span>

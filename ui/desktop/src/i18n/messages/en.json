@@ -1,25 +1,4 @@
 {
-  "accessDenied.description": {
-    "defaultMessage": "Your account authenticated successfully, but it does not have the agent-access role. Ask an admin to grant access, then try again."
-  },
-  "accessDenied.retry": {
-    "defaultMessage": "Retry"
-  },
-  "accessDenied.switchAccount": {
-    "defaultMessage": "Switch account"
-  },
-  "accessDenied.title": {
-    "defaultMessage": "Access not granted"
-  },
-  "accountMenu.account": {
-    "defaultMessage": "Account"
-  },
-  "accountMenu.signOut": {
-    "defaultMessage": "Sign out"
-  },
-  "accountMenu.signedInAs": {
-    "defaultMessage": "Signed in"
-  },
   "addSkillDialog.cancel": {
     "defaultMessage": "Cancel"
   },
@@ -1193,9 +1172,6 @@
   "extensionsView.searchPlaceholder": {
     "defaultMessage": "Search extensions..."
   },
-  "externalBackendSection.authModeHelp": {
-    "defaultMessage": "Secret Key is hidden in auth mode — the gateway receives a Zitadel access token instead."
-  },
   "externalBackendSection.certFingerprint": {
     "defaultMessage": "Certificate Fingerprint (optional)"
   },
@@ -1210,9 +1186,6 @@
   },
   "externalBackendSection.fingerprintRequiresHttps": {
     "defaultMessage": "Certificate fingerprint requires an https URL"
-  },
-  "externalBackendSection.identity": {
-    "defaultMessage": "Identity"
   },
   "externalBackendSection.restartNote": {
     "defaultMessage": "Changes apply to new chat windows. Restart Avocado Work to update existing windows."
@@ -1231,9 +1204,6 @@
   },
   "externalBackendSection.serverUrlHelp": {
     "defaultMessage": "Enter the HTTP(S) base URL. Avocado Work checks /status and connects to /acp under this base."
-  },
-  "externalBackendSection.signOut": {
-    "defaultMessage": "Sign out"
   },
   "externalBackendSection.title": {
     "defaultMessage": "External Backend (ACP)"
@@ -1907,30 +1877,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "Use {modelId}"
   },
-  "loginGuard.authDisabled": {
-    "defaultMessage": "Auth disabled"
-  },
-  "loginGuard.cancel": {
-    "defaultMessage": "Cancel"
-  },
-  "loginGuard.signIn": {
-    "defaultMessage": "Sign in with Avocado"
-  },
-  "loginGuard.signingInDescription": {
-    "defaultMessage": "We opened Zitadel in your system browser. Finish login there, then return to this window."
-  },
-  "loginGuard.signingInTitle": {
-    "defaultMessage": "Complete sign-in in your browser"
-  },
-  "loginGuard.waitingCallback": {
-    "defaultMessage": "Waiting for callback on 127.0.0.1:47821"
-  },
-  "loginGuard.welcomeDescription": {
-    "defaultMessage": "Sign in with your Avocado account to continue. Sessions and credentials stay private to your user."
-  },
-  "loginGuard.welcomeTitle": {
-    "defaultMessage": "Welcome to Avocado Work"
-  },
   "markdownContent.cancel": {
     "defaultMessage": "Cancel"
   },
@@ -2447,6 +2393,12 @@
   "navigationPanel.untitledSession": {
     "defaultMessage": "Untitled session"
   },
+  "onboardingGuard.accessDeniedDescription": {
+    "defaultMessage": "Your account does not have the agent-access role. Ask an Avocado admin to grant access, then try again."
+  },
+  "onboardingGuard.accessDeniedTitle": {
+    "defaultMessage": "Access denied"
+  },
   "onboardingGuard.checkProviderErrorDescription": {
     "defaultMessage": "The server may be starting up or temporarily unavailable."
   },
@@ -2459,8 +2411,11 @@
   "onboardingGuard.retry": {
     "defaultMessage": "Retry"
   },
+  "onboardingGuard.tryAgain": {
+    "defaultMessage": "Try again"
+  },
   "onboardingGuard.welcomeDescription": {
-    "defaultMessage": "Your local AI agent. Connect an AI model provider to get started."
+    "defaultMessage": "Your local AI agent. Connect a provider to get started."
   },
   "onboardingGuard.welcomeTitle": {
     "defaultMessage": "Welcome to Avocado Work"
@@ -2649,10 +2604,10 @@
     "defaultMessage": "Session metrics (duration, interaction count, token usage)"
   },
   "privacyInfoModal.collectVersion": {
-    "defaultMessage": "goose version and install method"
+    "defaultMessage": "Avocado Work version and install method"
   },
   "privacyInfoModal.description": {
-    "defaultMessage": "Anonymous usage data helps us understand how goose is used and identify areas for improvement."
+    "defaultMessage": "Anonymous usage data helps us understand how Avocado Work is used and identify areas for improvement."
   },
   "privacyInfoModal.neverCollect": {
     "defaultMessage": "We never collect your conversations, code, tool arguments, error messages, or any personal data. You can change this setting anytime in Settings."
@@ -2806,6 +2761,9 @@
   },
   "providerConfigForm.deviceCodeFlowHint": {
     "defaultMessage": "A browser window will open and the verification code will be copied to your clipboard. Paste it in the browser to complete sign-in."
+  },
+  "providerConfigForm.logInToAvocado": {
+    "defaultMessage": "Log in to Avocado"
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Don't have an API key?"
@@ -4162,6 +4120,30 @@
   },
   "shortcutRecorder.save": {
     "defaultMessage": "Save"
+  },
+  "signOutSection.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "signOutSection.confirmDescription": {
+    "defaultMessage": "This removes your Avocado credentials stored on this device. You can sign in again from the welcome screen."
+  },
+  "signOutSection.confirmTitle": {
+    "defaultMessage": "Sign out of Avocado?"
+  },
+  "signOutSection.description": {
+    "defaultMessage": "Sign out of Avocado on this device. You will need to sign in again to chat."
+  },
+  "signOutSection.failedTitle": {
+    "defaultMessage": "Could not sign out"
+  },
+  "signOutSection.signOut": {
+    "defaultMessage": "Sign out"
+  },
+  "signOutSection.signingOut": {
+    "defaultMessage": "Signing out…"
+  },
+  "signOutSection.title": {
+    "defaultMessage": "Account"
   },
   "skillsView.addSkill": {
     "defaultMessage": "Add Skill"

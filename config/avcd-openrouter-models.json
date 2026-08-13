@@ -1,11 +1,61 @@
 {
-  "provider": "openrouter",
+  "provider": "avocado",
   "defaultModel": "deepseek/deepseek-v4-flash",
   "models": [
     {
       "name": "deepseek/deepseek-v4-flash",
       "alias": "DeepSeek V4 Flash",
       "subtext": "Open-weight agentic coding"
+    },
+    {
+      "name": "moonshotai/kimi-k3",
+      "alias": "Kimi K3",
+      "subtext": "Newest Moonshot open flagship"
+    },
+    {
+      "name": "z-ai/glm-5.2",
+      "alias": "GLM 5.2",
+      "subtext": "Top open-weight planning and coding"
+    },
+    {
+      "name": "deepseek/deepseek-v4-pro",
+      "alias": "DeepSeek V4 Pro",
+      "subtext": "Stronger open agentic model"
+    },
+    {
+      "name": "moonshotai/kimi-k2.6",
+      "alias": "Kimi K2.6",
+      "subtext": "Multimodal open agentic model"
+    },
+    {
+      "name": "qwen/qwen3.7-flash",
+      "alias": "Qwen3.7 Flash",
+      "subtext": "Fast open reasoning"
+    },
+    {
+      "name": "z-ai/glm-5.1",
+      "alias": "GLM 5.1",
+      "subtext": "Open Opus-class"
+    },
+    {
+      "name": "minimax/minimax-m3",
+      "alias": "MiniMax M3",
+      "subtext": "Open multimodal, 1M context"
+    },
+    {
+      "name": "qwen/qwen3.6-35b-a3b",
+      "alias": "Qwen3.6 35B-A3B",
+      "subtext": "Efficient open MoE"
+    },
+    {
+      "name": "qwen/qwen3-coder-next",
+      "alias": "Qwen3 Coder Next",
+      "subtext": "Efficient open coding agent"
+    },
+    {
+      "name": "z-ai/glm-5-turbo",
+      "alias": "GLM 5 Turbo",
+      "subtext": "Fast open flagship"
     },
     {
       "name": "openai/gpt-oss-120b",
@@ -18,44 +68,9 @@
       "subtext": "NVIDIA open-weight"
     },
     {
-      "name": "qwen/qwen3.6-35b-a3b",
-      "alias": "Qwen3.6 35B-A3B",
-      "subtext": "Efficient open MoE"
-    },
-    {
-      "name": "z-ai/glm-5.2",
-      "alias": "GLM 5.2",
-      "subtext": "Efficient open flagship"
-    },
-    {
-      "name": "z-ai/glm-5.1",
-      "alias": "GLM 5.1",
-      "subtext": "Open Opus-class"
-    },
-    {
-      "name": "z-ai/glm-5-turbo",
-      "alias": "GLM 5 Turbo",
-      "subtext": "Open Sonnet/Opus-class turbo"
-    },
-    {
-      "name": "minimax/minimax-m3",
-      "alias": "MiniMax M3",
-      "subtext": "Open multimodal with 1M context"
-    },
-    {
-      "name": "moonshotai/kimi-k2.6",
-      "alias": "Kimi K2.6",
-      "subtext": "Moonshot open-weight"
-    },
-    {
-      "name": "moonshotai/kimi-k3",
-      "alias": "Kimi K3",
-      "subtext": "Newest Moonshot flagship"
-    },
-    {
-      "name": "deepseek/deepseek-v4-pro",
-      "alias": "DeepSeek V4 Pro",
-      "subtext": "Stronger open agentic model"
+      "name": "google/gemini-2.5-flash",
+      "alias": "Gemini 2.5 Flash",
+      "subtext": "Fast and affordable"
     },
     {
       "name": "anthropic/claude-haiku-4.5",
@@ -63,9 +78,9 @@
       "subtext": "Fast Claude"
     },
     {
-      "name": "anthropic/claude-sonnet-4.6",
-      "alias": "Claude Sonnet 4.6",
-      "subtext": "Capable Claude"
+      "name": "openai/gpt-4.1-mini",
+      "alias": "GPT-4.1 Mini",
+      "subtext": "Affordable GPT"
     }
   ]
 }

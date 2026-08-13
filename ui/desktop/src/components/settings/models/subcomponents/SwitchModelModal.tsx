@@ -780,8 +780,6 @@ export const SwitchModelModal = ({
                         </div>
                         <div className="flex items-center gap-2 mt-[2px]">
                           <span className="text-xs text-text-secondary">{model.subtext}</span>
-                          <span className="text-xs text-text-secondary">•</span>
-                          <span className="text-xs text-text-secondary">{model.provider}</span>
                         </div>
                       </div>
 

@@ -19,8 +19,10 @@ make dev # creates .env.local from the example when it is missing
 make test-smoke
 ```
 
-Avocado Work uses OpenRouter by default, with the same curated 13-model catalog
-as avcd-ai. Add the shared credential to `.env.local` before starting a chat:
+Avocado Work uses the Avocado provider with a curated OpenRouter-backed model
+catalog (open-weight models first, then affordable hosted options). Add the
+shared credential to `.env.local` before starting a chat when using the legacy
+OpenRouter CLI path:
 
 ```bash
 # Same secret value as OPENROUTER_KEY in avcd-ai; goose uses this variable name.

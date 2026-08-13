@@ -69,8 +69,8 @@ function avocadoProvider(configured: boolean) {
     is_configured: configured,
     provider_type: 'Preferred',
     metadata: {
-      display_name: 'Avocado LLM API',
-      description: 'AVCD OpenAI-compatible LLM gateway',
+      display_name: 'Avocado',
+      description: 'Sign in to your Avocado account',
       default_model: 'anthropic/claude-sonnet-4.6',
       known_models: [],
       config_keys: [
@@ -124,7 +124,7 @@ describe('E2E: OnboardingGuard OAuth - Goal: block chat until avocado Sign in', 
 
     await waitFor(() => {
       expect(
-        screen.getByRole('button', { name: /sign in with avocado/i })
+        screen.getByRole('button', { name: /log in to avocado/i })
       ).toBeTruthy();
     });
   });
@@ -166,7 +166,7 @@ describe('E2E: OnboardingGuard OAuth - Goal: block chat until avocado Sign in', 
     );
 
     const button = await screen.findByRole('button', {
-      name: /sign in with avocado/i,
+      name: /log in to avocado/i,
     });
     await userEvent.click(button);
 
@@ -193,7 +193,7 @@ describe('E2E: OnboardingGuard OAuth - Goal: block chat until avocado Sign in', 
     await waitFor(() => {
       expect(screen.queryByTestId('app-children')).toBeNull();
       expect(
-        screen.getByRole('button', { name: /sign in with avocado/i })
+        screen.getByRole('button', { name: /log in to avocado/i })
       ).toBeTruthy();
     });
   });

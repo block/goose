@@ -297,6 +297,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         "huggingface",
         Arc::new(|| Box::pin(HuggingFaceProvider::cleanup())),
     );
+    registry.set_cleanup("avocado", Arc::new(|| Box::pin(AvocadoProvider::cleanup())));
 
     if let Err(e) = load_custom_providers_into_registry(&mut registry) {
         tracing::warn!("Failed to load custom providers: {}", e);
