@@ -939,16 +939,16 @@ mod tests {
             }
         }
 
-        /// Test that batch tool pair summarization preserves all summaries.
+        /// Test that tool pair summarization preserves all generated summaries.
         ///
         /// Pre-populates a session with enough tool call/response pairs to trigger
-        /// batch summarization, runs agent.reply(), then verifies:
-        /// - All 10 summaries are present in the final conversation
-        /// - The original tool pairs are marked invisible
+        /// summarization, runs agent.reply(), then verifies:
+        /// - All eligible summaries are present in the final conversation
+        /// - The original summarized tool pairs are marked invisible
         #[tokio::test]
-        async fn test_batch_summarization_preserves_all_summaries() -> Result<()> {
+        async fn test_summarization_preserves_all_summaries() -> Result<()> {
             // Set a low cutoff so we don't need hundreds of tool pairs.
-            // cutoff=2 means we need >2+10=12 visible tool pairs to trigger.
+            // With cutoff=2, summarization triggers above 2*cutoff visible tool pairs.
             Config::global()
                 .set_param("GOOSE_TOOL_CALL_CUTOFF", 2)
                 .unwrap();
@@ -978,7 +978,7 @@ mod tests {
                 .update_provider(provider, ModelConfig::new("mock-model"), &session.id)
                 .await?;
 
-            // Pre-populate 13 tool pairs (need > cutoff + batch_size = 12 to trigger).
+            // Pre-populate 13 tool pairs so compaction has a backlog to drain to cutoff.
             // Timestamps in the past so DB ordering places summaries before current turn.
             let base_ts = chrono::Utc::now().timestamp() - 100;
 
@@ -1051,8 +1051,8 @@ mod tests {
 
             assert_eq!(
                 summaries.len(),
-                10,
-                "Expected 10 summaries (one full batch), got {}. Summary texts: {:?}",
+                11,
+                "Expected 11 summaries after draining to the cutoff, got {}. Summary texts: {:?}",
                 summaries.len(),
                 summaries
                     .iter()
@@ -1063,7 +1063,7 @@ mod tests {
             // Verify each summary is unique
             let summary_texts: std::collections::HashSet<String> =
                 summaries.iter().map(|m| m.as_concat_text()).collect();
-            assert_eq!(summary_texts.len(), 10, "All 10 summaries should be unique");
+            assert_eq!(summary_texts.len(), 11, "All 11 summaries should be unique");
 
             // Count invisible tool pairs: original pairs that were summarized
             // should have agent_visible=false
@@ -1075,8 +1075,8 @@ mod tests {
             // Each summarized pair = 2 invisible messages (request + response)
             assert_eq!(
                 invisible_tool_msgs.len(),
-                20, // 10 pairs × 2 messages
-                "Expected 20 invisible tool messages (10 summarized pairs), got {}",
+                22, // 11 pairs × 2 messages
+                "Expected 22 invisible tool messages (11 summarized pairs), got {}",
                 invisible_tool_msgs.len()
             );
 

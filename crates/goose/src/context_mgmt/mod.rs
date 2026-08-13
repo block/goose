@@ -22,8 +22,6 @@ use tracing::log::warn;
 
 pub use goose_context_management::DEFAULT_COMPACTION_THRESHOLD;
 
-pub(crate) const TOOLCALL_SUMMARIZATION_BATCH_SIZE: usize = 10;
-
 pub(crate) fn tool_pair_summarization_enabled() -> bool {
     Config::global()
         .get_param::<bool>("GOOSE_TOOL_PAIR_SUMMARIZATION")
@@ -397,16 +395,19 @@ pub fn tool_ids_to_summarize(
         }
     }
 
-    // Never summarize the last N tool calls (current turn)
+    // Never summarize the last N tool calls (current turn). Let the rewrite
+    // interval scale with the retention window so large-context models do not
+    // churn the prompt prefix every fixed-size batch.
     let eligible = tool_call_ids.len().saturating_sub(protect_last_n);
-    if eligible <= cutoff + TOOLCALL_SUMMARIZATION_BATCH_SIZE {
+    if eligible <= cutoff.saturating_mul(2) {
         return Vec::new();
     }
 
-    tool_call_ids
-        .into_iter()
-        .take(TOOLCALL_SUMMARIZATION_BATCH_SIZE)
-        .collect()
+    // Drain the backlog to the configured retention window in one rewrite.
+    // Since we take from the oldest end, the protected current-turn calls are
+    // never included.
+    let summarize_count = eligible - cutoff;
+    tool_call_ids.into_iter().take(summarize_count).collect()
 }
 
 fn agent_visible_tool_pair(conversation: &Conversation, tool_id: &str) -> Result<Vec<Message>> {
@@ -509,9 +510,69 @@ pub fn maybe_summarize_tool_pairs(
         return None;
     }
 
+    // A request/response message can contain multiple parallel tool calls.
+    // Summarization formats whole messages, so sibling IDs in the same pair
+    // must be compacted as one group or we'd issue duplicate summary calls.
+    let mut seen_message_pairs = std::collections::HashSet::new();
+    let mut grouped_tool_ids = Vec::new();
+    for tool_id in tool_ids {
+        let pair = match agent_visible_tool_pair(&conversation, &tool_id) {
+            Ok(pair) => pair,
+            Err(error) => {
+                warn!("Failed to identify tool pair for summarization: {}", error);
+                continue;
+            }
+        };
+        if pair.len() != 2 {
+            warn!(
+                "Expected a tool request/response pair for '{}', found {} messages",
+                tool_id,
+                pair.len()
+            );
+            continue;
+        }
+
+        let request_ids: std::collections::HashSet<&str> = pair
+            .iter()
+            .flat_map(|message| message.get_tool_request_ids())
+            .collect();
+        let response_ids: std::collections::HashSet<&str> = pair
+            .iter()
+            .flat_map(|message| message.get_tool_response_ids())
+            .collect();
+        if request_ids != response_ids {
+            warn!(
+                "Tool pair for '{}' has siblings answered elsewhere; skipping",
+                tool_id
+            );
+            continue;
+        }
+
+        let mut message_ids = pair
+            .iter()
+            .filter_map(|message| message.id.clone())
+            .collect::<Vec<_>>();
+        if message_ids.len() != 2 {
+            warn!(
+                "Expected two persisted messages for tool pair '{}', found {}",
+                tool_id,
+                message_ids.len()
+            );
+            continue;
+        }
+        message_ids.sort_unstable();
+        if seen_message_pairs.insert(message_ids) {
+            grouped_tool_ids.push(tool_id);
+        }
+    }
+
+    if grouped_tool_ids.is_empty() {
+        return None;
+    }
+
     Some(tokio::spawn(async move {
         let mut results = Vec::new();
-        for tool_id in tool_ids {
+        for tool_id in grouped_tool_ids {
             match summarize_tool_call(
                 provider.as_ref(),
                 &model_config,
@@ -1168,10 +1229,10 @@ mod tests {
     }
 
     #[test]
-    fn test_tool_ids_to_summarize_triggers_at_cutoff_plus_batch() {
-        // cutoff=5, so we need >5+10=15 to trigger. 15 exactly should NOT trigger.
+    fn test_tool_ids_to_summarize_scales_rewrite_interval_with_cutoff() {
+        // cutoff=5, so exactly 10 eligible calls are the boundary and do not trigger.
         let mut messages = vec![Message::user().with_text("hello")];
-        for i in 0..15 {
+        for i in 0..10 {
             messages.extend(create_tool_pair(
                 &format!("call{}", i),
                 &format!("resp{}", i),
@@ -1180,12 +1241,11 @@ mod tests {
             ));
         }
         let conversation = Conversation::new_unvalidated(messages);
-        let result = tool_ids_to_summarize(&conversation, 5, 0);
-        assert!(result.is_empty(), "Exactly cutoff+batch should not trigger");
+        assert!(tool_ids_to_summarize(&conversation, 5, 0).is_empty());
 
-        // 16 tool calls: now exceeds cutoff+10, should return a batch of 10
+        // Crossing 2*cutoff drains the backlog to cutoff in one pass.
         let mut messages = vec![Message::user().with_text("hello")];
-        for i in 0..16 {
+        for i in 0..11 {
             messages.extend(create_tool_pair(
                 &format!("call{}", i),
                 &format!("resp{}", i),
@@ -1195,14 +1255,28 @@ mod tests {
         }
         let conversation = Conversation::new_unvalidated(messages);
         let result = tool_ids_to_summarize(&conversation, 5, 0);
-        assert_eq!(result.len(), TOOLCALL_SUMMARIZATION_BATCH_SIZE);
-        assert_eq!(result[0], "call0");
-        assert_eq!(result[9], "call9");
+        assert_eq!(result.len(), 6);
+        assert_eq!(result.first().map(String::as_str), Some("call0"));
+        assert_eq!(result.last().map(String::as_str), Some("call5"));
+
+        // A larger backlog is still drained by the same single selection.
+        let mut messages = vec![Message::user().with_text("hello")];
+        for i in 0..25 {
+            messages.extend(create_tool_pair(
+                &format!("call{}", i),
+                &format!("resp{}", i),
+                "read_file",
+                "content",
+            ));
+        }
+        let conversation = Conversation::new_unvalidated(messages);
+        let result = tool_ids_to_summarize(&conversation, 5, 0);
+        assert_eq!(result.len(), 20);
+        assert_eq!(result.last().map(String::as_str), Some("call19"));
     }
 
     #[test]
     fn test_tool_ids_to_summarize_protects_current_turn() {
-        // 20 tool pairs, cutoff=2 → 20 > 12, would normally trigger
         let mut messages = vec![Message::user().with_text("hello")];
         for i in 0..20 {
             messages.extend(create_tool_pair(
@@ -1214,20 +1288,20 @@ mod tests {
         }
         let conversation = Conversation::new_unvalidated(messages);
 
-        // No protection: 20 eligible, 20 > 12 → batch of 10
-        let result = tool_ids_to_summarize(&conversation, 2, 0);
-        assert_eq!(result.len(), TOOLCALL_SUMMARIZATION_BATCH_SIZE);
+        // No protection: 20 eligible calls drain to the cutoff of 5.
+        let result = tool_ids_to_summarize(&conversation, 5, 0);
+        assert_eq!(result.len(), 15);
+        assert_eq!(result.last().map(String::as_str), Some("call14"));
 
-        // Protect last 8: 12 eligible, 12 <= 12 → nothing
-        let result = tool_ids_to_summarize(&conversation, 2, 8);
-        assert!(
-            result.is_empty(),
-            "Should not summarize when protected count leaves eligible <= cutoff + batch"
-        );
+        // Protect last 10: 10 eligible is exactly 2*cutoff, so nothing moves.
+        let result = tool_ids_to_summarize(&conversation, 5, 10);
+        assert!(result.is_empty());
 
-        // Protect last 7: 13 eligible, 13 > 12 → batch of 10
-        let result = tool_ids_to_summarize(&conversation, 2, 7);
-        assert_eq!(result.len(), TOOLCALL_SUMMARIZATION_BATCH_SIZE);
-        assert_eq!(result[0], "call0");
+        // Protect last 9: 11 eligible crosses the boundary, so six old calls
+        // are summarized and all protected current-turn calls remain untouched.
+        let result = tool_ids_to_summarize(&conversation, 5, 9);
+        assert_eq!(result.len(), 6);
+        assert_eq!(result.first().map(String::as_str), Some("call0"));
+        assert_eq!(result.last().map(String::as_str), Some("call5"));
     }
 }
