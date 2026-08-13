@@ -126,7 +126,15 @@ enum AcpUpdate {
         response_tx: oneshot::Sender<RequestPermissionResponse>,
     },
     Complete(StopReason, Option<AcpUsage>),
-    Error(String),
+    Error(agent_client_protocol::Error),
+}
+
+fn provider_error_from_acp(error: agent_client_protocol::Error) -> ProviderError {
+    if error.code == agent_client_protocol::schema::v1::ErrorCode::AuthRequired {
+        ProviderError::Authentication(error.to_string())
+    } else {
+        ProviderError::RequestFailed(error.to_string())
+    }
 }
 
 /// Per-tool-call buffer for accumulating ACP ToolCallUpdate fields across
@@ -723,7 +731,7 @@ impl Provider for AcpProvider {
                         break;
                     }
                     AcpUpdate::Error(e) => {
-                        Err(ProviderError::RequestFailed(e))?;
+                        Err(provider_error_from_acp(e))?;
                     }
                 }
             }
@@ -1108,6 +1116,11 @@ fn log_undelivered<E: std::fmt::Debug>(result: Result<(), E>, method: &str) {
     }
 }
 
+fn acp_method_error(method: &str, error: agent_client_protocol::Error) -> anyhow::Error {
+    let message = format!("ACP {method} failed: {error}");
+    anyhow::Error::new(error).context(message)
+}
+
 async fn handle_requests(
     config: AcpProviderConfig,
     goose_mode: Arc<Mutex<GooseMode>>,
@@ -1164,10 +1177,7 @@ async fn handle_requests(
                             .await?;
                         apply_session_mode(&config, &goose_mode, &cx, session).await
                     }
-                    Err(err) => Err(anyhow::anyhow!(
-                        "ACP {} failed: {err}",
-                        AGENT_METHOD_NAMES.session_new
-                    )),
+                    Err(error) => Err(acp_method_error(AGENT_METHOD_NAMES.session_new, error)),
                 };
                 log_undelivered(response_tx.send(result), AGENT_METHOD_NAMES.session_new);
             }
@@ -1273,7 +1283,7 @@ async fn handle_requests(
                     }
                     Err(e) => {
                         log_undelivered(
-                            response_tx.try_send(AcpUpdate::Error(e.to_string())),
+                            response_tx.try_send(AcpUpdate::Error(e)),
                             AGENT_METHOD_NAMES.session_prompt,
                         );
                     }
@@ -1800,7 +1810,7 @@ mod tests {
     use super::*;
     use crate::agents::extension::Envs;
     use agent_client_protocol::schema::v1::{
-        SessionConfigSelectOption, SessionMode, SessionModeId,
+        ErrorCode, SessionConfigSelectOption, SessionMode, SessionModeId,
     };
 
     use test_case::test_case;
@@ -1810,6 +1820,68 @@ mod tests {
             ContentBlock::Text(text) => &text.text,
             _ => panic!("expected text block"),
         }
+    }
+
+    fn acp_error_code(error: &anyhow::Error) -> Option<ErrorCode> {
+        error.chain().find_map(|source| {
+            source
+                .downcast_ref::<agent_client_protocol::Error>()
+                .map(|error| error.code)
+        })
+    }
+
+    #[test]
+    fn session_new_error_preserves_auth_required_code() {
+        let error = acp_method_error(
+            AGENT_METHOD_NAMES.session_new,
+            agent_client_protocol::Error::auth_required(),
+        );
+
+        assert_eq!(
+            error.to_string(),
+            "ACP session/new failed: Authentication required"
+        );
+        assert_eq!(acp_error_code(&error), Some(ErrorCode::AuthRequired));
+    }
+
+    #[test]
+    fn session_new_error_preserves_non_authentication_code() {
+        let error = acp_method_error(
+            AGENT_METHOD_NAMES.session_new,
+            agent_client_protocol::Error::internal_error(),
+        );
+
+        assert_eq!(acp_error_code(&error), Some(ErrorCode::InternalError));
+    }
+
+    #[tokio::test]
+    async fn prompt_error_update_preserves_auth_required_code() {
+        let (tx, mut rx) = mpsc::channel(1);
+        tx.send(AcpUpdate::Error(
+            agent_client_protocol::Error::auth_required().data("sign in"),
+        ))
+        .await
+        .unwrap();
+
+        let AcpUpdate::Error(error) = rx.recv().await.unwrap() else {
+            panic!("expected ACP error update");
+        };
+        assert_eq!(error.code, ErrorCode::AuthRequired);
+        assert_eq!(error.data, Some(serde_json::json!("sign in")));
+    }
+
+    #[test]
+    fn prompt_auth_error_maps_to_provider_authentication() {
+        let error = provider_error_from_acp(agent_client_protocol::Error::auth_required());
+
+        assert!(matches!(error, ProviderError::Authentication(_)));
+    }
+
+    #[test]
+    fn prompt_internal_error_remains_request_failed() {
+        let error = provider_error_from_acp(agent_client_protocol::Error::internal_error());
+
+        assert!(matches!(error, ProviderError::RequestFailed(_)));
     }
 
     fn test_provider() -> (AcpProvider, ModelConfig) {

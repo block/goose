@@ -86,6 +86,11 @@ const EMPTY_TURN_MESSAGE: &str =
     "The model returned an empty response. Please resend your message to continue.";
 const DEFAULT_FRONTEND_INSTRUCTIONS: &str = "The following tools are provided directly by the frontend and will be executed by the frontend when called.";
 
+fn provider_creation_error(error: anyhow::Error, context: impl fmt::Display) -> anyhow::Error {
+    let message = format!("{context}: {error}");
+    error.context(message)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ToolCategory {
     Shell,
@@ -3045,6 +3050,21 @@ impl Agent {
                             exit_chat = true;
                             break;
                         }
+                        Err(ref provider_err @ ProviderError::Authentication(_)) => {
+                            provider_errored = true;
+                            #[cfg(feature = "telemetry")]
+                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
+                            error!("Error: {}", provider_err);
+                            let message = persist_and_push_message_with_id(
+                                &session_manager,
+                                &session_config.id,
+                                &mut conversation,
+                                Message::from_provider_error(provider_err),
+                            )
+                            .await?;
+                            yield AgentEvent::Message(message);
+                            break;
+                        }
                         Err(ref provider_err @ ProviderError::NetworkError(_)) => {
                             provider_errored = true;
                             #[cfg(feature = "telemetry")]
@@ -3478,7 +3498,7 @@ impl Agent {
             session.working_dir.clone(),
         )
         .await
-        .map_err(|e| anyhow!("Could not create provider: {}", e))?;
+        .map_err(|error| provider_creation_error(error, "Could not create provider"))?;
 
         self.update_provider(provider, model_config, session_id)
             .await?;
@@ -3555,7 +3575,7 @@ impl Agent {
                     session.working_dir.clone(),
                 )
                 .await
-                .map_err(|e| anyhow!("Could not create provider: {}", e))?;
+                .map_err(|error| provider_creation_error(error, "Could not create provider"))?;
                 (p, model_config, false)
             } else {
                 let fallback_provider_name = config
@@ -3592,12 +3612,12 @@ impl Agent {
                     session.working_dir.clone(),
                 )
                 .await
-                .map_err(|e| {
-                    anyhow!(
-                        "Could not create provider '{}' or fallback '{}': {}",
-                        provider_name,
-                        fallback_provider_name,
-                        e
+                .map_err(|error| {
+                    provider_creation_error(
+                        error,
+                        format!(
+                            "Could not create provider '{provider_name}' or fallback '{fallback_provider_name}'"
+                        ),
                     )
                 })?;
 
@@ -3956,6 +3976,26 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
+
+    #[test]
+    fn provider_creation_context_preserves_acp_error_code() {
+        let source = anyhow::Error::new(agent_client_protocol::Error::auth_required())
+            .context("ACP session/new failed: Authentication required");
+
+        let error = provider_creation_error(source, "Could not create provider");
+
+        assert_eq!(
+            error.to_string(),
+            "Could not create provider: ACP session/new failed: Authentication required"
+        );
+        assert!(error.chain().any(|source| {
+            source
+                .downcast_ref::<agent_client_protocol::Error>()
+                .is_some_and(|error| {
+                    error.code == agent_client_protocol::schema::v1::ErrorCode::AuthRequired
+                })
+        }));
+    }
 
     #[test]
     fn provider_session_id_comes_from_latest_inference() {
