@@ -38,6 +38,7 @@ export type ProviderMetadata = {
 
 export type ProviderDetails = {
   is_configured: boolean;
+  is_available: boolean;
   is_refreshing?: boolean;
   last_refresh_error?: string | null;
   supports_refresh?: boolean;

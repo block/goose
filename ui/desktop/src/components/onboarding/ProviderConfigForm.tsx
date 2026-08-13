@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   acpAuthenticateProvider,
   acpRefreshProviderDetails,
+  acpSaveProviderConfig,
   isAcpProvider,
 } from '../../acp/providers';
 import type { ProviderDetails } from '../../types/providers';
@@ -168,7 +169,7 @@ function AcpProviderForm({
   const [connectionChecked, setConnectionChecked] = useState(false);
   const [readinessError, setReadinessError] = useState<string | null>(null);
   const setupSteps = provider.metadata.setup_steps ?? [];
-  const canContinue = status.is_configured && connectionChecked && !readinessError;
+  const canContinue = status.is_available && connectionChecked && !readinessError;
 
   const check = useCallback(async () => {
     setIsChecking(true);
@@ -196,19 +197,19 @@ function AcpProviderForm({
         <div className="flex items-center gap-2 text-sm font-medium">
           {isChecking ? (
             <LoaderCircle className="h-4 w-4 animate-spin" />
-          ) : status.is_configured ? (
+          ) : status.is_available ? (
             <CheckCircle2 className="h-4 w-4 text-green-600" />
           ) : (
             <CircleAlert className="h-4 w-4 text-yellow-600" />
           )}
           {isChecking
             ? intl.formatMessage(i18n.checking)
-            : intl.formatMessage(status.is_configured ? i18n.adapterFound : i18n.adapterNotFound)}
+            : intl.formatMessage(status.is_available ? i18n.adapterFound : i18n.adapterNotFound)}
         </div>
         {connectionChecked && !readinessError && (
           <div className="text-sm text-text-secondary">{intl.formatMessage(i18n.connected)}</div>
         )}
-        {!isChecking && status.is_configured && !connectionChecked && !readinessError && (
+        {!isChecking && status.is_available && !connectionChecked && !readinessError && (
           <div className="text-sm text-text-secondary">
             {intl.formatMessage(i18n.connectionNotChecked)}
           </div>
@@ -224,7 +225,7 @@ function AcpProviderForm({
         )}
       </div>
 
-      {(!status.is_configured || readinessError) && setupSteps.length > 0 && (
+      {(!status.is_available || readinessError) && setupSteps.length > 0 && (
         <ol className="ml-5 list-decimal text-sm text-text-muted space-y-1">
           {setupSteps.map((step, i) => (
             <li key={i}>{parseLinks(step)}</li>
@@ -240,7 +241,13 @@ function AcpProviderForm({
           </Button>
         )}
         {canContinue && (
-          <Button onClick={() => onConfigured(status.name)} className="flex-1">
+          <Button
+            onClick={async () => {
+              await acpSaveProviderConfig(status.name, []);
+              await onConfigured(status.name);
+            }}
+            className="flex-1"
+          >
             {intl.formatMessage(i18n.continue)}
           </Button>
         )}

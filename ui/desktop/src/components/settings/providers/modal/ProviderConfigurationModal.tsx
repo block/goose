@@ -229,6 +229,7 @@ export default function ProviderConfigurationModal({
   const isHuggingFaceProvider = provider.name === 'huggingface';
 
   const isConfigured = externalProvider.is_configured;
+  const isAvailable = externalProvider.is_available;
   const headerText = showDeleteConfirmation
     ? intl.formatMessage(i18n.deleteConfigHeader, { providerName: provider.metadata.display_name })
     : intl.formatMessage(i18n.configureHeader, { providerName: provider.metadata.display_name });
@@ -239,7 +240,12 @@ export default function ProviderConfigurationModal({
     provider.metadata.setup_steps.length > 0;
   const usesAcpSetup = isExternalSetup && isAcpProvider(provider);
   const canUseExternalProvider =
-    isConfigured && hasCheckedExternalProvider && !externalReadinessError;
+    isAvailable && hasCheckedExternalProvider && !externalReadinessError;
+
+  const handleUseExternalProvider = async () => {
+    await acpSaveProviderConfig(provider.name, []);
+    onConfigured?.({ ...externalProvider, is_configured: true });
+  };
 
   const handleCheckExternalProvider = useCallback(async () => {
     setIsCheckingExternalProvider(true);
@@ -499,7 +505,7 @@ export default function ProviderConfigurationModal({
                         <div className="flex items-center gap-2 text-sm font-medium">
                           {isCheckingExternalProvider ? (
                             <LoaderCircle className="h-4 w-4 animate-spin" />
-                          ) : isConfigured ? (
+                          ) : isAvailable ? (
                             <CheckCircle2 className="h-4 w-4 text-green-600" />
                           ) : (
                             <CircleAlert className="h-4 w-4 text-yellow-600" />
@@ -507,16 +513,16 @@ export default function ProviderConfigurationModal({
                           {isCheckingExternalProvider
                             ? intl.formatMessage(i18n.checking)
                             : intl.formatMessage(
-                                isConfigured ? i18n.adapterFound : i18n.adapterNotFound
+                                isAvailable ? i18n.adapterFound : i18n.adapterNotFound
                               )}
                         </div>
-                        {hasCheckedExternalProvider && isConfigured && !externalReadinessError && (
+                        {hasCheckedExternalProvider && isAvailable && !externalReadinessError && (
                           <div className="text-sm text-text-secondary">
                             {intl.formatMessage(i18n.connectionSuccessful)}
                           </div>
                         )}
                         {!isCheckingExternalProvider &&
-                          isConfigured &&
+                          isAvailable &&
                           !hasCheckedExternalProvider &&
                           !externalReadinessError && (
                           <div className="text-sm text-text-secondary">
@@ -538,7 +544,7 @@ export default function ProviderConfigurationModal({
                           )}
                       </div>
                     )}
-                    {(!isConfigured || externalReadinessError) && (
+                    {(!isAvailable || externalReadinessError) && (
                       <>
                         <p className="text-sm text-text-secondary">
                           {intl.formatMessage(i18n.externalSetupIntro)}
@@ -613,8 +619,13 @@ export default function ProviderConfigurationModal({
                   </Button>
                 )}
                 {canUseExternalProvider && (
-                  <Button type="button" onClick={() => onConfigured?.(externalProvider)}>
+                  <Button type="button" onClick={handleUseExternalProvider}>
                     {intl.formatMessage(i18n.chooseModel)}
+                  </Button>
+                )}
+                {isConfigured && (
+                  <Button type="button" variant="destructive" onClick={handleDelete}>
+                    {intl.formatMessage(i18n.removeConfiguration)}
                   </Button>
                 )}
               </div>

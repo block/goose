@@ -42,6 +42,7 @@ fn inventory_entry_to_dto(entry: ProviderInventoryEntry) -> ProviderInventoryEnt
         description: entry.description,
         default_model: entry.default_model,
         configured: entry.configured,
+        available: entry.available,
         provider_type: format!("{:?}", entry.provider_type),
         category: provider_setup_category_to_dto(entry.category),
         acp: entry.acp,
@@ -747,6 +748,21 @@ impl GooseAcpAgent {
     pub(super) async fn provider_config_status(provider_id: String) -> ProviderConfigStatusDto {
         let is_configured = match crate::providers::get_from_registry(&provider_id).await {
             Ok(entry) => {
+                if entry
+                    .metadata()
+                    .setup
+                    .as_ref()
+                    .is_some_and(|setup| setup.acp)
+                {
+                    return ProviderConfigStatusDto {
+                        provider_id: provider_id.clone(),
+                        is_configured: crate::config::get_provider_entry(
+                            Config::global(),
+                            &provider_id,
+                        )
+                        .is_some_and(|entry| entry.enabled && entry.configured),
+                    };
+                }
                 match tokio::task::spawn_blocking(move || entry.inventory_configured()).await {
                     Ok(is_configured) => is_configured,
                     Err(error) => {
@@ -967,6 +983,22 @@ impl GooseAcpAgent {
             .set_secret_values(&secret_updates)
             .internal_err_ctx("Failed to save provider secret fields")?;
 
+        if metadata.setup.as_ref().is_some_and(|setup| setup.acp) {
+            let model = crate::config::get_provider_entry(config, &req.provider_id)
+                .map(|entry| entry.model)
+                .unwrap_or_else(|| metadata.default_model.clone());
+            crate::config::set_provider_entry(
+                config,
+                &req.provider_id,
+                &crate::config::ProviderEntry {
+                    enabled: true,
+                    model,
+                    configured: true,
+                },
+            )
+            .internal_err_ctx("Failed to enable ACP provider")?;
+        }
+
         let provider_ids = [req.provider_id.clone()];
         let status = Self::provider_config_status(req.provider_id.clone()).await;
         let refresh = self.start_provider_inventory_refresh(&provider_ids).await?;
@@ -997,6 +1029,15 @@ impl GooseAcpAgent {
         config
             .delete_secret_values(&secret_keys)
             .internal_err_ctx("Failed to delete provider secret fields")?;
+        if metadata.setup.as_ref().is_some_and(|setup| setup.acp) {
+            if let Some(mut provider) = crate::config::get_provider_entry(config, &req.provider_id)
+            {
+                provider.enabled = false;
+                provider.configured = false;
+                crate::config::set_provider_entry(config, &req.provider_id, &provider)
+                    .internal_err_ctx("Failed to disable ACP provider")?;
+            }
+        }
         crate::providers::cleanup_provider(&req.provider_id)
             .await
             .internal_err_ctx("Failed to clean up provider state")?;

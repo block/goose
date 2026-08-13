@@ -1807,6 +1807,8 @@ pub struct ProviderInventoryEntryDto {
     pub default_model: String,
     /// Whether Goose has enough configuration to use this provider.
     pub configured: bool,
+    /// Whether the provider's external runtime or required configuration is available.
+    pub available: bool,
     /// Provider classification such as `Preferred`, `Builtin`, `Declarative`, or `Custom`.
     pub provider_type: String,
     /// Whether this inventory entry represents an agent provider or a model provider.

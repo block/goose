@@ -1698,6 +1698,10 @@
           "type": "boolean",
           "description": "Whether Goose has enough configuration to use this provider."
         },
+        "available": {
+          "type": "boolean",
+          "description": "Whether the provider's external runtime or required configuration is available."
+        },
         "providerType": {
           "type": "string",
           "description": "Provider classification such as `Preferred`, `Builtin`, `Declarative`, or `Custom`."
@@ -1794,6 +1798,7 @@
         "description",
         "defaultModel",
         "configured",
+        "available",
         "providerType",
         "category",
         "visibleInSetup",

@@ -896,6 +896,10 @@ export type ProviderInventoryEntryDto = {
      */
     configured: boolean;
     /**
+     * Whether the provider's external runtime or required configuration is available.
+     */
+    available: boolean;
+    /**
      * Provider classification such as `Preferred`, `Builtin`, `Declarative`, or `Custom`.
      */
     providerType: string;

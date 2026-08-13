@@ -86,7 +86,7 @@ describe('ACP providers', () => {
   });
 
   it('rechecks an uninstalled ACP adapter without trying to start it', async () => {
-    const entry = providerEntry({ configured: false });
+    const entry = providerEntry({ configured: false, available: false });
     const client = {
       goose: {
         providersList_unstable: vi.fn().mockResolvedValue({ entries: [entry] }),
@@ -234,6 +234,7 @@ function providerEntry(overrides: Record<string, unknown> = {}) {
     description: 'Use Claude Code through ACP',
     defaultModel: 'current',
     configured: true,
+    available: true,
     providerType: 'Builtin',
     category: 'agent',
     acp: true,

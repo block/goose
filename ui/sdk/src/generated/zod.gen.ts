@@ -794,6 +794,7 @@ export const zProviderInventoryEntryDto = z.object({
     description: z.string(),
     defaultModel: z.string(),
     configured: z.boolean(),
+    available: z.boolean(),
     providerType: z.string(),
     category: zProviderSetupCategoryDto,
     acp: z.boolean().optional().default(false),

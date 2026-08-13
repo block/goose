@@ -457,6 +457,7 @@ mod tests {
             description: "Mock".to_string(),
             default_model: "unused".to_string(),
             configured: true,
+            available: true,
             provider_type: crate::providers::base::ProviderType::Builtin,
             category: crate::providers::catalog::ProviderSetupCategory::Model,
             acp: false,

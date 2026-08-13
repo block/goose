@@ -34,6 +34,7 @@ pub struct ProviderInventoryEntry {
     pub description: String,
     pub default_model: String,
     pub configured: bool,
+    pub available: bool,
     pub provider_type: ProviderType,
     pub category: ProviderSetupCategory,
     pub acp: bool,
@@ -264,6 +265,7 @@ struct ProviderDescriptor {
     default_model: String,
     identity: InventoryIdentity,
     configured: bool,
+    available: bool,
     provider_type: ProviderType,
     category: ProviderSetupCategory,
     acp: bool,
@@ -311,6 +313,7 @@ impl ProviderInventoryService {
             description: descriptor.description,
             default_model: descriptor.default_model,
             configured: descriptor.configured,
+            available: descriptor.available,
             provider_type: descriptor.provider_type,
             category: descriptor.category,
             acp: descriptor.acp,
@@ -727,7 +730,13 @@ impl ProviderInventoryService {
             description: metadata.description.clone(),
             default_model: metadata.default_model.clone(),
             identity,
-            configured: entry.inventory_configured(),
+            configured: if metadata.setup.as_ref().is_some_and(|setup| setup.acp) {
+                crate::config::get_provider_entry(Config::global(), provider_id)
+                    .is_some_and(|entry| entry.enabled && entry.configured)
+            } else {
+                entry.inventory_configured()
+            },
+            available: entry.inventory_configured(),
             provider_type: entry.provider_type(),
             category: metadata
                 .setup

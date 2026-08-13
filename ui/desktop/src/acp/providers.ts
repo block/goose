@@ -20,6 +20,7 @@ function providerEntryToDetails(entry: ProviderInventoryEntryDto): ProviderDetai
   return {
     name: entry.providerId,
     is_configured: entry.configured,
+    is_available: entry.available,
     is_refreshing: entry.refreshing,
     last_refresh_error: entry.lastRefreshError ?? null,
     supports_refresh: entry.supportsRefresh,
@@ -106,7 +107,7 @@ export async function acpRefreshProviderDetails(providerId: string): Promise<{
   let entry = entries.find((candidate) => candidate.providerId === providerId);
   if (!entry) throw new Error(`Unknown provider: ${providerId}`);
 
-  if (!entry.configured) {
+  if (!entry.available) {
     return {
       provider: providerEntryToDetails(entry),
       connectionChecked: false,
