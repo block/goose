@@ -4625,49 +4625,31 @@
   "modelsBottomBar.recentModels": {
     "defaultMessage": "Gần đây"
   },
-  "providerConfigForm.adapterFound": {
-    "defaultMessage": "Đã tìm thấy bộ điều hợp ACP"
-  },
-  "providerConfigForm.adapterNotFound": {
-    "defaultMessage": "Không tìm thấy bộ điều hợp ACP"
-  },
-  "providerConfigForm.authenticationHelp": {
-    "defaultMessage": "Đăng nhập qua CLI của nhà cung cấp, sau đó kiểm tra lại."
-  },
-  "providerConfigForm.checkAgain": {
-    "defaultMessage": "Kiểm tra lại"
-  },
-  "providerConfigForm.checking": {
-    "defaultMessage": "Đang kiểm tra..."
-  },
-  "providerConfigForm.connected": {
-    "defaultMessage": "Kết nối thành công"
-  },
-  "providerConfigForm.connectionNotChecked": {
-    "defaultMessage": "Hãy kiểm tra kết nối tài khoản trước khi tiếp tục."
-  },
-  "providerConfigurationModal.adapterFound": {
-    "defaultMessage": "Đã tìm thấy bộ điều hợp ACP"
-  },
-  "providerConfigurationModal.adapterNotFound": {
-    "defaultMessage": "Không tìm thấy bộ điều hợp ACP"
-  },
-  "providerConfigurationModal.authenticationHelp": {
-    "defaultMessage": "Đăng nhập qua CLI của nhà cung cấp, sau đó kiểm tra lại."
-  },
-  "providerConfigurationModal.checkAgain": {
-    "defaultMessage": "Kiểm tra lại"
-  },
-  "providerConfigurationModal.checking": {
-    "defaultMessage": "Đang kiểm tra..."
-  },
   "providerConfigurationModal.chooseModel": {
     "defaultMessage": "Chọn mô hình"
   },
-  "providerConfigurationModal.connectionNotChecked": {
-    "defaultMessage": "Hãy kiểm tra kết nối tài khoản trước khi tiếp tục."
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Không còn được dùng — hãy sử dụng {replacement}."
   },
-  "providerConfigurationModal.connectionSuccessful": {
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "Đã tìm thấy bộ điều hợp ACP"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "Không tìm thấy bộ điều hợp ACP"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Đăng nhập qua CLI của nhà cung cấp, sau đó kiểm tra lại."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Kiểm tra lại"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "Đang kiểm tra..."
+  },
+  "acpReadinessPanel.connected": {
     "defaultMessage": "Kết nối thành công"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Hãy kiểm tra kết nối tài khoản trước khi tiếp tục."
   }
 }

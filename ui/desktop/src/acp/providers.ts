@@ -17,6 +17,27 @@ import { getAcpClient } from './acpConnection';
 
 export type { CanonicalModelInfoDto, ProviderSecretDto };
 
+const INVENTORY_REFRESH_POLL_INTERVAL_MS = 100;
+const INVENTORY_REFRESH_TIMEOUT_MS = 30_000;
+
+function throwIfAborted(signal?: globalThis.AbortSignal) {
+  if (signal?.aborted) throw new DOMException('The operation was aborted', 'AbortError');
+}
+
+function waitForInventoryPoll(signal?: globalThis.AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      signal?.removeEventListener('abort', abort);
+      resolve();
+    }, INVENTORY_REFRESH_POLL_INTERVAL_MS);
+    const abort = () => {
+      window.clearTimeout(timeout);
+      reject(new DOMException('The operation was aborted', 'AbortError'));
+    };
+    signal?.addEventListener('abort', abort, { once: true });
+  });
+}
+
 function providerEntryToDetails(entry: ProviderInventoryEntryDto): ProviderDetails {
   return {
     name: entry.providerId,
@@ -57,10 +78,6 @@ function providerEntryToDetails(entry: ProviderInventoryEntryDto): ProviderDetai
   };
 }
 
-export function isAcpProvider(provider: ProviderDetails): boolean {
-  return provider.uses_acp;
-}
-
 function updateRequestToCreate(
   request: UpdateCustomProviderRequest
 ): CustomProviderCreateRequest_unstable {
@@ -90,6 +107,11 @@ export async function acpListSetupProviderDetails(): Promise<ProviderDetails[]> 
   return providers.filter((provider) => provider.visible_in_setup);
 }
 
+export async function acpListSettingsProviderDetails(): Promise<ProviderDetails[]> {
+  const providers = await acpListProviderDetails();
+  return providers.filter((provider) => provider.visible_in_setup || provider.is_configured);
+}
+
 export async function acpGetProviderDetails(providerId: string): Promise<ProviderDetails> {
   const client = await getAcpClient();
   const { entries } = await client.goose.providersList_unstable({ providerIds: [providerId] });
@@ -101,7 +123,8 @@ export async function acpGetProviderDetails(providerId: string): Promise<Provide
 async function waitForProviderInventoryRefresh(
   client: Awaited<ReturnType<typeof getAcpClient>>,
   providerId: string,
-  refresh: RefreshProviderInventoryResponse_unstable
+  refresh: RefreshProviderInventoryResponse_unstable,
+  signal?: globalThis.AbortSignal
 ): Promise<ProviderDetails> {
   const shouldWait =
     refresh.started.includes(providerId) ||
@@ -110,25 +133,35 @@ async function waitForProviderInventoryRefresh(
     );
 
   let entry: ProviderInventoryEntryDto | undefined;
-  for (let attempt = 0; attempt < (shouldWait ? 300 : 1); attempt += 1) {
+  const attempts = shouldWait
+    ? INVENTORY_REFRESH_TIMEOUT_MS / INVENTORY_REFRESH_POLL_INTERVAL_MS
+    : 1;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    throwIfAborted(signal);
     const response = await client.goose.providersList_unstable({ providerIds: [providerId] });
+    throwIfAborted(signal);
     entry = response.entries.find((candidate) => candidate.providerId === providerId);
     if (!entry) throw new Error(`Unknown provider: ${providerId}`);
     if (!entry.refreshing) return providerEntryToDetails(entry);
-    await new Promise((resolve) => window.setTimeout(resolve, 100));
+    await waitForInventoryPoll(signal);
   }
 
   if (!entry) throw new Error(`Unknown provider: ${providerId}`);
   throw new Error(`Timed out while checking ${entry.providerName}`);
 }
 
-export async function acpRefreshProviderDetails(providerId: string): Promise<{
+export async function acpRefreshProviderDetails(
+  providerId: string,
+  signal?: globalThis.AbortSignal
+): Promise<{
   provider: ProviderDetails;
   connectionChecked: boolean;
   readinessError: string | null;
 }> {
   const client = await getAcpClient();
+  throwIfAborted(signal);
   let { entries } = await client.goose.providersList_unstable({ providerIds: [providerId] });
+  throwIfAborted(signal);
   let entry = entries.find((candidate) => candidate.providerId === providerId);
   if (!entry) throw new Error(`Unknown provider: ${providerId}`);
 
@@ -141,6 +174,7 @@ export async function acpRefreshProviderDetails(providerId: string): Promise<{
   }
 
   const readiness = await client.goose.providersReadinessCheck_unstable({ providerId });
+  throwIfAborted(signal);
   if (!readiness.ready) {
     return {
       provider: providerEntryToDetails(entry),
@@ -153,7 +187,7 @@ export async function acpRefreshProviderDetails(providerId: string): Promise<{
     const refresh = await client.goose.providersInventoryRefresh_unstable({
       providerIds: [providerId],
     });
-    const provider = await waitForProviderInventoryRefresh(client, providerId, refresh);
+    const provider = await waitForProviderInventoryRefresh(client, providerId, refresh, signal);
     return { provider, connectionChecked: true, readinessError: null };
   }
 
@@ -236,13 +270,18 @@ export async function acpSaveProviderConfig(
   await client.goose.providersConfigSave_unstable({ providerId, fields });
 }
 
-export async function acpEnableProvider(providerId: string): Promise<ProviderDetails> {
+export async function acpEnableProvider(
+  providerId: string,
+  signal?: globalThis.AbortSignal
+): Promise<ProviderDetails> {
   const client = await getAcpClient();
+  throwIfAborted(signal);
   const { refresh } = await client.goose.providersConfigSave_unstable({
     providerId,
     fields: [],
   });
-  return waitForProviderInventoryRefresh(client, providerId, refresh);
+  throwIfAborted(signal);
+  return waitForProviderInventoryRefresh(client, providerId, refresh, signal);
 }
 
 export async function acpAuthenticateProvider(providerId: string): Promise<void> {

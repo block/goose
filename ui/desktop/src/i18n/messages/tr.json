@@ -4625,49 +4625,31 @@
   "modelsBottomBar.recentModels": {
     "defaultMessage": "Son kullanılan"
   },
-  "providerConfigForm.adapterFound": {
-    "defaultMessage": "ACP bağdaştırıcısı bulundu"
-  },
-  "providerConfigForm.adapterNotFound": {
-    "defaultMessage": "ACP bağdaştırıcısı bulunamadı"
-  },
-  "providerConfigForm.authenticationHelp": {
-    "defaultMessage": "Sağlayıcı CLI üzerinden oturum açın, ardından tekrar kontrol edin."
-  },
-  "providerConfigForm.checkAgain": {
-    "defaultMessage": "Tekrar kontrol et"
-  },
-  "providerConfigForm.checking": {
-    "defaultMessage": "Kontrol ediliyor..."
-  },
-  "providerConfigForm.connected": {
-    "defaultMessage": "Başarıyla bağlanıldı"
-  },
-  "providerConfigForm.connectionNotChecked": {
-    "defaultMessage": "Devam etmeden önce hesap bağlantınızı kontrol edin."
-  },
-  "providerConfigurationModal.adapterFound": {
-    "defaultMessage": "ACP bağdaştırıcısı bulundu"
-  },
-  "providerConfigurationModal.adapterNotFound": {
-    "defaultMessage": "ACP bağdaştırıcısı bulunamadı"
-  },
-  "providerConfigurationModal.authenticationHelp": {
-    "defaultMessage": "Sağlayıcı CLI üzerinden oturum açın, ardından tekrar kontrol edin."
-  },
-  "providerConfigurationModal.checkAgain": {
-    "defaultMessage": "Tekrar kontrol et"
-  },
-  "providerConfigurationModal.checking": {
-    "defaultMessage": "Kontrol ediliyor..."
-  },
   "providerConfigurationModal.chooseModel": {
     "defaultMessage": "Modeli seçin"
   },
-  "providerConfigurationModal.connectionNotChecked": {
-    "defaultMessage": "Devam etmeden önce hesap bağlantınızı kontrol edin."
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Kullanımdan kaldırıldı — bunun yerine {replacement} kullanın."
   },
-  "providerConfigurationModal.connectionSuccessful": {
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "ACP bağdaştırıcısı bulundu"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "ACP bağdaştırıcısı bulunamadı"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Sağlayıcı CLI üzerinden oturum açın, ardından tekrar kontrol edin."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Tekrar kontrol et"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "Kontrol ediliyor..."
+  },
+  "acpReadinessPanel.connected": {
     "defaultMessage": "Başarıyla bağlanıldı"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Devam etmeden önce hesap bağlantınızı kontrol edin."
   }
 }

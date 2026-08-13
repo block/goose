@@ -2,7 +2,7 @@
   "name": "custom_deepseek",
   "engine": "openai",
   "display_name": "DeepSeek",
-  "description": "Custom DeepSeek provider",
+  "description": "DeepSeek chat and reasoning models",
   "api_key_env": "DEEPSEEK_API_KEY",
   "base_url": "https://api.deepseek.com",
   "models": [
@@ -39,7 +39,6 @@
     "category": "model",
     "setup_method": "single_api_key",
     "group": "additional",
-    "description": "DeepSeek chat and reasoning models",
     "docs_url": "https://platform.deepseek.com/api_keys"
   }
 }

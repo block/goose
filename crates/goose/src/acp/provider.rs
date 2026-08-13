@@ -119,9 +119,11 @@ impl Drop for ClientLoopGuard {
         }
         self.tx.take();
         if let Some(thread) = self.thread.take() {
-            if let Err(error) = thread.join() {
-                tracing::debug!("AcpClientLoop thread panicked: {error:?}");
-            }
+            std::thread::spawn(move || {
+                if let Err(error) = thread.join() {
+                    tracing::debug!("AcpClientLoop thread panicked: {error:?}");
+                }
+            });
         }
     }
 }
@@ -818,10 +820,8 @@ impl Provider for AcpProvider {
 
 impl Drop for AcpProvider {
     fn drop(&mut self) {
-        if let Some(cancel_tx) = self.cancel_tx.take() {
-            let _ = cancel_tx.send(());
-        }
         self.tx.take();
+        let _cancel_tx = self.cancel_tx.take();
         if let Some(h) = self.loop_thread.take() {
             if let Err(e) = h.join() {
                 tracing::debug!("AcpClientLoop thread panicked: {e:?}");
@@ -1183,6 +1183,7 @@ async fn spawn_acp_process(config: &AcpProviderConfig) -> Result<Child> {
         .kill_on_drop(true);
 
     if let Some(command_dir) = config.command.parent() {
+        // npm adapters commonly use `/usr/bin/env node`, while desktop PATH may omit their bin dir.
         let path = std::env::join_paths(
             std::iter::once(command_dir.to_path_buf()).chain(
                 std::env::var_os("PATH")
@@ -1922,6 +1923,53 @@ mod tests {
     }
 
     #[test]
+    fn startup_cleanup_does_not_block_while_the_client_loop_stops() {
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let client_thread = std::thread::spawn(move || release_rx.recv().unwrap());
+        let guard = ClientLoopGuard {
+            tx: None,
+            cancel_tx: None,
+            thread: Some(client_thread),
+        };
+        let (dropped_tx, dropped_rx) = std::sync::mpsc::channel();
+        let drop_thread = std::thread::spawn(move || {
+            drop(guard);
+            dropped_tx.send(()).unwrap();
+        });
+
+        let returned_without_joining = dropped_rx
+            .recv_timeout(std::time::Duration::from_millis(100))
+            .is_ok();
+        release_tx.send(()).unwrap();
+        drop_thread.join().unwrap();
+
+        assert!(returned_without_joining);
+    }
+
+    #[test]
+    fn provider_drop_closes_requests_without_forcing_cancellation() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let (cancel_tx, mut cancel_rx) = oneshot::channel();
+        let (graceful_tx, graceful_rx) = std::sync::mpsc::channel();
+        let client_thread = std::thread::spawn(move || {
+            while rx.blocking_recv().is_some() {}
+            graceful_tx
+                .send(matches!(
+                    cancel_rx.try_recv(),
+                    Err(oneshot::error::TryRecvError::Empty)
+                ))
+                .unwrap();
+        });
+        let (mut provider, _) = test_provider_with_tx(Some(tx));
+        provider.cancel_tx = Some(cancel_tx);
+        provider.loop_thread = Some(client_thread);
+
+        drop(provider);
+
+        assert!(graceful_rx.recv().unwrap());
+    }
+
+    #[test]
     fn session_title_publisher_forwards_non_empty_titles() {
         let publisher = SessionTitlePublisher::default();
         let titles = Arc::new(Mutex::new(Vec::new()));
@@ -2457,7 +2505,13 @@ mod tests {
                 .await
                 .is_err()
         );
-        assert!(stopped.load(Ordering::SeqCst));
+        tokio::time::timeout(std::time::Duration::from_secs(1), async {
+            while !stopped.load(Ordering::SeqCst) {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
     }
 
     #[test_case(GooseMode::Auto)]

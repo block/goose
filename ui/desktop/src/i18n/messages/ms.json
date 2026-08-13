@@ -4625,49 +4625,31 @@
   "modelsBottomBar.recentModels": {
     "defaultMessage": "Terkini"
   },
-  "providerConfigForm.adapterFound": {
-    "defaultMessage": "Penyesuai ACP ditemui"
-  },
-  "providerConfigForm.adapterNotFound": {
-    "defaultMessage": "Penyesuai ACP tidak ditemui"
-  },
-  "providerConfigForm.authenticationHelp": {
-    "defaultMessage": "Log masuk melalui CLI penyedia, kemudian semak semula."
-  },
-  "providerConfigForm.checkAgain": {
-    "defaultMessage": "Semak semula"
-  },
-  "providerConfigForm.checking": {
-    "defaultMessage": "Menyemak..."
-  },
-  "providerConfigForm.connected": {
-    "defaultMessage": "Berjaya disambungkan"
-  },
-  "providerConfigForm.connectionNotChecked": {
-    "defaultMessage": "Semak sambungan akaun anda sebelum meneruskan."
-  },
-  "providerConfigurationModal.adapterFound": {
-    "defaultMessage": "Penyesuai ACP ditemui"
-  },
-  "providerConfigurationModal.adapterNotFound": {
-    "defaultMessage": "Penyesuai ACP tidak ditemui"
-  },
-  "providerConfigurationModal.authenticationHelp": {
-    "defaultMessage": "Log masuk melalui CLI penyedia, kemudian semak semula."
-  },
-  "providerConfigurationModal.checkAgain": {
-    "defaultMessage": "Semak semula"
-  },
-  "providerConfigurationModal.checking": {
-    "defaultMessage": "Menyemak..."
-  },
   "providerConfigurationModal.chooseModel": {
     "defaultMessage": "Pilih Model"
   },
-  "providerConfigurationModal.connectionNotChecked": {
-    "defaultMessage": "Semak sambungan akaun anda sebelum meneruskan."
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Tidak digunakan lagi — gunakan {replacement} sebagai gantinya."
   },
-  "providerConfigurationModal.connectionSuccessful": {
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "Penyesuai ACP ditemui"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "Penyesuai ACP tidak ditemui"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Log masuk melalui CLI penyedia, kemudian semak semula."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Semak semula"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "Menyemak..."
+  },
+  "acpReadinessPanel.connected": {
     "defaultMessage": "Berjaya disambungkan"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Semak sambungan akaun anda sebelum meneruskan."
   }
 }

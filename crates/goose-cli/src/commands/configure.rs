@@ -811,8 +811,9 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
 
     let current_provider: Option<String> = config.get_goose_provider().ok();
     let mut available_providers = providers().await;
-    available_providers
-        .retain(|(provider, _)| !provider.hidden_from_setup && provider.deprecated.is_none());
+    available_providers.retain(|(provider, _)| {
+        provider.deprecated.is_none() || current_provider.as_deref() == Some(&provider.name)
+    });
 
     // Sort providers alphabetically by display name
     available_providers.sort_by(|a, b| a.0.display_name.cmp(&b.0.display_name));
@@ -838,11 +839,17 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     let provider_items: Vec<ProviderItem> = available_providers
         .iter()
         .map(|(p, _)| {
-            (
-                p.name.clone(),
-                p.display_name.clone(),
-                p.description.clone(),
-            )
+            let description = match p
+                .deprecated
+                .as_ref()
+                .and_then(|deprecated| deprecated.replacement.as_deref())
+            {
+                Some(replacement) => {
+                    format!("{} Deprecated; use {replacement} instead.", p.description)
+                }
+                None => p.description.clone(),
+            };
+            (p.name.clone(), p.display_name.clone(), description)
         })
         .collect();
 

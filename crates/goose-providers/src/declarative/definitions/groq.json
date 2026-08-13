@@ -63,7 +63,6 @@
     "category": "model",
     "setup_method": "single_api_key",
     "group": "additional",
-    "display_name": "Groq",
     "docs_url": "https://console.groq.com/keys"
   }
 }

@@ -22,7 +22,6 @@ vi.mock('../../../../acp/providers', () => ({
   acpEnableProvider: vi.fn(),
   acpRefreshProviderDetails: vi.fn(),
   acpSaveProviderConfig: vi.fn(),
-  isAcpProvider: (provider: ProviderDetails) => provider.uses_acp,
 }));
 
 const oauthProvider: ProviderDetails = {
@@ -163,7 +162,7 @@ describe('ProviderConfigurationModal', () => {
     );
 
     await user.click(await screen.findByRole('button', { name: 'Choose model' }));
-    expect(acpEnableProvider).toHaveBeenCalledWith('codex-acp');
+    expect(acpEnableProvider).toHaveBeenCalledWith('codex-acp', expect.any(globalThis.AbortSignal));
     expect(onConfigured).not.toHaveBeenCalled();
 
     finishEnable?.(configuredProvider);

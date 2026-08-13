@@ -4,6 +4,8 @@ use crate::providers::inventory::ensure_refresh_identity_current;
 use crate::providers::provider_secrets;
 use std::str::FromStr;
 
+const ACP_READINESS_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 fn provider_secret_to_dto(secret: provider_secrets::ProviderSecret) -> ProviderSecretDto {
     let storage = match secret.storage {
         provider_secrets::ProviderSecretStorage::SecretStore => {
@@ -522,7 +524,7 @@ impl GooseAcpAgent {
         }
 
         let result = tokio::time::timeout(
-            std::time::Duration::from_secs(10),
+            ACP_READINESS_TIMEOUT,
             self.create_provider(&req.provider_id, Vec::new(), None, true),
         )
         .await;

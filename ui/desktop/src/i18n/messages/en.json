@@ -1,4 +1,25 @@
 {
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "ACP adapter found"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "ACP adapter not found"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Sign in through the provider CLI, then check again."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Check again"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "Checking..."
+  },
+  "acpReadinessPanel.connected": {
+    "defaultMessage": "Connected successfully"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Check your account connection before continuing."
+  },
   "alertBox.autoCompactAt": {
     "defaultMessage": "Auto compact at"
   },
@@ -2705,6 +2726,9 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "You have unsaved changes"
   },
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Deprecated — use {replacement} instead."
+  },
   "providerCard.noMetadata": {
     "defaultMessage": "ProviderCard error: No metadata provided"
   },
@@ -2750,32 +2774,11 @@
   "providerCatalogPicker.selectFormatDescription": {
     "defaultMessage": "Select an API format and provider. We'll auto-fill the configuration for you."
   },
-  "providerConfigForm.adapterFound": {
-    "defaultMessage": "ACP adapter found"
-  },
-  "providerConfigForm.adapterNotFound": {
-    "defaultMessage": "ACP adapter not found"
-  },
-  "providerConfigForm.authenticationHelp": {
-    "defaultMessage": "Sign in through the provider CLI, then check again."
-  },
   "providerConfigForm.browserWindowOpen": {
     "defaultMessage": "A browser window will open for you to complete the login."
   },
-  "providerConfigForm.checkAgain": {
-    "defaultMessage": "Check again"
-  },
-  "providerConfigForm.checking": {
-    "defaultMessage": "Checking..."
-  },
   "providerConfigForm.configuring": {
     "defaultMessage": "Configuring..."
-  },
-  "providerConfigForm.connected": {
-    "defaultMessage": "Connected successfully"
-  },
-  "providerConfigForm.connectionNotChecked": {
-    "defaultMessage": "Check your account connection before continuing."
   },
   "providerConfigForm.continue": {
     "defaultMessage": "Continue"
@@ -2792,17 +2795,8 @@
   "providerConfigForm.signingIn": {
     "defaultMessage": "Signing in..."
   },
-  "providerConfigurationModal.adapterFound": {
-    "defaultMessage": "ACP adapter found"
-  },
-  "providerConfigurationModal.adapterNotFound": {
-    "defaultMessage": "ACP adapter not found"
-  },
   "providerConfigurationModal.addApiKeyDescription": {
     "defaultMessage": "Add your API key(s) for this provider to integrate into goose"
-  },
-  "providerConfigurationModal.authenticationHelp": {
-    "defaultMessage": "Sign in through the provider CLI, then check again."
   },
   "providerConfigurationModal.browserWindowHint": {
     "defaultMessage": "A browser window will open for you to complete the login."
@@ -2813,14 +2807,8 @@
   "providerConfigurationModal.cannotDeleteActive": {
     "defaultMessage": "You cannot delete this provider while it's currently in use. Please switch to a different model first."
   },
-  "providerConfigurationModal.checkAgain": {
-    "defaultMessage": "Check again"
-  },
   "providerConfigurationModal.checkConfigAgain": {
     "defaultMessage": "Check your configuration again to use this provider."
-  },
-  "providerConfigurationModal.checking": {
-    "defaultMessage": "Checking..."
   },
   "providerConfigurationModal.chooseModel": {
     "defaultMessage": "Choose model"
@@ -2830,12 +2818,6 @@
   },
   "providerConfigurationModal.configureHeader": {
     "defaultMessage": "Configure {providerName}"
-  },
-  "providerConfigurationModal.connectionNotChecked": {
-    "defaultMessage": "Check your account connection before continuing."
-  },
-  "providerConfigurationModal.connectionSuccessful": {
-    "defaultMessage": "Connected successfully"
   },
   "providerConfigurationModal.deleteConfigHeader": {
     "defaultMessage": "Delete configuration for {providerName}"

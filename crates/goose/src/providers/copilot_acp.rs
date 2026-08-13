@@ -23,6 +23,33 @@ const MODE_PLAN: &str = "https://agentclientprotocol.com/protocol/session-modes#
 
 pub struct CopilotAcpProvider;
 
+impl goose_providers::base::ProviderDescriptor for CopilotAcpProvider {
+    fn metadata() -> ProviderMetadata {
+        ProviderMetadata::new(
+            COPILOT_ACP_PROVIDER_NAME,
+            "GitHub Copilot CLI (ACP)",
+            "Use goose with your GitHub Copilot subscription via the Copilot CLI.",
+            ACP_CURRENT_MODEL,
+            vec![],
+            COPILOT_ACP_DOC_URL,
+            vec![],
+        )
+        .with_setup_steps(vec![
+            "Install the Copilot CLI: `npm install -g @github/copilot`",
+            "Run `copilot login` to authenticate with your GitHub account",
+        ])
+        .with_setup(
+            ProviderSetupMetadata::cli_agent(
+                COPILOT_ACP_BINARY,
+                &["copilot-acp", "github_copilot", "github_copilot_cli"],
+            )
+            .with_acp()
+            .with_docs_url("https://docs.github.com/en/copilot/github-copilot-in-the-cli")
+            .with_capabilities(true, true, false),
+        )
+    }
+}
+
 impl CopilotAcpProvider {
     fn create(
         extensions: Vec<crate::config::ExtensionConfig>,
@@ -31,6 +58,7 @@ impl CopilotAcpProvider {
     ) -> BoxFuture<'static, Result<AcpProvider>> {
         Box::pin(async move {
             let config = Config::global();
+            // with_npm() includes npm global bin dir (desktop app PATH may not)
             let resolved_command = SearchPaths::builder()
                 .with_npm()
                 .resolve(COPILOT_ACP_BINARY)?;
@@ -72,33 +100,6 @@ impl CopilotAcpProvider {
             let metadata = Self::metadata();
             AcpProvider::connect(metadata.name, goose_mode, provider_config).await
         })
-    }
-}
-
-impl goose_providers::base::ProviderDescriptor for CopilotAcpProvider {
-    fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
-            COPILOT_ACP_PROVIDER_NAME,
-            "GitHub Copilot CLI (ACP)",
-            "Use goose with your GitHub Copilot subscription via the Copilot CLI.",
-            ACP_CURRENT_MODEL,
-            vec![],
-            COPILOT_ACP_DOC_URL,
-            vec![],
-        )
-        .with_setup_steps(vec![
-            "Install the Copilot CLI: `npm install -g @github/copilot`",
-            "Run `copilot login` to authenticate with your GitHub account",
-        ])
-        .with_setup(
-            ProviderSetupMetadata::cli_agent(
-                COPILOT_ACP_BINARY,
-                &["copilot-acp", "github_copilot", "github_copilot_cli"],
-            )
-            .with_acp()
-            .with_docs_url("https://docs.github.com/en/copilot/github-copilot-in-the-cli")
-            .with_capabilities(true, true, false),
-        )
     }
 }
 

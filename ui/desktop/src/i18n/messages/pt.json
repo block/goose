@@ -4625,49 +4625,31 @@
   "modelsBottomBar.recentModels": {
     "defaultMessage": "Recentes"
   },
-  "providerConfigForm.adapterFound": {
-    "defaultMessage": "Adaptador ACP encontrado"
-  },
-  "providerConfigForm.adapterNotFound": {
-    "defaultMessage": "Adaptador ACP não encontrado"
-  },
-  "providerConfigForm.authenticationHelp": {
-    "defaultMessage": "Inicie sessão através da CLI do fornecedor e verifique novamente."
-  },
-  "providerConfigForm.checkAgain": {
-    "defaultMessage": "Verificar novamente"
-  },
-  "providerConfigForm.checking": {
-    "defaultMessage": "A verificar..."
-  },
-  "providerConfigForm.connected": {
-    "defaultMessage": "Ligação efetuada com sucesso"
-  },
-  "providerConfigForm.connectionNotChecked": {
-    "defaultMessage": "Verifique a ligação da sua conta antes de continuar."
-  },
-  "providerConfigurationModal.adapterFound": {
-    "defaultMessage": "Adaptador ACP encontrado"
-  },
-  "providerConfigurationModal.adapterNotFound": {
-    "defaultMessage": "Adaptador ACP não encontrado"
-  },
-  "providerConfigurationModal.authenticationHelp": {
-    "defaultMessage": "Inicie sessão através da CLI do fornecedor e verifique novamente."
-  },
-  "providerConfigurationModal.checkAgain": {
-    "defaultMessage": "Verificar novamente"
-  },
-  "providerConfigurationModal.checking": {
-    "defaultMessage": "A verificar..."
-  },
   "providerConfigurationModal.chooseModel": {
     "defaultMessage": "Escolher modelo"
   },
-  "providerConfigurationModal.connectionNotChecked": {
-    "defaultMessage": "Verifique a ligação da sua conta antes de continuar."
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Obsoleto — use {replacement} em vez disso."
   },
-  "providerConfigurationModal.connectionSuccessful": {
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "Adaptador ACP encontrado"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "Adaptador ACP não encontrado"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Inicie sessão através da CLI do fornecedor e verifique novamente."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Verificar novamente"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "A verificar..."
+  },
+  "acpReadinessPanel.connected": {
     "defaultMessage": "Ligação efetuada com sucesso"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Verifique a ligação da sua conta antes de continuar."
   }
 }

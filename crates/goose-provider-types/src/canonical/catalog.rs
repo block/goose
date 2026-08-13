@@ -177,6 +177,7 @@ pub struct ProviderSetupCatalogEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProviderSetupMetadata {
     pub category: ProviderSetupCategory,
     #[serde(default)]
@@ -452,21 +453,18 @@ pub fn get_setup_catalog_entries(
         },
         show_only_when_installed: false,
     };
-    let mut entries = std::iter::once(goose)
-        .chain(
-            registry_metadata
-                .into_iter()
-                .filter_map(setup_entry_from_metadata),
-        )
+    let mut entries = registry_metadata
+        .into_iter()
+        .filter_map(setup_entry_from_metadata)
         .collect::<Vec<_>>();
     entries.sort_by(|a, b| {
-        (a.provider_id != "goose")
-            .cmp(&(b.provider_id != "goose"))
-            .then_with(|| setup_group_rank(a.group).cmp(&setup_group_rank(b.group)))
+        setup_group_rank(a.group)
+            .cmp(&setup_group_rank(b.group))
             .then_with(|| setup_category_rank(a.category).cmp(&setup_category_rank(b.category)))
             .then_with(|| a.display_name.cmp(&b.display_name))
             .then_with(|| a.provider_id.cmp(&b.provider_id))
     });
+    entries.insert(0, goose);
     entries
 }
 

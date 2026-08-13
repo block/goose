@@ -370,6 +370,16 @@ mod tests {
         assert!(!config.preserves_thinking);
     }
 
+    #[test]
+    fn setup_metadata_rejects_unknown_fields() {
+        let mut definition: serde_json::Value = serde_json::from_str(crate::groq::JSON).unwrap();
+        definition["setup"]["description"] = json!("This field would be ignored");
+
+        let error = deserialize_provider_config(&definition.to_string()).unwrap_err();
+
+        assert!(error.to_string().contains("unknown field `description`"));
+    }
+
     fn placeholder_var_names(template: &str) -> Vec<String> {
         template
             .split("${")

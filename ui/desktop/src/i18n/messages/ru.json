@@ -4625,49 +4625,31 @@
   "modelsBottomBar.recentModels": {
     "defaultMessage": "Недавние"
   },
-  "providerConfigForm.adapterFound": {
-    "defaultMessage": "Адаптер ACP найден"
-  },
-  "providerConfigForm.adapterNotFound": {
-    "defaultMessage": "Адаптер ACP не найден"
-  },
-  "providerConfigForm.authenticationHelp": {
-    "defaultMessage": "Войдите через CLI провайдера, затем повторите проверку."
-  },
-  "providerConfigForm.checkAgain": {
-    "defaultMessage": "Проверить снова"
-  },
-  "providerConfigForm.checking": {
-    "defaultMessage": "Проверка..."
-  },
-  "providerConfigForm.connected": {
-    "defaultMessage": "Подключение выполнено"
-  },
-  "providerConfigForm.connectionNotChecked": {
-    "defaultMessage": "Проверьте подключение учетной записи, прежде чем продолжить."
-  },
-  "providerConfigurationModal.adapterFound": {
-    "defaultMessage": "Адаптер ACP найден"
-  },
-  "providerConfigurationModal.adapterNotFound": {
-    "defaultMessage": "Адаптер ACP не найден"
-  },
-  "providerConfigurationModal.authenticationHelp": {
-    "defaultMessage": "Войдите через CLI провайдера, затем повторите проверку."
-  },
-  "providerConfigurationModal.checkAgain": {
-    "defaultMessage": "Проверить снова"
-  },
-  "providerConfigurationModal.checking": {
-    "defaultMessage": "Проверка..."
-  },
   "providerConfigurationModal.chooseModel": {
     "defaultMessage": "Выбрать модель"
   },
-  "providerConfigurationModal.connectionNotChecked": {
-    "defaultMessage": "Проверьте подключение учетной записи, прежде чем продолжить."
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Устарел — используйте вместо него {replacement}."
   },
-  "providerConfigurationModal.connectionSuccessful": {
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "Адаптер ACP найден"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "Адаптер ACP не найден"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Войдите через CLI провайдера, затем повторите проверку."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Проверить снова"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "Проверка..."
+  },
+  "acpReadinessPanel.connected": {
     "defaultMessage": "Подключение выполнено"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Проверьте подключение учетной записи, прежде чем продолжить."
   }
 }

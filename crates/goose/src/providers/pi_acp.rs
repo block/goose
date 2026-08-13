@@ -20,6 +20,31 @@ pub(crate) const PI_ACP_BINARY: &str = "pi-acp";
 
 pub struct PiAcpProvider;
 
+impl goose_providers::base::ProviderDescriptor for PiAcpProvider {
+    fn metadata() -> ProviderMetadata {
+        ProviderMetadata::new(
+            PI_ACP_PROVIDER_NAME,
+            "Pi",
+            "Use goose with Pi via the pi-acp adapter.",
+            ACP_CURRENT_MODEL,
+            vec![],
+            PI_ACP_DOC_URL,
+            vec![],
+        )
+        .with_setup_steps(vec![
+            "Install the Pi CLI and the pi-acp adapter",
+            "Ensure your Pi CLI is authenticated (run `pi` to verify)",
+        ])
+        .with_setup(
+            ProviderSetupMetadata::cli_agent(PI_ACP_BINARY, &["pi-acp", "pi"])
+                .with_acp()
+                .with_docs_url("https://github.com/badlogic/pi-mono")
+                .show_only_when_installed(),
+        )
+        .with_model_selection_hint("Use the Pi CLI to configure models")
+    }
+}
+
 impl PiAcpProvider {
     fn create(
         extensions: Vec<crate::config::ExtensionConfig>,
@@ -59,31 +84,6 @@ impl PiAcpProvider {
             let metadata = Self::metadata();
             AcpProvider::connect(metadata.name, goose_mode, provider_config).await
         })
-    }
-}
-
-impl goose_providers::base::ProviderDescriptor for PiAcpProvider {
-    fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
-            PI_ACP_PROVIDER_NAME,
-            "Pi",
-            "Use goose with Pi via the pi-acp adapter.",
-            ACP_CURRENT_MODEL,
-            vec![],
-            PI_ACP_DOC_URL,
-            vec![],
-        )
-        .with_setup_steps(vec![
-            "Install the Pi CLI and the pi-acp adapter",
-            "Ensure your Pi CLI is authenticated (run `pi` to verify)",
-        ])
-        .with_setup(
-            ProviderSetupMetadata::cli_agent(PI_ACP_BINARY, &["pi-acp", "pi"])
-                .with_acp()
-                .with_docs_url("https://github.com/badlogic/pi-mono")
-                .show_only_when_installed(),
-        )
-        .with_model_selection_hint("Use the Pi CLI to configure models")
     }
 }
 

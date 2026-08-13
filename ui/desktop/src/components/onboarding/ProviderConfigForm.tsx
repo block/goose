@@ -1,10 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import {
-  acpAuthenticateProvider,
-  acpEnableProvider,
-  acpRefreshProviderDetails,
-  isAcpProvider,
-} from '../../acp/providers';
+import { useState } from 'react';
+import { acpAuthenticateProvider } from '../../acp/providers';
 import type { ProviderDetails } from '../../types/providers';
 import DefaultProviderSetupForm, {
   ConfigInput,
@@ -12,15 +7,9 @@ import DefaultProviderSetupForm, {
 import { providerConfigSubmitHandler } from '../settings/providers/modal/subcomponents/handlers/DefaultSubmitHandler';
 import ProviderLogo from '../settings/providers/modal/subcomponents/ProviderLogo';
 import { SecureStorageNotice } from '../settings/providers/modal/subcomponents/SecureStorageNotice';
+import AcpReadinessPanel from '../settings/providers/AcpReadinessPanel';
 import { Button } from '../ui/button';
-import {
-  CheckCircle2,
-  ChevronRight,
-  CircleAlert,
-  LoaderCircle,
-  LogIn,
-  RefreshCw,
-} from 'lucide-react';
+import { ChevronRight, LogIn } from 'lucide-react';
 import { defineMessages, useIntl } from '../../i18n';
 import { errorMessage } from '../../utils/conversionUtils';
 
@@ -55,34 +44,6 @@ const i18n = defineMessages({
   continue: {
     id: 'providerConfigForm.continue',
     defaultMessage: 'Continue',
-  },
-  adapterFound: {
-    id: 'providerConfigForm.adapterFound',
-    defaultMessage: 'ACP adapter found',
-  },
-  adapterNotFound: {
-    id: 'providerConfigForm.adapterNotFound',
-    defaultMessage: 'ACP adapter not found',
-  },
-  connected: {
-    id: 'providerConfigForm.connected',
-    defaultMessage: 'Connected successfully',
-  },
-  connectionNotChecked: {
-    id: 'providerConfigForm.connectionNotChecked',
-    defaultMessage: 'Check your account connection before continuing.',
-  },
-  authenticationHelp: {
-    id: 'providerConfigForm.authenticationHelp',
-    defaultMessage: 'Sign in through the provider CLI, then check again.',
-  },
-  checkAgain: {
-    id: 'providerConfigForm.checkAgain',
-    defaultMessage: 'Check again',
-  },
-  checking: {
-    id: 'providerConfigForm.checking',
-    defaultMessage: 'Checking...',
   },
 });
 
@@ -150,108 +111,6 @@ function OAuthForm({
           ? intl.formatMessage(i18n.deviceCodeFlowHint)
           : intl.formatMessage(i18n.browserWindowOpen)}
       </p>
-    </div>
-  );
-}
-
-function AcpProviderForm({
-  provider,
-  onConfigured,
-  onError,
-}: {
-  provider: ProviderDetails;
-  onConfigured: OnConfigured;
-  onError: (msg: string) => void;
-}) {
-  const intl = useIntl();
-  const [status, setStatus] = useState(provider);
-  const [isChecking, setIsChecking] = useState(false);
-  const [connectionChecked, setConnectionChecked] = useState(false);
-  const [readinessError, setReadinessError] = useState<string | null>(null);
-  const setupSteps = provider.metadata.setup_steps ?? [];
-  const canContinue = status.is_available && connectionChecked && !readinessError;
-
-  const check = useCallback(async () => {
-    setIsChecking(true);
-    setConnectionChecked(false);
-    setReadinessError(null);
-    try {
-      const result = await acpRefreshProviderDetails(provider.name);
-      setStatus(result.provider);
-      setConnectionChecked(result.connectionChecked);
-      setReadinessError(result.readinessError);
-    } catch (err) {
-      onError(errorMessage(err));
-    } finally {
-      setIsChecking(false);
-    }
-  }, [onError, provider.name]);
-
-  useEffect(() => {
-    void check();
-  }, [check]);
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-md border border-border-primary p-3 space-y-2">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          {isChecking ? (
-            <LoaderCircle className="h-4 w-4 animate-spin" />
-          ) : status.is_available ? (
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-          ) : (
-            <CircleAlert className="h-4 w-4 text-yellow-600" />
-          )}
-          {isChecking
-            ? intl.formatMessage(i18n.checking)
-            : intl.formatMessage(status.is_available ? i18n.adapterFound : i18n.adapterNotFound)}
-        </div>
-        {connectionChecked && !readinessError && (
-          <div className="text-sm text-text-secondary">{intl.formatMessage(i18n.connected)}</div>
-        )}
-        {!isChecking && status.is_available && !connectionChecked && !readinessError && (
-          <div className="text-sm text-text-secondary">
-            {intl.formatMessage(i18n.connectionNotChecked)}
-          </div>
-        )}
-        {readinessError && (
-          <div className="space-y-1 text-sm text-red-600 break-words">
-            <div>{readinessError}</div>
-            <div>{intl.formatMessage(i18n.authenticationHelp)}</div>
-          </div>
-        )}
-        {connectionChecked && !readinessError && status.last_refresh_error && (
-          <div className="text-sm text-yellow-600 break-words">{status.last_refresh_error}</div>
-        )}
-      </div>
-
-      {(!status.is_available || readinessError) && setupSteps.length > 0 && (
-        <ol className="ml-5 list-decimal text-sm text-text-muted space-y-1">
-          {setupSteps.map((step, i) => (
-            <li key={i}>{parseLinks(step)}</li>
-          ))}
-        </ol>
-      )}
-
-      <div className="flex gap-2">
-        {!isChecking && (
-          <Button variant="outline" onClick={check} className="flex-1">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            {intl.formatMessage(i18n.checkAgain)}
-          </Button>
-        )}
-        {canContinue && (
-          <Button
-            onClick={async () => {
-              await acpEnableProvider(status.name);
-              await onConfigured(status.name);
-            }}
-            className="flex-1"
-          >
-            {intl.formatMessage(i18n.continue)}
-          </Button>
-        )}
-      </div>
     </div>
   );
 }
@@ -357,13 +216,21 @@ interface ProviderConfigFormProps {
 }
 
 export default function ProviderConfigForm({ provider, onConfigured }: ProviderConfigFormProps) {
+  const intl = useIntl();
   const [error, setError] = useState<string | null>(null);
 
   const isOAuthProvider = provider.metadata.config_keys.some((key) => key.oauth_flow);
 
   const renderForm = () => {
-    if (isAcpProvider(provider)) {
-      return <AcpProviderForm provider={provider} onConfigured={onConfigured} onError={setError} />;
+    if (provider.uses_acp) {
+      return (
+        <AcpReadinessPanel
+          provider={provider}
+          actionLabel={intl.formatMessage(i18n.continue)}
+          onConfigured={(configured) => onConfigured(configured.name)}
+          onError={setError}
+        />
+      );
     }
     if (isOAuthProvider) {
       return <OAuthForm provider={provider} onConfigured={onConfigured} onError={setError} />;

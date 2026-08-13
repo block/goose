@@ -4,10 +4,10 @@ import {
   acpEnableProvider,
   acpGetProviderDetails,
   acpListProviderDetails,
+  acpListSettingsProviderDetails,
   acpListSetupProviderDetails,
   acpRefreshProviderDetails,
   acpSetSessionProviderModel,
-  isAcpProvider,
 } from '../providers';
 
 vi.mock('../acpConnection', () => ({
@@ -118,6 +118,7 @@ describe('ACP providers', () => {
     const hidden = providerEntry({
       providerId: 'internal-provider',
       visibleInSetup: false,
+      configured: false,
     });
     const client = {
       goose: {
@@ -139,6 +140,10 @@ describe('ACP providers', () => {
     ]);
     expect((await acpListSetupProviderDetails()).map((provider) => provider.name)).toEqual([
       'claude-acp',
+    ]);
+    expect((await acpListSettingsProviderDetails()).map((provider) => provider.name)).toEqual([
+      'claude-acp',
+      'claude-code',
     ]);
     expect((await acpGetProviderDetails('claude-code')).replacement).toBe('claude-acp');
   });
@@ -163,9 +168,7 @@ describe('ACP providers', () => {
 
     const providers = await acpListProviderDetails();
 
-    expect(isAcpProvider(providers[0])).toBe(false);
-    expect(isAcpProvider(providers[1])).toBe(false);
-    expect(isAcpProvider(providers[2])).toBe(true);
+    expect(providers.map((provider) => provider.uses_acp)).toEqual([false, false, true]);
   });
 
   it('probes an installed ACP adapter and returns its refreshed models', async () => {
@@ -274,6 +277,38 @@ describe('ACP providers', () => {
     expect(result.connectionChecked).toBe(true);
     expect(result.readinessError).toBe('OAuth session expired');
     expect(client.goose.providersInventoryRefresh_unstable).not.toHaveBeenCalled();
+  });
+
+  it('stops polling provider inventory when the setup screen closes', async () => {
+    const installed = providerEntry({ configured: true });
+    const refreshing = providerEntry({ configured: true, refreshing: true });
+    const client = {
+      goose: {
+        providersList_unstable: vi
+          .fn()
+          .mockResolvedValueOnce({ entries: [installed] })
+          .mockResolvedValue({ entries: [refreshing] }),
+        providersReadinessCheck_unstable: vi.fn().mockResolvedValue({
+          providerId: 'claude-acp',
+          ready: true,
+        }),
+        providersInventoryRefresh_unstable: vi.fn().mockResolvedValue({
+          started: ['claude-acp'],
+          skipped: [],
+        }),
+      },
+    };
+    vi.mocked(getAcpClient).mockResolvedValue(
+      client as unknown as Awaited<ReturnType<typeof getAcpClient>>
+    );
+    const controller = new AbortController();
+
+    const refresh = acpRefreshProviderDetails('claude-acp', controller.signal);
+    await vi.waitFor(() => expect(client.goose.providersList_unstable).toHaveBeenCalledTimes(2));
+    controller.abort();
+
+    await expect(refresh).rejects.toMatchObject({ name: 'AbortError' });
+    expect(client.goose.providersList_unstable).toHaveBeenCalledTimes(2);
   });
 });
 

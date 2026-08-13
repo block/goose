@@ -4625,49 +4625,31 @@
   "modelsBottomBar.recentModels": {
     "defaultMessage": "Zuletzt verwendet"
   },
-  "providerConfigForm.adapterFound": {
-    "defaultMessage": "ACP-Adapter gefunden"
-  },
-  "providerConfigForm.adapterNotFound": {
-    "defaultMessage": "ACP-Adapter nicht gefunden"
-  },
-  "providerConfigForm.authenticationHelp": {
-    "defaultMessage": "Melden Sie sich über die Anbieter-CLI an und prüfen Sie die Verbindung erneut."
-  },
-  "providerConfigForm.checkAgain": {
-    "defaultMessage": "Erneut prüfen"
-  },
-  "providerConfigForm.checking": {
-    "defaultMessage": "Wird geprüft..."
-  },
-  "providerConfigForm.connected": {
-    "defaultMessage": "Erfolgreich verbunden"
-  },
-  "providerConfigForm.connectionNotChecked": {
-    "defaultMessage": "Prüfen Sie Ihre Kontoverbindung, bevor Sie fortfahren."
-  },
-  "providerConfigurationModal.adapterFound": {
-    "defaultMessage": "ACP-Adapter gefunden"
-  },
-  "providerConfigurationModal.adapterNotFound": {
-    "defaultMessage": "ACP-Adapter nicht gefunden"
-  },
-  "providerConfigurationModal.authenticationHelp": {
-    "defaultMessage": "Melden Sie sich über die Anbieter-CLI an und prüfen Sie die Verbindung erneut."
-  },
-  "providerConfigurationModal.checkAgain": {
-    "defaultMessage": "Erneut prüfen"
-  },
-  "providerConfigurationModal.checking": {
-    "defaultMessage": "Wird geprüft..."
-  },
   "providerConfigurationModal.chooseModel": {
     "defaultMessage": "Modell auswählen"
   },
-  "providerConfigurationModal.connectionNotChecked": {
-    "defaultMessage": "Prüfen Sie Ihre Kontoverbindung, bevor Sie fortfahren."
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Veraltet — verwenden Sie stattdessen {replacement}."
   },
-  "providerConfigurationModal.connectionSuccessful": {
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "ACP-Adapter gefunden"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "ACP-Adapter nicht gefunden"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Melden Sie sich über die Anbieter-CLI an und prüfen Sie die Verbindung erneut."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Erneut prüfen"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "Wird geprüft..."
+  },
+  "acpReadinessPanel.connected": {
     "defaultMessage": "Erfolgreich verbunden"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Prüfen Sie Ihre Kontoverbindung, bevor Sie fortfahren."
   }
 }

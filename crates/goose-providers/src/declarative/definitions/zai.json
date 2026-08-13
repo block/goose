@@ -2,7 +2,7 @@
   "name": "zai",
   "engine": "anthropic",
   "display_name": "Z.AI",
-  "description": "Z.AI GLM models via Anthropic-compatible API.",
+  "description": "GLM models via Z.AI",
   "api_key_env": "ZHIPU_API_KEY",
   "base_url": "${ZAI_BASE_URL}",
   "env_vars": [
@@ -36,7 +36,6 @@
     "category": "model",
     "setup_method": "single_api_key",
     "group": "additional",
-    "description": "GLM models via Z.AI",
     "docs_url": "https://docs.z.ai/devpack/tool/goose",
     "aliases": ["z.ai", "zhipu"]
   }

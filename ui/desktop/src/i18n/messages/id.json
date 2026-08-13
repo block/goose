@@ -4625,49 +4625,31 @@
   "modelsBottomBar.recentModels": {
     "defaultMessage": "Terbaru"
   },
-  "providerConfigForm.adapterFound": {
-    "defaultMessage": "Adaptor ACP ditemukan"
-  },
-  "providerConfigForm.adapterNotFound": {
-    "defaultMessage": "Adaptor ACP tidak ditemukan"
-  },
-  "providerConfigForm.authenticationHelp": {
-    "defaultMessage": "Masuk melalui CLI penyedia, lalu periksa lagi."
-  },
-  "providerConfigForm.checkAgain": {
-    "defaultMessage": "Periksa lagi"
-  },
-  "providerConfigForm.checking": {
-    "defaultMessage": "Memeriksa..."
-  },
-  "providerConfigForm.connected": {
-    "defaultMessage": "Berhasil terhubung"
-  },
-  "providerConfigForm.connectionNotChecked": {
-    "defaultMessage": "Periksa koneksi akun Anda sebelum melanjutkan."
-  },
-  "providerConfigurationModal.adapterFound": {
-    "defaultMessage": "Adaptor ACP ditemukan"
-  },
-  "providerConfigurationModal.adapterNotFound": {
-    "defaultMessage": "Adaptor ACP tidak ditemukan"
-  },
-  "providerConfigurationModal.authenticationHelp": {
-    "defaultMessage": "Masuk melalui CLI penyedia, lalu periksa lagi."
-  },
-  "providerConfigurationModal.checkAgain": {
-    "defaultMessage": "Periksa lagi"
-  },
-  "providerConfigurationModal.checking": {
-    "defaultMessage": "Memeriksa..."
-  },
   "providerConfigurationModal.chooseModel": {
     "defaultMessage": "Pilih Model"
   },
-  "providerConfigurationModal.connectionNotChecked": {
-    "defaultMessage": "Periksa koneksi akun Anda sebelum melanjutkan."
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Tidak digunakan lagi — gunakan {replacement} sebagai gantinya."
   },
-  "providerConfigurationModal.connectionSuccessful": {
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "Adaptor ACP ditemukan"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "Adaptor ACP tidak ditemukan"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Masuk melalui CLI penyedia, lalu periksa lagi."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Periksa lagi"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "Memeriksa..."
+  },
+  "acpReadinessPanel.connected": {
     "defaultMessage": "Berhasil terhubung"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Periksa koneksi akun Anda sebelum melanjutkan."
   }
 }

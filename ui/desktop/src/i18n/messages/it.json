@@ -4625,49 +4625,31 @@
   "modelsBottomBar.recentModels": {
     "defaultMessage": "Recenti"
   },
-  "providerConfigForm.adapterFound": {
-    "defaultMessage": "Adattatore ACP trovato"
-  },
-  "providerConfigForm.adapterNotFound": {
-    "defaultMessage": "Adattatore ACP non trovato"
-  },
-  "providerConfigForm.authenticationHelp": {
-    "defaultMessage": "Accedi tramite la CLI del provider, quindi verifica di nuovo."
-  },
-  "providerConfigForm.checkAgain": {
-    "defaultMessage": "Verifica di nuovo"
-  },
-  "providerConfigForm.checking": {
-    "defaultMessage": "Verifica in corso..."
-  },
-  "providerConfigForm.connected": {
-    "defaultMessage": "Connessione riuscita"
-  },
-  "providerConfigForm.connectionNotChecked": {
-    "defaultMessage": "Verifica la connessione del tuo account prima di continuare."
-  },
-  "providerConfigurationModal.adapterFound": {
-    "defaultMessage": "Adattatore ACP trovato"
-  },
-  "providerConfigurationModal.adapterNotFound": {
-    "defaultMessage": "Adattatore ACP non trovato"
-  },
-  "providerConfigurationModal.authenticationHelp": {
-    "defaultMessage": "Accedi tramite la CLI del provider, quindi verifica di nuovo."
-  },
-  "providerConfigurationModal.checkAgain": {
-    "defaultMessage": "Verifica di nuovo"
-  },
-  "providerConfigurationModal.checking": {
-    "defaultMessage": "Verifica in corso..."
-  },
   "providerConfigurationModal.chooseModel": {
     "defaultMessage": "Scegli modello"
   },
-  "providerConfigurationModal.connectionNotChecked": {
-    "defaultMessage": "Verifica la connessione del tuo account prima di continuare."
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Deprecato — usa invece {replacement}."
   },
-  "providerConfigurationModal.connectionSuccessful": {
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "Adattatore ACP trovato"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "Adattatore ACP non trovato"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Accedi tramite la CLI del provider, quindi verifica di nuovo."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Verifica di nuovo"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "Verifica in corso..."
+  },
+  "acpReadinessPanel.connected": {
     "defaultMessage": "Connessione riuscita"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Verifica la connessione del tuo account prima di continuare."
   }
 }
