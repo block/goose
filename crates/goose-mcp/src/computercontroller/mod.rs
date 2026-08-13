@@ -413,6 +413,7 @@ impl ComputerControllerServer {
     }
 
     // Helper function to generate a cache file path
+    #[cfg(target_os = "macos")]
     fn get_cache_path(&self, prefix: &str, extension: &str) -> PathBuf {
         let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
         self.cache_dir
