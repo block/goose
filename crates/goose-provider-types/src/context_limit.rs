@@ -27,6 +27,16 @@ impl ContextLimitResolver {
         self
     }
 
+    pub fn resolve_local(&self, model: &str, override_limit: Option<usize>) -> usize {
+        override_limit
+            .or_else(|| self.configured_limits.get(model).copied())
+            .or_else(|| {
+                maybe_get_canonical_model(&self.provider_name, model)
+                    .map(|canonical| canonical.limit.context)
+            })
+            .unwrap_or(DEFAULT_CONTEXT_LIMIT)
+    }
+
     pub async fn resolve<F, Fut>(
         &self,
         model: &str,
@@ -84,6 +94,19 @@ mod tests {
                 .resolve("claude-sonnet-4-5", None, || async { Ok(Some(16_000)) })
                 .await,
             64_000
+        );
+    }
+
+    #[test]
+    fn local_resolution_skips_discovery() {
+        let resolver = ContextLimitResolver::new("anthropic")
+            .with_configured_limits([("configured".to_string(), 64_000)]);
+
+        assert_eq!(resolver.resolve_local("configured", None), 64_000);
+        assert_eq!(resolver.resolve_local("claude-sonnet-4-5", None), 1_000_000);
+        assert_eq!(
+            resolver.resolve_local("unknown", None),
+            DEFAULT_CONTEXT_LIMIT
         );
     }
 

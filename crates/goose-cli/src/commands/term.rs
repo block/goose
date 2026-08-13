@@ -367,14 +367,8 @@ pub async fn handle_term_info() -> Result<()> {
             .or_else(|| config.get_goose_model().ok());
         match (provider_name, model) {
             (Some(provider_name), Some(model)) => {
-                match goose::providers::create(&provider_name, vec![]).await {
-                    Ok(provider) => {
-                        goose::context_limit::get_context_limit(provider.as_ref(), &model)
-                            .await
-                            .unwrap_or(goose_providers::model::DEFAULT_CONTEXT_LIMIT)
-                    }
-                    Err(_) => goose_providers::model::DEFAULT_CONTEXT_LIMIT,
-                }
+                goose::context_limit::get_local_context_limit(&provider_name, &model)
+                    .unwrap_or(goose_providers::model::DEFAULT_CONTEXT_LIMIT)
             }
             _ => goose_providers::model::DEFAULT_CONTEXT_LIMIT,
         }

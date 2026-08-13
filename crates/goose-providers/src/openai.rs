@@ -571,7 +571,16 @@ impl OpenAiProvider {
         let models_path =
             Self::map_base_path(&self.base_path, "models", OPEN_AI_DEFAULT_MODELS_PATH);
         let response = self.api_client.request(&models_path).response_get().await?;
-        let json = handle_response_openai_compat(response).await?;
+        if response.status() == StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        let json = handle_response_openai_compat(response).await.map_err(|error| {
+            if matches!(&error, ProviderError::RequestFailed(message) if message.contains("not valid JSON")) {
+                ProviderError::EndpointNotFound(error.to_string())
+            } else {
+                error
+            }
+        })?;
         Ok(parse_n_ctx_from_models(&json, model_name))
     }
 }
@@ -703,11 +712,19 @@ impl Provider for OpenAiProvider {
                 }
 
                 const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
-                let probed = tokio::time::timeout(PROBE_TIMEOUT, self.fetch_n_ctx_from_api(model))
-                    .await
-                    .map_err(|_| {
-                        ProviderError::RequestFailed("Context-limit discovery timed out".into())
-                    })??;
+                let probed =
+                    match tokio::time::timeout(PROBE_TIMEOUT, self.fetch_n_ctx_from_api(model))
+                        .await
+                    {
+                        Ok(Ok(limit)) => limit,
+                        Ok(Err(error)) if error.is_endpoint_not_found() => None,
+                        Ok(Err(error)) => return Err(error),
+                        Err(_) => {
+                            return Err(ProviderError::RequestFailed(
+                                "Context-limit discovery timed out".into(),
+                            ));
+                        }
+                    };
 
                 if let Ok(mut cache) = self.n_ctx_cache.lock() {
                     cache.insert(model.to_string(), probed);
@@ -1454,6 +1471,36 @@ mod tests {
             preserve_thinking_context: false,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
+    }
+
+    #[tokio::test]
+    async fn context_limit_caches_unsupported_models_endpoint() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("not json"))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let mut provider = make_provider_with_custom_models(
+            &server.uri(),
+            "v1/chat/completions",
+            vec!["other-model".to_string()],
+        );
+        provider.custom_models = None;
+
+        assert_eq!(
+            provider.get_context_limit("unknown-model", None).await,
+            crate::model::DEFAULT_CONTEXT_LIMIT
+        );
+        assert_eq!(
+            provider.get_context_limit("unknown-model", None).await,
+            crate::model::DEFAULT_CONTEXT_LIMIT
+        );
     }
 
     #[tokio::test]

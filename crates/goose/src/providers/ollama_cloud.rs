@@ -5,7 +5,7 @@ use crate::conversation::message::Message;
 use anyhow::Result;
 use futures::future::BoxFuture;
 use goose_providers::api_client::{ApiClient, AuthMethod, TlsConfig};
-use goose_providers::base::ProviderDescriptor;
+use goose_providers::base::{ModelInfo, ProviderDescriptor};
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
 use goose_providers::ollama::fetch_ollama_model_names;
@@ -25,7 +25,7 @@ pub struct OllamaCloudProvider {
     inner: OpenAiProvider,
     ollama_api_client: ApiClient,
     model_names: OnceCell<Vec<String>>,
-    custom_models: Option<Vec<String>>,
+    custom_models: Option<Vec<ModelInfo>>,
     dynamic_models: Option<bool>,
 }
 
@@ -43,13 +43,7 @@ impl OllamaCloudProvider {
             crate::providers::openai_def::from_custom_config(config.clone(), tls_config.clone())?;
 
         let custom_models = if !config.models.is_empty() {
-            Some(
-                config
-                    .models
-                    .iter()
-                    .map(|m| m.name.clone())
-                    .collect::<Vec<String>>(),
-            )
+            Some(config.models.clone())
         } else {
             None
         };
@@ -190,7 +184,10 @@ impl Provider for OllamaCloudProvider {
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         if let Some(custom_models) = &self.custom_models {
             if self.dynamic_models == Some(false) {
-                return Ok(custom_models.clone());
+                return Ok(custom_models
+                    .iter()
+                    .map(|model| model.name.clone())
+                    .collect());
             }
 
             match self.get_or_fetch_model_names().await {
@@ -200,7 +197,10 @@ impl Provider for OllamaCloudProvider {
                         "Ollama api/tags not available for provider '{}', using static model list",
                         self.inner.get_name(),
                     );
-                    return Ok(custom_models.clone());
+                    return Ok(custom_models
+                        .iter()
+                        .map(|model| model.name.clone())
+                        .collect());
                 }
                 Err(e) => return Err(e),
             }
@@ -210,7 +210,13 @@ impl Provider for OllamaCloudProvider {
     }
 
     async fn get_context_limit(&self, model: &str, override_limit: Option<usize>) -> usize {
+        let configured_limits = self
+            .custom_models
+            .iter()
+            .flatten()
+            .filter_map(|model| model.context_limit.map(|limit| (model.name.clone(), limit)));
         goose_providers::context_limit::ContextLimitResolver::new(self.get_name())
+            .with_configured_limits(configured_limits)
             .resolve(model, override_limit, || async {
                 if let Some(cached) = SHOW_INFO_CACHE
                     .lock()
@@ -367,9 +373,13 @@ mod tests {
     #[tokio::test]
     async fn get_context_limit_falls_back_on_missing_model_info() {
         let server = mock_show_server_no_model_info().await;
-        let provider = build_provider(server.uri(), Some(true), vec![]);
+        let provider = build_provider(
+            server.uri(),
+            Some(true),
+            vec![ModelInfo::new("unknown-model").with_context_limit(8000)],
+        );
 
-        let model_config = ModelConfig::new("unknown-model").with_context_limit(Some(8000));
+        let model_config = ModelConfig::new("unknown-model");
         let limit = provider
             .get_context_limit(&model_config.model_name, None)
             .await;

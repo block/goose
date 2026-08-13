@@ -19,7 +19,7 @@ function updateRequestToCreate(
     displayName: request.display_name,
     apiUrl: request.api_url,
     apiKey: request.api_key || null,
-    models: request.models as unknown as string[],
+    models: request.models,
     supportsStreaming: request.supports_streaming ?? null,
     headers: request.headers ?? undefined,
     requiresAuth: request.requires_auth ?? true,
