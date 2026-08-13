@@ -8,7 +8,7 @@ use cap_std::{
     ambient_authority,
     fs::{Dir, OpenOptions},
 };
-use etcetera::{choose_app_strategy, AppStrategy};
+use etcetera::{choose_app_strategy, choose_base_strategy, AppStrategy, BaseStrategy};
 use indoc::{formatdoc, indoc};
 use reqwest::{Client, Url};
 use rmcp::{
@@ -340,22 +340,36 @@ impl Default for ComputerControllerServer {
 
 #[tool_router(router = tool_router)]
 impl ComputerControllerServer {
-    fn open_cache_dir(cache_dir: &Path) -> io::Result<Dir> {
-        let parent_path = cache_dir.parent().ok_or_else(|| {
-            io::Error::new(io::ErrorKind::InvalidInput, "Cache directory has no parent")
+    fn open_cache_dir(base_dir: &Path, cache_dir: &Path) -> io::Result<Dir> {
+        let relative_path = cache_dir.strip_prefix(base_dir).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Cache directory is outside the platform cache directory",
+            )
         })?;
-        let cache_name = cache_dir.file_name().ok_or_else(|| {
-            io::Error::new(io::ErrorKind::InvalidInput, "Cache directory has no name")
-        })?;
-
-        fs::create_dir_all(parent_path)?;
-        let parent = Dir::open_ambient_dir(parent_path, ambient_authority())?;
-        match parent.create_dir(cache_name) {
-            Ok(()) => {}
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(error) => return Err(error),
+        if relative_path.as_os_str().is_empty()
+            || !relative_path
+                .components()
+                .all(|component| matches!(component, std::path::Component::Normal(_)))
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Cache directory has invalid platform-relative components",
+            ));
         }
-        parent.open_dir_nofollow(cache_name)
+
+        fs::create_dir_all(base_dir)?;
+        let mut directory = Dir::open_ambient_dir(base_dir, ambient_authority())?;
+        for component in relative_path.components() {
+            let name = component.as_os_str();
+            match directory.create_dir(name) {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+                Err(error) => return Err(error),
+            }
+            directory = directory.open_dir_nofollow(name)?;
+        }
+        Ok(directory)
     }
 
     pub fn new() -> Self {
@@ -363,11 +377,25 @@ impl ComputerControllerServer {
         // - macOS/Linux: ~/.cache/goose/computer_controller/
         // - Windows:     ~\AppData\Local\Block\goose\cache\computer_controller\
         // keep previous behavior of defaulting to /tmp/
-        let cache_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
-            .map(|strategy| strategy.in_cache_dir("computer_controller"))
-            .unwrap_or_else(|_| create_system_automation().get_temp_path());
+        let (base_cache_dir, cache_dir) = choose_base_strategy()
+            .and_then(|base_strategy| {
+                choose_app_strategy(crate::APP_STRATEGY.clone()).map(|app_strategy| {
+                    (
+                        base_strategy.cache_dir(),
+                        app_strategy.in_cache_dir("computer_controller"),
+                    )
+                })
+            })
+            .unwrap_or_else(|_| {
+                let temp_path = create_system_automation().get_temp_path();
+                let parent = temp_path
+                    .parent()
+                    .map(Path::to_path_buf)
+                    .unwrap_or_else(|| temp_path.clone());
+                (parent, temp_path)
+            });
 
-        let cache_dir_handle = match Self::open_cache_dir(&cache_dir) {
+        let cache_dir_handle = match Self::open_cache_dir(&base_cache_dir, &cache_dir) {
             Ok(directory) => Some(Arc::new(directory)),
             Err(error) => {
                 println!(
@@ -2066,7 +2094,20 @@ mod cache_tests {
         fs::create_dir(&outside_dir).unwrap();
         std::os::unix::fs::symlink(&outside_dir, &cache_dir).unwrap();
 
-        assert!(ComputerControllerServer::open_cache_dir(&cache_dir).is_err());
+        assert!(ComputerControllerServer::open_cache_dir(temp_dir.path(), &cache_dir).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_rejects_a_symlinked_app_ancestor() {
+        let temp_dir = TempDir::new().unwrap();
+        let outside_dir = temp_dir.path().join("outside");
+        let app_dir = temp_dir.path().join("goose");
+        let cache_dir = app_dir.join("computer_controller");
+        fs::create_dir(&outside_dir).unwrap();
+        std::os::unix::fs::symlink(&outside_dir, &app_dir).unwrap();
+
+        assert!(ComputerControllerServer::open_cache_dir(temp_dir.path(), &cache_dir).is_err());
     }
 
     #[tokio::test]
