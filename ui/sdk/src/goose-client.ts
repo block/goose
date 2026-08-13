@@ -24,8 +24,6 @@ import {
   type ResumeSessionResponse,
   type CloseSessionRequest,
   type CloseSessionResponse,
-  type SetSessionModelRequest,
-  type SetSessionModelResponse,
 } from "@agentclientprotocol/sdk";
 import {
   GooseExtClient,
@@ -109,22 +107,12 @@ export class GooseClient {
     return this.conn.listSessions(params);
   }
 
-  unstable_resumeSession(
-    params: ResumeSessionRequest,
-  ): Promise<ResumeSessionResponse> {
-    return this.conn.unstable_resumeSession(params);
+  resumeSession(params: ResumeSessionRequest): Promise<ResumeSessionResponse> {
+    return this.conn.resumeSession(params);
   }
 
-  unstable_closeSession(
-    params: CloseSessionRequest,
-  ): Promise<CloseSessionResponse> {
-    return this.conn.unstable_closeSession(params);
-  }
-
-  unstable_setSessionModel(
-    params: SetSessionModelRequest,
-  ): Promise<SetSessionModelResponse> {
-    return this.conn.unstable_setSessionModel(params);
+  closeSession(params: CloseSessionRequest): Promise<CloseSessionResponse> {
+    return this.conn.closeSession(params);
   }
 
   extMethod(
