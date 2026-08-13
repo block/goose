@@ -32,15 +32,15 @@ use tokio::process::{Child, Command};
 use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex};
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 
+use crate::acp::handoff::{build_handoff_context_memo, memo_token_budget};
 use crate::acp::{map_permission_response, PermissionDecision};
 use crate::config::{ExtensionConfig, GooseMode};
-use crate::context_mgmt::format_message_for_compacting;
 use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
-use crate::conversation::Conversation;
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::{MessageStream, PermissionRouting, Provider};
 use crate::subprocess::configure_subprocess;
+use crate::token_counter::create_token_counter;
 use crate::utils::sanitize_unicode_tags;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
@@ -517,6 +517,36 @@ impl AcpProvider {
             include_context: first_prompt && has_handoff_context(messages),
         }
     }
+
+    /// Prior conversation, bounded against the agent's context window. The agent's own
+    /// system prompt and tool schemas are invisible to us, hence the conservative share.
+    async fn bounded_handoff_memo(
+        &self,
+        model_config: &ModelConfig,
+        messages: &[Message],
+        current_prompt: &[ContentBlock],
+    ) -> Option<String> {
+        let last_user_index = last_user_message_index(messages)?;
+        let counter = match create_token_counter().await {
+            Ok(counter) => counter,
+            Err(error) => {
+                tracing::error!(%error, "no token counter, dropping ACP handoff context");
+                return None;
+            }
+        };
+
+        let current_prompt_tokens = current_prompt
+            .iter()
+            .map(|block| match block {
+                ContentBlock::Text(text) => counter.count_tokens(&text.text),
+                _ => 0,
+            })
+            .sum();
+        let context_limit = self.get_context_limit(model_config).await.ok()?;
+        let budget = memo_token_budget(context_limit, current_prompt_tokens);
+
+        build_handoff_context_memo(&messages[..last_user_index], budget, &counter)
+    }
 }
 
 fn fresh_text_run() -> (String, i64) {
@@ -634,7 +664,7 @@ impl Provider for AcpProvider {
                 ProviderError::RequestFailed(format!("Failed to set ACP model option: {e}"))
             })?;
 
-        let current_prompt_blocks = messages_to_prompt(messages, false);
+        let current_prompt_blocks = messages_to_prompt(messages, None);
         if current_prompt_blocks.is_empty() {
             return Ok(Box::pin(futures::stream::empty()));
         }
@@ -642,24 +672,48 @@ impl Provider for AcpProvider {
         let claim = self.claim_handoff_context(messages);
         let mut handoff_claim_guard =
             HandoffContextClaimGuard::new(self.handoff_context_sent.clone(), claim.first_prompt);
-        let prompt_blocks = if claim.include_context {
-            messages_to_prompt(messages, true)
+        let memo = if claim.include_context {
+            self.bounded_handoff_memo(model_config, messages, &current_prompt_blocks)
+                .await
         } else {
-            current_prompt_blocks
+            None
+        };
+        // A memo is only ever an estimate of what the agent will accept, so keep the bare
+        // prompt to retry with. Without it a bad estimate leaves the session unresumable.
+        let (prompt_blocks, mut bare_retry_blocks) = match memo {
+            Some(memo) => (
+                messages_to_prompt(messages, Some(memo)),
+                Some(current_prompt_blocks),
+            ),
+            None => (current_prompt_blocks, None),
         };
         // Drop any tool-call buffer state left over from a prior prompt
         // (e.g. cancelled or interrupted before its terminal status arrived).
         if let Ok(mut buffer) = self.pending_tool_updates.lock() {
             buffer.clear();
         }
-        let mut rx = match self.prompt(session_id, prompt_blocks).await {
+        let mut rx = match self.prompt(session_id.clone(), prompt_blocks).await {
             Ok(rx) => rx,
-            Err(e) => {
-                return Err(ProviderError::RequestFailed(format!(
-                    "Failed to send ACP prompt: {e}"
-                )));
-            }
+            // The guard rolls the claim back when it drops on either failure path.
+            Err(e) => match bare_retry_blocks.take() {
+                Some(blocks) => {
+                    self.prompt(session_id.clone(), blocks)
+                        .await
+                        .map_err(|retry_error| {
+                            ProviderError::RequestFailed(format!(
+                                "Failed to send ACP prompt: {retry_error}"
+                            ))
+                        })?
+                }
+                None => {
+                    return Err(ProviderError::RequestFailed(format!(
+                        "Failed to send ACP prompt: {e}"
+                    )));
+                }
+            },
         };
+        let bare_retry =
+            bare_retry_blocks.map(|blocks| (self.tx.as_ref().unwrap().clone(), session_id, blocks));
 
         let pending_confirmations = self.pending_confirmations.clone();
         let goose_mode = *self
@@ -672,12 +726,15 @@ impl Provider for AcpProvider {
 
         Ok(Box::pin(try_stream! {
             let mut suppress_text = false;
+            let mut bare_retry = bare_retry;
+            let mut updates_seen = 0usize;
             let mut rejected_tool_calls: HashSet<String> = HashSet::new();
             // Stable id+timestamp per contiguous run so Desktop coalesces chunks into one bubble.
             let mut text_run: Option<(String, i64)> = None;
             let mut thought_run: Option<(String, i64)> = None;
 
             while let Some(update) = rx.recv().await {
+                updates_seen += 1;
                 match update {
                     AcpUpdate::Text(text) => {
                         if !suppress_text {
@@ -822,10 +879,34 @@ impl Provider for AcpProvider {
                         break;
                     }
                     AcpUpdate::Error(e) => {
+                        let error = provider_error_from_acp(e);
+                        // An agent that rejects the very first update has told us nothing
+                        // but that it disliked the prompt, and the memo is the only part
+                        // we added. Retry once without it rather than stranding the session.
+                        // An auth failure is not about the prompt, so it keeps the retry.
+                        if updates_seen == 1 && !matches!(error, ProviderError::Authentication(_)) {
+                            if let Some((tx, session_id, blocks)) = bare_retry.take() {
+                                let (response_tx, response_rx) = mpsc::channel(64);
+                                let request = ClientRequest::Prompt {
+                                    session_id,
+                                    content: blocks,
+                                    response_tx,
+                                };
+                                if tx.send(request).await.is_ok() {
+                                    tracing::error!(
+                                        %error,
+                                        "ACP prompt with handoff context rejected, retrying without it"
+                                    );
+                                    rx = response_rx;
+                                    updates_seen = 0;
+                                    continue;
+                                }
+                            }
+                        }
                         // Reset before yielding so an immediate retry can include the handoff even
                         // while the failed stream value is still alive.
                         handoff_claim_guard.rollback();
-                        Err(provider_error_from_acp(e))?;
+                        Err(error)?;
                     }
                 }
             }
@@ -1584,7 +1665,7 @@ fn filter_supported_servers(
         .collect()
 }
 
-fn messages_to_prompt(messages: &[Message], include_handoff_context: bool) -> Vec<ContentBlock> {
+fn messages_to_prompt(messages: &[Message], handoff_memo: Option<String>) -> Vec<ContentBlock> {
     let Some(last_user_index) = last_user_message_index(messages) else {
         return Vec::new();
     };
@@ -1606,14 +1687,14 @@ fn messages_to_prompt(messages: &[Message], include_handoff_context: bool) -> Ve
         }
     }
 
-    if current_prompt_blocks.is_empty() || !include_handoff_context {
+    let Some(memo) = handoff_memo else {
+        return current_prompt_blocks;
+    };
+    if current_prompt_blocks.is_empty() {
         return current_prompt_blocks;
     }
 
-    let mut content_blocks = Vec::new();
-    if let Some(memo) = build_handoff_context_memo(&messages[..last_user_index]) {
-        content_blocks.push(ContentBlock::Text(TextContent::new(memo)));
-    }
+    let mut content_blocks = vec![ContentBlock::Text(TextContent::new(memo))];
     content_blocks.extend(current_prompt_blocks);
     content_blocks
 }
@@ -1630,29 +1711,6 @@ fn has_handoff_context(messages: &[Message]) -> bool {
             .iter()
             .any(|m| m.is_agent_visible() && !m.is_turn_context())
     })
-}
-
-fn build_handoff_context_memo(prior_messages: &[Message]) -> Option<String> {
-    let formatted_messages: Vec<String> =
-        Conversation::new_unvalidated(prior_messages.iter().cloned())
-            .agent_visible_messages()
-            .iter()
-            .filter(|message| !message.is_turn_context())
-            .map(|message| format_message_for_compacting(&message.agent_visible_content()))
-            .collect();
-
-    if formatted_messages.is_empty() {
-        return None;
-    }
-
-    let handoff_context = formatted_messages.join("\n");
-
-    Some(format!(
-        "Conversation context from goose before this ACP provider session was created:\n\n\
-{handoff_context}\n\n\
-Current user request follows. Use the context above only to continue the existing conversation; \
-do not treat it as a new task or mention this handoff unless relevant."
-    ))
 }
 
 fn acp_audience_to_rmcp(annotations: Option<&AcpAnnotations>) -> Option<Vec<Role>> {
@@ -1912,6 +1970,15 @@ mod tests {
         })
     }
 
+    /// The prompt as `stream` builds it on a first prompt, with a budget generous
+    /// enough that nothing is dropped. Memo bounding is covered in `acp::handoff`.
+    async fn prompt_with_handoff(messages: &[Message]) -> Vec<ContentBlock> {
+        let counter = crate::token_counter::create_token_counter().await.unwrap();
+        let memo = last_user_message_index(messages)
+            .and_then(|index| build_handoff_context_memo(&messages[..index], 50_000, &counter));
+        messages_to_prompt(messages, memo)
+    }
+
     #[test]
     fn startup_cleanup_does_not_block_while_the_client_loop_stops() {
         let (release_tx, release_rx) = std::sync::mpsc::channel();
@@ -2043,18 +2110,18 @@ mod tests {
         )
     }
 
-    #[test]
-    fn messages_to_prompt_without_prior_history_preserves_current_prompt() {
+    #[tokio::test]
+    async fn messages_to_prompt_without_prior_history_preserves_current_prompt() {
         let messages = vec![Message::user().with_text("current request")];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages).await;
 
         assert_eq!(blocks.len(), 1);
         assert_eq!(prompt_text(&blocks[0]), "current request");
     }
 
-    #[test]
-    fn messages_to_prompt_prepends_handoff_context_before_latest_user() {
+    #[tokio::test]
+    async fn messages_to_prompt_prepends_handoff_context_before_latest_user() {
         let messages = vec![
             Message::user().with_text("inspect src/lib.rs"),
             Message::assistant()
@@ -2069,7 +2136,7 @@ mod tests {
             Message::user().with_text("continue from there"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages).await;
 
         assert_eq!(blocks.len(), 2);
         let memo = prompt_text(&blocks[0]);
@@ -2084,8 +2151,8 @@ mod tests {
         assert_eq!(prompt_text(&blocks[1]), "continue from there");
     }
 
-    #[test]
-    fn messages_to_prompt_skips_turn_context_events() {
+    #[tokio::test]
+    async fn messages_to_prompt_skips_turn_context_events() {
         use crate::conversation::message::MessageMetadata;
 
         let turn_context = |text: &str| {
@@ -2101,7 +2168,7 @@ mod tests {
             turn_context("<turn-context>new cwd /repo</turn-context>"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages).await;
 
         assert_eq!(blocks.len(), 2);
         assert!(
@@ -2115,8 +2182,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn messages_to_prompt_drops_user_only_acp_rows_from_handoff() {
+    #[tokio::test]
+    async fn messages_to_prompt_drops_user_only_acp_rows_from_handoff() {
         let user_only = TextContent::new("SECRET_USER_ONLY")
             .annotations(AcpAnnotations::new().audience(vec![AcpRole::User]));
         let messages = vec![
@@ -2125,7 +2192,7 @@ mod tests {
             Message::user().with_text("current request"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages).await;
 
         assert_eq!(blocks.len(), 2);
         let memo = prompt_text(&blocks[0]);
@@ -2135,8 +2202,8 @@ mod tests {
         assert_eq!(prompt_text(&blocks[1]), "current request");
     }
 
-    #[test]
-    fn messages_to_prompt_keeps_latest_user_images_after_handoff_memo() {
+    #[tokio::test]
+    async fn messages_to_prompt_keeps_latest_user_images_after_handoff_memo() {
         let messages = vec![
             Message::assistant().with_text("prior answer"),
             Message::user()
@@ -2144,7 +2211,7 @@ mod tests {
                 .with_text("describe this"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages).await;
 
         assert_eq!(blocks.len(), 3);
         assert!(prompt_text(&blocks[0]).contains("[assistant]: prior answer"));
@@ -2158,8 +2225,8 @@ mod tests {
         assert_eq!(prompt_text(&blocks[2]), "describe this");
     }
 
-    #[test]
-    fn messages_to_prompt_excludes_user_only_current_and_handoff_content() {
+    #[tokio::test]
+    async fn messages_to_prompt_excludes_user_only_current_and_handoff_content() {
         use rmcp::model::{Annotations, TextContent};
 
         fn user_only_text(text: &str) -> MessageContent {
@@ -2178,7 +2245,8 @@ mod tests {
                 .with_content(user_only_text("SECRET_CURRENT")),
         ];
 
-        let rendered = messages_to_prompt(&messages, true)
+        let rendered = prompt_with_handoff(&messages)
+            .await
             .iter()
             .filter_map(|block| match block {
                 ContentBlock::Text(text) => Some(text.text.as_str()),
@@ -2193,8 +2261,8 @@ mod tests {
         assert!(!rendered.contains("SECRET_CURRENT"));
     }
 
-    #[test]
-    fn messages_to_prompt_drops_handoff_when_current_content_is_user_only() {
+    #[tokio::test]
+    async fn messages_to_prompt_drops_handoff_when_current_content_is_user_only() {
         use rmcp::model::{Annotations, TextContent};
 
         let current = MessageContent::Text(
@@ -2206,7 +2274,7 @@ mod tests {
             Message::user().with_content(current),
         ];
 
-        assert!(messages_to_prompt(&messages, true).is_empty());
+        assert!(prompt_with_handoff(&messages).await.is_empty());
     }
 
     #[tokio::test]
@@ -2420,18 +2488,19 @@ mod tests {
             Message::assistant().with_text("prior answer"),
             Message::user().with_text("current request"),
         ];
-        let (retry_content_tx, retry_content_rx) = oneshot::channel();
+        let (resend_content_tx, resend_content_rx) = oneshot::channel();
 
-        // Serve the first prompt like a harness that accepts the request but
-        // fails while processing it (e.g. because the prompt is too large),
-        // then capture the retry.
+        // Serve the first prompt and its memo-free retry like a harness that accepts
+        // the request but fails while processing it, then capture the next turn.
         let server = tokio::spawn(async move {
-            if let Some(ClientRequest::Prompt { response_tx, .. }) = rx.recv().await {
-                let _ = response_tx
-                    .send(AcpUpdate::Error(
-                        agent_client_protocol::Error::internal_error().data("prompt too large"),
-                    ))
-                    .await;
+            for _ in 0..2 {
+                if let Some(ClientRequest::Prompt { response_tx, .. }) = rx.recv().await {
+                    let _ = response_tx
+                        .send(AcpUpdate::Error(
+                            agent_client_protocol::Error::internal_error().data("prompt too large"),
+                        ))
+                        .await;
+                }
             }
             if let Some(ClientRequest::Prompt {
                 content,
@@ -2439,7 +2508,7 @@ mod tests {
                 ..
             }) = rx.recv().await
             {
-                let _ = retry_content_tx.send(content);
+                let _ = resend_content_tx.send(content);
                 let _ = response_tx
                     .send(AcpUpdate::Complete(StopReason::EndTurn, None))
                     .await;
@@ -2453,12 +2522,12 @@ mod tests {
             "expected streamed error, got {first:?}"
         );
 
-        let mut retry_stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
-        let retry_content = retry_content_rx.await.unwrap();
-        assert_eq!(retry_content.len(), 2);
-        assert!(prompt_text(&retry_content[0]).contains("[assistant]: prior answer"));
-        assert_eq!(prompt_text(&retry_content[1]), "current request");
-        assert!(retry_stream.next().await.is_none());
+        let mut resend_stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        let resend_content = resend_content_rx.await.unwrap();
+        assert_eq!(resend_content.len(), 2);
+        assert!(prompt_text(&resend_content[0]).contains("prior answer"));
+        assert_eq!(prompt_text(&resend_content[1]), "current request");
+        assert!(resend_stream.next().await.is_none());
         server.await.unwrap();
     }
 
@@ -2559,6 +2628,20 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn failed_first_prompt_send_without_handoff_rolls_back_claim() {
+        let (tx, rx) = mpsc::channel(1);
+        drop(rx);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![Message::user().with_text("current request")];
+
+        let result = provider.stream(&model, "", &messages, &[]).await;
+
+        assert!(matches!(result, Err(ProviderError::RequestFailed(_))));
+        let next_claim = provider.claim_handoff_context(&messages);
+        assert!(next_claim.first_prompt);
+    }
+
+    #[tokio::test]
     async fn failed_first_prompt_send_rolls_back_handoff_context_claim() {
         let (tx, rx) = mpsc::channel(1);
         drop(rx);
@@ -2574,6 +2657,132 @@ mod tests {
         let next_claim = provider.claim_handoff_context(&messages);
         assert!(next_claim.first_prompt);
         assert!(next_claim.include_context);
+    }
+
+    fn expect_prompt(request: ClientRequest) -> (Vec<ContentBlock>, mpsc::Sender<AcpUpdate>) {
+        match request {
+            ClientRequest::Prompt {
+                content,
+                response_tx,
+                ..
+            } => (content, response_tx),
+            _ => panic!("expected ACP prompt request"),
+        }
+    }
+
+    #[tokio::test]
+    async fn rejected_handoff_prompt_retries_once_without_the_memo() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(2);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+
+        let handle = tokio::spawn(async move {
+            let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+            let mut results = Vec::new();
+            while let Some(item) = stream.next().await {
+                results.push(item);
+            }
+            results
+        });
+
+        let (content, response_tx) = expect_prompt(rx.recv().await.unwrap());
+        assert_eq!(content.len(), 2, "memo precedes the current prompt");
+        response_tx
+            .send(AcpUpdate::Error(
+                agent_client_protocol::Error::invalid_request().data("Prompt is too long"),
+            ))
+            .await
+            .unwrap();
+
+        let (content, response_tx) = expect_prompt(rx.recv().await.unwrap());
+        assert_eq!(content.len(), 1, "retry carries the current prompt only");
+        assert_eq!(prompt_text(&content[0]), "current request");
+        response_tx
+            .send(AcpUpdate::Complete(StopReason::EndTurn, None))
+            .await
+            .unwrap();
+
+        let results = handle.await.unwrap();
+        assert!(results.iter().all(|item| item.is_ok()));
+    }
+
+    #[tokio::test]
+    async fn rejected_retry_surfaces_the_error() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(2);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+
+        let handle = tokio::spawn(async move {
+            let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+            let mut results = Vec::new();
+            while let Some(item) = stream.next().await {
+                results.push(item);
+            }
+            results
+        });
+
+        for _ in 0..2 {
+            let (_, response_tx) = expect_prompt(rx.recv().await.unwrap());
+            response_tx
+                .send(AcpUpdate::Error(
+                    agent_client_protocol::Error::invalid_request().data("Prompt is too long"),
+                ))
+                .await
+                .unwrap();
+        }
+
+        let results = handle.await.unwrap();
+        assert!(matches!(
+            results.as_slice(),
+            [Err(ProviderError::RequestFailed(_))]
+        ));
+        assert!(rx.try_recv().is_err(), "exactly one retry");
+    }
+
+    #[tokio::test]
+    async fn auth_failure_surfaces_instead_of_retrying_without_the_memo() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(2);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+
+        let handle = tokio::spawn(async move {
+            let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+            let mut results = Vec::new();
+            while let Some(item) = stream.next().await {
+                results.push(item);
+            }
+            results
+        });
+
+        let (_, response_tx) = expect_prompt(rx.recv().await.unwrap());
+        response_tx
+            .send(AcpUpdate::Error(
+                agent_client_protocol::Error::auth_required(),
+            ))
+            .await
+            .unwrap();
+
+        let results = handle.await.unwrap();
+        assert!(matches!(
+            results.as_slice(),
+            [Err(ProviderError::Authentication(_))]
+        ));
+        assert!(rx.try_recv().is_err(), "no retry on an auth failure");
     }
 
     fn test_provider_with_model_option(
@@ -2863,8 +3072,8 @@ mod tests {
         assert_eq!(*provider.goose_mode.lock().unwrap(), GooseMode::Auto);
     }
 
-    #[test]
-    fn messages_to_prompt_includes_all_prior_handoff_context() {
+    #[tokio::test]
+    async fn messages_to_prompt_includes_all_prior_handoff_context() {
         let messages = vec![
             Message::user().with_text("older context that should be retained"),
             Message::assistant().with_text("middle context"),
@@ -2872,7 +3081,7 @@ mod tests {
             Message::user().with_text("current request"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages).await;
 
         assert_eq!(blocks.len(), 2);
         let memo = prompt_text(&blocks[0]);

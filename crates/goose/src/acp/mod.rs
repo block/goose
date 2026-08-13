@@ -1,5 +1,6 @@
 mod common;
 pub(crate) mod fs;
+mod handoff;
 mod mcp_app_proxy;
 mod provider;
 mod response_builder;
