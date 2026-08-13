@@ -62,8 +62,7 @@ export function useFocusOnTyping(
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
-      const isAltGraph = e.getModifierState?.('AltGraph') ?? false;
-      if (e.metaKey || e.ctrlKey || (e.altKey && !isAltGraph)) return;
+      if (e.metaKey || e.ctrlKey) return;
       if (e.key.length !== 1) return;
       if (isEditableElement(document.activeElement)) return;
       if (isInsideCompositeWidget(document.activeElement)) return;
