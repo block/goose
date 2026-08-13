@@ -1182,6 +1182,19 @@ async fn spawn_acp_process(config: &AcpProviderConfig) -> Result<Child> {
         .stderr(Stdio::piped())
         .kill_on_drop(true);
 
+    if let Some(command_dir) = config.command.parent() {
+        let path = std::env::join_paths(
+            std::iter::once(command_dir.to_path_buf()).chain(
+                std::env::var_os("PATH")
+                    .as_ref()
+                    .map(std::env::split_paths)
+                    .into_iter()
+                    .flatten(),
+            ),
+        )?;
+        cmd.env("PATH", path);
+    }
+
     for key in &config.env_remove {
         cmd.env_remove(key);
     }

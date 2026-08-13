@@ -521,7 +521,7 @@ impl GooseAcpAgent {
         }
 
         let result = tokio::time::timeout(
-            std::time::Duration::from_secs(20),
+            std::time::Duration::from_secs(10),
             self.create_provider(&req.provider_id, Vec::new(), None, true),
         )
         .await;
