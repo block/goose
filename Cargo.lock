@@ -5210,7 +5210,6 @@ dependencies = [
  "lopdf",
  "once_cell",
  "process-wrap",
- "reqwest 0.13.4",
  "rmcp 3.0.0",
  "schemars 1.2.1",
  "serde",
@@ -5222,7 +5221,6 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "umya-spreadsheet",
- "url",
 ]
 
 [[package]]
