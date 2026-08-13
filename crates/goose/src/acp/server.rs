@@ -243,12 +243,9 @@ fn meta_string(
 
 fn agent_capabilities_meta() -> Option<Meta> {
     let mut goose = serde_json::Map::new();
+    goose.insert("recipeParameterScopes".to_string(), serde_json::json!({}));
     if cfg!(feature = "local-inference") {
         goose.insert("localInference".to_string(), serde_json::json!({}));
-    }
-
-    if goose.is_empty() {
-        return None;
     }
 
     let mut meta = serde_json::Map::new();
@@ -2753,6 +2750,16 @@ print(\"hello, world\")
         assert!(!extract_client_supports_goose_custom_notifications(
             goose_client_capabilities.as_ref()
         ));
+    }
+
+    #[test]
+    fn test_agent_capabilities_advertise_recipe_parameter_scopes() {
+        assert_eq!(
+            agent_capabilities_meta()
+                .and_then(|meta| meta.get("goose").cloned())
+                .and_then(|goose| goose.get("recipeParameterScopes").cloned()),
+            Some(serde_json::json!({}))
+        );
     }
 
     #[test]

@@ -261,6 +261,8 @@ pub struct RecipeListEntryDto {
 pub struct RequestRecipeParams {
     pub session_id: String,
     pub parameters: Vec<RecipeParameterDto>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parameter_scope_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, JsonSchema)]

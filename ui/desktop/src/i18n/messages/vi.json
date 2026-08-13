@@ -4621,5 +4621,8 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "Xóa hình ảnh khỏi tin nhắn"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "Gần đây"
   }
 }

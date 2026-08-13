@@ -45,6 +45,14 @@ impl GooseAcpAgent {
         self.on_remove_session_extension(req).await
     }
 
+    #[custom_method(ApplySessionExtensionsRequest)]
+    async fn dispatch_apply_session_extensions(
+        &self,
+        req: ApplySessionExtensionsRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_apply_session_extensions(req).await
+    }
+
     #[custom_method(GetToolsRequest)]
     async fn dispatch_get_tools(
         &self,

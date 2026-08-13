@@ -223,6 +223,7 @@ export interface AcpNewSessionResult {
 export interface AcpRecipeOptions {
   recipeId?: string;
   recipeDeeplink?: string;
+  recipeParameterScopeId?: string;
 }
 
 export async function acpNewSession(
@@ -239,6 +240,9 @@ export async function acpNewSession(
     meta.recipeId = recipe.recipeId;
   } else if (recipe?.recipeDeeplink) {
     meta.recipeDeeplink = recipe.recipeDeeplink;
+  }
+  if (recipe?.recipeParameterScopeId) {
+    meta.recipeParameterScopeId = recipe.recipeParameterScopeId;
   }
   const request: NewSessionRequest = { cwd, mcpServers: [], _meta: meta };
   const response = await client.newSession(request);
