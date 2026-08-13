@@ -284,6 +284,7 @@ See [DESKTOP_RELEASE_RUNBOOK.md](../../../../docs/development/manual-tests/DESKT
 | Smoke “bundle missing” | Never packaged | `make package-ui` then `make test-smoke` |
 | macOS release fails on updater verify | Script still asserted `aaif-goose` | Use fork `app-update.yml` / `GITHUB_OWNER`+`GITHUB_REPO` |
 | DMG make fails locally | `macos-alias` / `fs-xattr` natives not built | `pnpm run premake` (ensure-macos-alias.js) |
+| Windows `pnpm install` fails on `macos-alias` / `fs-xattr` | Those packages were in `allowBuilds: true`; node-gyp cannot use VS 18 | Keep them in `ignoredBuiltDependencies`; macOS compiles via `premake` |
 | Website `/download` 404 on static serve | Extensionless path | Production nginx `try_files $uri.html`; local Playwright uses `serve` |
 
 ---

@@ -17,7 +17,10 @@ allowBuilds:
   electron: true
   electron-winstaller: true
   esbuild: true
-  fs-xattr: true
-  macos-alias: true
+# macOS-only natives. Auto-build on Windows CI fails (node-gyp vs VS 18).
+# Desktop `premake` compiles them before DMG make.
+ignoredBuiltDependencies:
+  - fs-xattr
+  - macos-alias
 # Electron Forge resolves @electron/node-gyp from git.
 blockExoticSubdeps: false
