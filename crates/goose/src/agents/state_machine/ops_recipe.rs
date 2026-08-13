@@ -81,8 +81,18 @@ impl RecipeOperation {
             .iter()
             .flat_map(|message| &message.content)
             .any(|content| match content {
+                // Another unanswered final-output call is not a reason to wait.
+                // This operation drains them one per pass, so treating a sibling
+                // final-output call as unfinished work would deadlock the pair:
+                // each would wait for the other and neither would be answered.
+                // Ordinary tool calls still have to finish first.
                 MessageContent::ToolRequest(request) => {
-                    request.id != request_id && !answered.contains(request.id.as_str())
+                    request.id != request_id
+                        && !answered.contains(request.id.as_str())
+                        && !request
+                            .tool_call
+                            .as_ref()
+                            .is_ok_and(|tool_call| tool_call.name == FINAL_OUTPUT_TOOL_NAME)
                 }
                 _ => false,
             })

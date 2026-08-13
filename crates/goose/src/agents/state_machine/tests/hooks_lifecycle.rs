@@ -9,7 +9,7 @@ use crate::agents::state_machine::ops_unknown_tool::UNCLAIMED_TOOL_ERROR;
 use crate::agents::tool_execution::{CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::config::permission::PermissionLevel;
 use crate::config::GooseMode;
-use crate::conversation::message::{MessageContent, SystemNotificationType};
+use crate::conversation::message::{Message, MessageContent, SystemNotificationType};
 use crate::permission::Permission;
 
 struct HookTestEnv {
@@ -1131,5 +1131,271 @@ async fn denied_unknown_tool_reports_policy_decline_without_tool_hooks() -> Resu
     assert!(env.payloads("result.log").is_empty());
     assert!(env.payloads("post.log").is_empty());
     assert!(env.payloads("postfail.log").is_empty());
+    Ok(())
+}
+
+/// Enforces a bijection between tool requests and tool responses over the whole
+/// transcript. Presence alone is not enough: a duplicate response reuses a
+/// tool_call_id and an orphan response names one that was never requested, and
+/// strict providers reject either on the next request.
+fn assert_tool_transcript_bijection(messages: &[Message]) {
+    let mut request_ids: Vec<String> = Vec::new();
+    let mut response_ids: Vec<String> = Vec::new();
+    for message in messages {
+        for content in &message.content {
+            match content {
+                MessageContent::ToolRequest(request) => request_ids.push(request.id.clone()),
+                MessageContent::ToolResponse(response) => response_ids.push(response.id.clone()),
+                _ => {}
+            }
+        }
+    }
+    let unique_requests: std::collections::HashSet<&String> = request_ids.iter().collect();
+    assert_eq!(
+        unique_requests.len(),
+        request_ids.len(),
+        "a tool request id appears more than once: {request_ids:?}"
+    );
+    for id in &request_ids {
+        let answers = response_ids.iter().filter(|other| *other == id).count();
+        assert_eq!(
+            answers, 1,
+            "request {id} has {answers} responses, expected exactly one; responses {response_ids:?}"
+        );
+    }
+    for id in &response_ids {
+        assert!(
+            unique_requests.contains(id),
+            "response {id} references no request; requests {request_ids:?}"
+        );
+    }
+}
+
+fn lifecycle_ids(env: &RecordingHookEnv, log: &str) -> Vec<String> {
+    env.payloads(log)
+        .iter()
+        .filter_map(|payload| payload["tool_call_id"].as_str().map(str::to_string))
+        .collect()
+}
+
+fn recording_lifecycle_env() -> RecordingHookEnv {
+    RecordingHookEnv::new(&[
+        ("PreToolUse", "", "pre.sh", RECORD_PRE_SCRIPT),
+        ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+        ("PostToolUse", "", "post.sh", RECORD_POST_SCRIPT),
+        (
+            "PostToolUseFailure",
+            "",
+            "postfail.sh",
+            RECORD_POST_FAILURE_SCRIPT,
+        ),
+    ])
+}
+
+/// A final-output call refused by permission is answered like any other declined
+/// tool. RecipeOperation matches on Execute alone, so before the fix nothing
+/// answered this request at all.
+#[tokio::test]
+async fn recipe_final_output_denied_by_permission_receives_declined_response() -> Result<()> {
+    let env = recording_lifecycle_env();
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline
+        .with_hook_manager(env.hook_manager())
+        .with_goose_mode(GooseMode::Approve)
+        .await;
+    pipeline.set_permission(FINAL_OUTPUT_TOOL_NAME, PermissionLevel::NeverAllow);
+    pipeline.set_recipe(final_output_recipe()).await?;
+    api.on("finish now").call(
+        FINAL_OUTPUT_TOOL_NAME,
+        serde_json::json!({ "answer": "denied" }),
+    );
+    api.on("declined to run this tool").reply("understood");
+
+    let result = pipeline.run(["finish now"]).await?;
+    let messages = result.conversation().messages();
+    assert_tool_transcript_bijection(messages);
+
+    let declined = messages
+        .iter()
+        .flat_map(|message| &message.content)
+        .filter(|content| match content {
+            MessageContent::ToolResponse(response) => {
+                response.tool_result.as_ref().is_ok_and(|result| {
+                    result.content.iter().any(|block| {
+                        block
+                            .as_text()
+                            .is_some_and(|text| text.text == DECLINED_RESPONSE)
+                    })
+                })
+            }
+            _ => false,
+        })
+        .count();
+    assert_eq!(
+        declined, 1,
+        "the declined call must get one DECLINED_RESPONSE"
+    );
+
+    assert!(
+        env.payloads("pre.log").is_empty(),
+        "no PreToolUse on decline"
+    );
+    assert!(
+        env.payloads("result.log").is_empty(),
+        "no PreToolUseResult on decline"
+    );
+    assert!(
+        env.payloads("post.log").is_empty(),
+        "no PostToolUse on decline"
+    );
+    assert!(
+        env.payloads("postfail.log").is_empty(),
+        "no PostToolUseFailure on decline"
+    );
+    Ok(())
+}
+
+/// Two final-output calls in one assistant block both get answered, each with its
+/// own lifecycle, and the last valid one is published. Before the fix the pair
+/// deadlocked: each waited for the other and neither was answered.
+#[tokio::test]
+async fn duplicate_final_output_calls_are_each_answered_and_last_valid_wins() -> Result<()> {
+    let env = recording_lifecycle_env();
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(env.hook_manager());
+    pipeline.set_recipe(final_output_recipe()).await?;
+    api.on("finish twice").calls([
+        (
+            "final-a",
+            FINAL_OUTPUT_TOOL_NAME,
+            serde_json::json!({ "answer": "first" }),
+        ),
+        (
+            "final-b",
+            FINAL_OUTPUT_TOOL_NAME,
+            serde_json::json!({ "answer": "second" }),
+        ),
+    ]);
+
+    let result = pipeline.run(["finish twice"]).await?;
+    let messages = result.conversation().messages();
+    assert_tool_transcript_bijection(messages);
+
+    let mut pre = lifecycle_ids(&env, "pre.log");
+    let mut results = lifecycle_ids(&env, "result.log");
+    let mut posts = lifecycle_ids(&env, "post.log");
+    pre.sort();
+    results.sort();
+    posts.sort();
+    let expected = vec!["final-a".to_string(), "final-b".to_string()];
+    assert_eq!(pre, expected, "both calls need a PreToolUse");
+    assert_eq!(results, expected, "both calls need a PreToolUseResult");
+    assert_eq!(posts, expected, "both calls need a post event");
+
+    let published: Vec<_> = messages
+        .iter()
+        .filter(|message| message.as_concat_text() == r#"{"answer":"second"}"#)
+        .collect();
+    assert_eq!(
+        published.len(),
+        1,
+        "the last valid final output is published exactly once"
+    );
+    assert!(
+        messages
+            .iter()
+            .all(|message| message.as_concat_text() != r#"{"answer":"first"}"#),
+        "the superseded final output must not be published"
+    );
+    Ok(())
+}
+
+/// A malformed final-output call gets one parse-error response and runs no
+/// lifecycle, because nothing executes.
+#[tokio::test]
+async fn malformed_final_output_call_receives_parse_error_and_no_lifecycle() -> Result<()> {
+    let env = recording_lifecycle_env();
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(env.hook_manager());
+    pipeline.set_recipe(final_output_recipe()).await?;
+    api.on("finish badly")
+        .malformed_tool_call(FINAL_OUTPUT_TOOL_NAME, r#"{"answer":"#);
+    api.on("could not be parsed").reply("understood");
+    // The recipe never gets its answer, so it re-prompts to the turn cap and that
+    // triggers compaction. Answer it, otherwise the dummy API panics on an
+    // unmatched rule and buries the assertions below.
+    api.on("Please summarize the conversation history")
+        .reply("summary");
+
+    let result = pipeline.run(["finish badly"]).await?;
+    let messages = result.conversation().messages();
+    assert_tool_transcript_bijection(messages);
+
+    // The parse error rides on the tool response, not on message text, so
+    // as_concat_text would not see it.
+    let parse_errors = messages
+        .iter()
+        .flat_map(|message| &message.content)
+        .filter(|content| match content {
+            MessageContent::ToolResponse(response) => {
+                response.tool_result.as_ref().is_ok_and(|result| {
+                    result.content.iter().any(|block| {
+                        block
+                            .as_text()
+                            .is_some_and(|text| text.text.contains("could not be parsed"))
+                    })
+                })
+            }
+            _ => false,
+        })
+        .count();
+    assert_eq!(parse_errors, 1, "one parse-error response");
+
+    assert!(env.payloads("pre.log").is_empty());
+    assert!(env.payloads("result.log").is_empty());
+    assert!(env.payloads("post.log").is_empty());
+    assert!(env.payloads("postfail.log").is_empty());
+    Ok(())
+}
+
+/// An unfinished ordinary sibling still delays publication, and every request in
+/// the block is answered exactly once.
+#[tokio::test]
+async fn final_output_waits_for_ordinary_sibling_and_answers_every_request() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    pipeline.set_recipe(final_output_recipe()).await?;
+    api.on("finish and add").calls([
+        (
+            "final-output",
+            FINAL_OUTPUT_TOOL_NAME,
+            serde_json::json!({ "answer": "after sibling" }),
+        ),
+        ("side-effect", ADD, value(1)),
+    ]);
+
+    let result = pipeline.run(["finish and add"]).await?;
+    let messages = result.conversation().messages();
+    assert_tool_transcript_bijection(messages);
+    assert_eq!(pipeline.calculator_total(), 1);
+
+    let sibling_answer = messages
+        .iter()
+        .position(|message| {
+            message.content.iter().any(|content| {
+                matches!(
+                    content,
+                    MessageContent::ToolResponse(response) if response.id == "side-effect"
+                )
+            })
+        })
+        .expect("sibling tool response");
+    let published = messages
+        .iter()
+        .position(|message| message.as_concat_text() == r#"{"answer":"after sibling"}"#)
+        .expect("published final output");
+    assert!(
+        sibling_answer < published,
+        "final output must wait until the ordinary sibling finishes"
+    );
     Ok(())
 }

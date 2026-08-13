@@ -51,8 +51,14 @@ impl Operation<Session, GooseEffect> for UnknownToolOperation {
             .is_some_and(|recipe| recipe.response.is_some());
         let pending: Vec<_> = pending_tool_requests(messages_since_kickoff(conversation)?)
             .into_iter()
-            .filter(|(request, _)| {
+            .filter(|(request, disposition)| {
+                // Reserve for RecipeOperation only the final-output calls it will
+                // actually execute. A declined one is left here so it still gets a
+                // response; RecipeOperation matches on Execute alone and would
+                // otherwise leave the request unanswered, which strict providers
+                // reject on the next request.
                 !(active_final_output
+                    && *disposition == ToolDisposition::Execute
                     && request
                         .tool_call
                         .as_ref()
