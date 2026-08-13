@@ -1316,10 +1316,23 @@ impl Agent {
             }
         };
 
+        let manages_own_context = self
+            .provider()
+            .await
+            .map(|p| p.manages_own_context())
+            .unwrap_or(false);
+
         let session_id = session.id.clone();
 
         let extension_futures = enabled_configs
             .into_iter()
+            .filter(|config| {
+                !manages_own_context
+                    || !matches!(
+                        config,
+                        ExtensionConfig::Stdio { .. } | ExtensionConfig::StreamableHttp { .. }
+                    )
+            })
             .map(|config| {
                 let config_clone = config.clone();
                 let agent_ref = self.clone();
