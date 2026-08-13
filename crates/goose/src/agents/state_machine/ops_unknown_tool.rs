@@ -3,21 +3,32 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::{CallToolResult, ContentBlock};
+use tracing_futures::Instrument;
 
 use crate::agents::state_machine::effects::GooseEffect;
 use crate::agents::state_machine::ops_toolcalling::{
-    pending_tool_requests, tool_span, ToolDisposition,
+    emit_post_tool_use, pending_tool_requests, run_pre_tool_hooks, tool_span, ToolDisposition,
 };
 use crate::agents::state_machine::{
     applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
 };
+use crate::config::GooseMode;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
+use crate::hooks::HookManager;
 use crate::session::Session;
 
 pub(super) const UNCLAIMED_TOOL_ERROR: &str = "goose.unclaimed_tool";
 
-pub struct UnknownToolOperation;
+pub struct UnknownToolOperation {
+    hook_manager: HookManager,
+}
+
+impl UnknownToolOperation {
+    pub fn new(hook_manager: HookManager) -> Self {
+        Self { hook_manager }
+    }
+}
 
 #[async_trait]
 impl Operation<Session, GooseEffect> for UnknownToolOperation {
@@ -52,6 +63,54 @@ impl Operation<Session, GooseEffect> for UnknownToolOperation {
                     ))])),
                     false,
                 ),
+                ToolDisposition::Execute if session.goose_mode != GooseMode::Chat => {
+                    match request.tool_call.as_ref() {
+                        Ok(tool_call) => {
+                            let tool_input = tool_call
+                                .arguments
+                                .as_ref()
+                                .map(|arguments| serde_json::Value::Object(arguments.clone()));
+                            match run_pre_tool_hooks(
+                                &self.hook_manager,
+                                session,
+                                &request.id,
+                                &tool_call.name,
+                                tool_input.as_ref(),
+                            )
+                            .instrument(span.clone())
+                            .await
+                            {
+                                Err(denial) => (Err(denial), false),
+                                Ok(()) => {
+                                    let output = Ok(CallToolResult::error(vec![
+                                        ContentBlock::text(format!(
+                                            "Tool '{}' is not available.",
+                                            tool_call.name
+                                        )),
+                                    ]));
+                                    emit_post_tool_use(
+                                        &self.hook_manager,
+                                        &session.id,
+                                        &session.working_dir.to_string_lossy(),
+                                        &tool_call.name,
+                                        &request.id,
+                                        tool_input.as_ref(),
+                                        &output,
+                                    )
+                                    .instrument(span.clone())
+                                    .await;
+                                    (output, true)
+                                }
+                            }
+                        }
+                        Err(error) => (
+                            Ok(CallToolResult::error(vec![ContentBlock::text(format!(
+                                "The tool call could not be parsed: {error}."
+                            ))])),
+                            false,
+                        ),
+                    }
+                }
                 ToolDisposition::Execute | ToolDisposition::Decline => request
                     .tool_call
                     .as_ref()

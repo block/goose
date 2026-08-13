@@ -150,7 +150,7 @@ impl TestPipeline {
                 self.extension_manager.clone(),
                 self.hook_manager.clone(),
             )),
-            Arc::new(UnknownToolOperation),
+            Arc::new(UnknownToolOperation::new(self.hook_manager.clone())),
             Arc::new(RetryOperation::new(
                 &self.goal,
                 &self.grind,

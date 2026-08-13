@@ -674,3 +674,135 @@ async fn load_skill_denied_by_hook_does_not_execute() -> Result<()> {
     );
     Ok(())
 }
+
+/// Unknown-tool parity: a valid unadvertised call still emits `PreToolUse` and
+/// `PreToolUseResult`, correlated by one `tool_call_id`.
+#[tokio::test]
+async fn unknown_tool_emits_pre_tool_use_and_result_with_matching_id() -> Result<()> {
+    let env = RecordingHookEnv::new(&[
+        ("PreToolUse", "", "pre.sh", RECORD_PRE_SCRIPT),
+        ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+    ]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(env.hook_manager());
+    api.on("try the missing tool")
+        .unadvertised_call("missing__tool", serde_json::json!({}));
+    api.on("not available").reply("recovered");
+
+    pipeline.run(["try the missing tool"]).await?;
+
+    let pres = env.payloads("pre.log");
+    let results = env.payloads("result.log");
+    assert_eq!(pres.len(), 1, "PreToolUse must fire for an unknown tool");
+    assert_eq!(
+        results.len(),
+        1,
+        "PreToolUseResult must fire for an unknown tool"
+    );
+    assert_eq!(pres[0]["tool_name"], "missing__tool");
+    assert_eq!(results[0]["tool_name"], "missing__tool");
+    assert_eq!(results[0]["event"], "PreToolUseResult");
+    assert_eq!(results[0]["decision"], "allow");
+    assert_eq!(
+        pres[0]["tool_call_id"], results[0]["tool_call_id"],
+        "PreToolUse and PreToolUseResult must carry the same tool_call_id"
+    );
+    assert!(pres[0]["tool_call_id"]
+        .as_str()
+        .is_some_and(|id| !id.is_empty()));
+    Ok(())
+}
+
+/// Unknown-tool parity: the unavailable result is a failed tool outcome and
+/// carries the same id as the pre event.
+#[tokio::test]
+async fn unknown_tool_emits_post_tool_failure_event() -> Result<()> {
+    let env = RecordingHookEnv::new(&[
+        ("PreToolUse", "", "pre.sh", RECORD_PRE_SCRIPT),
+        ("PostToolUse", "", "post.sh", RECORD_POST_SCRIPT),
+        (
+            "PostToolUseFailure",
+            "",
+            "postfail.sh",
+            RECORD_POST_FAILURE_SCRIPT,
+        ),
+    ]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(env.hook_manager());
+    api.on("try the missing tool")
+        .unadvertised_call("missing__tool", serde_json::json!({}));
+    api.on("not available").reply("recovered");
+
+    pipeline.run(["try the missing tool"]).await?;
+
+    let pres = env.payloads("pre.log");
+    let post_failures = env.payloads("postfail.log");
+    assert_eq!(pres.len(), 1);
+    assert!(
+        env.payloads("post.log").is_empty(),
+        "PostToolUse must not fire for an unavailable tool"
+    );
+    assert_eq!(
+        post_failures.len(),
+        1,
+        "PostToolUseFailure must fire for an unavailable tool"
+    );
+    assert_eq!(post_failures[0]["event"], "PostToolUseFailure");
+    assert_eq!(post_failures[0]["tool_name"], "missing__tool");
+    assert_eq!(
+        post_failures[0]["tool_call_id"], pres[0]["tool_call_id"],
+        "the post event must carry the same tool_call_id as the pre events"
+    );
+    Ok(())
+}
+
+/// Unknown-tool parity: a denying hook returns before the unknown-tool handler
+/// creates its unavailable result, and no post event fires.
+#[tokio::test]
+async fn unknown_tool_denied_by_hook_does_not_resolve_as_unavailable() -> Result<()> {
+    let env = RecordingHookEnv::new(&[
+        ("PreToolUse", "", "pre.sh", DENY_AND_RECORD_SCRIPT),
+        ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+        ("PostToolUse", "", "post.sh", RECORD_POST_SCRIPT),
+        (
+            "PostToolUseFailure",
+            "",
+            "postfail.sh",
+            RECORD_POST_FAILURE_SCRIPT,
+        ),
+    ]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(env.hook_manager());
+    api.on("try the missing tool")
+        .unadvertised_call("missing__tool", serde_json::json!({}));
+    api.on("denied by policy hook").reply("understood");
+
+    let result = pipeline.run(["try the missing tool"]).await?;
+
+    let results = env.payloads("result.log");
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0]["decision"], "deny");
+    assert_eq!(results[0]["blocked_by"], "test-plugin");
+    assert_eq!(results[0]["tool_name"], "missing__tool");
+    assert!(
+        env.payloads("post.log").is_empty(),
+        "PostToolUse must not fire for a denied unknown tool"
+    );
+    assert!(
+        env.payloads("postfail.log").is_empty(),
+        "PostToolUseFailure must not fire for a denied unknown tool"
+    );
+    let tool_error = result
+        .conversation()
+        .messages()
+        .iter()
+        .flat_map(|message| &message.content)
+        .find_map(|content| match content {
+            MessageContent::ToolResponse(response) => response.tool_result.as_ref().err(),
+            _ => None,
+        })
+        .expect("denied unknown tool response");
+    assert!(tool_error.message.contains("denied by policy hook"));
+    assert!(!tool_error.message.contains("is not available"));
+    Ok(())
+}
