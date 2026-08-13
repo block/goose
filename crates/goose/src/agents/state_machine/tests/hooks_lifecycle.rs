@@ -1137,7 +1137,7 @@ async fn denied_unknown_tool_reports_policy_decline_without_tool_hooks() -> Resu
 /// Enforces a bijection between tool requests and tool responses over the whole
 /// transcript. Presence alone is not enough: a duplicate response reuses a
 /// tool_call_id and an orphan response names one that was never requested, and
-/// strict providers reject either on the next request.
+/// strict providers can reject either on the next request.
 fn assert_tool_transcript_bijection(messages: &[Message]) {
     let mut request_ids: Vec<String> = Vec::new();
     let mut response_ids: Vec<String> = Vec::new();
@@ -1281,12 +1281,15 @@ async fn duplicate_final_output_calls_are_each_answered_and_last_valid_wins() ->
     let messages = result.conversation().messages();
     assert_tool_transcript_bijection(messages);
 
-    let mut pre = lifecycle_ids(&env, "pre.log");
-    let mut results = lifecycle_ids(&env, "result.log");
-    let mut posts = lifecycle_ids(&env, "post.log");
-    pre.sort();
-    results.sort();
-    posts.sort();
+    // Assert the recorded order, not just membership: execution order is what
+    // decides which call wins, so sorting here would erase the property.
+    let pre = lifecycle_ids(&env, "pre.log");
+    let results = lifecycle_ids(&env, "result.log");
+    let posts = lifecycle_ids(&env, "post.log");
+    assert!(
+        env.payloads("postfail.log").is_empty(),
+        "both calls succeed, so no post-failure event may be recorded"
+    );
     let expected = vec!["final-a".to_string(), "final-b".to_string()];
     assert_eq!(pre, expected, "both calls need a PreToolUse");
     assert_eq!(results, expected, "both calls need a PreToolUseResult");
@@ -1316,16 +1319,13 @@ async fn duplicate_final_output_calls_are_each_answered_and_last_valid_wins() ->
 async fn malformed_final_output_call_receives_parse_error_and_no_lifecycle() -> Result<()> {
     let env = recording_lifecycle_env();
     let (pipeline, api) = test_pipeline().await?;
-    let pipeline = pipeline.with_hook_manager(env.hook_manager());
+    let pipeline = pipeline
+        .with_hook_manager(env.hook_manager())
+        .with_max_turns(2);
     pipeline.set_recipe(final_output_recipe()).await?;
     api.on("finish badly")
         .malformed_tool_call(FINAL_OUTPUT_TOOL_NAME, r#"{"answer":"#);
     api.on("could not be parsed").reply("understood");
-    // The recipe never gets its answer, so it re-prompts to the turn cap and that
-    // triggers compaction. Answer it, otherwise the dummy API panics on an
-    // unmatched rule and buries the assertions below.
-    api.on("Please summarize the conversation history")
-        .reply("summary");
 
     let result = pipeline.run(["finish badly"]).await?;
     let messages = result.conversation().messages();

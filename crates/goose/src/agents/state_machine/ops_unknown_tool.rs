@@ -55,7 +55,7 @@ impl Operation<Session, GooseEffect> for UnknownToolOperation {
                 // Reserve for RecipeOperation only the final-output calls it will
                 // actually execute. A declined one is left here so it still gets a
                 // response; RecipeOperation matches on Execute alone and would
-                // otherwise leave the request unanswered, which strict providers
+                // otherwise leave the request unanswered, which strict providers can
                 // reject on the next request.
                 !(active_final_output
                     && *disposition == ToolDisposition::Execute
