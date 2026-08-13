@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { acpRefreshProviderDetails, acpSaveProviderConfig } from '../../../../acp/providers';
+import { acpEnableProvider, acpRefreshProviderDetails } from '../../../../acp/providers';
 import { IntlTestWrapper } from '../../../../i18n/test-utils';
 import type { ProviderDetails } from '../../../../types/providers';
 import ProviderConfigurationModal from './ProviderConfigurationModal';
@@ -19,6 +19,7 @@ vi.mock('../../../../acp/providers', () => ({
   acpAuthenticateProvider: vi.fn(),
   acpDeleteCustomProvider: vi.fn(),
   acpDeleteProviderConfig: vi.fn(),
+  acpEnableProvider: vi.fn(),
   acpRefreshProviderDetails: vi.fn(),
   acpSaveProviderConfig: vi.fn(),
   isAcpProvider: (provider: ProviderDetails) => provider.uses_acp,
@@ -53,10 +54,9 @@ const oauthProvider: ProviderDetails = {
 
 describe('ProviderConfigurationModal', () => {
   it('offers to remove an existing OAuth configuration without an ACP readiness check', () => {
-    render(
-      <ProviderConfigurationModal provider={oauthProvider} onClose={vi.fn()} />,
-      { wrapper: IntlTestWrapper }
-    );
+    render(<ProviderConfigurationModal provider={oauthProvider} onClose={vi.fn()} />, {
+      wrapper: IntlTestWrapper,
+    });
 
     expect(screen.getByRole('button', { name: 'Remove Configuration' })).toBeInTheDocument();
   });
@@ -92,7 +92,11 @@ describe('ProviderConfigurationModal', () => {
       );
 
     render(
-      <ProviderConfigurationModal provider={acpProvider} onClose={vi.fn()} onConfigured={vi.fn()} />,
+      <ProviderConfigurationModal
+        provider={acpProvider}
+        onClose={vi.fn()}
+        onConfigured={vi.fn()}
+      />,
       { wrapper: IntlTestWrapper }
     );
 
@@ -133,6 +137,21 @@ describe('ProviderConfigurationModal', () => {
       connectionChecked: true,
       readinessError: null,
     });
+    const configuredProvider = {
+      ...acpProvider,
+      is_configured: true,
+      metadata: {
+        ...acpProvider.metadata,
+        known_models: [{ name: 'gpt-5', context_limit: 0 }],
+      },
+    };
+    let finishEnable: ((provider: ProviderDetails) => void) | undefined;
+    vi.mocked(acpEnableProvider).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishEnable = resolve;
+        })
+    );
 
     const view = render(
       <ProviderConfigurationModal
@@ -144,9 +163,20 @@ describe('ProviderConfigurationModal', () => {
     );
 
     await user.click(await screen.findByRole('button', { name: 'Choose model' }));
-    expect(acpSaveProviderConfig).toHaveBeenCalledWith('codex-acp', []);
-    expect(onConfigured).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'codex-acp', is_configured: true })
+    expect(acpEnableProvider).toHaveBeenCalledWith('codex-acp');
+    expect(onConfigured).not.toHaveBeenCalled();
+
+    finishEnable?.(configuredProvider);
+    await waitFor(() =>
+      expect(onConfigured).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'codex-acp',
+          is_configured: true,
+          metadata: expect.objectContaining({
+            known_models: [{ name: 'gpt-5', context_limit: 0 }],
+          }),
+        })
+      )
     );
 
     view.unmount();

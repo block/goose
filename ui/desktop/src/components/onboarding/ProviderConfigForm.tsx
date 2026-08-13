@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   acpAuthenticateProvider,
+  acpEnableProvider,
   acpRefreshProviderDetails,
-  acpSaveProviderConfig,
   isAcpProvider,
 } from '../../acp/providers';
 import type { ProviderDetails } from '../../types/providers';
@@ -243,7 +243,7 @@ function AcpProviderForm({
         {canContinue && (
           <Button
             onClick={async () => {
-              await acpSaveProviderConfig(status.name, []);
+              await acpEnableProvider(status.name);
               await onConfigured(status.name);
             }}
             className="flex-1"

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getAcpClient } from '../acpConnection';
 import {
+  acpEnableProvider,
   acpGetProviderDetails,
   acpListProviderDetails,
   acpListSetupProviderDetails,
@@ -198,6 +199,55 @@ describe('ACP providers', () => {
 
     expect(result.connectionChecked).toBe(true);
     expect(result.provider.metadata.known_models).toEqual([
+      { name: 'claude-sonnet', context_limit: 0, reasoning: undefined },
+    ]);
+  });
+
+  it('waits for first-time ACP model discovery after enabling the provider', async () => {
+    const available = providerEntry({ configured: false });
+    const refreshed = providerEntry({
+      configured: true,
+      models: [{ id: 'claude-sonnet', name: 'Claude Sonnet', recommended: true }],
+    });
+    const client = {
+      goose: {
+        providersConfigSave_unstable: vi.fn().mockResolvedValue({
+          status: {},
+          refresh: { started: ['claude-acp'], skipped: [] },
+        }),
+        providersList_unstable: vi
+          .fn()
+          .mockResolvedValueOnce({ entries: [available] })
+          .mockResolvedValueOnce({ entries: [available] })
+          .mockResolvedValueOnce({ entries: [refreshed] }),
+        providersReadinessCheck_unstable: vi.fn().mockResolvedValue({
+          providerId: 'claude-acp',
+          ready: true,
+        }),
+        providersInventoryRefresh_unstable: vi.fn().mockResolvedValue({
+          started: [],
+          skipped: [{ providerId: 'claude-acp', reason: 'not_configured' }],
+        }),
+      },
+    };
+    vi.mocked(getAcpClient).mockResolvedValue(
+      client as unknown as Awaited<ReturnType<typeof getAcpClient>>
+    );
+
+    const checked = await acpRefreshProviderDetails('claude-acp');
+    const enabled = await acpEnableProvider('claude-acp');
+
+    expect(checked.provider.is_configured).toBe(false);
+    expect(checked.provider.metadata.known_models).toEqual([]);
+    expect(client.goose.providersConfigSave_unstable).toHaveBeenCalledWith({
+      providerId: 'claude-acp',
+      fields: [],
+    });
+    expect(client.goose.providersList_unstable).toHaveBeenCalledWith({
+      providerIds: ['claude-acp'],
+    });
+    expect(enabled.is_configured).toBe(true);
+    expect(enabled.metadata.known_models).toEqual([
       { name: 'claude-sonnet', context_limit: 0, reasoning: undefined },
     ]);
   });

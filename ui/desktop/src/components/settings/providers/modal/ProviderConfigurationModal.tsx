@@ -18,6 +18,7 @@ import {
   acpAuthenticateProvider,
   acpDeleteCustomProvider,
   acpDeleteProviderConfig,
+  acpEnableProvider,
   acpRefreshProviderDetails,
   isAcpProvider,
   acpSaveProviderConfig,
@@ -243,8 +244,8 @@ export default function ProviderConfigurationModal({
     isAvailable && hasCheckedExternalProvider && !externalReadinessError;
 
   const handleUseExternalProvider = async () => {
-    await acpSaveProviderConfig(provider.name, []);
-    onConfigured?.({ ...externalProvider, is_configured: true });
+    const configuredProvider = await acpEnableProvider(provider.name);
+    onConfigured?.(configuredProvider);
   };
 
   const handleCheckExternalProvider = useCallback(async () => {
@@ -525,10 +526,10 @@ export default function ProviderConfigurationModal({
                           isAvailable &&
                           !hasCheckedExternalProvider &&
                           !externalReadinessError && (
-                          <div className="text-sm text-text-secondary">
-                            {intl.formatMessage(i18n.connectionNotChecked)}
-                          </div>
-                        )}
+                            <div className="text-sm text-text-secondary">
+                              {intl.formatMessage(i18n.connectionNotChecked)}
+                            </div>
+                          )}
                         {externalReadinessError && (
                           <div className="space-y-1 text-sm text-red-600 break-words">
                             <div>{externalReadinessError}</div>
@@ -609,11 +610,7 @@ export default function ProviderConfigurationModal({
             ) : usesAcpSetup && !showDeleteConfirmation ? (
               <div className="flex w-full justify-end gap-2 border-t border-border-primary pt-4">
                 {!isCheckingExternalProvider && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleCheckExternalProvider}
-                  >
+                  <Button type="button" variant="outline" onClick={handleCheckExternalProvider}>
                     <RefreshCw className="mr-2 h-4 w-4" />
                     {intl.formatMessage(i18n.checkAgain)}
                   </Button>
