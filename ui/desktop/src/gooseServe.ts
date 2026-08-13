@@ -8,6 +8,7 @@ import {
   createGooseServeStartupDiagnostics,
   type GooseServeStartupDiagnostics,
 } from './startupDiagnostics';
+import { clearMacQuarantine } from './macQuarantine';
 
 export interface Logger {
   info: (...args: unknown[]) => void;
@@ -351,6 +352,14 @@ export const startGooseServe = async ({
     const message = errorMessage(error);
     startupTrace?.record('binary_resolve_error', { message });
     throw new Error(withStartupDiagnosticsPath(message, startupDiagnosticsPath));
+  }
+
+  if (isPackaged && process.platform === 'darwin') {
+    const cleared = clearMacQuarantine(goosePath);
+    startupTrace?.record('quarantine_clear', { goosePath, cleared });
+    if (cleared) {
+      logger.info(`Cleared macOS quarantine on ${goosePath}`);
+    }
   }
 
   const port = await findAvailablePort();

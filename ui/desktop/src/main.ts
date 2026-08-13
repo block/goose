@@ -50,7 +50,7 @@ import {
   setupAutoUpdater,
   updateTrayMenu,
 } from './utils/autoUpdater';
-import { APPS_UI_ENABLED, UPDATES_ENABLED } from './updates';
+import { APPS_UI_ENABLED, UPDATES_ENABLED, DISTRO_DEFAULT_PROVIDER, DISTRO_DEFAULT_MODEL, DISTRO_AVOCADO_HOST, DISTRO_AVOCADO_PROVISION_URL } from './updates';
 import './utils/recipeHash';
 import type { GooseApp } from './types/apps';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
@@ -888,8 +888,8 @@ const getBundledConfig = (): BundledConfig => {
   //needed when goose is bundled for a specific provider
   //{env-macro-end}//
   return {
-    defaultProvider: process.env.GOOSE_DEFAULT_PROVIDER,
-    defaultModel: process.env.GOOSE_DEFAULT_MODEL,
+    defaultProvider: process.env.GOOSE_DEFAULT_PROVIDER || DISTRO_DEFAULT_PROVIDER,
+    defaultModel: process.env.GOOSE_DEFAULT_MODEL || DISTRO_DEFAULT_MODEL,
     predefinedModels: process.env.GOOSE_PREDEFINED_MODELS,
     version: process.env.GOOSE_VERSION,
   };
@@ -1203,8 +1203,10 @@ const createChat = async (
         tls: true,
         env: {
           GOOSE_PATH_ROOT: appConfig.GOOSE_PATH_ROOT as string | undefined,
-          AVOCADO_HOST: process.env.AVOCADO_HOST,
-          AVOCADO_PROVISION_URL: process.env.AVOCADO_PROVISION_URL,
+          GOOSE_DEFAULT_PROVIDER: defaultProvider,
+          GOOSE_DEFAULT_MODEL: defaultModel,
+          AVOCADO_HOST: process.env.AVOCADO_HOST || DISTRO_AVOCADO_HOST,
+          AVOCADO_PROVISION_URL: process.env.AVOCADO_PROVISION_URL || DISTRO_AVOCADO_PROVISION_URL,
         },
         loginShellPath,
         isPackaged: app.isPackaged,

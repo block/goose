@@ -285,6 +285,7 @@ See [DESKTOP_RELEASE_RUNBOOK.md](../../../../docs/development/manual-tests/DESKT
 | macOS release fails on updater verify | Script still asserted `aaif-goose` | Use fork `app-update.yml` / `GITHUB_OWNER`+`GITHUB_REPO` |
 | DMG make fails locally | `macos-alias` / `fs-xattr` natives not built | `pnpm run premake` (ensure-macos-alias.js) |
 | Windows `pnpm install` fails on `macos-alias` / `fs-xattr` | Those packages were in `allowBuilds: true`; node-gyp cannot use VS 18 | Keep them in `ignoredBuiltDependencies`; macOS compiles via `premake` |
+| Packaged app hangs after Sign in / “ACP URL is not available” | Chrome quarantine on unsigned `Resources/bin/goose` (`xattr` `com.apple.quarantine`); spawn never returns | App now runs `xattr -cr` before spawn; or `xattr -cr "/Applications/Avocado Work.app"` then reopen |
 | Website `/download` 404 on static serve | Extensionless path | Production nginx `try_files $uri.html`; local Playwright uses `serve` |
 
 ---

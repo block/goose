@@ -35,6 +35,11 @@ export const EXTENSIONS_INSTALL_ENABLED = false;
  * Set false to skip registering that connector for local/offline builds.
  */
 export const GOOGLE_WORKSPACE_ENABLED = true;
+/** Packaged builds ship no .env; these are the hosted DEV avocado endpoints. */
+export const DISTRO_DEFAULT_PROVIDER = 'avocado';
+export const DISTRO_DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
+export const DISTRO_AVOCADO_HOST = 'https://dev.avocado.tech/llm';
+export const DISTRO_AVOCADO_PROVISION_URL = 'https://dev.avocado.tech/llm-api/keys/provision';
 /**
  * When true, show the Git worktrees section in the directory switcher.
  * False for non-developer consumer distros.
