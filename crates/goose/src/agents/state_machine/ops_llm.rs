@@ -2,12 +2,12 @@
 
 use std::sync::Arc;
 
-use crate::agents::state_machine::operation::{
+use crate::agents::state_machine::ops_unknown_tool::UNCLAIMED_TOOL_ERROR;
+use crate::agents::state_machine::{
     applied, messages_since_kickoff, not_applicable, trailing_error, yielded_with,
     ConversationEffect, Emitter, GooseEffect, Inference, InferenceInput, Operation,
     OperationResult, SlashCommand,
 };
-use crate::agents::state_machine::ops_unknown_tool::UNCLAIMED_TOOL_ERROR;
 use crate::agents::{ExtensionManager, PromptManager};
 use crate::config::GooseMode;
 use crate::conversation::message::{InferenceMetadata, Message, MessageContent};

@@ -8,9 +8,6 @@ use tokio_util::sync::CancellationToken;
 use crate::agents::AgentEvent;
 use crate::conversation::message::{Message, MessageContent, MessageErrorKind};
 use crate::conversation::{effective_role, Conversation, EffectiveRole};
-use crate::providers::base::ProviderUsage;
-use crate::recipe::Recipe;
-use crate::session::ExtensionData;
 use rmcp::model::Tool;
 
 pub type OperationFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -161,6 +158,7 @@ pub trait Inference<S, E: Send + 'static = ConversationEffect>: Operation<S, E> 
 
 pub struct StepResult<E = ConversationEffect> {
     pub effects: Vec<E>,
+    pub applied_step: Option<&'static str>,
     pub yield_to_client: bool,
 }
 
@@ -176,6 +174,7 @@ pub fn not_applicable<E>() -> Result<OperationResult<E>> {
 pub fn applied<E>(effects: impl IntoIterator<Item = E>) -> Result<OperationResult<E>> {
     Ok(OperationResult::Applied(StepResult {
         effects: effects.into_iter().collect(),
+        applied_step: None,
         yield_to_client: false,
     }))
 }
@@ -183,6 +182,7 @@ pub fn applied<E>(effects: impl IntoIterator<Item = E>) -> Result<OperationResul
 pub fn yielded<E>() -> Result<OperationResult<E>> {
     Ok(OperationResult::Applied(StepResult {
         effects: Vec::new(),
+        applied_step: None,
         yield_to_client: true,
     }))
 }
@@ -190,6 +190,7 @@ pub fn yielded<E>() -> Result<OperationResult<E>> {
 pub fn yielded_with<E>(effects: impl IntoIterator<Item = E>) -> Result<OperationResult<E>> {
     Ok(OperationResult::Applied(StepResult {
         effects: effects.into_iter().collect(),
+        applied_step: None,
         yield_to_client: true,
     }))
 }
@@ -238,51 +239,6 @@ impl From<Message> for ConversationEffect {
 impl From<Conversation> for ConversationEffect {
     fn from(conversation: Conversation) -> Self {
         ConversationEffect::ReplaceConversation(conversation)
-    }
-}
-
-pub enum GooseEffect {
-    Conversation(ConversationEffect),
-    ReplaceConversation {
-        conversation: Conversation,
-        usage: Option<ProviderUsage>,
-    },
-    SetRecipe(Box<Option<Recipe>>),
-    SetExtensionData(ExtensionData),
-    RecordUsage(ProviderUsage),
-}
-
-impl MachineEffect for GooseEffect {
-    fn ensure_message_ids(&mut self) {
-        match self {
-            GooseEffect::Conversation(effect) => effect.ensure_message_ids(),
-            GooseEffect::ReplaceConversation { conversation, .. } => {
-                for message in conversation.messages_mut() {
-                    if message.id.is_none() {
-                        message.id = Some(format!("msg_{}", uuid::Uuid::new_v4()));
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-}
-
-impl From<ConversationEffect> for GooseEffect {
-    fn from(effect: ConversationEffect) -> Self {
-        GooseEffect::Conversation(effect)
-    }
-}
-
-impl From<Message> for GooseEffect {
-    fn from(message: Message) -> Self {
-        ConversationEffect::from(message).into()
-    }
-}
-
-impl From<Conversation> for GooseEffect {
-    fn from(conversation: Conversation) -> Self {
-        ConversationEffect::from(conversation).into()
     }
 }
 

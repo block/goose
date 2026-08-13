@@ -4,8 +4,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::CallToolRequestParams;
 
-use crate::agents::state_machine::operation::GooseEffect;
-use crate::agents::state_machine::operation::{
+use crate::agents::state_machine::effects::GooseEffect;
+use crate::agents::state_machine::{
     applied, last_effective_role, messages_since_kickoff, not_applicable, yielded, Emitter,
     Operation, OperationResult,
 };

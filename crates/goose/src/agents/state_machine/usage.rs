@@ -1,7 +1,7 @@
 use anyhow::Result;
 use goose_providers::conversation::token_usage::{CostSource, ProviderUsage, Usage as TokenUsage};
 
-use crate::agents::state_machine::operation::{ConversationEffect, GooseEffect};
+use crate::agents::state_machine::{ConversationEffect, GooseEffect};
 use crate::conversation::message::MessageUsage;
 use crate::conversation::Conversation;
 use crate::session::{Session, SessionManager};

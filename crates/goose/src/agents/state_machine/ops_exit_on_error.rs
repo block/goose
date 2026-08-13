@@ -3,8 +3,8 @@
 use anyhow::Result;
 use async_trait::async_trait;
 
-use crate::agents::state_machine::operation::GooseEffect;
-use crate::agents::state_machine::operation::{
+use crate::agents::state_machine::effects::GooseEffect;
+use crate::agents::state_machine::{
     not_applicable, trailing_error, yielded, Emitter, Operation, OperationResult,
 };
 use crate::conversation::Conversation;

@@ -27,16 +27,18 @@ use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::state_machine::{
-    BangShellOperation, CompactionOperation, DoctorOperation, Emitter, EntryHookOperation,
-    ExitOnErrorOperation, GooseEffect, InferenceRunner, MaxTurnsOperation, Operation,
-    ProjectOperation, RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation,
-    StateMachine, SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
-    ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation, MAX_TURNS_MESSAGE,
+    run_goose, BangShellOperation, CompactionOperation, DoctorOperation, Emitter,
+    EntryHookOperation, ExitOnErrorOperation, GooseEffect, InferenceRunner, MaxTurnsOperation,
+    Operation, ProjectOperation, RecipeOperation, RetryOperation, SkillOperation,
+    SlashCommandOperation, StateMachine, SteerOperation, SteerQueue, Step, StopHookOperation,
+    ToolApprovalOperation, ToolExecutionOperation, ToolPairCompactionOperation,
+    UnknownToolOperation, MAX_TURNS_MESSAGE,
 };
 use crate::agents::types::{
     FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver,
     DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
 };
+use crate::agents::AgentEvent;
 use crate::config::extensions::name_to_key;
 use crate::config::permission::PermissionManager;
 use crate::config::{get_enabled_extensions, Config, GooseMode};
@@ -71,7 +73,7 @@ use goose_providers::thinking::ThinkingEffort;
 use regex::Regex;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, ContentBlock, ElicitationAction, ErrorCode, ErrorData,
-    GetPromptResult, Prompt, ServerNotification, Tool,
+    GetPromptResult, Prompt, Tool,
 };
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
@@ -275,18 +277,6 @@ pub struct Agent {
     pub(super) goal: Mutex<Option<String>>,
     pub(super) grind: Mutex<Option<String>>,
     steer_queues: Mutex<HashMap<String, SteerQueue>>,
-}
-
-#[derive(Clone, Debug)]
-pub enum AgentEvent {
-    Message(Message),
-    Usage(crate::providers::base::ProviderUsage),
-    MessageUsage {
-        message_id: Option<String>,
-        usage: MessageUsage,
-    },
-    McpNotification((String, ServerNotification)),
-    HistoryReplaced(Conversation),
 }
 
 fn ensure_message_event_id(event: AgentEvent) -> AgentEvent {
@@ -1782,7 +1772,7 @@ impl Agent {
                 let (tx, mut rx) = mpsc::channel::<AgentEvent>(32);
                 let emit = Emitter::new(tx, cancel.clone());
                 let result = {
-                    let run = machine.run(session_manager.as_ref(), &session_id, &emit);
+                    let run = run_goose(&machine, session_manager.as_ref(), &session_id, &emit);
                     tokio::pin!(run);
                     loop {
                         tokio::select! {

@@ -10,12 +10,12 @@ use tracing_futures::Instrument;
 use crate::agents::final_output_tool::{
     FinalOutputTool, FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
 };
-use crate::agents::state_machine::operation::{
-    applied, ends_turn, last_effective_role, messages_since_kickoff, not_applicable, yielded_with,
-    ConversationEffect, Emitter, GooseEffect, Operation, OperationResult, SlashCommand,
-};
 use crate::agents::state_machine::ops_toolcalling::{
     pending_tool_requests, tool_span, ToolDisposition,
+};
+use crate::agents::state_machine::{
+    applied, ends_turn, last_effective_role, messages_since_kickoff, not_applicable, yielded_with,
+    ConversationEffect, Emitter, GooseEffect, Operation, OperationResult, SlashCommand,
 };
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{Conversation, EffectiveRole};

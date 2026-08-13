@@ -85,6 +85,7 @@ async fn proactive_and_manual_compaction_continue_with_replaced_usage() -> Resul
         let session = pipeline.session().await?;
         let mut result = state_machine::StepResult {
             effects,
+            applied_step: None,
             yield_to_client: false,
         };
         machine

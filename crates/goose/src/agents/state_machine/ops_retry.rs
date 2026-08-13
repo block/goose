@@ -7,7 +7,7 @@ use std::time::Duration;
 use crate::agents::retry::{
     execute_on_failure_command_with_timeout, execute_success_checks_with_timeout,
 };
-use crate::agents::state_machine::operation::{
+use crate::agents::state_machine::{
     applied, ends_turn, messages_since_kickoff, not_applicable, yielded_with, ConversationEffect,
     Emitter, GooseEffect, Operation, OperationResult, SlashCommand,
 };
