@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 
 use crate::agents::state_machine::operation::{
-    ConversationEffect, Emitter, GooseEffect, Inference, InferenceInput, Operation,
+    ConversationEffect, Emitter, GooseEffect, Inference, InferenceInput, MachineEffect, Operation,
     OperationFuture, OperationResult, StepResult,
 };
 use crate::agents::state_machine::usage;
@@ -30,9 +30,16 @@ impl MachineSession for Session {
 }
 
 #[async_trait]
-pub trait StateMachineRuntime<S, E>: Send + Sync {
+pub trait SessionLoader<S>: Send + Sync {
     async fn load(&self, session_id: &str) -> Result<S>;
+}
+
+#[async_trait]
+pub trait EffectHandler<S, E>: Send + Sync {
     async fn apply_effects(&self, session: &S, effects: &mut [E], emit: &Emitter) -> Result<()>;
+}
+
+pub trait EffectUsage<E>: Send + Sync {
     fn usage(&self, _effect: &E) -> Option<goose_providers::conversation::token_usage::Usage> {
         None
     }
@@ -60,7 +67,7 @@ pub struct StateMachine<'a, S, E = ConversationEffect> {
 impl<'a, S, E> StateMachine<'a, S, E>
 where
     S: MachineSession,
-    E: Send + 'static,
+    E: MachineEffect + Send + 'static,
 {
     pub fn new(steps: Vec<Step<'a, S, E>>, cancel: CancellationToken) -> Self {
         Self { steps, cancel }
@@ -108,6 +115,9 @@ where
             match result {
                 OperationResult::NotApplicable => {}
                 OperationResult::Applied(mut result) => {
+                    for effect in &mut result.effects {
+                        effect.ensure_message_ids();
+                    }
                     if cancelled {
                         result.yield_to_client = true;
                     }
@@ -128,7 +138,7 @@ where
         emit: &Emitter,
     ) -> Result<()>
     where
-        R: StateMachineRuntime<S, E>,
+        R: EffectHandler<S, E>,
     {
         runtime
             .apply_effects(session, &mut result.effects, emit)
@@ -137,7 +147,7 @@ where
 
     pub async fn run<R>(&self, runtime: &R, session_id: &str, emit: &Emitter) -> Result<S>
     where
-        R: StateMachineRuntime<S, E>,
+        R: SessionLoader<S> + EffectHandler<S, E> + EffectUsage<E>,
     {
         let entry_session = runtime.load(session_id).await?;
         if let Some(input) = entry_session
@@ -199,11 +209,14 @@ where
 }
 
 #[async_trait]
-impl StateMachineRuntime<Session, GooseEffect> for SessionManager {
+impl SessionLoader<Session> for SessionManager {
     async fn load(&self, session_id: &str) -> Result<Session> {
         self.get_session(session_id, true).await
     }
+}
 
+#[async_trait]
+impl EffectHandler<Session, GooseEffect> for SessionManager {
     async fn apply_effects(
         &self,
         session: &Session,
@@ -215,23 +228,10 @@ impl StateMachineRuntime<Session, GooseEffect> for SessionManager {
         }
         usage::enrich(session, effects);
 
-        for effect in effects {
+        for effect in effects.iter_mut() {
             match effect {
                 GooseEffect::Conversation(ConversationEffect::AppendMessage(message)) => {
                     self.add_message(&session.id, message).await?;
-                    if let Some(usage) = message
-                        .metadata
-                        .usage
-                        .as_deref()
-                        .filter(|_| !message.user_visible_content().content.is_empty())
-                        .cloned()
-                    {
-                        emit.emit(AgentEvent::MessageUsage {
-                            message_id: message.id.clone(),
-                            usage,
-                        })
-                        .await;
-                    }
                 }
                 GooseEffect::Conversation(ConversationEffect::ReplaceConversation(
                     conversation,
@@ -241,8 +241,6 @@ impl StateMachineRuntime<Session, GooseEffect> for SessionManager {
                         .usage(usage::estimate_context(conversation).await?)
                         .apply()
                         .await?;
-                    emit.emit(AgentEvent::HistoryReplaced(conversation.clone()))
-                        .await;
                 }
                 GooseEffect::ReplaceConversation {
                     conversation,
@@ -256,8 +254,6 @@ impl StateMachineRuntime<Session, GooseEffect> for SessionManager {
                         .usage(usage::estimate_context(conversation).await?)
                         .apply()
                         .await?;
-                    emit.emit(AgentEvent::HistoryReplaced(conversation.clone()))
-                        .await;
                 }
                 GooseEffect::Conversation(ConversationEffect::PatchToolRequestMeta {
                     tool_call_id,
@@ -292,13 +288,45 @@ impl StateMachineRuntime<Session, GooseEffect> for SessionManager {
                 }
                 GooseEffect::RecordUsage(provider_usage) => {
                     usage::record(self, session, provider_usage, false).await?;
-                    emit.emit(AgentEvent::Usage(provider_usage.clone())).await;
                 }
+            }
+        }
+
+        for effect in effects {
+            match effect {
+                GooseEffect::Conversation(ConversationEffect::AppendMessage(message)) => {
+                    if let Some(usage) = message
+                        .metadata
+                        .usage
+                        .as_deref()
+                        .filter(|_| !message.user_visible_content().content.is_empty())
+                        .cloned()
+                    {
+                        emit.emit(AgentEvent::MessageUsage {
+                            message_id: message.id.clone(),
+                            usage,
+                        })
+                        .await;
+                    }
+                }
+                GooseEffect::Conversation(ConversationEffect::ReplaceConversation(
+                    conversation,
+                ))
+                | GooseEffect::ReplaceConversation { conversation, .. } => {
+                    emit.emit(AgentEvent::HistoryReplaced(conversation.clone()))
+                        .await;
+                }
+                GooseEffect::RecordUsage(usage) => {
+                    emit.emit(AgentEvent::Usage(usage.clone())).await
+                }
+                _ => {}
             }
         }
         Ok(())
     }
+}
 
+impl EffectUsage<GooseEffect> for SessionManager {
     fn usage(
         &self,
         effect: &GooseEffect,

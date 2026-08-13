@@ -171,6 +171,12 @@ async fn custom_pipeline_supports_step_apply_run_tracing_and_usage() -> Result<(
 
     let session = session_manager.get_session(&session.id, true).await?;
     let mut result = machine.step(&session, &emit).await?.unwrap();
+    assert!(matches!(
+        result.effects.first(),
+        Some(GooseEffect::Conversation(
+            goose::agents::state_machine::ConversationEffect::AppendMessage(message)
+        )) if message.id.is_some()
+    ));
     machine
         .apply(&session_manager, &session, &mut result, &emit)
         .await?;

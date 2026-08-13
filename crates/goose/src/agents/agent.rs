@@ -1629,7 +1629,6 @@ impl Agent {
             && !provider.manages_own_context();
 
         let operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
-            Arc::new(EntryHookOperation::new(self.hook_manager.clone())),
             Arc::new(SteerOperation::new(steer_queue, self.hook_manager.clone())),
             Arc::new(MaxTurnsOperation::new(max_turns)),
             Arc::new(BangShellOperation::new()),
@@ -1684,7 +1683,10 @@ impl Agent {
         command_handlers.push(inference.clone());
         let command_operation: Arc<dyn Operation<Session, GooseEffect> + '_> =
             Arc::new(SlashCommandOperation::new(command_handlers));
-        let operations: Vec<_> = std::iter::once(command_operation)
+        let operations: Vec<_> =
+            std::iter::once(Arc::new(EntryHookOperation::new(self.hook_manager.clone()))
+                as Arc<dyn Operation<Session, GooseEffect> + '_>)
+            .chain(std::iter::once(command_operation))
             .chain(operations)
             .collect();
 

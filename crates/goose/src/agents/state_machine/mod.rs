@@ -30,10 +30,10 @@ mod usage;
 #[cfg(test)]
 mod tests;
 
-pub use machine::{MachineSession, StateMachine, StateMachineRuntime, Step};
+pub use machine::{EffectHandler, EffectUsage, MachineSession, SessionLoader, StateMachine, Step};
 pub use operation::{
     applied, not_applicable, yielded, yielded_with, ConversationEffect, Emitter, GooseEffect,
-    Inference, InferenceInput, Operation, OperationResult, SlashCommand, StepResult,
+    Inference, InferenceInput, MachineEffect, Operation, OperationResult, SlashCommand, StepResult,
 };
 
 pub(super) use ops_bang_shell::{bang_shell_command, BangShellOperation};

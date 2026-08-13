@@ -194,6 +194,10 @@ pub fn yielded_with<E>(effects: impl IntoIterator<Item = E>) -> Result<Operation
     }))
 }
 
+pub trait MachineEffect {
+    fn ensure_message_ids(&mut self);
+}
+
 pub enum ConversationEffect {
     AppendMessage(Message),
     ReplaceConversation(Conversation),
@@ -208,8 +212,8 @@ pub enum ConversationEffect {
     },
 }
 
-impl ConversationEffect {
-    pub(super) fn ensure_message_ids(&mut self) {
+impl MachineEffect for ConversationEffect {
+    fn ensure_message_ids(&mut self) {
         let messages = match self {
             ConversationEffect::AppendMessage(message) => std::slice::from_mut(message),
             ConversationEffect::ReplaceConversation(conversation) => {
@@ -248,8 +252,8 @@ pub enum GooseEffect {
     RecordUsage(ProviderUsage),
 }
 
-impl GooseEffect {
-    pub(super) fn ensure_message_ids(&mut self) {
+impl MachineEffect for GooseEffect {
+    fn ensure_message_ids(&mut self) {
         match self {
             GooseEffect::Conversation(effect) => effect.ensure_message_ids(),
             GooseEffect::ReplaceConversation { conversation, .. } => {
