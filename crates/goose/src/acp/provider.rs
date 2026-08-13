@@ -33,7 +33,7 @@ use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex};
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 
 use crate::acp::{map_permission_response, PermissionDecision};
-use crate::config::{ExtensionConfig, GooseMode};
+use crate::config::{Config, ExtensionConfig, GooseMode};
 use crate::context_mgmt::format_message_for_compacting;
 use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
 use crate::conversation::Conversation;
@@ -126,7 +126,15 @@ enum AcpUpdate {
         response_tx: oneshot::Sender<RequestPermissionResponse>,
     },
     Complete(StopReason, Option<AcpUsage>),
-    Error(String),
+    Error(agent_client_protocol::Error),
+}
+
+fn provider_error_from_acp(error: agent_client_protocol::Error) -> ProviderError {
+    if error.code == agent_client_protocol::schema::v1::ErrorCode::AuthRequired {
+        ProviderError::Authentication(error.to_string())
+    } else {
+        ProviderError::RequestFailed(error.to_string())
+    }
 }
 
 /// Per-tool-call buffer for accumulating ACP ToolCallUpdate fields across
@@ -149,30 +157,6 @@ struct HandoffContextClaim {
     include_context: bool,
 }
 
-type SessionTitleCallback = Arc<dyn Fn(String) + Send + Sync>;
-
-#[derive(Clone, Default)]
-struct SessionTitlePublisher {
-    callback: Arc<Mutex<Option<SessionTitleCallback>>>,
-}
-
-impl SessionTitlePublisher {
-    fn set_callback(&self, callback: SessionTitleCallback) {
-        *self.callback.lock().unwrap() = Some(callback);
-    }
-
-    fn publish(&self, title: &str) {
-        let title = title.trim();
-        if title.is_empty() {
-            return;
-        }
-
-        if let Some(callback) = self.callback.lock().unwrap().clone() {
-            callback(title.to_string());
-        }
-    }
-}
-
 pub struct AcpProvider {
     name: String,
     goose_mode: Arc<Mutex<GooseMode>>,
@@ -189,7 +173,6 @@ pub struct AcpProvider {
     /// in which case `get_context_limit()` falls back to the supplied model
     /// configuration's context limit.
     context_size: Arc<AtomicU64>,
-    session_title_publisher: SessionTitlePublisher,
 
     /// Config option id used to select the model, if this agent supports it.
     model_config_option_id: Option<String>,
@@ -277,13 +260,11 @@ impl AcpProvider {
         let pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>> =
             Arc::new(Mutex::new(HashMap::new()));
         let context_size = Arc::new(AtomicU64::new(0));
-        let session_title_publisher = SessionTitlePublisher::default();
         let client_loop = AcpClientLoop::new(
             config,
             goose_mode_shared.clone(),
             pending_tool_updates.clone(),
             context_size.clone(),
-            session_title_publisher.clone(),
         );
         let loop_thread = spawn_client_loop(run(client_loop, rx, init_tx));
 
@@ -316,7 +297,6 @@ impl AcpProvider {
             pending_tool_updates,
             handoff_context_sent: AtomicBool::new(false),
             context_size,
-            session_title_publisher,
             model_config_option_id,
             applied_model: Arc::new(Mutex::new(applied_model)),
             tx: Some(tx),
@@ -542,10 +522,6 @@ impl Provider for AcpProvider {
         true
     }
 
-    fn set_session_title_callback(&self, callback: Arc<dyn Fn(String) + Send + Sync>) {
-        self.session_title_publisher.set_callback(callback);
-    }
-
     async fn handle_permission_confirmation(
         &self,
         request_id: &str,
@@ -755,7 +731,7 @@ impl Provider for AcpProvider {
                         break;
                     }
                     AcpUpdate::Error(e) => {
-                        Err(ProviderError::RequestFailed(e))?;
+                        Err(provider_error_from_acp(e))?;
                     }
                 }
             }
@@ -786,7 +762,6 @@ struct AcpClientLoop {
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
     context_size: Arc<AtomicU64>,
-    session_title_publisher: SessionTitlePublisher,
 }
 
 impl AcpClientLoop {
@@ -795,7 +770,6 @@ impl AcpClientLoop {
         goose_mode: Arc<Mutex<GooseMode>>,
         pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
         context_size: Arc<AtomicU64>,
-        session_title_publisher: SessionTitlePublisher,
     ) -> Self {
         Self {
             config,
@@ -803,7 +777,6 @@ impl AcpClientLoop {
             prompt_response_tx: Arc::new(Mutex::new(None)),
             pending_tool_updates,
             context_size,
-            session_title_publisher,
         }
     }
 
@@ -858,7 +831,6 @@ impl AcpClientLoop {
             prompt_response_tx,
             pending_tool_updates,
             context_size,
-            session_title_publisher,
         } = self;
         let notification_callback = config.notification_callback.clone();
         let reverse_modes = reverse_mode_mapping(&config.mode_mapping);
@@ -872,7 +844,6 @@ impl AcpClientLoop {
                     let goose_mode = goose_mode.clone();
                     let pending_tool_updates = pending_tool_updates.clone();
                     let context_size = context_size.clone();
-                    let session_title_publisher = session_title_publisher.clone();
                     async move |notification: SessionNotification, _cx| {
                         if let Some(ref cb) = notification_callback {
                             cb(notification.clone());
@@ -908,11 +879,6 @@ impl AcpClientLoop {
                             }
                             SessionUpdate::UsageUpdate(usage) => {
                                 context_size.store(usage.size, Ordering::Relaxed);
-                            }
-                            SessionUpdate::SessionInfoUpdate(update) => {
-                                if let Some(title) = update.title.value() {
-                                    session_title_publisher.publish(title);
-                                }
                             }
                             _ => {}
                         }
@@ -1150,6 +1116,11 @@ fn log_undelivered<E: std::fmt::Debug>(result: Result<(), E>, method: &str) {
     }
 }
 
+fn acp_method_error(method: &str, error: agent_client_protocol::Error) -> anyhow::Error {
+    let message = format!("ACP {method} failed: {error}");
+    anyhow::Error::new(error).context(message)
+}
+
 async fn handle_requests(
     config: AcpProviderConfig,
     goose_mode: Arc<Mutex<GooseMode>>,
@@ -1206,10 +1177,7 @@ async fn handle_requests(
                             .await?;
                         apply_session_mode(&config, &goose_mode, &cx, session).await
                     }
-                    Err(err) => Err(anyhow::anyhow!(
-                        "ACP {} failed: {err}",
-                        AGENT_METHOD_NAMES.session_new
-                    )),
+                    Err(error) => Err(acp_method_error(AGENT_METHOD_NAMES.session_new, error)),
                 };
                 log_undelivered(response_tx.send(result), AGENT_METHOD_NAMES.session_new);
             }
@@ -1315,7 +1283,7 @@ async fn handle_requests(
                     }
                     Err(e) => {
                         log_undelivered(
-                            response_tx.try_send(AcpUpdate::Error(e.to_string())),
+                            response_tx.try_send(AcpUpdate::Error(e)),
                             AGENT_METHOD_NAMES.session_prompt,
                         );
                     }
@@ -1435,7 +1403,33 @@ fn select_mode_id(candidates: &[String], modes: Option<&SessionModeState>) -> Op
     }
 }
 
-pub fn extension_configs_to_mcp_servers(configs: &[ExtensionConfig]) -> Vec<McpServer> {
+/// Extension configs are persisted unresolved: secrets stay in the keyring behind
+/// `env_keys`, and uris/headers may still hold `${VAR}` placeholders. Resolve them
+/// before handing the servers to the downstream agent, which launches them itself
+/// and so needs the real values. An extension that fails to resolve (e.g. a stale
+/// `env_keys` entry with no stored secret) is logged and skipped rather than
+/// failing the whole provider build, matching how the local extension path
+/// contains load errors to the one extension.
+pub async fn resolve_extension_configs_to_mcp_servers(
+    configs: Vec<ExtensionConfig>,
+    config: &Config,
+) -> Vec<McpServer> {
+    let mut resolved = Vec::with_capacity(configs.len());
+    for extension in configs {
+        let name = extension.name();
+        match extension.resolve(config).await {
+            Ok(extension) => resolved.push(extension),
+            Err(error) => tracing::warn!(
+                extension = %name,
+                %error,
+                "skipping extension that failed to resolve; it will not be forwarded to the ACP agent"
+            ),
+        }
+    }
+    extension_configs_to_mcp_servers(&resolved)
+}
+
+fn extension_configs_to_mcp_servers(configs: &[ExtensionConfig]) -> Vec<McpServer> {
     let mut servers = Vec::new();
 
     for config in configs {
@@ -1816,7 +1810,7 @@ mod tests {
     use super::*;
     use crate::agents::extension::Envs;
     use agent_client_protocol::schema::v1::{
-        SessionConfigSelectOption, SessionMode, SessionModeId,
+        ErrorCode, SessionConfigSelectOption, SessionMode, SessionModeId,
     };
 
     use test_case::test_case;
@@ -1828,23 +1822,70 @@ mod tests {
         }
     }
 
-    fn test_provider() -> (AcpProvider, ModelConfig) {
-        test_provider_with_tx(None)
+    fn acp_error_code(error: &anyhow::Error) -> Option<ErrorCode> {
+        error.chain().find_map(|source| {
+            source
+                .downcast_ref::<agent_client_protocol::Error>()
+                .map(|error| error.code)
+        })
     }
 
     #[test]
-    fn session_title_publisher_forwards_non_empty_titles() {
-        let publisher = SessionTitlePublisher::default();
-        let titles = Arc::new(Mutex::new(Vec::new()));
-        let received = titles.clone();
-        publisher.set_callback(Arc::new(move |title| {
-            received.lock().unwrap().push(title);
-        }));
+    fn session_new_error_preserves_auth_required_code() {
+        let error = acp_method_error(
+            AGENT_METHOD_NAMES.session_new,
+            agent_client_protocol::Error::auth_required(),
+        );
 
-        publisher.publish("  Generated title  ");
-        publisher.publish("  ");
+        assert_eq!(
+            error.to_string(),
+            "ACP session/new failed: Authentication required"
+        );
+        assert_eq!(acp_error_code(&error), Some(ErrorCode::AuthRequired));
+    }
 
-        assert_eq!(*titles.lock().unwrap(), vec!["Generated title"]);
+    #[test]
+    fn session_new_error_preserves_non_authentication_code() {
+        let error = acp_method_error(
+            AGENT_METHOD_NAMES.session_new,
+            agent_client_protocol::Error::internal_error(),
+        );
+
+        assert_eq!(acp_error_code(&error), Some(ErrorCode::InternalError));
+    }
+
+    #[tokio::test]
+    async fn prompt_error_update_preserves_auth_required_code() {
+        let (tx, mut rx) = mpsc::channel(1);
+        tx.send(AcpUpdate::Error(
+            agent_client_protocol::Error::auth_required().data("sign in"),
+        ))
+        .await
+        .unwrap();
+
+        let AcpUpdate::Error(error) = rx.recv().await.unwrap() else {
+            panic!("expected ACP error update");
+        };
+        assert_eq!(error.code, ErrorCode::AuthRequired);
+        assert_eq!(error.data, Some(serde_json::json!("sign in")));
+    }
+
+    #[test]
+    fn prompt_auth_error_maps_to_provider_authentication() {
+        let error = provider_error_from_acp(agent_client_protocol::Error::auth_required());
+
+        assert!(matches!(error, ProviderError::Authentication(_)));
+    }
+
+    #[test]
+    fn prompt_internal_error_remains_request_failed() {
+        let error = provider_error_from_acp(agent_client_protocol::Error::internal_error());
+
+        assert!(matches!(error, ProviderError::RequestFailed(_)));
+    }
+
+    fn test_provider() -> (AcpProvider, ModelConfig) {
+        test_provider_with_tx(None)
     }
 
     fn test_provider_with_tx(
@@ -1863,7 +1904,6 @@ mod tests {
                 pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
                 handoff_context_sent: AtomicBool::new(false),
                 context_size: Arc::new(AtomicU64::new(0)),
-                session_title_publisher: SessionTitlePublisher::default(),
                 model_config_option_id: None,
                 applied_model: Arc::new(Mutex::new(None)),
                 tx,
@@ -2595,6 +2635,112 @@ mod tests {
                 _ => panic!("server type mismatch"),
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_resolve_extension_configs_to_mcp_servers_fills_in_secrets() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config::new_with_file_secrets(
+            dir.path().join("config.yaml"),
+            dir.path().join("secrets.yaml"),
+        )
+        .unwrap();
+        config
+            .set("GITHUB_TOKEN", &"ghp_xxxxxxxxxxxx", true)
+            .unwrap();
+
+        let servers = resolve_extension_configs_to_mcp_servers(
+            vec![
+                ExtensionConfig::Stdio {
+                    name: "github-stdio".into(),
+                    description: String::new(),
+                    cmd: "/path/to/github-mcp-server".into(),
+                    args: vec![],
+                    envs: Envs::default(),
+                    env_keys: vec!["GITHUB_TOKEN".into()],
+                    timeout: None,
+                    cwd: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+                ExtensionConfig::StreamableHttp {
+                    name: "github-http".into(),
+                    description: String::new(),
+                    uri: "https://api.githubcopilot.com/mcp/".into(),
+                    envs: Envs::default(),
+                    env_keys: vec!["GITHUB_TOKEN".into()],
+                    headers: HashMap::from([(
+                        "Authorization".into(),
+                        "Bearer ${GITHUB_TOKEN}".into(),
+                    )]),
+                    timeout: None,
+                    socket: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+            ],
+            &config,
+        )
+        .await;
+
+        let McpServer::Stdio(stdio) = &servers[0] else {
+            panic!("expected stdio server");
+        };
+        assert_eq!(stdio.env.len(), 1);
+        assert_eq!(stdio.env[0].name, "GITHUB_TOKEN");
+        assert_eq!(stdio.env[0].value, "ghp_xxxxxxxxxxxx");
+
+        let McpServer::Http(http) = &servers[1] else {
+            panic!("expected http server");
+        };
+        assert_eq!(http.headers[0].value, "Bearer ghp_xxxxxxxxxxxx");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_extension_configs_to_mcp_servers_skips_unresolvable() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config::new_with_file_secrets(
+            dir.path().join("config.yaml"),
+            dir.path().join("secrets.yaml"),
+        )
+        .unwrap();
+
+        let servers = resolve_extension_configs_to_mcp_servers(
+            vec![
+                ExtensionConfig::Stdio {
+                    name: "missing-secret".into(),
+                    description: String::new(),
+                    cmd: "/path/to/server".into(),
+                    args: vec![],
+                    envs: Envs::default(),
+                    env_keys: vec!["NEVER_STORED_KEY".into()],
+                    timeout: None,
+                    cwd: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+                ExtensionConfig::Stdio {
+                    name: "resolvable".into(),
+                    description: String::new(),
+                    cmd: "/path/to/server".into(),
+                    args: vec![],
+                    envs: Envs::default(),
+                    env_keys: vec![],
+                    timeout: None,
+                    cwd: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+            ],
+            &config,
+        )
+        .await;
+
+        assert_eq!(servers.len(), 1);
+        let McpServer::Stdio(stdio) = &servers[0] else {
+            panic!("expected stdio server");
+        };
+        assert_eq!(stdio.name, "resolvable");
     }
 
     #[test]

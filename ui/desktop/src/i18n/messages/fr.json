@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "Connexion perdue. Reconnexion…"
   },
+  "baseChat.retry": {
+    "defaultMessage": "Réessayer"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extension mise à jour"
   },

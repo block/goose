@@ -1,12 +1,32 @@
+import { RequestError } from '@agentclientprotocol/sdk';
+import { errorMessage } from '../utils/conversionUtils';
+
 export interface AcpCreditsExhaustedError {
   message: string;
   url?: string;
 }
 
 const CREDITS_EXHAUSTED_REASON = 'credits_exhausted';
+const AUTH_REQUIRED_CODE = -32000;
 
 // Kept in sync with RECIPE_PARAMS_CANCELLED_REASON in crates/goose/src/acp/server/recipe.rs.
 const RECIPE_PARAMS_CANCELLED_REASON = 'recipe_params_cancelled';
+
+export const RECIPE_PARAMETER_SCOPES_UNSUPPORTED_MESSAGE =
+  'The connected Goose server does not support securely scoped deeplink recipe parameters. Update the server and try again.';
+
+export class RecipeParameterScopesUnsupportedError extends Error {
+  constructor() {
+    super(RECIPE_PARAMETER_SCOPES_UNSUPPORTED_MESSAGE);
+    this.name = 'RecipeParameterScopesUnsupportedError';
+  }
+}
+
+export function isRecipeParameterScopesUnsupported(
+  error: unknown
+): error is RecipeParameterScopesUnsupportedError {
+  return error instanceof RecipeParameterScopesUnsupportedError;
+}
 
 export function isRecipeParamsCancelled(error: unknown): boolean {
   return asAcpJsonRpcError(error)?.data?.reason === RECIPE_PARAMS_CANCELLED_REASON;
@@ -24,6 +44,13 @@ export function parseAcpCreditsExhaustedError(error: unknown): AcpCreditsExhaust
     message: jsonRpcError.message,
     ...(url ? { url } : {}),
   };
+}
+
+export function formatAcpError(error: unknown): string {
+  if (error instanceof RequestError && error.code === AUTH_REQUIRED_CODE) {
+    return 'Sign in to your provider, then try again.';
+  }
+  return errorMessage(error);
 }
 
 interface AcpJsonRpcError {

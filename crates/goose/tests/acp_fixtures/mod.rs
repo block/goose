@@ -303,13 +303,31 @@ impl OpenAiFixture {
     }
 }
 
-pub type DuplexTransport = agent_client_protocol::ByteStreams<
-    tokio_util::compat::Compat<tokio::io::DuplexStream>,
-    tokio_util::compat::Compat<tokio::io::DuplexStream>,
->;
+type CompatDuplexStream = tokio_util::compat::Compat<tokio::io::DuplexStream>;
+
+pub struct DuplexTransport {
+    outgoing: CompatDuplexStream,
+    incoming: CompatDuplexStream,
+}
+
+impl DuplexTransport {
+    fn new(outgoing: CompatDuplexStream, incoming: CompatDuplexStream) -> Self {
+        Self { outgoing, incoming }
+    }
+
+    fn into_byte_streams(
+        self,
+    ) -> agent_client_protocol::ByteStreams<CompatDuplexStream, CompatDuplexStream> {
+        agent_client_protocol::ByteStreams::new(self.outgoing, self.incoming)
+    }
+
+    fn into_parts(self) -> (CompatDuplexStream, CompatDuplexStream) {
+        (self.outgoing, self.incoming)
+    }
+}
 
 /// Wires up duplex streams, spawns `serve` for the given agent, and returns
-/// a ready-to-use agent_client_protocol transport plus the server handle.
+/// the client transport plus the server handle.
 #[allow(dead_code)]
 pub async fn serve_agent_in_process(
     agent: Arc<GooseAcpAgent>,
@@ -323,8 +341,7 @@ pub async fn serve_agent_in_process(
         }
     });
 
-    let transport =
-        agent_client_protocol::ByteStreams::new(client_write.compat_write(), client_read.compat());
+    let transport = DuplexTransport::new(client_write.compat_write(), client_read.compat());
     (transport, handle)
 }
 

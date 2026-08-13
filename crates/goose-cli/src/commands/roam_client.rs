@@ -13,7 +13,7 @@ use std::io::Write;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 use agent_client_protocol::schema::v1::{
-    ContentBlock, InitializeRequest, ListSessionsRequest, LoadSessionRequest, NewSessionResponse,
+    ContentBlock, InitializeRequest, ListSessionsRequest, LoadSessionRequest, PromptRequest,
     RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
     SelectedPermissionOutcome, SessionId, SessionInfo, SessionNotification, SessionUpdate,
 };
@@ -150,17 +150,18 @@ pub async fn delegate(
             // send; ACP still requires a syntactically-absolute cwd.
             let cwd = std::path::PathBuf::from("/");
             match session {
-                // Resume an existing remote session. `session/load` yields no
-                // session id (we already know it), so attach to the known id.
+                // Resume an existing remote session. The final text is
+                // collected by the notification handler above, so a raw
+                // session/prompt awaited to completion is all we need — no
+                // ActiveSession attachment required.
                 Some(id) => {
                     let session_id = SessionId::from(id);
                     cx.send_request(LoadSessionRequest::new(session_id.clone(), cwd))
                         .block_task()
                         .await?;
-                    let mut session =
-                        cx.attach_session(NewSessionResponse::new(session_id), Vec::new())?;
-                    session.send_prompt(&task)?;
-                    let _ = session.read_to_string().await?;
+                    cx.send_request(PromptRequest::new(session_id, vec![task.clone().into()]))
+                        .block_task()
+                        .await?;
                     Ok(())
                 }
                 None => {

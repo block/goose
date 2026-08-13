@@ -175,6 +175,39 @@ pub fn is_context_length_exceeded_message(text: &str) -> bool {
         .iter()
         .any(|phrase| text_lower.contains(phrase));
 
+    let words = text_lower.split(|character: char| !character.is_ascii_alphanumeric());
+    let mentions_request = words.clone().any(|word| word == "request");
+    let mentions_bytes = words.clone().any(|word| matches!(word, "byte" | "bytes"));
+    let mentions_content_length = ["content length", "content-length"]
+        .iter()
+        .any(|phrase| text_lower.contains(phrase));
+    let mentions_request_data_size = [
+        "request size",
+        "requestsize",
+        "request body size",
+        "request payload size",
+        "payload size",
+        "body size",
+    ]
+    .iter()
+    .any(|phrase| text_lower.contains(phrase));
+    let request_data_too_large = [
+        "request body is too large",
+        "request body too large",
+        "request payload is too large",
+        "request payload too large",
+        "payload is too large",
+        "payload too large",
+    ]
+    .iter()
+    .any(|phrase| text_lower.contains(phrase));
+    let mentions_byte_limit = mentions_request_data_size
+        || request_data_too_large
+        || (mentions_content_length && (mentions_request || mentions_bytes));
+    if mentions_byte_limit && mentions_overflow {
+        return true;
+    }
+
     mentions_prompt_input_tokens && mentions_limit && mentions_overflow
 }
 

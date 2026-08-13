@@ -1118,7 +1118,9 @@ export default function ChatInput({
           setLastInterruption(null);
         }
 
-        clearInputState();
+        if (sessionId !== null) {
+          clearInputState();
+        }
         setHistoryIndex(-1);
         setSavedInput('');
         setIsInGlobalHistory(false);
@@ -1133,6 +1135,7 @@ export default function ChatInput({
       handleSubmit,
       lastInterruption,
       clearInputState,
+      sessionId,
     ]
   );
 

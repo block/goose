@@ -22,6 +22,18 @@ const baseProps = {
 };
 
 describe('ScheduleModal', () => {
+  it('preserves the form when the recipe picker is cancelled', async () => {
+    const user = userEvent.setup();
+    const selectRecipeFile = vi.fn().mockResolvedValue(null);
+    window.electron.selectRecipeFile = selectRecipeFile;
+    renderWithIntl(<ScheduleModal {...baseProps} isOpen schedule={null} />);
+
+    await user.click(screen.getByRole('button', { name: 'Browse for YAML file...' }));
+
+    expect(selectRecipeFile).toHaveBeenCalledOnce();
+    expect(screen.queryByText(/Failed to read|Invalid file type/)).not.toBeInTheDocument();
+  });
+
   it('clears a validation error from create mode when reopened to edit a schedule', async () => {
     const user = userEvent.setup();
     const { rerender } = renderWithIntl(<ScheduleModal {...baseProps} isOpen schedule={null} />);
