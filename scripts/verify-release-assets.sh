@@ -15,6 +15,7 @@ Usage:
   bash scripts/verify-release-assets.sh              # static scan for Goose desktop artifacts
   bash scripts/verify-release-assets.sh --local DIR  # assert contracted files exist under DIR
   bash scripts/verify-release-assets.sh --guards     # publishing workflow fork guards
+  bash scripts/verify-release-assets.sh --dev-channel  # unsigned GitHub Release tag dev
 EOF
 }
 
@@ -31,6 +32,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --guards)
       MODE="guards"
+      shift
+      ;;
+    --dev-channel)
+      MODE="dev-channel"
       shift
       ;;
     -h|--help)
@@ -197,6 +202,42 @@ check_guards() {
   ok "publishing workflow guards present"
 }
 
+# AC-1: unsigned publish-desktop-dev.yml overwrites GitHub Release tag `dev`.
+check_dev_channel() {
+  local wf=".github/workflows/publish-desktop-dev.yml"
+  [[ -f "$wf" ]] || fail "missing $wf (unsigned DEV desktop publish workflow)"
+
+  if grep -q "github.repository == 'aaif-goose/goose'" "$wf" \
+    || grep -q 'github.repository == "aaif-goose/goose"' "$wf"; then
+    fail "publish-desktop-dev.yml must run for Avocado-Technology/avcd-agent (do not copy canary aaif-goose guard)"
+  fi
+  ok "no aaif-goose skip guard"
+
+  grep -qE 'signing:[[:space:]]*false' "$wf" || fail "$wf must set signing: false"
+  if grep -qE 'environment:[[:space:]]*signing' "$wf"; then
+    fail "$wf must not use environment: signing"
+  fi
+  ok "unsigned (signing: false, no signing environment)"
+
+  grep -qE 'tag:[[:space:]]*dev' "$wf" || fail "$wf must publish tag: dev"
+  grep -q 'allowUpdates: true' "$wf" || fail "$wf must set allowUpdates: true"
+  ok "publishes tag dev with allowUpdates"
+
+  grep -q 'Avocado Work.dmg' "$wf" || fail "$wf must upload Avocado Work.dmg"
+  grep -q 'Avocado Work_intel_mac.dmg' "$wf" || fail "$wf must upload Avocado Work_intel_mac.dmg"
+  grep -q 'Avocado Work-Setup-x64.exe' "$wf" || fail "$wf must upload Avocado Work-Setup-x64.exe"
+  ok "website installer filenames present"
+
+  if grep -q 'windows_variant: cuda' "$wf" || grep -q 'bundle-desktop-linux' "$wf"; then
+    fail "$wf must not require CUDA or Linux jobs (DEV is mac arm64 + mac x64 + win x64)"
+  fi
+  ok "no CUDA/linux jobs"
+
+  grep -q 'bundle-macos.yml' "$wf" || fail "$wf must call bundle-macos.yml"
+  grep -q 'bundle-windows.yml' "$wf" || fail "$wf must call bundle-windows.yml"
+  ok "reuses bundle-macos and bundle-windows"
+}
+
 case "$MODE" in
   scan)
     scan_goose_artifacts
@@ -206,5 +247,8 @@ case "$MODE" in
     ;;
   guards)
     check_guards
+    ;;
+  dev-channel)
+    check_dev_channel
     ;;
 esac
