@@ -6,8 +6,6 @@
 //! configuration is part of `Agent::reply`, not the state-machine protocol.
 
 mod effects;
-mod machine;
-mod operation;
 mod ops_bang_shell;
 mod ops_compaction;
 mod ops_doctor;
@@ -34,8 +32,10 @@ mod usage;
 mod tests;
 
 pub use effects::GooseEffect;
-pub use machine::{EffectHandler, EffectUsage, MachineSession, SessionLoader, StateMachine, Step};
-pub use operation::{
+pub use goose_agent::machine::{
+    EffectHandler, EffectUsage, MachineSession, SessionLoader, StateMachine, Step,
+};
+pub use goose_agent::operation::{
     applied, assistant_turn_count, ends_turn, last_effective_role, messages_since_kickoff,
     not_applicable, trailing_error, yielded, yielded_with, ConversationEffect, Emitter, Inference,
     InferenceInput, MachineEffect, Operation, OperationResult, SlashCommand, StepResult,

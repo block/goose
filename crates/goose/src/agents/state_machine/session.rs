@@ -2,14 +2,12 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 use crate::agents::state_machine::effects::GooseEffect;
-use crate::agents::state_machine::machine::{
-    EffectHandler, EffectUsage, MachineSession, SessionLoader,
-};
-use crate::agents::state_machine::operation::{ConversationEffect, Emitter, MachineEffect};
 use crate::agents::state_machine::usage;
 use crate::agents::AgentEvent;
 use crate::conversation::Conversation;
 use crate::session::{Session, SessionManager};
+use goose_agent::machine::{EffectHandler, EffectUsage, MachineSession, SessionLoader};
+use goose_agent::operation::{ConversationEffect, Emitter, MachineEffect};
 
 impl MachineSession for Session {
     fn id(&self) -> &str {

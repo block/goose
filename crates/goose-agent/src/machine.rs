@@ -4,11 +4,11 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 
-use crate::agents::state_machine::operation::{
+use crate::operation::{
     ConversationEffect, Emitter, Inference, InferenceInput, MachineEffect, Operation,
     OperationFuture, OperationResult, StepResult,
 };
-use crate::conversation::Conversation;
+use goose_provider_types::conversation::Conversation;
 
 pub trait MachineSession: Send + Sync {
     fn id(&self) -> &str;
@@ -26,7 +26,7 @@ pub trait EffectHandler<S, E>: Send + Sync {
 }
 
 pub trait EffectUsage<E>: Send + Sync {
-    fn usage(&self, _effect: &E) -> Option<goose_providers::conversation::token_usage::Usage> {
+    fn usage(&self, _effect: &E) -> Option<goose_provider_types::conversation::token_usage::Usage> {
         None
     }
 }

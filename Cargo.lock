@@ -4967,6 +4967,7 @@ dependencies = [
  "futures",
  "gethostname",
  "goose-acp-macros",
+ "goose-agent",
  "goose-context-management",
  "goose-download-manager",
  "goose-mcp",
@@ -5071,6 +5072,20 @@ version = "1.46.0"
 dependencies = [
  "quote",
  "syn 2.0.118",
+]
+
+[[package]]
+name = "goose-agent"
+version = "1.45.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "goose-provider-types",
+ "rmcp 3.0.0",
+ "serde_json",
+ "tokio",
+ "tokio-util",
+ "uuid",
 ]
 
 [[package]]

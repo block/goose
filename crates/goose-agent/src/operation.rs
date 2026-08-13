@@ -5,9 +5,9 @@ use std::pin::Pin;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use crate::agents::AgentEvent;
-use crate::conversation::message::{Message, MessageContent, MessageErrorKind};
-use crate::conversation::{effective_role, Conversation, EffectiveRole};
+use crate::events::AgentEvent;
+use goose_provider_types::conversation::message::{Message, MessageContent, MessageErrorKind};
+use goose_provider_types::conversation::{effective_role, Conversation, EffectiveRole};
 use rmcp::model::Tool;
 
 pub type OperationFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;

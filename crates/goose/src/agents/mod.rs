@@ -1,6 +1,5 @@
 mod agent;
 pub mod container;
-mod events;
 pub mod execute_commands;
 pub mod extension;
 pub mod extension_malware_check;
@@ -28,10 +27,10 @@ pub mod validate_extensions;
 
 pub use agent::{Agent, AgentConfig, ExtensionLoadResult, GoosePlatform};
 pub use container::Container;
-pub use events::AgentEvent;
 pub use execute_commands::COMPACT_TRIGGERS;
 pub use extension::{ExtensionConfig, ExtensionError};
 pub use extension_manager::ExtensionManager;
+pub use goose_agent::events::AgentEvent;
 pub use prompt_manager::PromptManager;
 pub use schedule_tool::ScheduleTool;
 pub use subagent_handler::SUBAGENT_TOOL_REQUEST_TYPE;
