@@ -916,24 +916,25 @@ impl AcpClientLoop {
                             }
                             _ => {}
                         }
-                        if let Some(tx) = prompt_response_tx
+                        let prompt_response_tx = prompt_response_tx
                             .lock()
                             .ok()
                             .as_ref()
                             .and_then(|g| g.as_ref())
-                        {
+                            .cloned();
+                        if let Some(tx) = prompt_response_tx {
                             match notification.update {
                                 SessionUpdate::AgentMessageChunk(ContentChunk {
                                     content: ContentBlock::Text(text),
                                     ..
                                 }) => {
-                                    let _ = tx.try_send(AcpUpdate::Text(text));
+                                    send_stream_chunk(&tx, AcpUpdate::Text(text)).await;
                                 }
                                 SessionUpdate::AgentThoughtChunk(ContentChunk {
                                     content: ContentBlock::Text(TextContent { text, .. }),
                                     ..
                                 }) => {
-                                    let _ = tx.try_send(AcpUpdate::Thought(text));
+                                    send_stream_chunk(&tx, AcpUpdate::Thought(text)).await;
                                 }
                                 SessionUpdate::ToolCall(tool_call) => {
                                     let id = tool_call.tool_call_id.0.to_string();
@@ -1148,6 +1149,10 @@ fn log_undelivered<E: std::fmt::Debug>(result: Result<(), E>, method: &str) {
     if let Err(e) = result {
         tracing::debug!(method, error = ?e, "response not delivered");
     }
+}
+
+async fn send_stream_chunk(tx: &mpsc::Sender<AcpUpdate>, update: AcpUpdate) {
+    log_undelivered(tx.send(update).await, "session/update");
 }
 
 async fn handle_requests(
@@ -2063,6 +2068,28 @@ mod tests {
         ];
 
         assert!(messages_to_prompt(&messages, true).is_empty());
+    }
+
+    #[tokio::test]
+    async fn stream_chunks_wait_for_channel_capacity() {
+        let (tx, mut rx) = mpsc::channel(1);
+        tx.send(AcpUpdate::Thought("first".to_string()))
+            .await
+            .unwrap();
+
+        let send_task = tokio::spawn(async move {
+            send_stream_chunk(&tx, AcpUpdate::Text(TextContent::new("second"))).await;
+        });
+        tokio::task::yield_now().await;
+
+        assert!(!send_task.is_finished());
+        assert!(matches!(rx.recv().await, Some(AcpUpdate::Thought(text)) if text == "first"));
+
+        send_task.await.unwrap();
+        assert!(matches!(
+            rx.recv().await,
+            Some(AcpUpdate::Text(text)) if text.text == "second"
+        ));
     }
 
     #[tokio::test]
