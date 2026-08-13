@@ -140,6 +140,9 @@ where
     where
         R: EffectHandler<S, E>,
     {
+        for effect in &mut result.effects {
+            effect.ensure_message_ids();
+        }
         runtime
             .apply_effects(session, &mut result.effects, emit)
             .await
