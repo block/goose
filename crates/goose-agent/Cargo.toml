@@ -1,12 +1,12 @@
 [package]
 name = "goose-agent"
-version.workspace = true
+version = "0.1.0-alpha.6"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Agent functionality for Goose"
+description = "The GDK's Agent Loop"
 
 [lints]
 workspace = true
