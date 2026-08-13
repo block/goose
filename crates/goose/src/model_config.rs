@@ -113,8 +113,7 @@ pub async fn get_fast_model(
 }
 
 /// Run a completion for a lightweight "fast" task (session naming, compaction,
-/// summarization) using the provider's fast model, falling back to the supplied
-/// main `model_config` if the fast model errors.
+/// summarization) using the provider's fast model.
 pub async fn complete_fast(
     provider: &dyn Provider,
     model_config: &ModelConfig,
@@ -122,6 +121,7 @@ pub async fn complete_fast(
     system: &str,
     messages: &[Message],
     tools: &[Tool],
+    fallback_to_main_model: bool,
 ) -> Result<(Message, ProviderUsage), ProviderError> {
     let fast_model_config = get_fast_model(provider.get_name(), model_config)
         .await
@@ -135,7 +135,10 @@ pub async fn complete_fast(
     .await
     {
         Ok(response) => Ok(response),
-        Err(e) if fast_model_config.model_name != model_config.model_name => {
+        Err(e)
+            if fallback_to_main_model
+                && fast_model_config.model_name != model_config.model_name =>
+        {
             tracing::warn!(
                 "Fast model {} failed with error: {}. Falling back to main model {}",
                 fast_model_config.model_name,

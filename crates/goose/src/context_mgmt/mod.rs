@@ -296,6 +296,7 @@ impl goose_context_management::CompactionModel for FastCompactionModel<'_> {
             system,
             messages,
             &[],
+            true,
         )
         .await
     }
@@ -482,6 +483,7 @@ pub async fn summarize_tool_call(
         system_prompt,
         &summarization_request,
         &[],
+        true,
     )
     .await?;
 
