@@ -21,6 +21,10 @@ const buildStamp = `${new Date().toISOString().slice(0, 16).replace("T", " ")}Z`
 
 export default defineConfig({
   root: ".",
+  // The desktop pairing QR points at a GitHub Pages *project* site
+  // (https://aaif-goose.github.io/goose-mobile/), so assets must resolve
+  // relative to index.html, not the domain root.
+  base: "./",
   define: {
     __BUILD_STAMP__: JSON.stringify(buildStamp),
   },

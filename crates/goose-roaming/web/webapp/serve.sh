@@ -7,7 +7,7 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-UI_NM="/Users/micn/Development/goose/ui/node_modules"
+UI_NM="$(cd "${HERE}/../../../.." && pwd)/ui/node_modules"
 PORT="${PORT:-5178}"
 
 if [[ ! -d "${HERE}/src/wasm" ]] || [[ ! -f "${HERE}/src/wasm/goose_roaming_web_bg.wasm" ]]; then

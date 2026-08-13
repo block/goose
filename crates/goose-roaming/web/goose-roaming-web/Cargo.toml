@@ -22,7 +22,7 @@ ignored = ["getrandom", "js-sys"]
 # tls-ring (aws-lc-rs does not build for wasm here). Proven to compile in the
 # the browser transport stack (iroh + noq QUIC + tokio-websockets + web-sys).
 iroh = { version = "=1.0.3", default-features = false, features = ["tls-ring"] }
-wasm-bindgen = "0.2"
+wasm-bindgen = "=0.2.126"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
 getrandom = { version = "0.3", features = ["wasm_js"] }
