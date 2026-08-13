@@ -149,30 +149,6 @@ struct HandoffContextClaim {
     include_context: bool,
 }
 
-type SessionTitleCallback = Arc<dyn Fn(String) + Send + Sync>;
-
-#[derive(Clone, Default)]
-struct SessionTitlePublisher {
-    callback: Arc<Mutex<Option<SessionTitleCallback>>>,
-}
-
-impl SessionTitlePublisher {
-    fn set_callback(&self, callback: SessionTitleCallback) {
-        *self.callback.lock().unwrap() = Some(callback);
-    }
-
-    fn publish(&self, title: &str) {
-        let title = title.trim();
-        if title.is_empty() {
-            return;
-        }
-
-        if let Some(callback) = self.callback.lock().unwrap().clone() {
-            callback(title.to_string());
-        }
-    }
-}
-
 pub struct AcpProvider {
     name: String,
     goose_mode: Arc<Mutex<GooseMode>>,
@@ -189,7 +165,6 @@ pub struct AcpProvider {
     /// in which case `get_context_limit()` falls back to the supplied model
     /// configuration's context limit.
     context_size: Arc<AtomicU64>,
-    session_title_publisher: SessionTitlePublisher,
 
     /// Config option id used to select the model, if this agent supports it.
     model_config_option_id: Option<String>,
@@ -277,13 +252,11 @@ impl AcpProvider {
         let pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>> =
             Arc::new(Mutex::new(HashMap::new()));
         let context_size = Arc::new(AtomicU64::new(0));
-        let session_title_publisher = SessionTitlePublisher::default();
         let client_loop = AcpClientLoop::new(
             config,
             goose_mode_shared.clone(),
             pending_tool_updates.clone(),
             context_size.clone(),
-            session_title_publisher.clone(),
         );
         let loop_thread = spawn_client_loop(run(client_loop, rx, init_tx));
 
@@ -316,7 +289,6 @@ impl AcpProvider {
             pending_tool_updates,
             handoff_context_sent: AtomicBool::new(false),
             context_size,
-            session_title_publisher,
             model_config_option_id,
             applied_model: Arc::new(Mutex::new(applied_model)),
             tx: Some(tx),
@@ -540,10 +512,6 @@ impl Provider for AcpProvider {
 
     fn manages_own_context(&self) -> bool {
         true
-    }
-
-    fn set_session_title_callback(&self, callback: Arc<dyn Fn(String) + Send + Sync>) {
-        self.session_title_publisher.set_callback(callback);
     }
 
     async fn handle_permission_confirmation(
@@ -786,7 +754,6 @@ struct AcpClientLoop {
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
     context_size: Arc<AtomicU64>,
-    session_title_publisher: SessionTitlePublisher,
 }
 
 impl AcpClientLoop {
@@ -795,7 +762,6 @@ impl AcpClientLoop {
         goose_mode: Arc<Mutex<GooseMode>>,
         pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
         context_size: Arc<AtomicU64>,
-        session_title_publisher: SessionTitlePublisher,
     ) -> Self {
         Self {
             config,
@@ -803,7 +769,6 @@ impl AcpClientLoop {
             prompt_response_tx: Arc::new(Mutex::new(None)),
             pending_tool_updates,
             context_size,
-            session_title_publisher,
         }
     }
 
@@ -858,7 +823,6 @@ impl AcpClientLoop {
             prompt_response_tx,
             pending_tool_updates,
             context_size,
-            session_title_publisher,
         } = self;
         let notification_callback = config.notification_callback.clone();
         let reverse_modes = reverse_mode_mapping(&config.mode_mapping);
@@ -872,7 +836,6 @@ impl AcpClientLoop {
                     let goose_mode = goose_mode.clone();
                     let pending_tool_updates = pending_tool_updates.clone();
                     let context_size = context_size.clone();
-                    let session_title_publisher = session_title_publisher.clone();
                     async move |notification: SessionNotification, _cx| {
                         if let Some(ref cb) = notification_callback {
                             cb(notification.clone());
@@ -908,11 +871,6 @@ impl AcpClientLoop {
                             }
                             SessionUpdate::UsageUpdate(usage) => {
                                 context_size.store(usage.size, Ordering::Relaxed);
-                            }
-                            SessionUpdate::SessionInfoUpdate(update) => {
-                                if let Some(title) = update.title.value() {
-                                    session_title_publisher.publish(title);
-                                }
                             }
                             _ => {}
                         }
@@ -1858,21 +1816,6 @@ mod tests {
         test_provider_with_tx(None)
     }
 
-    #[test]
-    fn session_title_publisher_forwards_non_empty_titles() {
-        let publisher = SessionTitlePublisher::default();
-        let titles = Arc::new(Mutex::new(Vec::new()));
-        let received = titles.clone();
-        publisher.set_callback(Arc::new(move |title| {
-            received.lock().unwrap().push(title);
-        }));
-
-        publisher.publish("  Generated title  ");
-        publisher.publish("  ");
-
-        assert_eq!(*titles.lock().unwrap(), vec!["Generated title"]);
-    }
-
     fn test_provider_with_tx(
         tx: Option<mpsc::Sender<ClientRequest>>,
     ) -> (AcpProvider, ModelConfig) {
@@ -1889,7 +1832,6 @@ mod tests {
                 pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
                 handoff_context_sent: AtomicBool::new(false),
                 context_size: Arc::new(AtomicU64::new(0)),
-                session_title_publisher: SessionTitlePublisher::default(),
                 model_config_option_id: None,
                 applied_model: Arc::new(Mutex::new(None)),
                 tx,

@@ -557,24 +557,6 @@ impl SessionManager {
         })
     }
 
-    pub async fn update_name_from_provider(
-        &self,
-        id: &str,
-        name: String,
-    ) -> Result<Option<SessionNameUpdate>> {
-        let name = name.trim().to_string();
-        if name.is_empty() {
-            return Ok(None);
-        }
-
-        let session = self.get_session(id, false).await?;
-        if session.user_set_name || session.name == name {
-            return Ok(None);
-        }
-
-        Ok(Some(self.system_generated_name_update(id, name).await?))
-    }
-
     pub async fn maybe_update_name(
         &self,
         id: &str,
@@ -3219,60 +3201,6 @@ mod tests {
             .unwrap();
 
         assert_eq!(update.name, "investigate session naming with");
-    }
-
-    #[tokio::test]
-    async fn test_provider_name_replaces_generated_name_but_not_user_name() {
-        let temp_dir = TempDir::new().unwrap();
-        let sm = SessionManager::new(temp_dir.path().to_path_buf());
-        let session = sm
-            .create_session(
-                temp_dir.path().to_path_buf(),
-                "Local fallback".to_string(),
-                SessionType::User,
-                GooseMode::default(),
-            )
-            .await
-            .unwrap();
-
-        let update = sm
-            .update_name_from_provider(&session.id, "  Better ACP title  ".to_string())
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(update.name, "Better ACP title");
-
-        sm.update(&session.id)
-            .model_config(ModelConfig::new("test-model"))
-            .apply()
-            .await
-            .unwrap();
-        add_user_message(&sm, &session.id).await;
-        add_user_message(&sm, &session.id).await;
-        assert!(sm
-            .maybe_update_name(&session.id, Arc::new(StatefulNamingTestProvider))
-            .await
-            .unwrap()
-            .is_none());
-        assert_eq!(
-            sm.get_session(&session.id, false).await.unwrap().name,
-            "Better ACP title"
-        );
-
-        sm.update(&session.id)
-            .user_provided_name("Manual title")
-            .apply()
-            .await
-            .unwrap();
-        assert!(sm
-            .update_name_from_provider(&session.id, "Another ACP title".to_string())
-            .await
-            .unwrap()
-            .is_none());
-        assert_eq!(
-            sm.get_session(&session.id, false).await.unwrap().name,
-            "Manual title"
-        );
     }
 
     #[tokio::test]
