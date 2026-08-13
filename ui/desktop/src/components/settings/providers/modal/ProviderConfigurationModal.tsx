@@ -1,4 +1,4 @@
-import { useState, Fragment } from 'react';
+import { useCallback, useEffect, useState, Fragment } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -241,7 +241,7 @@ export default function ProviderConfigurationModal({
   const canUseExternalProvider =
     isConfigured && hasCheckedExternalProvider && !externalReadinessError;
 
-  const handleCheckExternalProvider = async () => {
+  const handleCheckExternalProvider = useCallback(async () => {
     setIsCheckingExternalProvider(true);
     setHasCheckedExternalProvider(false);
     setExternalReadinessError(null);
@@ -256,7 +256,13 @@ export default function ProviderConfigurationModal({
     } finally {
       setIsCheckingExternalProvider(false);
     }
-  };
+  }, [provider.name]);
+
+  useEffect(() => {
+    if (usesAcpSetup) {
+      void handleCheckExternalProvider();
+    }
+  }, [handleCheckExternalProvider, usesAcpSetup]);
 
   const descriptionText = showDeleteConfirmation
     ? isActiveProvider
@@ -509,7 +515,10 @@ export default function ProviderConfigurationModal({
                             {intl.formatMessage(i18n.connectionSuccessful)}
                           </div>
                         )}
-                        {isConfigured && !hasCheckedExternalProvider && !externalReadinessError && (
+                        {!isCheckingExternalProvider &&
+                          isConfigured &&
+                          !hasCheckedExternalProvider &&
+                          !externalReadinessError && (
                           <div className="text-sm text-text-secondary">
                             {intl.formatMessage(i18n.connectionNotChecked)}
                           </div>
@@ -593,17 +602,16 @@ export default function ProviderConfigurationModal({
               </div>
             ) : usesAcpSetup && !showDeleteConfirmation ? (
               <div className="flex w-full justify-end gap-2 border-t border-border-primary pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleCheckExternalProvider}
-                  disabled={isCheckingExternalProvider}
-                >
-                  <RefreshCw
-                    className={`mr-2 h-4 w-4 ${isCheckingExternalProvider ? 'animate-spin' : ''}`}
-                  />
-                  {intl.formatMessage(isCheckingExternalProvider ? i18n.checking : i18n.checkAgain)}
-                </Button>
+                {!isCheckingExternalProvider && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleCheckExternalProvider}
+                  >
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    {intl.formatMessage(i18n.checkAgain)}
+                  </Button>
+                )}
                 {canUseExternalProvider && (
                   <Button type="button" onClick={() => onConfigured?.(externalProvider)}>
                     {intl.formatMessage(i18n.chooseModel)}

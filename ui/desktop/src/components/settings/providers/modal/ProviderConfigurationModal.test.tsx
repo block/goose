@@ -95,8 +95,8 @@ describe('ProviderConfigurationModal', () => {
       { wrapper: IntlTestWrapper }
     );
 
-    await user.click(screen.getByRole('button', { name: 'Check again' }));
     expect(await screen.findByRole('button', { name: 'Choose model' })).toBeInTheDocument();
+    expect(acpRefreshProviderDetails).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole('button', { name: 'Check again' }));
     expect(screen.queryByRole('button', { name: 'Choose model' })).not.toBeInTheDocument();
