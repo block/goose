@@ -23,7 +23,7 @@ impl goose_providers::base::ProviderDescriptor for ClaudeAcpProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             CLAUDE_ACP_PROVIDER_NAME,
-            "Claude Code",
+            "Claude Code ACP",
             "Use goose with your Claude Code subscription via the claude-agent-acp adapter.",
             ACP_CURRENT_MODEL,
             vec![],
