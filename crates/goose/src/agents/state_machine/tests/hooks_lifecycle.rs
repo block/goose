@@ -4,6 +4,9 @@ use super::calculator_extension::{value, ADD};
 use super::pipeline::{test_pipeline, MessageKind::Agent, MessageKind::ToolResponse, MAX_TURNS};
 use crate::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME;
 use crate::agents::state_machine::ops_stop_hook::DENIED;
+use crate::agents::tool_execution::{CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use crate::config::permission::PermissionLevel;
+use crate::config::GooseMode;
 use crate::conversation::message::{MessageContent, SystemNotificationType};
 
 struct HookTestEnv {
@@ -804,5 +807,105 @@ async fn unknown_tool_denied_by_hook_does_not_resolve_as_unavailable() -> Result
         .expect("denied unknown tool response");
     assert!(tool_error.message.contains("denied by policy hook"));
     assert!(!tool_error.message.contains("is not available"));
+    Ok(())
+}
+
+#[tokio::test]
+async fn chat_mode_skips_recipe_final_output_without_tool_hooks() -> Result<()> {
+    let env = RecordingHookEnv::new(&[
+        ("PreToolUse", "", "pre.sh", RECORD_PRE_SCRIPT),
+        ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+        ("PostToolUse", "", "post.sh", RECORD_POST_SCRIPT),
+        (
+            "PostToolUseFailure",
+            "",
+            "postfail.sh",
+            RECORD_POST_FAILURE_SCRIPT,
+        ),
+    ]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline
+        .with_hook_manager(env.hook_manager())
+        .with_goose_mode(GooseMode::Chat)
+        .await
+        .with_max_turns(1);
+    pipeline.set_recipe(final_output_recipe()).await?;
+    api.on("produce the answer").call(
+        FINAL_OUTPUT_TOOL_NAME,
+        serde_json::json!({ "answer": "done" }),
+    );
+
+    let result = pipeline.run(["produce the answer"]).await?;
+
+    result.assert_message(-2, ToolResponse, CHAT_MODE_TOOL_SKIPPED_RESPONSE);
+    assert!(env.payloads("pre.log").is_empty());
+    assert!(env.payloads("result.log").is_empty());
+    assert!(env.payloads("post.log").is_empty());
+    assert!(env.payloads("postfail.log").is_empty());
+    Ok(())
+}
+
+#[tokio::test]
+async fn chat_mode_skips_unknown_tool_without_tool_hooks() -> Result<()> {
+    let env = RecordingHookEnv::new(&[
+        ("PreToolUse", "", "pre.sh", RECORD_PRE_SCRIPT),
+        ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+        ("PostToolUse", "", "post.sh", RECORD_POST_SCRIPT),
+        (
+            "PostToolUseFailure",
+            "",
+            "postfail.sh",
+            RECORD_POST_FAILURE_SCRIPT,
+        ),
+    ]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline
+        .with_hook_manager(env.hook_manager())
+        .with_goose_mode(GooseMode::Chat)
+        .await
+        .with_max_turns(1);
+    api.on("try the missing tool")
+        .unadvertised_call("missing__tool", serde_json::json!({}));
+
+    let result = pipeline.run(["try the missing tool"]).await?;
+
+    result.assert_message(-2, ToolResponse, CHAT_MODE_TOOL_SKIPPED_RESPONSE);
+    assert!(env.payloads("pre.log").is_empty());
+    assert!(env.payloads("result.log").is_empty());
+    assert!(env.payloads("post.log").is_empty());
+    assert!(env.payloads("postfail.log").is_empty());
+    Ok(())
+}
+
+#[tokio::test]
+async fn denied_unknown_tool_reports_policy_decline_without_tool_hooks() -> Result<()> {
+    let env = RecordingHookEnv::new(&[
+        ("PreToolUse", "", "pre.sh", RECORD_PRE_SCRIPT),
+        ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+        ("PostToolUse", "", "post.sh", RECORD_POST_SCRIPT),
+        (
+            "PostToolUseFailure",
+            "",
+            "postfail.sh",
+            RECORD_POST_FAILURE_SCRIPT,
+        ),
+    ]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline
+        .with_hook_manager(env.hook_manager())
+        .with_goose_mode(GooseMode::Approve)
+        .await;
+    pipeline.set_permission("missing__tool", PermissionLevel::NeverAllow);
+    api.on("try the missing tool")
+        .unadvertised_call("missing__tool", serde_json::json!({}));
+    api.on(DECLINED_RESPONSE).reply("understood");
+
+    let result = pipeline.run(["try the missing tool"]).await?;
+
+    result.assert_message(-2, ToolResponse, DECLINED_RESPONSE);
+    assert!(env.payloads("pre.log").is_empty());
+    assert!(env.payloads("result.log").is_empty());
+    assert!(env.payloads("post.log").is_empty());
+    assert!(env.payloads("postfail.log").is_empty());
     Ok(())
 }

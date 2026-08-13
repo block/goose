@@ -12,6 +12,7 @@ use crate::agents::state_machine::ops_toolcalling::{
 use crate::agents::state_machine::{
     applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
 };
+use crate::agents::tool_execution::{CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::config::GooseMode;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
@@ -55,7 +56,6 @@ impl Operation<Session, GooseEffect> for UnknownToolOperation {
                 .map(|tool_call| tool_call.name.as_ref())
                 .unwrap_or("unknown");
             let span = tool_span(tool_name, &request.id, &session.id);
-            span.record("error.type", "tool_not_available");
             let (result, unclaimed) = match disposition {
                 ToolDisposition::ParseError(error) => (
                     Ok(CallToolResult::error(vec![ContentBlock::text(format!(
@@ -63,7 +63,13 @@ impl Operation<Session, GooseEffect> for UnknownToolOperation {
                     ))])),
                     false,
                 ),
-                ToolDisposition::Execute if session.goose_mode != GooseMode::Chat => {
+                ToolDisposition::Execute if session.goose_mode == GooseMode::Chat => (
+                    Ok(CallToolResult::success(vec![ContentBlock::text(
+                        CHAT_MODE_TOOL_SKIPPED_RESPONSE,
+                    )])),
+                    false,
+                ),
+                ToolDisposition::Execute => {
                     match request.tool_call.as_ref() {
                         Ok(tool_call) => {
                             let tool_input = tool_call
@@ -82,6 +88,7 @@ impl Operation<Session, GooseEffect> for UnknownToolOperation {
                             {
                                 Err(denial) => (Err(denial), false),
                                 Ok(()) => {
+                                    span.record("error.type", "tool_not_available");
                                     let output = Ok(CallToolResult::error(vec![
                                         ContentBlock::text(format!(
                                             "Tool '{}' is not available.",
@@ -111,26 +118,12 @@ impl Operation<Session, GooseEffect> for UnknownToolOperation {
                         ),
                     }
                 }
-                ToolDisposition::Execute | ToolDisposition::Decline => request
-                    .tool_call
-                    .as_ref()
-                    .map(|tool_call| {
-                        (
-                            Ok(CallToolResult::error(vec![ContentBlock::text(format!(
-                                "Tool '{}' is not available.",
-                                tool_call.name
-                            ))])),
-                            true,
-                        )
-                    })
-                    .unwrap_or_else(|error| {
-                        (
-                            Ok(CallToolResult::error(vec![ContentBlock::text(format!(
-                                "The tool call could not be parsed: {error}."
-                            ))])),
-                            false,
-                        )
-                    }),
+                ToolDisposition::Decline => (
+                    Ok(CallToolResult::error(vec![ContentBlock::text(
+                        DECLINED_RESPONSE,
+                    )])),
+                    false,
+                ),
             };
             let mut metadata = request.metadata.clone();
             if unclaimed {

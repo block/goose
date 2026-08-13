@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use rmcp::model::Tool;
+use rmcp::model::{CallToolResult, ContentBlock, Tool};
 use tracing_futures::Instrument;
 
 use crate::agents::final_output_tool::{
@@ -17,6 +17,8 @@ use crate::agents::state_machine::{
     applied, ends_turn, last_effective_role, messages_since_kickoff, not_applicable, yielded_with,
     ConversationEffect, Emitter, GooseEffect, Operation, OperationResult, SlashCommand,
 };
+use crate::agents::tool_execution::CHAT_MODE_TOOL_SKIPPED_RESPONSE;
+use crate::config::GooseMode;
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{Conversation, EffectiveRole};
 use crate::hooks::HookManager;
@@ -207,6 +209,19 @@ impl Operation<Session, GooseEffect> for RecipeOperation {
                         .is_ok_and(|tool_call| tool_call.name == FINAL_OUTPUT_TOOL_NAME)
             });
         if let Some((request, _)) = pending {
+            if session.goose_mode == GooseMode::Chat {
+                let mut response = Message::user();
+                response.add_tool_response_with_metadata(
+                    request.id,
+                    Ok(CallToolResult::success(vec![ContentBlock::text(
+                        CHAT_MODE_TOOL_SKIPPED_RESPONSE,
+                    )])),
+                    request.metadata.as_ref(),
+                );
+                let response = emit.message(response).await;
+                return applied([response.into()]);
+            }
+
             let tool_call = request
                 .tool_call
                 .map_err(|error| anyhow!("final output tool call could not be parsed: {error}"))?;
