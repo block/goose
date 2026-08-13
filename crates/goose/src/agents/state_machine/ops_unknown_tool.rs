@@ -2,12 +2,14 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use rmcp::model::{CallToolResult, ContentBlock};
+use rmcp::model::{CallToolResult, ContentBlock, ErrorCode, ErrorData};
 use tracing_futures::Instrument;
 
+use crate::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME;
 use crate::agents::state_machine::effects::GooseEffect;
 use crate::agents::state_machine::ops_toolcalling::{
-    emit_post_tool_use, pending_tool_requests, run_pre_tool_hooks, tool_span, ToolDisposition,
+    emit_extended_pre_hooks, emit_post_tool_use, pending_tool_requests, run_pre_tool_hooks,
+    tool_span, ToolDisposition,
 };
 use crate::agents::state_machine::{
     applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
@@ -43,7 +45,20 @@ impl Operation<Session, GooseEffect> for UnknownToolOperation {
         conversation: &Conversation,
         emit: &Emitter,
     ) -> Result<OperationResult<GooseEffect>> {
-        let pending = pending_tool_requests(messages_since_kickoff(conversation)?);
+        let active_final_output = session
+            .recipe
+            .as_ref()
+            .is_some_and(|recipe| recipe.response.is_some());
+        let pending: Vec<_> = pending_tool_requests(messages_since_kickoff(conversation)?)
+            .into_iter()
+            .filter(|(request, _)| {
+                !(active_final_output
+                    && request
+                        .tool_call
+                        .as_ref()
+                        .is_ok_and(|tool_call| tool_call.name == FINAL_OUTPUT_TOOL_NAME))
+            })
+            .collect();
         if pending.is_empty() {
             return not_applicable();
         }
@@ -88,13 +103,37 @@ impl Operation<Session, GooseEffect> for UnknownToolOperation {
                             {
                                 Err(denial) => (Err(denial), false),
                                 Ok(()) => {
-                                    span.record("error.type", "tool_not_available");
-                                    let output = Ok(CallToolResult::error(vec![
-                                        ContentBlock::text(format!(
-                                            "Tool '{}' is not available.",
-                                            tool_call.name
-                                        )),
-                                    ]));
+                                    emit_extended_pre_hooks(
+                                        &self.hook_manager,
+                                        &tool_call.name,
+                                        tool_input.as_ref(),
+                                        session,
+                                    )
+                                    .instrument(span.clone())
+                                    .await;
+                                    let (output, unclaimed) =
+                                        if tool_call.name == FINAL_OUTPUT_TOOL_NAME {
+                                            span.record("error.type", "final_output_not_defined");
+                                            (
+                                                Err(ErrorData::new(
+                                                    ErrorCode::INTERNAL_ERROR,
+                                                    "Final output tool not defined".to_string(),
+                                                    None,
+                                                )),
+                                                false,
+                                            )
+                                        } else {
+                                            span.record("error.type", "tool_not_available");
+                                            (
+                                                Ok(CallToolResult::error(vec![
+                                                    ContentBlock::text(format!(
+                                                        "Tool '{}' is not available.",
+                                                        tool_call.name
+                                                    )),
+                                                ])),
+                                                true,
+                                            )
+                                        };
                                     emit_post_tool_use(
                                         &self.hook_manager,
                                         &session.id,
@@ -106,7 +145,7 @@ impl Operation<Session, GooseEffect> for UnknownToolOperation {
                                     )
                                     .instrument(span.clone())
                                     .await;
-                                    (output, true)
+                                    (output, unclaimed)
                                 }
                             }
                         }

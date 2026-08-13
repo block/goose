@@ -3,11 +3,14 @@ use anyhow::Result;
 use super::calculator_extension::{value, ADD};
 use super::pipeline::{test_pipeline, MessageKind::Agent, MessageKind::ToolResponse, MAX_TURNS};
 use crate::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME;
+use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::state_machine::ops_stop_hook::DENIED;
+use crate::agents::state_machine::ops_unknown_tool::UNCLAIMED_TOOL_ERROR;
 use crate::agents::tool_execution::{CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::config::permission::PermissionLevel;
 use crate::config::GooseMode;
 use crate::conversation::message::{MessageContent, SystemNotificationType};
+use crate::permission::Permission;
 
 struct HookTestEnv {
     _temp_dir: tempfile::TempDir,
@@ -235,6 +238,8 @@ const RECORD_POST_SCRIPT: &str =
     "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/post.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/post.log\"\nexit 0\n";
 const RECORD_POST_FAILURE_SCRIPT: &str =
     "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/postfail.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/postfail.log\"\nexit 0\n";
+const RECORD_EXTENDED_SCRIPT: &str =
+    "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/extended.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/extended.log\"\nexit 0\n";
 const DENY_AND_RECORD_SCRIPT: &str =
     "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/pre.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/pre.log\"\necho \"blocked by test policy\" >&2\nexit 2\n";
 
@@ -477,6 +482,115 @@ async fn recipe_final_output_emits_post_tool_event() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn recipe_final_output_waits_for_sibling_tools_and_is_emitted_once() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    pipeline.set_recipe(final_output_recipe()).await?;
+    api.on("finish and add").calls([
+        (
+            "final-output",
+            FINAL_OUTPUT_TOOL_NAME,
+            serde_json::json!({ "answer": "done" }),
+        ),
+        ("side-effect", ADD, value(1)),
+    ]);
+
+    let result = pipeline.run(["finish and add"]).await?;
+
+    assert_eq!(pipeline.calculator_total(), 1);
+    let messages = result.conversation().messages();
+    let side_effect_response = messages
+        .iter()
+        .position(|message| {
+            message.content.iter().any(|content| {
+                matches!(
+                    content,
+                    MessageContent::ToolResponse(response) if response.id == "side-effect"
+                )
+            })
+        })
+        .expect("sibling tool response");
+    let final_answers: Vec<_> = messages
+        .iter()
+        .enumerate()
+        .filter(|(_, message)| message.as_concat_text() == r#"{"answer":"done"}"#)
+        .collect();
+    assert_eq!(final_answers.len(), 1, "final output must be emitted once");
+    assert!(
+        side_effect_response < final_answers[0].0,
+        "final output must wait until sibling tools finish"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn recipe_final_output_waits_for_approval_pending_sibling() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_goose_mode(GooseMode::Approve).await;
+    pipeline.set_permission(FINAL_OUTPUT_TOOL_NAME, PermissionLevel::AlwaysAllow);
+    pipeline.set_recipe(final_output_recipe()).await?;
+    api.on("finish after approval").calls([
+        (
+            "final-output",
+            FINAL_OUTPUT_TOOL_NAME,
+            serde_json::json!({ "answer": "approved" }),
+        ),
+        (
+            "side-effect",
+            MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE,
+            serde_json::json!({
+                "action": "enable",
+                "extension_name": "analyze"
+            }),
+        ),
+    ]);
+
+    let awaiting_approval = pipeline.run(["finish after approval"]).await?;
+    assert!(
+        awaiting_approval
+            .conversation()
+            .messages()
+            .iter()
+            .all(|message| message.as_concat_text() != r#"{"answer":"approved"}"#),
+        "final output must wait while a sibling needs approval"
+    );
+
+    pipeline
+        .confirm("side-effect", Permission::AllowOnce)
+        .await?;
+    let result = pipeline.resume().await?;
+
+    let messages = result.conversation().messages();
+    let sibling_response = messages
+        .iter()
+        .position(|message| {
+            message.content.iter().any(|content| {
+                matches!(
+                    content,
+                    MessageContent::ToolResponse(response) if response.id == "side-effect"
+                )
+            })
+        })
+        .expect("approved sibling response");
+    let final_answers = result
+        .conversation()
+        .messages()
+        .iter()
+        .filter(|message| message.as_concat_text() == r#"{"answer":"approved"}"#)
+        .count();
+    assert_eq!(final_answers, 1, "approved final output must emit once");
+    let final_answer = messages
+        .iter()
+        .position(|message| message.as_concat_text() == r#"{"answer":"approved"}"#)
+        .expect("approved final output");
+    assert!(
+        sibling_response < final_answer,
+        "the approved sibling must execute before finalization"
+    );
+    result.assert_message(-1, Agent, r#"{"answer":"approved"}"#);
+    Ok(())
+}
+
 /// recipe final-output parity: a denying hook stops the call. The final-output
 /// tool never runs, so the recipe never reports a successful structured answer,
 /// and no post event fires — the same shape a denied ordinary tool call has.
@@ -494,18 +608,15 @@ async fn recipe_final_output_denied_by_hook_does_not_execute() -> Result<()> {
         ),
     ]);
     let (pipeline, api) = test_pipeline().await?;
-    let pipeline = pipeline.with_hook_manager(env.hook_manager());
+    let pipeline = pipeline
+        .with_hook_manager(env.hook_manager())
+        .with_max_turns(2);
     pipeline.set_recipe(final_output_recipe()).await?;
     api.on("produce the answer").call(
         FINAL_OUTPUT_TOOL_NAME,
         serde_json::json!({ "answer": "done" }),
     );
     api.on("denied by policy hook").reply("understood");
-    // Denied, so the recipe never gets its structured answer and re-prompts to
-    // the turn cap. Answer the compaction request that cap triggers, otherwise
-    // the dummy API panics on an unmatched rule and buries the real assertions.
-    api.on("Please summarize the conversation history")
-        .reply("summary");
 
     let result = pipeline.run(["produce the answer"]).await?;
 
@@ -759,6 +870,93 @@ async fn unknown_tool_emits_post_tool_failure_event() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn inactive_final_output_emits_failure_without_unclaimed_metadata() -> Result<()> {
+    let env = RecordingHookEnv::new(&[(
+        "PostToolUseFailure",
+        "",
+        "postfail.sh",
+        RECORD_POST_FAILURE_SCRIPT,
+    )]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(env.hook_manager());
+    api.on("call inactive final output").unadvertised_call(
+        FINAL_OUTPUT_TOOL_NAME,
+        serde_json::json!({ "answer": "unused" }),
+    );
+    api.on("Final output tool not defined")
+        .reply("inactive call handled");
+
+    let result = pipeline.run(["call inactive final output"]).await?;
+
+    result.assert_message(-2, ToolResponse, "Final output tool not defined");
+    let failures = env.payloads("postfail.log");
+    assert_eq!(failures.len(), 1);
+    assert_eq!(failures[0]["tool_name"], FINAL_OUTPUT_TOOL_NAME);
+    let response_metadata = result
+        .conversation()
+        .messages()
+        .iter()
+        .flat_map(|message| &message.content)
+        .find_map(|content| match content {
+            MessageContent::ToolResponse(response) => response.metadata.as_ref(),
+            _ => None,
+        });
+    assert!(response_metadata.is_none_or(|metadata| !metadata.contains_key(UNCLAIMED_TOOL_ERROR)));
+    Ok(())
+}
+
+#[tokio::test]
+async fn unknown_shell_and_read_tools_emit_extended_pre_hooks() -> Result<()> {
+    let shell = RecordingHookEnv::new(&[(
+        "BeforeShellExecution",
+        "echo lifecycle",
+        "extended.sh",
+        RECORD_EXTENDED_SCRIPT,
+    )]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(shell.hook_manager());
+    api.on("probe unknown shell").unadvertised_call(
+        "missing__shell",
+        serde_json::json!({ "command": "echo lifecycle" }),
+    );
+    api.on("not available").reply("shell probe complete");
+
+    pipeline.run(["probe unknown shell"]).await?;
+
+    let shell_events = shell.payloads("extended.log");
+    assert_eq!(shell_events.len(), 1);
+    assert_eq!(shell_events[0]["event"], "BeforeShellExecution");
+    assert_eq!(shell_events[0]["tool_name"], "missing__shell");
+    assert_eq!(shell_events[0]["tool_input"]["command"], "echo lifecycle");
+
+    let read = RecordingHookEnv::new(&[(
+        "BeforeReadFile",
+        "/tmp/missing-lifecycle-file",
+        "extended.sh",
+        RECORD_EXTENDED_SCRIPT,
+    )]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(read.hook_manager());
+    api.on("probe unknown read").unadvertised_call(
+        "missing__read",
+        serde_json::json!({ "path": "/tmp/missing-lifecycle-file" }),
+    );
+    api.on("not available").reply("read probe complete");
+
+    pipeline.run(["probe unknown read"]).await?;
+
+    let read_events = read.payloads("extended.log");
+    assert_eq!(read_events.len(), 1);
+    assert_eq!(read_events[0]["event"], "BeforeReadFile");
+    assert_eq!(read_events[0]["tool_name"], "missing__read");
+    assert_eq!(
+        read_events[0]["tool_input"]["path"],
+        "/tmp/missing-lifecycle-file"
+    );
+    Ok(())
+}
+
 /// Unknown-tool parity: a denying hook returns before the unknown-tool handler
 /// creates its unavailable result, and no post event fires.
 #[tokio::test]
@@ -811,7 +1009,7 @@ async fn unknown_tool_denied_by_hook_does_not_resolve_as_unavailable() -> Result
 }
 
 #[tokio::test]
-async fn chat_mode_skips_recipe_final_output_without_tool_hooks() -> Result<()> {
+async fn chat_mode_does_not_collect_skipped_recipe_final_output_or_run_hooks() -> Result<()> {
     let env = RecordingHookEnv::new(&[
         ("PreToolUse", "", "pre.sh", RECORD_PRE_SCRIPT),
         ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
@@ -828,16 +1026,40 @@ async fn chat_mode_skips_recipe_final_output_without_tool_hooks() -> Result<()> 
         .with_hook_manager(env.hook_manager())
         .with_goose_mode(GooseMode::Chat)
         .await
-        .with_max_turns(1);
+        .with_max_turns(2);
     pipeline.set_recipe(final_output_recipe()).await?;
     api.on("produce the answer").call(
         FINAL_OUTPUT_TOOL_NAME,
         serde_json::json!({ "answer": "done" }),
     );
+    api.on(CHAT_MODE_TOOL_SKIPPED_RESPONSE)
+        .reply("continued without the final output tool");
 
     let result = pipeline.run(["produce the answer"]).await?;
 
-    result.assert_message(-2, ToolResponse, CHAT_MODE_TOOL_SKIPPED_RESPONSE);
+    let messages = result.conversation().messages();
+    let emitted_chat_skip = messages
+        .iter()
+        .flat_map(|message| &message.content)
+        .any(|content| match content {
+            MessageContent::ToolResponse(response) => {
+                response.tool_result.as_ref().is_ok_and(|result| {
+                    result.content.iter().any(|content| {
+                        content
+                            .as_text()
+                            .is_some_and(|text| text.text == CHAT_MODE_TOOL_SKIPPED_RESPONSE)
+                    })
+                })
+            }
+            _ => false,
+        });
+    assert!(emitted_chat_skip, "Chat mode must emit its skip response");
+    assert!(
+        messages
+            .iter()
+            .all(|message| message.as_concat_text() != r#"{"answer":"done"}"#),
+        "a skipped final-output call must not be collected"
+    );
     assert!(env.payloads("pre.log").is_empty());
     assert!(env.payloads("result.log").is_empty());
     assert!(env.payloads("post.log").is_empty());
@@ -862,14 +1084,16 @@ async fn chat_mode_skips_unknown_tool_without_tool_hooks() -> Result<()> {
     let pipeline = pipeline
         .with_hook_manager(env.hook_manager())
         .with_goose_mode(GooseMode::Chat)
-        .await
-        .with_max_turns(1);
+        .await;
     api.on("try the missing tool")
         .unadvertised_call("missing__tool", serde_json::json!({}));
+    api.on(CHAT_MODE_TOOL_SKIPPED_RESPONSE)
+        .reply("continued without the missing tool");
 
     let result = pipeline.run(["try the missing tool"]).await?;
 
     result.assert_message(-2, ToolResponse, CHAT_MODE_TOOL_SKIPPED_RESPONSE);
+    result.assert_message(-1, Agent, "continued without the missing tool");
     assert!(env.payloads("pre.log").is_empty());
     assert!(env.payloads("result.log").is_empty());
     assert!(env.payloads("post.log").is_empty());

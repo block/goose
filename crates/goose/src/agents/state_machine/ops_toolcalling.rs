@@ -157,6 +157,54 @@ pub(super) async fn run_pre_tool_hooks(
     Ok(())
 }
 
+async fn emit_with_matcher(
+    hook_manager: &HookManager,
+    event: HookEvent,
+    session: &Session,
+    matcher: String,
+    tool_name: &str,
+    tool_input: Option<serde_json::Value>,
+) {
+    if !hook_manager.has_hooks(event) {
+        return;
+    }
+    let mut context = HookContext::new(event, &session.id)
+        .with_tool(tool_name.to_string(), tool_input)
+        .with_working_dir(session.working_dir.to_string_lossy().to_string());
+    context.matcher_context = Some(matcher);
+    hook_manager.emit(event, context).await;
+}
+
+pub(super) async fn emit_extended_pre_hooks(
+    hook_manager: &HookManager,
+    tool_name: &str,
+    tool_input: Option<&serde_json::Value>,
+    session: &Session,
+) {
+    let (event, matcher) = match categorize_tool(tool_name) {
+        ToolCategory::Shell => (
+            HookEvent::BeforeShellExecution,
+            tool_input.and_then(|input| string_argument(input, &["command"])),
+        ),
+        ToolCategory::Read => (
+            HookEvent::BeforeReadFile,
+            tool_input.and_then(|input| string_argument(input, &["path", "file", "file_path"])),
+        ),
+        ToolCategory::Write | ToolCategory::Other => return,
+    };
+    if let Some(matcher) = matcher {
+        emit_with_matcher(
+            hook_manager,
+            event,
+            session,
+            matcher,
+            tool_name,
+            tool_input.cloned(),
+        )
+        .await;
+    }
+}
+
 /// Emits the post-tool event for a finished call and reports which one fired.
 ///
 /// Which event fires is policy: a result flagged `is_error` counts as a failure,
@@ -284,47 +332,6 @@ impl<'a> ToolExecutionOperation<'a> {
         }
     }
 
-    async fn emit_with_matcher(
-        &self,
-        event: HookEvent,
-        session: &Session,
-        matcher: String,
-        tool_name: &str,
-        tool_input: Option<serde_json::Value>,
-    ) {
-        if !self.hook_manager.has_hooks(event) {
-            return;
-        }
-        let mut context = HookContext::new(event, &session.id)
-            .with_tool(tool_name.to_string(), tool_input)
-            .with_working_dir(session.working_dir.to_string_lossy().to_string());
-        context.matcher_context = Some(matcher);
-        self.hook_manager.emit(event, context).await;
-    }
-
-    async fn emit_extended_pre_hooks(
-        &self,
-        tool_name: &str,
-        tool_input: Option<&serde_json::Value>,
-        session: &Session,
-    ) {
-        let (event, matcher) = match categorize_tool(tool_name) {
-            ToolCategory::Shell => (
-                HookEvent::BeforeShellExecution,
-                tool_input.and_then(|input| string_argument(input, &["command"])),
-            ),
-            ToolCategory::Read => (
-                HookEvent::BeforeReadFile,
-                tool_input.and_then(|input| string_argument(input, &["path", "file", "file_path"])),
-            ),
-            ToolCategory::Write | ToolCategory::Other => return,
-        };
-        if let Some(matcher) = matcher {
-            self.emit_with_matcher(event, session, matcher, tool_name, tool_input.cloned())
-                .await;
-        }
-    }
-
     async fn dispatch_tool_call(
         &self,
         tool_call: CallToolRequestParams,
@@ -349,8 +356,13 @@ impl<'a> ToolExecutionOperation<'a> {
             )
             .await?;
 
-            self.emit_extended_pre_hooks(&tool_call.name, tool_input.as_ref(), session)
-                .await;
+            emit_extended_pre_hooks(
+                &self.hook_manager,
+                &tool_call.name,
+                tool_input.as_ref(),
+                session,
+            )
+            .await;
 
             let context = crate::agents::tool_execution::ToolCallContext::new(
                 session.id.clone(),

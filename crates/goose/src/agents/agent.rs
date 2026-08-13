@@ -1229,14 +1229,13 @@ impl Agent {
                 let result = self.with_post_tool_hook(result, &tool_call, session, &request_id);
                 (request_id, Ok(result))
             } else {
-                (
-                    request_id,
-                    Err(ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        "Final output tool not defined".to_string(),
-                        None,
-                    )),
-                )
+                let result = ToolCallResult::from(Err(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    "Final output tool not defined".to_string(),
+                    None,
+                )));
+                let result = self.with_post_tool_hook(result, &tool_call, session, &request_id);
+                (request_id, Ok(result))
             };
         }
 
