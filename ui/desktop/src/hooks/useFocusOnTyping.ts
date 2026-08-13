@@ -40,6 +40,13 @@ function isSpaceActivatableControl(element: Element | null): boolean {
   return role !== null && SPACE_ACTIVATABLE_ROLES.has(role);
 }
 
+const COMPOSITE_WIDGET_SELECTOR =
+  '[role="menu"], [role="listbox"], [role="tree"], [role="grid"], [role="combobox"], [data-radix-collection-item]';
+
+function isInsideCompositeWidget(element: Element | null): boolean {
+  return element instanceof HTMLElement && element.closest(COMPOSITE_WIDGET_SELECTOR) !== null;
+}
+
 export function useFocusOnTyping(
   targetRef: RefObject<HTMLTextAreaElement | null>,
   enabled: boolean
@@ -48,9 +55,11 @@ export function useFocusOnTyping(
     if (!enabled) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key.length !== 1) return;
       if (isEditableElement(document.activeElement)) return;
+      if (isInsideCompositeWidget(document.activeElement)) return;
       if (e.key === ' ' && isSpaceActivatableControl(document.activeElement)) return;
 
       const selection = window.getSelection();
