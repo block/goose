@@ -2,7 +2,13 @@ import { RefObject, useEffect } from 'react';
 
 function isEditableElement(element: Element | null): boolean {
   if (!element) return false;
-  if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) return true;
+  if (
+    element instanceof HTMLInputElement ||
+    element instanceof HTMLTextAreaElement ||
+    element instanceof HTMLSelectElement
+  ) {
+    return true;
+  }
   return element instanceof HTMLElement && element.isContentEditable;
 }
 
@@ -32,7 +38,7 @@ const SPACE_ACTIVATABLE_ROLES = new Set([
 function isSpaceActivatableControl(element: Element | null): boolean {
   if (!(element instanceof HTMLElement)) return false;
   const tag = element.tagName;
-  if (tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY' || tag === 'SELECT') return true;
+  if (tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY') return true;
   if (tag === 'INPUT') {
     return SPACE_ACTIVATABLE_INPUT_TYPES.has((element as HTMLInputElement).type);
   }
@@ -56,7 +62,8 @@ export function useFocusOnTyping(
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const isAltGraph = e.getModifierState?.('AltGraph') ?? false;
+      if (e.metaKey || e.ctrlKey || (e.altKey && !isAltGraph)) return;
       if (e.key.length !== 1) return;
       if (isEditableElement(document.activeElement)) return;
       if (isInsideCompositeWidget(document.activeElement)) return;
