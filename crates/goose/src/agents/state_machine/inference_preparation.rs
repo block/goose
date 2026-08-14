@@ -48,7 +48,7 @@ impl<S: Sync> InferenceRequestPreparer<S> for IdentityInferenceRequestPreparer {
     }
 }
 
-pub(super) struct GooseInferenceRequestPreparer<'a> {
+pub struct GooseInferenceRequestPreparer<'a> {
     #[cfg(feature = "code-mode")]
     pub(super) extension_manager: Arc<ExtensionManager>,
     pub(super) goose_mode: &'a Mutex<GooseMode>,

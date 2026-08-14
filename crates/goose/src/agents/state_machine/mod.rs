@@ -42,6 +42,7 @@ pub use goose_agent::operation::{
     InferenceInput, MachineEffect, Operation, OperationResult, SlashCommand, StepResult,
 };
 
+pub(super) use inference_preparation::GooseInferenceRequestPreparer;
 pub(super) use ops_bang_shell::{bang_shell_command, BangShellOperation};
 pub(super) use ops_compaction::CompactionOperation;
 pub(super) use ops_doctor::DoctorOperation;

@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::agents::state_machine::inference_preparation::{
-    GooseInferenceRequestPreparer, IdentityInferenceRequestPreparer, InferenceRequestPreparer,
+    IdentityInferenceRequestPreparer, InferenceRequestPreparer,
 };
 use crate::agents::state_machine::ops_unknown_tool::UNCLAIMED_TOOL_ERROR;
 use crate::agents::state_machine::{
@@ -11,19 +11,15 @@ use crate::agents::state_machine::{
     ConversationEffect, Emitter, GooseEffect, Inference, InferenceInput, Operation,
     OperationResult, SlashCommand,
 };
-use crate::agents::{ExtensionManager, PromptManager};
-use crate::config::GooseMode;
 use crate::conversation::message::{InferenceMetadata, Message, MessageContent};
 use crate::conversation::{effective_role, Conversation, EffectiveRole};
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::session::Session;
-use crate::tool_inspection::ToolInspectionManager;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use futures::StreamExt;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
-use tokio::sync::Mutex;
 use tracing_futures::Instrument;
 
 const EMPTY_RESPONSE_MESSAGE: &str =
@@ -158,29 +154,7 @@ fn ends_with_provider_turn(messages: &[Message]) -> bool {
 }
 
 impl<'a> InferenceRunner<'a> {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
-        provider: Arc<dyn Provider>,
-        model_config: ModelConfig,
-        #[cfg(feature = "code-mode")] extension_manager: Arc<ExtensionManager>,
-        #[cfg(not(feature = "code-mode"))] _extension_manager: Arc<ExtensionManager>,
-        goose_mode: &'a Mutex<GooseMode>,
-        prompt_manager: &'a Mutex<PromptManager>,
-        tool_inspection_manager: &'a ToolInspectionManager,
-        frontend_instructions: &'a Mutex<Option<String>>,
-    ) -> Self {
-        let request_preparer = GooseInferenceRequestPreparer {
-            #[cfg(feature = "code-mode")]
-            extension_manager,
-            goose_mode,
-            prompt_manager,
-            tool_inspection_manager,
-            frontend_instructions,
-        };
-        Self::with_request_preparer(provider, model_config, Some(Arc::new(request_preparer)))
-    }
-
-    pub fn with_request_preparer(
         provider: Arc<dyn Provider>,
         model_config: ModelConfig,
         request_preparer: Option<Arc<dyn InferenceRequestPreparer<Session> + 'a>>,
