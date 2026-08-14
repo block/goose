@@ -14,10 +14,13 @@ use rmcp::{
     tool, tool_handler, tool_router, ServerHandler,
 };
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf, sync::Arc};
+use std::{fs, path::PathBuf};
 
 #[cfg(target_os = "macos")]
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 
 mod docx_tool;
 mod pdf_tool;
@@ -359,8 +362,15 @@ impl ComputerControllerServer {
             os_instructions = os_specific_instructions,
         };
 
+        #[allow(unused_mut)]
+        let mut tool_router = Self::tool_router();
+        #[cfg(target_os = "macos")]
+        {
+            tool_router += Self::tool_router_macos();
+        }
+
         Self {
-            tool_router: Self::tool_router(),
+            tool_router,
             cache_dir,
             instructions,
             #[cfg(target_os = "macos")]
@@ -374,35 +384,6 @@ impl ComputerControllerServer {
         let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
         self.cache_dir
             .join(format!("{}_{}.{}", prefix, timestamp, extension))
-    }
-
-    /// Control the computer using Peekaboo CLI for macOS GUI automation.
-    /// Auto-installs via Homebrew on first use.
-    #[cfg(target_os = "macos")]
-    #[tool(
-        name = "computer_control",
-        description = "
-            macOS UI automation via Peekaboo CLI. Pass a subcommand string as `command`.
-
-            Core workflow: see → click → type
-            1. see --app Safari --annotate  (get annotated screenshot with element IDs)
-            2. click --on B3               (click element by ID)
-            3. type \"hello\" --return       (type text, press enter)
-
-            Key commands: see, image, click, type, press, hotkey, paste, scroll, drag,
-            swipe, move, app, window, list, menu, menubar, dock, dialog, clipboard,
-            space, open, permissions.
-
-            Targeting: --app Name, --window-title, --window-id, --on ID, --coords x,y
-            Set capture_screenshot=true to verify UI state after actions.
-            See extension instructions for full command reference and examples.
-        "
-    )]
-    pub async fn computer_control(
-        &self,
-        params: Parameters<ComputerControlParams>,
-    ) -> Result<CallToolResult, ErrorData> {
-        self.peekaboo_impl(params).await
     }
 
     #[cfg(target_os = "macos")]
@@ -859,6 +840,38 @@ impl ComputerControllerServer {
                 .map_err(|e| ErrorData::new(e.code, e.message, e.data))?;
 
         Ok(CallToolResult::success(result))
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[tool_router(router = tool_router_macos)]
+impl ComputerControllerServer {
+    /// Control the computer using Peekaboo CLI for macOS GUI automation.
+    /// Auto-installs via Homebrew on first use.
+    #[tool(
+        name = "computer_control",
+        description = "
+            macOS UI automation via Peekaboo CLI. Pass a subcommand string as `command`.
+
+            Core workflow: see → click → type
+            1. see --app Safari --annotate  (get annotated screenshot with element IDs)
+            2. click --on B3               (click element by ID)
+            3. type \"hello\" --return       (type text, press enter)
+
+            Key commands: see, image, click, type, press, hotkey, paste, scroll, drag,
+            swipe, move, app, window, list, menu, menubar, dock, dialog, clipboard,
+            space, open, permissions.
+
+            Targeting: --app Name, --window-title, --window-id, --on ID, --coords x,y
+            Set capture_screenshot=true to verify UI state after actions.
+            See extension instructions for full command reference and examples.
+        "
+    )]
+    pub async fn computer_control(
+        &self,
+        params: Parameters<ComputerControlParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.peekaboo_impl(params).await
     }
 }
 
