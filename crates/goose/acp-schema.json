@@ -458,20 +458,6 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/session/extensions/remove"
     },
-    "ApplySessionExtensionsRequest_unstable": {
-      "type": "object",
-      "properties": {
-        "sessionId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "sessionId"
-      ],
-      "description": "Recreate the session's provider, keeping its current provider and model,\nso that the session's current extension list takes effect.\n\nUseful after adding or removing session extensions when the provider\nforwards extensions to a downstream session (ACP harness providers such as\nclaude-acp and codex-acp). Those providers snapshot the extension list when\nthey are built, so extension changes only reach them on rebuild: the\nprovider is replaced with a new instance whose downstream session is\ncreated with the updated extension list.\n\nProviders that don't forward extensions pick up extension changes\nimmediately; for them this call is not required.",
-      "x-side": "agent",
-      "x-method": "_goose/unstable/session/extensions/apply"
-    },
     "GetToolsRequest_unstable": {
       "type": "object",
       "properties": {
@@ -6958,15 +6944,6 @@
                   ],
                   "description": "Params for _goose/unstable/session/extensions/remove",
                   "title": "RemoveSessionExtensionRequest_unstable"
-                },
-                {
-                  "allOf": [
-                    {
-                      "$ref": "#/$defs/ApplySessionExtensionsRequest_unstable"
-                    }
-                  ],
-                  "description": "Params for _goose/unstable/session/extensions/apply",
-                  "title": "ApplySessionExtensionsRequest_unstable"
                 },
                 {
                   "allOf": [

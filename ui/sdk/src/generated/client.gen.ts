@@ -4,7 +4,6 @@ import type { ClientContext } from "@agentclientprotocol/sdk";
 import type {
   AddConfigExtensionRequest_unstable,
   AddSessionExtensionRequest_unstable,
-  ApplySessionExtensionsRequest_unstable,
   AppsDeleteRequest_unstable,
   AppsDeleteResponse_unstable,
   AppsExportRequest_unstable,
@@ -284,12 +283,6 @@ export class GooseExtClient {
       "_goose/unstable/session/extensions/remove",
       params,
     );
-  }
-
-  async sessionExtensionsApply_unstable(
-    params: ApplySessionExtensionsRequest_unstable,
-  ): Promise<void> {
-    await this.conn.request("_goose/unstable/session/extensions/apply", params);
   }
 
   async toolsList_unstable(

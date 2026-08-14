@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::acp::{
-    resolve_extension_configs_to_mcp_servers, AcpProvider, AcpProviderConfig, ACP_CURRENT_MODEL,
+    extension_configs_to_mcp_servers, AcpProvider, AcpProviderConfig, ACP_CURRENT_MODEL,
 };
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
@@ -61,7 +61,7 @@ impl ProviderDef for CodexAcpProvider {
                 .with_npm()
                 .resolve(CODEX_ACP_PROVIDER_NAME)?;
             let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
-            let mcp_servers = resolve_extension_configs_to_mcp_servers(extensions, config).await;
+            let mcp_servers = extension_configs_to_mcp_servers(&extensions);
 
             let mode_mapping = HashMap::from([
                 (GooseMode::Auto, vec!["agent-full-access".to_string()]),
