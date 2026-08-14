@@ -615,11 +615,12 @@ impl ProviderHandle {
     }
 
     async fn context_limit(&self, model: ProviderModelConfig) -> usize {
+        let normalized_model = ModelConfig::new(&model.model_name);
+        let override_limit = model
+            .context_limit
+            .and_then(|limit| (limit > 0).then_some(limit as usize));
         self.provider
-            .get_context_limit(
-                &model.model_name,
-                model.context_limit.map(|limit| limit.max(0) as usize),
-            )
+            .get_context_limit(&normalized_model.model_name, override_limit)
             .await
     }
 
@@ -1135,6 +1136,43 @@ mod tests {
             timeout_ms: None,
             request_headers: None,
         }
+    }
+
+    #[test]
+    fn context_limit_override_filters_nonpositive_values() {
+        let none = base_model_config();
+        assert_eq!(
+            none.context_limit
+                .and_then(|limit| (limit > 0).then_some(limit as usize)),
+            None
+        );
+
+        let negative = ProviderModelConfig {
+            context_limit: Some(-1),
+            ..base_model_config()
+        };
+        assert_eq!(
+            negative
+                .context_limit
+                .and_then(|limit| (limit > 0).then_some(limit as usize)),
+            None
+        );
+
+        let positive = ProviderModelConfig {
+            context_limit: Some(64_000),
+            ..base_model_config()
+        };
+        assert_eq!(
+            positive
+                .context_limit
+                .and_then(|limit| (limit > 0).then_some(limit as usize)),
+            Some(64_000)
+        );
+    }
+
+    #[test]
+    fn model_config_normalizes_effort_suffix() {
+        assert_eq!(ModelConfig::new("gpt-5.4-xhigh").model_name, "gpt-5.4");
     }
 
     #[test]
