@@ -80,6 +80,10 @@ function isValidParameterValue(param: Parameter, value: string): boolean {
   }
 }
 
+function createParameterValueMap(): Record<string, string> {
+  return Object.create(null) as Record<string, string>;
+}
+
 const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
   parameters,
   onSubmit,
@@ -89,12 +93,13 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
   const intl = useIntl();
   const fieldIdPrefix = useId();
   const fieldId = (key: string): string => `${fieldIdPrefix}-${key}`;
-  const [inputValues, setInputValues] = useState<Record<string, string>>({});
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [inputValues, setInputValues] = useState<Record<string, string>>(createParameterValueMap);
+  const [validationErrors, setValidationErrors] =
+    useState<Record<string, string>>(createParameterValueMap);
   const [showCancelOptions, setShowCancelOptions] = useState(false);
 
   useEffect(() => {
-    const values: Record<string, string> = {};
+    const values = createParameterValueMap();
     parameters.forEach((param) => {
       if (param.requirement === 'optional' && param.default != null) {
         if (isValidParameterValue(param, param.default)) {
@@ -102,7 +107,10 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
         }
       }
 
-      const initialValue = initialValues?.[param.key];
+      const initialValue =
+        initialValues && Object.prototype.hasOwnProperty.call(initialValues, param.key)
+          ? initialValues[param.key]
+          : undefined;
       if (initialValue !== undefined && isValidParameterValue(param, initialValue)) {
         values[param.key] = initialValue;
       }
@@ -112,15 +120,19 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
   }, [parameters, initialValues]);
 
   const handleChange = (name: string, value: string): void => {
-    setInputValues((prevValues: Record<string, string>) => ({ ...prevValues, [name]: value }));
+    setInputValues((prevValues: Record<string, string>) => {
+      const values = Object.assign(createParameterValueMap(), prevValues);
+      values[name] = value;
+      return values;
+    });
   };
 
   const handleSubmit = (e: React.SyntheticEvent): void => {
     e.preventDefault();
-    setValidationErrors({});
+    setValidationErrors(createParameterValueMap());
 
-    const errors: Record<string, string> = {};
-    const submittedValues: Record<string, string> = {};
+    const errors = createParameterValueMap();
+    const submittedValues = createParameterValueMap();
 
     parameters.forEach((param) => {
       const value = inputValues[param.key];

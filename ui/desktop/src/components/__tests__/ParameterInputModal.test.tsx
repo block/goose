@@ -360,6 +360,63 @@ describe('ParameterInputModal', () => {
       expect(screen.getByText('Mode has an invalid value')).toBeInTheDocument();
       expect(onSubmit).not.toHaveBeenCalled();
     });
+
+    it.each(['__proto__', 'constructor', 'toString'])(
+      'submits the reserved %s prefill as an own property',
+      async (key) => {
+        const user = userEvent.setup();
+        const onSubmit = vi.fn();
+        const initialValues = Object.fromEntries([[key, 'safe']]);
+        renderWithIntl(
+          <ParameterInputModal
+            {...defaultProps}
+            onSubmit={onSubmit}
+            parameters={[
+              {
+                key,
+                description: 'Reserved parameter',
+                input_type: 'string',
+                requirement: 'required',
+              },
+            ]}
+            initialValues={initialValues}
+          />
+        );
+
+        expect(screen.getByLabelText(/^Reserved parameter/)).toHaveValue('safe');
+        await user.click(screen.getByText('Start Recipe'));
+
+        const submittedValues = onSubmit.mock.calls[0][0];
+        expect(Object.prototype.hasOwnProperty.call(submittedValues, key)).toBe(true);
+        expect(submittedValues[key]).toBe('safe');
+      }
+    );
+
+    it('submits an entered __proto__ value as an own property', async () => {
+      const user = userEvent.setup();
+      const onSubmit = vi.fn();
+      renderWithIntl(
+        <ParameterInputModal
+          {...defaultProps}
+          onSubmit={onSubmit}
+          parameters={[
+            {
+              key: '__proto__',
+              description: 'Prototype parameter',
+              input_type: 'string',
+              requirement: 'required',
+            },
+          ]}
+        />
+      );
+
+      await user.type(screen.getByLabelText(/^Prototype parameter/), 'safe');
+      await user.click(screen.getByText('Start Recipe'));
+
+      const submittedValues = onSubmit.mock.calls[0][0];
+      expect(Object.prototype.hasOwnProperty.call(submittedValues, '__proto__')).toBe(true);
+      expect(submittedValues.__proto__).toBe('safe');
+    });
   });
 
   describe('Cancel Behavior', () => {
