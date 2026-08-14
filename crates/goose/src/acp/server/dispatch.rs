@@ -47,9 +47,9 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                             match agent.on_new_session(&cx_clone, req).await {
                                 Ok(response) => {
                                     let session_id = response.session_id.0.to_string();
+                                    responder.respond(response)?;
                                     let session_setup =
                                         agent.prepare_session_setup_by_id(&session_id).await;
-                                    responder.respond(response)?;
                                     if let Err(error) = session_setup.and_then(|(session, totals, context_limit)| {
                                         send_session_setup_notifications(
                                             &cx_clone,
@@ -420,9 +420,9 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                             match agent.on_fork_session(&cx_spawn, req).await {
                                 Ok(response) => {
                                     let session_id = response.session_id.0.to_string();
+                                    responder.respond(response)?;
                                     let session_setup =
                                         agent.prepare_session_setup_by_id(&session_id).await;
-                                    responder.respond(response)?;
                                     if let Err(error) = session_setup.and_then(|(session, totals, context_limit)| {
                                         send_session_setup_notifications(
                                             &cx_spawn,
