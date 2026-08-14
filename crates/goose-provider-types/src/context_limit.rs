@@ -23,7 +23,11 @@ impl ContextLimitResolver {
         mut self,
         configured_limits: impl IntoIterator<Item = (String, usize)>,
     ) -> Self {
-        self.configured_limits.extend(configured_limits);
+        self.configured_limits.extend(
+            configured_limits
+                .into_iter()
+                .filter(|(_, context_limit)| *context_limit > 0),
+        );
         self
     }
 
@@ -94,6 +98,17 @@ mod tests {
                 .resolve("claude-sonnet-4-5", None, || async { Ok(Some(16_000)) })
                 .await,
             64_000
+        );
+    }
+
+    #[test]
+    fn ignores_zero_configured_limits() {
+        let resolver = ContextLimitResolver::new("unknown-provider")
+            .with_configured_limits([("configured".to_string(), 0)]);
+
+        assert_eq!(
+            resolver.resolve_local("configured", None),
+            DEFAULT_CONTEXT_LIMIT
         );
     }
 
