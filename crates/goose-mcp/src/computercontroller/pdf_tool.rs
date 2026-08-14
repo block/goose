@@ -6,7 +6,7 @@ use std::path::Path;
 pub async fn pdf_tool(
     path: &str,
     operation: &str,
-    cache: Option<(&Dir, &Path)>,
+    cache: Option<&Dir>,
 ) -> Result<Vec<ContentBlock>, ErrorData> {
     // Open and parse the PDF file
     let doc = Document::load(path).map_err(|e| {
@@ -118,7 +118,7 @@ pub async fn pdf_tool(
         }
 
         "extract_images" => {
-            let (cache_dir, cache_dir_path) = cache.ok_or_else(|| {
+            let cache_dir = cache.ok_or_else(|| {
                 ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
                     "Cache directory is unavailable".to_string(),
@@ -331,7 +331,7 @@ pub async fn pdf_tool(
 
                                         images.push(format!(
                                             "Saved image to: {} ({}x{}, {} bits per component)",
-                                            cache_dir_path.join(&relative_path).display(),
+                                            relative_path.display(),
                                             width,
                                             height,
                                             bpc
@@ -410,7 +410,7 @@ mod tests {
         let result = pdf_tool(
             test_pdf_path.to_str().unwrap(),
             "extract_images",
-            Some((&cache_dir, cache_dir_path.path())),
+            Some(&cache_dir),
         )
         .await;
 
@@ -441,8 +441,12 @@ mod tests {
                 .and_then(|path| path.split(" (").next())
                 .expect("Should have a valid file path");
 
+            assert!(Path::new(file_path).is_relative());
             println!("Verifying image file exists: {}", file_path);
-            assert!(PathBuf::from(file_path).exists(), "Image file should exist");
+            assert!(
+                cache_dir_path.path().join(file_path).exists(),
+                "Image file should exist"
+            );
         }
     }
 

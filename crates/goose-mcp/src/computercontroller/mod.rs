@@ -585,14 +585,12 @@ impl ComputerControllerServer {
               - This is not optimised for complex websites, so don't use this as the first tool.
             cache
               - Manage your cached files
-              - List, view, delete files
+              - List, view, delete files using the relative identifiers returned by this extension
               - Clear all cached data
             The extension automatically manages:
-            - Cache directory: {cache_dir}
             - File organization and cleanup
             "#,
-            os_instructions = os_specific_instructions,
-            cache_dir = cache_dir.display()
+            os_instructions = os_specific_instructions
         };
 
         let mut tool_router = Self::tool_router();
@@ -692,15 +690,15 @@ impl ComputerControllerServer {
         extension: &str,
     ) -> Result<PathBuf, ErrorData> {
         let cache_path = self.get_cache_path(prefix, extension);
-        let relative_path = cache_path.file_name().ok_or_else(|| {
+        let relative_path = PathBuf::from(cache_path.file_name().ok_or_else(|| {
             ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
                 "Invalid cache file name".to_string(),
                 None,
             )
-        })?;
+        })?);
         self.cache_dir_capability()?
-            .write(relative_path, content)
+            .write(&relative_path, content)
             .map_err(|e| {
                 ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
@@ -708,20 +706,41 @@ impl ComputerControllerServer {
                     None,
                 )
             })?;
-        Ok(cache_path)
+        Ok(relative_path)
+    }
+
+    fn cache_resource_uri(cache_path: &Path) -> Result<String, ErrorData> {
+        let mut uri = Url::parse("cache:///").map_err(|_| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                "Failed to create cache resource URI".to_string(),
+                None,
+            )
+        })?;
+        let mut segments = uri.path_segments_mut().map_err(|_| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                "Failed to create cache resource URI".to_string(),
+                None,
+            )
+        })?;
+        for component in cache_path.components() {
+            let std::path::Component::Normal(segment) = component else {
+                return Err(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    "Invalid cache resource path".to_string(),
+                    None,
+                ));
+            };
+            segments.push(&segment.to_string_lossy());
+        }
+        drop(segments);
+        Ok(uri.to_string())
     }
 
     // Helper function to register a file as a resource
-    fn register_as_resource(&self, cache_path: &PathBuf, mime_type: &str) -> Result<(), ErrorData> {
-        let uri = Url::from_file_path(cache_path)
-            .map_err(|_| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    "Invalid cache path".to_string(),
-                    None,
-                )
-            })?
-            .to_string();
+    fn register_as_resource(&self, cache_path: &Path, mime_type: &str) -> Result<(), ErrorData> {
+        let uri = Self::cache_resource_uri(cache_path)?;
 
         let resource = ResourceContents::TextResourceContents {
             uri: uri.clone(),
@@ -1652,9 +1671,7 @@ impl ComputerControllerServer {
         let result = crate::computercontroller::pdf_tool::pdf_tool(
             path,
             operation_str,
-            cache_dir
-                .as_deref()
-                .map(|directory| (directory, self.cache_dir.as_path())),
+            cache_dir.as_deref(),
         )
         .await
         .map_err(|e| ErrorData::new(e.code, e.message, e.data))?;
@@ -1697,7 +1714,7 @@ impl ComputerControllerServer {
                             None,
                         )
                     })?;
-                    files.push(self.cache_dir.join(entry.file_name()).display().to_string());
+                    files.push(entry.file_name().to_string_lossy().into_owned());
                 }
                 files.sort();
                 Ok(CallToolResult::success(vec![ContentBlock::text(format!(
@@ -1757,9 +1774,7 @@ impl ComputerControllerServer {
                         None,
                     )
                 })?;
-                let (cache_dir, relative_path, candidate_path) =
-                    self.cache_file_capability(path)?;
-                let canonical_path = fs::canonicalize(&candidate_path).ok();
+                let (cache_dir, relative_path, _) = self.cache_file_capability(path)?;
 
                 cache_dir.remove_file(&relative_path).map_err(|e| {
                     ErrorData::new(
@@ -1770,12 +1785,8 @@ impl ComputerControllerServer {
                 })?;
 
                 // Remove from active resources if present
-                let mut active_resources = self.active_resources.lock().unwrap();
-                for resource_path in std::iter::once(&candidate_path).chain(canonical_path.as_ref())
-                {
-                    if let Ok(url) = Url::from_file_path(resource_path) {
-                        active_resources.remove(&url.to_string());
-                    }
+                if let Ok(uri) = Self::cache_resource_uri(&relative_path) {
+                    self.active_resources.lock().unwrap().remove(&uri);
                 }
 
                 Ok(CallToolResult::success(vec![ContentBlock::text(format!(
@@ -1945,9 +1956,10 @@ mod cache_tests {
         assert!(relative_result.is_ok());
 
         server
-            .register_as_resource(&cached_file, "text/plain")
+            .register_as_resource(Path::new("nested/result.txt"), "text/plain")
             .unwrap();
-        let resource_url = Url::from_file_path(&cached_file).unwrap().to_string();
+        let resource_url =
+            ComputerControllerServer::cache_resource_uri(Path::new("nested/result.txt")).unwrap();
         assert!(server
             .active_resources
             .lock()
@@ -2062,6 +2074,7 @@ mod cache_tests {
             .save_to_cache(b"new cached content", "new", "txt")
             .await
             .unwrap();
+        assert!(saved_path.is_relative());
         let saved_name = saved_path.file_name().unwrap();
         assert_eq!(
             fs::read_to_string(moved_cache_dir.join(saved_name)).unwrap(),
@@ -2069,11 +2082,24 @@ mod cache_tests {
         );
         assert!(!outside_dir.join(saved_name).exists());
 
+        server
+            .register_as_resource(&saved_path, "text/plain")
+            .unwrap();
+        let resource_uri = ComputerControllerServer::cache_resource_uri(&saved_path).unwrap();
+        assert!(resource_uri.starts_with("cache:///"));
+        assert!(!resource_uri.contains(&cache_dir.display().to_string()));
+        assert!(server
+            .active_resources
+            .lock()
+            .unwrap()
+            .contains_key(&resource_uri));
+
         let list = call_cache(&server, CacheCommand::List, "").await.unwrap();
         let ContentBlock::Text(list) = &list.content[0] else {
             panic!("expected text content");
         };
         assert!(list.text.contains(&saved_path.display().to_string()));
+        assert!(!list.text.contains(&cache_dir.display().to_string()));
 
         call_cache(&server, CacheCommand::Delete, "victim.txt")
             .await
