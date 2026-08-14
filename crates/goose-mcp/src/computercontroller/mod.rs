@@ -23,17 +23,6 @@ mod docx_tool;
 mod pdf_tool;
 mod xlsx_tool;
 
-mod platform;
-use platform::{create_system_automation, SystemAutomation};
-
-/// Parameters for the computer_control tool (Windows, Linux)
-#[cfg(not(target_os = "macos"))]
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
-pub struct ComputerControlParams {
-    /// The automation script content (PowerShell for Windows, shell for Linux)
-    pub script: String,
-}
-
 /// Parameters for the computer_control tool (macOS — Peekaboo CLI passthrough)
 #[cfg(target_os = "macos")]
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
@@ -227,8 +216,6 @@ pub struct ComputerControllerServer {
     tool_router: ToolRouter<Self>,
     cache_dir: PathBuf,
     instructions: String,
-    #[cfg(not(target_os = "macos"))]
-    system_automation: Arc<Box<dyn SystemAutomation + Send + Sync>>,
     #[cfg(target_os = "macos")]
     peekaboo_installed: Arc<AtomicBool>,
 }
@@ -248,7 +235,7 @@ impl ComputerControllerServer {
         // keep previous behavior of defaulting to /tmp/
         let cache_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
             .map(|strategy| strategy.in_cache_dir("computer_controller"))
-            .unwrap_or_else(|_| create_system_automation().get_temp_path());
+            .unwrap_or_else(|_| std::env::temp_dir());
 
         fs::create_dir_all(&cache_dir).unwrap_or_else(|_| {
             println!(
@@ -257,19 +244,8 @@ impl ComputerControllerServer {
             )
         });
 
-        let system_automation: Arc<Box<dyn SystemAutomation + Send + Sync>> =
-            Arc::new(create_system_automation());
-
-        let has_display = system_automation.has_display();
-
-        let os_specific_instructions = match (std::env::consts::OS, has_display) {
-            ("windows", _) => indoc! {r#"
-            Here are some extra tools:
-            computer_control
-              - System automation using PowerShell
-              - Consider the screenshot tool to work out what is on screen and what to do to help with the control task.
-            "#},
-            ("macos", _) => indoc! {r#"
+        #[cfg(target_os = "macos")]
+        let os_specific_instructions = indoc! {r#"
             Here are some extra tools:
             computer_control — Peekaboo CLI for macOS UI automation (auto-installed via Homebrew).
               Peekaboo captures/inspects screens, targets UI elements, drives input, and manages
@@ -358,25 +334,12 @@ impl ComputerControllerServer {
               - Use `--screen-index` for multi-monitor setups
               - If something fails, check `permissions status` for missing permissions
               - Use `capture_screenshot: true` on click/type/press actions to verify the result
-            "#},
-            (_, true) => indoc! {r#"
-            Here are some extra tools:
-            computer_control
-              - System automation using shell commands and system tools
-              - Desktop environment automation (GNOME, KDE, etc.)
-              - Consider the screenshot tool to work out what is on screen and what to do to help with the control task.
+            "#};
 
-            When you need to interact with websites or web applications, consider using tools like xdotool or wmctrl for:
-              - Window management
-              - Simulating keyboard/mouse input
-              - Automating UI interactions
-              - Desktop environment control
-            "#},
-            (_, false) => indoc! {r#"
-            Note: No display server detected (headless mode). The computer_control tool
-            is not available in this environment. Use the shell for automation tasks.
-            "#},
-        };
+        #[cfg(not(target_os = "macos"))]
+        let os_specific_instructions = indoc! {r#"
+            Use the shell (developer extension) for system automation and scripting tasks.
+        "#};
 
         let instructions = formatdoc! {r#"
             You are a helpful assistant to a power user who is not a professional developer, but you may use development tools to help assist them.
@@ -396,17 +359,10 @@ impl ComputerControllerServer {
             os_instructions = os_specific_instructions,
         };
 
-        let mut tool_router = Self::tool_router();
-        if !has_display {
-            tool_router.remove_route("computer_control");
-        }
-
         Self {
-            tool_router,
+            tool_router: Self::tool_router(),
             cache_dir,
             instructions,
-            #[cfg(not(target_os = "macos"))]
-            system_automation,
             #[cfg(target_os = "macos")]
             peekaboo_installed: Arc::new(AtomicBool::new(crate::peekaboo::is_peekaboo_installed())),
         }
@@ -418,29 +374,6 @@ impl ComputerControllerServer {
         let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
         self.cache_dir
             .join(format!("{}_{}.{}", prefix, timestamp, extension))
-    }
-
-    /// Control the computer using system automation
-    #[cfg(target_os = "windows")]
-    #[tool(
-        name = "computer_control",
-        description = "
-            Control the computer using Windows system automation.
-
-            Features available:
-            - PowerShell automation for system control
-            - UI automation through PowerShell
-            - File and system management
-            - Windows-specific features and settings
-
-            Can be combined with screenshot tool for visual task assistance.
-        "
-    )]
-    pub async fn computer_control(
-        &self,
-        params: Parameters<ComputerControlParams>,
-    ) -> Result<CallToolResult, ErrorData> {
-        self.computer_control_impl(params).await
     }
 
     /// Control the computer using Peekaboo CLI for macOS GUI automation.
@@ -470,69 +403,6 @@ impl ComputerControllerServer {
         params: Parameters<ComputerControlParams>,
     ) -> Result<CallToolResult, ErrorData> {
         self.peekaboo_impl(params).await
-    }
-
-    /// Control the computer using system automation
-    #[cfg(target_os = "linux")]
-    #[tool(
-        name = "computer_control",
-        description = "
-            Control the computer using Linux system automation.
-
-            Features available:
-            - Shell scripting for system control
-            - X11/Wayland window management
-            - D-Bus for system services
-            - File and system management
-            - Desktop environment control (GNOME, KDE, etc.)
-            - Process management and monitoring
-            - System settings and configurations
-
-            Can be combined with screenshot tool for visual task assistance.
-        "
-    )]
-    pub async fn computer_control(
-        &self,
-        params: Parameters<ComputerControlParams>,
-    ) -> Result<CallToolResult, ErrorData> {
-        self.computer_control_impl(params).await
-    }
-
-    /// Control the computer using system automation (fallback for other OS)
-    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-    #[tool(
-        name = "computer_control",
-        description = "Control the computer using system automation. Features available depend on your operating system. Can be combined with screenshot tool for visual task assistance."
-    )]
-    pub async fn computer_control(
-        &self,
-        params: Parameters<ComputerControlParams>,
-    ) -> Result<CallToolResult, ErrorData> {
-        self.computer_control_impl(params).await
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    async fn computer_control_impl(
-        &self,
-        params: Parameters<ComputerControlParams>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let params = params.0;
-        let script = &params.script;
-
-        let output = self
-            .system_automation
-            .execute_system_script(script)
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to execute script: {}", e),
-                    None,
-                )
-            })?;
-
-        let result = format!("Script completed successfully.\n\nOutput:\n{}", output);
-
-        Ok(CallToolResult::success(vec![ContentBlock::text(result)]))
     }
 
     #[cfg(target_os = "macos")]

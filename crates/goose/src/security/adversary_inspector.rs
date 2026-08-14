@@ -11,7 +11,7 @@ use crate::conversation::Conversation;
 use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
 use crate::utils::safe_truncate;
 
-const DEFAULT_TOOLS: &[&str] = &["shell", "computercontroller__computer_control"];
+const DEFAULT_TOOLS: &[&str] = &["shell"];
 
 async fn resolve_model_config(
     session_manager: &crate::session::SessionManager,
@@ -67,8 +67,7 @@ struct AdversaryConfig {
 /// ALLOW normal development operations.
 /// ```
 ///
-/// If the `tools:` line is omitted, `shell` and
-/// `computercontroller__computer_control` are reviewed by default.
+/// If the `tools:` line is omitted, only `shell` is reviewed by default.
 /// If the file is absent, this inspector is disabled.
 /// If the review fails, the inspector fails open (allows the tool call).
 pub struct AdversaryInspector {
