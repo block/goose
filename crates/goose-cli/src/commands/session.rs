@@ -90,6 +90,42 @@ fn prompt_interactive_session_removal(sessions: &[Session]) -> Result<Vec<Sessio
     Ok(selected_sessions)
 }
 
+pub async fn handle_session_clear(older_than_days: u32, yes: bool) -> Result<()> {
+    if older_than_days == 0 {
+        return Err(anyhow::anyhow!("--older-than must be greater than 0"));
+    }
+
+    let session_manager = SessionManager::instance();
+    let cutoff = chrono::Utc::now() - chrono::Duration::days(older_than_days as i64);
+
+    if !yes {
+        let should_delete = confirm(format!(
+            "Delete all sessions older than {} day(s) (last activity before {})?",
+            older_than_days,
+            cutoff.format("%Y-%m-%d %H:%M UTC")
+        ))
+        .initial_value(false)
+        .interact()?;
+
+        if !should_delete {
+            println!("Skipping deletion of sessions.");
+            return Ok(());
+        }
+    }
+
+    let deleted = session_manager.delete_sessions_older_than(cutoff).await?;
+    if deleted == 0 {
+        println!("No sessions older than {} day(s) found.", older_than_days);
+    } else {
+        println!(
+            "Removed {} session(s) older than {} day(s).",
+            deleted, older_than_days
+        );
+    }
+
+    Ok(())
+}
+
 pub async fn handle_session_remove(
     session_id: Option<String>,
     name: Option<String>,

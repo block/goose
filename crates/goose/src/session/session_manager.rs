@@ -423,9 +423,24 @@ impl SessionManager {
         session_type: SessionType,
         goose_mode: GooseMode,
     ) -> Result<Session> {
+        self.maybe_spawn_retention_cleanup();
         self.storage
             .create_session(working_dir, name, session_type, goose_mode)
             .await
+    }
+
+    fn maybe_spawn_retention_cleanup(&self) {
+        static CLEANUP_STARTED: std::sync::atomic::AtomicBool =
+            std::sync::atomic::AtomicBool::new(false);
+        if CLEANUP_STARTED.swap(true, std::sync::atomic::Ordering::SeqCst) {
+            return;
+        }
+        let manager = Self {
+            storage: Arc::clone(&self.storage),
+        };
+        tokio::spawn(async move {
+            manager.run_retention_cleanup().await;
+        });
     }
 
     pub async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
@@ -469,6 +484,39 @@ impl SessionManager {
 
     pub async fn delete_session(&self, id: &str) -> Result<()> {
         self.storage.delete_session(id).await
+    }
+
+    /// Deletes all sessions whose last update is older than the cutoff.
+    /// Returns the number of sessions deleted.
+    pub async fn delete_sessions_older_than(&self, cutoff: DateTime<Utc>) -> Result<u64> {
+        self.storage.delete_sessions_older_than(cutoff).await
+    }
+
+    /// Runs retention cleanup if GOOSE_SESSION_RETENTION_DAYS is configured.
+    /// Best-effort: errors are logged, never propagated.
+    pub async fn run_retention_cleanup(&self) {
+        let retention_days =
+            match crate::config::Config::global().get_goose_session_retention_days() {
+                Ok(Some(days)) => days,
+                Ok(None) => return,
+                Err(e) => {
+                    tracing::warn!("Invalid GOOSE_SESSION_RETENTION_DAYS setting: {e}");
+                    return;
+                }
+            };
+
+        let cutoff = Utc::now() - chrono::Duration::days(retention_days as i64);
+        match self.delete_sessions_older_than(cutoff).await {
+            Ok(0) => {}
+            Ok(deleted) => {
+                tracing::info!(
+                    "Session retention cleanup removed {deleted} session(s) older than {retention_days} day(s)"
+                );
+            }
+            Err(e) => {
+                tracing::warn!("Session retention cleanup failed: {e}");
+            }
+        }
     }
 
     pub async fn get_insights(&self) -> Result<SessionInsights> {
@@ -2125,6 +2173,36 @@ impl SessionStorage {
 
         tx.commit().await?;
         Ok(())
+    }
+
+    async fn delete_sessions_older_than(&self, cutoff: DateTime<Utc>) -> Result<u64> {
+        let pool = self.pool().await?;
+        let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+
+        let cutoff_str = cutoff.format("%Y-%m-%d %H:%M:%S").to_string();
+
+        sqlx::query(
+            "DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)",
+        )
+        .bind(&cutoff_str)
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            "DELETE FROM usage_ledger WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)",
+        )
+        .bind(&cutoff_str)
+        .execute(&mut *tx)
+        .await?;
+
+        let deleted = sqlx::query("DELETE FROM sessions WHERE updated_at < ?")
+            .bind(&cutoff_str)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected();
+
+        tx.commit().await?;
+        Ok(deleted)
     }
 
     async fn get_insights(&self, types: &[SessionType]) -> Result<SessionInsights> {
@@ -4567,6 +4645,68 @@ mod tests {
 
         sm.delete_session(&id).await.unwrap();
         assert!(sm.get_session(&id, false).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_delete_sessions_older_than_removes_old_sessions() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+
+        let old_session = new_session(&sm).await;
+        let new_session_id = new_session(&sm).await;
+
+        seed_ledger(&sm, &old_session, &message_usage(100, 20, 0.10, false))
+            .await
+            .unwrap();
+        sm.add_message(&new_session_id, &Message::user().with_text("keep me"))
+            .await
+            .unwrap();
+
+        set_sessions_updated_at(
+            &sm,
+            std::slice::from_ref(&old_session),
+            "2020-01-01T00:00:00Z",
+        )
+        .await;
+
+        let cutoff = Utc::now() - chrono::Duration::days(30);
+        let deleted = sm.delete_sessions_older_than(cutoff).await.unwrap();
+        assert_eq!(deleted, 1);
+
+        assert!(sm.get_session(&old_session, false).await.is_err());
+        assert!(sm.get_session(&new_session_id, false).await.is_ok());
+
+        let pool = sm.storage().pool().await.unwrap();
+        let remaining_messages: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM messages WHERE session_id = ?")
+                .bind(&old_session)
+                .fetch_one(pool)
+                .await
+                .unwrap();
+        assert_eq!(remaining_messages, 0);
+        let remaining_ledger: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM usage_ledger WHERE session_id = ?")
+                .bind(&old_session)
+                .fetch_one(pool)
+                .await
+                .unwrap();
+        assert_eq!(remaining_ledger, 0);
+    }
+
+    #[tokio::test]
+    async fn test_delete_sessions_older_than_retains_recent_sessions() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+
+        let a = new_session(&sm).await;
+        let b = new_session(&sm).await;
+
+        let cutoff = Utc::now() - chrono::Duration::days(7);
+        let deleted = sm.delete_sessions_older_than(cutoff).await.unwrap();
+        assert_eq!(deleted, 0);
+
+        assert!(sm.get_session(&a, false).await.is_ok());
+        assert!(sm.get_session(&b, false).await.is_ok());
     }
 
     #[tokio::test]

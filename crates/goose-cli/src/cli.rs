@@ -546,6 +546,23 @@ enum SessionCommand {
         )]
         regex: Option<String>,
     },
+    #[command(about = "Delete sessions older than a given number of days")]
+    Clear {
+        #[arg(
+            long = "older-than",
+            value_name = "DAYS",
+            help = "Delete sessions whose last activity is older than this many days"
+        )]
+        older_than: u32,
+
+        #[arg(
+            short = 'y',
+            long = "yes",
+            help = "Skip the confirmation prompt",
+            default_value_t = false
+        )]
+        yes: bool,
+    },
     #[command(about = "Export a session")]
     Export {
         #[command(flatten)]
@@ -1541,6 +1558,9 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
                 (None, None)
             };
             handle_session_remove(session_id, name, regex).await?;
+        }
+        SessionCommand::Clear { older_than, yes } => {
+            crate::commands::session::handle_session_clear(older_than, yes).await?;
         }
         SessionCommand::Export {
             identifier,
