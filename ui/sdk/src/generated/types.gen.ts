@@ -170,7 +170,7 @@ export type McpServerAcp = {
      * Providers MUST NOT reuse an ID for multiple ACP-transport MCP servers that are visible
      * on the same ACP connection.
      */
-    id: McpServerAcpId;
+    serverId: McpServerAcpId;
     /**
      * The _meta property is reserved by ACP to allow clients and agents to attach additional
      * metadata to their interactions. Implementations MUST NOT make assumptions about values at
@@ -192,7 +192,7 @@ export type McpServerStdio = {
      */
     name: string;
     /**
-     * Path to the MCP server executable.
+     * Absolute path to the MCP server executable.
      */
     command: string;
     /**
@@ -2622,6 +2622,7 @@ export type MessageUsageUpdate = {
 export type RequestRecipeParams_unstable = {
     sessionId: string;
     parameters: Array<RecipeParameterDto>;
+    parameterScopeId?: string | null;
 };
 
 export type RecipeParamsResponse_unstable = {

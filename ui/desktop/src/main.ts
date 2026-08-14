@@ -1,4 +1,4 @@
-import type { OpenDialogOptions, OpenDialogReturnValue } from 'electron';
+import type { IpcMainInvokeEvent, OpenDialogOptions, OpenDialogReturnValue } from 'electron';
 import {
   app,
   App,
@@ -56,6 +56,12 @@ import type { GooseApp } from './types/apps';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { buildCSP } from './utils/csp';
+import { resolveWorkingDir } from './utils/workingDir';
+import {
+  DesktopFileAccess,
+  isAuthorizedFileAccessRequest,
+  readSelectedRecipe,
+} from './desktopFileAccess';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -500,14 +506,20 @@ if (process.platform !== 'darwin') {
         handleProtocolUrl(protocolUrl, parsedUrl);
       }
 
-      // Only focus existing windows for non-bot/recipe URLs
-      const existingWindows = BrowserWindow.getAllWindows();
-      if (existingWindows.length > 0) {
-        const mainWindow = existingWindows[0];
+      // Only focus existing regular windows for non-bot/recipe URLs
+      const regularWindows = getRegularWindows();
+      if (regularWindows.length > 0) {
+        const mainWindow = regularWindows[0];
         if (mainWindow.isMinimized()) {
           mainWindow.restore();
         }
         mainWindow.focus();
+      } else if (!protocolUrl) {
+        app.whenReady().then(async () => {
+          const recentDirs = loadRecentDirs();
+          const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+          await createChat(app, { dir: openDir || undefined });
+        });
       }
     });
   }
@@ -645,10 +657,10 @@ async function handleProtocolUrl(url: string, parsedUrl: URL) {
     if (!targetWindow) return;
     await processProtocolUrl(url, parsedUrl, targetWindow);
   } else {
-    const existingWindows = BrowserWindow.getAllWindows();
+    const regularWindows = getRegularWindows();
     let targetWindow: BrowserWindow | undefined;
-    if (existingWindows.length > 0) {
-      targetWindow = existingWindows[0];
+    if (regularWindows.length > 0) {
+      targetWindow = regularWindows[0];
       if (targetWindow.isMinimized()) {
         targetWindow.restore();
       }
@@ -743,10 +755,10 @@ app.on('open-url', async (_event, url) => {
       return;
     }
 
-    // For extension/session URLs, send to existing window or store pending for new one
-    const existingWindows = BrowserWindow.getAllWindows();
-    if (existingWindows.length > 0) {
-      const targetWindow = existingWindows[0];
+    // For extension/session URLs, send to an existing regular window or open one
+    const regularWindows = getRegularWindows();
+    if (regularWindows.length > 0) {
+      const targetWindow = regularWindows[0];
       if (targetWindow.isMinimized()) targetWindow.restore();
       targetWindow.focus();
       if (parsedUrl.hostname === 'extension' || parsedUrl.hostname === 'sessions') {
@@ -890,6 +902,7 @@ interface ExternalBackend {
   url: string;
   secret: string;
   certFingerprint?: string;
+  workingDir?: string;
 }
 
 const getExternalBackendUrlFromEnv = (): string | null => {
@@ -936,7 +949,10 @@ const getServerSecret = (settings: Settings): string => {
 const getActiveExternalBackend = (settings: Settings): ExternalBackend | null => {
   const envBackend = getExternalBackendFromEnv();
   if (envBackend) {
-    return envBackend;
+    return {
+      ...envBackend,
+      workingDir: settings.externalGoosed?.workingDir,
+    };
   }
 
   if (settings.externalGoosed?.enabled && settings.externalGoosed.url) {
@@ -945,6 +961,7 @@ const getActiveExternalBackend = (settings: Settings): ExternalBackend | null =>
       url: settings.externalGoosed.url,
       secret: getServerSecret(settings),
       certFingerprint: settings.externalGoosed.certFingerprint,
+      workingDir: settings.externalGoosed.workingDir,
     };
   }
 
@@ -980,6 +997,31 @@ let appConfig = {
 
 const windowMap = new Map<number, BrowserWindow>();
 const appWindows = new Map<string, BrowserWindow>();
+const desktopFileAccess = new DesktopFileAccess();
+
+function requireRegularRendererWindow(event: IpcMainInvokeEvent): BrowserWindow {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  const senderFrame = event.senderFrame;
+  if (
+    !senderWindow ||
+    !senderFrame ||
+    !isAuthorizedFileAccessRequest(
+      {
+        isRegisteredWindow: windowMap.get(senderWindow.id) === senderWindow,
+        isMainFrame: senderFrame === event.sender.mainFrame,
+        rendererUrl: senderFrame.url,
+      },
+      getAppUrl()
+    )
+  ) {
+    throw new Error('This renderer is not authorized for local file access');
+  }
+  return senderWindow;
+}
+
+function getRegularWindows(): BrowserWindow[] {
+  return [...windowMap.values()].filter((w) => !w.isDestroyed());
+}
 
 const gooseServeLeases = new GooseServeLeaseRegistry(log);
 
@@ -1068,7 +1110,7 @@ const createChat = async (
   }
 
   const serverSecret = externalBackend ? externalBackend.secret : GENERATED_SECRET;
-  let workingDir = dir || os.homedir();
+  let workingDir = resolveWorkingDir(externalBackend?.workingDir, dir, os.homedir());
   let gooseServeLease: GooseServeLease | null = null;
 
   if (externalBackend) {
@@ -1444,6 +1486,40 @@ const createChat = async (
       mainWindow.show();
     }
   });
+
+  await desktopFileAccess.bindWindow(windowId, workingDir);
+  if (mainWindow.isDestroyed()) {
+    desktopFileAccess.unbindWindow(windowId);
+    return;
+  }
+  windowMap.set(windowId, mainWindow);
+
+  // Handle window closure
+  mainWindow.on('closed', () => {
+    windowMap.delete(windowId);
+    desktopFileAccess.unbindWindow(windowId);
+
+    pendingInitialMessages.delete(windowId);
+    pendingDeepLinks.delete(windowId);
+    reactReadyWindows.delete(windowId);
+
+    if (windowPowerSaveBlockers.has(windowId)) {
+      const blockerId = windowPowerSaveBlockers.get(windowId)!;
+      try {
+        powerSaveBlocker.stop(blockerId);
+        console.log(
+          `[Main] Stopped power save blocker ${blockerId} for closing window ${windowId}`
+        );
+      } catch (error) {
+        console.error(
+          `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
+          error
+        );
+      }
+      windowPowerSaveBlockers.delete(windowId);
+    }
+  });
+
   mainWindow.loadURL(formattedUrl);
 
   // If we have an initial message, store it to send after React is ready
@@ -1492,32 +1568,6 @@ const createChat = async (
     }
   });
 
-  windowMap.set(windowId, mainWindow);
-
-  // Handle window closure
-  mainWindow.on('closed', () => {
-    windowMap.delete(windowId);
-
-    pendingInitialMessages.delete(windowId);
-    pendingDeepLinks.delete(windowId);
-    reactReadyWindows.delete(windowId);
-
-    if (windowPowerSaveBlockers.has(windowId)) {
-      const blockerId = windowPowerSaveBlockers.get(windowId)!;
-      try {
-        powerSaveBlocker.stop(blockerId);
-        console.log(
-          `[Main] Stopped power save blocker ${blockerId} for closing window ${windowId}`
-        );
-      } catch (error) {
-        console.error(
-          `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
-          error
-        );
-      }
-      windowPowerSaveBlockers.delete(windowId);
-    }
-  });
   return mainWindow;
 };
 
@@ -1946,6 +1996,7 @@ const validSettingKeys: Set<string> = new Set([
   'showPricing',
   'seenAnnouncementIds',
   'disableAutoDownload',
+  'recentModels',
 ]);
 
 ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
@@ -2204,6 +2255,43 @@ ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) 
   return null;
 });
 
+ipcMain.handle('select-recipe-file', async (event) => {
+  const senderWindow = requireRegularRendererWindow(event);
+  const pathRoot = appConfig.GOOSE_PATH_ROOT as string | undefined;
+  const recipeDirectory = pathRoot
+    ? path.join(pathRoot, 'config', 'recipes')
+    : path.join(os.homedir(), '.config', 'goose', 'recipes');
+  let defaultPath = os.homedir();
+  try {
+    if ((await fs.stat(recipeDirectory)).isDirectory()) {
+      defaultPath = recipeDirectory;
+    }
+  } catch {
+    // The recipe directory is optional; the native picker falls back to the home directory.
+  }
+
+  const result = await dialog.showOpenDialog(senderWindow, {
+    title: 'Select a recipe',
+    defaultPath,
+    properties: ['openFile'],
+    filters: [{ name: 'YAML recipes', extensions: ['yaml', 'yml'] }],
+  });
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+  return readSelectedRecipe(result.filePaths[0]);
+});
+
+ipcMain.handle('read-goosehints', async (event) => {
+  const senderWindow = requireRegularRendererWindow(event);
+  return desktopFileAccess.readGoosehints(senderWindow.id);
+});
+
+ipcMain.handle('write-goosehints', async (event, content) => {
+  const senderWindow = requireRegularRendererWindow(event);
+  return desktopFileAccess.writeGoosehints(senderWindow.id, content);
+});
+
 // Native picker tailored for session imports: shows hidden files (so users can
 // reach `~/.claude/projects/...` or `~/.pi/agent/sessions/...`), filters for
 // .json/.jsonl, and returns the file's contents inline so the renderer doesn't
@@ -2283,46 +2371,6 @@ ipcMain.handle('check-ollama', async () => {
   } catch (err) {
     console.error('Error checking for Ollama:', err);
     return false;
-  }
-});
-
-ipcMain.handle('read-file', async (_event, filePath) => {
-  try {
-    const expandedPath = expandTilde(filePath);
-    if (process.platform === 'win32') {
-      const buffer = await fs.readFile(expandedPath);
-      return { file: buffer.toString('utf8'), filePath: expandedPath, error: null, found: true };
-    }
-    // Non-Windows: keep previous behavior via cat for parity
-    return await new Promise((resolve) => {
-      const cat = spawn('cat', [expandedPath]);
-      let output = '';
-      let errorOutput = '';
-
-      cat.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-
-      cat.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-      });
-
-      cat.on('close', (code) => {
-        if (code !== 0) {
-          resolve({ file: '', filePath: expandedPath, error: errorOutput || null, found: false });
-          return;
-        }
-        resolve({ file: output, filePath: expandedPath, error: null, found: true });
-      });
-
-      cat.on('error', (error) => {
-        console.error('Error reading file:', error);
-        resolve({ file: '', filePath: expandedPath, error, found: false });
-      });
-    });
-  } catch (error) {
-    console.error('Error reading file:', error);
-    return { file: '', filePath: expandTilde(filePath), error, found: false };
   }
 });
 
@@ -3003,7 +3051,17 @@ async function appMain() {
         throw new Error('No backend lease found for launching window');
       }
 
-      const workingDir = app.getPath('home');
+      const launchingWorkingDir = await launchingWindow.webContents
+        .executeJavaScript(`window.appConfig ? window.appConfig.get('GOOSE_WORKING_DIR') : null`)
+        .catch((error) => {
+          console.warn('Failed to get working directory from launching window:', error);
+          return undefined;
+        });
+      const workingDir = resolveWorkingDir(
+        typeof launchingWorkingDir === 'string' ? launchingWorkingDir : undefined,
+        undefined,
+        app.getPath('home')
+      );
       const appWindow = new BrowserWindow({
         title: formatAppName(gooseApp.name),
         width: gooseApp.width ?? 800,

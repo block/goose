@@ -6,7 +6,12 @@ import type {
   ProviderTemplateCatalogEntryDto,
   ProviderTemplateDto,
 } from '@aaif/goose-sdk';
-import type { ProviderDetails, ThinkingEffort, UpdateCustomProviderRequest } from '../types/providers';
+import { methods } from '@agentclientprotocol/sdk';
+import type {
+  ProviderDetails,
+  ThinkingEffort,
+  UpdateCustomProviderRequest,
+} from '../types/providers';
 import { getAcpClient } from './acpConnection';
 
 export type { CanonicalModelInfoDto, ProviderSecretDto };
@@ -260,20 +265,20 @@ export async function acpSetSessionProviderModel(
   thinkingEffort?: ThinkingEffort | null
 ): Promise<AppliedSessionProviderModel> {
   const client = await getAcpClient();
-  let response = await client.setSessionConfigOption({
+  let response = await client.connection.agent.request(methods.agent.session.setConfigOption, {
     sessionId,
     configId: 'provider',
     value: providerId,
   });
   if (modelId) {
-    response = await client.setSessionConfigOption({
+    response = await client.connection.agent.request(methods.agent.session.setConfigOption, {
       sessionId,
       configId: 'model',
       value: modelId,
     });
   }
   if (thinkingEffort != null) {
-    response = await client.setSessionConfigOption({
+    response = await client.connection.agent.request(methods.agent.session.setConfigOption, {
       sessionId,
       configId: 'thinking_effort',
       value: thinkingEffort,

@@ -23,6 +23,18 @@ const INHERITED_SESSION_PARAM_KEYS: &[&str] = &[
     "preserve_unsigned_thinking",
 ];
 
+/// Request params goose consumes itself: formats that forward unknown params into
+/// the payload must skip these, or the provider gets an unrecognized wire parameter.
+pub fn is_goose_internal_request_param(key: &str) -> bool {
+    matches!(
+        key,
+        "thinking_effort"
+            | "disable_prompt_cache"
+            | "preserve_thinking_context"
+            | "preserve_unsigned_thinking"
+    )
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ModelConfig {
     pub model_name: String,
@@ -298,6 +310,18 @@ impl ModelConfig {
     pub fn thinking_effort(&self) -> Option<ThinkingEffort> {
         self.request_param::<String>("thinking_effort")
             .and_then(|s| s.parse::<ThinkingEffort>().ok())
+    }
+
+    pub fn with_prompt_cache_disabled(self) -> Self {
+        self.with_merged_request_params(HashMap::from([(
+            "disable_prompt_cache".to_string(),
+            Value::Bool(true),
+        )]))
+    }
+
+    pub fn prompt_cache_disabled(&self) -> bool {
+        self.request_param::<bool>("disable_prompt_cache")
+            .unwrap_or(false)
     }
 
     pub fn request_param<T: for<'de> serde::Deserialize<'de>>(

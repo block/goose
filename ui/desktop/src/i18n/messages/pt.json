@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "Conexão perdida. Reconectando…"
   },
+  "baseChat.retry": {
+    "defaultMessage": "Tentar novamente"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extensão atualizada"
   },
@@ -1225,6 +1228,15 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Conecte-se a um servidor goose em execução em outro lugar (requer reinicialização do app)"
+  },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "Diretório de trabalho remoto (opcional)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "Caminho absoluto no backend externo. Deixe em branco para enviar o diretório de trabalho local."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
   },
   "goosehintsModal.close": {
     "defaultMessage": "Fechar"
@@ -4612,5 +4624,8 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "Remover imagem da mensagem"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "Recentes"
   }
 }

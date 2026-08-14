@@ -5,7 +5,6 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { CronPicker } from './CronPicker';
 import { Recipe, parseDeeplink, parseRecipeFromFile } from '../../recipe';
-import { getStorageDirectory } from '../../recipe/recipe_management';
 import ClockIcon from '../../assets/clock-icon.svg';
 import { defineMessages, useIntl } from '../../i18n';
 
@@ -129,15 +128,13 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   }, [isOpen, schedule, initialDeepLink, handleDeepLinkChange]);
 
   const handleBrowseFile = async () => {
-    const defaultPath = getStorageDirectory(true);
-    const filePath = await window.electron.selectFileOrDirectory(defaultPath);
-    if (filePath) {
-      if (filePath.endsWith('.yaml') || filePath.endsWith('.yml')) {
-        setRecipeSourcePath(filePath);
+    const fileResponse = await window.electron.selectRecipeFile();
+    if (fileResponse) {
+      if (fileResponse.filePath.endsWith('.yaml') || fileResponse.filePath.endsWith('.yml')) {
+        setRecipeSourcePath(fileResponse.filePath);
         setInternalValidationError(null);
 
         try {
-          const fileResponse = await window.electron.readFile(filePath);
           if (!fileResponse.found || fileResponse.error) {
             throw new Error(intl.formatMessage(i18n.failedReadFile));
           }

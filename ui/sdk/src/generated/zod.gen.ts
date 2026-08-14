@@ -67,7 +67,7 @@ export const zMcpServerAcpId = z.string();
  */
 export const zMcpServerAcp = z.object({
     name: z.string(),
-    id: zMcpServerAcpId,
+    serverId: zMcpServerAcpId,
     _meta: z.union([
         z.record(z.unknown()),
         z.null()
@@ -2811,7 +2811,11 @@ export const zGooseSessionNotification_unstable = z.object({
 
 export const zRequestRecipeParams_unstable = z.object({
     sessionId: z.string(),
-    parameters: z.array(zRecipeParameterDto)
+    parameters: z.array(zRecipeParameterDto),
+    parameterScopeId: z.union([
+        z.string(),
+        z.null()
+    ]).optional()
 });
 
 export const zRecipeParamsAction = z.enum(['submit', 'cancel']);

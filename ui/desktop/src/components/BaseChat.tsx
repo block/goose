@@ -8,6 +8,7 @@ import ProgressiveMessageList from './ProgressiveMessageList';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ChatInputCard } from './ChatInputCard';
+import { Button } from './ui/button';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { useFileDrop } from '../hooks/useFileDrop';
 import { ChatState } from '../types/chatState';
@@ -44,6 +45,10 @@ const i18n = defineMessages({
   goHome: {
     id: 'baseChat.goHome',
     defaultMessage: 'Go home',
+  },
+  retry: {
+    id: 'baseChat.retry',
+    defaultMessage: 'Retry',
   },
   reconnecting: {
     id: 'baseChat.reconnecting',
@@ -106,6 +111,7 @@ export default function BaseChat({
     onSteerQueuedMessage,
     submitElicitationResponse,
     stopStreaming,
+    retrySessionLoad,
     sessionLoadError,
     tokenState,
     notifications: toolCallNotifications,
@@ -384,14 +390,14 @@ export default function BaseChat({
                   </h3>
                   <p className="text-sm">{sessionLoadError}</p>
                 </div>
-                <button
-                  onClick={() => {
-                    setView('chat');
-                  }}
-                  className="px-4 py-2 text-center cursor-pointer text-text-primary border border-border-primary hover:bg-background-secondary rounded-lg transition-all duration-150"
-                >
-                  {intl.formatMessage(i18n.goHome)}
-                </button>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => void retrySessionLoad()}>
+                    {intl.formatMessage(i18n.retry)}
+                  </Button>
+                  <Button variant="outline" onClick={() => setView('chat')}>
+                    {intl.formatMessage(i18n.goHome)}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -493,7 +499,7 @@ export default function BaseChat({
 
         <ChatInputCard
           className={cn(
-            'relative z-10 mx-4 mb-4',
+            'relative z-30 mx-4 mb-4',
             !disableAnimation && 'animate-[fadein_400ms_ease-in_forwards]'
           )}
         >

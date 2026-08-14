@@ -449,7 +449,7 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                             }
                             Dispatch::Response(result, router) => {
                                 debug!(method = %router.method(), id = %router.id(), ok = result.is_ok(), "routing response");
-                                router.respond_with_result(result)?;
+                                router.route_with_result(result)?;
                                 Ok(())
                             }
                             Dispatch::Notification(notif) => {

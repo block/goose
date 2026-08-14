@@ -110,10 +110,7 @@ pub async fn assert_session_response_precedes_available_commands(
     method: &str,
     params: serde_json::Value,
 ) {
-    let agent_client_protocol::ByteStreams {
-        mut outgoing,
-        incoming,
-    } = transport;
+    let (mut outgoing, incoming) = transport.into_parts();
     let mut incoming = BufReader::new(incoming).lines();
 
     let initialize = serde_json::json!({
@@ -344,7 +341,7 @@ impl Connection for AcpServerConnection {
                         },
                         agent_client_protocol::on_receive_request!(),
                     )
-                    .connect_with(transport, {
+                    .connect_with(transport.into_byte_streams(), {
                         let cx_holder = cx_holder_clone;
                         async move |cx: ConnectionTo<Agent>| {
                             let resp = cx
@@ -542,8 +539,7 @@ impl Connection for AcpServerConnection {
     }
 
     fn reset_permissions(&self) {
-        // "" matches all extensions, clearing all stored permission decisions
-        self.permission_manager.remove_extension("");
+        self.permission_manager.clear_permissions();
     }
 }
 

@@ -1,7 +1,12 @@
-import type { SessionInfo } from '@agentclientprotocol/sdk';
+import { methods, type SessionInfo } from '@agentclientprotocol/sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getAcpClient } from '../acpConnection';
-import { acpGetSessionListItem, acpLoadSession, sessionInfoToSession } from '../sessions';
+import {
+  acpGetSessionListItem,
+  acpLoadSession,
+  acpNewSession,
+  sessionInfoToSession,
+} from '../sessions';
 
 vi.mock('../acpConnection', () => ({
   getAcpClient: vi.fn(),
@@ -49,13 +54,17 @@ describe('ACP sessions', () => {
       },
     });
     const client = {
+      connection: {
+        agent: {
+          request: vi.fn().mockResolvedValue({}),
+        },
+      },
       goose: {
         sessionInfo_unstable: vi
           .fn()
           .mockResolvedValueOnce({ session: sessionInfo() })
           .mockResolvedValueOnce({ session: loadedSessionInfo }),
       },
-      loadSession: vi.fn().mockResolvedValue({}),
     };
     vi.mocked(getAcpClient).mockResolvedValue(
       client as unknown as Awaited<ReturnType<typeof getAcpClient>>
@@ -63,7 +72,7 @@ describe('ACP sessions', () => {
 
     const result = await acpLoadSession('session-1');
 
-    expect(client.loadSession).toHaveBeenCalledWith({
+    expect(client.connection.agent.request).toHaveBeenCalledWith(methods.agent.session.load, {
       sessionId: 'session-1',
       cwd: '/tmp',
       mcpServers: [],
@@ -74,6 +83,38 @@ describe('ACP sessions', () => {
     expect(sessionInfoToSession(result.sessionInfo).model_config?.model_name).toBe(
       'claude-sonnet-4-5'
     );
+  });
+
+  it('carries the recipe parameter scope id in new-session metadata', async () => {
+    const createdSessionInfo = sessionInfo();
+    const client = {
+      connection: {
+        agent: {
+          request: vi.fn().mockResolvedValue({ sessionId: 'session-1' }),
+        },
+      },
+      goose: {
+        sessionInfo_unstable: vi.fn().mockResolvedValue({ session: createdSessionInfo }),
+      },
+    };
+    vi.mocked(getAcpClient).mockResolvedValue(
+      client as unknown as Awaited<ReturnType<typeof getAcpClient>>
+    );
+
+    await acpNewSession('/tmp', [], {
+      recipeDeeplink: 'goose://recipe?url=example',
+      recipeParameterScopeId: 'scope-1',
+    });
+
+    expect(client.connection.agent.request).toHaveBeenCalledWith(methods.agent.session.new, {
+      cwd: '/tmp',
+      mcpServers: [],
+      _meta: {
+        client: 'goose-desktop',
+        recipeDeeplink: 'goose://recipe?url=example',
+        recipeParameterScopeId: 'scope-1',
+      },
+    });
   });
 
   it('returns a list item from ACP session info', async () => {

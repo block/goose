@@ -279,6 +279,7 @@ impl Provider for OpenRouterProvider {
 
         if CacheSemantics::for_model(OPENROUTER_PROVIDER_NAME, &model_config.model_name)
             .uses_explicit_breakpoints()
+            && !model_config.prompt_cache_disabled()
         {
             apply_chat_payload_breakpoints(&mut payload);
         }

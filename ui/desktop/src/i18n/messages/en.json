@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "Connection lost. Reconnecting…"
   },
+  "baseChat.retry": {
+    "defaultMessage": "Retry"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extension Updated"
   },
@@ -1225,6 +1228,15 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Connect to an ACP-compatible backend running elsewhere."
+  },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "Remote Working Directory (optional)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "Absolute path on the external backend. Leave blank to send the local working directory."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
   },
   "goosehintsModal.close": {
     "defaultMessage": "Close"
@@ -2320,6 +2332,9 @@
   },
   "modelsBottomBar.localModelSettingsTitle": {
     "defaultMessage": "Local Model Settings — {modelName}"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "Recent"
   },
   "modelsBottomBar.resolvedModel": {
     "defaultMessage": "Resolved model"

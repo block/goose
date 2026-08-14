@@ -342,6 +342,34 @@ mod tests {
     }
 
     #[test]
+    fn sanitizes_unicode_tags_in_function_call_output() {
+        let jsonl = [
+            serde_json::json!({
+                "timestamp": "2026-05-22T13:37:22Z",
+                "type": "session_meta",
+                "payload": {"id": "s", "cwd": "/w"}
+            })
+            .to_string(),
+            serde_json::json!({
+                "timestamp": "2026-05-22T13:37:23Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call_output",
+                    "call_id": "call_1",
+                    "output": "visible\u{E0041}世界"
+                }
+            })
+            .to_string(),
+        ]
+        .join("\n");
+
+        let json = convert(&jsonl).unwrap();
+
+        assert!(json.contains("visible世界"));
+        assert!(!json.contains('\u{E0041}'));
+    }
+
+    #[test]
     fn first_user_text_skips_context_blobs() {
         let jsonl = r#"{"timestamp":"2026-05-22T13:37:22Z","type":"session_meta","payload":{"id":"s","cwd":"/w"}}
 {"timestamp":"2026-05-22T13:37:23Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<environment_context>\n  <cwd>/w</cwd>\n</environment_context>"}]}}

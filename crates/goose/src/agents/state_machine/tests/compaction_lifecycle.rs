@@ -82,10 +82,11 @@ async fn proactive_and_manual_compaction_continue_with_replaced_usage() -> Resul
         state_machine::StateMachine::new(Vec::new(), tokio_util::sync::CancellationToken::new());
     let (tx, _rx) = tokio::sync::mpsc::channel(4);
     let emit = state_machine::Emitter::new(tx, tokio_util::sync::CancellationToken::new());
-    let apply = async |effects: Vec<state_machine::StateEffect>| -> Result<()> {
+    let apply = async |effects: Vec<state_machine::GooseEffect>| -> Result<()> {
         let session = pipeline.session().await?;
         let mut result = state_machine::StepResult {
             effects,
+            applied_step: None,
             yield_to_client: false,
         };
         machine
@@ -113,7 +114,7 @@ async fn proactive_and_manual_compaction_continue_with_replaced_usage() -> Resul
     );
     apply(vec![
         replacement.into(),
-        state_machine::StateEffect::RecordUsage(usage),
+        state_machine::GooseEffect::RecordUsage(usage),
         Message::assistant()
             .with_text("response after replacement")
             .into(),

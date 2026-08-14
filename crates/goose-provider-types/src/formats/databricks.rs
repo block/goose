@@ -1,10 +1,10 @@
 use crate::cache_semantics::{apply_chat_payload_breakpoints, CacheSemantics};
 use crate::conversation::message::{Message, MessageContentBlock};
 use crate::formats::anthropic::{
-    adaptive_output_effort, model_supports_temperature, thinking_budget_tokens,
-    thinking_type_for_provider, ThinkingType,
+    adaptive_output_effort, model_supports_temperature, thinking_block_is_stale,
+    thinking_budget_tokens, thinking_type_for_provider, ThinkingType,
 };
-use crate::model::ModelConfig;
+use crate::model::{is_goose_internal_request_param, ModelConfig};
 
 use crate::formats::openai::{
     extract_reasoning_effort, is_openai_responses_model, is_valid_function_name,
@@ -104,13 +104,14 @@ fn format_tool_response(
     result
 }
 
-/// Convert internal Message format to Databricks' API message specification
-///   Databricks is mostly OpenAI compatible, but has some differences (reasoning type, etc)
-///   some openai compatible endpoints use the anthropic image spec at the content level
-///   even though the message structure is otherwise following openai, the enum switches this
-fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<DatabricksMessage> {
+fn format_messages(
+    messages: &[Message],
+    image_format: &ImageFormat,
+    current_model: Option<&str>,
+) -> Vec<DatabricksMessage> {
     let mut result = Vec::new();
     for message in messages {
+        let thinking_is_stale = thinking_block_is_stale(message, current_model);
         let mut converted = DatabricksMessage {
             content: Value::Null,
             role: match message.role {
@@ -137,22 +138,26 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                     }
                 }
                 MessageContentBlock::Thinking(content) => {
-                    has_multiple_content = true;
-                    content_array.push(json!({
-                        "type": "reasoning",
-                        "summary": [{
-                            "type": "summary_text",
-                            "text": content.thinking,
-                            "signature": content.signature
-                        }]
-                    }));
+                    if !thinking_is_stale {
+                        has_multiple_content = true;
+                        content_array.push(json!({
+                            "type": "reasoning",
+                            "summary": [{
+                                "type": "summary_text",
+                                "text": content.thinking,
+                                "signature": content.signature
+                            }]
+                        }));
+                    }
                 }
                 MessageContentBlock::RedactedThinking(content) => {
-                    has_multiple_content = true;
-                    content_array.push(json!({
-                        "type": "reasoning",
-                        "summary": [{"type": "summary_encrypted_text", "data": content.data}]
-                    }));
+                    if !thinking_is_stale {
+                        has_multiple_content = true;
+                        content_array.push(json!({
+                            "type": "reasoning",
+                            "summary": [{"type": "summary_encrypted_text", "data": content.data}]
+                        }));
+                    }
                 }
                 MessageContentBlock::ToolRequest(request) => {
                     has_tool_calls = true;
@@ -527,7 +532,7 @@ pub fn create_request_for_provider(
         tool_call_id: None,
     };
 
-    let messages_spec = format_messages(messages, image_format);
+    let messages_spec = format_messages(messages, image_format, Some(&model_config.model_name));
     let mut tools_spec = if !tools.is_empty() {
         format_tools(tools, &model_config.model_name)?
     } else {
@@ -579,6 +584,7 @@ pub fn create_request_for_provider(
     }
 
     if CacheSemantics::for_model("databricks", &model_config.model_name).uses_explicit_breakpoints()
+        && !model_config.prompt_cache_disabled()
     {
         apply_chat_payload_breakpoints(&mut payload);
     }
@@ -587,7 +593,7 @@ pub fn create_request_for_provider(
     if let Some(params) = &model_config.request_params {
         if let Some(obj) = payload.as_object_mut() {
             for (key, value) in params {
-                if key == "thinking_effort" {
+                if is_goose_internal_request_param(key) {
                     continue;
                 }
                 obj.insert(key.clone(), value.clone());
@@ -601,7 +607,7 @@ pub fn create_request_for_provider(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::conversation::message::Message;
+    use crate::conversation::message::{Message, MessageContent};
     use rmcp::model::CallToolResult;
     use rmcp::object;
     use serde_json::json;
@@ -629,12 +635,119 @@ mod tests {
     #[test]
     fn test_format_messages() -> anyhow::Result<()> {
         let message = Message::user().with_text("Hello");
-        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        let spec = format_messages(&[message], &ImageFormat::OpenAi, None);
 
         assert_eq!(spec.len(), 1);
         assert_eq!(spec[0].role, "user");
         assert_eq!(spec[0].content, "Hello");
         Ok(())
+    }
+
+    #[test]
+    fn keeps_reasoning_block_from_the_same_model() {
+        use crate::conversation::message::InferenceMetadata;
+        let message = Message::assistant()
+            .with_content(MessageContent::thinking("internal", "sig-xyz"))
+            .with_text("answer")
+            .with_inference(InferenceMetadata {
+                provider: "databricks".to_string(),
+                requested_model: "databricks-claude-opus-4-1".to_string(),
+                resolved_model: None,
+                provider_session_id: None,
+            });
+
+        let spec = format_messages(
+            &[message],
+            &ImageFormat::OpenAi,
+            Some("databricks-claude-opus-4-1"),
+        );
+        let has_reasoning = spec[0]
+            .content
+            .as_array()
+            .map(|a| a.iter().any(|c| c["type"] == "reasoning"))
+            .unwrap_or(false);
+        assert!(has_reasoning, "same-model reasoning must be kept");
+    }
+
+    #[test]
+    fn drops_reasoning_block_from_a_different_model() {
+        use crate::conversation::message::InferenceMetadata;
+        let message = Message::assistant()
+            .with_content(MessageContent::thinking("internal", "sig-xyz"))
+            .with_text("answer")
+            .with_inference(InferenceMetadata {
+                provider: "databricks".to_string(),
+                requested_model: "databricks-claude-opus-4-1".to_string(),
+                resolved_model: None,
+                provider_session_id: None,
+            });
+
+        let spec = format_messages(
+            &[message],
+            &ImageFormat::OpenAi,
+            Some("databricks-claude-sonnet-4-5"),
+        );
+        let has_reasoning = spec[0]
+            .content
+            .as_array()
+            .map(|a| a.iter().any(|c| c["type"] == "reasoning"))
+            .unwrap_or(false);
+        assert!(!has_reasoning, "stale reasoning block must be dropped");
+        assert_eq!(spec[0].content, Value::String("answer".to_string()));
+    }
+
+    #[test]
+    fn keeps_reasoning_when_endpoint_matches_despite_upstream_resolved_name() {
+        use crate::conversation::message::InferenceMetadata;
+        let message = Message::assistant()
+            .with_content(MessageContent::thinking("internal", "sig-xyz"))
+            .with_text("answer")
+            .with_inference(InferenceMetadata {
+                provider: "databricks".to_string(),
+                requested_model: "databricks-claude-opus-4-1".to_string(),
+                resolved_model: Some("claude-opus-4.1".to_string()),
+                provider_session_id: None,
+            });
+
+        let spec = format_messages(
+            &[message],
+            &ImageFormat::OpenAi,
+            Some("databricks-claude-opus-4-1"),
+        );
+        let has_reasoning = spec[0]
+            .content
+            .as_array()
+            .map(|a| a.iter().any(|c| c["type"] == "reasoning"))
+            .unwrap_or(false);
+        assert!(
+            has_reasoning,
+            "same-endpoint reasoning must be kept even when resolved_model differs"
+        );
+    }
+
+    #[test]
+    fn keeps_reasoning_when_current_model_matches_upstream_resolved_name() {
+        use crate::conversation::message::InferenceMetadata;
+        let message = Message::assistant()
+            .with_content(MessageContent::thinking("internal", "sig-xyz"))
+            .with_text("answer")
+            .with_inference(InferenceMetadata {
+                provider: "databricks".to_string(),
+                requested_model: "my-claude-endpoint".to_string(),
+                resolved_model: Some("claude-opus-4.1".to_string()),
+                provider_session_id: None,
+            });
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi, Some("claude-opus-4.1"));
+        let has_reasoning = spec[0]
+            .content
+            .as_array()
+            .map(|a| a.iter().any(|c| c["type"] == "reasoning"))
+            .unwrap_or(false);
+        assert!(
+            has_reasoning,
+            "reasoning must be kept when current_model matches the upstream resolved_model"
+        );
     }
 
     #[test]
@@ -647,7 +760,7 @@ mod tests {
             )])),
         );
 
-        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        let spec = format_messages(&[message], &ImageFormat::OpenAi, None);
 
         assert_eq!(spec[0].content, "visibletext");
     }
@@ -715,7 +828,7 @@ mod tests {
         ));
 
         let as_value =
-            serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi)).unwrap();
+            serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi, None)).unwrap();
         let spec = as_value.as_array().unwrap();
 
         assert_eq!(spec.len(), 4);
@@ -751,7 +864,7 @@ mod tests {
         ));
 
         let as_value =
-            serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi)).unwrap();
+            serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi, None)).unwrap();
         let spec = as_value.as_array().unwrap();
 
         assert_eq!(spec.len(), 2);
@@ -821,7 +934,7 @@ mod tests {
         // Create message with image path
         let message = Message::user().with_text(format!("Here is an image: {}", png_path_str));
         let as_value =
-            serde_json::to_value(format_messages(&[message], &ImageFormat::OpenAi)).unwrap();
+            serde_json::to_value(format_messages(&[message], &ImageFormat::OpenAi, None)).unwrap();
         let spec = as_value.as_array().unwrap();
 
         assert_eq!(spec.len(), 1);
@@ -1144,6 +1257,30 @@ mod tests {
     }
 
     #[test]
+    fn test_create_request_one_shot_claude() -> anyhow::Result<()> {
+        let model_config = ModelConfig::new("databricks-claude-sonnet-4-5")
+            .with_merged_request_params(std::collections::HashMap::from([
+                ("anthropic_beta".to_string(), serde_json::json!(["ctx-1m"])),
+                ("disable_prompt_cache".to_string(), serde_json::json!(true)),
+            ]));
+        let messages = vec![Message::user().with_text("Summarize the conversation above.")];
+
+        let request = create_request(
+            &model_config,
+            "system",
+            &messages,
+            &[],
+            &ImageFormat::OpenAi,
+        )?;
+
+        assert_eq!(request["anthropic_beta"], serde_json::json!(["ctx-1m"]));
+        assert!(request.get("disable_prompt_cache").is_none());
+        assert!(!request.to_string().contains("cache_control"));
+
+        Ok(())
+    }
+
+    #[test]
     fn test_create_request_adaptive_thinking_for_46_models() -> anyhow::Result<()> {
         let mut model_config = ModelConfig::new("databricks-claude-opus-4-6");
         model_config.max_tokens = Some(4096);
@@ -1350,7 +1487,7 @@ mod tests {
         let message = Message::assistant()
             .with_tool_request("tool1", Ok(CallToolRequestParams::new("test_tool")));
 
-        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        let spec = format_messages(&[message], &ImageFormat::OpenAi, None);
         let as_value = serde_json::to_value(spec)?;
         let spec_array = as_value.as_array().unwrap();
 
@@ -1387,7 +1524,7 @@ mod tests {
             final_resp,
         ];
 
-        let spec = serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi))?;
+        let spec = serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi, None))?;
         let mut open = std::collections::HashSet::new();
         for m in spec.as_array().unwrap() {
             match m.get("role").and_then(|v| v.as_str()) {
@@ -1422,7 +1559,7 @@ mod tests {
                 .with_arguments(object!({"param": "value", "number": 42}))),
         );
 
-        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        let spec = format_messages(&[message], &ImageFormat::OpenAi, None);
         let as_value = serde_json::to_value(spec)?;
         let spec_array = as_value.as_array().unwrap();
 
@@ -1469,7 +1606,7 @@ mod tests {
             None,
         );
 
-        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        let spec = format_messages(&[message], &ImageFormat::OpenAi, None);
         let as_value = serde_json::to_value(spec)?;
         let spec_array = as_value.as_array().unwrap();
 
@@ -1601,7 +1738,7 @@ mod tests {
             None,
         );
 
-        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        let spec = format_messages(&[message], &ImageFormat::OpenAi, None);
         let as_value = serde_json::to_value(spec)?;
         let spec_array = as_value.as_array().unwrap();
 
@@ -1641,7 +1778,7 @@ mod tests {
         ];
 
         let as_value =
-            serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi)).unwrap();
+            serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi, None)).unwrap();
         let spec = as_value.as_array().unwrap();
         let roles: Vec<&str> = spec.iter().map(|m| m["role"].as_str().unwrap()).collect();
 
@@ -1675,7 +1812,7 @@ mod tests {
         ];
 
         let as_value =
-            serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi)).unwrap();
+            serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi, None)).unwrap();
         let spec = as_value.as_array().unwrap();
         let roles: Vec<&str> = spec.iter().map(|m| m["role"].as_str().unwrap()).collect();
 

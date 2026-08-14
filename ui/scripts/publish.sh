@@ -209,7 +209,7 @@ trap cleanup_npmrc EXIT
 
 # Publish order matters: dependencies first
 echo "==> Publishing @aaif/goose-sdk"
-(cd "${REPO_ROOT}/ui" && pnpm publish "${PUBLISH_ARGS[@]}" acp)
+(cd "${REPO_ROOT}/ui" && pnpm publish "${PUBLISH_ARGS[@]}" sdk)
 
 echo "==> Publishing native binary packages"
 for plat in darwin-arm64 darwin-x64 linux-arm64 linux-x64; do
