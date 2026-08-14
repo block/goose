@@ -10,7 +10,7 @@ This package provides:
 ## Installation
 
 ```bash
-npm install @aaif/goose-sdk
+npm install @aaif/goose-sdk @agentclientprotocol/sdk
 ```
 
 The native `goose` binaries are distributed as optional dependencies
