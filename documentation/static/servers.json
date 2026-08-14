@@ -398,6 +398,17 @@
     "environmentVariables": []
   },
   {
+    "id": "kin",
+    "name": "Kin",
+    "description": "Semantic code retrieval over a graph of entities, relationships, changes, and provenance",
+    "command": "npx -y @kinlab/kin-mcp",
+    "link": "https://github.com/firelock-ai/kin",
+    "installation_notes": "Install using npx package manager. Requires a Kin repo in your project. Run kin init . first, or set KIN_MCP_AUTO_INIT=1 to let the wrapper create one.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "knowledge_graph_memory",
     "name": "Knowledge Graph Memory",
     "description": "Graph-based memory system for persistent knowledge storage",
