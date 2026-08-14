@@ -4,18 +4,18 @@ use std::sync::Arc;
 
 use crate::agents::state_machine::ops_unknown_tool::UNCLAIMED_TOOL_ERROR;
 use crate::agents::state_machine::{
-    applied, messages_since_kickoff, not_applicable, trailing_error, yielded_with,
     ConversationEffect, Emitter, GooseEffect, Inference, InferenceInput, Operation,
-    OperationResult, SlashCommand,
+    OperationResult, SlashCommand, applied, messages_since_kickoff, not_applicable, trailing_error,
+    yielded_with,
 };
 use crate::agents::{ExtensionManager, PromptManager};
 use crate::config::GooseMode;
 use crate::conversation::message::{InferenceMetadata, Message, MessageContent};
-use crate::conversation::{effective_role, Conversation, EffectiveRole};
+use crate::conversation::{Conversation, EffectiveRole, effective_role};
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::session::Session;
 use crate::tool_inspection::ToolInspectionManager;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use futures::StreamExt;
 use goose_providers::errors::ProviderError;
@@ -111,15 +111,95 @@ pub(super) fn record_chat_usage(span: &tracing::Span, usage: &ProviderUsage) {
     }
 }
 
-pub struct InferenceRunner<'a> {
-    provider: Arc<dyn Provider>,
-    model_config: ModelConfig,
+pub struct PreparedInferenceRequest {
+    system_prompt: String,
+    tools: Vec<rmcp::model::Tool>,
+    moim_parts: Vec<String>,
+}
+
+#[async_trait]
+pub trait InferenceRequestPreparer<S>: Send + Sync {
+    async fn prepare(&self, session: &S, input: InferenceInput)
+    -> Result<PreparedInferenceRequest>;
+}
+
+struct IdentityInferenceRequestPreparer;
+
+#[async_trait]
+impl<S: Sync> InferenceRequestPreparer<S> for IdentityInferenceRequestPreparer {
+    async fn prepare(
+        &self,
+        _session: &S,
+        input: InferenceInput,
+    ) -> Result<PreparedInferenceRequest> {
+        Ok(PreparedInferenceRequest {
+            system_prompt: input
+                .prompt_parts
+                .into_iter()
+                .map(|(_, part)| part)
+                .collect::<Vec<_>>()
+                .join("\n\n"),
+            tools: input.tools,
+            moim_parts: input.moim_parts,
+        })
+    }
+}
+
+struct GooseInferenceRequestPreparer<'a> {
     #[cfg(feature = "code-mode")]
     extension_manager: Arc<ExtensionManager>,
     goose_mode: &'a Mutex<GooseMode>,
     prompt_manager: &'a Mutex<PromptManager>,
     tool_inspection_manager: &'a ToolInspectionManager,
     frontend_instructions: &'a Mutex<Option<String>>,
+}
+
+#[async_trait]
+impl InferenceRequestPreparer<Session> for GooseInferenceRequestPreparer<'_> {
+    async fn prepare(
+        &self,
+        session: &Session,
+        mut input: InferenceInput,
+    ) -> Result<PreparedInferenceRequest> {
+        #[cfg(feature = "code-mode")]
+        let code_execution_mode = self
+            .extension_manager
+            .is_extension_enabled(
+                crate::agents::platform_extensions::code_execution::EXTENSION_NAME,
+            )
+            .await;
+        #[cfg(not(feature = "code-mode"))]
+        let code_execution_mode = false;
+
+        let goose_mode = *self.goose_mode.lock().await;
+        if goose_mode == GooseMode::SmartApprove {
+            self.tool_inspection_manager
+                .apply_tool_annotations(&input.tools);
+        }
+        let tools =
+            crate::agents::reply_parts::prepare_inference_tools(input.tools, code_execution_mode);
+        if let Some(frontend_instructions) = self.frontend_instructions.lock().await.clone() {
+            input
+                .prompt_parts
+                .push(("frontend".to_string(), frontend_instructions));
+        }
+        let system_prompt = self.prompt_manager.lock().await.build_system_prompt(
+            &session.working_dir,
+            input.prompt_parts,
+            goose_mode,
+        );
+        Ok(PreparedInferenceRequest {
+            system_prompt,
+            tools,
+            moim_parts: input.moim_parts,
+        })
+    }
+}
+
+pub struct InferenceRunner<'a> {
+    provider: Arc<dyn Provider>,
+    model_config: ModelConfig,
+    request_preparer: Arc<dyn InferenceRequestPreparer<Session> + 'a>,
 }
 
 /// The agent-visible conversation as the provider sees it: tool requests left
@@ -171,15 +251,27 @@ impl<'a> InferenceRunner<'a> {
         tool_inspection_manager: &'a ToolInspectionManager,
         frontend_instructions: &'a Mutex<Option<String>>,
     ) -> Self {
-        Self {
-            provider,
-            model_config,
+        let request_preparer = GooseInferenceRequestPreparer {
             #[cfg(feature = "code-mode")]
             extension_manager,
             goose_mode,
             prompt_manager,
             tool_inspection_manager,
             frontend_instructions,
+        };
+        Self::with_request_preparer(provider, model_config, Some(Arc::new(request_preparer)))
+    }
+
+    pub fn with_request_preparer(
+        provider: Arc<dyn Provider>,
+        model_config: ModelConfig,
+        request_preparer: Option<Arc<dyn InferenceRequestPreparer<Session> + 'a>>,
+    ) -> Self {
+        Self {
+            provider,
+            model_config,
+            request_preparer: request_preparer
+                .unwrap_or_else(|| Arc::new(IdentityInferenceRequestPreparer)),
         }
     }
 
@@ -348,7 +440,7 @@ impl Inference<Session, GooseEffect> for InferenceRunner<'_> {
         &self,
         session: &Session,
         conversation: &Conversation,
-        mut input: InferenceInput,
+        input: InferenceInput,
         emit: &Emitter,
     ) -> Result<OperationResult<GooseEffect>> {
         let messages = messages_since_kickoff(conversation)?;
@@ -369,39 +461,11 @@ impl Inference<Session, GooseEffect> for InferenceRunner<'_> {
         );
 
         async {
-            #[cfg(feature = "code-mode")]
-            let code_execution_mode = self
-                .extension_manager
-                .is_extension_enabled(
-                    crate::agents::platform_extensions::code_execution::EXTENSION_NAME,
-                )
-                .await;
-            #[cfg(not(feature = "code-mode"))]
-            let code_execution_mode = false;
-
-            let goose_mode = *self.goose_mode.lock().await;
-            if goose_mode == GooseMode::SmartApprove {
-                self.tool_inspection_manager
-                    .apply_tool_annotations(&input.tools);
-            }
-            let tools = crate::agents::reply_parts::prepare_inference_tools(
-                input.tools,
-                code_execution_mode,
-            );
-            if let Some(frontend_instructions) = self.frontend_instructions.lock().await.clone() {
-                input
-                    .prompt_parts
-                    .push(("frontend".to_string(), frontend_instructions));
-            }
-            let system_prompt = self.prompt_manager.lock().await.build_system_prompt(
-                &session.working_dir,
-                input.prompt_parts,
-                goose_mode,
-            );
+            let prepared = self.request_preparer.prepare(session, input).await?;
             let (tools, toolshim_tools, system_prompt) =
                 crate::agents::reply_parts::prepare_tools_for_provider(
-                    tools,
-                    system_prompt,
+                    prepared.tools,
+                    prepared.system_prompt,
                     &self.model_config,
                 );
             let mut available_tools = tools
@@ -467,7 +531,7 @@ impl Inference<Session, GooseEffect> for InferenceRunner<'_> {
             let turn_context = crate::agents::moim::turn_context_event(
                 &session.working_dir,
                 Some(context_limit),
-                input.moim_parts,
+                prepared.moim_parts,
                 turn_start,
             )
             .filter(|event| Some(event.as_concat_text()) != last_turn_context);
