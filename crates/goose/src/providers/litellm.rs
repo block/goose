@@ -234,9 +234,13 @@ impl Provider for LiteLLMProvider {
     }
 
     async fn get_context_limit(&self, model: &str, override_limit: Option<usize>) -> usize {
-        goose_providers::context_limit::ContextLimitResolver::new(&self.name)
+        let resolver = goose_providers::context_limit::ContextLimitResolver::new(&self.name);
+        let Some(models) = self.cached_model_info.get() else {
+            return resolver.resolve_local(model, override_limit);
+        };
+
+        resolver
             .resolve(model, override_limit, || async {
-                let models = self.get_or_fetch_models().await?;
                 Ok(models
                     .iter()
                     .find(|info| info.name == model)
@@ -292,6 +296,58 @@ impl Provider for LiteLLMProvider {
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let models = self.get_or_fetch_models().await?;
         Ok(models.iter().map(|m| m.name.clone()).collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn context_limit_does_not_probe_model_info() {
+        let provider = LiteLLMProvider {
+            api_client: ApiClient::new_with_tls(
+                "http://127.0.0.1:1".to_string(),
+                AuthMethod::NoAuth,
+                None,
+            )
+            .unwrap(),
+            base_path: "v1/chat/completions".to_string(),
+            name: LITELLM_PROVIDER_NAME.to_string(),
+            cached_model_info: tokio::sync::OnceCell::new(),
+        };
+
+        assert_eq!(
+            provider.get_context_limit("unknown-model", None).await,
+            goose_providers::model::DEFAULT_CONTEXT_LIMIT
+        );
+        assert!(provider.cached_model_info.get().is_none());
+    }
+
+    #[tokio::test]
+    async fn context_limit_uses_cached_model_info() {
+        let cached_model_info = tokio::sync::OnceCell::new();
+        cached_model_info
+            .set(vec![
+                ModelInfo::new("cached-model").with_context_limit(32_000)
+            ])
+            .unwrap();
+        let provider = LiteLLMProvider {
+            api_client: ApiClient::new_with_tls(
+                "http://127.0.0.1:1".to_string(),
+                AuthMethod::NoAuth,
+                None,
+            )
+            .unwrap(),
+            base_path: "v1/chat/completions".to_string(),
+            name: LITELLM_PROVIDER_NAME.to_string(),
+            cached_model_info,
+        };
+
+        assert_eq!(
+            provider.get_context_limit("cached-model", None).await,
+            32_000
+        );
     }
 }
 

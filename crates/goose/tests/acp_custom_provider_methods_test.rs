@@ -256,7 +256,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "displayName": "Stark ACP Provider",
                 "apiUrl": "https://stark.example/v1",
                 "apiKey": "created-custom-key",
-                "models": ["stark-1", "stark-2"],
+                "models": [{"name": "stark-1", "contextLimit": 1048576}, {"name": "stark-2"}],
                 "supportsStreaming": true,
                 "headers": {
                     "X-Stark": "enabled"
@@ -317,6 +317,8 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 .collect::<Vec<_>>(),
             vec!["stark-1", "stark-2"]
         );
+        assert_eq!(saved_provider.models[0].context_limit, Some(1_048_576));
+        assert_eq!(saved_provider.models[1].context_limit, None);
         assert_eq!(
             Config::global()
                 .get_secret::<String>("CUSTOM_STARK_ACP_PROVIDER_API_KEY")
@@ -345,7 +347,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "engine": "openai_compatible",
                 "displayName": "Stark ACP Provider",
                 "apiUrl": "https://stark.example/v1",
-                "models": ["stark-1", "stark-2"],
+                "models": [{"name": "stark-1", "contextLimit": 1048576}, {"name": "stark-2"}],
                 "supportsStreaming": true,
                 "headers": {
                     "X-Stark": "enabled"
@@ -384,7 +386,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "displayName": "Stark ACP Provider Updated",
                 "apiUrl": "https://stark.example/openai",
                 "apiKey": "updated-custom-key",
-                "models": ["stark-3"],
+                "models": [{"name": "stark-3"}],
                 "supportsStreaming": false,
                 "headers": {},
                 "requiresAuth": true,
@@ -439,7 +441,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "displayName": "Stark ACP Provider No Auth",
                 "apiUrl": "https://stark.example/openai",
                 "apiKey": "",
-                "models": ["stark-3"],
+                "models": [{"name": "stark-3"}],
                 "supportsStreaming": false,
                 "headers": {},
                 "requiresAuth": false,
@@ -479,7 +481,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "displayName": "Stark ACP Provider Reauth",
                 "apiUrl": "https://stark.example/openai",
                 "apiKey": "",
-                "models": ["stark-3"],
+                "models": [{"name": "stark-3"}],
                 "supportsStreaming": false,
                 "headers": {},
                 "requiresAuth": true,
@@ -582,7 +584,10 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
             ),
             ("relative URL", serde_json::json!({ "apiUrl": "/v1" })),
             ("empty models", serde_json::json!({ "models": [] })),
-            ("blank models", serde_json::json!({ "models": [" ", "\n"] })),
+            (
+                "blank models",
+                serde_json::json!({ "models": [{"name": " "}, {"name": "\n"}] }),
+            ),
             (
                 "invalid header name",
                 serde_json::json!({ "headers": { "Bad Header": "value" } }),
@@ -601,7 +606,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "displayName": format!("Invalid {name}"),
                 "apiUrl": "https://api.example.test/v1",
                 "apiKey": "secret",
-                "models": ["model-a"],
+                "models": [{"name": "model-a"}],
                 "headers": {},
                 "requiresAuth": true
             });
@@ -631,7 +636,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "displayName": "Shared Secret Test",
                 "apiUrl": "https://api.example.test/v1",
                 "apiKey": "owned-secret",
-                "models": ["model-a"],
+                "models": [{"name": "model-a"}],
                 "headers": {},
                 "requiresAuth": true
             }),
@@ -664,7 +669,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "engine": "openai_compatible",
                 "displayName": "Shared Secret Test",
                 "apiUrl": "https://api.example.test/v1",
-                "models": ["model-a"],
+                "models": [{"name": "model-a"}],
                 "headers": {},
                 "requiresAuth": false
             }),
@@ -686,7 +691,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "displayName": "Shared Secret Delete",
                 "apiUrl": "https://api.example.test/v1",
                 "apiKey": "owned-secret",
-                "models": ["model-a"],
+                "models": [{"name": "model-a"}],
                 "headers": {},
                 "requiresAuth": true
             }),
