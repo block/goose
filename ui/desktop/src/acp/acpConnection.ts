@@ -132,7 +132,8 @@ async function openConnection(generation: number): Promise<AcpConnection> {
     throw new Error('ACP URL is not available');
   }
 
-  const stream = createWebSocketStream(wsUrl);
+  // Electron treats an explicitly passed undefined protocol as a subprotocol.
+  const stream = createWebSocketStream(wsUrl, { protocols: [] });
   const client = connectGooseAcpClient(stream, createClientCallbacks());
 
   try {
