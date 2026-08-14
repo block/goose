@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::agents::state_machine::ops_inference_request_preparer::{
+use crate::agents::state_machine::inference_preparation::{
     GooseInferenceRequestPreparer, IdentityInferenceRequestPreparer, InferenceRequestPreparer,
 };
 use crate::agents::state_machine::ops_unknown_tool::UNCLAIMED_TOOL_ERROR;
