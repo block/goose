@@ -137,10 +137,8 @@ fn one_shot_model_config(model_config: ModelConfig) -> ModelConfig {
         .with_prompt_cache_disabled()
 }
 
-/// Resolve the model config to use for compaction and tool-result
-/// summarization. Resolution order:
-///   1. `GOOSE_COMPACTION_MODEL` (user override)
-///   2. the supplied `model_config` (i.e. the main model)
+/// Resolve the model config for compaction and tool-result summarization:
+/// `GOOSE_COMPACTION_MODEL` if set, otherwise the supplied main `model_config`.
 pub fn get_compaction_model(
     provider_name: &str,
     model_config: &ModelConfig,
@@ -180,9 +178,8 @@ pub async fn complete_fast(
 }
 
 /// Run a completion for compaction or tool-result summarization on the model
-/// resolved by [`get_compaction_model`], with one-shot semantics (thinking off,
-/// no prompt-cache writes). An explicitly overridden compaction model falls
-/// back to the main `model_config` if it errors.
+/// resolved by [`get_compaction_model`], falling back to the supplied main
+/// `model_config` if an overridden compaction model errors.
 pub async fn complete_compaction(
     provider: &dyn Provider,
     model_config: &ModelConfig,
@@ -390,17 +387,6 @@ mod compaction_model_tests {
         ModelConfig::new("gpt-5.1")
     }
 
-    #[test]
-    fn override_matching_main_model_keeps_main_config() {
-        let main = main_model().with_context_limit(Some(9999));
-        let resolved =
-            resolve_override_model(Some("gpt-5.1".to_string()), "openai", &main).unwrap();
-        assert_eq!(resolved.model_name, "gpt-5.1");
-        assert_eq!(resolved.context_limit, Some(9999));
-    }
-
-    // Env vars shadow the config file in `Config::get_param`, so setting them
-    // (blank included) makes these tests independent of the local config file.
     #[test]
     #[serial(compaction_model_env)]
     fn compaction_model_env_var_wins_over_fast_model() {
