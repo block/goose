@@ -13,7 +13,6 @@ use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
 use goose::conversation::{fix_conversation, merge_consecutive_messages_for_request, Conversation};
-use std::env;
 use std::io::Write;
 use std::str::FromStr;
 use tokio::signal::ctrl_c;
@@ -65,7 +64,6 @@ use tokio;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
-const GOOSE_PLANNER_CONTEXT_LIMIT: &str = "GOOSE_PLANNER_CONTEXT_LIMIT";
 const SHELL_STATUS_FALLBACK_WIDTH: usize = 120;
 const SHELL_STATUS_MAX_LINES: usize = 3;
 const SHELL_STATUS_RESERVED_WIDTH: usize = 2;
@@ -2709,19 +2707,8 @@ async fn get_reasoner(
             .expect("No model configured. Run 'goose configure' first")
     };
 
-    let planner_context_limit = match env::var(GOOSE_PLANNER_CONTEXT_LIMIT)
-        .ok()
-        .map(|v| v.parse::<usize>())
-    {
-        Some(Ok(n)) if n >= 4096 => Some(n),
-        Some(Ok(_)) => anyhow::bail!("{} must be at least 4096", GOOSE_PLANNER_CONTEXT_LIMIT),
-        Some(Err(e)) => anyhow::bail!("{}: {}", GOOSE_PLANNER_CONTEXT_LIMIT, e),
-        None => None,
-    };
-
     let model_config =
-        goose::model_config::model_config_from_user_config(&provider, model.as_str())?
-            .with_context_limit(planner_context_limit);
+        goose::model_config::model_config_from_user_config(&provider, model.as_str())?;
     let extensions = goose::config::extensions::get_enabled_extensions_with_config(config);
     let reasoner = create(&provider, extensions).await?;
 

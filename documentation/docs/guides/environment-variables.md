@@ -250,8 +250,7 @@ These variables allow you to override the default context window size (token lim
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_CONTEXT_LIMIT` | Override context limit for the main model | Integer (number of tokens) | Model-specific default or 128,000 |
-| `GOOSE_INPUT_LIMIT` | Override input prompt limit for ollama requests (maps to `num_ctx`) | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
-| `GOOSE_PLANNER_CONTEXT_LIMIT` | Override context limit for the [planner model](/docs/guides/context-engineering/creating-plans) | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
+| `GOOSE_INPUT_LIMIT` | Override input prompt limit for ollama requests (maps to `num_ctx`) | Integer (number of tokens) | Ollama model default |
 
 **Examples**
 
@@ -260,9 +259,6 @@ These variables allow you to override the default context window size (token lim
 export GOOSE_CONTEXT_LIMIT=200000
 # Override ollama input prompt limit
 export GOOSE_INPUT_LIMIT=32000
-
-# Set context limit for planner
-export GOOSE_PLANNER_CONTEXT_LIMIT=1000000
 ```
 
 For more details and examples, see [Model Context Limit Overrides](/docs/guides/sessions/smart-context-management#model-context-limit-overrides).
