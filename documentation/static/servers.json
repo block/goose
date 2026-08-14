@@ -648,6 +648,18 @@
     "environmentVariables": []
   },
   {
+    "id": "routebase",
+    "name": "Routebase",
+    "description": "Design, mock, test, document and monitor your APIs from one living OpenAPI spec",
+    "type": "streamable-http",
+    "url": "https://mcp.routebase.dev",
+    "link": "https://routebase.dev/mcp-server/",
+    "installation_notes": "Hosted remote server. Sign in with your Routebase account via OAuth on first connect. US-region accounts use https://mcp.routebase.dev/?region=us instead.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "rube-mcp",
     "name": "Rube",
     "description": "Connect with 500+ apps like Slack, Gmail, Notion and more through unified integrations",
