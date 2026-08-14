@@ -141,6 +141,99 @@ describe('ParameterInputModal', () => {
       });
       expect(defaultProps.onSubmit).not.toHaveBeenCalled();
     });
+
+    it.each([
+      {
+        name: 'select value outside its options',
+        parameter: {
+          key: 'mode',
+          description: 'Mode',
+          input_type: 'select',
+          requirement: 'required',
+          options: ['safe'],
+        } as Parameter,
+        initialValue: 'hidden instruction',
+        visibleValue: '',
+      },
+      {
+        name: 'invalid boolean',
+        parameter: {
+          key: 'enabled',
+          description: 'Enabled',
+          input_type: 'boolean',
+          requirement: 'required',
+        } as Parameter,
+        initialValue: 'hidden instruction',
+        visibleValue: '',
+      },
+      {
+        name: 'nonnumeric value',
+        parameter: {
+          key: 'iterations',
+          description: 'Iterations',
+          input_type: 'number',
+          requirement: 'required',
+        } as Parameter,
+        initialValue: 'hidden instruction',
+        visibleValue: null,
+      },
+      {
+        name: 'number the browser cannot represent',
+        parameter: {
+          key: 'iterations',
+          description: 'Iterations',
+          input_type: 'number',
+          requirement: 'required',
+        } as Parameter,
+        initialValue: '1.',
+        visibleValue: null,
+      },
+    ])(
+      'does not submit an invalid $name prefill',
+      async ({ parameter, initialValue, visibleValue }) => {
+        const user = userEvent.setup();
+        const onSubmit = vi.fn();
+        renderWithIntl(
+          <ParameterInputModal
+            {...defaultProps}
+            onSubmit={onSubmit}
+            parameters={[parameter]}
+            initialValues={{ [parameter.key]: initialValue }}
+          />
+        );
+
+        expect(screen.getByLabelText(new RegExp(`^${parameter.description}`))).toHaveValue(
+          visibleValue
+        );
+        await user.click(screen.getByText('Start Recipe'));
+
+        expect(onSubmit).not.toHaveBeenCalled();
+      }
+    );
+
+    it('submits only declared parameter keys', async () => {
+      const user = userEvent.setup();
+      const onSubmit = vi.fn();
+      renderWithIntl(
+        <ParameterInputModal
+          {...defaultProps}
+          onSubmit={onSubmit}
+          parameters={[
+            {
+              key: 'topic',
+              description: 'Topic',
+              input_type: 'string',
+              requirement: 'required',
+            },
+          ]}
+          initialValues={{ topic: 'declared value', undeclared: 'hidden instruction' }}
+        />
+      );
+
+      await user.click(screen.getByText('Start Recipe'));
+
+      expect(onSubmit).toHaveBeenCalledWith({ topic: 'declared value' });
+    });
   });
 
   describe('Cancel Behavior', () => {
@@ -205,6 +298,72 @@ describe('ParameterInputModal', () => {
       renderWithIntl(<ParameterInputModal {...defaultProps} />);
 
       expect((screen.getByLabelText(/boolean parameter/i) as HTMLSelectElement).value).toBe('true');
+    });
+
+    it('keeps a valid default when an invalid prefill is supplied', () => {
+      renderWithIntl(
+        <ParameterInputModal
+          {...defaultProps}
+          parameters={[
+            {
+              key: 'mode',
+              description: 'Mode',
+              input_type: 'select',
+              requirement: 'optional',
+              options: ['safe'],
+              default: 'safe',
+            },
+          ]}
+          initialValues={{ mode: 'hidden instruction' }}
+        />
+      );
+
+      expect(screen.getByLabelText('Mode')).toHaveValue('safe');
+    });
+
+    it('submits valid select, boolean, and number prefills', async () => {
+      const user = userEvent.setup();
+      const onSubmit = vi.fn();
+      renderWithIntl(
+        <ParameterInputModal
+          {...defaultProps}
+          onSubmit={onSubmit}
+          parameters={[
+            {
+              key: 'mode',
+              description: 'Mode',
+              input_type: 'select',
+              requirement: 'required',
+              options: ['safe'],
+            },
+            {
+              key: 'enabled',
+              description: 'Enabled',
+              input_type: 'boolean',
+              requirement: 'required',
+            },
+            {
+              key: 'iterations',
+              description: 'Iterations',
+              input_type: 'number',
+              requirement: 'required',
+            },
+          ]}
+          initialValues={{ mode: 'safe', enabled: 'false', iterations: '1.5e2' }}
+        />
+      );
+
+      expect(screen.getByLabelText(/^Mode/)).toHaveValue('safe');
+      expect(screen.getByLabelText(/^Enabled/)).toHaveValue('false');
+      expect(screen.getByLabelText(/^Iterations/)).toHaveValue(150);
+
+      await user.click(screen.getByText('Start Recipe'));
+
+      expect(onSubmit).toHaveBeenCalledWith({
+        mode: 'safe',
+        enabled: 'false',
+        iterations: '1.5e2',
+      });
     });
   });
 });

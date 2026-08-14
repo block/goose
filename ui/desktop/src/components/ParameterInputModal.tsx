@@ -65,6 +65,21 @@ function needsUserValue(param: Parameter): boolean {
   return param.requirement === 'required' || param.requirement === 'user_prompt';
 }
 
+const NUMBER_VALUE_PATTERN = /^-?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+
+function isValidParameterValue(param: Parameter, value: string): boolean {
+  switch (param.input_type) {
+    case 'select':
+      return param.options?.includes(value) ?? false;
+    case 'boolean':
+      return value === 'true' || value === 'false';
+    case 'number':
+      return NUMBER_VALUE_PATTERN.test(value) && Number.isFinite(Number(value));
+    default:
+      return true;
+  }
+}
+
 const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
   parameters,
   onSubmit,
@@ -79,15 +94,23 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
   const [showCancelOptions, setShowCancelOptions] = useState(false);
 
   useEffect(() => {
-    const defaultValues: Record<string, string> = {};
+    const values: Record<string, string> = {};
     parameters.forEach((param) => {
       if (param.requirement === 'optional' && param.default) {
-        defaultValues[param.key] =
+        const defaultValue =
           param.input_type === 'boolean' ? param.default.toLowerCase() : param.default;
+        if (isValidParameterValue(param, defaultValue)) {
+          values[param.key] = defaultValue;
+        }
+      }
+
+      const initialValue = initialValues?.[param.key];
+      if (initialValue !== undefined && isValidParameterValue(param, initialValue)) {
+        values[param.key] = initialValue;
       }
     });
 
-    setInputValues({ ...defaultValues, ...initialValues });
+    setInputValues(values);
   }, [parameters, initialValues]);
 
   const handleChange = (name: string, value: string): void => {
@@ -98,14 +121,26 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
     e.preventDefault();
     setValidationErrors({});
 
-    const requiredParams: Parameter[] = parameters.filter(needsUserValue);
     const errors: Record<string, string> = {};
+    const submittedValues: Record<string, string> = {};
 
-    requiredParams.forEach((param) => {
-      const value = inputValues[param.key]?.trim();
-      if (!value) {
+    parameters.forEach((param) => {
+      const value = inputValues[param.key];
+      if (needsUserValue(param) && !value?.trim()) {
         errors[param.key] = `${param.description || param.key} is required`;
+        return;
       }
+
+      if (value === undefined || value === '') {
+        return;
+      }
+
+      if (!isValidParameterValue(param, value)) {
+        errors[param.key] = `${param.description || param.key} has an invalid value`;
+        return;
+      }
+
+      submittedValues[param.key] = value;
     });
 
     if (Object.keys(errors).length > 0) {
@@ -113,7 +148,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
       return;
     }
 
-    onSubmit(inputValues);
+    onSubmit(submittedValues);
   };
 
   const handleCancel = (): void => {
