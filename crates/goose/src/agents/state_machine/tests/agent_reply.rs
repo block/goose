@@ -326,15 +326,14 @@ async fn reply_streams_the_turn_and_ends() -> Result<()> {
 }
 
 #[tokio::test]
-async fn bang_shell_uses_the_state_machine_when_the_flag_is_disabled() -> Result<()> {
-    let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", None::<&str>)]);
+async fn bang_shell_uses_state_machine_when_explicitly_enabled() -> Result<()> {
     let (agent, api, session_id, _temp_dir) = agent_with_dummy_api().await?;
     let session_config = SessionConfig {
         id: session_id,
         schedule_id: None,
         max_turns: Some(2),
         retry_config: None,
-        use_state_machine: None,
+        use_state_machine: Some(true),
     };
     let stream = agent
         .reply(

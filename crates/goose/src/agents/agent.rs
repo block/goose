@@ -2093,10 +2093,9 @@ impl Agent {
             }
         }
 
-        let use_state_machine = session_config.use_state_machine.unwrap_or_else(|| {
-            super::state_machine::enabled()
-                || super::state_machine::bang_shell_command(&message_text_for_trace).is_some()
-        });
+        let use_state_machine = session_config
+            .use_state_machine
+            .unwrap_or_else(super::state_machine::enabled);
         if use_state_machine {
             tracing::info!("dispatching reply via experimental state machine");
             return self
