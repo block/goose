@@ -60,8 +60,8 @@ impl ContextLimitResolver {
         }
 
         match discover().await {
-            Ok(Some(limit)) => return limit,
-            Ok(None) => {}
+            Ok(Some(limit)) if limit > 0 => return limit,
+            Ok(Some(_) | None) => {}
             Err(error) => tracing::warn!(
                 provider = self.provider_name,
                 model,
@@ -121,6 +121,18 @@ mod tests {
         assert_eq!(resolver.resolve_local("claude-sonnet-4-5", None), 1_000_000);
         assert_eq!(
             resolver.resolve_local("unknown", None),
+            DEFAULT_CONTEXT_LIMIT
+        );
+    }
+
+    #[tokio::test]
+    async fn ignores_zero_discovered_limits() {
+        let resolver = ContextLimitResolver::new("unknown-provider");
+
+        assert_eq!(
+            resolver
+                .resolve("unknown-model", None, || async { Ok(Some(0)) })
+                .await,
             DEFAULT_CONTEXT_LIMIT
         );
     }

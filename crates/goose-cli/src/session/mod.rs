@@ -13,7 +13,6 @@ use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
 use goose::conversation::{fix_conversation, merge_consecutive_messages_for_request, Conversation};
-use std::env;
 use std::io::Write;
 use std::str::FromStr;
 use tokio::signal::ctrl_c;
@@ -22,7 +21,6 @@ use tokio_util::task::AbortOnDropHandle;
 pub use builder::{build_session, SessionBuilderConfig};
 use console::Color;
 
-const GOOSE_PLANNER_CONTEXT_LIMIT: &str = "GOOSE_PLANNER_CONTEXT_LIMIT";
 use goose::agents::platform_extensions::developer::shell::{
     parse_shell_output_notification, ShellOutputNotificationParams, ShellOutputStream,
 };
@@ -778,15 +776,9 @@ impl CliSession {
             RunMode::Plan => {
                 let mut plan_messages = self.messages.clone();
                 plan_messages.push(Message::user().with_text(content));
-                let (reasoner, reasoner_model_config, planner_context_limit) =
-                    get_reasoner().await?;
-                self.plan_with_reasoner_model(
-                    plan_messages,
-                    reasoner,
-                    reasoner_model_config,
-                    planner_context_limit,
-                )
-                .await?;
+                let (reasoner, reasoner_model_config) = get_reasoner().await?;
+                self.plan_with_reasoner_model(plan_messages, reasoner, reasoner_model_config)
+                    .await?;
             }
         }
         Ok(())
@@ -1054,14 +1046,9 @@ impl CliSession {
         let mut plan_messages = self.messages.clone();
         plan_messages.push(Message::user().with_text(&options.message_text));
 
-        let (reasoner, reasoner_model_config, planner_context_limit) = get_reasoner().await?;
-        self.plan_with_reasoner_model(
-            plan_messages,
-            reasoner,
-            reasoner_model_config,
-            planner_context_limit,
-        )
-        .await
+        let (reasoner, reasoner_model_config) = get_reasoner().await?;
+        self.plan_with_reasoner_model(plan_messages, reasoner, reasoner_model_config)
+            .await
     }
 
     async fn handle_clear(&mut self) -> Result<()> {
@@ -1328,9 +1315,7 @@ impl CliSession {
         plan_messages: Conversation,
         reasoner: Arc<dyn Provider>,
         model_config: goose_providers::model::ModelConfig,
-        planner_context_limit: Option<usize>,
     ) -> Result<(), anyhow::Error> {
-        let _planner_context_limit = planner_context_limit;
         let plan_prompt = self.agent.get_plan_prompt(&self.session_id).await?;
         let provider_messages = planner_provider_messages(&plan_messages);
         output::show_thinking();
@@ -2697,14 +2682,8 @@ fn handle_agent_error(e: &anyhow::Error, is_stream_json_mode: bool) {
     }
 }
 
-async fn get_reasoner() -> Result<
-    (
-        Arc<dyn Provider>,
-        goose_providers::model::ModelConfig,
-        Option<usize>,
-    ),
-    anyhow::Error,
-> {
+async fn get_reasoner(
+) -> Result<(Arc<dyn Provider>, goose_providers::model::ModelConfig), anyhow::Error> {
     use goose::providers::create;
 
     let config = Config::global();
@@ -2729,22 +2708,12 @@ async fn get_reasoner() -> Result<
             .expect("No model configured. Run 'goose configure' first")
     };
 
-    let planner_context_limit = match env::var(GOOSE_PLANNER_CONTEXT_LIMIT)
-        .ok()
-        .map(|value| value.parse::<usize>())
-    {
-        Some(Ok(limit)) if limit >= 4096 => Some(limit),
-        Some(Ok(_)) => anyhow::bail!("{} must be at least 4096", GOOSE_PLANNER_CONTEXT_LIMIT),
-        Some(Err(error)) => anyhow::bail!("{}: {}", GOOSE_PLANNER_CONTEXT_LIMIT, error),
-        None => None,
-    };
-
     let model_config =
         goose::model_config::model_config_from_user_config(&provider, model.as_str())?;
     let extensions = goose::config::extensions::get_enabled_extensions_with_config(config);
     let reasoner = create(&provider, extensions).await?;
 
-    Ok((reasoner, model_config, planner_context_limit))
+    Ok((reasoner, model_config))
 }
 
 /// Format elapsed time duration
