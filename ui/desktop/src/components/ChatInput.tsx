@@ -581,6 +581,7 @@ export default function ChatInput({
   const loadProviderDetails = async () => {
     try {
       if (sessionId) {
+        setTokenLimit(0);
         setIsTokenLimitLoaded(false);
         return;
       }
@@ -647,11 +648,17 @@ export default function ChatInput({
   }, [effectiveModel, effectiveProvider, configModel, configProvider, sessionId]);
 
   useEffect(() => {
-    if (contextLimit !== undefined) {
-      setTokenLimit(contextLimit);
-      setIsTokenLimitLoaded(true);
+    if (contextLimit === undefined) {
+      if (sessionId) {
+        setTokenLimit(0);
+        setIsTokenLimitLoaded(false);
+      }
+      return;
     }
-  }, [contextLimit]);
+
+    setTokenLimit(contextLimit);
+    setIsTokenLimitLoaded(true);
+  }, [contextLimit, sessionId]);
 
   // Handle token usage alerts
   useEffect(() => {
