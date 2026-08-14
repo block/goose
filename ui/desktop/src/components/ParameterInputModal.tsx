@@ -96,11 +96,9 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
   useEffect(() => {
     const values: Record<string, string> = {};
     parameters.forEach((param) => {
-      if (param.requirement === 'optional' && param.default) {
-        const defaultValue =
-          param.input_type === 'boolean' ? param.default.toLowerCase() : param.default;
-        if (isValidParameterValue(param, defaultValue)) {
-          values[param.key] = defaultValue;
+      if (param.requirement === 'optional' && param.default != null) {
+        if (isValidParameterValue(param, param.default)) {
+          values[param.key] = param.default;
         }
       }
 
@@ -132,6 +130,13 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
       }
 
       if (value === undefined || value === '') {
+        if (
+          param.requirement === 'optional' &&
+          param.default != null &&
+          !isValidParameterValue(param, param.default)
+        ) {
+          errors[param.key] = `${param.description || param.key} has an invalid value`;
+        }
         return;
       }
 

@@ -234,6 +234,77 @@ describe('ParameterInputModal', () => {
 
       expect(onSubmit).toHaveBeenCalledWith({ topic: 'declared value' });
     });
+
+    it.each([
+      {
+        name: 'select',
+        parameter: {
+          key: 'mode',
+          description: 'Mode',
+          input_type: 'select',
+          requirement: 'optional',
+          options: ['safe'],
+          default: 'hidden instruction',
+        } as Parameter,
+      },
+      {
+        name: 'boolean',
+        parameter: {
+          key: 'enabled',
+          description: 'Enabled',
+          input_type: 'boolean',
+          requirement: 'optional',
+          default: 'TRUE',
+        } as Parameter,
+      },
+      {
+        name: 'number',
+        parameter: {
+          key: 'iterations',
+          description: 'Iterations',
+          input_type: 'number',
+          requirement: 'optional',
+          default: '1.',
+        } as Parameter,
+      },
+    ])('blocks submission when an optional $name default is invalid', async ({ parameter }) => {
+      const user = userEvent.setup();
+      const onSubmit = vi.fn();
+      renderWithIntl(
+        <ParameterInputModal {...defaultProps} onSubmit={onSubmit} parameters={[parameter]} />
+      );
+
+      await user.click(screen.getByText('Start Recipe'));
+
+      expect(screen.getByText(`${parameter.description} has an invalid value`)).toBeInTheDocument();
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    it('allows a valid user value to replace an invalid optional default', async () => {
+      const user = userEvent.setup();
+      const onSubmit = vi.fn();
+      renderWithIntl(
+        <ParameterInputModal
+          {...defaultProps}
+          onSubmit={onSubmit}
+          parameters={[
+            {
+              key: 'mode',
+              description: 'Mode',
+              input_type: 'select',
+              requirement: 'optional',
+              options: ['safe'],
+              default: 'hidden instruction',
+            },
+          ]}
+        />
+      );
+
+      await user.selectOptions(screen.getByLabelText('Mode'), 'safe');
+      await user.click(screen.getByText('Start Recipe'));
+
+      expect(onSubmit).toHaveBeenCalledWith({ mode: 'safe' });
+    });
   });
 
   describe('Cancel Behavior', () => {
