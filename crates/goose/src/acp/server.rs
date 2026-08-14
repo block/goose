@@ -2303,11 +2303,19 @@ impl GooseAcpAgent {
         }
 
         let user_message = Self::convert_acp_prompt_to_message(&args.prompt);
+
+        let use_state_machine = args
+            .meta
+            .as_ref()
+            .and_then(|m| m.get("goose"))
+            .and_then(|v| v.get("unrolledAgentLoop"))
+            .and_then(|v| v.as_bool());
         let session_config = SessionConfig {
             id: session_id.clone(),
             schedule_id: None,
             max_turns: None,
             retry_config: None,
+            use_state_machine,
         };
 
         let stream = match agent

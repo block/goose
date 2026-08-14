@@ -2093,10 +2093,11 @@ impl Agent {
             }
         }
 
-        if super::state_machine::enabled()
-            || super::state_machine::bang_shell_command(&user_visible_message_text(&user_message))
-                .is_some()
-        {
+        let use_state_machine = session_config.use_state_machine.unwrap_or_else(|| {
+            super::state_machine::enabled()
+                || super::state_machine::bang_shell_command(&message_text_for_trace).is_some()
+        });
+        if use_state_machine {
             tracing::info!("dispatching reply via experimental state machine");
             return self
                 .reply_with_state_machine(user_message, session_config, cancel_token)
@@ -5242,6 +5243,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 timeout_seconds: None,
                 on_failure_timeout_seconds: None,
             }),
+            use_state_machine: None,
         };
 
         let reply_stream = agent
@@ -5436,6 +5438,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             schedule_id: None,
             max_turns: Some(10),
             retry_config: None,
+            use_state_machine: None,
         };
         let reply_stream = agent
             .reply(Message::user().with_text(text), session_config, None)
@@ -5564,6 +5567,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             schedule_id: None,
             max_turns: Some(10),
             retry_config: None,
+            use_state_machine: None,
         };
         let user_only_content = MessageContent::Text(
             TextContent::new("user-only")
@@ -5595,6 +5599,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             schedule_id: None,
             max_turns: Some(10),
             retry_config: None,
+            use_state_machine: None,
         };
         let mut visible_stream = agent
             .reply(
@@ -5614,6 +5619,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             schedule_id: None,
             max_turns: Some(10),
             retry_config: None,
+            use_state_machine: None,
         };
         let mut final_stream = agent
             .reply(

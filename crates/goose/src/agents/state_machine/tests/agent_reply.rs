@@ -294,6 +294,7 @@ async fn reply_streams_the_turn_and_ends() -> Result<()> {
         schedule_id: None,
         max_turns: Some(2),
         retry_config: None,
+        use_state_machine: None,
     };
     let stream = agent
         .reply_with_state_machine(
@@ -333,6 +334,7 @@ async fn bang_shell_uses_the_state_machine_when_the_flag_is_disabled() -> Result
         schedule_id: None,
         max_turns: Some(2),
         retry_config: None,
+        use_state_machine: None,
     };
     let stream = agent
         .reply(

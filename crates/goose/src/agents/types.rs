@@ -79,6 +79,11 @@ pub struct SessionConfig {
     /// Retry configuration for automated validation and recovery
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry_config: Option<RetryConfig>,
+    /// Override the GOOSE_STATE_MACHINE env-var to force a specific agent loop.
+    /// `Some(true)` forces the state-machine path; `Some(false)` forces the legacy path.
+    /// `None` defers to the env-var.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub use_state_machine: Option<bool>,
 }
 
 #[cfg(test)]
