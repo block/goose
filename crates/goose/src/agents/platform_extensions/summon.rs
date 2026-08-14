@@ -125,11 +125,11 @@ pub enum WorkerSlot {
     Ready(Arc<PersistentWorker>),
 }
 
-// Two SummonClient instances can briefly coexist for one parent session
-// (e.g. an agent evicted and recreated while an old handle finishes a call),
-// so worker exclusion is shared process-wide instead of living on per-client
-// state.
-type SharedLockKey = (usize, String);
+// Two SummonClient instances can coexist for one parent session (an agent
+// evicted and recreated while an old handle finishes a call, or concurrent
+// ACP connections each with their own SessionManager), so worker exclusion
+// is shared process-wide instead of living on per-client state.
+type SharedLockKey = (PathBuf, String);
 type SharedLockRegistry = std::sync::Mutex<HashMap<SharedLockKey, std::sync::Weak<Mutex<()>>>>;
 
 static WORKER_BUSY_LOCKS: std::sync::LazyLock<SharedLockRegistry> =
@@ -143,10 +143,9 @@ fn shared_lock(
     key: &str,
 ) -> Arc<Mutex<()>> {
     // Session ids are only unique within one store, so keys include the
-    // store's identity; a live lock keeps its store alive, so a reused
-    // address cannot alias a live entry.
+    // store's scope; separate managers over the same store share exclusion.
     let key = (
-        Arc::as_ptr(session_manager.storage()) as usize,
+        session_manager.storage().scope().to_path_buf(),
         key.to_string(),
     );
     let mut locks = registry.lock().unwrap();
@@ -3347,7 +3346,13 @@ mod tests {
         let worker = ready_worker(&rig.client);
         let _held = worker.busy.clone().try_lock_owned().unwrap();
 
-        let second_client = SummonClient::new(rig.client.context.clone()).unwrap();
+        // A separate SessionManager over the same store (one per ACP
+        // connection) must still observe the busy lock.
+        let mut second_context = rig.client.context.clone();
+        second_context.session_manager = Arc::new(crate::session::SessionManager::new(
+            rig._temp.path().to_path_buf(),
+        ));
+        let second_client = SummonClient::new(second_context).unwrap();
         let err = second_client
             .handle_worker_delegate(
                 &rig.session,

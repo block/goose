@@ -444,7 +444,8 @@ impl SessionManager {
 
     /// Atomically read-modify-write a session's extension data. Writers that
     /// update extension data through separate get/update calls can lose each
-    /// other's changes; this serializes the read and write behind one lock.
+    /// other's changes; this serializes the read and write behind one lock,
+    /// shared by every manager over the same store.
     pub async fn update_extension_data<F>(&self, id: &str, f: F) -> Result<()>
     where
         F: FnOnce(&mut ExtensionData),
@@ -693,8 +694,28 @@ pub struct SessionStorage {
     pool: Pool<Sqlite>,
     initialized: tokio::sync::OnceCell<()>,
     session_dir: PathBuf,
-    extension_data_lock: tokio::sync::Mutex<()>,
+    scope: PathBuf,
+    extension_data_lock: Arc<tokio::sync::Mutex<()>>,
     action_required: Arc<crate::action_required_manager::ActionRequiredManager>,
+}
+
+// Multiple SessionStorage instances can point at the same database (the ACP
+// server builds one SessionManager per connection), so locks that must
+// serialize writers cannot live on a single instance; they are shared
+// process-wide, keyed by the storage's scope.
+static EXTENSION_DATA_LOCKS: LazyLock<
+    std::sync::Mutex<HashMap<PathBuf, std::sync::Weak<tokio::sync::Mutex<()>>>>,
+> = LazyLock::new(Default::default);
+
+fn extension_data_lock_for(scope: &Path) -> Arc<tokio::sync::Mutex<()>> {
+    let mut locks = EXTENSION_DATA_LOCKS.lock().unwrap();
+    locks.retain(|_, lock| lock.strong_count() > 0);
+    if let Some(lock) = locks.get(scope).and_then(std::sync::Weak::upgrade) {
+        return lock;
+    }
+    let lock = Arc::new(tokio::sync::Mutex::new(()));
+    locks.insert(scope.to_path_buf(), Arc::downgrade(&lock));
+    lock
 }
 
 pub(crate) fn role_to_string(role: &Role) -> &'static str {
@@ -933,13 +954,28 @@ impl SessionStorage {
     pub fn new(data_dir: PathBuf) -> Self {
         let session_dir = data_dir.join(SESSIONS_FOLDER);
         let db_path = session_dir.join(DB_NAME);
+        // Canonicalize so different spellings of one directory share a scope.
+        // The directory is created first: canonicalizing only once it exists
+        // would give managers constructed before and after different scopes.
+        let scope = fs::create_dir_all(&session_dir)
+            .ok()
+            .and_then(|_| session_dir.canonicalize().ok())
+            .or_else(|| std::path::absolute(&session_dir).ok())
+            .unwrap_or_else(|| session_dir.clone());
         Self {
             pool: Self::create_pool(&db_path),
             initialized: tokio::sync::OnceCell::new(),
             session_dir,
-            extension_data_lock: tokio::sync::Mutex::new(()),
+            extension_data_lock: extension_data_lock_for(&scope),
+            scope,
             action_required: Arc::new(crate::action_required_manager::ActionRequiredManager::new()),
         }
+    }
+
+    /// Stable identity for the underlying store: separate SessionStorage
+    /// instances over the same database share one scope.
+    pub(crate) fn scope(&self) -> &Path {
+        &self.scope
     }
 
     pub(crate) async fn pool(&self) -> Result<&Pool<Sqlite>> {
@@ -2847,6 +2883,45 @@ mod tests {
         }
 
         session.id
+    }
+
+    #[tokio::test]
+    async fn update_extension_data_is_atomic_across_managers() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm1 = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let sm2 = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let session_id = create_session_for_list(&sm1, "/tmp", false).await;
+
+        let mut handles = Vec::new();
+        for i in 0..20 {
+            let sm = if i % 2 == 0 { sm1.clone() } else { sm2.clone() };
+            let id = session_id.clone();
+            handles.push(tokio::spawn(async move {
+                sm.update_extension_data(&id, |extension_data| {
+                    extension_data.set_extension_state(
+                        &format!("writer_{i}"),
+                        "v0",
+                        serde_json::json!(i),
+                    );
+                })
+                .await
+                .unwrap();
+            }));
+        }
+        for handle in handles {
+            handle.await.unwrap();
+        }
+
+        let session = sm1.get_session(&session_id, false).await.unwrap();
+        for i in 0..20 {
+            assert!(
+                session
+                    .extension_data
+                    .get_extension_state(&format!("writer_{i}"), "v0")
+                    .is_some(),
+                "writer_{i} update was lost"
+            );
+        }
     }
 
     async fn create_session_for_list_with_message(
