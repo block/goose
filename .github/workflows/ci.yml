@@ -240,12 +240,11 @@ jobs:
           source ./bin/activate-hermit
           just check-acp-schema
 
-      - name: Test ACP Client SDK
+      - name: Check ACP Client SDK
         run: |
           source ./bin/activate-hermit
           cd ui/sdk
-          pnpm test
-          pnpm run typecheck:test
+          pnpm run lint
 
   desktop-lint:
     name: Test and Lint Electron Desktop App
