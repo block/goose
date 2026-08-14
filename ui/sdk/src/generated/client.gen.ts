@@ -1,6 +1,6 @@
 // This file is auto-generated — do not edit manually.
 
-import type { Client, ClientContext } from "@agentclientprotocol/sdk";
+import type { ClientContext } from "@agentclientprotocol/sdk";
 import type {
   AddConfigExtensionRequest_unstable,
   AddSessionExtensionRequest_unstable,
@@ -78,7 +78,6 @@ import type {
   GetSessionInfoResponse_unstable,
   GetToolsRequest_unstable,
   GetToolsResponse_unstable,
-  GooseSessionNotification_unstable,
   GooseToolCallRequest_unstable,
   GooseToolCallResponse_unstable,
   ImportSessionRequest_unstable,
@@ -157,7 +156,6 @@ import type {
   ProviderSupportedModelsListResponse_unstable,
   ReadResourceRequest_unstable,
   ReadResourceResponse_unstable,
-  RecipeParamsResponse_unstable,
   RecipeToYamlRequest_unstable,
   RecipeToYamlResponse_unstable,
   RefreshProviderInventoryRequest_unstable,
@@ -165,7 +163,6 @@ import type {
   RemoveConfigExtensionRequest_unstable,
   RemoveSessionExtensionRequest_unstable,
   RenameSessionRequest_unstable,
-  RequestRecipeParams_unstable,
   ResetPromptRequest_unstable,
   RunScheduleNowRequest_unstable,
   RunScheduleNowResponse_unstable,
@@ -224,7 +221,6 @@ import {
   zGetSessionExtensionsResponse_unstable,
   zGetSessionInfoResponse_unstable,
   zGetToolsResponse_unstable,
-  zGooseSessionNotification_unstable,
   zGooseToolCallResponse_unstable,
   zImportSessionResponse_unstable,
   zImportSourcesResponse_unstable,
@@ -262,7 +258,6 @@ import {
   zReadResourceResponse_unstable,
   zRecipeToYamlResponse_unstable,
   zRefreshProviderInventoryResponse_unstable,
-  zRequestRecipeParams_unstable,
   zRunScheduleNowResponse_unstable,
   zSaveRecipeResponse_unstable,
   zScanRecipeResponse_unstable,
@@ -1416,93 +1411,4 @@ export class GooseExtClient {
       raw,
     ) as LocalInferenceBuiltinChatTemplatesListResponse_unstable;
   }
-}
-
-export interface GooseExtNotifications {
-  unstable_sessionUpdate?: (
-    notification: GooseSessionNotification_unstable,
-  ) => Promise<void>;
-}
-
-export interface GooseExtAgentRequests {
-  unstable_sessionRecipeRequestParams?: (
-    request: RequestRecipeParams_unstable,
-  ) => Promise<RecipeParamsResponse_unstable>;
-}
-
-export type GooseClientCallbacks = Omit<
-  Client,
-  "extNotification" | "extMethod"
-> &
-  Partial<Pick<Client, "extNotification" | "extMethod">> &
-  GooseExtNotifications &
-  GooseExtAgentRequests;
-
-export function installGooseExtNotificationDispatcher(
-  callbacks: GooseClientCallbacks,
-): Client {
-  const dispatcher: Pick<Client, "extNotification"> = {
-    extNotification: async (method, params) => {
-      switch (method) {
-        case "_goose/unstable/session/update": {
-          const parsed = zGooseSessionNotification_unstable.parse(
-            params,
-          ) as GooseSessionNotification_unstable;
-          await callbacks.unstable_sessionUpdate?.(parsed);
-          return;
-        }
-        default:
-          await callbacks.extNotification?.(method, params);
-          return;
-      }
-    },
-  };
-  return new Proxy(callbacks, {
-    get(target, property) {
-      if (property === "extNotification") {
-        return dispatcher.extNotification;
-      }
-
-      const value = Reflect.get(target, property, target);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
-  }) as Client;
-}
-
-export function installGooseExtAgentRequestDispatcher(
-  callbacks: GooseClientCallbacks,
-): Client {
-  const dispatcher: Pick<Client, "extMethod"> = {
-    extMethod: async (method, params) => {
-      switch (method) {
-        case "_goose/unstable/session/recipe/request-params": {
-          if (callbacks.unstable_sessionRecipeRequestParams) {
-            const parsed = zRequestRecipeParams_unstable.parse(
-              params,
-            ) as RequestRecipeParams_unstable;
-            return await callbacks.unstable_sessionRecipeRequestParams(parsed);
-          }
-          if (callbacks.extMethod) {
-            return await callbacks.extMethod(method, params);
-          }
-          throw new Error(`unhandled ext method: ${method}`);
-        }
-        default:
-          if (callbacks.extMethod) {
-            return await callbacks.extMethod(method, params);
-          }
-          throw new Error(`unhandled ext method: ${method}`);
-      }
-    },
-  };
-  return new Proxy(callbacks, {
-    get(target, property) {
-      if (property === "extMethod") {
-        return dispatcher.extMethod;
-      }
-
-      const value = Reflect.get(target, property, target);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
-  }) as Client;
 }

@@ -3,6 +3,7 @@
 TypeScript client library for the Goose Agent Client Protocol (ACP).
 
 This package provides:
+
 - TypeScript types and Zod validators for Goose ACP extension methods
 - A client for communicating with the Goose ACP server
 
@@ -76,13 +77,13 @@ npm run build:schema
 Platform-specific npm packages for the `goose` binary are located in
 `ui/goose-binary/`:
 
-| Package | Platform |
-|---------|----------|
+| Package                           | Platform            |
+| --------------------------------- | ------------------- |
 | `@aaif/goose-binary-darwin-arm64` | macOS Apple Silicon |
-| `@aaif/goose-binary-darwin-x64` | macOS Intel |
-| `@aaif/goose-binary-linux-arm64` | Linux ARM64 |
-| `@aaif/goose-binary-linux-x64` | Linux x64 |
-| `@aaif/goose-binary-win32-x64` | Windows x64 |
+| `@aaif/goose-binary-darwin-x64`   | macOS Intel         |
+| `@aaif/goose-binary-linux-arm64`  | Linux ARM64         |
+| `@aaif/goose-binary-linux-x64`    | Linux x64           |
+| `@aaif/goose-binary-win32-x64`    | Windows x64         |
 
 These are published separately from `@aaif/goose-sdk`.
 
@@ -111,20 +112,34 @@ For manual publishing:
 ```
 
 This will:
+
 1. Build and publish `@aaif/goose-sdk`
 2. Publish all native binary packages
 
 ## Usage
 
-```typescript
-import { GooseClient } from "@aaif/goose-sdk";
+Compose the ACP client with the standard ACP SDK, then use `GooseExtClient` for
+typed Goose extension methods:
 
-const client = new GooseClient({
-  // ... configuration
+```typescript
+import {
+  client as createAcpClient,
+  methods,
+  PROTOCOL_VERSION,
+} from "@agentclientprotocol/sdk";
+import { GooseExtClient } from "@aaif/goose-sdk";
+
+const app = createAcpClient({ name: "my-client" });
+const connection = app.connect(stream);
+const goose = new GooseExtClient(connection.agent);
+
+await connection.agent.request(methods.agent.initialize, {
+  protocolVersion: PROTOCOL_VERSION,
+  clientInfo: { name: "my-client", version: "1.0.0" },
+  clientCapabilities: {},
 });
 
-// Use the client
-const result = await client.someMethod({ ... });
+const providers = await goose.providersList_unstable({ providerIds: [] });
 ```
 
 See the [main documentation](../../README.md) for more details.
