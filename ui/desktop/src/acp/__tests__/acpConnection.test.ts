@@ -3,17 +3,17 @@ import { GOOSE_SERVE_EXITED_USER_MESSAGE } from '../../gooseServeLeaseRegistry';
 
 const mockClientFactory = vi.hoisted(() => {
   const initialize = vi.fn();
-  type MockStream = { close: () => void };
+  type MockStream = object;
   type MockClient = {
     connection: {
       agent: { request: typeof initialize };
       closed: Promise<void>;
-      close: (error?: unknown) => void;
+      close: ReturnType<typeof vi.fn>;
     };
     goose: Record<string, never>;
   };
   const instances: Array<{ client: MockClient; resolveClosed: () => void }> = [];
-  const connectGooseAcpClient = vi.fn((stream: MockStream): MockClient => {
+  const connectGooseAcpClient = vi.fn((_stream: MockStream): MockClient => {
     let resolveClosed: () => void = () => undefined;
     const closed = new Promise<void>((resolve) => {
       resolveClosed = resolve;
@@ -22,7 +22,7 @@ const mockClientFactory = vi.hoisted(() => {
       connection: {
         agent: { request: initialize },
         closed,
-        close: vi.fn(() => stream.close()),
+        close: vi.fn(),
       },
       goose: {},
     };
@@ -45,7 +45,7 @@ vi.mock('../gooseAcpClient', () => ({
   connectGooseAcpClient: mockClientFactory.connectGooseAcpClient,
 }));
 
-vi.mock('../createWebSocketStream', () => ({
+vi.mock('@agentclientprotocol/sdk/experimental/ws-client', () => ({
   createWebSocketStream: transport.createWebSocketStream,
 }));
 
@@ -59,7 +59,6 @@ describe('ACP connection ownership', () => {
     transport.createWebSocketStream.mockReset().mockImplementation(() => ({
       readable: {},
       writable: {},
-      close: vi.fn(),
     }));
     window.electron.getAcpUrl = vi.fn().mockResolvedValue('ws://localhost/acp');
   });
@@ -83,8 +82,6 @@ describe('ACP connection ownership', () => {
   it('automatically reconnects after close and shares the result between callers', async () => {
     const { getAcpClient } = await import('../acpConnection');
     const firstClient = await getAcpClient();
-    const firstStream = transport.createWebSocketStream.mock.results[0].value;
-
     mockClientFactory.instances[0].resolveClosed();
     await Promise.resolve();
     const firstCaller = getAcpClient();
@@ -96,7 +93,7 @@ describe('ACP connection ownership', () => {
     await vi.advanceTimersByTimeAsync(1);
     const [firstResult, secondResult] = await Promise.all([firstCaller, secondCaller]);
 
-    expect(firstStream.close).toHaveBeenCalledOnce();
+    expect(mockClientFactory.instances[0].client.connection.close).toHaveBeenCalledOnce();
     expect(firstResult).toBe(secondResult);
     expect(firstResult).not.toBe(firstClient);
     expect(mockClientFactory.instances).toHaveLength(2);
@@ -177,13 +174,11 @@ describe('ACP connection ownership', () => {
   it('reconnects immediately after system resume', async () => {
     const { getAcpClient, reconnectAcpAfterSystemResume } = await import('../acpConnection');
     await getAcpClient();
-    const firstStream = transport.createWebSocketStream.mock.results[0].value;
-
     reconnectAcpAfterSystemResume();
     const reconnected = getAcpClient();
     await reconnected;
 
-    expect(firstStream.close).toHaveBeenCalledOnce();
+    expect(mockClientFactory.instances[0].client.connection.close).toHaveBeenCalledOnce();
     expect(mockClientFactory.instances).toHaveLength(2);
   });
 

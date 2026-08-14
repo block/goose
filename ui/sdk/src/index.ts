@@ -5,12 +5,5 @@ export {
   GOOSE_EXT_NOTIFICATIONS,
 } from "./generated/index.js";
 export { GooseExtClient } from "./generated/client.gen.js";
-export { createHttpStream } from "./http-stream.js";
 export * from "./client-capabilities.js";
 export * from "./mcp-apps.js";
-
-export {
-  ClientSideConnection,
-  type Client,
-  type Stream,
-} from "@agentclientprotocol/sdk";

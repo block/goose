@@ -127,9 +127,11 @@ import {
   methods,
   PROTOCOL_VERSION,
 } from "@agentclientprotocol/sdk";
+import { createWebSocketStream } from "@agentclientprotocol/sdk/experimental/ws-client";
 import { GooseExtClient } from "@aaif/goose-sdk";
 
 const app = createAcpClient({ name: "my-client" });
+const stream = createWebSocketStream("ws://localhost:3000/acp");
 const connection = app.connect(stream);
 const goose = new GooseExtClient(connection.agent);
 
