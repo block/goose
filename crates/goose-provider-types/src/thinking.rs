@@ -4,6 +4,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 pub const GEMINI_THOUGHT_SIGNATURE_KEY: &str = "thoughtSignature";
+const MAX_BUFFERED_THINK_TAG_BYTES: usize = 8 * 1024;
 
 pub fn split_think_blocks(text: &str) -> (String, String) {
     let mut filter = ThinkFilter::new();
@@ -38,6 +39,9 @@ enum BufferEvent {
         pos: usize,
         end: usize,
         kind: ThinkTag,
+    },
+    OversizedTag {
+        end: usize,
     },
     Partial(usize),
 }
@@ -98,6 +102,15 @@ impl ThinkFilter {
                         ThinkTag::SelfClosing => {}
                     }
                 }
+                Some(BufferEvent::OversizedTag { end }) => {
+                    let malformed = self.buffer.get(..end).unwrap_or_default().to_string();
+                    if self.inside_think {
+                        out.thinking.push_str(&malformed);
+                    } else {
+                        out.content.push_str(&malformed);
+                    }
+                    self.buffer.drain(..end);
+                }
                 Some(BufferEvent::Partial(pos)) => {
                     if pos > 0 {
                         let prefix = self.buffer.get(..pos).unwrap_or_default().to_string();
@@ -107,6 +120,14 @@ impl ThinkFilter {
                             out.content.push_str(&prefix);
                         }
                         self.buffer.drain(..pos);
+                    }
+                    if self.buffer.len() > MAX_BUFFERED_THINK_TAG_BYTES {
+                        let oversized = std::mem::take(&mut self.buffer);
+                        if self.inside_think {
+                            out.thinking.push_str(&oversized);
+                        } else {
+                            out.content.push_str(&oversized);
+                        }
                     }
                     break;
                 }
@@ -122,6 +143,12 @@ impl ThinkFilter {
                     break;
                 }
             }
+        }
+
+        if self.buffer.capacity() > MAX_BUFFERED_THINK_TAG_BYTES {
+            let mut bounded = String::with_capacity(self.buffer.len());
+            bounded.push_str(&self.buffer);
+            self.buffer = bounded;
         }
 
         out
@@ -142,6 +169,9 @@ fn next_buffer_event(buffer: &str, inside_think: bool) -> Option<BufferEvent> {
         let suffix = buffer.get(pos..).unwrap_or_default();
 
         if let Some((kind, end)) = parse_think_tag(buffer, pos) {
+            if end - pos > MAX_BUFFERED_THINK_TAG_BYTES {
+                return Some(BufferEvent::OversizedTag { end });
+            }
             if inside_think || matches!(kind, ThinkTag::Open | ThinkTag::SelfClosing) {
                 return Some(BufferEvent::Tag { pos, end, kind });
             }
@@ -582,5 +612,103 @@ mod tests {
 
         assert_eq!(out.content, "before visible");
         assert_eq!(out.thinking, "hidden1  hidden2");
+    }
+
+    #[test]
+    fn test_think_filter_bounds_unterminated_quoted_tag_candidates() {
+        for quote in ['"', '\''] {
+            let payload = format!(
+                "<think data={quote}{}",
+                "a".repeat(MAX_BUFFERED_THINK_TAG_BYTES * 2)
+            );
+            let mut filter = ThinkFilter::new();
+            let mut content = String::new();
+
+            for chunk in payload.as_bytes().chunks(17) {
+                let out = filter.push(std::str::from_utf8(chunk).unwrap());
+                content.push_str(&out.content);
+                assert!(filter.buffer.len() <= MAX_BUFFERED_THINK_TAG_BYTES);
+            }
+
+            content.push_str(&filter.finish().content);
+            assert_eq!(content, payload);
+        }
+    }
+
+    #[test]
+    fn test_think_filter_bounds_partial_close_tag_candidates() {
+        let payload = format!("</think{}", " ".repeat(MAX_BUFFERED_THINK_TAG_BYTES * 2));
+        let mut filter = ThinkFilter::new();
+        let mut content = String::new();
+
+        for chunk in payload.as_bytes().chunks(19) {
+            let out = filter.push(std::str::from_utf8(chunk).unwrap());
+            content.push_str(&out.content);
+            assert!(filter.buffer.len() <= MAX_BUFFERED_THINK_TAG_BYTES);
+        }
+
+        content.push_str(&filter.finish().content);
+        assert_eq!(content, payload);
+    }
+
+    #[test]
+    fn test_think_filter_releases_single_oversized_candidate_allocation() {
+        let payload = format!(
+            "<think data=\"{}",
+            "a".repeat(MAX_BUFFERED_THINK_TAG_BYTES * 16)
+        );
+        let mut filter = ThinkFilter::new();
+        let out = filter.push(&payload);
+
+        assert_eq!(out.content, payload);
+        assert!(out.thinking.is_empty());
+        assert!(filter.buffer.is_empty());
+        assert_eq!(filter.buffer.capacity(), 0);
+    }
+
+    #[test]
+    fn test_think_filter_preserves_and_releases_completed_oversized_tag() {
+        let payload = format!(
+            "<think data=\"{}\"/>",
+            "a".repeat(MAX_BUFFERED_THINK_TAG_BYTES * 16)
+        );
+        let mut filter = ThinkFilter::new();
+        let out = filter.push(&payload);
+
+        assert_eq!(out.content, payload);
+        assert!(out.thinking.is_empty());
+        assert!(filter.buffer.is_empty());
+        assert_eq!(filter.buffer.capacity(), 0);
+    }
+
+    #[test]
+    fn test_think_filter_releases_oversized_prefix_capacity() {
+        let prefix = "a".repeat(MAX_BUFFERED_THINK_TAG_BYTES * 16);
+        let payload = format!("{prefix}<thi");
+        let mut filter = ThinkFilter::new();
+        let out = filter.push(&payload);
+
+        assert_eq!(out.content, prefix);
+        assert!(out.thinking.is_empty());
+        assert_eq!(filter.buffer, "<thi");
+        assert!(filter.buffer.capacity() <= MAX_BUFFERED_THINK_TAG_BYTES);
+    }
+
+    #[test]
+    fn test_think_filter_accepts_bounded_streamed_attributes() {
+        let prefix = "<think data=\"";
+        let attribute = "a".repeat(MAX_BUFFERED_THINK_TAG_BYTES - prefix.len() - 2);
+        let mut filter = ThinkFilter::new();
+        let first = filter.push(&format!("{prefix}{attribute}"));
+
+        assert!(first.content.is_empty());
+        assert!(first.thinking.is_empty());
+        assert_eq!(filter.buffer.len(), MAX_BUFFERED_THINK_TAG_BYTES - 2);
+
+        let second = filter.push("\">hidden</think>visible");
+        let final_out = filter.finish();
+        assert_eq!(second.content, "visible");
+        assert_eq!(second.thinking, "hidden");
+        assert_eq!(final_out, FilterOut::default());
     }
 }

@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::pin::Pin;
-use std::sync::Arc;
 
 use crate::{
     canonical::{catalog::ProviderSetupMetadata, map_to_canonical_model, CanonicalModelRegistry},
@@ -619,8 +618,6 @@ pub trait Provider: Send + Sync {
     fn manages_own_context(&self) -> bool {
         false
     }
-
-    fn set_session_title_callback(&self, _callback: Arc<dyn Fn(String) + Send + Sync>) {}
 
     /// Configure OAuth authentication for this provider
     ///

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
 import { Outlet, useLocation } from 'react-router';
 import { motion } from 'framer-motion';
-import { Menu, PanelLeft } from 'lucide-react';
+import { PanelLeft } from 'lucide-react';
 import { defineMessages, useIntl } from '../../i18n';
 import { Button } from '../ui/button';
 import ChatSessionsContainer from '../ChatSessionsContainer';
@@ -117,7 +117,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
           title={navToggleTitle}
           aria-label={navToggleTitle}
         >
-          {isNavExpanded ? <PanelLeft className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          <PanelLeft className="w-5 h-5" />
         </Button>
       </div>
 

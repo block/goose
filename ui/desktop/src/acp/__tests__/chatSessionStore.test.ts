@@ -1,8 +1,4 @@
-import type {
-  CreateElicitationRequest,
-  RequestPermissionRequest,
-  SessionNotification,
-} from '@agentclientprotocol/sdk';
+import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Message } from '../../types/message';
@@ -15,6 +11,7 @@ import {
   acpChatSessionStore,
   useAcpChatSessionSnapshot,
 } from '../chatSessionStore';
+import type { AcpElicitationRequest } from '../elicitationRequests';
 
 function message(id: string, text: string): Message {
   return {
@@ -67,14 +64,7 @@ function permissionRequest(sessionId: string, toolCallId = 'tool-1'): RequestPer
   };
 }
 
-function elicitationRequest(sessionId: string): {
-  id: string;
-  sessionId: string;
-  request: CreateElicitationRequest & {
-    mode: 'form';
-    sessionId: string;
-  };
-} {
+function elicitationRequest(sessionId: string): AcpElicitationRequest {
   return {
     id: 'acp_elicitation_1',
     sessionId,
@@ -242,13 +232,9 @@ describe('acpChatSessionStore', () => {
     acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-a');
     acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-b');
 
-    expect(
-      acpChatSessionActions.finishPromptAttemptIfCurrent(
-        currentSessionId,
-        'attempt-a',
-        'late error'
-      )
-    ).toBe(false);
+    expect(acpChatSessionActions.finishPromptAttemptIfCurrent(currentSessionId, 'attempt-a')).toBe(
+      false
+    );
 
     expect(acpChatSessionStore.getSnapshot(currentSessionId)).toMatchObject({
       activePromptAttemptId: 'attempt-b',

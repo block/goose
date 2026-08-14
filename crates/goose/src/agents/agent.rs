@@ -27,16 +27,18 @@ use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::state_machine::{
-    BangShellOperation, CompactionOperation, DoctorOperation, Emitter, ExitOnErrorOperation,
-    InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation, RecipeOperation,
-    RetryOperation, SkillOperation, SlashCommandOperation, StateMachine, SteerOperation,
-    SteerQueue, Step, StopHookOperation, ToolApprovalOperation, ToolExecutionOperation,
-    ToolPairCompactionOperation, UnknownToolOperation, MAX_TURNS_MESSAGE,
+    run_goose, BangShellOperation, CompactionOperation, DoctorOperation, Emitter,
+    EntryHookOperation, ExitOnErrorOperation, GooseEffect, InferenceRunner, MaxTurnsOperation,
+    Operation, ProjectOperation, RecipeOperation, RetryOperation, SkillOperation,
+    SlashCommandOperation, StateMachine, SteerOperation, SteerQueue, Step, StopHookOperation,
+    ToolApprovalOperation, ToolExecutionOperation, ToolPairCompactionOperation,
+    UnknownToolOperation, MAX_TURNS_MESSAGE,
 };
 use crate::agents::types::{
     FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver,
     DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
 };
+use crate::agents::AgentEvent;
 use crate::config::extensions::name_to_key;
 use crate::config::permission::PermissionManager;
 use crate::config::{get_enabled_extensions, Config, GooseMode};
@@ -71,7 +73,7 @@ use goose_providers::thinking::ThinkingEffort;
 use regex::Regex;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, ContentBlock, ElicitationAction, ErrorCode, ErrorData,
-    GetPromptResult, Prompt, ServerNotification, Tool,
+    GetPromptResult, Prompt, Tool,
 };
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
@@ -85,6 +87,11 @@ const MAX_EMPTY_TURN_RETRIES: u32 = 3;
 const EMPTY_TURN_MESSAGE: &str =
     "The model returned an empty response. Please resend your message to continue.";
 const DEFAULT_FRONTEND_INSTRUCTIONS: &str = "The following tools are provided directly by the frontend and will be executed by the frontend when called.";
+
+fn provider_creation_error(error: anyhow::Error, context: impl fmt::Display) -> anyhow::Error {
+    let message = format!("{context}: {error}");
+    error.context(message)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ToolCategory {
@@ -275,18 +282,6 @@ pub struct Agent {
     pub(super) goal: Mutex<Option<String>>,
     pub(super) grind: Mutex<Option<String>>,
     steer_queues: Mutex<HashMap<String, SteerQueue>>,
-}
-
-#[derive(Clone, Debug)]
-pub enum AgentEvent {
-    Message(Message),
-    Usage(crate::providers::base::ProviderUsage),
-    MessageUsage {
-        message_id: Option<String>,
-        usage: MessageUsage,
-    },
-    McpNotification((String, ServerNotification)),
-    HistoryReplaced(Conversation),
 }
 
 fn ensure_message_event_id(event: AgentEvent) -> AgentEvent {
@@ -1316,6 +1311,20 @@ impl Agent {
             }
         };
 
+        let manages_own_context = self
+            .provider()
+            .await
+            .map(|p| p.manages_own_context())
+            .unwrap_or(false);
+        let (skipped_configs, enabled_configs): (Vec<_>, Vec<_>) =
+            enabled_configs.into_iter().partition(|config| {
+                manages_own_context
+                    && matches!(
+                        config,
+                        ExtensionConfig::Stdio { .. } | ExtensionConfig::StreamableHttp { .. }
+                    )
+            });
+
         let session_id = session.id.clone();
 
         let extension_futures = enabled_configs
@@ -1366,8 +1375,7 @@ impl Agent {
 
         let results = futures::future::join_all(extension_futures).await;
 
-        // Persist once after all extensions are loaded
-        if results.iter().any(|r| r.success) {
+        if results.iter().any(|r| r.success) && skipped_configs.is_empty() {
             if let Err(e) = self.persist_extension_state(&session_id).await {
                 warn!("Failed to persist extension state after bulk load: {}", e);
             }
@@ -1595,7 +1603,7 @@ impl Agent {
         max_turns: Option<u32>,
         cancel: CancellationToken,
         steer_queue: SteerQueue,
-    ) -> StateMachine<'_> {
+    ) -> StateMachine<'_, Session, GooseEffect> {
         let max_turns = max_turns.unwrap_or_else(|| {
             Config::global()
                 .get_param::<u32>("GOOSE_MAX_TURNS")
@@ -1628,7 +1636,7 @@ impl Agent {
         let tool_pair_compaction_enabled = crate::context_mgmt::tool_pair_summarization_enabled()
             && !provider.manages_own_context();
 
-        let operations: Vec<Arc<dyn Operation + '_>> = vec![
+        let operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
             Arc::new(SteerOperation::new(steer_queue, self.hook_manager.clone())),
             Arc::new(MaxTurnsOperation::new(max_turns)),
             Arc::new(BangShellOperation::new()),
@@ -1681,9 +1689,12 @@ impl Agent {
         ));
         let mut command_handlers = operations.clone();
         command_handlers.push(inference.clone());
-        let command_operation: Arc<dyn Operation + '_> =
+        let command_operation: Arc<dyn Operation<Session, GooseEffect> + '_> =
             Arc::new(SlashCommandOperation::new(command_handlers));
-        let operations: Vec<_> = std::iter::once(command_operation)
+        let operations: Vec<_> =
+            std::iter::once(Arc::new(EntryHookOperation::new(self.hook_manager.clone()))
+                as Arc<dyn Operation<Session, GooseEffect> + '_>)
+            .chain(std::iter::once(command_operation))
             .chain(operations)
             .collect();
 
@@ -1693,7 +1704,7 @@ impl Agent {
             .chain(std::iter::once(Step::Inference(inference)))
             .collect();
 
-        StateMachine::new(steps, cancel).with_hook_manager(self.hook_manager.clone())
+        StateMachine::new(steps, cancel)
     }
 
     pub(crate) async fn reply_with_state_machine(
@@ -1779,7 +1790,7 @@ impl Agent {
                 let (tx, mut rx) = mpsc::channel::<AgentEvent>(32);
                 let emit = Emitter::new(tx, cancel.clone());
                 let result = {
-                    let run = machine.run(session_manager.as_ref(), &session_id, &emit);
+                    let run = run_goose(&machine, session_manager.as_ref(), &session_id, &emit);
                     tokio::pin!(run);
                     loop {
                         tokio::select! {
@@ -3045,6 +3056,21 @@ impl Agent {
                             exit_chat = true;
                             break;
                         }
+                        Err(ref provider_err @ ProviderError::Authentication(_)) => {
+                            provider_errored = true;
+                            #[cfg(feature = "telemetry")]
+                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
+                            error!("Error: {}", provider_err);
+                            let message = persist_and_push_message_with_id(
+                                &session_manager,
+                                &session_config.id,
+                                &mut conversation,
+                                Message::from_provider_error(provider_err),
+                            )
+                            .await?;
+                            yield AgentEvent::Message(message);
+                            break;
+                        }
                         Err(ref provider_err @ ProviderError::NetworkError(_)) => {
                             provider_errored = true;
                             #[cfg(feature = "telemetry")]
@@ -3406,29 +3432,6 @@ impl Agent {
         session_id: &str,
     ) -> Result<()> {
         let provider_name = provider.get_name().to_string();
-        let session_manager = self.config.session_manager.clone();
-        let session_name_update_tx = self.config.session_name_update_tx.clone();
-        let session_id_for_title = session_id.to_string();
-        let runtime = tokio::runtime::Handle::current();
-        provider.set_session_title_callback(Arc::new(move |title| {
-            let session_manager = session_manager.clone();
-            let session_name_update_tx = session_name_update_tx.clone();
-            let session_id = session_id_for_title.clone();
-            runtime.spawn(async move {
-                match session_manager
-                    .update_name_from_provider(&session_id, title)
-                    .await
-                {
-                    Ok(Some(update)) => {
-                        if let Some(tx) = session_name_update_tx {
-                            let _ = tx.send(update);
-                        }
-                    }
-                    Ok(None) => {}
-                    Err(error) => warn!(%error, "Failed to apply provider session title"),
-                }
-            });
-        }));
 
         // Normalize against the provider entry so custom/declarative providers
         // backfill `context_limit` from their known models before the config is
@@ -3501,7 +3504,7 @@ impl Agent {
             session.working_dir.clone(),
         )
         .await
-        .map_err(|e| anyhow!("Could not create provider: {}", e))?;
+        .map_err(|error| provider_creation_error(error, "Could not create provider"))?;
 
         self.update_provider(provider, model_config, session_id)
             .await?;
@@ -3578,7 +3581,7 @@ impl Agent {
                     session.working_dir.clone(),
                 )
                 .await
-                .map_err(|e| anyhow!("Could not create provider: {}", e))?;
+                .map_err(|error| provider_creation_error(error, "Could not create provider"))?;
                 (p, model_config, false)
             } else {
                 let fallback_provider_name = config
@@ -3615,12 +3618,12 @@ impl Agent {
                     session.working_dir.clone(),
                 )
                 .await
-                .map_err(|e| {
-                    anyhow!(
-                        "Could not create provider '{}' or fallback '{}': {}",
-                        provider_name,
-                        fallback_provider_name,
-                        e
+                .map_err(|error| {
+                    provider_creation_error(
+                        error,
+                        format!(
+                            "Could not create provider '{provider_name}' or fallback '{fallback_provider_name}'"
+                        ),
                     )
                 })?;
 
@@ -3979,6 +3982,26 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
+
+    #[test]
+    fn provider_creation_context_preserves_acp_error_code() {
+        let source = anyhow::Error::new(agent_client_protocol::Error::auth_required())
+            .context("ACP session/new failed: Authentication required");
+
+        let error = provider_creation_error(source, "Could not create provider");
+
+        assert_eq!(
+            error.to_string(),
+            "Could not create provider: ACP session/new failed: Authentication required"
+        );
+        assert!(error.chain().any(|source| {
+            source
+                .downcast_ref::<agent_client_protocol::Error>()
+                .is_some_and(|error| {
+                    error.code == agent_client_protocol::schema::v1::ErrorCode::AuthRequired
+                })
+        }));
+    }
 
     #[test]
     fn provider_session_id_comes_from_latest_inference() {

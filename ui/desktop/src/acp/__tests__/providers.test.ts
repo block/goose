@@ -1,3 +1,4 @@
+import { methods } from '@agentclientprotocol/sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getAcpClient } from '../acpConnection';
 import {
@@ -31,27 +32,31 @@ describe('ACP providers', () => {
 
   it('sets thinking effort after provider and model, then returns the final config response', async () => {
     const client = {
-      setSessionConfigOption: vi
-        .fn()
-        .mockResolvedValueOnce({
-          configOptions: [
-            selectConfigOption('provider', 'anthropic'),
-            selectConfigOption('model', 'provider-default-model'),
-          ],
-        })
-        .mockResolvedValueOnce({
-          configOptions: [
-            selectConfigOption('provider', 'anthropic'),
-            selectConfigOption('model', 'claude-sonnet-4-5'),
-          ],
-        })
-        .mockResolvedValueOnce({
-          configOptions: [
-            selectConfigOption('provider', 'anthropic'),
-            selectConfigOption('model', 'claude-sonnet-4-5'),
-            selectConfigOption('thinking_effort', 'high'),
-          ],
-        }),
+      connection: {
+        agent: {
+          request: vi
+            .fn()
+            .mockResolvedValueOnce({
+              configOptions: [
+                selectConfigOption('provider', 'anthropic'),
+                selectConfigOption('model', 'provider-default-model'),
+              ],
+            })
+            .mockResolvedValueOnce({
+              configOptions: [
+                selectConfigOption('provider', 'anthropic'),
+                selectConfigOption('model', 'claude-sonnet-4-5'),
+              ],
+            })
+            .mockResolvedValueOnce({
+              configOptions: [
+                selectConfigOption('provider', 'anthropic'),
+                selectConfigOption('model', 'claude-sonnet-4-5'),
+                selectConfigOption('thinking_effort', 'high'),
+              ],
+            }),
+        },
+      },
     };
     vi.mocked(getAcpClient).mockResolvedValue(
       client as unknown as Awaited<ReturnType<typeof getAcpClient>>
@@ -64,22 +69,34 @@ describe('ACP providers', () => {
       'high'
     );
 
-    expect(client.setSessionConfigOption).toHaveBeenCalledTimes(3);
-    expect(client.setSessionConfigOption).toHaveBeenNthCalledWith(1, {
-      sessionId: 'session-1',
-      configId: 'provider',
-      value: 'anthropic',
-    });
-    expect(client.setSessionConfigOption).toHaveBeenNthCalledWith(2, {
-      sessionId: 'session-1',
-      configId: 'model',
-      value: 'claude-sonnet-4-5',
-    });
-    expect(client.setSessionConfigOption).toHaveBeenNthCalledWith(3, {
-      sessionId: 'session-1',
-      configId: 'thinking_effort',
-      value: 'high',
-    });
+    expect(client.connection.agent.request).toHaveBeenCalledTimes(3);
+    expect(client.connection.agent.request).toHaveBeenNthCalledWith(
+      1,
+      methods.agent.session.setConfigOption,
+      {
+        sessionId: 'session-1',
+        configId: 'provider',
+        value: 'anthropic',
+      }
+    );
+    expect(client.connection.agent.request).toHaveBeenNthCalledWith(
+      2,
+      methods.agent.session.setConfigOption,
+      {
+        sessionId: 'session-1',
+        configId: 'model',
+        value: 'claude-sonnet-4-5',
+      }
+    );
+    expect(client.connection.agent.request).toHaveBeenNthCalledWith(
+      3,
+      methods.agent.session.setConfigOption,
+      {
+        sessionId: 'session-1',
+        configId: 'thinking_effort',
+        value: 'high',
+      }
+    );
     expect(applied).toEqual({
       providerId: 'anthropic',
       modelId: 'claude-sonnet-4-5',

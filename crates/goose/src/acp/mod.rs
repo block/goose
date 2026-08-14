@@ -12,7 +12,7 @@ pub mod transport;
 pub use common::{map_permission_response, PermissionDecision};
 pub use goose_sdk_types::{custom_notifications, custom_requests};
 pub use provider::{
-    resolve_extension_configs_to_mcp_servers, AcpProvider, AcpProviderConfig, ACP_CURRENT_MODEL,
+    extension_configs_to_mcp_servers, AcpProvider, AcpProviderConfig, ACP_CURRENT_MODEL,
 };
 
 pub(crate) fn configured_model_for_provider(
@@ -26,6 +26,16 @@ pub(crate) fn configured_model_for_provider(
     } else {
         ACP_CURRENT_MODEL.to_string()
     }
+}
+
+pub(crate) fn is_auth_required(error: &anyhow::Error) -> bool {
+    error.chain().any(|source| {
+        source
+            .downcast_ref::<agent_client_protocol::Error>()
+            .is_some_and(|error| {
+                error.code == agent_client_protocol::schema::v1::ErrorCode::AuthRequired
+            })
+    })
 }
 
 #[cfg(test)]
@@ -58,5 +68,19 @@ mod tests {
             configured_model_for_provider(&config, "pi-acp"),
             "anthropic/claude-sonnet-4"
         );
+    }
+
+    #[test]
+    fn identifies_typed_auth_required_errors() {
+        let error = anyhow::Error::new(agent_client_protocol::Error::auth_required());
+
+        assert!(is_auth_required(&error));
+    }
+
+    #[test]
+    fn does_not_classify_other_acp_errors_as_authentication() {
+        let error = anyhow::Error::new(agent_client_protocol::Error::internal_error());
+
+        assert!(!is_auth_required(&error));
     }
 }
