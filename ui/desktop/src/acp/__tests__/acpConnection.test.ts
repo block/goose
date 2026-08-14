@@ -1,24 +1,36 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GOOSE_SERVE_EXITED_USER_MESSAGE } from '../../gooseServeLeaseRegistry';
 
-const sdk = vi.hoisted(() => {
+const mockClientFactory = vi.hoisted(() => {
   const initialize = vi.fn();
-  const instances: MockGooseClient[] = [];
+  type MockStream = { close: () => void };
+  type MockClient = {
+    connection: {
+      agent: { request: typeof initialize };
+      closed: Promise<void>;
+      close: (error?: unknown) => void;
+    };
+    goose: Record<string, never>;
+  };
+  const instances: Array<{ client: MockClient; resolveClosed: () => void }> = [];
+  const connectGooseAcpClient = vi.fn((stream: MockStream): MockClient => {
+    let resolveClosed: () => void = () => undefined;
+    const closed = new Promise<void>((resolve) => {
+      resolveClosed = resolve;
+    });
+    const client: MockClient = {
+      connection: {
+        agent: { request: initialize },
+        closed,
+        close: vi.fn(() => stream.close()),
+      },
+      goose: {},
+    };
+    instances.push({ client, resolveClosed });
+    return client;
+  });
 
-  class MockGooseClient {
-    readonly initialize = initialize;
-    readonly closed: Promise<void>;
-    resolveClosed: () => void = () => undefined;
-
-    constructor() {
-      this.closed = new Promise<void>((resolve) => {
-        this.resolveClosed = resolve;
-      });
-      instances.push(this);
-    }
-  }
-
-  return { GooseClient: MockGooseClient, initialize, instances };
+  return { connectGooseAcpClient, initialize, instances };
 });
 
 const transport = vi.hoisted(() => ({
@@ -27,7 +39,10 @@ const transport = vi.hoisted(() => ({
 
 vi.mock('@aaif/goose-sdk', () => ({
   DEFAULT_GOOSE_MCP_HOST_CAPABILITIES: {},
-  GooseClient: sdk.GooseClient,
+}));
+
+vi.mock('../gooseAcpClient', () => ({
+  connectGooseAcpClient: mockClientFactory.connectGooseAcpClient,
 }));
 
 vi.mock('../createWebSocketStream', () => ({
@@ -39,8 +54,8 @@ describe('ACP connection ownership', () => {
     vi.useFakeTimers();
     vi.resetModules();
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    sdk.initialize.mockReset().mockResolvedValue({});
-    sdk.instances.length = 0;
+    mockClientFactory.initialize.mockReset().mockResolvedValue({});
+    mockClientFactory.instances.length = 0;
     transport.createWebSocketStream.mockReset().mockImplementation(() => ({
       readable: {},
       writable: {},
@@ -60,8 +75,8 @@ describe('ACP connection ownership', () => {
     const [first, second] = await Promise.all([getAcpClient(), getAcpClient()]);
 
     expect(first).toBe(second);
-    expect(sdk.instances).toHaveLength(1);
-    expect(sdk.initialize).toHaveBeenCalledTimes(1);
+    expect(mockClientFactory.instances).toHaveLength(1);
+    expect(mockClientFactory.initialize).toHaveBeenCalledTimes(1);
     expect(transport.createWebSocketStream).toHaveBeenCalledTimes(1);
   });
 
@@ -70,13 +85,13 @@ describe('ACP connection ownership', () => {
     const firstClient = await getAcpClient();
     const firstStream = transport.createWebSocketStream.mock.results[0].value;
 
-    sdk.instances[0].resolveClosed();
+    mockClientFactory.instances[0].resolveClosed();
     await Promise.resolve();
     const firstCaller = getAcpClient();
     const secondCaller = getAcpClient();
 
     await vi.advanceTimersByTimeAsync(249);
-    expect(sdk.instances).toHaveLength(1);
+    expect(mockClientFactory.instances).toHaveLength(1);
 
     await vi.advanceTimersByTimeAsync(1);
     const [firstResult, secondResult] = await Promise.all([firstCaller, secondCaller]);
@@ -84,32 +99,32 @@ describe('ACP connection ownership', () => {
     expect(firstStream.close).toHaveBeenCalledOnce();
     expect(firstResult).toBe(secondResult);
     expect(firstResult).not.toBe(firstClient);
-    expect(sdk.instances).toHaveLength(2);
+    expect(mockClientFactory.instances).toHaveLength(2);
     expect(transport.createWebSocketStream).toHaveBeenCalledTimes(2);
   });
 
   it('increases the backoff after a failed reconnect attempt', async () => {
-    sdk.initialize
+    mockClientFactory.initialize
       .mockResolvedValueOnce({})
       .mockRejectedValueOnce(new Error('server unavailable'))
       .mockResolvedValueOnce({});
     const { getAcpClient } = await import('../acpConnection');
     await getAcpClient();
 
-    sdk.instances[0].resolveClosed();
+    mockClientFactory.instances[0].resolveClosed();
     await Promise.resolve();
     const reconnected = getAcpClient();
 
     await vi.advanceTimersByTimeAsync(250);
-    expect(sdk.instances).toHaveLength(2);
+    expect(mockClientFactory.instances).toHaveLength(2);
 
     await vi.advanceTimersByTimeAsync(499);
-    expect(sdk.instances).toHaveLength(2);
+    expect(mockClientFactory.instances).toHaveLength(2);
 
     await vi.advanceTimersByTimeAsync(1);
     await reconnected;
 
-    expect(sdk.instances).toHaveLength(3);
+    expect(mockClientFactory.instances).toHaveLength(3);
   });
 
   it('stops reconnecting when the Goose backend has exited', async () => {
@@ -124,7 +139,7 @@ describe('ACP connection ownership', () => {
         new Error(`Error invoking remote method 'get-acp-url': ${GOOSE_SERVE_EXITED_USER_MESSAGE}`)
       );
     window.electron.getAcpUrl = getAcpUrl;
-    sdk.instances[0].resolveClosed();
+    mockClientFactory.instances[0].resolveClosed();
     await Promise.resolve();
 
     const connection = expect(getAcpClient()).rejects.toThrow(GOOSE_SERVE_EXITED_USER_MESSAGE);
@@ -146,7 +161,7 @@ describe('ACP connection ownership', () => {
         new Error(`Error invoking remote method 'get-acp-url': ${GOOSE_SERVE_EXITED_USER_MESSAGE}`)
       );
     window.electron.getAcpUrl = getAcpUrl;
-    sdk.instances[0].resolveClosed();
+    mockClientFactory.instances[0].resolveClosed();
     await Promise.resolve();
 
     const failedRecovery = expect(getAcpClient()).rejects.toThrow(GOOSE_SERVE_EXITED_USER_MESSAGE);
@@ -156,7 +171,7 @@ describe('ACP connection ownership', () => {
     await expect(getAcpClient()).rejects.toThrow(GOOSE_SERVE_EXITED_USER_MESSAGE);
 
     expect(getAcpUrl).toHaveBeenCalledTimes(2);
-    expect(sdk.instances).toHaveLength(1);
+    expect(mockClientFactory.instances).toHaveLength(1);
   });
 
   it('reconnects immediately after system resume', async () => {
@@ -169,7 +184,7 @@ describe('ACP connection ownership', () => {
     await reconnected;
 
     expect(firstStream.close).toHaveBeenCalledOnce();
-    expect(sdk.instances).toHaveLength(2);
+    expect(mockClientFactory.instances).toHaveLength(2);
   });
 
   it('does nothing on system resume before ACP has been used', async () => {
@@ -178,12 +193,12 @@ describe('ACP connection ownership', () => {
     reconnectAcpAfterSystemResume();
     await Promise.resolve();
 
-    expect(sdk.instances).toHaveLength(0);
+    expect(mockClientFactory.instances).toHaveLength(0);
     expect(transport.createWebSocketStream).not.toHaveBeenCalled();
   });
 
   it('uses normal backoff when the immediate resume attempt fails', async () => {
-    sdk.initialize
+    mockClientFactory.initialize
       .mockResolvedValueOnce({})
       .mockRejectedValueOnce(new Error('network is not ready'))
       .mockResolvedValueOnce({});
@@ -193,30 +208,30 @@ describe('ACP connection ownership', () => {
     reconnectAcpAfterSystemResume();
     const reconnected = getAcpClient();
     await Promise.resolve();
-    expect(sdk.instances).toHaveLength(2);
+    expect(mockClientFactory.instances).toHaveLength(2);
 
     await vi.advanceTimersByTimeAsync(249);
-    expect(sdk.instances).toHaveLength(2);
+    expect(mockClientFactory.instances).toHaveLength(2);
 
     await vi.advanceTimersByTimeAsync(1);
     await reconnected;
 
-    expect(sdk.instances).toHaveLength(3);
+    expect(mockClientFactory.instances).toHaveLength(3);
   });
 
   it('supersedes an older retry loop after system resume', async () => {
     const { getAcpClient, reconnectAcpAfterSystemResume } = await import('../acpConnection');
     await getAcpClient();
 
-    sdk.instances[0].resolveClosed();
+    mockClientFactory.instances[0].resolveClosed();
     await Promise.resolve();
     reconnectAcpAfterSystemResume();
     await getAcpClient();
-    expect(sdk.instances).toHaveLength(2);
+    expect(mockClientFactory.instances).toHaveLength(2);
 
     await vi.advanceTimersByTimeAsync(250);
 
-    expect(sdk.instances).toHaveLength(2);
+    expect(mockClientFactory.instances).toHaveLength(2);
   });
 
   it('notifies subscribers while reconnecting and after recovery', async () => {
@@ -225,7 +240,7 @@ describe('ACP connection ownership', () => {
     subscribeToAcpRecovery(listener);
     await getAcpClient();
 
-    sdk.instances[0].resolveClosed();
+    mockClientFactory.instances[0].resolveClosed();
     await Promise.resolve();
     expect(listener).toHaveBeenCalledWith(true);
 

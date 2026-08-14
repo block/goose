@@ -7,7 +7,6 @@ export {
 export {
   GooseExtClient,
   type GooseClientCallbacks,
-  type GooseExtNotifications,
 } from "./generated/client.gen.js";
 export { GooseClient } from "./goose-client.js";
 export { createHttpStream } from "./http-stream.js";
