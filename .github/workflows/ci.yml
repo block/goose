@@ -74,6 +74,30 @@ jobs:
         env:
           RUST_MIN_STACK: 8388608
 
+  goose-sdk-uniffi:
+    name: Check goose-sdk UniFFI
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libdbus-1-dev libxcb1-dev
+
+      - name: Check UniFFI feature
+        run: |
+          export CARGO_INCREMENTAL=0
+          cargo check -p goose-sdk --features uniffi --locked
+          cargo test -p goose-sdk --features uniffi --locked
+        env:
+          RUST_MIN_STACK: 8388608
+
   rust-build-and-test-tls:
     name: Build and Test TLS Backend (${{ matrix.tls-feature }})
     runs-on: ubuntu-latest

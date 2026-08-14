@@ -4,7 +4,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::CallToolRequestParams;
 
-use crate::agents::state_machine::operation::{
+use crate::agents::state_machine::effects::GooseEffect;
+use crate::agents::state_machine::{
     applied, last_effective_role, messages_since_kickoff, not_applicable, yielded, Emitter,
     Operation, OperationResult,
 };
@@ -31,7 +32,7 @@ impl BangShellOperation {
 }
 
 #[async_trait]
-impl Operation for BangShellOperation {
+impl Operation<Session, GooseEffect> for BangShellOperation {
     fn name(&self) -> &'static str {
         "bang_shell"
     }
@@ -41,7 +42,7 @@ impl Operation for BangShellOperation {
         _session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let messages = messages_since_kickoff(conversation)?;
         let Some(kickoff) = messages.first() else {
             return not_applicable();

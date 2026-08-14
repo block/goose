@@ -1,11 +1,12 @@
 mod agent;
 pub mod container;
+mod events;
 pub mod execute_commands;
 pub mod extension;
 pub mod extension_malware_check;
 pub mod extension_manager;
 pub mod final_output_tool;
-mod gen_ai_telemetry;
+pub(crate) mod gen_ai_telemetry;
 mod large_response_handler;
 pub mod mcp_client;
 pub mod moim;
@@ -25,8 +26,9 @@ mod tool_schema_normalize;
 pub mod types;
 pub mod validate_extensions;
 
-pub use agent::{Agent, AgentConfig, AgentEvent, ExtensionLoadResult, GoosePlatform};
+pub use agent::{Agent, AgentConfig, ExtensionLoadResult, GoosePlatform};
 pub use container::Container;
+pub use events::AgentEvent;
 pub use execute_commands::COMPACT_TRIGGERS;
 pub use extension::{ExtensionConfig, ExtensionError};
 pub use extension_manager::ExtensionManager;

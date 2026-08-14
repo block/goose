@@ -5,11 +5,13 @@
 //! `StateMachine::run`. Goose's concrete operations remain internal because their
 //! configuration is part of `Agent::reply`, not the state-machine protocol.
 
+mod effects;
 mod machine;
 mod operation;
 mod ops_bang_shell;
 mod ops_compaction;
 mod ops_doctor;
+mod ops_entry_hook;
 mod ops_exit_on_error;
 mod ops_llm;
 mod ops_maxturns;
@@ -24,20 +26,25 @@ mod ops_tool_approval;
 mod ops_tool_pair_compaction;
 mod ops_toolcalling;
 mod ops_unknown_tool;
+mod session;
+pub(crate) use session::run as run_goose;
 mod usage;
 
 #[cfg(test)]
 mod tests;
 
-pub use machine::{StateMachine, Step};
+pub use effects::GooseEffect;
+pub use machine::{EffectHandler, EffectUsage, MachineSession, SessionLoader, StateMachine, Step};
 pub use operation::{
-    applied, not_applicable, yielded, yielded_with, Emitter, Inference, InferenceInput, Operation,
-    OperationResult, SlashCommand, StateEffect, StepResult,
+    applied, assistant_turn_count, ends_turn, last_effective_role, messages_since_kickoff,
+    not_applicable, trailing_error, yielded, yielded_with, ConversationEffect, Emitter, Inference,
+    InferenceInput, MachineEffect, Operation, OperationResult, SlashCommand, StepResult,
 };
 
 pub(super) use ops_bang_shell::{bang_shell_command, BangShellOperation};
 pub(super) use ops_compaction::CompactionOperation;
 pub(super) use ops_doctor::DoctorOperation;
+pub(super) use ops_entry_hook::EntryHookOperation;
 pub(super) use ops_exit_on_error::ExitOnErrorOperation;
 pub(super) use ops_llm::InferenceRunner;
 pub(super) use ops_maxturns::{MaxTurnsOperation, MAX_TURNS_MESSAGE};
