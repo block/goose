@@ -29,10 +29,10 @@ Pipe Python to `uvx browser-use`. The following helpers are pre-imported and ava
 
 ```bash
 cat <<'PYEOF' | uvx browser-use
-await new_tab("https://example.com")
-title = await js("document.title")
+new_tab("https://example.com")
+title = js("document.title")
 print("Page title:", title)
-path = await capture_screenshot()
+path = capture_screenshot()
 print("Screenshot saved to:", path)
 PYEOF
 ```
@@ -41,7 +41,7 @@ PYEOF
 
 - **Browser session persists** across multiple `uvx browser-use` runs while Chrome stays open.
 - **Python variables do not persist** between runs — each invocation starts a fresh Python interpreter.
-- To pass data between runs, write to a file or use `js()` to store state in `window.*`.
+- To pass data between runs, write to a file or use `js("window.myVar = 'value'")` to store state in the page.
 
 ## Safety rules
 
@@ -55,5 +55,5 @@ PYEOF
 | Symptom | Fix |
 |---|---|
 | `Connection refused` on port 9222 | Chrome is not running with `--remote-debugging-port=9222` — run the setup command above |
-| Page never loads | Try a longer wait: `await new_tab(url); await asyncio.sleep(3)` |
+| Page never loads | Add a sleep after navigation: `new_tab(url); import time; time.sleep(3)` |
 | `uvx` not found | Install uv: `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
