@@ -6,7 +6,7 @@ use goose::conversation::message::{
     ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
     ToolNameParts, ToolRequest, ToolResponse,
 };
-use goose::providers::canonical::maybe_get_canonical_model;
+use goose::providers::canonical_cost::estimate_model_cost;
 #[cfg(target_os = "windows")]
 use goose::subprocess::SubprocessExt;
 use goose::utils::safe_truncate;
@@ -1494,8 +1494,7 @@ pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
 }
 
 fn estimate_cost_usd(provider: &str, model: &str, usage: &Usage) -> Option<f64> {
-    let canonical_model = maybe_get_canonical_model(provider, model)?;
-    canonical_model.cost.estimate_cost(usage)
+    estimate_model_cost(provider, model, usage)
 }
 
 /// Display cost information, if price data is available.
