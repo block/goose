@@ -201,5 +201,6 @@ mod tests {
         assert!(!provider_ids.contains("claude_code"));
         assert!(!provider_ids.contains("codex"));
         assert!(!provider_ids.contains("gemini_cli"));
+        assert!(!provider_ids.contains("gemini_oauth"));
     }
 }
