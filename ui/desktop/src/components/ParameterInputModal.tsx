@@ -70,7 +70,7 @@ const NUMBER_VALUE_PATTERN = /^-?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 function isValidParameterValue(param: Parameter, value: string): boolean {
   switch (param.input_type) {
     case 'select':
-      return param.options?.includes(value) ?? false;
+      return param.options?.includes(value) ?? true;
     case 'boolean':
       return value === 'true' || value === 'false';
     case 'number':

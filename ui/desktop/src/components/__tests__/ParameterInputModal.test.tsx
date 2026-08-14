@@ -211,6 +211,30 @@ describe('ParameterInputModal', () => {
       }
     );
 
+    it('preserves free-text input for select parameters without options', async () => {
+      const user = userEvent.setup();
+      const onSubmit = vi.fn();
+      renderWithIntl(
+        <ParameterInputModal
+          {...defaultProps}
+          onSubmit={onSubmit}
+          parameters={[
+            {
+              key: 'mode',
+              description: 'Mode',
+              input_type: 'select',
+              requirement: 'required',
+            },
+          ]}
+        />
+      );
+
+      await user.type(screen.getByLabelText(/^Mode/), 'custom value');
+      await user.click(screen.getByText('Start Recipe'));
+
+      expect(onSubmit).toHaveBeenCalledWith({ mode: 'custom value' });
+    });
+
     it('submits only declared parameter keys', async () => {
       const user = userEvent.setup();
       const onSubmit = vi.fn();
