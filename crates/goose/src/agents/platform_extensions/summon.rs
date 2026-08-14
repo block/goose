@@ -2084,7 +2084,7 @@ impl SummonClient {
 
         // Same constraint as one-shot delegates: subagents must run in Auto mode
         // until ActionRequired messages are forwarded to the parent.
-        let agent_config = AgentConfig::new(
+        let mut agent_config = AgentConfig::new(
             self.context.session_manager.clone(),
             crate::config::permission::PermissionManager::instance(),
             None,
@@ -2093,6 +2093,7 @@ impl SummonClient {
             crate::agents::GoosePlatform::GooseCli,
         )
         .with_use_login_shell_path(self.context.use_login_shell_path);
+        agent_config.is_subagent = true;
 
         let (worker_session_id, identity) = match restore {
             Some(record) => (record.session_id.clone(), record.identity.clone()),
