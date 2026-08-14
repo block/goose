@@ -305,6 +305,61 @@ describe('ParameterInputModal', () => {
 
       expect(onSubmit).toHaveBeenCalledWith({ mode: 'safe' });
     });
+
+    it.each(['string', 'date'] as const)(
+      'submits an explicitly cleared optional %s value',
+      async (inputType) => {
+        const user = userEvent.setup();
+        const onSubmit = vi.fn();
+        renderWithIntl(
+          <ParameterInputModal
+            {...defaultProps}
+            onSubmit={onSubmit}
+            parameters={[
+              {
+                key: 'topic',
+                description: 'Topic',
+                input_type: inputType,
+                requirement: 'optional',
+                default: 'default topic',
+              },
+            ]}
+          />
+        );
+
+        await user.clear(screen.getByLabelText('Topic'));
+        await user.click(screen.getByText('Start Recipe'));
+
+        expect(onSubmit).toHaveBeenCalledWith({ topic: '' });
+      }
+    );
+
+    it('rejects an explicitly cleared optional controlled value', async () => {
+      const user = userEvent.setup();
+      const onSubmit = vi.fn();
+      renderWithIntl(
+        <ParameterInputModal
+          {...defaultProps}
+          onSubmit={onSubmit}
+          parameters={[
+            {
+              key: 'mode',
+              description: 'Mode',
+              input_type: 'select',
+              requirement: 'optional',
+              options: ['safe'],
+              default: 'safe',
+            },
+          ]}
+        />
+      );
+
+      await user.selectOptions(screen.getByLabelText('Mode'), '');
+      await user.click(screen.getByText('Start Recipe'));
+
+      expect(screen.getByText('Mode has an invalid value')).toBeInTheDocument();
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
   });
 
   describe('Cancel Behavior', () => {

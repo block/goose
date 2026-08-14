@@ -129,7 +129,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
         return;
       }
 
-      if (value === undefined || value === '') {
+      if (value === undefined) {
         if (
           param.requirement === 'optional' &&
           param.default != null &&
