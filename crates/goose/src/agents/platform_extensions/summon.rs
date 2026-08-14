@@ -3040,32 +3040,15 @@ mod tests {
     }
 
     #[test]
-    fn test_worker_reuse_allows_resending_identical_creation_params() {
+    fn test_worker_reuse_allows_matching_creation_params() {
         let (session_dir, app_dir) = worker_session_dir();
         let params = DelegateParams {
             instructions: Some("continue".to_string()),
             source: Some("sidekick".to_string()),
-            working_dir: Some("app".to_string()),
-            worker: Some("sidekick".to_string()),
-            ..Default::default()
-        };
-
-        assert!(validate_worker_reuse_params(
-            &params,
-            &creation_params(app_dir),
-            session_dir.path()
-        )
-        .is_ok());
-    }
-
-    #[test]
-    fn test_worker_reuse_allows_explicit_params_matching_resolved_values() {
-        let (session_dir, app_dir) = worker_session_dir();
-        let params = DelegateParams {
-            instructions: Some("continue".to_string()),
             provider: Some("anthropic".to_string()),
             model: Some("claude-sonnet-5".to_string()),
             extensions: Some(vec!["developer".to_string()]),
+            working_dir: Some("app".to_string()),
             worker: Some("sidekick".to_string()),
             ..Default::default()
         };
@@ -3375,48 +3358,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_worker_stale_record_falls_back_to_fresh_creation() {
-        let rig = persisted_worker_rig().await;
-
-        rig.client
-            .handle_worker_delegate(
-                &rig.session,
-                worker_creation_delegate_params("first task"),
-                CancellationToken::new(),
-            )
-            .await
-            .unwrap();
-
-        let old_record = stored_worker_record(&rig).await.unwrap();
-        rig.client
-            .context
-            .session_manager
-            .delete_session(&old_record.session_id)
-            .await
-            .unwrap();
-
-        let restarted = SummonClient::new(rig.client.context.clone()).unwrap();
-        let second = restarted
-            .handle_worker_delegate(
-                &rig.session,
-                worker_creation_delegate_params("fresh task"),
-                CancellationToken::new(),
-            )
-            .await
-            .unwrap();
-        assert_ne!(second.is_error, Some(true));
-
-        let calls = rig.provider.calls.lock().unwrap().clone();
-        assert_eq!(calls.len(), 2);
-        let fresh = calls[1].join("\n");
-        assert!(fresh.contains("fresh task"));
-        assert!(!fresh.contains("first task"));
-
-        let new_record = stored_worker_record(&rig).await.unwrap();
-        assert_eq!(new_record.recipe.prompt.as_deref(), Some("fresh task"));
-    }
-
-    #[tokio::test]
     async fn test_worker_deleted_session_recreates_in_memory_worker() {
         let rig = persisted_worker_rig().await;
 
@@ -3453,6 +3394,9 @@ mod tests {
         let fresh = calls[1].join("\n");
         assert!(fresh.contains("fresh task"));
         assert!(!fresh.contains("first task"));
+
+        let new_record = stored_worker_record(&rig).await.unwrap();
+        assert_eq!(new_record.recipe.prompt.as_deref(), Some("fresh task"));
     }
 
     #[tokio::test]
