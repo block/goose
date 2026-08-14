@@ -15,6 +15,8 @@ use agent_client_protocol::schema::v1::{
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
 use async_trait::async_trait;
+use futures::io::BufReader;
+use futures::{AsyncBufReadExt, AsyncWriteExt, StreamExt};
 use goose::config::PermissionManager;
 use goose_test_support::{ExpectedSessionId, IgnoreSessionId};
 use std::sync::{Arc, Mutex};
@@ -100,6 +102,75 @@ impl AcpServerConnection {
     #[allow(dead_code)]
     pub fn cx(&self) -> &ConnectionTo<Agent> {
         &self.cx
+    }
+}
+
+pub async fn assert_session_response_precedes_available_commands(
+    transport: super::DuplexTransport,
+    method: &str,
+    params: serde_json::Value,
+) {
+    let (mut outgoing, incoming) = transport.into_parts();
+    let mut incoming = BufReader::new(incoming).lines();
+
+    let initialize = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": 1,
+            "clientCapabilities": {}
+        }
+    });
+    outgoing
+        .write_all(format!("{initialize}\n").as_bytes())
+        .await
+        .unwrap();
+    outgoing.flush().await.unwrap();
+    let initialize_response = incoming.next().await.unwrap().unwrap();
+    let initialize_response: serde_json::Value =
+        serde_json::from_str(&initialize_response).unwrap();
+    assert_eq!(initialize_response["id"], 1);
+
+    let request = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": method,
+        "params": params,
+    });
+    outgoing
+        .write_all(format!("{request}\n").as_bytes())
+        .await
+        .unwrap();
+    outgoing.flush().await.unwrap();
+
+    let response = incoming.next().await.unwrap().unwrap();
+    let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+    assert_eq!(response["id"], 2);
+    let session_id = response["result"]["sessionId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        let message = tokio::time::timeout_at(deadline, incoming.next())
+            .await
+            .expect("timed out waiting for available commands")
+            .expect("ACP connection closed")
+            .unwrap();
+        let message: serde_json::Value = serde_json::from_str(&message).unwrap();
+        if message["params"]["update"]["sessionUpdate"] != "available_commands_update" {
+            continue;
+        }
+
+        assert_eq!(message["params"]["sessionId"], session_id);
+        assert!(message["params"]["update"]["availableCommands"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|command| command["name"] == "goal"));
+        break;
     }
 }
 
@@ -270,7 +341,7 @@ impl Connection for AcpServerConnection {
                         },
                         agent_client_protocol::on_receive_request!(),
                     )
-                    .connect_with(transport, {
+                    .connect_with(transport.into_byte_streams(), {
                         let cx_holder = cx_holder_clone;
                         async move |cx: ConnectionTo<Agent>| {
                             let resp = cx
@@ -343,6 +414,20 @@ impl Connection for AcpServerConnection {
             _work_dir: work_dir,
         };
         let models = extract_model_state_from_config_options(response.config_options.as_deref());
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        while !self.updates.lock().unwrap().iter().any(|notification| {
+            notification.session_id == response.session_id
+                && matches!(
+                    &notification.update,
+                    SessionUpdate::AvailableCommandsUpdate(_)
+                )
+        }) {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "timed out waiting for initial available commands"
+            );
+            tokio::task::yield_now().await;
+        }
         self.updates.lock().unwrap().clear();
         Ok(SessionData {
             session,
@@ -454,8 +539,7 @@ impl Connection for AcpServerConnection {
     }
 
     fn reset_permissions(&self) {
-        // "" matches all extensions, clearing all stored permission decisions
-        self.permission_manager.remove_extension("");
+        self.permission_manager.clear_permissions();
     }
 }
 

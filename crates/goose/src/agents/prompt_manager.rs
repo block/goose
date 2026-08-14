@@ -16,9 +16,6 @@ use crate::{
 };
 use std::path::Path;
 
-const MAX_EXTENSIONS: usize = 5;
-const MAX_TOOLS: usize = 50;
-
 pub struct PromptManager {
     system_prompt_override: Option<String>,
     system_prompt_extras: IndexMap<String, String>,
@@ -36,13 +33,9 @@ impl Default for PromptManager {
 struct SystemPromptContext {
     extensions: Vec<ExtensionInfo>,
     current_date_time: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    extension_tool_limits: Option<(usize, usize)>,
     goose_mode: GooseMode,
     is_autonomous: bool,
     enable_subagents: bool,
-    max_extensions: usize,
-    max_tools: usize,
     code_execution_mode: bool,
     include_extensions: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -55,7 +48,6 @@ pub struct SystemPromptBuilder<'a, M> {
     extensions_info: Vec<ExtensionInfo>,
     frontend_instructions: Option<String>,
     prompt_extras: IndexMap<String, String>,
-    extension_tool_count: Option<(usize, usize)>,
     subagents_enabled: bool,
     hints: Option<String>,
     code_execution_mode: bool,
@@ -86,15 +78,6 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         extras: impl IntoIterator<Item = (String, String)>,
     ) -> Self {
         self.prompt_extras.extend(extras);
-        self
-    }
-
-    pub fn with_extension_and_tool_counts(
-        mut self,
-        extension_count: usize,
-        tool_count: usize,
-    ) -> Self {
-        self.extension_tool_count = Some((extension_count, tool_count));
         self
     }
 
@@ -156,19 +139,12 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             .goose_mode
             .unwrap_or_else(|| Config::global().get_goose_mode().unwrap_or_default());
 
-        let extension_tool_limits = self
-            .extension_tool_count
-            .filter(|(extensions, tools)| *extensions > MAX_EXTENSIONS || *tools > MAX_TOOLS);
-
         let context = SystemPromptContext {
             extensions: sanitized_extensions_info,
             current_date_time: self.manager.current_date_timestamp.clone(),
-            extension_tool_limits,
             goose_mode,
             is_autonomous: goose_mode == GooseMode::Auto,
             enable_subagents: self.subagents_enabled,
-            max_extensions: MAX_EXTENSIONS,
-            max_tools: MAX_TOOLS,
             code_execution_mode: self.code_execution_mode,
             include_extensions: self.include_extensions,
             moim_system_prompt_block: moim::system_prompt_block(),
@@ -298,7 +274,6 @@ impl PromptManager {
             extensions_info: vec![],
             frontend_instructions: None,
             prompt_extras: IndexMap::new(),
-            extension_tool_count: None,
             subagents_enabled: false,
             hints: None,
             code_execution_mode: false,
@@ -514,7 +489,6 @@ mod tests {
                 "<instructions on how to use extension B (no resources)>",
                 false,
             ))
-            .with_extension_and_tool_counts(MAX_EXTENSIONS + 1, MAX_TOOLS + 1)
             .build();
 
         assert_snapshot!(system_prompt)

@@ -67,7 +67,7 @@ export const zMcpServerAcpId = z.string();
  */
 export const zMcpServerAcp = z.object({
     name: z.string(),
-    id: zMcpServerAcpId,
+    serverId: zMcpServerAcpId,
     _meta: z.union([
         z.record(z.unknown()),
         z.null()
@@ -776,8 +776,16 @@ export const zProviderInventoryEntryDto = z.object({
     description: z.string(),
     defaultModel: z.string(),
     configured: z.boolean(),
+    available: z.boolean(),
     providerType: z.string(),
     category: zProviderSetupCategoryDto,
+    acp: z.boolean().optional().default(false),
+    visibleInSetup: z.boolean(),
+    deprecated: z.boolean(),
+    replacement: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
     configKeys: z.array(zProviderConfigKey),
     setupSteps: z.array(z.string()),
     supportsRefresh: z.boolean(),
@@ -883,6 +891,7 @@ export const zProviderSetupCatalogEntryDto = z.object({
     providerId: z.string(),
     name: z.string(),
     category: zProviderSetupCategoryDto,
+    acp: z.boolean().optional().default(false),
     description: z.string(),
     setupMethod: zProviderSetupMethodDto,
     nativeConnectQuery: z.union([
@@ -1107,6 +1116,22 @@ export const zCustomProviderDeleteResponse_unstable = z.object({
  */
 export const zRefreshProviderInventoryRequest_unstable = z.object({
     providerIds: z.array(z.string()).optional().default([])
+});
+
+/**
+ * Check whether an ACP provider can initialize and create a session.
+ */
+export const zProviderReadinessCheckRequest_unstable = z.object({
+    providerId: z.string()
+});
+
+export const zProviderReadinessCheckResponse_unstable = z.object({
+    providerId: z.string(),
+    ready: z.boolean(),
+    error: z.union([
+        z.string(),
+        z.null()
+    ]).optional()
 });
 
 /**
@@ -2811,7 +2836,11 @@ export const zGooseSessionNotification_unstable = z.object({
 
 export const zRequestRecipeParams_unstable = z.object({
     sessionId: z.string(),
-    parameters: z.array(zRecipeParameterDto)
+    parameters: z.array(zRecipeParameterDto),
+    parameterScopeId: z.union([
+        z.string(),
+        z.null()
+    ]).optional()
 });
 
 export const zRecipeParamsAction = z.enum(['submit', 'cancel']);
@@ -2861,6 +2890,7 @@ export const zExtRequest = z.object({
             zCustomProviderUpdateRequest_unstable,
             zCustomProviderDeleteRequest_unstable,
             zRefreshProviderInventoryRequest_unstable,
+            zProviderReadinessCheckRequest_unstable,
             zProviderConfigReadRequest_unstable,
             zProviderConfigStatusRequest_unstable,
             zProviderConfigSaveRequest_unstable,
@@ -2979,6 +3009,7 @@ export const zExtResponse = z.union([
                 zCustomProviderUpdateResponse_unstable,
                 zCustomProviderDeleteResponse_unstable,
                 zRefreshProviderInventoryResponse_unstable,
+                zProviderReadinessCheckResponse_unstable,
                 zProviderConfigReadResponse_unstable,
                 zProviderConfigStatusResponse_unstable,
                 zProviderConfigChangeResponse_unstable,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import ImagePreview from './ImagePreview';
 import MarkdownContent from './MarkdownContent';
 import {
@@ -96,7 +96,7 @@ interface UserMessageProps {
   ) => void;
 }
 
-export default function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
+function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
   const intl = useIntl();
   const contentRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -375,3 +375,5 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
     </div>
   );
 }
+
+export default memo(UserMessage);

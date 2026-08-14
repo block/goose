@@ -1720,6 +1720,64 @@ mod tests {
         assert!(result.is_ok());
         assert_mcp_apps_result(&result.unwrap(), "ui://autovisualiser/mermaid", "mermaid");
     }
+
+    #[test]
+    fn donut_legend_renders_dynamic_values_as_text() {
+        let html = AutoVisualiserRouter::new()
+            .get_template_html("ui://autovisualiser/donut")
+            .unwrap();
+
+        assert!(!html.contains("legendEl.innerHTML"));
+        assert!(html.contains("labelEl.textContent = label"));
+        assert!(html.contains("valueEl.textContent = pct"));
+    }
+
+    #[test]
+    fn chord_tooltips_render_dynamic_values_as_text() {
+        let html = AutoVisualiserRouter::new()
+            .get_template_html("ui://autovisualiser/chord")
+            .unwrap();
+
+        assert!(!html.contains(".html("));
+        assert!(html.contains(".text(line)"));
+        assert!(html.contains("data.labels[d.source.index]"));
+        assert!(html.contains("data.labels[d.target.index]"));
+    }
+
+    #[test]
+    fn mermaid_errors_render_as_text_without_changing_svg_rendering() {
+        let html = AutoVisualiserRouter::new()
+            .get_template_html("ui://autovisualiser/mermaid")
+            .unwrap();
+
+        assert!(html.contains("errorEl.textContent = String(err.message || err)"));
+        assert!(html.contains("output.replaceChildren(errorEl)"));
+        assert!(html.contains("output.innerHTML = result.svg"));
+        assert!(!html.contains("'<div class=\"mermaid-error\">' +"));
+    }
+
+    #[test]
+    fn sankey_tooltips_render_dynamic_values_as_text() {
+        let html = AutoVisualiserRouter::new()
+            .get_template_html("ui://autovisualiser/sankey")
+            .unwrap();
+
+        assert!(!html.contains(".html("));
+        assert!(html.contains("tooltip.append(index === 0 ? \"strong\" : \"span\").text(line)"));
+        assert!(html.contains("d.source.name + \" → \" + d.target.name"));
+        assert!(html.contains("var lines = [d.name]"));
+    }
+
+    #[test]
+    fn treemap_tooltips_render_dynamic_values_as_text() {
+        let html = AutoVisualiserRouter::new()
+            .get_template_html("ui://autovisualiser/treemap")
+            .unwrap();
+
+        assert!(!html.contains("tt.innerHTML"));
+        assert!(html.contains("name.textContent = d.data.name"));
+        assert!(html.contains("document.createTextNode(d.data.category)"));
+    }
 }
 
 #[cfg(test)]

@@ -25,7 +25,7 @@ use goose_providers::{
     utils::sanitize_unicode_tags,
 };
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData, Role, Tool,
+    CallToolRequestParams, CallToolResult, ContentBlock, ErrorCode, ErrorData, Role, Tool,
 };
 use serde_json::Value;
 
@@ -305,15 +305,15 @@ fn call_tool_result(value: Value, is_error: bool) -> CallToolResult {
     }
 }
 
-fn value_to_content(value: Value) -> Content {
+fn value_to_content(value: Value) -> ContentBlock {
     match value {
-        Value::String(text) => Content::text(text),
+        Value::String(text) => ContentBlock::text(text),
         Value::Object(object) => match object.get("type").and_then(|value| value.as_str()) {
             Some("text") => object
                 .get("text")
                 .and_then(|value| value.as_str().map(str::to_owned))
-                .map(Content::text)
-                .unwrap_or_else(|| Content::text(Value::Object(object).to_string())),
+                .map(ContentBlock::text)
+                .unwrap_or_else(|| ContentBlock::text(Value::Object(object).to_string())),
             Some("image") => {
                 let mime_type = object
                     .get("mimeType")
@@ -324,11 +324,11 @@ fn value_to_content(value: Value) -> Content {
                     .get("data")
                     .and_then(|value| value.as_str().map(str::to_owned))
                     .unwrap_or_default();
-                Content::image(data, mime_type)
+                ContentBlock::image(data, mime_type)
             }
-            _ => Content::text(Value::Object(object).to_string()),
+            _ => ContentBlock::text(Value::Object(object).to_string()),
         },
-        other => Content::text(other.to_string()),
+        other => ContentBlock::text(other.to_string()),
     }
 }
 
@@ -754,6 +754,95 @@ impl Provider {
         tools: Vec<ProviderTool>,
     ) -> Result<ProviderCompletion, GooseError> {
         self.handle.complete(model, system, messages, tools).await
+    }
+
+    /// Summarizes a conversation down to a single message so it can continue
+    /// past this model's context window.
+    pub async fn compact(
+        &self,
+        model_name: String,
+        messages: Vec<CompactionMessage>,
+        templates: Option<CompactionTemplates>,
+    ) -> Result<CompactionSummary, GooseError> {
+        let messages: Vec<Message> = messages
+            .iter()
+            .map(CompactionMessage::to_goose_message)
+            .collect();
+        let templates = templates.map(Into::into).unwrap_or_default();
+        let model = goose_context_management::ProviderModel::new(
+            self.handle.provider.clone(),
+            ModelConfig::new(&model_name),
+        );
+
+        let summary = run_on_runtime(async move {
+            goose_context_management::summarize(&model, None, &templates, &messages).await
+        })
+        .await?
+        .map_err(GooseError::generic)?;
+
+        Ok(CompactionSummary {
+            text: summary.message.as_concat_text(),
+            input_tokens: summary.usage.usage.input_tokens,
+            output_tokens: summary.usage.usage.output_tokens,
+            total_tokens: summary.usage.usage.total_tokens,
+        })
+    }
+}
+
+/// A text-only message. Compaction reads conversations as text, so this is the
+/// whole input shape callers need across the language boundary.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct CompactionMessage {
+    pub role: MessageRole,
+    pub text: String,
+}
+
+impl CompactionMessage {
+    fn to_goose_message(&self) -> Message {
+        let role = match self.role {
+            MessageRole::User | MessageRole::Tool => Role::User,
+            MessageRole::Assistant => Role::Assistant,
+        };
+        let mut message = match role {
+            Role::User => Message::user(),
+            Role::Assistant => Message::assistant(),
+        }
+        .with_text(&self.text);
+        message.role = role;
+        message
+    }
+}
+
+/// Overrides for the summarization and summary-rendering prompts.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct CompactionTemplates {
+    pub compaction: String,
+    pub summary: String,
+}
+
+impl From<CompactionTemplates> for goose_context_management::Templates {
+    fn from(value: CompactionTemplates) -> Self {
+        Self {
+            compaction: value.compaction,
+            summary: value.summary,
+        }
+    }
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct CompactionSummary {
+    pub text: String,
+    pub input_tokens: Option<i32>,
+    pub output_tokens: Option<i32>,
+    pub total_tokens: Option<i32>,
+}
+
+#[uniffi::export]
+pub fn default_compaction_templates() -> CompactionTemplates {
+    let templates = goose_context_management::Templates::default();
+    CompactionTemplates {
+        compaction: templates.compaction,
+        summary: templates.summary,
     }
 }
 

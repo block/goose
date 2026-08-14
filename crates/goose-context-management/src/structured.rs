@@ -1,4 +1,4 @@
-use crate::prompt_template::render_template;
+use crate::templates::{self, COMPACTION_SUMMARY_TEMPLATE};
 use goose_providers::json::safely_parse_json;
 use serde::{Deserialize, Serialize};
 
@@ -138,7 +138,14 @@ impl StructuredSummary {
     }
 
     pub fn render(&self) -> Result<String, minijinja::Error> {
-        render_template("compaction_summary.md", self)
+        self.render_with(
+            &templates::builtin_template(COMPACTION_SUMMARY_TEMPLATE)
+                .expect("builtin compaction summary template"),
+        )
+    }
+
+    pub fn render_with(&self, template: &str) -> Result<String, minijinja::Error> {
+        templates::render(template, self)
     }
 
     /// Drops blank entries so a response of blank strings counts as empty

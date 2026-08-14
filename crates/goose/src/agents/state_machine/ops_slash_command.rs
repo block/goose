@@ -5,14 +5,15 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 
-use crate::agents::state_machine::operation::{
+use crate::agents::state_machine::effects::GooseEffect;
+use crate::agents::state_machine::{
     messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult, SlashCommand,
 };
 use crate::conversation::Conversation;
 use crate::session::Session;
 
 pub struct SlashCommandOperation<'a> {
-    operations: Vec<Arc<dyn Operation + 'a>>,
+    operations: Vec<Arc<dyn Operation<Session, GooseEffect> + 'a>>,
 }
 
 fn parse_slash_command(message: &str) -> Option<SlashCommand<'_>> {
@@ -35,13 +36,13 @@ fn parse_slash_command(message: &str) -> Option<SlashCommand<'_>> {
 }
 
 impl<'a> SlashCommandOperation<'a> {
-    pub fn new(operations: Vec<Arc<dyn Operation + 'a>>) -> Self {
+    pub fn new(operations: Vec<Arc<dyn Operation<Session, GooseEffect> + 'a>>) -> Self {
         Self { operations }
     }
 }
 
 #[async_trait]
-impl Operation for SlashCommandOperation<'_> {
+impl Operation<Session, GooseEffect> for SlashCommandOperation<'_> {
     fn name(&self) -> &'static str {
         "slash_command"
     }
@@ -51,7 +52,7 @@ impl Operation for SlashCommandOperation<'_> {
         session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let messages = messages_since_kickoff(conversation)?;
         let Some(user_message) = messages.first() else {
             return not_applicable();
@@ -73,6 +74,7 @@ impl Operation for SlashCommandOperation<'_> {
                 applied @ OperationResult::Applied(_) => return Ok(applied),
             }
         }
+
         not_applicable()
     }
 }

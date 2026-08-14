@@ -604,6 +604,7 @@ impl goose_providers::base::ProviderDescriptor for ClaudeCodeProvider {
                 true,
             )],
         )
+        .deprecated(Some("claude-acp"))
     }
 }
 

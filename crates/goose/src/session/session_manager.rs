@@ -17,14 +17,14 @@ use goose_providers::model::ModelConfig;
 use rmcp::model::Role;
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
-use sqlx::{Pool, Sqlite};
+use sqlx::{AssertSqlSafe, Pool, Sqlite};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
 use tracing::{info, warn};
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 15;
+pub const CURRENT_SCHEMA_VERSION: i32 = 16;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 const MILLISECOND_TIMESTAMP_THRESHOLD: i64 = 10_000_000_000;
@@ -365,12 +365,14 @@ fn message_keyword_clause(keyword_count: usize) -> String {
         .collect::<Vec<_>>()
         .join(" OR ");
 
+    let visible = user_visible_message_sql("mq.metadata_json");
     format!(
         r#"
         EXISTS (
             SELECT 1
             FROM messages mq
             WHERE mq.session_id = s.id
+              AND {visible}
               AND EXISTS (
                   SELECT 1
                   FROM json_each(mq.content_json)
@@ -575,24 +577,6 @@ impl SessionManager {
         })
     }
 
-    pub async fn update_name_from_provider(
-        &self,
-        id: &str,
-        name: String,
-    ) -> Result<Option<SessionNameUpdate>> {
-        let name = name.trim().to_string();
-        if name.is_empty() {
-            return Ok(None);
-        }
-
-        let session = self.get_session(id, false).await?;
-        if session.user_set_name || session.name == name {
-            return Ok(None);
-        }
-
-        Ok(Some(self.system_generated_name_update(id, name).await?))
-    }
-
     pub async fn maybe_update_name(
         &self,
         id: &str,
@@ -639,7 +623,7 @@ impl SessionManager {
         let user_message_count = conversation
             .messages()
             .iter()
-            .filter(|m| matches!(m.role, Role::User))
+            .filter(|m| matches!(m.role, Role::User) && m.is_user_visible())
             .count();
 
         let should_generate_name = if provider.manages_own_context() {
@@ -733,6 +717,10 @@ fn normalized_message_timestamp_sql(column: &str) -> String {
     format!(
         "CASE WHEN {column} > {MILLISECOND_TIMESTAMP_THRESHOLD} THEN {column} / 1000 ELSE {column} END"
     )
+}
+
+fn user_visible_message_sql(column: &str) -> String {
+    format!("COALESCE(json_extract({column}, '$.userVisible'), 1) != 0")
 }
 
 fn session_sort_at(session: &Session) -> DateTime<Utc> {
@@ -1095,6 +1083,11 @@ impl SessionStorage {
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_messages_message_id ON messages(message_id)")
             .execute(&mut *tx)
             .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_messages_session_created ON messages(session_id, created_timestamp, id)",
+        )
+        .execute(&mut *tx)
+        .await?;
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC)")
             .execute(&mut *tx)
             .await?;
@@ -1524,9 +1517,11 @@ impl SessionStorage {
                     .await?
                         > 0;
                     if !has_column {
-                        sqlx::query(&format!("ALTER TABLE sessions ADD COLUMN {column} INTEGER"))
-                            .execute(&mut **tx)
-                            .await?;
+                        sqlx::query(AssertSqlSafe(format!(
+                            "ALTER TABLE sessions ADD COLUMN {column} INTEGER"
+                        )))
+                        .execute(&mut **tx)
+                        .await?;
                     }
                 }
             }
@@ -1570,6 +1565,13 @@ impl SessionStorage {
                 .await?;
                 sqlx::query(
                     "CREATE INDEX IF NOT EXISTS idx_usage_ledger_session ON usage_ledger(session_id)",
+                )
+                .execute(&mut **tx)
+                .await?;
+            }
+            16 => {
+                sqlx::query(
+                    "CREATE INDEX IF NOT EXISTS idx_messages_session_created ON messages(session_id, created_timestamp, id)",
                 )
                 .execute(&mut **tx)
                 .await?;
@@ -1659,7 +1661,11 @@ impl SessionStorage {
 
         if include_messages {
             let conv = self.get_conversation(&session.id).await?;
-            session.message_count = conv.messages().len();
+            session.message_count = conv
+                .messages()
+                .iter()
+                .filter(|m| m.is_user_visible())
+                .count();
             session.last_message_at = conv
                 .messages()
                 .iter()
@@ -1668,13 +1674,15 @@ impl SessionStorage {
             session.conversation = Some(conv);
         } else {
             let sql = format!(
-                "SELECT COUNT(*), MAX({}) FROM messages WHERE session_id = ?",
+                "SELECT COUNT(*) FILTER (WHERE {}), MAX({}) FROM messages WHERE session_id = ?",
+                user_visible_message_sql("metadata_json"),
                 normalized_message_timestamp_sql("created_timestamp")
             );
-            let (count, last_message_timestamp): (i64, Option<i64>) = sqlx::query_as(&sql)
-                .bind(&session.id)
-                .fetch_one(pool)
-                .await?;
+            let (count, last_message_timestamp): (i64, Option<i64>) =
+                sqlx::query_as(AssertSqlSafe(sql))
+                    .bind(&session.id)
+                    .fetch_one(pool)
+                    .await?;
             session.message_count = count as usize;
             session.last_message_at =
                 last_message_timestamp.and_then(message_timestamp_to_datetime);
@@ -1735,7 +1743,7 @@ impl SessionStorage {
         query.push_str(", ");
         query.push_str("updated_at = datetime('now') WHERE id = ?");
 
-        let mut q = sqlx::query(&query);
+        let mut q = sqlx::query(AssertSqlSafe(query));
 
         if let Some(name) = builder.name {
             q = q.bind(name);
@@ -2009,7 +2017,7 @@ impl SessionStorage {
                    s.schedule_id, s.recipe_json, s.user_recipe_values_json,
                    s.provider_name, s.model_config_json, s.goose_mode,
                    s.archived_at, s.project_id, s.parent_session_id,
-                   COUNT(m.id) as message_count,
+                   COUNT(m.id) FILTER (WHERE {}) as message_count,
                    MAX({}) as last_message_timestamp,
                    {} as sort_timestamp
             FROM sessions s
@@ -2020,6 +2028,7 @@ impl SessionStorage {
             {}
             {}
             "#,
+            user_visible_message_sql("m.metadata_json"),
             normalized_message_timestamp,
             sort_timestamp_sql,
             message_join,
@@ -2029,7 +2038,7 @@ impl SessionStorage {
             limit_clause
         );
 
-        let mut q = sqlx::query_as::<_, Session>(&sql);
+        let mut q = sqlx::query_as::<_, Session>(AssertSqlSafe(sql));
         if let Some(types) = filters.types {
             for session_type in types {
                 q = q.bind(session_type.to_string());
@@ -2168,7 +2177,7 @@ impl SessionStorage {
         );
 
         let pool = self.pool().await?;
-        let mut q = sqlx::query_as::<_, (i64, Option<i64>)>(&query);
+        let mut q = sqlx::query_as::<_, (i64, Option<i64>)>(AssertSqlSafe(query));
         for t in types {
             q = q.bind(t.to_string());
         }
@@ -2982,6 +2991,49 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_messages_session_created_index_avoids_disk_sort() {
+        use sqlx::Row;
+
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let pool = sm.storage.pool().await.unwrap();
+
+        let index_exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_messages_session_created')",
+        )
+        .fetch_one(pool)
+        .await
+        .unwrap();
+        assert!(
+            index_exists,
+            "idx_messages_session_created should exist after schema init"
+        );
+
+        let plan_rows = sqlx::query(
+            "EXPLAIN QUERY PLAN \
+             SELECT content_json FROM messages WHERE session_id = ? ORDER BY created_timestamp, id",
+        )
+        .bind("nonexistent_session")
+        .fetch_all(pool)
+        .await
+        .unwrap();
+        let plan_text: String = plan_rows
+            .iter()
+            .map(|r| r.try_get::<String, _>("detail").unwrap_or_default())
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(
+            plan_text.contains("idx_messages_session_created"),
+            "loading a session's messages should use idx_messages_session_created, got: {plan_text}"
+        );
+        assert!(
+            !plan_text.contains("TEMP B-TREE"),
+            "loading a session's messages must not require an on-disk sort, got: {plan_text}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_last_message_at_is_derived_from_messages() {
         let temp_dir = TempDir::new().unwrap();
         let sm = SessionManager::new(temp_dir.path().to_path_buf());
@@ -3013,6 +3065,44 @@ mod tests {
         let with_messages = sm.get_session(&session.id, true).await.unwrap();
         assert_eq!(with_messages.message_count, 2);
         assert_eq!(with_messages.last_message_at, Some(expected));
+    }
+
+    #[tokio::test]
+    async fn test_message_count_excludes_agent_only_messages() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "Hidden events".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        add_user_message(&sm, &session.id).await;
+        sm.add_message(
+            &session.id,
+            &Message::user()
+                .with_text("<turn-context>frozen</turn-context>")
+                .with_visibility(false, true),
+        )
+        .await
+        .unwrap();
+        sm.add_message(&session.id, &Message::assistant().with_text("hi"))
+            .await
+            .unwrap();
+
+        let counted = sm.get_session(&session.id, false).await.unwrap();
+        assert_eq!(counted.message_count, 2);
+
+        let with_messages = sm.get_session(&session.id, true).await.unwrap();
+        assert_eq!(with_messages.message_count, 2);
+
+        let listed = sm.list_sessions().await.unwrap();
+        let listed_session = listed.iter().find(|s| s.id == session.id).unwrap();
+        assert_eq!(listed_session.message_count, 2);
     }
 
     #[tokio::test]
@@ -3141,60 +3231,6 @@ mod tests {
             .unwrap();
 
         assert_eq!(update.name, "investigate session naming with");
-    }
-
-    #[tokio::test]
-    async fn test_provider_name_replaces_generated_name_but_not_user_name() {
-        let temp_dir = TempDir::new().unwrap();
-        let sm = SessionManager::new(temp_dir.path().to_path_buf());
-        let session = sm
-            .create_session(
-                temp_dir.path().to_path_buf(),
-                "Local fallback".to_string(),
-                SessionType::User,
-                GooseMode::default(),
-            )
-            .await
-            .unwrap();
-
-        let update = sm
-            .update_name_from_provider(&session.id, "  Better ACP title  ".to_string())
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(update.name, "Better ACP title");
-
-        sm.update(&session.id)
-            .model_config(ModelConfig::new("test-model"))
-            .apply()
-            .await
-            .unwrap();
-        add_user_message(&sm, &session.id).await;
-        add_user_message(&sm, &session.id).await;
-        assert!(sm
-            .maybe_update_name(&session.id, Arc::new(StatefulNamingTestProvider))
-            .await
-            .unwrap()
-            .is_none());
-        assert_eq!(
-            sm.get_session(&session.id, false).await.unwrap().name,
-            "Better ACP title"
-        );
-
-        sm.update(&session.id)
-            .user_provided_name("Manual title")
-            .apply()
-            .await
-            .unwrap();
-        assert!(sm
-            .update_name_from_provider(&session.id, "Another ACP title".to_string())
-            .await
-            .unwrap()
-            .is_none());
-        assert_eq!(
-            sm.get_session(&session.id, false).await.unwrap().name,
-            "Manual title"
-        );
     }
 
     #[tokio::test]
@@ -4278,10 +4314,12 @@ mod tests {
             "accumulated_cache_read_tokens",
             "accumulated_cache_write_tokens",
         ] {
-            sqlx::query(&format!("ALTER TABLE sessions DROP COLUMN {column}"))
-                .execute(&pool)
-                .await
-                .unwrap();
+            sqlx::query(AssertSqlSafe(format!(
+                "ALTER TABLE sessions DROP COLUMN {column}"
+            )))
+            .execute(&pool)
+            .await
+            .unwrap();
         }
         sqlx::query("UPDATE schema_version SET version = 13")
             .execute(&pool)

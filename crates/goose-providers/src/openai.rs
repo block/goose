@@ -782,7 +782,6 @@ impl Provider for OpenAiProvider {
                     preserve_thinking_context: self.preserve_thinking_context
                         || thinking_preservation_format.is_some(),
                     thinking_preservation_format,
-                    ..Default::default()
                 },
             )?;
 
@@ -1353,6 +1352,7 @@ mod tests {
             setup_steps: vec![],
             fast_model: None,
             preserves_thinking: false,
+            setup: None,
         }
     }
 

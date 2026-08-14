@@ -50,6 +50,35 @@ async fn max_turns_counts_inference_calls_and_injects_budget() -> Result<()> {
 }
 
 #[tokio::test]
+async fn turn_context_is_persisted_once_per_turn_and_reused_across_inferences() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    api.on("add one").call(ADD, value(1));
+    api.on("result: 1").reply("The total is 1");
+    api.on("hello").reply("hi there!");
+
+    let result = pipeline.run(["add one", "hello"]).await?;
+
+    let conversation = result.conversation();
+    let events: Vec<_> = conversation
+        .messages()
+        .iter()
+        .filter(|message| message.is_turn_context())
+        .collect();
+    assert_eq!(
+        events.len(),
+        2,
+        "one turn-context event per turn; the turn's second inference reuses it"
+    );
+    assert!(events.iter().all(|event| !event.is_user_visible()));
+    assert!(api
+        .calls()
+        .iter()
+        .all(|call| call.input_contains("<turn-context>")));
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn goal_starts_nudges_and_clears_when_met() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
     api.on("Start working toward this goal now")

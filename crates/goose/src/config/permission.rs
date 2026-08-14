@@ -212,24 +212,39 @@ impl PermissionManager {
         fs::write(&self.config_path, yaml_content).expect("Failed to write to permission.yaml");
     }
 
-    /// Removes all entries where the principal name starts with the given extension name.
     pub fn remove_extension(&self, extension_name: &str) {
         let mut map = self.permission_map.write().unwrap();
         for permission_config in map.values_mut() {
             permission_config
                 .always_allow
-                .retain(|p| !p.starts_with(extension_name));
+                .retain(|p| !Self::belongs_to_extension(p, extension_name));
             permission_config
                 .ask_before
-                .retain(|p| !p.starts_with(extension_name));
+                .retain(|p| !Self::belongs_to_extension(p, extension_name));
             permission_config
                 .never_allow
-                .retain(|p| !p.starts_with(extension_name));
+                .retain(|p| !Self::belongs_to_extension(p, extension_name));
         }
 
         let yaml_content =
             serde_yaml::to_string(&*map).expect("Failed to serialize permission config");
         fs::write(&self.config_path, yaml_content).expect("Failed to write to permission.yaml");
+    }
+
+    pub fn clear_permissions(&self) {
+        let mut map = self.permission_map.write().unwrap();
+        map.clear();
+
+        let yaml_content =
+            serde_yaml::to_string(&*map).expect("Failed to serialize permission config");
+        fs::write(&self.config_path, yaml_content).expect("Failed to write to permission.yaml");
+    }
+
+    fn belongs_to_extension(principal_name: &str, extension_name: &str) -> bool {
+        !extension_name.is_empty()
+            && principal_name
+                .strip_prefix(extension_name)
+                .is_some_and(|suffix| suffix.starts_with("__"))
     }
 }
 
@@ -332,24 +347,39 @@ mod tests {
     #[test]
     fn test_remove_extension() {
         let (manager, _temp_dir) = create_test_permission_manager();
-        manager.update_user_permission("prefix__tool1", PermissionLevel::AlwaysAllow);
-        manager.update_user_permission("nonprefix__tool2", PermissionLevel::AlwaysAllow);
-        manager.update_user_permission("prefix__tool3", PermissionLevel::AskBefore);
+        manager.update_user_permission("git__status", PermissionLevel::AlwaysAllow);
+        manager.update_user_permission("git__tool__with__delimiter", PermissionLevel::AskBefore);
+        manager.update_user_permission("github__delete_repo", PermissionLevel::NeverAllow);
+        manager.update_user_permission("gitlab__deploy", PermissionLevel::AskBefore);
+        manager.update_user_permission("__cli__ent____tool", PermissionLevel::NeverAllow);
 
-        // Remove entries starting with "prefix"
-        manager.remove_extension("prefix");
+        manager.remove_extension("git");
 
-        let map = manager.permission_map.read().unwrap();
-        let config = map.get(USER_PERMISSION).unwrap();
+        assert_eq!(manager.get_user_permission("git__status"), None);
+        assert_eq!(
+            manager.get_user_permission("git__tool__with__delimiter"),
+            None
+        );
+        assert_eq!(
+            manager.get_user_permission("github__delete_repo"),
+            Some(PermissionLevel::NeverAllow)
+        );
+        assert_eq!(
+            manager.get_user_permission("gitlab__deploy"),
+            Some(PermissionLevel::AskBefore)
+        );
 
-        // Verify entries with "prefix" are removed
-        assert!(!config.always_allow.contains(&"prefix__tool1".to_string()));
-        assert!(!config.ask_before.contains(&"prefix__tool3".to_string()));
+        manager.remove_extension("__cli__ent__");
+        assert_eq!(manager.get_user_permission("__cli__ent____tool"), None);
 
-        // Verify other entries remain
-        assert!(config
-            .always_allow
-            .contains(&"nonprefix__tool2".to_string()));
+        manager.remove_extension("");
+        assert_eq!(
+            manager.get_user_permission("github__delete_repo"),
+            Some(PermissionLevel::NeverAllow)
+        );
+
+        manager.clear_permissions();
+        assert!(manager.get_permission_names().is_empty());
     }
 
     #[test]

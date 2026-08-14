@@ -266,7 +266,12 @@ async fn scheduler_is_advertised_only_when_configured_and_manages_jobs() -> Resu
     assert_eq!(scheduled_sessions.len(), 1);
     assert_eq!(
         scheduled_sessions[0].1.message_count,
-        listed.conversation().messages().len()
+        listed
+            .conversation()
+            .messages()
+            .iter()
+            .filter(|message| message.is_user_visible())
+            .count()
     );
     api.on("list scheduled runs").call(
         MANAGE_SCHEDULE_TOOL_NAME_COMPLETE,

@@ -1493,7 +1493,13 @@ mod tests {
             .unwrap();
         assert_eq!(
             sessions[0].message_count,
-            session.conversation.unwrap().messages().len()
+            session
+                .conversation
+                .unwrap()
+                .messages()
+                .iter()
+                .filter(|m| m.is_user_visible())
+                .count()
         );
     }
 

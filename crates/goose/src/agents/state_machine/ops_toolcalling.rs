@@ -9,11 +9,11 @@ use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, ErrorData
 
 use crate::agents::extension_manager::ExtensionManager;
 use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
-use crate::agents::state_machine::operation::{
-    applied, messages_since_kickoff, not_applicable, yielded_with, Emitter, Operation,
-    OperationResult, SlashCommand, StateEffect,
-};
 use crate::agents::state_machine::ops_tool_approval::request_executable;
+use crate::agents::state_machine::{
+    applied, messages_since_kickoff, not_applicable, yielded_with, ConversationEffect, Emitter,
+    GooseEffect, Operation, OperationResult, SlashCommand,
+};
 use crate::agents::tool_execution::{
     tool_stream, ToolCallResult, ToolStreamItem, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE,
 };
@@ -276,16 +276,16 @@ impl<'a> ToolExecutionOperation<'a> {
         .await
     }
 
-    async fn extension_state_effect(&self) -> StateEffect {
+    async fn extension_state_effect(&self) -> GooseEffect {
         let extension_configs = self.extension_manager.get_extension_configs().await;
-        StateEffect::SetEnabledExtensions(EnabledExtensionsState::new(extension_configs))
+        GooseEffect::SetEnabledExtensions(EnabledExtensionsState::new(extension_configs))
     }
 
     async fn command_response(
         conversation: &Conversation,
         message: String,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let command = messages_since_kickoff(conversation)?
             .first()
             .cloned()
@@ -301,11 +301,12 @@ impl<'a> ToolExecutionOperation<'a> {
         emit.message(command).await;
         let response = emit.message(response).await;
         yielded_with([
-            StateEffect::SetMessageVisibility {
+            ConversationEffect::SetMessageVisibility {
                 message_id,
                 user_visible: true,
                 agent_visible: false,
-            },
+            }
+            .into(),
             response.into(),
         ])
     }
@@ -316,7 +317,7 @@ impl<'a> ToolExecutionOperation<'a> {
         session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let prompts = match self
             .extension_manager
             .list_prompts(&session.id, emit.cancel_token().clone())
@@ -370,7 +371,7 @@ impl<'a> ToolExecutionOperation<'a> {
         session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let params: Vec<_> = command.params_str.split_whitespace().collect();
         let Some(prompt_name) = params.first() else {
             return Self::command_response(
@@ -459,11 +460,12 @@ impl<'a> ToolExecutionOperation<'a> {
             .id
             .clone()
             .ok_or_else(|| anyhow!("Persisted slash command message has no id"))?;
-        let mut effects = vec![StateEffect::SetMessageVisibility {
+        let mut effects = vec![ConversationEffect::SetMessageVisibility {
             message_id,
             user_visible: true,
             agent_visible: false,
-        }];
+        }
+        .into()];
         for (index, prompt_message) in result.messages.into_iter().enumerate() {
             let message = Message::from(prompt_message);
             let expected_role = if index % 2 == 0 {
@@ -570,7 +572,7 @@ fn approval_denied(permission: Option<&crate::permission::Permission>) -> bool {
 }
 
 #[async_trait]
-impl Operation for ToolExecutionOperation<'_> {
+impl Operation<Session, GooseEffect> for ToolExecutionOperation<'_> {
     fn name(&self) -> &'static str {
         "tool_execution"
     }
@@ -581,7 +583,7 @@ impl Operation for ToolExecutionOperation<'_> {
         session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         match command.command {
             "prompts" => {
                 self.list_prompts(command, session, conversation, emit)
@@ -645,6 +647,8 @@ impl Operation for ToolExecutionOperation<'_> {
         if extensions.is_empty() {
             return Ok(prompt_parts);
         }
+        // HashMap order shuffles across restarts and would bust the prompt cache.
+        extensions.sort_by(|a, b| a.name.cmp(&b.name));
 
         let mut lines = vec![
             "# Extensions".to_string(),
@@ -671,7 +675,7 @@ impl Operation for ToolExecutionOperation<'_> {
         session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let mut pending = pending_tool_requests(messages_since_kickoff(conversation)?);
         if pending.is_empty() {
             return not_applicable();

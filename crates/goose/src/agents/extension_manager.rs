@@ -1291,18 +1291,6 @@ impl ExtensionManager {
         }
     }
 
-    pub async fn get_extension_and_tool_counts(&self, session_id: &str) -> (usize, usize) {
-        let enabled_extensions_count = self.extensions.lock().await.len();
-
-        let total_tools = self
-            .get_prefixed_tools(session_id, None)
-            .await
-            .map(|tools| tools.len())
-            .unwrap_or(0);
-
-        (enabled_extensions_count, total_tools)
-    }
-
     pub async fn list_extensions(&self) -> ExtensionResult<Vec<String>> {
         Ok(self.extensions.lock().await.keys().cloned().collect())
     }
@@ -2158,7 +2146,7 @@ impl ExtensionManager {
     }
 
     pub async fn collect_moim_parts(&self, session_id: &str) -> Vec<String> {
-        let platform_clients: Vec<(String, McpClientBox)> = {
+        let mut platform_clients: Vec<(String, McpClientBox)> = {
             let extensions = self.extensions.lock().await;
             extensions
                 .iter()
@@ -2178,6 +2166,9 @@ impl ExtensionManager {
                 })
                 .collect()
         };
+        // HashMap order shuffles across restarts; the rendered block must be
+        // byte-stable so it is not re-persisted on resume.
+        platform_clients.sort_by(|a, b| a.0.cmp(&b.0));
 
         let mut parts = Vec::new();
         for (name, client) in platform_clients {

@@ -1,14 +1,14 @@
 use anyhow::Result;
 use goose_providers::conversation::token_usage::{CostSource, ProviderUsage, Usage as TokenUsage};
 
-use crate::agents::state_machine::operation::StateEffect;
+use crate::agents::state_machine::{ConversationEffect, GooseEffect};
 use crate::conversation::message::MessageUsage;
 use crate::conversation::Conversation;
 use crate::session::{Session, SessionManager};
 
-fn attach_to_last_assistant(effects: &mut [StateEffect], usage: &ProviderUsage) {
+fn attach_to_last_assistant(effects: &mut [GooseEffect], usage: &ProviderUsage) {
     let Some(message) = effects.iter_mut().rev().find_map(|effect| match effect {
-        StateEffect::AppendMessage(message)
+        GooseEffect::Conversation(ConversationEffect::AppendMessage(message))
             if message.role == rmcp::model::Role::Assistant && message.error_kind().is_none() =>
         {
             Some(message)
@@ -20,11 +20,11 @@ fn attach_to_last_assistant(effects: &mut [StateEffect], usage: &ProviderUsage) 
     message.metadata.usage = Some(Box::new(MessageUsage::from_provider_usage(usage, false)));
 }
 
-pub(super) fn enrich(session: &Session, effects: &mut [StateEffect]) {
+pub(super) fn enrich(session: &Session, effects: &mut [GooseEffect]) {
     for index in 0..effects.len() {
         let (usage, replaces_conversation) = match &effects[index] {
-            StateEffect::RecordUsage(usage) => (usage.clone(), false),
-            StateEffect::ReplaceConversation {
+            GooseEffect::RecordUsage(usage) => (usage.clone(), false),
+            GooseEffect::ReplaceConversation {
                 usage: Some(usage), ..
             } => (usage.clone(), true),
             _ => continue,
@@ -53,8 +53,8 @@ pub(super) fn enrich(session: &Session, effects: &mut [StateEffect]) {
             attach_to_last_assistant(effects, &enriched);
         }
         match &mut effects[index] {
-            StateEffect::RecordUsage(usage) => *usage = enriched,
-            StateEffect::ReplaceConversation { usage, .. } => *usage = Some(enriched),
+            GooseEffect::RecordUsage(usage) => *usage = enriched,
+            GooseEffect::ReplaceConversation { usage, .. } => *usage = Some(enriched),
             _ => {}
         }
     }

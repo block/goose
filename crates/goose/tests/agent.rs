@@ -541,6 +541,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -713,6 +715,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -894,6 +898,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -1253,6 +1259,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -1404,7 +1412,11 @@ mod tests {
                 .messages()
                 .to_vec();
 
-            let user_count = messages.iter().filter(|m| m.role == Role::User).count();
+            // Turn-context events are excluded; this test is about streaming deltas.
+            let user_count = messages
+                .iter()
+                .filter(|m| m.role == Role::User && m.is_user_visible())
+                .count();
             let asst_count = messages
                 .iter()
                 .filter(|m| m.role == Role::Assistant)
@@ -1453,7 +1465,10 @@ mod tests {
                 .messages()
                 .to_vec();
 
-            let user_count2 = messages2.iter().filter(|m| m.role == Role::User).count();
+            let user_count2 = messages2
+                .iter()
+                .filter(|m| m.role == Role::User && m.is_user_visible())
+                .count();
             let asst_count2 = messages2
                 .iter()
                 .filter(|m| m.role == Role::Assistant)
@@ -1524,6 +1539,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -1725,6 +1742,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -1876,6 +1895,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -2235,6 +2256,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -3144,6 +3167,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -3222,6 +3247,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }

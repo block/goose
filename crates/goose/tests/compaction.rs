@@ -21,12 +21,21 @@ use tempfile::TempDir;
 struct MockCompactionProvider {
     /// Tracks whether compaction has occurred (for context limit recovery case)
     has_compacted: Arc<AtomicBool>,
+    manages_own_context: bool,
 }
 
 impl MockCompactionProvider {
     fn new() -> Self {
         Self {
             has_compacted: Arc::new(AtomicBool::new(false)),
+            manages_own_context: false,
+        }
+    }
+
+    fn context_owning() -> Self {
+        Self {
+            has_compacted: Arc::new(AtomicBool::new(false)),
+            manages_own_context: true,
         }
     }
 
@@ -98,6 +107,10 @@ impl MockCompactionProvider {
 
 #[async_trait]
 impl Provider for MockCompactionProvider {
+    fn manages_own_context(&self) -> bool {
+        self.manages_own_context
+    }
+
     async fn stream(
         &self,
         _model_config: &ModelConfig,
@@ -187,6 +200,8 @@ impl goose::providers::base::ProviderDescriptor for MockCompactionProvider {
             setup_steps: vec![],
             model_selection_hint: None,
             fast_model: None,
+            setup: None,
+            deprecated: None,
         }
     }
 }
@@ -238,6 +253,58 @@ async fn setup_test_session(
         .await?;
 
     Ok(session)
+}
+
+#[tokio::test]
+async fn context_owning_provider_rejects_clear_and_compact_without_changing_session() -> Result<()>
+{
+    let temp_dir = TempDir::new()?;
+    let agent = Agent::new();
+    let messages = vec![
+        Message::user().with_text("Remember this"),
+        Message::assistant().with_text("I will"),
+    ];
+    let session = setup_test_session(
+        &agent,
+        &temp_dir,
+        "context-owning-provider",
+        messages.clone(),
+    )
+    .await?;
+    let before = agent
+        .config
+        .session_manager
+        .get_session(&session.id, true)
+        .await?;
+    let conversation_before = before.conversation.unwrap();
+    let usage_before = before.usage;
+    let provider = Arc::new(MockCompactionProvider::context_owning());
+    agent
+        .update_provider(provider, ModelConfig::new("mock-model"), &session.id)
+        .await?;
+
+    for command in ["clear", "compact"] {
+        let error = agent
+            .execute_command(&format!("/{command}"), &session.id)
+            .await
+            .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            format!(
+                "/{command} is not available for provider 'mock-compaction' because it manages its own conversation context"
+            )
+        );
+    }
+
+    let unchanged = agent
+        .config
+        .session_manager
+        .get_session(&session.id, true)
+        .await?;
+    assert_eq!(unchanged.conversation.unwrap(), conversation_before);
+    assert_eq!(unchanged.usage, usage_before);
+
+    Ok(())
 }
 
 /// Helper: Assert conversation has been compacted with proper message visibility
@@ -320,7 +387,12 @@ fn assert_conversation_compacted(conversation: &Conversation) {
                 "Message after compaction at index {} should be agent visible",
                 idx
             );
-            if idx == continuation_end && matches!(msg.role, rmcp::model::Role::User) {
+            if msg.is_turn_context() {
+                assert!(
+                    !msg.is_user_visible(),
+                    "Carried turn-context event should be user-invisible"
+                );
+            } else if idx == continuation_end && matches!(msg.role, rmcp::model::Role::User) {
                 assert!(
                     !msg.is_user_visible(),
                     "Projected preserved user message should be user-invisible"

@@ -16,7 +16,26 @@ pub struct DatabricksProviderDef;
 
 impl ProviderDescriptor for DatabricksProviderDef {
     fn metadata() -> goose_providers::base::ProviderMetadata {
-        DatabricksProvider::metadata()
+        DatabricksProvider::metadata().with_setup(
+            crate::providers::catalog::ProviderSetupMetadata::new(
+                crate::providers::catalog::ProviderSetupCategory::Model,
+                crate::providers::catalog::ProviderSetupMethod::HostWithOauthFallback,
+                crate::providers::catalog::ProviderSetupGroup::Default,
+            )
+            .with_capabilities(false, true, false)
+            .with_field(
+                "DATABRICKS_HOST",
+                "Host URL",
+                Some("https://dbc-...cloud.databricks.com"),
+                None,
+            )
+            .with_field(
+                "DATABRICKS_TOKEN",
+                "Access Token",
+                Some("Paste your access token"),
+                None,
+            ),
+        )
     }
 }
 
