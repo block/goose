@@ -201,7 +201,7 @@ async function generateClient(meta: {
 }) {
   const typeImports = new Set<string>();
   const zodImports = new Set<string>();
-  const upstreamTypeImports = new Set<string>(["Client"]);
+  const upstreamTypeImports = new Set<string>(["Client", "ClientContext"]);
 
   const methodDefs: string[] = [];
 
@@ -228,18 +228,18 @@ async function generateClient(meta: {
       zodImports.add(zodName);
       returnType = m.responseType;
       bodyLines = [
-        `const raw = await this.conn.extMethod("${fullMethod}", ${callParams});`,
+        `const raw = await this.conn.request("${fullMethod}", ${callParams});`,
         `return ${zodName}.parse(raw) as ${returnType};`,
       ];
     } else if (m.responseType === "EmptyResponse") {
       returnType = "void";
       bodyLines = [
-        `await this.conn.extMethod("${fullMethod}", ${callParams});`,
+        `await this.conn.request("${fullMethod}", ${callParams});`,
       ];
     } else {
       returnType = "Record<string, unknown>";
       bodyLines = [
-        `return await this.conn.extMethod("${fullMethod}", ${callParams ? callParams : "{}"});`,
+        `return await this.conn.request<Record<string, unknown>>("${fullMethod}", ${callParams ? callParams : "{}"});`,
       ];
     }
 
@@ -387,16 +387,12 @@ ${dispatchCases.join("\n")}
 
   let src = `// This file is auto-generated — do not edit manually.
 
-export interface ExtMethodProvider {
-  extMethod(method: string, params: Record<string, unknown>): Promise<Record<string, unknown>>;
-}
-
 ${upstreamImportLine}
 ${typeImportLine}
 ${zodImportLine}
 
 export class GooseExtClient {
-  constructor(private conn: ExtMethodProvider) {}
+  constructor(private conn: Pick<ClientContext, "request">) {}
 ${methodDefs.join("\n")}
 }
 

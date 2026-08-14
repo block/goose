@@ -49,10 +49,7 @@ export function connectGooseAcpClient(
     );
 
   const connection = app.connect(stream);
-  const goose = new GooseExtClient({
-    extMethod: (method, params) =>
-      connection.agent.request<Record<string, unknown>, Record<string, unknown>>(method, params),
-  });
+  const goose = new GooseExtClient(connection.agent);
 
   return { connection, goose };
 }
