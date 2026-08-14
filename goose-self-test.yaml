@@ -198,11 +198,13 @@ prompt: |
   This tests the discovery mechanism that lists everything available for loading or delegation.
 
   ### Load Tool - Builtin Skill Test
-  Test loading the builtin `goose-doc-guide` skill:
+  Test loading the builtin skills:
   ```
   load(source: "goose-doc-guide")
+  load(source: "web-search")
+  load(source: "browser-use")
   ```
-  Verify the skill content is returned and can be read. This confirms builtin skills are accessible.
+  Verify the skill content is returned and can be read for each. This confirms all builtin skills are accessible.
 
   ### Load Tool - Knowledge Injection
   If any other skills or recipes are discovered, test loading one:
