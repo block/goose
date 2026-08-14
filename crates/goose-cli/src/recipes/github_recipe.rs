@@ -150,6 +150,12 @@ fn temp_child_name(name: &str) -> Result<String> {
         child.push('_');
     }
 
+    if child.trim_end_matches([' ', '.']) != child {
+        return Err(anyhow!(
+            "Recipe name does not map to a safe temporary directory"
+        ));
+    }
+
     let mut components = Path::new(&child).components();
     match (components.next(), components.next()) {
         (Some(Component::Normal(_)), None) => Ok(child),
@@ -423,7 +429,18 @@ mod tests {
     fn temp_child_path_rejects_reserved_components() {
         let parent = Path::new("goose-recipes");
 
-        for name in [".", "..", "...", "....", ". ", ".. ", ". .", ".. ."] {
+        for name in [
+            ".",
+            "..",
+            "...",
+            "....",
+            ". ",
+            ".. ",
+            ". .",
+            ".. .",
+            "report.",
+            "report...",
+        ] {
             assert!(temp_child_path(parent, name).is_err(), "accepted {name}");
         }
     }
@@ -453,7 +470,18 @@ mod tests {
         fs::write(&parent_sentinel, "keep").unwrap();
         fs::write(&child_sentinel, "keep").unwrap();
 
-        for name in [".", "..", "...", "....", ". ", ".. ", ". .", ".. ."] {
+        for name in [
+            ".",
+            "..",
+            "...",
+            "....",
+            ". ",
+            ".. ",
+            ". .",
+            ".. .",
+            "report.",
+            "report...",
+        ] {
             assert!(clean_temp_child_path(&parent, name).is_err());
             assert!(parent_sentinel.exists());
             assert!(child_sentinel.exists());
