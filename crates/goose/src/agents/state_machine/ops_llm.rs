@@ -2,20 +2,23 @@
 
 use std::sync::Arc;
 
+use crate::agents::state_machine::ops_inference_request_preparer::{
+    GooseInferenceRequestPreparer, IdentityInferenceRequestPreparer, InferenceRequestPreparer,
+};
 use crate::agents::state_machine::ops_unknown_tool::UNCLAIMED_TOOL_ERROR;
 use crate::agents::state_machine::{
+    applied, messages_since_kickoff, not_applicable, trailing_error, yielded_with,
     ConversationEffect, Emitter, GooseEffect, Inference, InferenceInput, Operation,
-    OperationResult, SlashCommand, applied, messages_since_kickoff, not_applicable, trailing_error,
-    yielded_with,
+    OperationResult, SlashCommand,
 };
 use crate::agents::{ExtensionManager, PromptManager};
 use crate::config::GooseMode;
 use crate::conversation::message::{InferenceMetadata, Message, MessageContent};
-use crate::conversation::{Conversation, EffectiveRole, effective_role};
+use crate::conversation::{effective_role, Conversation, EffectiveRole};
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::session::Session;
 use crate::tool_inspection::ToolInspectionManager;
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use futures::StreamExt;
 use goose_providers::errors::ProviderError;
@@ -108,91 +111,6 @@ pub(super) fn record_chat_usage(span: &tracing::Span, usage: &ProviderUsage) {
     }
     if let Some(tokens) = usage.usage.output_tokens {
         span.record("gen_ai.usage.output_tokens", tokens);
-    }
-}
-
-pub struct PreparedInferenceRequest {
-    system_prompt: String,
-    tools: Vec<rmcp::model::Tool>,
-    moim_parts: Vec<String>,
-}
-
-#[async_trait]
-pub trait InferenceRequestPreparer<S>: Send + Sync {
-    async fn prepare(&self, session: &S, input: InferenceInput)
-    -> Result<PreparedInferenceRequest>;
-}
-
-struct IdentityInferenceRequestPreparer;
-
-#[async_trait]
-impl<S: Sync> InferenceRequestPreparer<S> for IdentityInferenceRequestPreparer {
-    async fn prepare(
-        &self,
-        _session: &S,
-        input: InferenceInput,
-    ) -> Result<PreparedInferenceRequest> {
-        Ok(PreparedInferenceRequest {
-            system_prompt: input
-                .prompt_parts
-                .into_iter()
-                .map(|(_, part)| part)
-                .collect::<Vec<_>>()
-                .join("\n\n"),
-            tools: input.tools,
-            moim_parts: input.moim_parts,
-        })
-    }
-}
-
-struct GooseInferenceRequestPreparer<'a> {
-    #[cfg(feature = "code-mode")]
-    extension_manager: Arc<ExtensionManager>,
-    goose_mode: &'a Mutex<GooseMode>,
-    prompt_manager: &'a Mutex<PromptManager>,
-    tool_inspection_manager: &'a ToolInspectionManager,
-    frontend_instructions: &'a Mutex<Option<String>>,
-}
-
-#[async_trait]
-impl InferenceRequestPreparer<Session> for GooseInferenceRequestPreparer<'_> {
-    async fn prepare(
-        &self,
-        session: &Session,
-        mut input: InferenceInput,
-    ) -> Result<PreparedInferenceRequest> {
-        #[cfg(feature = "code-mode")]
-        let code_execution_mode = self
-            .extension_manager
-            .is_extension_enabled(
-                crate::agents::platform_extensions::code_execution::EXTENSION_NAME,
-            )
-            .await;
-        #[cfg(not(feature = "code-mode"))]
-        let code_execution_mode = false;
-
-        let goose_mode = *self.goose_mode.lock().await;
-        if goose_mode == GooseMode::SmartApprove {
-            self.tool_inspection_manager
-                .apply_tool_annotations(&input.tools);
-        }
-        let tools =
-            crate::agents::reply_parts::prepare_inference_tools(input.tools, code_execution_mode);
-        if let Some(frontend_instructions) = self.frontend_instructions.lock().await.clone() {
-            input
-                .prompt_parts
-                .push(("frontend".to_string(), frontend_instructions));
-        }
-        let system_prompt = self.prompt_manager.lock().await.build_system_prompt(
-            &session.working_dir,
-            input.prompt_parts,
-            goose_mode,
-        );
-        Ok(PreparedInferenceRequest {
-            system_prompt,
-            tools,
-            moim_parts: input.moim_parts,
-        })
     }
 }
 

@@ -11,6 +11,7 @@ mod ops_compaction;
 mod ops_doctor;
 mod ops_entry_hook;
 mod ops_exit_on_error;
+mod ops_inference_request_preparer;
 mod ops_llm;
 mod ops_maxturns;
 mod ops_project;
