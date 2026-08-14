@@ -7,12 +7,14 @@ use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
 use minijinja::render;
-use oauth2::TokenResponse;
+use oauth2::{Scope, TokenResponse};
 use rmcp::transport::auth::{
-    AuthorizationRequest, CredentialStore, OAuthClientConfig, OAuthState, StoredCredentials,
+    AuthError, AuthorizationRequest, CredentialStore, OAuthClientConfig, OAuthState,
+    OAuthTokenResponse, StoredCredentials,
 };
 use rmcp::transport::AuthorizationManager;
 use serde::Deserialize;
+use std::collections::BTreeSet;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -99,29 +101,67 @@ pub struct StaticOAuthClientConfig {
     pub scopes: Vec<String>,
 }
 
-/// A stored grant satisfies the configured scopes when every requested scope
-/// was granted. A broader stored grant is accepted: forcing re-authorization
-/// until granted == requested would loop on servers that grant supersets or
-/// let users decline individual scopes.
-fn granted_scopes_cover_requested(granted: &[String], requested: &[String]) -> bool {
-    requested
-        .iter()
-        .all(|scope| granted.iter().any(|granted_scope| granted_scope == scope))
+fn scope_set(scopes: &[String]) -> BTreeSet<&str> {
+    scopes.iter().map(String::as_str).collect()
 }
 
-/// RFC 6749 section 5.1 makes the token response's `scope` optional when the
-/// granted scopes are identical to those requested, so an omitted scope list
-/// means the requested scopes were granted.
-fn resolve_granted_scopes(
-    token_scopes: Option<Vec<String>>,
+fn configured_scopes_changed(
     static_client: Option<&StaticOAuthClientConfig>,
-) -> Vec<String> {
-    match token_scopes {
-        Some(scopes) => scopes,
-        None => static_client
-            .map(|client| client.scopes.clone())
-            .unwrap_or_default(),
+    previous_requested_scopes: Option<&[String]>,
+    granted_scopes: &[String],
+) -> bool {
+    let Some(client) = static_client else {
+        return previous_requested_scopes.is_some();
+    };
+
+    match previous_requested_scopes {
+        Some(previous) => scope_set(previous) != scope_set(&client.scopes),
+        None => !scope_set(&client.scopes).is_subset(&scope_set(granted_scopes)),
     }
+}
+
+fn configured_client_changed(
+    static_client: Option<&StaticOAuthClientConfig>,
+    stored_client_id: &str,
+) -> bool {
+    static_client.is_some_and(|client| client.client_id != stored_client_id)
+}
+
+fn resolve_refreshed_granted_scopes(
+    token_scopes: Option<Vec<String>>,
+    previous_granted_scopes: &[String],
+) -> Vec<String> {
+    token_scopes.unwrap_or_else(|| previous_granted_scopes.to_vec())
+}
+
+fn configure_static_client(
+    auth_manager: &mut AuthorizationManager,
+    static_client: Option<&StaticOAuthClientConfig>,
+    redirect_uri: &str,
+) -> Result<(), AuthError> {
+    let Some(client) = static_client else {
+        return Ok(());
+    };
+
+    let mut config = OAuthClientConfig::new(client.client_id.clone(), redirect_uri.to_string());
+    if let Some(secret) = &client.client_secret {
+        config = config.with_client_secret(secret.clone());
+    }
+    auth_manager.configure_client(config)
+}
+
+fn restore_omitted_scopes(
+    token_response: &mut OAuthTokenResponse,
+    granted_scopes: &[String],
+) -> bool {
+    if token_response.scopes().is_some() || granted_scopes.is_empty() {
+        return false;
+    }
+
+    token_response.set_scopes(Some(
+        granted_scopes.iter().cloned().map(Scope::new).collect(),
+    ));
+    true
 }
 
 fn build_authorization_request(
@@ -155,35 +195,66 @@ pub async fn oauth_flow(
     let mut auth_manager = AuthorizationManager::new(mcp_server_url).await?;
     auth_manager.set_credential_store(credential_store.clone());
 
-    if auth_manager.initialize_from_store().await? {
-        // Refreshing keeps the stored grant's scopes, so a configured scope
-        // the stored grant lacks can only be obtained by authorizing again.
-        let scopes_satisfied = match static_client {
-            Some(client) if !client.scopes.is_empty() => {
-                let granted = credential_store
-                    .load()
-                    .await?
-                    .map(|credentials| credentials.granted_scopes)
-                    .unwrap_or_default();
-                granted_scopes_cover_requested(&granted, &client.scopes)
-            }
-            _ => true,
-        };
+    let stored_credentials = credential_store.load().await?;
+    let previous_requested_scopes = credential_store.load_requested_scopes()?;
 
-        if scopes_satisfied {
+    if auth_manager.initialize_from_store().await? {
+        let stored_credentials = stored_credentials
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("OAuth credentials disappeared during startup"))?;
+        let previous_granted_scopes = stored_credentials.granted_scopes.as_slice();
+        let scopes_changed = configured_scopes_changed(
+            static_client,
+            previous_requested_scopes.as_deref(),
+            previous_granted_scopes,
+        );
+        let client_changed =
+            configured_client_changed(static_client, &stored_credentials.client_id);
+
+        if !scopes_changed && !client_changed {
             // initialize_from_store configures the client from the stored
             // client_id alone; a confidential client must present its secret
             // at the token endpoint for the refresh to succeed.
-            if let Some(client) = static_client {
-                let mut config =
-                    OAuthClientConfig::new(client.client_id.clone(), mcp_server_url.clone());
-                if let Some(secret) = &client.client_secret {
-                    config = config.with_client_secret(secret.clone());
-                }
-                auth_manager.configure_client(config)?;
-            }
+            configure_static_client(&mut auth_manager, static_client, mcp_server_url)?;
             match auth_manager.refresh_token().await {
-                Ok(_) => {
+                Ok(mut token_response) => {
+                    let restored_omitted_scopes =
+                        restore_omitted_scopes(&mut token_response, previous_granted_scopes);
+                    let mut refreshed_credentials =
+                        credential_store.load().await?.ok_or_else(|| {
+                            anyhow::anyhow!("OAuth refresh did not persist credentials")
+                        })?;
+                    let refreshed_client_id = refreshed_credentials.client_id.clone();
+                    refreshed_credentials.token_response = Some(token_response.clone());
+                    refreshed_credentials.granted_scopes = resolve_refreshed_granted_scopes(
+                        token_response
+                            .scopes()
+                            .map(|scopes| scopes.iter().map(|scope| scope.to_string()).collect()),
+                        previous_granted_scopes,
+                    );
+                    let requested_scopes = static_client
+                        .map(|client| client.scopes.clone())
+                        .or(previous_requested_scopes);
+                    credential_store
+                        .save_with_requested_scopes(refreshed_credentials, requested_scopes)?;
+
+                    if restored_omitted_scopes {
+                        let mut oauth_state = OAuthState::new(mcp_server_url, None).await?;
+                        oauth_state
+                            .set_credentials(&refreshed_client_id, token_response)
+                            .await?;
+                        let mut restored_manager =
+                            oauth_state.into_authorization_manager().ok_or_else(|| {
+                                anyhow::anyhow!("Failed to restore OAuth authorization manager")
+                            })?;
+                        configure_static_client(
+                            &mut restored_manager,
+                            static_client,
+                            mcp_server_url,
+                        )?;
+                        restored_manager.set_credential_store(credential_store);
+                        return Ok(restored_manager);
+                    }
                     return Ok(auth_manager);
                 }
                 Err(e) => {
@@ -193,11 +264,6 @@ pub async fn oauth_flow(
                     );
                 }
             }
-        } else {
-            warn!(
-                "[OAuth:{}] Stored grant is missing configured scopes - starting browser authorization to request them",
-                name
-            );
         }
 
         if let Err(e) = credential_store.clear().await {
@@ -278,16 +344,9 @@ pub async fn oauth_flow(
         .into_authorization_manager()
         .ok_or_else(|| anyhow::anyhow!("Failed to get authorization manager"))?;
 
-    let granted_scopes = resolve_granted_scopes(
-        token_response
-            .as_ref()
-            .and_then(|tr| tr.scopes())
-            .map(|scopes| scopes.iter().map(|s| s.to_string()).collect()),
-        static_client,
-    );
-
-    credential_store
-        .save(StoredCredentials::new(
+    let granted_scopes = auth_manager.get_current_scopes().await;
+    credential_store.save_with_requested_scopes(
+        StoredCredentials::new(
             client_id,
             token_response,
             granted_scopes,
@@ -297,8 +356,9 @@ pub async fn oauth_flow(
                     .map(|duration| duration.as_secs())
                     .unwrap_or(0),
             ),
-        ))
-        .await?;
+        ),
+        static_client.map(|client| client.scopes.clone()),
+    )?;
 
     auth_manager.set_credential_store(credential_store);
 
@@ -383,56 +443,116 @@ mod tests {
     }
 
     #[test]
-    fn resolve_granted_scopes_prefers_the_token_response_scopes() {
-        let static_client = StaticOAuthClientConfig {
-            client_id: "registered-client".to_string(),
-            client_secret: None,
-            scopes: vec!["scope.read".to_string()],
-        };
-
-        assert_eq!(
-            resolve_granted_scopes(Some(vec!["scope.other".to_string()]), Some(&static_client)),
-            vec!["scope.other"]
-        );
-    }
-
-    #[test]
-    fn resolve_granted_scopes_falls_back_to_requested_scopes_when_omitted() {
+    fn unchanged_scope_request_preserves_a_narrowed_grant() {
         let static_client = StaticOAuthClientConfig {
             client_id: "registered-client".to_string(),
             client_secret: None,
             scopes: vec!["scope.read".to_string(), "scope.write".to_string()],
         };
 
-        assert_eq!(
-            resolve_granted_scopes(None, Some(&static_client)),
-            vec!["scope.read", "scope.write"]
-        );
-        assert!(resolve_granted_scopes(None, None).is_empty());
-    }
-
-    #[test]
-    fn granted_scopes_cover_requested_accepts_exact_and_superset_grants() {
-        let requested = vec!["scope.read".to_string()];
-
-        assert!(granted_scopes_cover_requested(&requested, &requested));
-        assert!(granted_scopes_cover_requested(
-            &["scope.read".to_string(), "scope.write".to_string()],
-            &requested
-        ));
-        assert!(granted_scopes_cover_requested(&[], &[]));
-    }
-
-    #[test]
-    fn granted_scopes_cover_requested_rejects_missing_scopes() {
-        assert!(!granted_scopes_cover_requested(
+        assert!(!configured_scopes_changed(
+            Some(&static_client),
+            Some(&["scope.read".to_string(), "scope.write".to_string()]),
             &["scope.read".to_string()],
-            &["scope.read".to_string(), "scope.write".to_string()]
         ));
-        assert!(!granted_scopes_cover_requested(
-            &[],
-            &["scope.read".to_string()]
+    }
+
+    #[test]
+    fn changed_scope_request_requires_reauthorization() {
+        let static_client = StaticOAuthClientConfig {
+            client_id: "registered-client".to_string(),
+            client_secret: None,
+            scopes: vec!["scope.read".to_string(), "scope.write".to_string()],
+        };
+
+        assert!(configured_scopes_changed(
+            Some(&static_client),
+            Some(&["scope.read".to_string()]),
+            &["scope.read".to_string()],
         ));
+    }
+
+    #[test]
+    fn changed_static_client_requires_reauthorization() {
+        let static_client = StaticOAuthClientConfig {
+            client_id: "new-client".to_string(),
+            client_secret: None,
+            scopes: vec![],
+        };
+
+        assert!(configured_client_changed(
+            Some(&static_client),
+            "old-client"
+        ));
+        assert!(!configured_client_changed(
+            Some(&static_client),
+            "new-client"
+        ));
+        assert!(!configured_client_changed(None, "old-client"));
+    }
+
+    #[test]
+    fn legacy_grant_reauthorizes_once_only_when_scopes_are_missing() {
+        let static_client = StaticOAuthClientConfig {
+            client_id: "registered-client".to_string(),
+            client_secret: None,
+            scopes: vec!["scope.read".to_string(), "scope.write".to_string()],
+        };
+
+        assert!(configured_scopes_changed(
+            Some(&static_client),
+            None,
+            &["scope.read".to_string()],
+        ));
+        assert!(!configured_scopes_changed(
+            Some(&static_client),
+            None,
+            &["scope.read".to_string(), "scope.write".to_string()],
+        ));
+    }
+
+    #[test]
+    fn removing_static_client_configuration_requires_reauthorization() {
+        assert!(configured_scopes_changed(
+            None,
+            Some(&["scope.read".to_string()]),
+            &["scope.read".to_string()],
+        ));
+        assert!(!configured_scopes_changed(
+            None,
+            None,
+            &["scope.read".to_string()],
+        ));
+    }
+
+    #[test]
+    fn omitted_refresh_scope_preserves_the_previous_grant() {
+        use oauth2::{basic::BasicTokenType, AccessToken};
+        use rmcp::transport::auth::VendorExtraTokenFields;
+
+        let previous = vec!["scope.read".to_string()];
+        let mut token_response = OAuthTokenResponse::new(
+            AccessToken::new("access-token".to_string()),
+            BasicTokenType::Bearer,
+            VendorExtraTokenFields::default(),
+        );
+
+        assert_eq!(resolve_refreshed_granted_scopes(None, &previous), previous);
+        assert!(restore_omitted_scopes(&mut token_response, &previous));
+        assert_eq!(
+            token_response
+                .scopes()
+                .unwrap()
+                .iter()
+                .map(|scope| scope.as_str())
+                .collect::<Vec<_>>(),
+            vec!["scope.read"]
+        );
+        assert!(!restore_omitted_scopes(&mut token_response, &previous));
+        assert_eq!(
+            resolve_refreshed_granted_scopes(Some(vec!["scope.other".to_string()]), &previous),
+            vec!["scope.other"]
+        );
     }
 
     #[test]
