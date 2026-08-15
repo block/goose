@@ -65,10 +65,18 @@ pub fn recommended_models_from_registry(provider: &str) -> Vec<String> {
         .collect()
 }
 
-/// Catalog pricing is not valid for local inference or Azure Foundry deployments.
-/// Azure billing depends on deployment region, SKU, offer, and contract.
+/// Catalog pricing is not valid for local inference: models served via ollama or a
+/// local runtime are actually free to run, so any catalog price would be misleading.
+///
+/// Azure Foundry is different: it's a meta-provider that proxies models from third-party
+/// providers (Anthropic, OpenAI, Meta, etc.). `map_to_canonical_model` already infers the
+/// real underlying provider from the model name (e.g. "claude-sonnet-5" -> anthropic,
+/// "gpt-5" -> openai) and resolves its public catalog price. That price is a reasonable
+/// estimate of the real cost even though it's not guaranteed to match exactly, since Azure
+/// billing can vary by deployment region, SKU, offer, and contract/discounts. Callers should
+/// treat this as `CostSource::Estimated` rather than `CostSource::ProviderReported`.
 fn should_clear_catalog_pricing(provider: &str) -> bool {
-    matches!(provider, "ollama" | "local" | "azure_foundry")
+    matches!(provider, "ollama" | "local")
 }
 
 pub fn maybe_get_canonical_model(provider: &str, model: &str) -> Option<CanonicalModel> {
@@ -107,12 +115,12 @@ mod tests {
     }
 
     #[test]
-    fn azure_foundry_models_retain_limits_without_catalog_pricing() {
+    fn azure_foundry_models_use_inferred_provider_pricing() {
         let canonical = maybe_get_canonical_model("azure_foundry", "gpt-5")
             .expect("gpt-5 should resolve through the Azure catalog");
         assert_eq!(canonical.limit.context, 400_000);
-        assert_eq!(canonical.cost.input, None);
-        assert_eq!(canonical.cost.output, None);
+        assert!(canonical.cost.input.is_some());
+        assert!(canonical.cost.output.is_some());
     }
 
     #[test]
