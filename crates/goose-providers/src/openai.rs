@@ -425,7 +425,13 @@ impl OpenAiProvider {
         "ovhcloud",
     ];
 
-    const PROVIDERS_NEEDING_STANDARD_CHAT_PARAMS: &[&str] = &["nearai", "saygm"];
+    const PROVIDERS_NEEDING_STANDARD_CHAT_PARAMS: &[&str] = &["nearai"];
+
+    /// Providers that expose only Chat Completions (no Responses API), even for
+    /// model names that would otherwise trigger responses-API routing (e.g. gpt-5.*,
+    /// o3, o4-mini).  Unlike PROVIDERS_NEEDING_STANDARD_CHAT_PARAMS this list does
+    /// not apply any parameter sanitization.
+    const PROVIDERS_FORCING_CHAT_COMPLETIONS: &[&str] = &["nearai", "saygm"];
 
     /// Providers whose reasoning models accept an OpenAI-style
     /// `reasoning_effort` field on chat-completions requests but aren't
@@ -506,7 +512,7 @@ impl OpenAiProvider {
     }
 
     fn should_use_responses_api_for_provider(&self, model_name: &str) -> bool {
-        if Self::PROVIDERS_NEEDING_STANDARD_CHAT_PARAMS.contains(&self.name.as_str()) {
+        if Self::PROVIDERS_FORCING_CHAT_COMPLETIONS.contains(&self.name.as_str()) {
             return false;
         }
 
