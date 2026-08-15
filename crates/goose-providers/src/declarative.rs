@@ -44,6 +44,7 @@ pub(crate) mod declarative_providers {
         routstr,
         sakana,
         saladcloud,
+        saygm,
         scaleway,
         tanzu,
         tensorix,

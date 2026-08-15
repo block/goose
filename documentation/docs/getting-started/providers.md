@@ -55,6 +55,7 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 | [OVHcloud AI](https://www.ovhcloud.com/en/public-cloud/ai-endpoints/)       | Provides access to open-source models including Qwen, Llama, Mistral, and DeepSeek through AI Endpoints service.                                                       | `OVHCLOUD_API_KEY`                                                                                                                                                                  |
 | [Ramalama](https://ramalama.ai/)                                            | Local model using native [OCI](https://opencontainers.org/) container runtimes, [CNCF](https://www.cncf.io/) tools, and supporting models as OCI artifacts. Ramalama API is a compatible alternative to Ollama and can be used with the goose Ollama provider. Supports Qwen, Llama, DeepSeek, and other open-source models. **Because this provider runs locally, you must first [download and run a model](#local-llms).**  | `OLLAMA_HOST`                                                                                                                                                                       |
 | [Routstr](https://routstr.com/)                                             | OpenAI-compatible aggregator that fronts dozens of upstream providers (Anthropic, OpenAI, Google, DeepSeek, Llama, …) behind a single API. Authenticate with an `sk-...` bearer issued by your Routstr instance — payment is handled outside goose.                                                                                                                                                                       | `ROUTSTR_API_KEY`, `ROUTSTR_HOST` (optional, default `https://api.routstr.com`)                                                                                                     |
+| [SayGM](https://saygm.com/)                                                 | TEE-backed private inference via an OpenAI-compatible API with dynamic model routing. Prices are determined at runtime per request.                                                                           | `SAYGM_API_KEY`                                                                                                   |
 | [SaladCloud AI Gateway](https://salad.com/)                                 | OpenAI-compatible access to SaladCloud-hosted open-source models, including Qwen, Gemma, and others.                                                                                                          | `SALAD_CLOUD_API_KEY`                                                                                                                                                              |
 | [Scaleway](https://www.scaleway.com/en/generative-apis/)                    | European cloud offering OpenAI-compatible access to models like Mistral, Qwen, and open-source weights. Ensures data residency and GDPR compliance.                                                                                                                                                                                                                                                                | `SCW_SECRET_KEY`      |
 | [Snowflake](https://docs.snowflake.com/user-guide/snowflake-cortex/aisql#choosing-a-model) | Access the latest models using Snowflake Cortex services, including Claude models. **Requires a Snowflake account and programmatic access token (PAT)**.                                                     | `SNOWFLAKE_HOST`, `SNOWFLAKE_TOKEN`                                                                                                                                                                 |
@@ -869,6 +870,44 @@ To set up Routstr with goose, follow these steps:
     3. Follow the prompts to choose `Routstr` as the provider.
     4. Enter your API key when prompted (and optionally override `ROUTSTR_HOST`).
     5. Select the Routstr model of your choice.
+  </TabItem>
+</Tabs>
+
+### SayGM
+[SayGM](https://saygm.com/) provides TEE-backed private inference via an OpenAI-compatible API. Model routing and prices are determined at runtime per request. To use SayGM with goose, you need an API key from [SayGM](https://saygm.com/).
+
+SayGM supports many models, including:
+- **Qwen/Qwen3-235B-A22B-Thinking-2507-TEE** — Qwen3 235B thinking model (TEE-backed)
+- **deepseek-ai/DeepSeek-V3.2-TEE** — DeepSeek V3.2 (TEE-backed)
+- **moonshotai/Kimi-K3-TEE** — Kimi K3 (TEE-backed)
+- **zai-org/GLM-5.2-TEE** — GLM-5.2 (TEE-backed)
+
+`/v1/models` is queried at configure time, so the full catalogue SayGM exposes is available in the model picker.
+
+To set up SayGM with goose, follow these steps:
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+  **To update your LLM provider and API key:**
+
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+    2. Click the `Settings` button on the sidebar.
+    3. Click the `Models` tab.
+    4. Click `Configure Providers`
+    5. Choose `SayGM` as provider from the list.
+    6. Click `Configure`, enter your API key, and click `Submit`.
+    7. Select the SayGM model of your choice.
+
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+    1. Run:
+    ```sh
+    goose configure
+    ```
+    2. Select `Configure Providers` from the menu.
+    3. Follow the prompts to choose `SayGM` as the provider.
+    4. Enter your API key when prompted.
+    5. Select the SayGM model of your choice.
   </TabItem>
 </Tabs>
 
