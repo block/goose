@@ -36,7 +36,7 @@
   ],
   "supports_streaming": true,
   "skip_canonical_filtering": true,
-  "model_doc_link": "https://saygm.com",
+  "model_doc_link": "https://docs.saygm.com",
   "setup_steps": [
     "Create or sign in to your SayGM account at https://saygm.com",
     "Generate an API key from the dashboard",
