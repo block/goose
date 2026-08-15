@@ -38,6 +38,11 @@ pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
 ];
 pub const OPENROUTER_DOC_URL: &str = "https://openrouter.ai/models";
 
+const GEMINI_SCHEMA_REF_KEY: &str = "$ref";
+const GEMINI_SAFE_SCHEMA_REF_KEY: &str = "dollar_ref";
+const GEMINI_SCHEMA_REF_NOTE: &str =
+    "[OpenRouter/Gemini compatibility: interpret `dollar_ref` as the JSON Schema key formed by `$` followed by `ref`.]\n";
+
 #[derive(serde::Serialize)]
 pub struct OpenRouterProvider {
     #[serde(skip)]
@@ -100,6 +105,42 @@ fn is_mandatory_reasoning_error(error: &ProviderError) -> bool {
 
 fn is_gemini_model(model_name: &str) -> bool {
     model_name.starts_with("google/")
+}
+
+/// OpenRouter translates OpenAI `role: tool` messages into Gemini
+/// `function_response` parts. Gemini rejects a response containing a literal
+/// JSON Schema `$ref` key, treating its value as a function-response part name
+/// instead of arbitrary tool text. Escape only that token, only in
+/// Gemini-bound tool results, and add a reversible note so the model can
+/// reconstruct the original text.
+fn escape_gemini_schema_ref_keys_in_tool_responses(payload: &mut Value) -> usize {
+    let Some(messages) = payload.get_mut("messages").and_then(Value::as_array_mut) else {
+        return 0;
+    };
+
+    let mut escaped = 0;
+    for message in messages {
+        if message.get("role").and_then(Value::as_str) != Some("tool") {
+            continue;
+        }
+
+        let Some(content) = message.get_mut("content") else {
+            continue;
+        };
+        let Some(content_text) = content.as_str() else {
+            continue;
+        };
+        let occurrences = content_text.matches(GEMINI_SCHEMA_REF_KEY).count();
+        if occurrences == 0 {
+            continue;
+        }
+
+        let sanitized = content_text.replace(GEMINI_SCHEMA_REF_KEY, GEMINI_SAFE_SCHEMA_REF_KEY);
+        *content = Value::String(format!("{GEMINI_SCHEMA_REF_NOTE}{sanitized}"));
+        escaped += occurrences;
+    }
+
+    escaped
 }
 
 fn parse_openrouter_parameters(raw: Value) -> Result<HashMap<String, Value>> {
@@ -291,6 +332,14 @@ impl Provider for OpenRouterProvider {
         }
 
         if is_gemini_model(&model_config.model_name) {
+            let escaped_schema_ref_keys =
+                escape_gemini_schema_ref_keys_in_tool_responses(&mut payload);
+            if escaped_schema_ref_keys > 0 {
+                tracing::warn!(
+                    escaped_schema_ref_keys,
+                    "escaped JSON Schema ref keys in Gemini-bound tool results"
+                );
+            }
             openrouter_format::add_reasoning_details_to_request(&mut payload, messages);
         }
         let sent_reasoning_disable =
@@ -455,5 +504,63 @@ mod tests {
             .stream(&config, "system", &[Message::user().with_text("hi")], &[])
             .await
             .unwrap();
+    }
+
+    #[test]
+    fn gemini_tool_result_schema_ref_keys_are_escaped_reversibly() {
+        let mut payload = json!({
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": "Keep {'$ref': '#/components/schemas/AssistantText'} unchanged"
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_1",
+                    "content": "{'$ref': '#/components/schemas/Base64Image'} and {\"$ref\": \"#/components/schemas/Usage\"}"
+                }
+            ]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            2
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            "Keep {'$ref': '#/components/schemas/AssistantText'} unchanged"
+        );
+        assert_eq!(
+            payload["messages"][1]["content"],
+            format!(
+                "{GEMINI_SCHEMA_REF_NOTE}{{'dollar_ref': '#/components/schemas/Base64Image'}} and {{\"dollar_ref\": \"#/components/schemas/Usage\"}}"
+            )
+        );
+        assert!(!payload["messages"][1]["content"]
+            .as_str()
+            .unwrap()
+            .contains(GEMINI_SCHEMA_REF_KEY));
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            0
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_ignores_non_tool_content_and_safe_tool_results() {
+        let mut payload = json!({
+            "messages": [
+                { "role": "user", "content": "{'$ref': '#/components/schemas/UserText'}" },
+                { "role": "tool", "tool_call_id": "call_1", "content": "ordinary output" },
+                { "role": "tool", "tool_call_id": "call_2", "content": [{ "type": "text", "text": "{'$ref': '#/components/schemas/Structured'}" }] }
+            ]
+        });
+        let original = payload.clone();
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            0
+        );
+        assert_eq!(payload, original);
     }
 }
