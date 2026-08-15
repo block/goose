@@ -4,7 +4,7 @@
 mod common_tests;
 
 use agent_client_protocol::schema::v1::{
-    ContentBlock, PromptRequest, SessionUpdate, StopReason, TextContent,
+    ContentBlock, McpServer, McpServerHttp, PromptRequest, SessionUpdate, StopReason, TextContent,
 };
 use common_tests::fixtures::server::AcpServerConnection;
 use common_tests::fixtures::{
@@ -15,7 +15,7 @@ use goose::acp::server::AcpProviderFactory;
 use goose::providers::base::{MessageStream, Provider};
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
-use goose_test_support::{EnforceSessionId, IgnoreSessionId};
+use goose_test_support::{EnforceSessionId, IgnoreSessionId, McpFixture, FAKE_CODE};
 use serial_test::serial;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock, Mutex};
@@ -1293,5 +1293,152 @@ fn test_custom_provider_supported_models_maps_authentication_error() {
 
         assert_eq!(error.code, agent_client_protocol::ErrorCode::AuthRequired);
         assert!(error.to_string().contains("credentials rejected"));
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Finding 8 — gap 2: app-initiated tool calls (`_goose/unstable/tools/call`)
+// must honor the same permission policy the model path enforces.
+//
+// Regression guarded: `on_call_tool` once authorized only on
+// `is_tool_visible_to_app` and never consulted the permission manager, so a
+// tool marked `NeverAllow` or `AskBefore` was dispatched anyway when invoked
+// directly by an app client. These tests exercise the real ACP boundary
+// against an MCP-backed tool and pin rejection to the authorization gate:
+// `NeverAllow`/`AskBefore` must be refused *before* dispatch with the stable
+// `tool call not permitted` reason, never merely error out downstream.
+// ---------------------------------------------------------------------------
+
+const APP_TOOL: &str = "mcp-fixture__get_code";
+
+/// Boot an ACP server with the MCP fixture attached, in `approve` mode, and
+/// return an open connection plus the new session id.
+async fn connect_with_mcp_fixture_in_approve_mode(mcp_url: &str) -> (AcpServerConnection, String) {
+    let openai = OpenAiFixture::new(vec![], Arc::new(IgnoreSessionId)).await;
+    let mcp_servers = vec![McpServer::Http(McpServerHttp::new("mcp-fixture", mcp_url))];
+    let config = TestConnectionConfig {
+        mcp_servers,
+        ..Default::default()
+    };
+    let mut conn = AcpServerConnection::new(config, openai).await;
+    let SessionData { session, .. } = conn.new_session().await.unwrap();
+    let session_id = session.session_id().0.to_string();
+    conn.set_mode(&session_id, "approve").await.unwrap();
+    (conn, session_id)
+}
+
+/// Set an explicit permission level for a tool through the ACP boundary.
+async fn set_tool_permission(conn: &AcpServerConnection, tool: &str, level: &str) {
+    send_custom(
+        conn.cx(),
+        "_goose/unstable/tools/permissions/set",
+        serde_json::json!({
+            "toolPermissions": [{ "toolName": tool, "permission": level }],
+        }),
+    )
+    .await
+    .expect("setting tool permission should succeed");
+}
+
+async fn call_app_tool(
+    conn: &AcpServerConnection,
+    session_id: &str,
+    tool: &str,
+) -> Result<serde_json::Value, agent_client_protocol::Error> {
+    send_custom(
+        conn.cx(),
+        "_goose/unstable/tools/call",
+        serde_json::json!({ "sessionId": session_id, "name": tool }),
+    )
+    .await
+}
+
+/// Assert that an app tool call was refused at the authorization gate rather
+/// than failing somewhere downstream. `on_call_tool` returns
+/// `InvalidParams` + a `tool call not permitted` data payload only from the
+/// permission check; a reached-dispatch failure would surface as
+/// `internal_error`, and the not-found / not-visible guards carry different
+/// data. Asserting both proves `NeverAllow`/`AskBefore` never reached dispatch.
+fn assert_rejected_by_authorization(
+    result: Result<serde_json::Value, agent_client_protocol::Error>,
+    context: &str,
+) {
+    let error = result.expect_err(context);
+    assert_eq!(
+        error.code,
+        agent_client_protocol::ErrorCode::InvalidParams,
+        "{context}: expected InvalidParams from the authorization gate, got: {error:?}"
+    );
+    assert!(
+        error.to_string().contains("tool call not permitted"),
+        "{context}: expected the stable authorization-rejection reason, got: {error:?}"
+    );
+}
+
+#[test]
+#[serial]
+fn test_app_tool_call_rejected_when_never_allow() {
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+    run_test(async move {
+        let mcp = McpFixture::new().await;
+        let (conn, session_id) = connect_with_mcp_fixture_in_approve_mode(&mcp.url).await;
+
+        set_tool_permission(&conn, APP_TOOL, "never_allow").await;
+
+        let result = call_app_tool(&conn, &session_id, APP_TOOL).await;
+
+        assert_rejected_by_authorization(
+            result,
+            "app-initiated call to a NeverAllow tool must be rejected at the authorization gate",
+        );
+    });
+}
+
+#[test]
+#[serial]
+fn test_app_tool_call_rejected_when_ask_before() {
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+    run_test(async move {
+        let mcp = McpFixture::new().await;
+        let (conn, session_id) = connect_with_mcp_fixture_in_approve_mode(&mcp.url).await;
+
+        set_tool_permission(&conn, APP_TOOL, "ask_before").await;
+
+        let result = call_app_tool(&conn, &session_id, APP_TOOL).await;
+
+        assert_rejected_by_authorization(
+            result,
+            "app-initiated call to an AskBefore tool must be rejected at the authorization gate \
+             on the synchronous app path (which cannot prompt)",
+        );
+    });
+}
+
+#[test]
+#[serial]
+fn test_app_tool_call_dispatched_when_always_allow() {
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+    run_test(async move {
+        let mcp = McpFixture::new().await;
+        let (conn, session_id) = connect_with_mcp_fixture_in_approve_mode(&mcp.url).await;
+
+        set_tool_permission(&conn, APP_TOOL, "always_allow").await;
+
+        let response = call_app_tool(&conn, &session_id, APP_TOOL)
+            .await
+            .expect("an AlwaysAllow tool must still dispatch on the app path");
+
+        let content = response
+            .get("content")
+            .and_then(|c| c.as_array())
+            .expect("tool call response should carry content");
+        let text = content
+            .iter()
+            .filter_map(|block| block.get("text").and_then(|t| t.as_str()))
+            .collect::<String>();
+        assert!(
+            text.contains(FAKE_CODE),
+            "AlwaysAllow tool should return its result, got: {text:?}"
+        );
     });
 }

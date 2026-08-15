@@ -93,6 +93,17 @@ fn provider_creation_error(error: anyhow::Error, context: impl fmt::Display) -> 
     error.context(message)
 }
 
+/// Outcome of authorizing an app-initiated tool call. See
+/// [`Agent::authorize_app_tool_call`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AppToolAuthorization {
+    /// The permission policy definitively approves the call.
+    Allowed,
+    /// The call is not approved (denied, requires approval, or unknown). The
+    /// string is a human-readable reason for the rejection.
+    Rejected(String),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ToolCategory {
     Shell,
@@ -3484,6 +3495,52 @@ impl Agent {
 
     pub async fn goose_mode(&self) -> GooseMode {
         *self.current_goose_mode.lock().await
+    }
+
+    /// Authorize an app-initiated (synchronous) tool call using the same
+    /// inspection/permission mechanism the model path uses
+    /// (`inspect_tools` + `process_inspection_results_with_permission_inspector`).
+    ///
+    /// App clients call tools directly via `_goose/unstable/tools/call`, which
+    /// has no elicitation loop and therefore cannot prompt the user. Any
+    /// decision short of a definitive approval must fail closed.
+    pub async fn authorize_app_tool_call(
+        &self,
+        session_id: &str,
+        tool_call: CallToolRequestParams,
+    ) -> AppToolAuthorization {
+        let goose_mode = self.goose_mode().await;
+        let requests = [ToolRequest {
+            id: "app-tool-call".to_string(),
+            tool_call: Ok(tool_call),
+            metadata: None,
+            tool_meta: None,
+        }];
+
+        let inspection_results = match self
+            .tool_inspection_manager
+            .inspect_tools(session_id, &requests, &[], goose_mode)
+            .await
+        {
+            Ok(results) => results,
+            Err(e) => {
+                return AppToolAuthorization::Rejected(format!("tool inspection failed: {e}"))
+            }
+        };
+
+        let decision = self
+            .tool_inspection_manager
+            .process_inspection_results_with_permission_inspector(&requests, &inspection_results);
+
+        let approved = decision.is_some_and(|result| !result.approved.is_empty());
+
+        if approved {
+            AppToolAuthorization::Allowed
+        } else {
+            AppToolAuthorization::Rejected(
+                "tool call is not approved by the current permission policy".to_string(),
+            )
+        }
     }
 
     pub async fn recreate_provider_for_session(
