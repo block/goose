@@ -45,14 +45,6 @@ impl GooseAcpAgent {
         self.on_remove_session_extension(req).await
     }
 
-    #[custom_method(ApplySessionExtensionsRequest)]
-    async fn dispatch_apply_session_extensions(
-        &self,
-        req: ApplySessionExtensionsRequest,
-    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        self.on_apply_session_extensions(req).await
-    }
-
     #[custom_method(GetToolsRequest)]
     async fn dispatch_get_tools(
         &self,
@@ -313,6 +305,14 @@ impl GooseAcpAgent {
         req: RefreshProviderInventoryRequest,
     ) -> Result<RefreshProviderInventoryResponse, agent_client_protocol::Error> {
         self.on_refresh_provider_inventory(req).await
+    }
+
+    #[custom_method(ProviderReadinessCheckRequest)]
+    async fn dispatch_check_provider_readiness(
+        &self,
+        req: ProviderReadinessCheckRequest,
+    ) -> Result<ProviderReadinessCheckResponse, agent_client_protocol::Error> {
+        self.on_check_provider_readiness(req).await
     }
 
     #[custom_method(ProviderConfigReadRequest)]

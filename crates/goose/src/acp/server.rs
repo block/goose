@@ -120,6 +120,7 @@ pub type AcpProviderFactory = Arc<
             String,
             Vec<ExtensionConfig>,
             Option<PathBuf>,
+            bool,
         ) -> BoxFuture<'static, Result<Arc<dyn Provider>>>
         + Send
         + Sync,
@@ -154,6 +155,14 @@ impl<T, E: std::fmt::Display> ResultExt<T> for Result<T, E> {
         self.map_err(|e| {
             agent_client_protocol::Error::invalid_params().data(format!("{context}: {e}"))
         })
+    }
+}
+
+fn agent_creation_error(error: anyhow::Error, context: &str) -> agent_client_protocol::Error {
+    if crate::acp::is_auth_required(&error) {
+        agent_client_protocol::Error::auth_required()
+    } else {
+        agent_client_protocol::Error::internal_error().data(format!("{context}: {error}"))
     }
 }
 
@@ -388,6 +397,9 @@ fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConf
                     .collect(),
                 timeout,
                 socket: None,
+                client_id: None,
+                client_secret_key: None,
+                scopes: vec![],
                 bundled: Some(false),
                 available_tools: vec![],
             })
@@ -705,8 +717,15 @@ impl GooseAcpAgent {
         provider_name: &str,
         extensions: Vec<ExtensionConfig>,
         working_dir: Option<PathBuf>,
+        use_default_model: bool,
     ) -> Result<Arc<dyn Provider>> {
-        (self.provider_factory)(provider_name.to_string(), extensions, working_dir).await
+        (self.provider_factory)(
+            provider_name.to_string(),
+            extensions,
+            working_dir,
+            use_default_model,
+        )
+        .await
     }
 
     async fn maybe_refresh_provider_inventory_with_agent(
@@ -760,7 +779,7 @@ impl GooseAcpAgent {
                 },
             )
             .await
-            .internal_err_ctx("Failed to create agent")
+            .map_err(|error| agent_creation_error(error, "Failed to create agent"))
     }
 
     fn initial_session_extensions(
@@ -1337,6 +1356,11 @@ fn prompt_error_from_message_content(
     content_item: &MessageContent,
 ) -> Option<agent_client_protocol::Error> {
     match content_item {
+        MessageContent::Error(error)
+            if error.kind == crate::conversation::message::MessageErrorKind::Authentication =>
+        {
+            Some(agent_client_protocol::Error::auth_required())
+        }
         MessageContent::SystemNotification(notification)
             if notification.notification_type == SystemNotificationType::CreditsExhausted =>
         {
@@ -2358,6 +2382,30 @@ mod tests {
     use tempfile::NamedTempFile;
     use test_case::test_case;
 
+    #[test]
+    fn agent_creation_auth_error_maps_to_auth_required() {
+        let error = anyhow::Error::new(agent_client_protocol::Error::auth_required());
+
+        let error = agent_creation_error(error, "Failed to create agent");
+
+        assert_eq!(
+            error.code,
+            agent_client_protocol::schema::v1::ErrorCode::AuthRequired
+        );
+    }
+
+    #[test]
+    fn agent_creation_non_auth_error_remains_internal() {
+        let error = anyhow::Error::new(agent_client_protocol::Error::internal_error());
+
+        let error = agent_creation_error(error, "Failed to create agent");
+
+        assert_eq!(
+            error.code,
+            agent_client_protocol::schema::v1::ErrorCode::InternalError
+        );
+    }
+
     fn config_with_yaml(yaml: &str) -> (Config, NamedTempFile, NamedTempFile) {
         let config_file = NamedTempFile::new().unwrap();
         let secrets_file = NamedTempFile::new().unwrap();
@@ -2495,6 +2543,9 @@ extensions:
             )]),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
+            scopes: vec![],
             bundled: Some(false),
             available_tools: vec![],
         })
@@ -2604,6 +2655,21 @@ print(\"hello, world\")
                     "url": "https://router.tetrate.ai/billing"
                 }
             })
+        );
+    }
+
+    #[test]
+    fn test_authentication_message_maps_to_auth_required() {
+        let content = MessageContent::error(
+            crate::conversation::message::MessageErrorKind::Authentication,
+            "Authentication required",
+        );
+
+        let error = prompt_error_from_message_content(&content).expect("expected prompt error");
+
+        assert_eq!(
+            error.code,
+            agent_client_protocol::schema::v1::ErrorCode::AuthRequired
         );
     }
 

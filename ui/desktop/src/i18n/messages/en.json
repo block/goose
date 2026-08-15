@@ -1,4 +1,25 @@
 {
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "ACP adapter found"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "ACP adapter not found"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Sign in through the provider CLI, then check again."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Check again"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "Checking..."
+  },
+  "acpReadinessPanel.connected": {
+    "defaultMessage": "Connected successfully"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Check your account connection before continuing."
+  },
   "alertBox.autoCompactAt": {
     "defaultMessage": "Auto compact at"
   },
@@ -133,6 +154,9 @@
   },
   "baseChat.reconnecting": {
     "defaultMessage": "Connection lost. Reconnecting…"
+  },
+  "baseChat.retry": {
+    "defaultMessage": "Retry"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extension Updated"
@@ -2705,6 +2729,9 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "You have unsaved changes"
   },
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Deprecated — use {replacement} instead."
+  },
   "providerCard.noMetadata": {
     "defaultMessage": "ProviderCard error: No metadata provided"
   },
@@ -2785,6 +2812,9 @@
   },
   "providerConfigurationModal.checkConfigAgain": {
     "defaultMessage": "Check your configuration again to use this provider."
+  },
+  "providerConfigurationModal.chooseModel": {
+    "defaultMessage": "Choose model"
   },
   "providerConfigurationModal.close": {
     "defaultMessage": "Close"

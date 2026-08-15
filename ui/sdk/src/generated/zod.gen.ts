@@ -175,6 +175,15 @@ export const zGooseExtension = z.union([
             z.string(),
             z.null()
         ]).optional(),
+        clientId: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        clientSecretKey: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        scopes: z.array(z.string()).optional(),
         bundled: z.union([
             z.boolean(),
             z.null()
@@ -206,24 +215,6 @@ export const zEmptyResponse = z.record(z.unknown());
 export const zRemoveSessionExtensionRequest_unstable = z.object({
     sessionId: z.string(),
     name: z.string()
-});
-
-/**
- * Recreate the session's provider, keeping its current provider and model,
- * so that the session's current extension list takes effect.
- *
- * Useful after adding or removing session extensions when the provider
- * forwards extensions to a downstream session (ACP harness providers such as
- * claude-acp and codex-acp). Those providers snapshot the extension list when
- * they are built, so extension changes only reach them on rebuild: the
- * provider is replaced with a new instance whose downstream session is
- * created with the updated extension list.
- *
- * Providers that don't forward extensions pick up extension changes
- * immediately; for them this call is not required.
- */
-export const zApplySessionExtensionsRequest_unstable = z.object({
-    sessionId: z.string()
 });
 
 /**
@@ -794,8 +785,16 @@ export const zProviderInventoryEntryDto = z.object({
     description: z.string(),
     defaultModel: z.string(),
     configured: z.boolean(),
+    available: z.boolean(),
     providerType: z.string(),
     category: zProviderSetupCategoryDto,
+    acp: z.boolean().optional().default(false),
+    visibleInSetup: z.boolean(),
+    deprecated: z.boolean(),
+    replacement: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
     configKeys: z.array(zProviderConfigKey),
     setupSteps: z.array(z.string()),
     supportsRefresh: z.boolean(),
@@ -901,6 +900,7 @@ export const zProviderSetupCatalogEntryDto = z.object({
     providerId: z.string(),
     name: z.string(),
     category: zProviderSetupCategoryDto,
+    acp: z.boolean().optional().default(false),
     description: z.string(),
     setupMethod: zProviderSetupMethodDto,
     nativeConnectQuery: z.union([
@@ -1125,6 +1125,22 @@ export const zCustomProviderDeleteResponse_unstable = z.object({
  */
 export const zRefreshProviderInventoryRequest_unstable = z.object({
     providerIds: z.array(z.string()).optional().default([])
+});
+
+/**
+ * Check whether an ACP provider can initialize and create a session.
+ */
+export const zProviderReadinessCheckRequest_unstable = z.object({
+    providerId: z.string()
+});
+
+export const zProviderReadinessCheckResponse_unstable = z.object({
+    providerId: z.string(),
+    ready: z.boolean(),
+    error: z.union([
+        z.string(),
+        z.null()
+    ]).optional()
 });
 
 /**
@@ -1579,6 +1595,15 @@ export const zRecipeExtensionDto = z.union([
             z.string(),
             z.null()
         ]).optional(),
+        client_id: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        client_secret_key: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        scopes: z.array(z.string()).optional(),
         bundled: z.union([
             z.boolean(),
             z.null()
@@ -2850,7 +2875,6 @@ export const zExtRequest = z.object({
         z.union([
             zAddSessionExtensionRequest_unstable,
             zRemoveSessionExtensionRequest_unstable,
-            zApplySessionExtensionsRequest_unstable,
             zGetToolsRequest_unstable,
             zSetToolPermissionsRequest_unstable,
             zGooseToolCallRequest_unstable,
@@ -2884,6 +2908,7 @@ export const zExtRequest = z.object({
             zCustomProviderUpdateRequest_unstable,
             zCustomProviderDeleteRequest_unstable,
             zRefreshProviderInventoryRequest_unstable,
+            zProviderReadinessCheckRequest_unstable,
             zProviderConfigReadRequest_unstable,
             zProviderConfigStatusRequest_unstable,
             zProviderConfigSaveRequest_unstable,
@@ -3002,6 +3027,7 @@ export const zExtResponse = z.union([
                 zCustomProviderUpdateResponse_unstable,
                 zCustomProviderDeleteResponse_unstable,
                 zRefreshProviderInventoryResponse_unstable,
+                zProviderReadinessCheckResponse_unstable,
                 zProviderConfigReadResponse_unstable,
                 zProviderConfigStatusResponse_unstable,
                 zProviderConfigChangeResponse_unstable,

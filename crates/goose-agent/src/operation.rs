@@ -5,12 +5,9 @@ use std::pin::Pin;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use crate::agents::AgentEvent;
-use crate::conversation::message::{Message, MessageContent, MessageErrorKind};
-use crate::conversation::{effective_role, Conversation, EffectiveRole};
-use crate::providers::base::ProviderUsage;
-use crate::recipe::Recipe;
-use crate::session::{ExtensionData, Session};
+use crate::events::AgentEvent;
+use goose_provider_types::conversation::message::{Message, MessageContent, MessageErrorKind};
+use goose_provider_types::conversation::{effective_role, Conversation, EffectiveRole};
 use rmcp::model::Tool;
 
 pub type OperationFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -76,7 +73,7 @@ pub fn ends_turn(messages: &[Message]) -> bool {
 }
 
 #[async_trait]
-pub trait Operation: Send + Sync {
+pub trait Operation<S, E: Send + 'static = ConversationEffect>: Send + Sync {
     fn name(&self) -> &'static str;
 
     /// Note on a message something this operation did, so that a pipeline rebuilt
@@ -93,50 +90,46 @@ pub trait Operation: Send + Sync {
 
     async fn cancel(
         &self,
-        _session: &Session,
+        _session: &S,
         _conversation: &Conversation,
-        result: OperationResult,
+        result: OperationResult<E>,
         _emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<E>> {
         Ok(result)
     }
 
     async fn run_command(
         &self,
         _command: &SlashCommand<'_>,
-        _session: &Session,
+        _session: &S,
         _conversation: &Conversation,
         _emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<E>> {
         not_applicable()
     }
 
-    async fn inference_tools(&self, _session: &Session) -> Result<Vec<Tool>> {
+    async fn inference_tools(&self, _session: &S) -> Result<Vec<Tool>> {
         Ok(Vec::new())
     }
 
     async fn prompt_parts(
         &self,
-        _session: &Session,
+        _session: &S,
         _conversation: &Conversation,
     ) -> Result<Vec<(String, String)>> {
         Ok(Vec::new())
     }
 
-    async fn moim_parts(
-        &self,
-        _session: &Session,
-        _conversation: &Conversation,
-    ) -> Result<Vec<String>> {
+    async fn moim_parts(&self, _session: &S, _conversation: &Conversation) -> Result<Vec<String>> {
         Ok(Vec::new())
     }
 
     async fn run(
         &self,
-        _session: &Session,
+        _session: &S,
         _conversation: &Conversation,
         _emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<E>> {
         not_applicable()
     }
 }
@@ -149,69 +142,66 @@ pub struct InferenceInput {
 }
 
 #[async_trait]
-pub trait Inference: Operation {
+pub trait Inference<S, E: Send + 'static = ConversationEffect>: Operation<S, E> {
     /// Whether the next step would reach the provider. The machine asks before
     /// firing the hooks that mark the start of a turn.
     fn applies(&self, conversation: &Conversation) -> bool;
 
     async fn infer(
         &self,
-        session: &Session,
+        session: &S,
         conversation: &Conversation,
         input: InferenceInput,
         emit: &Emitter,
-    ) -> Result<OperationResult>;
+    ) -> Result<OperationResult<E>>;
 }
 
-pub struct StepResult {
-    pub effects: Vec<StateEffect>,
+pub struct StepResult<E = ConversationEffect> {
+    pub effects: Vec<E>,
+    pub applied_step: Option<&'static str>,
     pub yield_to_client: bool,
 }
 
-impl StepResult {
-    pub(super) fn ensure_message_ids(&mut self) {
-        for effect in &mut self.effects {
-            effect.ensure_message_ids();
-        }
-    }
-}
-
-pub enum OperationResult {
+pub enum OperationResult<E = ConversationEffect> {
     NotApplicable,
-    Applied(StepResult),
+    Applied(StepResult<E>),
 }
 
-pub fn not_applicable() -> Result<OperationResult> {
+pub fn not_applicable<E>() -> Result<OperationResult<E>> {
     Ok(OperationResult::NotApplicable)
 }
 
-pub fn applied(effects: impl IntoIterator<Item = StateEffect>) -> Result<OperationResult> {
+pub fn applied<E>(effects: impl IntoIterator<Item = E>) -> Result<OperationResult<E>> {
     Ok(OperationResult::Applied(StepResult {
         effects: effects.into_iter().collect(),
+        applied_step: None,
         yield_to_client: false,
     }))
 }
 
-pub fn yielded() -> Result<OperationResult> {
+pub fn yielded<E>() -> Result<OperationResult<E>> {
     Ok(OperationResult::Applied(StepResult {
         effects: Vec::new(),
+        applied_step: None,
         yield_to_client: true,
     }))
 }
 
-pub fn yielded_with(effects: impl IntoIterator<Item = StateEffect>) -> Result<OperationResult> {
+pub fn yielded_with<E>(effects: impl IntoIterator<Item = E>) -> Result<OperationResult<E>> {
     Ok(OperationResult::Applied(StepResult {
         effects: effects.into_iter().collect(),
+        applied_step: None,
         yield_to_client: true,
     }))
 }
 
-pub enum StateEffect {
+pub trait MachineEffect {
+    fn ensure_message_ids(&mut self);
+}
+
+pub enum ConversationEffect {
     AppendMessage(Message),
-    ReplaceConversation {
-        conversation: Conversation,
-        usage: Option<ProviderUsage>,
-    },
+    ReplaceConversation(Conversation),
     PatchToolRequestMeta {
         tool_call_id: String,
         patch: serde_json::Value,
@@ -221,16 +211,13 @@ pub enum StateEffect {
         user_visible: bool,
         agent_visible: bool,
     },
-    SetRecipe(Box<Option<Recipe>>),
-    SetExtensionData(ExtensionData),
-    RecordUsage(ProviderUsage),
 }
 
-impl StateEffect {
-    pub(super) fn ensure_message_ids(&mut self) {
+impl MachineEffect for ConversationEffect {
+    fn ensure_message_ids(&mut self) {
         let messages = match self {
-            StateEffect::AppendMessage(message) => std::slice::from_mut(message),
-            StateEffect::ReplaceConversation { conversation, .. } => {
+            ConversationEffect::AppendMessage(message) => std::slice::from_mut(message),
+            ConversationEffect::ReplaceConversation(conversation) => {
                 conversation.messages_mut().as_mut_slice()
             }
             _ => return,
@@ -243,18 +230,15 @@ impl StateEffect {
     }
 }
 
-impl From<Message> for StateEffect {
+impl From<Message> for ConversationEffect {
     fn from(message: Message) -> Self {
-        StateEffect::AppendMessage(message)
+        ConversationEffect::AppendMessage(message)
     }
 }
 
-impl From<Conversation> for StateEffect {
+impl From<Conversation> for ConversationEffect {
     fn from(conversation: Conversation) -> Self {
-        StateEffect::ReplaceConversation {
-            conversation,
-            usage: None,
-        }
+        ConversationEffect::ReplaceConversation(conversation)
     }
 }
 

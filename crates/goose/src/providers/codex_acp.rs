@@ -4,13 +4,14 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::acp::{
-    resolve_extension_configs_to_mcp_servers, AcpProvider, AcpProviderConfig, ACP_CURRENT_MODEL,
+    extension_configs_to_mcp_servers, AcpProvider, AcpProviderConfig, ACP_CURRENT_MODEL,
 };
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
 use crate::providers::base::{
     current_working_dir, ProviderDef, ProviderDescriptor, ProviderMetadata,
 };
+use crate::providers::catalog::ProviderSetupMetadata;
 
 pub(crate) const CODEX_ACP_PROVIDER_NAME: &str = "codex-acp";
 const CODEX_ACP_DOC_URL: &str = "https://github.com/agentclientprotocol/codex-acp";
@@ -21,7 +22,7 @@ impl goose_providers::base::ProviderDescriptor for CodexAcpProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             CODEX_ACP_PROVIDER_NAME,
-            "Codex CLI",
+            "Codex ACP",
             "Use goose with ChatGPT Plus/Pro or OpenAI API credits via the codex-acp adapter.",
             ACP_CURRENT_MODEL,
             vec![],
@@ -33,9 +34,13 @@ impl goose_providers::base::ProviderDescriptor for CodexAcpProvider {
             "If `--version` is rejected, remove `@zed-industries/codex-acp`: `npm uninstall -g @zed-industries/codex-acp`",
             "If `codex-acp` is missing or was removed, install `@agentclientprotocol/codex-acp`: `npm install -g @agentclientprotocol/codex-acp`",
             "Authenticate with OpenAI: run `codex` and follow the prompts",
-            "Configure goose in `~/.config/goose/config.yaml`:\n  GOOSE_PROVIDER: codex-acp\n  GOOSE_MODEL: current",
-            "Restart goose",
         ])
+        .with_setup(
+            ProviderSetupMetadata::cli_agent(CODEX_ACP_PROVIDER_NAME, &["codex-acp", "codex_cli", "codex"])
+                .with_acp()
+                .with_docs_url("https://github.com/openai/codex")
+                .with_capabilities(true, true, true),
+        )
     }
 }
 
@@ -61,7 +66,7 @@ impl ProviderDef for CodexAcpProvider {
                 .with_npm()
                 .resolve(CODEX_ACP_PROVIDER_NAME)?;
             let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
-            let mcp_servers = resolve_extension_configs_to_mcp_servers(extensions, config).await;
+            let mcp_servers = extension_configs_to_mcp_servers(&extensions);
 
             let mode_mapping = HashMap::from([
                 (GooseMode::Auto, vec!["agent-full-access".to_string()]),

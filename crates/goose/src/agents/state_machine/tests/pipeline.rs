@@ -15,11 +15,11 @@ use crate::agents::extension_manager::{ExtensionManager, ExtensionManagerCapabil
 use crate::agents::mcp_client::McpClientTrait;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::state_machine::{
-    BangShellOperation, CompactionOperation, DoctorOperation, Emitter, ExitOnErrorOperation,
-    InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation, RecipeOperation,
-    RetryOperation, SkillOperation, SlashCommandOperation, StateMachine, SteerOperation,
-    SteerQueue, Step, StopHookOperation, ToolApprovalOperation, ToolExecutionOperation,
-    ToolPairCompactionOperation, UnknownToolOperation,
+    BangShellOperation, CompactionOperation, DoctorOperation, Emitter, EntryHookOperation,
+    ExitOnErrorOperation, GooseEffect, InferenceRunner, MaxTurnsOperation, Operation,
+    ProjectOperation, RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation,
+    StateMachine, SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
+    ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation,
 };
 use crate::agents::AgentEvent;
 use crate::config::permission::{PermissionLevel, PermissionManager};
@@ -105,30 +105,37 @@ pub(super) struct TestPipeline {
 }
 
 impl TestPipeline {
-    pub(super) fn machine(&self, cancel: CancellationToken) -> StateMachine<'_> {
+    pub(super) fn machine(
+        &self,
+        cancel: CancellationToken,
+    ) -> StateMachine<'_, Session, GooseEffect> {
         let provider = self.provider.clone();
         let tool_call_cutoff = crate::context_mgmt::compute_tool_call_cutoff(
             self.model_config.context_limit(),
             COMPACTION_THRESHOLD,
         );
-        let operations: Vec<Arc<dyn Operation + '_>> = vec![
+        let mut operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
             Arc::new(SteerOperation::new(
                 self.steer_queue.clone(),
                 self.hook_manager.clone(),
             )),
             Arc::new(MaxTurnsOperation::new(self.max_turns)),
             Arc::new(BangShellOperation::new()),
-            Arc::new(CompactionOperation::new(
+        ];
+        if !self.provider_features.manages_own_context {
+            operations.push(Arc::new(CompactionOperation::new(
                 provider.clone(),
                 self.model_config.clone(),
                 self.model_config.context_limit(),
                 COMPACTION_THRESHOLD,
-            )),
+            )));
+        }
+        let remaining_operations: Vec<Arc<dyn Operation<Session, GooseEffect> + '_>> = vec![
             Arc::new(ToolPairCompactionOperation::new(
                 provider.clone(),
                 self.model_config.clone(),
                 tool_call_cutoff,
-                true,
+                !self.provider_features.manages_own_context,
             )),
             Arc::new(ToolApprovalOperation::new(
                 &self.goose_mode,
@@ -156,6 +163,7 @@ impl TestPipeline {
             )),
             Arc::new(ExitOnErrorOperation),
         ];
+        operations.extend(remaining_operations);
         let inference = Arc::new(InferenceRunner::new(
             provider,
             self.model_config.clone(),
@@ -167,15 +175,17 @@ impl TestPipeline {
         ));
         let mut command_handlers = operations.clone();
         command_handlers.push(inference.clone());
-        let command_operation: Arc<dyn Operation + '_> =
+        let command_operation: Arc<dyn Operation<Session, GooseEffect> + '_> =
             Arc::new(SlashCommandOperation::new(command_handlers));
-        let steps = std::iter::once(command_operation)
-            .chain(operations)
-            .map(Step::Operation)
-            .chain(std::iter::once(Step::Inference(inference)))
-            .collect();
+        let steps = std::iter::once(Arc::new(EntryHookOperation::new(self.hook_manager.clone()))
+            as Arc<dyn Operation<Session, GooseEffect> + '_>)
+        .chain(std::iter::once(command_operation))
+        .chain(operations)
+        .map(Step::Operation)
+        .chain(std::iter::once(Step::Inference(inference)))
+        .collect();
 
-        StateMachine::new(steps, cancel).with_hook_manager(self.hook_manager.clone())
+        StateMachine::new(steps, cancel)
     }
 
     pub(super) async fn with_goose_mode(self, mode: GooseMode) -> Self {

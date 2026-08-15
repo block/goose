@@ -600,6 +600,15 @@ impl goose_providers::base::ProviderDescriptor for GithubCopilotProvider {
                 ConfigKey::new("GITHUB_COPILOT_TOKEN_URL", false, false, None, false),
             ],
         )
+        .with_setup(
+            crate::providers::catalog::ProviderSetupMetadata::new(
+                crate::providers::catalog::ProviderSetupCategory::Model,
+                crate::providers::catalog::ProviderSetupMethod::OauthDeviceCode,
+                crate::providers::catalog::ProviderSetupGroup::Default,
+            )
+            .with_native_connect_query("GitHub Copilot")
+            .with_capabilities(false, true, false),
+        )
     }
 }
 

@@ -7,8 +7,9 @@ import DefaultProviderSetupForm, {
 import { providerConfigSubmitHandler } from '../settings/providers/modal/subcomponents/handlers/DefaultSubmitHandler';
 import ProviderLogo from '../settings/providers/modal/subcomponents/ProviderLogo';
 import { SecureStorageNotice } from '../settings/providers/modal/subcomponents/SecureStorageNotice';
+import AcpReadinessPanel from '../settings/providers/AcpReadinessPanel';
 import { Button } from '../ui/button';
-import { LogIn, ChevronRight } from 'lucide-react';
+import { ChevronRight, LogIn } from 'lucide-react';
 import { defineMessages, useIntl } from '../../i18n';
 import { errorMessage } from '../../utils/conversionUtils';
 
@@ -215,11 +216,22 @@ interface ProviderConfigFormProps {
 }
 
 export default function ProviderConfigForm({ provider, onConfigured }: ProviderConfigFormProps) {
+  const intl = useIntl();
   const [error, setError] = useState<string | null>(null);
 
   const isOAuthProvider = provider.metadata.config_keys.some((key) => key.oauth_flow);
 
   const renderForm = () => {
+    if (provider.uses_acp) {
+      return (
+        <AcpReadinessPanel
+          provider={provider}
+          actionLabel={intl.formatMessage(i18n.continue)}
+          onConfigured={(configured) => onConfigured(configured.name)}
+          onError={setError}
+        />
+      );
+    }
     if (isOAuthProvider) {
       return <OAuthForm provider={provider} onConfigured={onConfigured} onError={setError} />;
     }

@@ -4967,6 +4967,7 @@ dependencies = [
  "futures",
  "gethostname",
  "goose-acp-macros",
+ "goose-agent",
  "goose-context-management",
  "goose-download-manager",
  "goose-mcp",
@@ -5074,6 +5075,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "goose-agent"
+version = "0.1.0-alpha.6"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "goose-provider-types",
+ "rmcp 3.0.0",
+ "serde_json",
+ "tokio",
+ "tokio-util",
+ "uuid",
+]
+
+[[package]]
 name = "goose-cli"
 version = "1.46.0"
 dependencies = [
@@ -5133,7 +5148,7 @@ dependencies = [
 
 [[package]]
 name = "goose-context-management"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5149,7 +5164,7 @@ dependencies = [
 
 [[package]]
 name = "goose-download-manager"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -5161,7 +5176,7 @@ dependencies = [
 
 [[package]]
 name = "goose-local-inference"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -5210,7 +5225,6 @@ dependencies = [
  "lopdf",
  "once_cell",
  "process-wrap",
- "reqwest 0.13.4",
  "rmcp 3.0.0",
  "schemars 1.2.1",
  "serde",
@@ -5222,12 +5236,11 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "umya-spreadsheet",
- "url",
 ]
 
 [[package]]
 name = "goose-provider-types"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -5256,7 +5269,7 @@ dependencies = [
 
 [[package]]
 name = "goose-providers"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -5288,7 +5301,7 @@ dependencies = [
 
 [[package]]
 name = "goose-sdk"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-schema",
@@ -5308,7 +5321,7 @@ dependencies = [
 
 [[package]]
 name = "goose-sdk-types"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-schema",

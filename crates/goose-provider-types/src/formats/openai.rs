@@ -5,7 +5,7 @@ use crate::errors::ProviderError;
 use crate::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
 use crate::json::{parse_tool_arguments, truncation_error_message};
 use crate::mcp_utils::extract_text_from_resource;
-use crate::model::ModelConfig;
+use crate::model::{is_goose_internal_request_param, ModelConfig};
 use crate::thinking::{
     split_think_blocks, ThinkFilter, ThinkingEffort, GEMINI_THOUGHT_SIGNATURE_KEY,
 };
@@ -1727,7 +1727,7 @@ pub fn create_request_for_model_with_options(
     if let Some(params) = &model_config.request_params {
         if let Some(obj) = payload.as_object_mut() {
             for (key, value) in params {
-                if key != "thinking_effort" && !is_reserved_request_param_key(key) {
+                if !is_goose_internal_request_param(key) && !is_reserved_request_param_key(key) {
                     obj.insert(key.clone(), value.clone());
                 }
             }
@@ -2839,6 +2839,9 @@ mod tests {
             ("max_tokens".to_string(), json!(1)),
             ("temperature".to_string(), json!(2.0)),
             ("provider_custom".to_string(), json!("allowed")),
+            ("thinking_effort".to_string(), json!("high")),
+            ("disable_prompt_cache".to_string(), json!(true)),
+            ("preserve_thinking_context".to_string(), json!(true)),
         ]);
         let model_config = test_model_config("glm-4.7")
             .with_max_tokens(Some(4096))
@@ -2867,6 +2870,9 @@ mod tests {
         assert_eq!(request["max_tokens"], 1);
         assert_eq!(request["temperature"], 2.0);
         assert_eq!(request["provider_custom"], "allowed");
+        assert!(request.get("thinking_effort").is_none());
+        assert!(request.get("disable_prompt_cache").is_none());
+        assert!(request.get("preserve_thinking_context").is_none());
 
         Ok(())
     }

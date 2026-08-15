@@ -43,7 +43,8 @@ pub(crate) async fn generate_tool_title(
     let model_config = agent.model_config_for_session(session_id).await.ok()?;
     let fast_model_config = get_fast_model(provider.get_name(), &model_config)
         .await
-        .ok()?;
+        .ok()?
+        .with_prompt_cache_disabled();
     let title = generate_tool_title_with_provider(
         provider.as_ref(),
         &fast_model_config,
@@ -85,7 +86,8 @@ pub(crate) async fn generate_tool_chain_summary(
     let model_config = agent.model_config_for_session(session_id).await.ok()?;
     let fast_model_config = get_fast_model(provider.get_name(), &model_config)
         .await
-        .ok()?;
+        .ok()?
+        .with_prompt_cache_disabled();
     let chain_summary = ToolChainSummary {
         summary: generate_tool_chain_summary_with_provider(
             provider.as_ref(),

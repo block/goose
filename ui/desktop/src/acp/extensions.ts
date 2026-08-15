@@ -55,6 +55,9 @@ export function gooseExtensionToExtensionConfig(extension: GooseExtension): Exte
           env_keys: extension.envKeys ?? [],
           timeout: extension.timeout,
           socket: extension.socket,
+          client_id: extension.clientId,
+          client_secret_key: extension.clientSecretKey,
+          scopes: extension.scopes ?? [],
           bundled: extension.bundled,
           available_tools: availableToolsOrUndefined(extension.available_tools),
         };
@@ -135,6 +138,9 @@ export function extensionConfigToGooseExtension(config: ExtensionConfig): GooseE
         description: config.description,
         timeout: config.timeout,
         socket: config.socket,
+        clientId: config.client_id,
+        clientSecretKey: config.client_secret_key,
+        scopes: config.scopes ?? [],
         bundled: config.bundled,
         available_tools: availableToolsOrUndefined(config.available_tools),
       };
