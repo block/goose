@@ -6,6 +6,28 @@ const FALLBACK_URL = "https://github.com/aaif-goose/goose/releases/latest";
 
 const isStandardLinuxAsset = (asset) => !asset.name.includes('-vulkan');
 
+// Package-type naming is inconsistent between architectures: rpm/flatpak use the
+// translated arch name for x64 (x86_64) but rpm keeps the raw "arm64" token while
+// flatpak translates to "aarch64"; deb uses "amd64"/"arm64". Verified against real
+// release assets and a local arm64 build rather than assumed.
+const ARCH_ASSET_TOKENS = {
+  x64: { deb: 'amd64', rpm: 'x86_64', flatpak: 'x86_64' },
+  arm64: { deb: 'arm64', rpm: 'arm64', flatpak: 'aarch64' },
+};
+
+const detectLinuxArch = async () => {
+  if (typeof navigator === 'undefined') return 'x64';
+  try {
+    if (navigator.userAgentData?.getHighEntropyValues) {
+      const { architecture } = await navigator.userAgentData.getHighEntropyValues(['architecture']);
+      if (architecture) return /arm/i.test(architecture) ? 'arm64' : 'x64';
+    }
+  } catch {
+    // Fall through to User-Agent sniffing below.
+  }
+  return /aarch64|arm64/i.test(navigator.userAgent || '') ? 'arm64' : 'x64';
+};
+
 const LinuxDesktopInstallButtons = () => {
   const [downloadUrls, setDownloadUrls] = useState({
     deb: FALLBACK_URL,
@@ -16,9 +38,14 @@ const LinuxDesktopInstallButtons = () => {
   useEffect(() => {
     const fetchLatestRelease = async () => {
       try {
+        const arch = await detectLinuxArch();
+        const tokens = ARCH_ASSET_TOKENS[arch];
+        const cacheKey = `goose-release-cache-${arch}`;
+        const cacheTimeKey = `goose-release-cache-time-${arch}`;
+
         // Check cache first (1 hour expiry)
-        const cached = localStorage.getItem('goose-release-cache');
-        const cacheTime = localStorage.getItem('goose-release-cache-time');
+        const cached = localStorage.getItem(cacheKey);
+        const cacheTime = localStorage.getItem(cacheTimeKey);
         const now = Date.now();
 
         if (cached && cacheTime && (now - parseInt(cacheTime)) < 3600000) {
@@ -34,15 +61,15 @@ const LinuxDesktopInstallButtons = () => {
         const release = await response.json();
         const assets = release.assets || [];
 
-        // Find DEB, RPM, and Flatpak files
+        // Find DEB, RPM, and Flatpak files matching the visitor's architecture
         const debAsset = assets.find(asset =>
-          isStandardLinuxAsset(asset) && asset.name.includes('.deb') && asset.name.includes('amd64')
+          isStandardLinuxAsset(asset) && asset.name.includes('.deb') && asset.name.includes(tokens.deb)
         );
         const rpmAsset = assets.find(asset =>
-          isStandardLinuxAsset(asset) && asset.name.includes('.rpm') && asset.name.includes('x86_64')
+          isStandardLinuxAsset(asset) && asset.name.includes('.rpm') && asset.name.includes(tokens.rpm)
         );
         const flatpakAsset = assets.find(asset =>
-          isStandardLinuxAsset(asset) && asset.name.endsWith('.flatpak')
+          isStandardLinuxAsset(asset) && asset.name.endsWith('.flatpak') && asset.name.includes(tokens.flatpak)
         );
 
         const newUrls = {
@@ -53,8 +80,8 @@ const LinuxDesktopInstallButtons = () => {
 
         // Update state and cache
         setDownloadUrls(newUrls);
-        localStorage.setItem('goose-release-cache', JSON.stringify(newUrls));
-        localStorage.setItem('goose-release-cache-time', now.toString());
+        localStorage.setItem(cacheKey, JSON.stringify(newUrls));
+        localStorage.setItem(cacheTimeKey, now.toString());
       } catch (error) {
         console.warn('Failed to fetch latest release, using fallback URLs:', error);
         // Fallback URLs are already set in initial state
