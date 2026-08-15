@@ -425,7 +425,7 @@ impl OpenAiProvider {
         "ovhcloud",
     ];
 
-    const PROVIDERS_NEEDING_STANDARD_CHAT_PARAMS: &[&str] = &["nearai"];
+    const PROVIDERS_NEEDING_STANDARD_CHAT_PARAMS: &[&str] = &["nearai", "saygm"];
 
     /// Providers whose reasoning models accept an OpenAI-style
     /// `reasoning_effort` field on chat-completions requests but aren't
@@ -1204,6 +1204,16 @@ mod tests {
 
         assert!(!provider.should_use_responses_api_for_provider("openai/gpt-5"));
         assert!(!provider.should_use_responses_api_for_provider("openai/o3"));
+    }
+
+    #[test]
+    fn saygm_uses_chat_completions_for_all_model_names() {
+        let provider = make_provider("saygm");
+
+        assert!(!provider.should_use_responses_api_for_provider("gpt-5.4"));
+        assert!(!provider.should_use_responses_api_for_provider("gpt-5.6-sol"));
+        assert!(!provider.should_use_responses_api_for_provider("o3"));
+        assert!(!provider.should_use_responses_api_for_provider("o4-mini"));
     }
 
     #[test]
