@@ -4654,5 +4654,11 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "Remove image from message"
+  },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count} {count, plural, one {job} other {jobs}}"
   }
 }
