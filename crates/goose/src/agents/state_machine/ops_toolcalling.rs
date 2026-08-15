@@ -75,6 +75,8 @@ pub(super) fn tool_span(tool_name: &str, tool_call_id: &str, session_id: &str) -
         "gen_ai.operation.name" = "execute_tool",
         "gen_ai.tool.name" = %tool_name,
         "gen_ai.tool.call.id" = %tool_call_id,
+        "gen_ai.tool.call.arguments" = tracing::field::Empty,
+        "gen_ai.tool.call.result" = tracing::field::Empty,
         "error.type" = tracing::field::Empty,
         session.id = %session_id,
     )
@@ -159,6 +161,7 @@ impl<'a> ToolExecutionOperation<'a> {
         let future = async move {
             let result =
                 crate::agents::large_response_handler::process_tool_response(result.result.await);
+            crate::agents::gen_ai_telemetry::record_tool_result(&tracing::Span::current(), &result);
             match &result {
                 Ok(result) if result.is_error == Some(true) => {
                     tracing::Span::current().record("error.type", "tool_error");
@@ -223,6 +226,7 @@ impl<'a> ToolExecutionOperation<'a> {
         session: &Session,
     ) -> std::result::Result<ToolCallResult, ErrorData> {
         let span = tool_span(&tool_call.name, &request_id, &session.id);
+        crate::agents::gen_ai_telemetry::record_tool_arguments(&span, &tool_call);
         let result_span = span.clone();
 
         async {

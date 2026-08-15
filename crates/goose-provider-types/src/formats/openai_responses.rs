@@ -1051,7 +1051,10 @@ where
                         Usage::default,
                         ResponseUsage::to_usage,
                     );
-                    final_usage = Some(ProviderUsage::new(model.clone(), usage));
+                    let mut pu = ProviderUsage::new(model.clone(), usage);
+                    pu.finish_reasons = Some(vec![response.status.clone()]);
+                    pu.response_id = Some(response.id.clone());
+                    final_usage = Some(pu);
 
                     // For complete output, use the response output items
                     if !response.output.is_empty() {
@@ -1067,7 +1070,10 @@ where
                         Usage::default,
                         ResponseUsage::to_usage,
                     );
-                    final_usage = Some(ProviderUsage::new(model.clone(), usage));
+                    let mut pu = ProviderUsage::new(model.clone(), usage);
+                    pu.finish_reasons = Some(vec![response.status.clone()]);
+                    pu.response_id = Some(response.id.clone());
+                    final_usage = Some(pu);
                     response_id = Some(response.id.clone());
                     output_token_limit_reached = response_reached_output_token_limit(
                         &response.status,

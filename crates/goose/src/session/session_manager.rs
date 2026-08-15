@@ -94,6 +94,8 @@ pub struct Session {
     pub parent_session_id: Option<String>,
     #[serde(default)]
     pub last_message_snippet: Option<String>,
+    #[serde(default)]
+    pub agent_name: Option<String>,
 }
 
 impl From<&Session> for TokenState {
@@ -733,6 +735,7 @@ impl Default for Session {
             project_id: None,
             parent_session_id: None,
             last_message_snippet: None,
+            agent_name: None,
         }
     }
 }
@@ -852,6 +855,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             project_id: row.try_get("project_id").ok().flatten(),
             parent_session_id: row.try_get("parent_session_id").ok().flatten(),
             last_message_snippet: None,
+            agent_name: None,
         })
     }
 }

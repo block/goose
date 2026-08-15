@@ -1220,6 +1220,7 @@ where
         let mut pending_inline_thinking = String::new();
         let mut last_seen_model: Option<String> = None;
         let mut last_response_id: Option<String> = None;
+        let mut last_finish_reason: Option<String> = None;
         let mut output_token_limit_reached = false;
         let mut output_token_limit_metadata_emitted = false;
 
@@ -1260,12 +1261,19 @@ where
                 }
             }
 
+            if let Some(reason) = chunk.choices.first().and_then(|c| c.finish_reason.clone()) {
+                last_finish_reason = Some(reason);
+            }
             let mut usage = extract_usage_with_output_tokens(&chunk, last_seen_model.as_deref());
-            output_token_limit_reached |= chunk
-                .choices
-                .first()
-                .and_then(|choice| choice.finish_reason.as_deref())
-                == Some("length");
+            if let Some(u) = usage.as_mut() {
+                if let Some(reason) = &last_finish_reason {
+                    u.finish_reasons = Some(vec![reason.clone()]);
+                }
+                if let Some(id) = &last_response_id {
+                    u.response_id = Some(id.clone());
+                }
+            }
+            output_token_limit_reached |= last_finish_reason.as_deref() == Some("length");
 
             if chunk.choices.is_empty() {
                 yield (None, usage)
@@ -1308,8 +1316,17 @@ where
                                 if let Some(id) = &tool_chunk.id {
                                     last_response_id = Some(id.clone());
                                 }
+                                if let Some(reason) = tool_chunk.choices.first().and_then(|c| c.finish_reason.clone()) {
+                                    last_finish_reason = Some(reason);
+                                }
 
-                                if let Some(chunk_usage) = extract_usage_with_output_tokens(&tool_chunk, last_seen_model.as_deref()) {
+                                if let Some(mut chunk_usage) = extract_usage_with_output_tokens(&tool_chunk, last_seen_model.as_deref()) {
+                                    if let Some(reason) = &last_finish_reason {
+                                        chunk_usage.finish_reasons = Some(vec![reason.clone()]);
+                                    }
+                                    if let Some(id) = &last_response_id {
+                                        chunk_usage.response_id = Some(id.clone());
+                                    }
                                     usage = Some(chunk_usage);
                                 }
 
@@ -3239,6 +3256,15 @@ data: [DONE]
 
         assert!(result.has_text_content, "Expected text content in response");
         assert_usage_yielded_once(&result, 7007, 49, 7056);
+        let usage = result.usage.as_ref().unwrap();
+        assert_eq!(
+            usage.finish_reasons.as_deref(),
+            Some(&["stop".to_string()][..])
+        );
+        assert_eq!(
+            usage.response_id.as_deref(),
+            Some("gen-1768896871-9HgAQqS1Z72C6gApaidi")
+        );
 
         Ok(())
     }
@@ -3261,6 +3287,15 @@ data: [DONE]
         assert_eq!(
             result.usage.as_ref().map(|usage| usage.model.as_str()),
             Some("gpt-5.2-1106-preview")
+        );
+        let usage = result.usage.as_ref().unwrap();
+        assert_eq!(
+            usage.finish_reasons.as_deref(),
+            Some(&["tool_calls".to_string()][..])
+        );
+        assert_eq!(
+            usage.response_id.as_deref(),
+            Some("chatcmpl-Bk9Ye6Y0t9E7bC3DOMxCpW8eJkTKU")
         );
 
         Ok(())

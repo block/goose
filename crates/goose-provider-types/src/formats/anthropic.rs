@@ -1157,12 +1157,18 @@ where
 
         if stop_reason.as_deref() == Some("max_tokens") {
             let mut message = Message::assistant();
-            message.id = message_id;
+            message.id = message_id.clone();
             message.metadata.output_token_limit_reached = true;
             yield (Some(message), None);
         }
 
-        if let Some(usage) = final_usage {
+        if let Some(mut usage) = final_usage {
+            if let Some(reason) = stop_reason {
+                usage.finish_reasons = Some(vec![reason]);
+            }
+            if let Some(id) = message_id {
+                usage.response_id = Some(id);
+            }
             yield (None, Some(usage));
         }
     }
@@ -2366,6 +2372,11 @@ mod tests {
         assert_eq!(usage.usage.output_tokens, Some(25));
         assert_eq!(usage.usage.cache_read_input_tokens, Some(5000));
         assert_eq!(usage.usage.cache_write_input_tokens, Some(10000));
+        assert_eq!(
+            usage.finish_reasons.as_deref(),
+            Some(&["end_turn".to_string()][..])
+        );
+        assert_eq!(usage.response_id.as_deref(), Some("msg_1"));
     }
 
     #[tokio::test]

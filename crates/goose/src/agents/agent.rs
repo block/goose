@@ -657,12 +657,8 @@ impl Agent {
             if capture_message_content {
                 let output = gen_ai_telemetry::tool_result_json(&processed_result);
                 span.record("output", output.as_str());
-                if let Some(result) =
-                    gen_ai_telemetry::successful_tool_result_json(&processed_result)
-                {
-                    span.record("gen_ai.tool.call.result", result.as_str());
-                }
             }
+            gen_ai_telemetry::record_tool_result(&span, &processed_result);
             let event = match &processed_result {
                 Ok(call_result) if call_result.is_error != Some(true) => {
                     crate::hooks::HookEvent::PostToolUse
@@ -1126,17 +1122,7 @@ impl Agent {
             "arguments": tool_call.arguments,
         });
         tracing::Span::current().record("input", tracing::field::display(&input_summary));
-        if gen_ai_telemetry::capture_message_content() {
-            let arguments = tool_call
-                .arguments
-                .as_ref()
-                .map(|arguments| Value::Object(arguments.clone()))
-                .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
-            tracing::Span::current().record(
-                "gen_ai.tool.call.arguments",
-                tracing::field::display(arguments),
-            );
-        }
+        gen_ai_telemetry::record_tool_arguments(&tracing::Span::current(), &tool_call);
 
         self.prompt_manager
             .lock()
@@ -1825,6 +1811,7 @@ impl Agent {
             trace_output = tracing::field::Empty,
             session.id = %session_config.id,
             gen_ai.operation.name = "invoke_agent",
+            gen_ai.agent.name = tracing::field::Empty,
             gen_ai.input.messages = tracing::field::Empty,
             gen_ai.output.messages = tracing::field::Empty,
             gen_ai.usage.input_tokens = tracing::field::Empty,
@@ -2158,11 +2145,12 @@ impl Agent {
                 }
             };
 
-            let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token, reply_span.clone()).await?;
+            let parent_span = tracing::Span::current();
+            let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token, parent_span.clone()).await?;
             while let Some(event) = reply_stream.next().await {
                 yield event?;
             }
-        }))
+        }.instrument(reply_span)))
     }
 
     async fn reply_internal(
@@ -2262,14 +2250,21 @@ impl Agent {
             session.host = %crate::session_context::session_host(),
             session.agent_type = "goose",
             gen_ai.operation.name = "invoke_agent",
+            gen_ai.agent.name = tracing::field::Empty,
             gen_ai.conversation.id = %session_config.id,
             gen_ai.request.model = %model_config.model_name,
+            gen_ai.request.temperature = tracing::field::Empty,
+            gen_ai.request.max_tokens = tracing::field::Empty,
             gen_ai.provider.name = %provider_name,
             gen_ai.input.messages = tracing::field::Empty,
             gen_ai.output.messages = tracing::field::Empty,
+            gen_ai.response.finish_reasons = tracing::field::Empty,
+            gen_ai.response.id = tracing::field::Empty,
             gen_ai.usage.input_tokens = tracing::field::Empty,
             gen_ai.usage.output_tokens = tracing::field::Empty,
         );
+        gen_ai_telemetry::record_request_params(&reply_stream_span, &model_config);
+        reply_stream_span.record("gen_ai.agent.name", gen_ai_telemetry::agent_name(&session));
         if gen_ai_telemetry::capture_message_content() {
             if let Some(last_user_msg) = conversation
                 .messages()
