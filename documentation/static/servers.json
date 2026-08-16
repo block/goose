@@ -827,6 +827,24 @@
       "required": false
     }
   ]
+},
+
+{
+  "id": "freehire",
+  "name": "freehire",
+  "description": "Search 3.3M+ IT jobs on freehire.me, crawled straight from 294K company career boards, with market-fit scoring, application tracking and CV tailoring",
+  "command": "npx -y freehire-mcp",
+  "link": "https://github.com/strelov1/freehire-mcp",
+  "installation_notes": "Install using npx package manager. A freehire.me API key is optional: without one the server starts and lists its tools, and only tool calls report that authentication is missing.",
+  "is_builtin": false,
+  "endorsed": false,
+  "environmentVariables": [
+    {
+      "name": "FREEHIRE_TOKEN",
+      "description": "A freehire.me personal API key (account menu -> API keys). Optional; the server also reads the key stored by the freehire CLI.",
+      "required": false
+    }
+  ]
 }
 
 ]
