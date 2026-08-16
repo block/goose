@@ -592,10 +592,6 @@ pub(super) fn validate_absolute_cwd(cwd: &Path) -> Result<(), agent_client_proto
     Ok(())
 }
 
-/// Resolves a session's working directory for reactivation, falling back to the
-/// user's home directory when the original directory no longer exists on disk
-/// (e.g. the project was deleted or moved), so an old session can still be
-/// reopened instead of failing outright.
 pub(super) fn resolve_cwd_for_reactivation(
     cwd: PathBuf,
 ) -> Result<PathBuf, agent_client_protocol::Error> {
