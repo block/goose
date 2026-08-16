@@ -592,6 +592,37 @@ pub(super) fn validate_absolute_cwd(cwd: &Path) -> Result<(), agent_client_proto
     Ok(())
 }
 
+/// Resolves a session's working directory for reactivation, falling back to the
+/// user's home directory when the original directory no longer exists on disk
+/// (e.g. the project was deleted or moved), so an old session can still be
+/// reopened instead of failing outright.
+pub(super) fn resolve_cwd_for_reactivation(
+    cwd: PathBuf,
+) -> Result<PathBuf, agent_client_protocol::Error> {
+    if !cwd.is_absolute() {
+        return Err(
+            agent_client_protocol::Error::invalid_params().data("cwd must be an absolute path")
+        );
+    }
+
+    if cwd.exists() && cwd.is_dir() {
+        return Ok(cwd);
+    }
+
+    let home = dirs::home_dir().filter(|home| home.is_dir());
+    match home {
+        Some(home) => {
+            warn!(
+                original_cwd = %cwd.display(),
+                fallback_cwd = %home.display(),
+                "session working directory no longer exists, falling back to home directory"
+            );
+            Ok(home)
+        }
+        None => Err(agent_client_protocol::Error::invalid_params().data("invalid directory path")),
+    }
+}
+
 impl GooseAcpAgent {
     pub fn permission_manager(&self) -> Arc<PermissionManager> {
         Arc::clone(&self.permission_manager)

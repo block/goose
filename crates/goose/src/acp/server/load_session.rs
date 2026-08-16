@@ -272,7 +272,7 @@ impl GooseAcpAgent {
         args: LoadSessionRequest,
     ) -> Result<LoadSessionResponse, agent_client_protocol::Error> {
         debug!(?args, "load session request");
-        validate_absolute_cwd(&args.cwd)?;
+        let cwd = resolve_cwd_for_reactivation(args.cwd)?;
 
         let session_id_str = args.session_id.0.to_string();
 
@@ -286,7 +286,7 @@ impl GooseAcpAgent {
             })?;
 
         session = self
-            .prepare_session_for_activation(session, args.cwd.clone(), args.mcp_servers, true)
+            .prepare_session_for_activation(session, cwd, args.mcp_servers, true)
             .await?;
 
         replay_conversation_to_client(

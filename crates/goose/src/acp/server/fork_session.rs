@@ -7,7 +7,7 @@ impl GooseAcpAgent {
         cx: &ConnectionTo<Client>,
         args: ForkSessionRequest,
     ) -> Result<ForkSessionResponse, agent_client_protocol::Error> {
-        validate_absolute_cwd(&args.cwd)?;
+        let cwd = resolve_cwd_for_reactivation(args.cwd)?;
         let conversation_before = conversation_before_from_meta(args.meta.as_ref())?;
         let source_session_id = &*args.session_id.0;
 
@@ -43,12 +43,7 @@ impl GooseAcpAgent {
             .internal_err()?;
 
         let goose_session = self
-            .prepare_session_for_activation(
-                new_session.clone(),
-                args.cwd.clone(),
-                args.mcp_servers,
-                false,
-            )
+            .prepare_session_for_activation(new_session.clone(), cwd, args.mcp_servers, false)
             .await?;
 
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &goose_session).await?;
