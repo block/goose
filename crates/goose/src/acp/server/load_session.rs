@@ -272,7 +272,6 @@ impl GooseAcpAgent {
         args: LoadSessionRequest,
     ) -> Result<LoadSessionResponse, agent_client_protocol::Error> {
         debug!(?args, "load session request");
-        let cwd = resolve_cwd_for_reactivation(args.cwd)?;
 
         let session_id_str = args.session_id.0.to_string();
 
@@ -284,6 +283,8 @@ impl GooseAcpAgent {
                 agent_client_protocol::Error::resource_not_found(Some(session_id_str.clone()))
                     .data(format!("Session not found: {}", session_id_str))
             })?;
+
+        let cwd = resolve_cwd_for_reactivation(args.cwd, &session.working_dir)?;
 
         session = self
             .prepare_session_for_activation(session, cwd, args.mcp_servers, true)

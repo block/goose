@@ -7,7 +7,6 @@ impl GooseAcpAgent {
         cx: &ConnectionTo<Client>,
         args: ForkSessionRequest,
     ) -> Result<ForkSessionResponse, agent_client_protocol::Error> {
-        let cwd = resolve_cwd_for_reactivation(args.cwd)?;
         let conversation_before = conversation_before_from_meta(args.meta.as_ref())?;
         let source_session_id = &*args.session_id.0;
 
@@ -16,6 +15,7 @@ impl GooseAcpAgent {
             .get_session(source_session_id, false)
             .await
             .internal_err()?;
+        let cwd = resolve_cwd_for_reactivation(args.cwd, &source.working_dir)?;
         let fork_name = if source.name.trim().is_empty() {
             "(copy)".to_string()
         } else {

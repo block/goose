@@ -594,6 +594,7 @@ pub(super) fn validate_absolute_cwd(cwd: &Path) -> Result<(), agent_client_proto
 
 pub(super) fn resolve_cwd_for_reactivation(
     cwd: PathBuf,
+    stored_cwd: &Path,
 ) -> Result<PathBuf, agent_client_protocol::Error> {
     if !cwd.is_absolute() {
         return Err(
@@ -601,8 +602,12 @@ pub(super) fn resolve_cwd_for_reactivation(
         );
     }
 
-    if cwd.exists() && cwd.is_dir() {
+    if cwd.is_dir() {
         return Ok(cwd);
+    }
+
+    if cwd != stored_cwd {
+        return Err(agent_client_protocol::Error::invalid_params().data("invalid directory path"));
     }
 
     let home = dirs::home_dir().filter(|home| home.is_dir());
