@@ -24,7 +24,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
 use tracing::{info, warn};
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 16;
+pub const CURRENT_SCHEMA_VERSION: i32 = 17;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 const MILLISECOND_TIMESTAMP_THRESHOLD: i64 = 10_000_000_000;
@@ -702,6 +702,42 @@ fn user_visible_message_sql(column: &str) -> String {
     format!("COALESCE(json_extract({column}, '$.userVisible'), 1) != 0")
 }
 
+/// Refreshes the denormalized `message_count` / `last_message_timestamp` columns
+/// on `sessions` from the messages table for one session. Called after any write
+/// path that inserts, deletes, or retimestamps messages outside `add_message`.
+async fn recompute_session_counters<'e, E>(executor: E, session_id: &str) -> Result<()>
+where
+    E: sqlx::Executor<'e, Database = Sqlite>,
+{
+    let sql = format!(
+        r#"
+        UPDATE sessions SET
+            message_count = (SELECT COUNT(*) FROM messages m
+                             WHERE m.session_id = sessions.id AND {}),
+            last_message_timestamp = (SELECT MAX({}) FROM messages m
+                                      WHERE m.session_id = sessions.id)
+        WHERE id = ?
+        "#,
+        user_visible_message_sql("m.metadata_json"),
+        normalized_message_timestamp_sql("m.created_timestamp"),
+    );
+    sqlx::query(AssertSqlSafe(sql))
+        .bind(session_id)
+        .execute(executor)
+        .await?;
+    Ok(())
+}
+
+/// Normalizes a message timestamp to epoch seconds, matching
+/// `normalized_message_timestamp_sql` for the denormalized column.
+fn normalized_message_timestamp(timestamp: i64) -> i64 {
+    if timestamp > MILLISECOND_TIMESTAMP_THRESHOLD {
+        timestamp / 1000
+    } else {
+        timestamp
+    }
+}
+
 fn session_sort_at(session: &Session) -> DateTime<Utc> {
     session.last_message_at.unwrap_or(session.updated_at)
 }
@@ -1006,7 +1042,9 @@ impl SessionStorage {
                 goose_mode TEXT NOT NULL DEFAULT 'auto',
                 archived_at TIMESTAMP,
                 project_id TEXT,
-                parent_session_id TEXT
+                parent_session_id TEXT,
+                message_count INTEGER NOT NULL DEFAULT 0,
+                last_message_timestamp INTEGER
             )
         "#,
         )
@@ -1072,6 +1110,11 @@ impl SessionStorage {
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_sessions_type ON sessions(session_type)")
             .execute(&mut *tx)
             .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_last_msg ON sessions(last_message_timestamp DESC, id DESC)",
+        )
+        .execute(&mut *tx)
+        .await?;
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_sessions_parent ON sessions(parent_session_id)",
         )
@@ -1554,6 +1597,40 @@ impl SessionStorage {
                 .execute(&mut **tx)
                 .await?;
             }
+            17 => {
+                // Denormalized session-list aggregates: listing sessions must not
+                // scan the messages table (see list_sessions_matching).
+                sqlx::query(
+                    "ALTER TABLE sessions ADD COLUMN message_count INTEGER NOT NULL DEFAULT 0",
+                )
+                .execute(&mut **tx)
+                .await?;
+                sqlx::query("ALTER TABLE sessions ADD COLUMN last_message_timestamp INTEGER")
+                    .execute(&mut **tx)
+                    .await?;
+                sqlx::query(
+                    r#"
+                    UPDATE sessions SET
+                        message_count = agg.visible_count,
+                        last_message_timestamp = agg.last_message_at
+                    FROM (
+                        SELECT session_id,
+                               COUNT(*) FILTER (WHERE COALESCE(json_extract(metadata_json, '$.userVisible'), 1) != 0) AS visible_count,
+                               MAX(CASE WHEN created_timestamp > 10000000000 THEN created_timestamp / 1000 ELSE created_timestamp END) AS last_message_at
+                        FROM messages
+                        GROUP BY session_id
+                    ) agg
+                    WHERE agg.session_id = sessions.id
+                    "#,
+                )
+                .execute(&mut **tx)
+                .await?;
+                sqlx::query(
+                    "CREATE INDEX IF NOT EXISTS idx_sessions_last_msg ON sessions(last_message_timestamp DESC, id DESC)",
+                )
+                .execute(&mut **tx)
+                .await?;
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -1619,7 +1696,8 @@ impl SessionStorage {
                accumulated_cost,
                schedule_id, recipe_json, user_recipe_values_json,
                provider_name, model_config_json, goose_mode,
-               archived_at, project_id, parent_session_id
+               archived_at, project_id, parent_session_id,
+               message_count, last_message_timestamp
         FROM sessions
         WHERE id = ?
     "#,
@@ -1642,20 +1720,6 @@ impl SessionStorage {
                 .filter_map(|message| message_timestamp_to_datetime(message.created))
                 .max();
             session.conversation = Some(conv);
-        } else {
-            let sql = format!(
-                "SELECT COUNT(*) FILTER (WHERE {}), MAX({}) FROM messages WHERE session_id = ?",
-                user_visible_message_sql("metadata_json"),
-                normalized_message_timestamp_sql("created_timestamp")
-            );
-            let (count, last_message_timestamp): (i64, Option<i64>) =
-                sqlx::query_as(AssertSqlSafe(sql))
-                    .bind(&session.id)
-                    .fetch_one(pool)
-                    .await?;
-            session.message_count = count as usize;
-            session.last_message_at =
-                last_message_timestamp.and_then(message_timestamp_to_datetime);
         }
 
         Ok(session)
@@ -1872,10 +1936,14 @@ impl SessionStorage {
         .execute(&mut *tx)
         .await?;
 
-        sqlx::query("UPDATE sessions SET updated_at = datetime('now') WHERE id = ?")
-            .bind(session_id)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query(
+            "UPDATE sessions SET message_count = message_count + ?, last_message_timestamp = MAX(COALESCE(last_message_timestamp, 0), ?), updated_at = datetime('now') WHERE id = ?",
+        )
+        .bind(i64::from(message.is_user_visible()))
+        .bind(normalized_message_timestamp(created))
+        .bind(session_id)
+        .execute(&mut *tx)
+        .await?;
 
         tx.commit().await?;
         Ok(())
@@ -1917,6 +1985,8 @@ impl SessionStorage {
             .await?;
         }
 
+        recompute_session_counters(&mut *tx, session_id).await?;
+
         tx.commit().await?;
         Ok(())
     }
@@ -1938,10 +2008,7 @@ impl SessionStorage {
 
         let keywords = keyword_terms(filters.keyword);
         let mut where_clauses = Vec::new();
-        let mut having_clauses = Vec::new();
-        let normalized_message_timestamp = normalized_message_timestamp_sql("m.created_timestamp");
-        let sort_timestamp_sql =
-            format!("COALESCE(MAX({normalized_message_timestamp}), unixepoch(s.updated_at))");
+        let sort_timestamp_sql = "COALESCE(s.last_message_timestamp, unixepoch(s.updated_at))";
         if let Some(types) = filters.types {
             let placeholders = types.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
             where_clauses.push(format!("s.session_type IN ({})", placeholders));
@@ -1949,11 +2016,14 @@ impl SessionStorage {
         if filters.working_dir.is_some() {
             where_clauses.push("s.working_dir = ?".to_string());
         }
+        if filters.only_sessions_with_messages {
+            where_clauses.push("s.last_message_timestamp IS NOT NULL".to_string());
+        }
         if !keywords.is_empty() {
             where_clauses.push(message_keyword_clause(keywords.len()));
         }
         if query.cursor.is_some() {
-            having_clauses.push(format!(
+            where_clauses.push(format!(
                 "({sort_timestamp_sql} < ? OR ({sort_timestamp_sql} = ? AND s.id < ?))"
             ));
         }
@@ -1962,16 +2032,6 @@ impl SessionStorage {
             String::new()
         } else {
             format!("WHERE {}", where_clauses.join(" AND "))
-        };
-        let having_clause = if having_clauses.is_empty() {
-            String::new()
-        } else {
-            format!("HAVING {}", having_clauses.join(" AND "))
-        };
-        let message_join = if filters.only_sessions_with_messages {
-            "JOIN messages m ON s.id = m.session_id"
-        } else {
-            "LEFT JOIN messages m ON s.id = m.session_id"
         };
         let order_by = "ORDER BY sort_timestamp DESC, s.id DESC";
         let limit_clause = if query.limit.is_some() { "LIMIT ?" } else { "" };
@@ -1987,25 +2047,14 @@ impl SessionStorage {
                    s.schedule_id, s.recipe_json, s.user_recipe_values_json,
                    s.provider_name, s.model_config_json, s.goose_mode,
                    s.archived_at, s.project_id, s.parent_session_id,
-                   COUNT(m.id) FILTER (WHERE {}) as message_count,
-                   MAX({}) as last_message_timestamp,
-                   {} as sort_timestamp
+                   s.message_count as message_count,
+                   s.last_message_timestamp as last_message_timestamp,
+                   {sort_timestamp_sql} as sort_timestamp
             FROM sessions s
-            {}
-            {}
-            GROUP BY s.id
-            {}
-            {}
-            {}
+            {where_clause}
+            {order_by}
+            {limit_clause}
             "#,
-            user_visible_message_sql("m.metadata_json"),
-            normalized_message_timestamp,
-            sort_timestamp_sql,
-            message_join,
-            where_clause,
-            having_clause,
-            order_by,
-            limit_clause
         );
 
         let mut q = sqlx::query_as::<_, Session>(AssertSqlSafe(sql));
@@ -2428,12 +2477,16 @@ impl SessionStorage {
 
     async fn truncate_conversation(&self, session_id: &str, timestamp: i64) -> Result<()> {
         let pool = self.pool().await?;
+        let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+
         sqlx::query("DELETE FROM messages WHERE session_id = ? AND created_timestamp >= ?")
             .bind(session_id)
             .bind(timestamp)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
 
+        recompute_session_counters(&mut *tx, session_id).await?;
+        tx.commit().await?;
         Ok(())
     }
 
@@ -2465,6 +2518,7 @@ impl SessionStorage {
             .await?;
         }
 
+        recompute_session_counters(&mut *tx, session_id).await?;
         tx.commit().await?;
         Ok(())
     }
@@ -2531,6 +2585,7 @@ impl SessionStorage {
         .execute(&mut *tx)
         .await?;
 
+        recompute_session_counters(&mut *tx, session_id).await?;
         tx.commit().await?;
 
         Ok(())
@@ -2868,6 +2923,7 @@ mod tests {
         .execute(pool)
         .await
         .unwrap();
+        recompute_session_counters(pool, session_id).await.unwrap();
     }
 
     async fn add_message_at_millis(
@@ -2893,6 +2949,7 @@ mod tests {
         .execute(pool)
         .await
         .unwrap();
+        recompute_session_counters(pool, session_id).await.unwrap();
     }
 
     async fn set_message_timestamp(
@@ -2915,6 +2972,7 @@ mod tests {
         .execute(pool)
         .await
         .unwrap();
+        recompute_session_counters(pool, session_id).await.unwrap();
     }
 
     async fn add_user_message(sm: &SessionManager, session_id: &str) {
@@ -3073,6 +3131,272 @@ mod tests {
         let listed = sm.list_sessions().await.unwrap();
         let listed_session = listed.iter().find(|s| s.id == session.id).unwrap();
         assert_eq!(listed_session.message_count, 2);
+    }
+
+    #[tokio::test]
+    async fn denormalized_counters_survive_replace_and_truncate() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "Counter maintenance".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let hidden = Message::user()
+            .with_text("<turn-context>frozen</turn-context>")
+            .with_visibility(false, true);
+        let last_id = "stable-last";
+        for text in ["one", "two"] {
+            sm.add_message(&session.id, &Message::user().with_text(text))
+                .await
+                .unwrap();
+        }
+        sm.add_message(&session.id, &hidden).await.unwrap();
+        sm.add_message(
+            &session.id,
+            &Message::assistant()
+                .with_text("last")
+                .with_id(last_id.to_string()),
+        )
+        .await
+        .unwrap();
+
+        let listed = sm.list_sessions().await.unwrap().remove(0);
+        assert_eq!(listed.message_count, 3);
+        assert!(listed.last_message_at.is_some());
+
+        sm.truncate_conversation_from_message(&session.id, last_id)
+            .await
+            .unwrap();
+        let listed = sm.list_sessions().await.unwrap().remove(0);
+        assert_eq!(listed.message_count, 2);
+
+        let replacement = crate::conversation::Conversation::default();
+        sm.replace_conversation(&session.id, &replacement)
+            .await
+            .unwrap();
+        let listed = sm.list_sessions().await.unwrap().remove(0);
+        assert_eq!(listed.message_count, 0);
+        assert_eq!(listed.last_message_at, None);
+    }
+
+    #[tokio::test]
+    async fn message_metadata_visibility_flip_updates_counter() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "Metadata flip".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let message_id = format!("msg_{}", uuid::Uuid::new_v4());
+        sm.add_message(
+            &session.id,
+            &Message::user()
+                .with_text("flip me")
+                .with_id(message_id.clone()),
+        )
+        .await
+        .unwrap();
+        sm.add_message(&session.id, &Message::assistant().with_text("kept"))
+            .await
+            .unwrap();
+
+        sm.update_message_metadata(&session.id, &message_id, |mut metadata| {
+            metadata.user_visible = false;
+            metadata
+        })
+        .await
+        .unwrap();
+
+        let listed = sm.list_sessions().await.unwrap().remove(0);
+        assert_eq!(listed.message_count, 1);
+    }
+
+    #[tokio::test]
+    async fn list_sessions_matches_legacy_aggregate_query() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+
+        let empty_session = sm
+            .create_session(
+                PathBuf::from("/tmp/empty"),
+                "Empty".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        let mixed_session = sm
+            .create_session(
+                PathBuf::from("/tmp/mixed"),
+                "Mixed".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        let invisible_session = sm
+            .create_session(
+                PathBuf::from("/tmp/hidden"),
+                "Hidden only".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        add_message_at_millis(&sm, &mixed_session.id, "old", "2026-01-01T00:00:00Z").await;
+        add_message_at(&sm, &mixed_session.id, "new", "2026-06-01T00:00:00Z").await;
+        sm.add_message(
+            &mixed_session.id,
+            &Message::user()
+                .with_text("<turn-context>ctx</turn-context>")
+                .with_visibility(false, true),
+        )
+        .await
+        .unwrap();
+        sm.add_message(
+            &invisible_session.id,
+            &Message::user()
+                .with_text("<turn-context>only hidden</turn-context>")
+                .with_visibility(false, true),
+        )
+        .await
+        .unwrap();
+
+        let legacy = {
+            let pool = sm.storage().pool().await.unwrap();
+            let rows: Vec<(String, i64, Option<i64>)> = sqlx::query_as(
+                r#"
+                SELECT s.id,
+                       COUNT(m.id) FILTER (WHERE COALESCE(json_extract(m.metadata_json, '$.userVisible'), 1) != 0),
+                       MAX(CASE WHEN m.created_timestamp > 10000000000 THEN m.created_timestamp / 1000 ELSE m.created_timestamp END)
+                FROM sessions s
+                LEFT JOIN messages m ON s.id = m.session_id
+                GROUP BY s.id
+                "#,
+            )
+            .fetch_all(pool)
+            .await
+            .unwrap();
+            rows
+        };
+
+        let listed = sm.list_sessions().await.unwrap();
+        assert_eq!(listed.len(), legacy.len());
+        for (id, visible_count, last_ts) in &legacy {
+            let session = listed.iter().find(|s| s.id == *id).unwrap();
+            assert_eq!(session.message_count, *visible_count as usize, "count {id}");
+            let expected_last = last_ts
+                .and_then(message_timestamp_to_datetime)
+                .map(|dt| dt.to_rfc3339());
+            let actual_last = session.last_message_at.map(|dt| dt.to_rfc3339());
+            assert_eq!(actual_last, expected_last, "last_message_at {id}");
+        }
+
+        assert_eq!(
+            listed
+                .iter()
+                .find(|s| s.id == empty_session.id)
+                .unwrap()
+                .message_count,
+            0
+        );
+        let hidden_listed = listed
+            .iter()
+            .find(|s| s.id == invisible_session.id)
+            .unwrap();
+        assert_eq!(hidden_listed.message_count, 0);
+        assert!(hidden_listed.last_message_at.is_some());
+
+        // only_sessions_with_messages keeps sessions whose messages are all
+        // invisible, matching the previous INNER JOIN semantics.
+        let paged = sm
+            .list_sessions_paged(SessionListPageQuery {
+                filters: SessionListFilters {
+                    only_sessions_with_messages: true,
+                    ..Default::default()
+                },
+                cursor: None,
+                page_size: 50,
+                include_last_message_snippet: false,
+            })
+            .await
+            .unwrap();
+        let ids: Vec<&str> = paged.sessions.iter().map(|s| s.id.as_str()).collect();
+        assert!(ids.contains(&invisible_session.id.as_str()));
+        assert!(!ids.contains(&empty_session.id.as_str()));
+    }
+
+    #[tokio::test]
+    async fn migration_backfill_sql_matches_maintained_counters() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                PathBuf::from("/tmp/backfill"),
+                "Backfill".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        add_message_at_millis(&sm, &session.id, "old", "2026-01-01T00:00:00Z").await;
+        add_message_at(&sm, &session.id, "new", "2026-06-01T00:00:00Z").await;
+        sm.add_message(
+            &session.id,
+            &Message::user()
+                .with_text("<turn-context>ctx</turn-context>")
+                .with_visibility(false, true),
+        )
+        .await
+        .unwrap();
+        let before = sm.get_session(&session.id, false).await.unwrap();
+
+        let pool = sm.storage().pool().await.unwrap();
+        let mut tx = pool.begin_with("BEGIN IMMEDIATE").await.unwrap();
+        sqlx::query(
+            "UPDATE sessions SET message_count = 0, last_message_timestamp = NULL WHERE id = ?",
+        )
+        .bind(&session.id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            r#"
+            UPDATE sessions SET
+                message_count = agg.visible_count,
+                last_message_timestamp = agg.last_message_at
+            FROM (
+                SELECT session_id,
+                       COUNT(*) FILTER (WHERE COALESCE(json_extract(metadata_json, '$.userVisible'), 1) != 0) AS visible_count,
+                       MAX(CASE WHEN created_timestamp > 10000000000 THEN created_timestamp / 1000 ELSE created_timestamp END) AS last_message_at
+                FROM messages
+                GROUP BY session_id
+            ) agg
+            WHERE agg.session_id = sessions.id
+            "#,
+        )
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+
+        let after = sm.get_session(&session.id, false).await.unwrap();
+        assert_eq!(after.message_count, before.message_count);
+        assert_eq!(after.last_message_at, before.last_message_at);
     }
 
     #[tokio::test]
@@ -4210,6 +4534,18 @@ mod tests {
 
         // Demote the schema back to v8 to simulate a database
         // that has never seen migration 9.
+        sqlx::query("DROP INDEX IF EXISTS idx_sessions_last_msg")
+            .execute(&pool)
+            .await
+            .unwrap();
+        for column in ["message_count", "last_message_timestamp"] {
+            sqlx::query(AssertSqlSafe(format!(
+                "ALTER TABLE sessions DROP COLUMN {column}"
+            )))
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
         sqlx::query("UPDATE schema_version SET version = 8")
             .execute(&pool)
             .await
@@ -4278,11 +4614,17 @@ mod tests {
         SessionStorage::create_schema(&pool).await.unwrap();
 
         // Recreate a v13-shaped database without cache token columns.
+        sqlx::query("DROP INDEX IF EXISTS idx_sessions_last_msg")
+            .execute(&pool)
+            .await
+            .unwrap();
         for column in [
             "cache_read_tokens",
             "cache_write_tokens",
             "accumulated_cache_read_tokens",
             "accumulated_cache_write_tokens",
+            "message_count",
+            "last_message_timestamp",
         ] {
             sqlx::query(AssertSqlSafe(format!(
                 "ALTER TABLE sessions DROP COLUMN {column}"
