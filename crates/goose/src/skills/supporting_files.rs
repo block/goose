@@ -1,9 +1,49 @@
 use std::fs;
-use std::io;
+use std::io::{self, Read};
 use std::path::{Component, Path};
 
 pub(crate) fn read_supporting_file(skill_dir: &Path, relative: &Path) -> io::Result<String> {
-    read_supporting_file_with_hook(skill_dir, relative, |_| {})
+    read_supporting_file_with_limit(skill_dir, relative, crate::agents::max_tool_response_size())
+}
+
+fn read_supporting_file_with_limit(
+    skill_dir: &Path,
+    relative: &Path,
+    max_size: usize,
+) -> io::Result<String> {
+    read_supporting_file_with_hook(skill_dir, relative, max_size, |_| {})
+}
+
+fn read_utf8_with_limit(mut reader: impl io::Read, max_size: usize) -> io::Result<String> {
+    let read_size = max_size.checked_add(1).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "configured supporting file size limit is too large",
+        )
+    })?;
+    let mut bytes = Vec::new();
+    reader
+        .by_ref()
+        .take(read_size as u64)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > max_size {
+        return Err(file_too_large(max_size));
+    }
+    String::from_utf8(bytes).map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+}
+
+fn file_too_large(max_size: usize) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!("supporting file exceeds the maximum size of {max_size} bytes"),
+    )
+}
+
+fn read_opened_file(file: fs::File, max_size: usize) -> io::Result<String> {
+    if file.metadata()?.len() > max_size as u64 {
+        return Err(file_too_large(max_size));
+    }
+    read_utf8_with_limit(file, max_size)
 }
 
 fn validated_relative_components(path: &Path) -> io::Result<Vec<&std::ffi::OsStr>> {
@@ -96,10 +136,9 @@ fn open_skill_root(
 fn read_supporting_file_with_hook(
     skill_dir: &Path,
     relative: &Path,
+    max_size: usize,
     mut after_opened_component: impl FnMut(&Path),
 ) -> io::Result<String> {
-    use std::io::Read;
-
     let components = validated_relative_components(relative)?;
     let (file_name, ancestors) = components.split_last().unwrap();
     let mut directory = open_skill_root(skill_dir, &mut after_opened_component)?;
@@ -111,7 +150,7 @@ fn read_supporting_file_with_hook(
         after_opened_component(&opened_path);
     }
 
-    let mut file = open_at(
+    let file = open_at(
         &directory,
         file_name,
         libc::O_RDONLY | libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC,
@@ -123,9 +162,7 @@ fn read_supporting_file_with_hook(
         ));
     }
 
-    let mut content = String::new();
-    file.read_to_string(&mut content)?;
-    Ok(content)
+    read_opened_file(file, max_size)
 }
 
 #[cfg(unix)]
@@ -226,10 +263,9 @@ fn open_skill_root(
 fn read_supporting_file_with_hook(
     skill_dir: &Path,
     relative: &Path,
+    max_size: usize,
     mut after_opened_component: impl FnMut(&Path),
 ) -> io::Result<String> {
-    use std::io::Read;
-
     let components = validated_relative_components(relative)?;
     let (file_name, ancestors) = components.split_last().unwrap();
     let mut directory = open_skill_root(skill_dir, &mut after_opened_component)?;
@@ -248,7 +284,7 @@ fn read_supporting_file_with_hook(
         after_opened_component(&opened_path);
     }
 
-    let mut file = windows_open_at(&directory, file_name, false)?;
+    let file = windows_open_at(&directory, file_name, false)?;
     let metadata = file.metadata()?;
     if windows_metadata_is_reparse_point(&metadata) || !metadata.is_file() {
         return Err(io::Error::new(
@@ -257,9 +293,7 @@ fn read_supporting_file_with_hook(
         ));
     }
 
-    let mut content = String::new();
-    file.read_to_string(&mut content)?;
-    Ok(content)
+    read_opened_file(file, max_size)
 }
 
 #[cfg(windows)]
@@ -360,6 +394,7 @@ fn windows_nt_status_error(status: winapi::shared::ntdef::NTSTATUS) -> io::Error
 fn read_supporting_file_with_hook(
     _skill_dir: &Path,
     relative: &Path,
+    _max_size: usize,
     _after_opened_component: impl FnMut(&Path),
 ) -> io::Result<String> {
     validated_relative_components(relative)?;
@@ -385,6 +420,61 @@ mod tests {
         let content = read_supporting_file(&skill_dir, Path::new("nested/guide.md")).unwrap();
 
         assert_eq!(content, "nested guidance");
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn reads_utf8_file_at_exact_size_limit() {
+        let root = tempfile::tempdir().unwrap();
+        let skill_dir = fs::canonicalize(root.path()).unwrap();
+        fs::write(skill_dir.join("guide.md"), "éé").unwrap();
+
+        let content =
+            read_supporting_file_with_limit(&skill_dir, Path::new("guide.md"), 4).unwrap();
+
+        assert_eq!(content, "éé");
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn rejects_file_one_byte_over_size_limit() {
+        let root = tempfile::tempdir().unwrap();
+        let skill_dir = fs::canonicalize(root.path()).unwrap();
+        fs::write(skill_dir.join("guide.md"), "12345").unwrap();
+
+        let error = read_supporting_file_with_limit(&skill_dir, Path::new("guide.md"), 4)
+            .expect_err("oversized supporting file was accepted");
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert!(error
+            .to_string()
+            .contains("exceeds the maximum size of 4 bytes"));
+    }
+
+    #[test]
+    fn streaming_limit_reads_only_limit_plus_one() {
+        use std::cell::Cell;
+        use std::rc::Rc;
+
+        struct CountingReader(Rc<Cell<usize>>);
+
+        impl io::Read for CountingReader {
+            fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+                buffer.fill(b'a');
+                self.0.set(self.0.get() + buffer.len());
+                Ok(buffer.len())
+            }
+        }
+
+        let bytes_read = Rc::new(Cell::new(0));
+        let error = read_utf8_with_limit(CountingReader(Rc::clone(&bytes_read)), 4)
+            .expect_err("streaming size limit was not enforced");
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert!(error
+            .to_string()
+            .contains("exceeds the maximum size of 4 bytes"));
+        assert_eq!(bytes_read.get(), 5);
     }
 
     #[cfg(unix)]
@@ -416,6 +506,7 @@ mod tests {
         let content = read_supporting_file_with_hook(
             &skill_dir,
             Path::new("nested/payload"),
+            crate::agents::max_tool_response_size(),
             |opened_path| {
                 if opened_path == Path::new("nested") {
                     fs::rename(&nested, &moved_nested).unwrap();
@@ -441,13 +532,17 @@ mod tests {
         fs::write(skill_dir.join("payload"), "safe content").unwrap();
         fs::write(outside.path().join("payload"), "outside secret").unwrap();
 
-        let result =
-            read_supporting_file_with_hook(&skill_dir, Path::new("payload"), |opened_path| {
+        let result = read_supporting_file_with_hook(
+            &skill_dir,
+            Path::new("payload"),
+            crate::agents::max_tool_response_size(),
+            |opened_path| {
                 if opened_path == parent {
                     fs::rename(&skill_dir, &moved_skill_dir).unwrap();
                     std::os::unix::fs::symlink(outside.path(), &skill_dir).unwrap();
                 }
-            });
+            },
+        );
 
         assert!(result.is_err());
     }
@@ -465,6 +560,7 @@ mod tests {
         let content = read_supporting_file_with_hook(
             &skill_dir,
             Path::new("nested/payload"),
+            crate::agents::max_tool_response_size(),
             |opened_path| {
                 if opened_path == Path::new("nested") {
                     fs::rename(&nested, &moved_nested).unwrap();
@@ -495,13 +591,17 @@ mod tests {
             return;
         }
 
-        let result =
-            read_supporting_file_with_hook(&skill_dir, Path::new("payload"), |opened_path| {
+        let result = read_supporting_file_with_hook(
+            &skill_dir,
+            Path::new("payload"),
+            crate::agents::max_tool_response_size(),
+            |opened_path| {
                 if opened_path == parent {
                     fs::rename(&skill_dir, &moved_skill_dir).unwrap();
                     fs::rename(&replacement, &skill_dir).unwrap();
                 }
-            });
+            },
+        );
 
         assert!(result.is_err());
     }
