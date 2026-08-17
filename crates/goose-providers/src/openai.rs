@@ -427,12 +427,6 @@ impl OpenAiProvider {
 
     const PROVIDERS_NEEDING_STANDARD_CHAT_PARAMS: &[&str] = &["nearai"];
 
-    /// Providers that expose only Chat Completions (no Responses API), even for
-    /// model names that would otherwise trigger responses-API routing (e.g. gpt-5.*,
-    /// o3, o4-mini).  Unlike PROVIDERS_NEEDING_STANDARD_CHAT_PARAMS this list does
-    /// not apply any parameter sanitization.
-    const PROVIDERS_FORCING_CHAT_COMPLETIONS: &[&str] = &["nearai", "saygm"];
-
     /// Providers whose reasoning models accept an OpenAI-style
     /// `reasoning_effort` field on chat-completions requests but aren't
     /// matched by [`is_openai_responses_model`] (which only recognises
@@ -512,7 +506,7 @@ impl OpenAiProvider {
     }
 
     fn should_use_responses_api_for_provider(&self, model_name: &str) -> bool {
-        if Self::PROVIDERS_FORCING_CHAT_COMPLETIONS.contains(&self.name.as_str()) {
+        if Self::PROVIDERS_NEEDING_STANDARD_CHAT_PARAMS.contains(&self.name.as_str()) {
             return false;
         }
 
@@ -1210,16 +1204,6 @@ mod tests {
 
         assert!(!provider.should_use_responses_api_for_provider("openai/gpt-5"));
         assert!(!provider.should_use_responses_api_for_provider("openai/o3"));
-    }
-
-    #[test]
-    fn saygm_uses_chat_completions_for_all_model_names() {
-        let provider = make_provider("saygm");
-
-        assert!(!provider.should_use_responses_api_for_provider("gpt-5.4"));
-        assert!(!provider.should_use_responses_api_for_provider("gpt-5.6-sol"));
-        assert!(!provider.should_use_responses_api_for_provider("o3"));
-        assert!(!provider.should_use_responses_api_for_provider("o4-mini"));
     }
 
     #[test]
