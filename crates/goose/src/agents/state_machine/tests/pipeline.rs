@@ -16,11 +16,11 @@ use crate::agents::mcp_client::McpClientTrait;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::state_machine::{
     BangShellOperation, CompactionOperation, DoctorOperation, Emitter, EntryHookOperation,
-    ExitOnErrorOperation, GooseEffect, GooseInferenceRequestPreparer, InferenceRunner,
-    MaxTurnsOperation, Operation, ProjectOperation, RecipeOperation, RetryOperation,
-    SkillOperation, SlashCommandOperation, StateMachine, SteerOperation, SteerQueue, Step,
-    StopHookOperation, ToolApprovalOperation, ToolExecutionOperation, ToolPairCompactionOperation,
-    UnknownToolOperation,
+    ExitOnErrorOperation, GooseEffect, GooseInferenceRequestPreparer, GooseInferenceRuntime,
+    InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation, RecipeOperation,
+    RetryOperation, SkillOperation, SlashCommandOperation, StateMachine, SteerOperation,
+    SteerQueue, Step, StopHookOperation, ToolApprovalOperation, ToolExecutionOperation,
+    ToolPairCompactionOperation, UnknownToolOperation,
 };
 use crate::agents::AgentEvent;
 use crate::config::permission::{PermissionLevel, PermissionManager};
@@ -166,6 +166,7 @@ impl TestPipeline {
         ];
         operations.extend(remaining_operations);
         let request_preparer = GooseInferenceRequestPreparer {
+            #[cfg(feature = "code-mode")]
             extension_manager: self.extension_manager.clone(),
             goose_mode: &self.goose_mode,
             prompt_manager: &self.prompt_manager,
@@ -176,6 +177,7 @@ impl TestPipeline {
             provider,
             self.model_config.clone(),
             Some(Arc::new(request_preparer)),
+            Arc::new(GooseInferenceRuntime),
         ));
         let mut command_handlers = operations.clone();
         command_handlers.push(inference.clone());

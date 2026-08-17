@@ -1,9 +1,5 @@
-//! Prepares system prompts and tools before provider inference.
+//! Goose-specific inference request preparation.
 
-#[cfg(feature = "code-mode")]
-use std::sync::Arc;
-
-use crate::agents::state_machine::InferenceInput;
 #[cfg(feature = "code-mode")]
 use crate::agents::ExtensionManager;
 use crate::agents::PromptManager;
@@ -12,49 +8,19 @@ use crate::session::Session;
 use crate::tool_inspection::ToolInspectionManager;
 use anyhow::Result;
 use async_trait::async_trait;
+use goose_agent::inference::{InferenceRequestPreparer, PreparedInferenceRequest};
+use goose_agent::operation::InferenceInput;
+#[cfg(feature = "code-mode")]
+use std::sync::Arc;
 use tokio::sync::Mutex;
-
-pub struct PreparedInferenceRequest {
-    pub(super) system_prompt: String,
-    pub(super) tools: Vec<rmcp::model::Tool>,
-    pub(super) moim_parts: Vec<String>,
-}
-
-#[async_trait]
-pub trait InferenceRequestPreparer<S>: Send + Sync {
-    async fn prepare(&self, session: &S, input: InferenceInput)
-        -> Result<PreparedInferenceRequest>;
-}
-
-pub(super) struct IdentityInferenceRequestPreparer;
-
-#[async_trait]
-impl<S: Sync> InferenceRequestPreparer<S> for IdentityInferenceRequestPreparer {
-    async fn prepare(
-        &self,
-        _session: &S,
-        input: InferenceInput,
-    ) -> Result<PreparedInferenceRequest> {
-        Ok(PreparedInferenceRequest {
-            system_prompt: input
-                .prompt_parts
-                .into_iter()
-                .map(|(_, part)| part)
-                .collect::<Vec<_>>()
-                .join("\n\n"),
-            tools: input.tools,
-            moim_parts: input.moim_parts,
-        })
-    }
-}
 
 pub struct GooseInferenceRequestPreparer<'a> {
     #[cfg(feature = "code-mode")]
-    pub(super) extension_manager: Arc<ExtensionManager>,
-    pub(super) goose_mode: &'a Mutex<GooseMode>,
-    pub(super) prompt_manager: &'a Mutex<PromptManager>,
-    pub(super) tool_inspection_manager: &'a ToolInspectionManager,
-    pub(super) frontend_instructions: &'a Mutex<Option<String>>,
+    pub(crate) extension_manager: Arc<ExtensionManager>,
+    pub(crate) goose_mode: &'a Mutex<GooseMode>,
+    pub(crate) prompt_manager: &'a Mutex<PromptManager>,
+    pub(crate) tool_inspection_manager: &'a ToolInspectionManager,
+    pub(crate) frontend_instructions: &'a Mutex<Option<String>>,
 }
 
 #[async_trait]

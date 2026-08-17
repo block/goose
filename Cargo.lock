@@ -5080,11 +5080,14 @@ version = "0.1.0-alpha.6"
 dependencies = [
  "anyhow",
  "async-trait",
+ "futures",
  "goose-provider-types",
  "rmcp 3.0.0",
  "serde_json",
  "tokio",
  "tokio-util",
+ "tracing",
+ "tracing-futures",
  "uuid",
 ]
 

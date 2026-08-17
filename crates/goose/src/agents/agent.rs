@@ -29,10 +29,10 @@ use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::state_machine::{
     run_goose, BangShellOperation, CompactionOperation, DoctorOperation, Emitter,
     EntryHookOperation, ExitOnErrorOperation, GooseEffect, GooseInferenceRequestPreparer,
-    InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation, RecipeOperation,
-    RetryOperation, SkillOperation, SlashCommandOperation, StateMachine, SteerOperation,
-    SteerQueue, Step, StopHookOperation, ToolApprovalOperation, ToolExecutionOperation,
-    ToolPairCompactionOperation, UnknownToolOperation, MAX_TURNS_MESSAGE,
+    GooseInferenceRuntime, InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation,
+    RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation, StateMachine,
+    SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
+    ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation, MAX_TURNS_MESSAGE,
 };
 use crate::agents::types::{
     FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver,
@@ -1685,6 +1685,7 @@ impl Agent {
         ];
         operations.extend(remaining_operations);
         let request_preparer = GooseInferenceRequestPreparer {
+            #[cfg(feature = "code-mode")]
             extension_manager: self.extension_manager.clone(),
             goose_mode: &self.current_goose_mode,
             prompt_manager: &self.prompt_manager,
@@ -1695,6 +1696,7 @@ impl Agent {
             provider,
             model_config,
             Some(Arc::new(request_preparer)),
+            Arc::new(GooseInferenceRuntime),
         ));
         let mut command_handlers = operations.clone();
         command_handlers.push(inference.clone());
