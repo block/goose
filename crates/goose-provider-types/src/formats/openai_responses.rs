@@ -975,6 +975,26 @@ fn output_token_limit_marker(id: Option<String>) -> Message {
     message
 }
 
+/// Parse a line per the SSE grammar and return its field name:
+/// - `field: value` / `field:value` -> `Some(field)`
+/// - `field` (no colon, empty value) -> `Some(field)`
+/// - `: comment` -> `Some("")`
+///
+/// Returns `None` when the line does not look like an SSE field (e.g. a
+/// bare JSON payload such as `{"type": ...}`), so callers can fall back
+/// to parsing it as JSON.
+fn sse_field_name(line: &str) -> Option<&str> {
+    let field = line.split_once(':').map_or(line, |(name, _)| name);
+    if field.is_empty() {
+        return Some("");
+    }
+    let field_like = !field.contains(char::is_whitespace)
+        && field
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'));
+    field_like.then_some(field)
+}
+
 pub fn responses_api_to_streaming_message<S>(
     mut stream: S,
 ) -> impl Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
@@ -1010,11 +1030,13 @@ where
                 response_str.strip_prefix("data: ").unwrap()
             } else if response_str.starts_with("data:") {
                 response_str.strip_prefix("data:").unwrap()
-            } else if response_str.starts_with("event: ") || response_str.starts_with("event:") {
-                // Skip event type lines
+            } else if sse_field_name(&response_str).is_some_and(|f| f != "data") {
+                // Skip payload-free SSE fields: event, id, retry, comments,
+                // colon-less fields with empty values, and unknown extension
+                // fields — the SSE spec requires all of these to be ignored.
                 continue;
             } else {
-                // Try to parse as-is when there's no prefix
+                // Try to parse as-is when there's no prefix (bare JSON frames)
                 &response_str
             };
 
@@ -1229,6 +1251,42 @@ mod tests {
         assert_eq!(usage.usage.cache_read_input_tokens, Some(6));
         assert_eq!(usage.usage.cache_write_input_tokens, None);
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_responses_stream_ignores_sse_field_lines() -> anyhow::Result<()> {
+        let lines = vec![
+            "id:1".to_string(),
+            "id".to_string(),
+            "x-trace: abc123".to_string(),
+            "retry: 100".to_string(),
+            ": keepalive comment".to_string(),
+            r#"data: {"type":"response.created","sequence_number":1,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"in_progress","model":"qwen3.8-max","output":[]}}"#.to_string(),
+            "event: response.output_text.delta".to_string(),
+            r#"data: {"type":"response.output_text.delta","sequence_number":2,"item_id":"msg_1","output_index":0,"content_index":0,"delta":"Hello"}"#.to_string(),
+            r#"data: {"type":"response.output_text.delta","sequence_number":3,"item_id":"msg_1","output_index":0,"content_index":0,"delta":" world"}"#.to_string(),
+            r#"data: {"type":"response.completed","sequence_number":4,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"completed","model":"qwen3.8-max","output":[],"usage":{"input_tokens":10,"output_tokens":4,"total_tokens":14}}}"#.to_string(),
+            "data: [DONE]".to_string(),
+        ];
+
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = responses_api_to_streaming_message(response_stream);
+        futures::pin_mut!(messages);
+
+        let mut text_parts = Vec::new();
+        while let Some(item) = messages.next().await {
+            let (message, _) = item?;
+            if let Some(msg) = message {
+                for content in msg.content {
+                    if let MessageContentBlock::Text(text) = content {
+                        text_parts.push(text.text.clone());
+                    }
+                }
+            }
+        }
+
+        assert_eq!(text_parts.concat(), "Hello world");
         Ok(())
     }
 
