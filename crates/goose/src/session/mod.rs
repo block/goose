@@ -1,4 +1,5 @@
 mod chat_history_search;
+pub(crate) mod counter_triggers;
 mod diagnostics;
 mod export_markdown;
 pub mod extension_data;

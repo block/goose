@@ -692,50 +692,8 @@ fn message_timestamp_to_datetime(timestamp: i64) -> Option<DateTime<Utc>> {
     Utc.timestamp_opt(timestamp, 0).single()
 }
 
-fn normalized_message_timestamp_sql(column: &str) -> String {
-    format!(
-        "CASE WHEN {column} > {MILLISECOND_TIMESTAMP_THRESHOLD} THEN {column} / 1000 ELSE {column} END"
-    )
-}
-
 fn user_visible_message_sql(column: &str) -> String {
     format!("COALESCE(json_extract({column}, '$.userVisible'), 1) != 0")
-}
-
-/// Refreshes the denormalized `message_count` / `last_message_timestamp` columns
-/// on `sessions` from the messages table for one session. Called after any write
-/// path that inserts, deletes, or retimestamps messages outside `add_message`.
-async fn recompute_session_counters<'e, E>(executor: E, session_id: &str) -> Result<()>
-where
-    E: sqlx::Executor<'e, Database = Sqlite>,
-{
-    let sql = format!(
-        r#"
-        UPDATE sessions SET
-            message_count = (SELECT COUNT(*) FROM messages m
-                             WHERE m.session_id = sessions.id AND {}),
-            last_message_timestamp = (SELECT MAX({}) FROM messages m
-                                      WHERE m.session_id = sessions.id)
-        WHERE id = ?
-        "#,
-        user_visible_message_sql("m.metadata_json"),
-        normalized_message_timestamp_sql("m.created_timestamp"),
-    );
-    sqlx::query(AssertSqlSafe(sql))
-        .bind(session_id)
-        .execute(executor)
-        .await?;
-    Ok(())
-}
-
-/// Normalizes a message timestamp to epoch seconds, matching
-/// `normalized_message_timestamp_sql` for the denormalized column.
-fn normalized_message_timestamp(timestamp: i64) -> i64 {
-    if timestamp > MILLISECOND_TIMESTAMP_THRESHOLD {
-        timestamp / 1000
-    } else {
-        timestamp
-    }
 }
 
 fn session_sort_at(session: &Session) -> DateTime<Utc> {
@@ -1115,6 +1073,9 @@ impl SessionStorage {
         )
         .execute(&mut *tx)
         .await?;
+        for trigger in crate::session::counter_triggers::SESSION_COUNTER_TRIGGERS {
+            sqlx::query(trigger).execute(&mut *tx).await?;
+        }
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_sessions_parent ON sessions(parent_session_id)",
         )
@@ -1615,7 +1576,8 @@ impl SessionStorage {
                         last_message_timestamp = agg.last_message_at
                     FROM (
                         SELECT session_id,
-                               COUNT(*) FILTER (WHERE COALESCE(json_extract(metadata_json, '$.userVisible'), 1) != 0) AS visible_count,
+                               COUNT(*) FILTER (WHERE COALESCE(CASE WHEN json_valid(metadata_json)
+                                                                     THEN json_extract(metadata_json, '$.userVisible') END, 1) != 0) AS visible_count,
                                MAX(CASE WHEN created_timestamp > 10000000000 THEN created_timestamp / 1000 ELSE created_timestamp END) AS last_message_at
                         FROM messages
                         GROUP BY session_id
@@ -1630,6 +1592,9 @@ impl SessionStorage {
                 )
                 .execute(&mut **tx)
                 .await?;
+                for trigger in crate::session::counter_triggers::SESSION_COUNTER_TRIGGERS {
+                    sqlx::query(trigger).execute(&mut **tx).await?;
+                }
             }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
@@ -1936,14 +1901,10 @@ impl SessionStorage {
         .execute(&mut *tx)
         .await?;
 
-        sqlx::query(
-            "UPDATE sessions SET message_count = message_count + ?, last_message_timestamp = MAX(COALESCE(last_message_timestamp, 0), ?), updated_at = datetime('now') WHERE id = ?",
-        )
-        .bind(i64::from(message.is_user_visible()))
-        .bind(normalized_message_timestamp(created))
-        .bind(session_id)
-        .execute(&mut *tx)
-        .await?;
+        sqlx::query("UPDATE sessions SET updated_at = datetime('now') WHERE id = ?")
+            .bind(session_id)
+            .execute(&mut *tx)
+            .await?;
 
         tx.commit().await?;
         Ok(())
@@ -1984,8 +1945,6 @@ impl SessionStorage {
             .execute(&mut *tx)
             .await?;
         }
-
-        recompute_session_counters(&mut *tx, session_id).await?;
 
         tx.commit().await?;
         Ok(())
@@ -2477,16 +2436,11 @@ impl SessionStorage {
 
     async fn truncate_conversation(&self, session_id: &str, timestamp: i64) -> Result<()> {
         let pool = self.pool().await?;
-        let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
-
         sqlx::query("DELETE FROM messages WHERE session_id = ? AND created_timestamp >= ?")
             .bind(session_id)
             .bind(timestamp)
-            .execute(&mut *tx)
+            .execute(pool)
             .await?;
-
-        recompute_session_counters(&mut *tx, session_id).await?;
-        tx.commit().await?;
         Ok(())
     }
 
@@ -2518,7 +2472,6 @@ impl SessionStorage {
             .await?;
         }
 
-        recompute_session_counters(&mut *tx, session_id).await?;
         tx.commit().await?;
         Ok(())
     }
@@ -2585,7 +2538,6 @@ impl SessionStorage {
         .execute(&mut *tx)
         .await?;
 
-        recompute_session_counters(&mut *tx, session_id).await?;
         tx.commit().await?;
 
         Ok(())
@@ -2923,7 +2875,6 @@ mod tests {
         .execute(pool)
         .await
         .unwrap();
-        recompute_session_counters(pool, session_id).await.unwrap();
     }
 
     async fn add_message_at_millis(
@@ -2949,7 +2900,6 @@ mod tests {
         .execute(pool)
         .await
         .unwrap();
-        recompute_session_counters(pool, session_id).await.unwrap();
     }
 
     async fn set_message_timestamp(
@@ -2972,7 +2922,6 @@ mod tests {
         .execute(pool)
         .await
         .unwrap();
-        recompute_session_counters(pool, session_id).await.unwrap();
     }
 
     async fn add_user_message(sm: &SessionManager, session_id: &str) {
@@ -3337,6 +3286,112 @@ mod tests {
         let ids: Vec<&str> = paged.sessions.iter().map(|s| s.id.as_str()).collect();
         assert!(ids.contains(&invisible_session.id.as_str()));
         assert!(!ids.contains(&empty_session.id.as_str()));
+    }
+
+    #[tokio::test]
+    async fn upgrade_from_v16_backfills_and_installs_triggers() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join(SESSIONS_FOLDER).join(DB_NAME);
+        if let Some(parent) = db_path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        let pool = SqlitePoolOptions::new()
+            .connect_with(
+                SqliteConnectOptions::new()
+                    .filename(&db_path)
+                    .create_if_missing(true),
+            )
+            .await
+            .unwrap();
+
+        // v16-shaped database: current schema minus the v17 additions.
+        SessionStorage::create_schema(&pool).await.unwrap();
+        for stmt in [
+            "DROP TRIGGER IF EXISTS trg_messages_insert_counters",
+            "DROP TRIGGER IF EXISTS trg_messages_delete_counters",
+            "DROP TRIGGER IF EXISTS trg_messages_update_counters",
+        ] {
+            sqlx::query(stmt).execute(&pool).await.unwrap();
+        }
+        sqlx::query("DROP INDEX IF EXISTS idx_sessions_last_msg")
+            .execute(&pool)
+            .await
+            .unwrap();
+        for column in ["message_count", "last_message_timestamp"] {
+            sqlx::query(AssertSqlSafe(format!(
+                "ALTER TABLE sessions DROP COLUMN {column}"
+            )))
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        sqlx::query("UPDATE schema_version SET version = 16")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        // Messages written by a pre-v17 binary: raw inserts with NULL
+        // metadata (counts as visible), explicit userVisible=false, and a
+        // millisecond created_timestamp.
+        sqlx::query(
+            "INSERT INTO sessions (id, name, user_set_name, session_type, working_dir, extension_data, goose_mode)
+             VALUES ('legacy', 'Legacy', false, 'user', '/tmp', '{}', 'auto')",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        for (role, metadata, ts) in [
+            ("user", None, 1_735_000_000i64),
+            ("assistant", Some(r#"{"userVisible":false}"#), 1_736_000_000),
+            ("user", Some(r#"{"userVisible":true}"#), 1_748_000_123_456),
+        ] {
+            sqlx::query(
+                "INSERT INTO messages (message_id, session_id, role, content_json, created_timestamp, metadata_json)
+                 VALUES ('m', 'legacy', ?, '[]', ?, ?)",
+            )
+            .bind(role)
+            .bind(ts)
+            .bind(metadata)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        pool.close().await;
+
+        // Upgrade: v17 must backfill the counters and install triggers.
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        sm.storage().pool().await.unwrap();
+
+        let legacy = sm.get_session("legacy", false).await.unwrap();
+        assert_eq!(legacy.message_count, 2); // NULL metadata + userVisible:true
+        assert_eq!(
+            legacy.last_message_at.map(|dt| dt.timestamp()),
+            Some(1_748_000_123)
+        );
+
+        // Post-upgrade writes maintain the columns via triggers — including
+        // binaries that predate migration 17, so a downgrade followed by an
+        // upgrade can never leave stale counters behind.
+        let pool = sm.storage().pool().await.unwrap();
+        sqlx::query(
+            "INSERT INTO messages (message_id, session_id, role, content_json, created_timestamp, metadata_json)
+             VALUES ('m4', 'legacy', 'user', '[]', 1749000000, NULL)",
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "DELETE FROM messages WHERE session_id = 'legacy' AND created_timestamp = 1749000000",
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+        let after = sm.get_session("legacy", false).await.unwrap();
+        assert_eq!(after.message_count, 2);
+        assert_eq!(
+            after.last_message_at.map(|dt| dt.timestamp()),
+            Some(1_748_000_123)
+        );
     }
 
     #[tokio::test]
@@ -4538,6 +4593,13 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
+        for stmt in [
+            "DROP TRIGGER IF EXISTS trg_messages_insert_counters",
+            "DROP TRIGGER IF EXISTS trg_messages_delete_counters",
+            "DROP TRIGGER IF EXISTS trg_messages_update_counters",
+        ] {
+            sqlx::query(stmt).execute(&pool).await.unwrap();
+        }
         for column in ["message_count", "last_message_timestamp"] {
             sqlx::query(AssertSqlSafe(format!(
                 "ALTER TABLE sessions DROP COLUMN {column}"
@@ -4618,6 +4680,13 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
+        for stmt in [
+            "DROP TRIGGER IF EXISTS trg_messages_insert_counters",
+            "DROP TRIGGER IF EXISTS trg_messages_delete_counters",
+            "DROP TRIGGER IF EXISTS trg_messages_update_counters",
+        ] {
+            sqlx::query(stmt).execute(&pool).await.unwrap();
+        }
         for column in [
             "cache_read_tokens",
             "cache_write_tokens",
