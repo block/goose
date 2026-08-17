@@ -4,7 +4,9 @@ set -euo pipefail
 # Builds and publishes all @aaif npm packages:
 #   @aaif/goose-sdk            — ACP TypeScript SDK
 #   @aaif/goose-binary-*       — platform-specific goose CLI binaries
-#   @aaif/goose                — TUI that depends on the above
+#
+# NOTE: @aaif/goose (the terminal TUI, formerly ui/text) is DEPRECATED and no
+# longer built or published. See ui/text/README.md.
 #
 # Linux binaries are built inside Docker containers on their native arch.
 # macOS binaries are built natively (requires macOS host with Rust).
@@ -23,7 +25,6 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 NATIVE_DIR="${REPO_ROOT}/ui/goose-binary"
 SDK_DIR="${REPO_ROOT}/ui/sdk"
-TEXT_DIR="${REPO_ROOT}/ui/text"
 REGISTRY="https://registry.npmjs.org"
 DOCKER_IMAGE="rust:1.92-bookworm"
 
@@ -174,9 +175,6 @@ echo ""
 echo "==> Building @aaif/goose-sdk"
 (cd "${SDK_DIR}" && pnpm run build:ts)
 
-echo "==> Building @aaif/goose"
-(cd "${TEXT_DIR}" && pnpm run build)
-
 # ---------------------------------------------------------------------------
 # Step 5: Publish
 # ---------------------------------------------------------------------------
@@ -211,7 +209,7 @@ trap cleanup_npmrc EXIT
 
 # Publish order matters: dependencies first
 echo "==> Publishing @aaif/goose-sdk"
-(cd "${REPO_ROOT}/ui" && pnpm publish "${PUBLISH_ARGS[@]}" acp)
+(cd "${REPO_ROOT}/ui" && pnpm publish "${PUBLISH_ARGS[@]}" sdk)
 
 echo "==> Publishing native binary packages"
 for plat in darwin-arm64 darwin-x64 linux-arm64 linux-x64; do
@@ -219,9 +217,6 @@ for plat in darwin-arm64 darwin-x64 linux-arm64 linux-x64; do
   echo "    Publishing @aaif/goose-binary-${plat}"
   (cd "${REPO_ROOT}/ui" && pnpm publish "${PUBLISH_ARGS[@]}" "${pkg}")
 done
-
-echo "==> Publishing @aaif/goose"
-(cd "${REPO_ROOT}/ui" && pnpm publish "${PUBLISH_ARGS[@]}" text)
 
 echo ""
 if [[ "${DRY_RUN}" == "true" ]]; then

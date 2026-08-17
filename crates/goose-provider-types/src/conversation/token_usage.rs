@@ -1,7 +1,6 @@
 use std::ops::{Add, AddAssign};
 
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderUsage {
@@ -15,7 +14,7 @@ pub struct ProviderUsage {
     pub cost_source: Option<CostSource>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CostSource {
     ProviderReported,
@@ -68,7 +67,7 @@ impl ProviderUsage {
 /// the cache fields are breakdown subsets of it. Parsers for providers
 /// that report cache tokens separately from input (e.g. Anthropic,
 /// Bedrock) must fold them into `input_tokens`.
-#[derive(Debug, Clone, Serialize, Deserialize, Default, Copy, PartialEq, Eq, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, Copy, PartialEq, Eq)]
 pub struct Usage {
     /// All prompt tokens, including any served from or written to cache.
     /// `cache_read_input_tokens` and `cache_write_input_tokens` are subsets of this.

@@ -15,7 +15,7 @@ import { BottomMenuExtensionSelection } from './bottom_menu/BottomMenuExtensionS
 import { cn } from '../utils';
 import { AlertType, useAlerts } from './alerts';
 import { useModelAndProvider } from './ModelAndProviderContext';
-import { acpListProviderDetails } from '../acp/providers';
+import { acpGetProviderDetails } from '../acp/providers';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { toastError } from '../toasts';
 import MentionPopover, { DisplayItemWithMatch } from './MentionPopover';
@@ -612,8 +612,7 @@ export default function ChatInput({
       }
 
       // Priority 3: Fall back to provider metadata known_models (may be outdated)
-      const providers = await acpListProviderDetails();
-      const currentProvider = providers.find((p) => p.name === provider);
+      const currentProvider = await acpGetProviderDetails(provider);
       if (currentProvider?.metadata?.known_models) {
         const modelConfig = currentProvider.metadata.known_models.find((m) => m.name === model);
         if (modelConfig?.context_limit) {
@@ -655,7 +654,7 @@ export default function ChatInput({
           total: tokenLimit,
         },
         showCompactButton: true,
-        compactButtonDisabled: !totalTokens,
+        compactButtonDisabled: !totalTokens || isLoading,
         onCompact: () => {
           window.dispatchEvent(new CustomEvent(AppEvents.HIDE_ALERT_POPOVER));
           handleSubmit({ msg: MANUAL_COMPACT_TRIGGER, images: [] });
@@ -664,9 +663,8 @@ export default function ChatInput({
       });
     }
 
-    // Keep alert recalculation scoped to token state changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalTokens, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
+  }, [totalTokens, tokenLimit, isTokenLimitLoaded, isLoading, addAlert, clearAlerts]);
 
   // Cleanup effect for component unmount - prevent memory leaks
   useEffect(() => {
@@ -1119,7 +1117,9 @@ export default function ChatInput({
           setLastInterruption(null);
         }
 
-        clearInputState();
+        if (sessionId !== null) {
+          clearInputState();
+        }
         setHistoryIndex(-1);
         setSavedInput('');
         setIsInGlobalHistory(false);
@@ -1134,6 +1134,7 @@ export default function ChatInput({
       handleSubmit,
       lastInterruption,
       clearInputState,
+      sessionId,
     ]
   );
 

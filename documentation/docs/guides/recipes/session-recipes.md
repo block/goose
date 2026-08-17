@@ -159,25 +159,6 @@ You can turn your current goose session into a reusable recipe that includes the
    See the [Recipe Reference Guide](/docs/guides/recipes/recipe-reference) for more information about recipe fields. 
 
    </TabItem> 
-
-
-  <TabItem value="generator" label="Recipe Generator">
-    Use the online [Recipe Generator](https://goose-docs.ai/recipe-generator) tool to create a recipe. First choose your preferred format:
-
-    - **URL Format**: Generates a shareable link that opens a session in goose Desktop
-    - **YAML Format**: Generates YAML content that you can save to file and then run in goose CLI
-
-    Then fill out the recipe form by providing:
-      - A **title** for the recipe
-      - A **description**
-      - A set of **instructions** for the recipe.
-      - An optional initial **prompt**:
-        - In the Desktop, the prompt displays in the chat box.
-        - In the CLI, the prompt provides the initial message to run. Note that a prompt is required to run the recipe in headless (non-interactive) mode.
-      - A set of optional **activities** to display in the Desktop.
-      - YAML format only: Optional **author** contact information and **extensions** the recipe uses.
-
-  </TabItem>
 </Tabs>
 
 :::tip Customize Recipe Generation

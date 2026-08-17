@@ -29,6 +29,7 @@ function makeState(): AdapterState {
   return {
     messages: [message('u1', 'user'), message('a1', 'assistant'), message('a2', 'assistant')],
     localSteerTextByMessageId: new Map(),
+    toolCallStatesById: new Map(),
   };
 }
 
@@ -130,6 +131,7 @@ describe('applyGooseSessionNotification', () => {
       const state: AdapterState = {
         messages: [message('u1', 'user')],
         localSteerTextByMessageId: new Map(),
+        toolCallStatesById: new Map(),
       };
 
       const changes = applyGooseSessionNotification(state, messageUsageNotification('missing'));

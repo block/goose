@@ -131,6 +131,12 @@
   "baseChat.goHome": {
     "defaultMessage": "На главную"
   },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Соединение потеряно. Повторное подключение…"
+  },
+  "baseChat.retry": {
+    "defaultMessage": "Повторить"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Расширение обновлено"
   },
@@ -1194,7 +1200,7 @@
     "defaultMessage": "Секретный ключ"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "Секретный ключ, настроенный на сервере goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "Секретный ключ, настроенный на сервере Goose (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Введите секретный ключ сервера"
@@ -1222,6 +1228,15 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Подключиться к серверу goose, запущенному в другом месте (требуется перезапуск приложения)"
+  },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "Удалённый рабочий каталог (необязательно)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "Абсолютный путь на внешнем бэкенде. Оставьте пустым, чтобы передать локальный рабочий каталог."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
   },
   "goosehintsModal.close": {
     "defaultMessage": "Закрыть"
@@ -2357,8 +2372,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Чаты"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Создано"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Каталог"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Модель"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Статус"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Обновлено"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "Нет недавних чатов"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Ошибка"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Ожидание"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Потоковая передача"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Непрочитанная активность"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Безымянный сеанс"
@@ -2813,6 +2855,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Из шаблона или вручную"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Нет провайдеров, соответствующих \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Поиск провайдеров..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "Логотип {providerName}"
   },
@@ -3016,12 +3064,6 @@
   },
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "Использовать провайдера по умолчанию"
-  },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "Имя рецепта"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "Будет автоматически отформатировано (нижний регистр, дефисы вместо пробелов)"
   },
   "recipeWarningModal.cancel": {
     "defaultMessage": "Отмена"
@@ -3653,6 +3695,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "Session JSON copied"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Text copied"
   },
@@ -3683,6 +3728,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Loading JSON..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "Failed to rename session: {error}"
   },
@@ -3707,6 +3758,9 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "View session JSON"
   },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
+  },
   "sessionIndicators.error": {
     "defaultMessage": "В сеансе возникла ошибка"
   },
@@ -3715,24 +3769,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Потоковая передача"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Этот сеанс не содержит сообщений"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "Сообщения не найдены"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Ошибка загрузки сведений о сеансе"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Повторить попытку"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "Вы"
   },
   "sessions.action.delete": {
     "defaultMessage": "Удалить сеанс"
@@ -3745,6 +3781,12 @@
   },
   "sessions.action.export": {
     "defaultMessage": "Экспортировать сеанс"
+  },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
   },
   "sessions.action.openNewWindow": {
     "defaultMessage": "Открыть в новом окне"
@@ -3844,6 +3886,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "Сеанс «{name}» успешно дублирован"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "Не удалось экспортировать сеанс: {error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "Сеанс успешно экспортирован"
@@ -4061,9 +4106,6 @@
   "settingsView.title": {
     "defaultMessage": "Настройки"
   },
-  "sheet.close": {
-    "defaultMessage": "Закрыть"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "Отмена"
   },
@@ -4129,15 +4171,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "Провайдер {name} настроен"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Приложение Ollama"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "Для использования либо"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "должно быть установлено на вашем компьютере и открыто, либо нужно ввести значение для OLLAMA_HOST."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "Добавить существующий"
@@ -4553,6 +4586,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Изменить"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Прикрепленные изображения:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "Изменить на месте"
   },
@@ -4585,5 +4621,38 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Создать новый сеанс с измененным сообщением"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Удалить изображение из сообщения"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "Недавние"
+  },
+  "providerConfigurationModal.chooseModel": {
+    "defaultMessage": "Выбрать модель"
+  },
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Устарел — используйте вместо него {replacement}."
+  },
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "Адаптер ACP найден"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "Адаптер ACP не найден"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Войдите через CLI провайдера, затем повторите проверку."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Проверить снова"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "Проверка..."
+  },
+  "acpReadinessPanel.connected": {
+    "defaultMessage": "Подключение выполнено"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Проверьте подключение учетной записи, прежде чем продолжить."
   }
 }

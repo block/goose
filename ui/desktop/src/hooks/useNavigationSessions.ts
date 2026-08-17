@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router';
 import { useChatContext } from '../contexts/ChatContext';
 import { getSessionDisplayName } from '../sessions';
 import { AppEvents } from '../constants/events';

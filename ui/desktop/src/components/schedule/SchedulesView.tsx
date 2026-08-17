@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import type { ScheduledJobDto } from '@aaif/goose-sdk';
 import {
   acpListSchedules,

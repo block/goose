@@ -3,7 +3,7 @@ use super::{
 };
 use async_trait::async_trait;
 use reqwest::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
 const TELEGRAM_API_BASE: &str = "https://api.telegram.org";
@@ -16,6 +16,18 @@ const MAX_VOICE_FILE_SIZE: i64 = 20 * 1024 * 1024;
 pub struct TelegramGateway {
     bot_token: String,
     client: Client,
+    api_base: String,
+}
+
+#[derive(Debug, Serialize)]
+struct SendRichMessageRequest<'a> {
+    chat_id: i64,
+    rich_message: InputRichMessage<'a>,
+}
+
+#[derive(Debug, Serialize)]
+struct InputRichMessage<'a> {
+    markdown: &'a str,
 }
 
 #[derive(Debug, Deserialize)]
@@ -106,11 +118,15 @@ impl TelegramGateway {
             .http1_only()
             .build()?;
 
-        Ok(Self { bot_token, client })
+        Ok(Self {
+            bot_token,
+            client,
+            api_base: TELEGRAM_API_BASE.to_string(),
+        })
     }
 
     fn api_url(&self, method: &str) -> String {
-        format!("{}/bot{}/{}", TELEGRAM_API_BASE, self.bot_token, method)
+        format!("{}/bot{}/{}", self.api_base, self.bot_token, method)
     }
 
     async fn get_updates(&self, offset: Option<i64>) -> anyhow::Result<Vec<TelegramUpdate>> {
@@ -141,16 +157,15 @@ impl TelegramGateway {
     }
 
     async fn send_text(&self, chat_id: i64, text: &str) -> anyhow::Result<()> {
-        let html = super::telegram_format::markdown_to_telegram_html(text);
-        for chunk in split_message(&html, MAX_MESSAGE_LENGTH) {
+        let chunks = split_message(text, MAX_MESSAGE_LENGTH);
+        for (index, chunk) in chunks.iter().enumerate() {
             let resp = self
                 .client
-                .post(self.api_url("sendMessage"))
-                .json(&serde_json::json!({
-                    "chat_id": chat_id,
-                    "text": chunk,
-                    "parse_mode": "HTML",
-                }))
+                .post(self.api_url("sendRichMessage"))
+                .json(&SendRichMessageRequest {
+                    chat_id,
+                    rich_message: InputRichMessage { markdown: chunk },
+                })
                 .send()
                 .await?;
 
@@ -158,17 +173,26 @@ impl TelegramGateway {
                 if !body.ok {
                     tracing::warn!(
                         error = body.description.as_deref().unwrap_or("unknown"),
-                        "Telegram rejected HTML, falling back to plain text"
+                        "Telegram rejected rich markdown, falling back to plain text"
                     );
-                    for plain_chunk in split_message(text, MAX_MESSAGE_LENGTH) {
-                        self.client
+                    for plain_chunk in &chunks[index..] {
+                        let plain_resp = self
+                            .client
                             .post(self.api_url("sendMessage"))
                             .json(&serde_json::json!({
                                 "chat_id": chat_id,
                                 "text": plain_chunk,
                             }))
                             .send()
+                            .await?
+                            .json::<TelegramResponse<serde_json::Value>>()
                             .await?;
+                        if !plain_resp.ok {
+                            anyhow::bail!(
+                                "Telegram sendMessage failed: {}",
+                                plain_resp.description.unwrap_or_default()
+                            );
+                        }
                     }
                     return Ok(());
                 }
@@ -247,19 +271,7 @@ impl TelegramGateway {
             std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))?;
         }
 
-        let ext = mime_type
-            .and_then(|m| m.rsplit('/').next())
-            .map(|sub| {
-                // Normalise common MIME sub-types to file extensions.
-                match sub {
-                    "mpeg" => "mp3",
-                    "mp4" | "x-m4a" => "m4a",
-                    "ogg" => "ogg",
-                    "wav" | "x-wav" => "wav",
-                    other => other,
-                }
-            })
-            .unwrap_or("ogg");
+        let ext = Self::voice_file_extension(mime_type);
 
         let filename = format!("voice_{}.{ext}", uuid::Uuid::new_v4());
         let path = dir.join(filename);
@@ -273,6 +285,36 @@ impl TelegramGateway {
         }
 
         Ok(path)
+    }
+
+    fn voice_file_extension(mime_type: Option<&str>) -> String {
+        let media_type = mime_type
+            .and_then(|mime| mime.split(';').next())
+            .map(str::trim)
+            .map(str::to_ascii_lowercase);
+        let subtype = media_type
+            .as_deref()
+            .and_then(|mime| mime.strip_prefix("audio/"));
+
+        let Some(subtype) = subtype else {
+            return "ogg".to_string();
+        };
+
+        match subtype {
+            "mpeg" => "mp3".to_string(),
+            "mp4" | "x-m4a" => "m4a".to_string(),
+            "ogg" => "ogg".to_string(),
+            "wav" | "x-wav" | "vnd.wave" => "wav".to_string(),
+            other
+                if other.len() <= 16
+                    && other.bytes().enumerate().all(|(index, byte)| {
+                        byte.is_ascii_alphanumeric() || (index > 0 && matches!(byte, b'-' | b'_'))
+                    }) =>
+            {
+                other.to_string()
+            }
+            _ => "ogg".to_string(),
+        }
     }
 
     /// Build the text prompt that tells Goose about a voice message file.
@@ -565,6 +607,74 @@ fn split_message(text: &str, max_len: usize) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::matchers::{body_json, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn test_gateway(api_base: String) -> TelegramGateway {
+        TelegramGateway {
+            bot_token: "test-token".to_string(),
+            client: Client::builder().no_proxy().build().unwrap(),
+            api_base,
+        }
+    }
+
+    #[tokio::test]
+    async fn send_text_uses_rich_markdown() {
+        let server = MockServer::start().await;
+        let markdown = "| Tool | Status |\n|---|---|\n| **MCP** | `ready` |";
+
+        Mock::given(method("POST"))
+            .and(path("/bottest-token/sendRichMessage"))
+            .and(body_json(serde_json::json!({
+                "chat_id": 123,
+                "rich_message": { "markdown": markdown },
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ok": true,
+                "result": {},
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        test_gateway(server.uri())
+            .send_text(123, markdown)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn send_text_falls_back_from_rejected_rich_markdown_chunk() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/bottest-token/sendRichMessage"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ok": false,
+                "description": "invalid rich markdown",
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/bottest-token/sendMessage"))
+            .and(body_json(serde_json::json!({
+                "chat_id": 123,
+                "text": "broken **markdown",
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ok": true,
+                "result": {},
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        test_gateway(server.uri())
+            .send_text(123, "broken **markdown")
+            .await
+            .unwrap();
+    }
 
     #[test]
     fn split_short_message() {
@@ -779,6 +889,63 @@ mod tests {
         let bytes = b"unknown format";
         let path = TelegramGateway::save_voice_file(bytes, None).unwrap();
         assert!(path.to_str().unwrap().ends_with(".ogg"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn voice_file_extension_preserves_safe_audio_formats() {
+        let cases = [
+            (Some("audio/mpeg"), "mp3"),
+            (Some("audio/mp4"), "m4a"),
+            (Some("audio/x-m4a"), "m4a"),
+            (Some("audio/ogg; codecs=opus"), "ogg"),
+            (Some("audio/x-wav"), "wav"),
+            (Some("audio/vnd.wave"), "wav"),
+            (Some("audio/flac"), "flac"),
+            (Some("audio/WEBM"), "webm"),
+            (Some("Audio/MPEG"), "mp3"),
+            (Some("AUDIO/WEBM"), "webm"),
+        ];
+
+        for (mime_type, expected) in cases {
+            assert_eq!(TelegramGateway::voice_file_extension(mime_type), expected);
+        }
+    }
+
+    #[test]
+    fn voice_file_extension_rejects_filename_syntax() {
+        let invalid = [
+            None,
+            Some("application/ogg"),
+            Some("audio/..\\..\\outside"),
+            Some("audio/../../outside"),
+            Some("audio/ogg:stream"),
+            Some("audio/ogg.stream"),
+            Some("audio/ogg\nnext"),
+            Some("audio/ogg; touch=outside"),
+            Some("audio/ogg$HOME"),
+            Some("audio/åudio"),
+            Some("audio/this-subtype-is-too-long"),
+        ];
+
+        for mime_type in invalid {
+            assert_eq!(TelegramGateway::voice_file_extension(mime_type), "ogg");
+        }
+    }
+
+    #[test]
+    fn save_voice_file_contains_untrusted_mime_before_pairing() {
+        let bytes = b"unpaired voice data";
+        let path = TelegramGateway::save_voice_file(bytes, Some("audio/..\\..\\outside")).unwrap();
+
+        let expected_dir = std::env::temp_dir().join("goose_voice");
+        assert_eq!(path.parent(), Some(expected_dir.as_path()));
+        let filename = path.file_name().unwrap().to_str().unwrap();
+        assert!(filename.starts_with("voice_"));
+        assert!(filename.ends_with(".ogg"));
+        assert!(!filename.chars().any(|c| matches!(c, '/' | '\\' | ':')));
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+
         let _ = std::fs::remove_file(&path);
     }
 

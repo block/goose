@@ -1,18 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
 import { IpcRendererEvent } from 'electron';
-import {
-  HashRouter,
-  Routes,
-  Route,
-  useNavigate,
-  useLocation,
-  useSearchParams,
-} from 'react-router-dom';
+import { HashRouter, Routes, Route, useNavigate, useLocation, useSearchParams } from 'react-router';
 import { importNostrSessionFromDeepLink } from './sessionLinks';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ExtensionInstallModal } from './components/ExtensionInstallModal';
 import RecipeParamsModalContainer from './components/RecipeParamsModalContainer';
-import { isRecipeParamsCancelled } from './acp/errors';
+import { isRecipeParamsCancelled, isRecipeParameterScopesUnsupported } from './acp/errors';
 import { toast, ToastContainer } from 'react-toastify';
 import AnnouncementModal from './components/AnnouncementModal';
 import TelemetryConsentPrompt from './components/TelemetryConsentPrompt';
@@ -58,6 +51,7 @@ import { usePageViewTracking } from './hooks/useAnalytics';
 import { trackErrorWithContext } from './utils/analytics';
 import { AppEvents } from './constants/events';
 import { registerPlatformEventHandlers } from './utils/platform_events';
+import { reconnectAcpAfterSystemResume } from './acp/acpConnection';
 
 function PageViewTracker() {
   usePageViewTracking();
@@ -80,7 +74,7 @@ export function resolveSessionInitialMessage(
   );
 }
 
-const PairRouteWrapper = ({
+export const PairRouteWrapper = ({
   activeSessions,
 }: {
   activeSessions: Array<{
@@ -140,6 +134,11 @@ const PairRouteWrapper = ({
           });
         } catch (error) {
           if (isRecipeParamsCancelled(error)) {
+            navigate('/');
+            return;
+          }
+          if (isRecipeParameterScopesUnsupported(error)) {
+            toast.error(error.message);
             navigate('/');
             return;
           }
@@ -394,6 +393,12 @@ export function AppInner() {
       console.error('Error sending reactReady:', error);
       setFatalError(`React ready notification failed: ${errorMessage(error, 'Unknown error')}`);
     }
+  }, []);
+
+  useEffect(() => {
+    const handleSystemResume = () => reconnectAcpAfterSystemResume();
+    window.electron.on('system-resume', handleSystemResume);
+    return () => window.electron.off('system-resume', handleSystemResume);
   }, []);
 
   useEffect(() => {

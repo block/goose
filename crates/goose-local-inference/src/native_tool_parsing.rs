@@ -18,6 +18,8 @@ pub(crate) fn message_from_native_tool_text(
         append_tool_calls(&mut content, message.get("tool_calls"));
     } else if let Some(tool_calls) = parse_tool_calls_json(generated_text) {
         append_tool_calls(&mut content, Some(&tool_calls));
+    } else if serde_json::from_str::<Value>(generated_text.trim()).is_ok() {
+        return Ok(None);
     } else if generated_text.contains("<function=") {
         let (prefix, tool_calls) = parse_xml_tool_calls(generated_text);
         if let Some(prefix) = prefix {
@@ -318,6 +320,24 @@ mod tests {
     fn parses_xml_tool_calls() {
         let text = r#"<function=developer__shell><parameter=command>pwd</parameter></function>"#;
         let message = message_from_native_tool_text(text, "msg").unwrap().unwrap();
+        assert_eq!(tool_count(&message), 1);
+    }
+
+    #[test]
+    fn ignores_xml_tool_call_inside_json_string() {
+        let text = r#"{"example":"<function=developer__shell><parameter=command>pwd</parameter></function>"}"#;
+
+        assert!(message_from_native_tool_text(text, "msg")
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn parses_json_tool_call_with_xml_text_in_arguments() {
+        let text =
+            r#"{"name":"developer__shell","arguments":{"command":"echo <function=example>"}}"#;
+        let message = message_from_native_tool_text(text, "msg").unwrap().unwrap();
+
         assert_eq!(tool_count(&message), 1);
     }
 }

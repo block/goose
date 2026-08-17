@@ -6,7 +6,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
 use rmcp::model::{
-    CallToolResult, Content, ErrorCode, ErrorData, GetPromptResult, Implementation,
+    CallToolResult, ContentBlock, ErrorCode, ErrorData, GetPromptResult, Implementation,
     InitializeResult, JsonObject, ListPromptsResult, ListResourcesResult, ListToolsResult,
     ReadResourceResult, ServerCapabilities, ServerNotification, Tool, ToolAnnotations,
 };
@@ -103,7 +103,7 @@ impl ExtensionManagerClient {
 
     async fn handle_search_available_extensions(
         &self,
-    ) -> Result<Vec<Content>, ExtensionManagerToolError> {
+    ) -> Result<Vec<ContentBlock>, ExtensionManagerToolError> {
         if let Some(weak_ref) = &self.context.extension_manager {
             if let Some(extension_manager) = weak_ref.upgrade() {
                 match extension_manager.search_available_extensions().await {
@@ -123,7 +123,7 @@ impl ExtensionManagerClient {
     async fn handle_manage_extensions(
         &self,
         arguments: Option<JsonObject>,
-    ) -> Result<Vec<Content>, ExtensionManagerToolError> {
+    ) -> Result<Vec<ContentBlock>, ExtensionManagerToolError> {
         let arguments = arguments.ok_or(ExtensionManagerToolError::MissingParameter {
             param_name: "arguments".to_string(),
         })?;
@@ -146,7 +146,7 @@ impl ExtensionManagerClient {
         &self,
         action: ManageExtensionAction,
         extension_name: String,
-    ) -> Result<Vec<Content>, ErrorData> {
+    ) -> Result<Vec<ContentBlock>, ErrorData> {
         let extension_manager = self
             .context
             .extension_manager
@@ -165,7 +165,7 @@ impl ExtensionManagerClient {
                 .remove_extension(&extension_name)
                 .await
                 .map(|_| {
-                    vec![Content::text(format!(
+                    vec![ContentBlock::text(format!(
                         "The extension '{}' has been disabled successfully",
                         extension_name
                     ))]
@@ -191,7 +191,7 @@ impl ExtensionManagerClient {
             .add_extension(config, None, None, None)
             .await
             .map(|_| {
-                vec![Content::text(format!(
+                vec![ContentBlock::text(format!(
                     "The extension '{}' has been installed successfully",
                     extension_name
                 ))]
@@ -203,7 +203,7 @@ impl ExtensionManagerClient {
         &self,
         session_id: &str,
         arguments: Option<JsonObject>,
-    ) -> Result<Vec<Content>, ExtensionManagerToolError> {
+    ) -> Result<Vec<ContentBlock>, ExtensionManagerToolError> {
         if let Some(weak_ref) = &self.context.extension_manager {
             if let Some(extension_manager) = weak_ref.upgrade() {
                 let params = arguments
@@ -235,7 +235,7 @@ impl ExtensionManagerClient {
         &self,
         session_id: &str,
         arguments: Option<JsonObject>,
-    ) -> Result<Vec<Content>, ExtensionManagerToolError> {
+    ) -> Result<Vec<ContentBlock>, ExtensionManagerToolError> {
         if let Some(weak_ref) = &self.context.extension_manager {
             if let Some(extension_manager) = weak_ref.upgrade() {
                 let params = arguments
@@ -408,6 +408,7 @@ impl McpClientTrait for ExtensionManagerClient {
             tools: self.get_tools().await,
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 
@@ -433,7 +434,7 @@ impl McpClientTrait for ExtensionManagerClient {
 
         match result {
             Ok(content) => Ok(CallToolResult::success(content)),
-            Err(error) => Ok(CallToolResult::error(vec![Content::text(
+            Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(
                 error.to_string(),
             )])),
         }

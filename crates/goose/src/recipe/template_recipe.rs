@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    path::Path,
+    path::{Component, Path},
 };
 
 use crate::recipe::{Recipe, BUILT_IN_RECIPE_DIR_PARAM};
@@ -124,21 +124,61 @@ fn add_template_in_env(
 
     if let Some(recipe_dir) = recipe_dir {
         env.set_loader(move |name| {
-            let path = Path::new(recipe_dir.as_str()).join(name);
-            match std::fs::read_to_string(&path) {
-                Ok(content) => Ok(Some(content)),
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-                Err(e) => Err(minijinja::Error::new(
-                    minijinja::ErrorKind::InvalidOperation,
-                    "could not read template",
-                )
-                .with_source(e)),
-            }
+            load_template_from_recipe_dir(Path::new(recipe_dir.as_str()), name)
         });
     }
 
     env.add_template(CURRENT_TEMPLATE_NAME, content)?;
     Ok(env)
+}
+
+fn load_template_from_recipe_dir(
+    recipe_dir: &Path,
+    name: &str,
+) -> Result<Option<String>, minijinja::Error> {
+    if Path::new(name).components().any(|component| {
+        matches!(
+            component,
+            Component::ParentDir | Component::RootDir | Component::Prefix(_)
+        )
+    }) {
+        return Err(minijinja::Error::new(
+            minijinja::ErrorKind::InvalidOperation,
+            "template path must stay within the recipe directory",
+        ));
+    }
+
+    let recipe_dir = match std::fs::canonicalize(recipe_dir) {
+        Ok(path) => path,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(template_loader_error(error)),
+    };
+    let path = match std::fs::canonicalize(recipe_dir.join(name)) {
+        Ok(path) => path,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(template_loader_error(error)),
+    };
+
+    if !path.starts_with(&recipe_dir) {
+        return Err(minijinja::Error::new(
+            minijinja::ErrorKind::InvalidOperation,
+            "template path must stay within the recipe directory",
+        ));
+    }
+
+    match std::fs::read_to_string(path) {
+        Ok(content) => Ok(Some(content)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(template_loader_error(error)),
+    }
+}
+
+fn template_loader_error(error: std::io::Error) -> minijinja::Error {
+    minijinja::Error::new(
+        minijinja::ErrorKind::InvalidOperation,
+        "could not read template",
+    )
+    .with_source(error)
 }
 
 fn get_env_with_template_variables(
@@ -197,6 +237,74 @@ pub fn parse_recipe_content(
 
 #[cfg(test)]
 mod tests {
+    mod template_loader_tests {
+        use std::{collections::HashMap, fs};
+
+        use crate::recipe::{
+            template_recipe::render_recipe_content_with_params, BUILT_IN_RECIPE_DIR_PARAM,
+        };
+
+        fn render(content: &str, recipe_dir: &std::path::Path) -> anyhow::Result<String> {
+            let params = HashMap::from([(
+                BUILT_IN_RECIPE_DIR_PARAM.to_string(),
+                recipe_dir.display().to_string(),
+            )]);
+            render_recipe_content_with_params(content, &params)
+        }
+
+        #[test]
+        fn rejects_absolute_template_paths() {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let recipe_dir = temp_dir.path().join("recipe");
+            let secret = temp_dir.path().join("secret.txt");
+            fs::create_dir(&recipe_dir).unwrap();
+            fs::write(&secret, "secret").unwrap();
+
+            let content = format!(r#"{{% include "{}" %}}"#, secret.display());
+
+            assert!(render(&content, &recipe_dir).is_err());
+        }
+
+        #[test]
+        fn rejects_parent_directory_traversal() {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let recipe_dir = temp_dir.path().join("recipe");
+            fs::create_dir(&recipe_dir).unwrap();
+            fs::write(temp_dir.path().join("secret.txt"), "secret").unwrap();
+
+            assert!(render(r#"{% include "../secret.txt" %}"#, &recipe_dir).is_err());
+        }
+
+        #[cfg(unix)]
+        #[test]
+        fn rejects_symlinks_outside_recipe_directory() {
+            use std::os::unix::fs::symlink;
+
+            let temp_dir = tempfile::tempdir().unwrap();
+            let recipe_dir = temp_dir.path().join("recipe");
+            let outside_dir = temp_dir.path().join("outside");
+            fs::create_dir(&recipe_dir).unwrap();
+            fs::create_dir(&outside_dir).unwrap();
+            fs::write(outside_dir.join("secret.txt"), "secret").unwrap();
+            symlink(&outside_dir, recipe_dir.join("linked")).unwrap();
+
+            assert!(render(r#"{% include "linked/secret.txt" %}"#, &recipe_dir).is_err());
+        }
+
+        #[test]
+        fn renders_nested_templates_within_recipe_directory() {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let recipe_dir = temp_dir.path().join("recipe");
+            let nested_dir = recipe_dir.join("nested");
+            fs::create_dir_all(&nested_dir).unwrap();
+            fs::write(nested_dir.join("partial.txt"), "nested content").unwrap();
+
+            let rendered = render(r#"{% include "nested/partial.txt" %}"#, &recipe_dir).unwrap();
+
+            assert_eq!(rendered, "nested content");
+        }
+    }
+
     mod render_content_with_params_tests {
         use std::collections::HashMap;
 

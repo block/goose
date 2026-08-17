@@ -175,6 +175,39 @@ pub fn is_context_length_exceeded_message(text: &str) -> bool {
         .iter()
         .any(|phrase| text_lower.contains(phrase));
 
+    let words = text_lower.split(|character: char| !character.is_ascii_alphanumeric());
+    let mentions_request = words.clone().any(|word| word == "request");
+    let mentions_bytes = words.clone().any(|word| matches!(word, "byte" | "bytes"));
+    let mentions_content_length = ["content length", "content-length"]
+        .iter()
+        .any(|phrase| text_lower.contains(phrase));
+    let mentions_request_data_size = [
+        "request size",
+        "requestsize",
+        "request body size",
+        "request payload size",
+        "payload size",
+        "body size",
+    ]
+    .iter()
+    .any(|phrase| text_lower.contains(phrase));
+    let request_data_too_large = [
+        "request body is too large",
+        "request body too large",
+        "request payload is too large",
+        "request payload too large",
+        "payload is too large",
+        "payload too large",
+    ]
+    .iter()
+    .any(|phrase| text_lower.contains(phrase));
+    let mentions_byte_limit = mentions_request_data_size
+        || request_data_too_large
+        || (mentions_content_length && (mentions_request || mentions_bytes));
+    if mentions_byte_limit && mentions_overflow {
+        return true;
+    }
+
     mentions_prompt_input_tokens && mentions_limit && mentions_overflow
 }
 
@@ -248,12 +281,45 @@ pub fn map_http_error_to_provider_error(
     error
 }
 
+#[derive(Clone, Copy)]
+pub struct ResponseDeadline(tokio::time::Instant);
+
+pub fn set_response_deadline(response: &mut Response, deadline: tokio::time::Instant) {
+    response.extensions_mut().insert(ResponseDeadline(deadline));
+}
+
+pub async fn send_bounded(
+    request: reqwest::RequestBuilder,
+    timeout: Duration,
+) -> Result<Response, ProviderError> {
+    let deadline = tokio::time::Instant::now() + timeout;
+    let mut response = tokio::time::timeout_at(deadline, request.send())
+        .await
+        .map_err(|_| {
+            ProviderError::NetworkError(
+                "Request timed out — check your network connection and try again.".to_string(),
+            )
+        })??;
+    set_response_deadline(&mut response, deadline);
+    Ok(response)
+}
+
+pub async fn read_error_body(response: Response) -> Option<String> {
+    match response.extensions().get::<ResponseDeadline>().copied() {
+        Some(ResponseDeadline(deadline)) => tokio::time::timeout_at(deadline, response.text())
+            .await
+            .ok()
+            .and_then(Result::ok),
+        None => response.text().await.ok(),
+    }
+}
+
 pub async fn handle_status(response: Response) -> Result<Response, ProviderError> {
     let status = response.status();
     if !status.is_success() {
         let url = sanitize_url(response.url().as_str());
         let headers = response.headers().clone();
-        let body = response.text().await.unwrap_or_default();
+        let body = read_error_body(response).await.unwrap_or_default();
         let payload = serde_json::from_str::<Value>(&body).ok();
         let mut err = map_http_error_to_provider_error(status, payload.clone(), &url);
         if let ProviderError::RateLimitExceeded { details, .. } = &err {

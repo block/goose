@@ -6,7 +6,6 @@ use std::{collections::HashMap, path::Path, str::FromStr};
 use anyhow::Result;
 use include_dir::{include_dir, Dir};
 use serde::{Deserialize, Deserializer, Serialize};
-use utoipa::ToSchema;
 
 pub static FIXED_PROVIDERS: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/declarative/definitions");
 
@@ -17,10 +16,12 @@ pub(crate) mod declarative_providers {
         alibaba,
         atomic_chat,
         atlascloud,
+        celeris,
         cerebras,
         deepseek,
         empiriolabs,
         fireworks,
+        friendli,
         futurmix,
         groq,
         iflytek,
@@ -28,6 +29,7 @@ pub(crate) mod declarative_providers {
         inception,
         llama_swap,
         lmstudio,
+        meta,
         minimax,
         mistral,
         moonshot,
@@ -41,6 +43,7 @@ pub(crate) mod declarative_providers {
         ovhcloud,
         perplexity,
         routstr,
+        sakana,
         saladcloud,
         scaleway,
         tanzu,
@@ -68,7 +71,7 @@ pub fn fixed_provider_config_entries() -> Vec<(&'static str, &'static str)> {
     declarative_providers::fixed_provider_config_entries()
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnvVarConfig {
     pub name: String,
     #[serde(default)]
@@ -82,7 +85,7 @@ pub struct EnvVarConfig {
     pub default: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ProviderEngine {
     #[serde(alias = "openai_compatible")]
@@ -106,7 +109,7 @@ impl FromStr for ProviderEngine {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeclarativeProviderConfig {
     pub name: String,
     pub engine: ProviderEngine,
@@ -145,6 +148,8 @@ pub struct DeclarativeProviderConfig {
     pub fast_model: Option<String>,
     #[serde(default)]
     pub preserves_thinking: bool,
+    #[serde(default)]
+    pub setup: Option<goose_provider_types::canonical::catalog::ProviderSetupMetadata>,
 }
 
 fn default_requires_auth() -> bool {
@@ -364,6 +369,16 @@ mod tests {
             deserialize_provider_config(crate::groq::JSON).expect("groq.json should parse");
 
         assert!(!config.preserves_thinking);
+    }
+
+    #[test]
+    fn setup_metadata_rejects_unknown_fields() {
+        let mut definition: serde_json::Value = serde_json::from_str(crate::groq::JSON).unwrap();
+        definition["setup"]["description"] = json!("This field would be ignored");
+
+        let error = deserialize_provider_config(&definition.to_string()).unwrap_err();
+
+        assert!(error.to_string().contains("unknown field `description`"));
     }
 
     fn placeholder_var_names(template: &str) -> Vec<String> {

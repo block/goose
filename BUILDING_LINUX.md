@@ -27,17 +27,26 @@ sudo dnf install dpkg-dev fakeroot gcc gcc-c++ make libxcb-devel vulkan-headers 
 sudo zypper install dpkg fakeroot gcc gcc-c++ make vulkan-headers vulkan-loader glslc
 ```
 
-**android / termux:**
+**Android / Termux:**
 
-goose is not officially support termux build yet, you need some minor patch to fix build issues.
-We will publish goose (block-goose) into termux-packages. <!-- NOTE: package name kept for backwards compat -->
-If you want to try there is a non-official build, https://github.com/shawn111/goose/releases/download/termux/goose-termux-aarch64.tar.bz2
-For more details, see: https://github.com/aaif-goose/goose/pull/3890
+The `download_cli.sh` installer detects Termux and automatically selects the
+musl portable build (`GOOSE_LINUX_VARIANT=musl`). To install:
 
 ```bash
-pkg install rust
-pkg install cmake protobuf clang build-essential
+curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh | bash
 ```
+
+To build from source in Termux:
+
+```bash
+pkg install rust cmake protobuf clang build-essential
+cargo build --release -p goose-cli --bin goose --no-default-features --features portable-default
+```
+
+> **Note:** The musl/portable build disables `local-inference` (V8) and
+> `system-keyring` (D-Bus SecretService) since neither is available on Android.
+
+Original PR: https://github.com/aaif-goose/goose/pull/3890
 
 ### Development Tools
 

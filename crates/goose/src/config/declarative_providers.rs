@@ -15,7 +15,6 @@ use std::str::FromStr;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use utoipa::ToSchema;
 
 pub use goose_providers::declarative::*;
 
@@ -57,7 +56,7 @@ pub fn expand_env_vars(template: &str, env_vars: &[EnvVarConfig]) -> Result<Stri
     Ok(result)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoadedProvider {
     pub config: DeclarativeProviderConfig,
     pub is_editable: bool,
@@ -216,6 +215,7 @@ pub fn create_custom_provider(
         setup_steps: vec![],
         fast_model: None,
         preserves_thinking,
+        setup: None,
     };
 
     let custom_providers_dir = custom_providers_dir();
@@ -296,6 +296,7 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             setup_steps: existing_config.setup_steps,
             fast_model: existing_config.fast_model.clone(),
             preserves_thinking,
+            setup: existing_config.setup,
         };
 
         let file_path = custom_provider_file_path(&updated_config.name)?;
@@ -550,6 +551,8 @@ mod tests {
                 currency: None,
                 supports_cache_control: None,
                 reasoning: false,
+                thinking_preservation_format: None,
+                request_params: None,
             }],
             headers: None,
             timeout_seconds: None,
@@ -564,6 +567,7 @@ mod tests {
             setup_steps: Vec::new(),
             fast_model: None,
             preserves_thinking: true,
+            setup: None,
         }
     }
 

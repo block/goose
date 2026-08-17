@@ -39,7 +39,7 @@ use rmcp::model::Tool;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex as StdMutex};
+use std::sync::{Arc, Mutex as StdMutex, Weak};
 use tokio::sync::{Mutex, Notify};
 use uuid::Uuid;
 
@@ -96,17 +96,17 @@ pub fn builtin_chat_template_names() -> Vec<String> {
     llamacpp::builtin_chat_template_names()
 }
 
-static RUNTIME: StdMutex<Option<Arc<InferenceRuntime>>> = StdMutex::new(None);
+static RUNTIME: StdMutex<Weak<InferenceRuntime>> = StdMutex::new(Weak::new());
 
 fn current_runtime() -> Option<Arc<InferenceRuntime>> {
-    RUNTIME.lock().expect("runtime lock poisoned").clone()
+    RUNTIME.lock().expect("runtime lock poisoned").upgrade()
 }
 
 impl InferenceRuntime {
     pub fn get_or_init() -> Result<Arc<Self>> {
         let mut guard = RUNTIME.lock().expect("runtime lock poisoned");
-        if let Some(runtime) = guard.as_ref() {
-            return Ok(runtime.clone());
+        if let Some(runtime) = guard.upgrade() {
+            return Ok(runtime);
         }
         let llamacpp_backend: Arc<dyn LocalInferenceBackend> = Arc::new(LlamaCppBackend::new()?);
         let mlx_backend: Arc<dyn LocalInferenceBackend> = Arc::new(MlxBackend::new());
@@ -118,7 +118,7 @@ impl InferenceRuntime {
             cold_load_lock: Mutex::new(()),
             backends,
         });
-        *guard = Some(runtime.clone());
+        *guard = Arc::downgrade(&runtime);
         Ok(runtime)
     }
 
@@ -314,13 +314,13 @@ pub fn recommend_local_model(runtime: &InferenceRuntime) -> String {
         let mut models: Vec<_> = registry
             .list_models()
             .iter()
-            .filter(|m| is_featured_model(&m.id) && m.size_bytes > 0)
+            .filter(|m| is_featured_model(&m.id) && m.file_size() > 0)
             .collect();
-        models.sort_by_key(|model| std::cmp::Reverse(model.size_bytes));
+        models.sort_by_key(|model| std::cmp::Reverse(model.file_size()));
 
         // Return largest that fits in available memory
         for model in &models {
-            if available_memory >= model.size_bytes {
+            if available_memory >= model.file_size() {
                 return model.id.clone();
             }
         }

@@ -25,6 +25,8 @@ import {
   selectNextChatExtensions,
   type NextChatExtensionDraft,
 } from '../utils/nextChatExtensions';
+import { formatAcpError } from '../acp/errors';
+import { toastError } from '../toasts';
 
 const i18n = defineMessages({
   goodMorning: { id: 'hub.goodMorning', defaultMessage: 'Good morning' },
@@ -116,6 +118,7 @@ export default function Hub({
       });
     } catch (error) {
       console.error('Failed to create session:', error);
+      toastError({ title: "Couldn't start chat", msg: formatAcpError(error) });
       setIsCreatingSession(false);
     }
   };

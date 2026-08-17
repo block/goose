@@ -131,6 +131,12 @@
   "baseChat.goHome": {
     "defaultMessage": "Ir al inicio"
   },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Conexión perdida. Reconectando…"
+  },
+  "baseChat.retry": {
+    "defaultMessage": "Reintentar"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extensión actualizada"
   },
@@ -1194,7 +1200,7 @@
     "defaultMessage": "Secret Key"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "La secret key configurada en el servidor goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "La clave secreta configurada en el servidor Goose (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Introduce la secret key del servidor"
@@ -1222,6 +1228,15 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Conéctate a un servidor goose que se ejecuta en otro lugar (requiere reiniciar la app)"
+  },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "Directorio de trabajo remoto (opcional)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "Ruta absoluta en el backend externo. Déjelo vacío para enviar el directorio de trabajo local."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
   },
   "goosehintsModal.close": {
     "defaultMessage": "Cerrar"
@@ -2357,8 +2372,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Chats"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Creado"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Directorio"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Modelo"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Estado"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Actualizado"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "No hay chats recientes"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Error"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Inactivo"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Transmitiendo"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Actividad sin leer"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Sesión sin título"
@@ -2813,6 +2855,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Desde plantilla o configuración manual"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Ningún proveedor coincide con \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Buscar proveedores..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "Logotipo de {providerName}"
   },
@@ -3016,12 +3064,6 @@
   },
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "Usar el proveedor por defecto"
-  },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "Nombre de la receta"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "Se formateará automáticamente (minúsculas, guiones en lugar de espacios)"
   },
   "recipeWarningModal.cancel": {
     "defaultMessage": "Cancelar"
@@ -3653,6 +3695,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "JSON de la sesión copiado"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Texto copiado"
   },
@@ -3683,6 +3728,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Cargando JSON..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "No se pudo renombrar la sesión: {error}"
   },
@@ -3707,6 +3758,9 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "Ver el JSON de la sesión"
   },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
+  },
   "sessionIndicators.error": {
     "defaultMessage": "La sesión encontró un error"
   },
@@ -3715,24 +3769,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Streaming"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Esta sesión no contiene ningún mensaje"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "No se encontraron mensajes"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Error al cargar los detalles de la sesión"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Reintentar"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "Tú"
   },
   "sessions.action.delete": {
     "defaultMessage": "Eliminar sesión"
@@ -3745,6 +3781,12 @@
   },
   "sessions.action.export": {
     "defaultMessage": "Exportar sesión"
+  },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
   },
   "sessions.action.openNewWindow": {
     "defaultMessage": "Abrir en una ventana nueva"
@@ -3844,6 +3886,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "Sesión \"{name}\" duplicada correctamente"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "No se pudo exportar la sesión: {error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "Sesión exportada correctamente"
@@ -4061,9 +4106,6 @@
   "settingsView.title": {
     "defaultMessage": "Ajustes"
   },
-  "sheet.close": {
-    "defaultMessage": "Cerrar"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "Cancelar"
   },
@@ -4129,15 +4171,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "El proveedor {name} está configurado"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "App de Ollama"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "Para usarlo, o bien la"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "debe estar instalada en tu máquina y abierta, o debes ingresar un valor para OLLAMA_HOST."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "Agregar existente"
@@ -4553,6 +4586,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Editar"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Imágenes adjuntas:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "Editar en el sitio"
   },
@@ -4585,5 +4621,38 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Crear una nueva sesión con el mensaje editado"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Eliminar imagen del mensaje"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "Recientes"
+  },
+  "providerConfigurationModal.chooseModel": {
+    "defaultMessage": "Elegir modelo"
+  },
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Obsoleto: usa {replacement} en su lugar."
+  },
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "Adaptador ACP encontrado"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "Adaptador ACP no encontrado"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Inicia sesión mediante la CLI del proveedor y vuelve a comprobarlo."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Comprobar de nuevo"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "Comprobando..."
+  },
+  "acpReadinessPanel.connected": {
+    "defaultMessage": "Conectado correctamente"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Comprueba la conexión de tu cuenta antes de continuar."
   }
 }
