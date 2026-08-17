@@ -406,13 +406,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
             match content {
                 MessageContentBlock::Text(text) if !text.text.is_empty() => {
                     if message.role == Role::Assistant {
-                        // The Responses API requires `annotations` on `output_text` items
-                        // replayed in the input history (unlike streamed output, where it's
-                        // optional) -- omitting it causes a 400 "Required property
-                        // 'annotations' is missing" as soon as a prior assistant turn is
-                        // replayed back, e.g. on the very next turn of any multi-turn
-                        // conversation. We never produce real annotations ourselves, so an
-                        // empty array is the correct replay value.
+                        // Responses output_text items require annotations even when empty.
                         text_items.push(json!({
                             "type": "output_text",
                             "text": text.text,
@@ -2339,7 +2333,7 @@ mod tests {
     }
 
     #[test]
-    fn test_assistant_text_uses_output_text_type() {
+    fn test_assistant_text_uses_output_text_with_annotations() {
         use crate::conversation::message::Message;
 
         let messages = vec![Message::assistant().with_text("hello")];
@@ -2362,41 +2356,6 @@ mod tests {
         assert_eq!(input[0]["role"], "assistant");
         assert_eq!(input[0]["content"][0]["type"], "output_text");
         assert_eq!(input[0]["content"][0]["text"], "hello");
-    }
-
-    #[test]
-    fn test_replayed_assistant_output_text_includes_annotations() {
-        // Regression test: the Responses API requires `annotations` on `output_text`
-        // items replayed in the input history (unlike streamed output, where it's
-        // optional). Omitting it produces a 400 "Required property 'annotations' is
-        // missing" as soon as a prior assistant turn is replayed, i.e. on essentially
-        // any second turn of a multi-turn conversation with a Responses-routed model
-        // (gpt-5*/o*, see `is_openai_responses_model`).
-        use crate::conversation::message::Message;
-
-        let messages = vec![Message::assistant().with_text("hello")];
-
-        let model_config = ModelConfig {
-            model_name: "gpt-5.5".to_string(),
-            context_limit: None,
-            temperature: None,
-            max_tokens: None,
-            toolshim: false,
-            toolshim_model: None,
-            request_params: None,
-            reasoning: None,
-            request_headers: None,
-        };
-
-        let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
-        let input = result["input"].as_array().unwrap();
-
-        assert!(
-            input[0]["content"][0].get("annotations").is_some(),
-            "replayed output_text item must include an `annotations` field, \
-             got: {:?}",
-            input[0]["content"][0]
-        );
         assert_eq!(input[0]["content"][0]["annotations"], serde_json::json!([]));
     }
 
