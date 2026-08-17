@@ -2074,6 +2074,7 @@ impl Agent {
 
         let conversation_to_compact = conversation.clone();
         let reply_span = tracing::Span::current();
+        reply_span.record("gen_ai.agent.name", gen_ai_telemetry::agent_name(&session));
 
         Ok(Box::pin(async_stream::try_stream! {
             for event in command_preamble {
