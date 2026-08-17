@@ -102,7 +102,7 @@ fn is_mandatory_reasoning_error(error: &ProviderError) -> bool {
 }
 
 fn is_gemini_model(model_name: &str) -> bool {
-    model_name.starts_with("google/")
+    model_name.starts_with("google/gemini")
 }
 
 fn is_json_object_key(content: &str, start: usize, end: usize) -> bool {
@@ -152,6 +152,13 @@ fn gemini_schema_ref_note(safe_key: &str) -> String {
     format!(
         "[OpenRouter/Gemini compatibility: interpret `{safe_key}` as the JSON Schema key formed by `$` followed by `ref`.]\n"
     )
+}
+
+fn apply_gemini_compatibility(model_name: &str, payload: &mut Value, messages: &[Message]) {
+    if is_gemini_model(model_name) {
+        escape_gemini_schema_ref_keys_in_tool_responses(payload);
+        openrouter_format::add_reasoning_details_to_request(payload, messages);
+    }
 }
 
 /// OpenRouter translates OpenAI `role: tool` messages into Gemini
@@ -408,10 +415,7 @@ impl Provider for OpenRouterProvider {
             apply_chat_payload_breakpoints(&mut payload);
         }
 
-        if is_gemini_model(&model_config.model_name) {
-            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload);
-            openrouter_format::add_reasoning_details_to_request(&mut payload, messages);
-        }
+        apply_gemini_compatibility(&model_config.model_name, &mut payload, messages);
         let sent_reasoning_disable =
             openrouter_format::apply_reasoning_config(&mut payload, model_config);
 
@@ -611,6 +615,36 @@ mod tests {
             escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
             0
         );
+    }
+
+    #[test]
+    fn gemini_compatibility_only_applies_to_gemini_models() {
+        let tool_result = r##"{"$ref":"#/components/schemas/Usage"}"##;
+        let mut gemma_payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": tool_result
+            }]
+        });
+        let original_gemma_payload = gemma_payload.clone();
+
+        apply_gemini_compatibility("google/gemma-3-27b-it", &mut gemma_payload, &[]);
+
+        assert_eq!(gemma_payload, original_gemma_payload);
+
+        let mut gemini_payload = original_gemma_payload;
+        apply_gemini_compatibility("google/gemini-2.5-flash", &mut gemini_payload, &[]);
+
+        assert_eq!(
+            gemini_payload["messages"][0]["content"],
+            format!(
+                "{}{{\"dollar_ref\":\"#/components/schemas/Usage\"}}",
+                gemini_schema_ref_note("dollar_ref")
+            )
+        );
+        assert!(is_gemini_model("google/gemini-2.0-flash-exp:free"));
+        assert!(!is_gemini_model("google/gemma-3-27b-it"));
     }
 
     #[test]
