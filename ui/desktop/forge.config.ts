@@ -1,12 +1,24 @@
 const { FusesPlugin } = require('@electron-forge/plugin-fuses');
 const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 const { resolve } = require('path');
+const { getReleaseAssets } = require('./scripts/release-assets.js');
 
 const isLinuxVulkanBuild = process.env.GOOSE_DESKTOP_LINUX_VARIANT === 'vulkan';
 
+// When RELEASE_VERSION is set (semver release CI), the version becomes part of
+// the on-disk names: `Avocado Work-1.45.0.app`, `Avocado Work-1.45.0.dmg`,
+// `Avocado Work-Setup-1.45.0-x64.exe`. Left unset (local `pnpm make` and the
+// moving `dev` channel), names stay unversioned so those flows are unchanged.
+// Every name is derived from the single source of truth so CI, the updater, and
+// the website agree.
+const RELEASE_VERSION = process.env.RELEASE_VERSION || '';
+const BUNDLE_NAME = process.env.GOOSE_BUNDLE_NAME || 'Avocado Work';
+const ASSETS = getReleaseAssets(BUNDLE_NAME, RELEASE_VERSION);
+const PACKAGED_APP_NAME = ASSETS.macArm64.appBundle.replace(/\.app$/, '');
+
 let cfg = {
   asar: true,
-  name: 'Avocado Work',
+  name: PACKAGED_APP_NAME,
   executableName: 'avocado-work',
   extraResource: ['src/bin', 'src/images', 'src/app-update.yml'],
   icon: 'src/images/icon',
@@ -90,7 +102,7 @@ module.exports = {
       name: '@electron-forge/maker-dmg',
       platforms: ['darwin'],
       config: {
-        name: 'Avocado Work',
+        name: PACKAGED_APP_NAME,
         icon: 'src/images/icon.icns',
         overwrite: true,
       },
@@ -102,7 +114,7 @@ module.exports = {
         name: 'avocado-work',
         authors: 'Avocado Technology',
         exe: 'avocado-work.exe',
-        setupExe: 'Avocado Work-Setup-x64.exe',
+        setupExe: ASSETS.winX64.website,
         setupIcon: 'src/images/icon.ico',
       },
     },

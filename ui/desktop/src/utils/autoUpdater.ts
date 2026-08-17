@@ -372,11 +372,14 @@ export function setupAutoUpdater(tray?: Tray) {
   log.info(`App path: ${app.getAppPath()}`);
   log.info(`Resources path: ${process.resourcesPath}`);
 
-  // Set the feed URL for GitHub releases
+  // Set the feed URL for GitHub releases. Must target this fork — pointing at
+  // upstream aaif-goose/goose meant the native updater checked the wrong repo.
+  // `releaseType: 'release'` excludes prereleases (the moving `dev` tag), so the
+  // native path tracks the semver `stable`/`vX.Y.Z` releases only.
   const feedConfig = {
     provider: 'github' as const,
-    owner: 'aaif-goose',
-    repo: 'goose',
+    owner: process.env.GITHUB_OWNER || 'Avocado-Technology',
+    repo: process.env.GITHUB_REPO || 'avcd-agent',
     releaseType: 'release' as const,
   };
 

@@ -27,7 +27,7 @@ interface UpdateCheckResult {
 }
 
 export function resolveUpdateAssetName(
-  platform: NodeJS.Platform,
+  platform: typeof process.platform,
   arch: string,
   bundleName = process.env.GOOSE_BUNDLE_NAME || 'Avocado Work'
 ): string {
@@ -38,6 +38,43 @@ export function resolveUpdateAssetName(
     return `${bundleName}-Setup-x64.exe`;
   }
   return `${bundleName}-linux-${arch}.zip`;
+}
+
+/**
+ * Release assets are versioned (e.g. `Avocado Work-1.45.0.zip`) and GitHub
+ * replaces spaces with periods in asset names, so match by shape rather than an
+ * exact filename. Mirrors `assetMatchers` in scripts/release-assets.js.
+ */
+export function updateAssetPattern(
+  platform: typeof process.platform,
+  arch: string,
+  bundleName = process.env.GOOSE_BUNDLE_NAME || 'Avocado Work'
+): RegExp {
+  const escaped = bundleName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '[ .]');
+  // The version suffix is "-<semver>"; GitHub also sanitizes spaces to periods.
+  const ver = '(?:[-_. ]?[0-9][0-9A-Za-z.+-]*)?';
+  if (platform === 'darwin') {
+    return arch === 'arm64'
+      ? new RegExp(`^${escaped}${ver}\\.zip$`, 'i')
+      : new RegExp(`^${escaped}${ver}_intel_mac\\.zip$`, 'i');
+  }
+  if (platform === 'win32') {
+    return new RegExp(`^${escaped}-Setup${ver}-x64\\.exe$`, 'i');
+  }
+  return new RegExp(`^${escaped}-linux-${arch}${ver}\\.zip$`, 'i');
+}
+
+const SEMVER_PREFIX = /^\d+\.\d+\.\d+/;
+
+/** Pull a semver out of versioned asset names when the tag isn't itself semver. */
+function extractVersionFromAssets(assets: Array<{ name: string }>): string | undefined {
+  for (const asset of assets) {
+    const match = asset.name.match(/[-.](\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)(?:_intel_mac)?\.(?:dmg|zip|exe)$/i);
+    if (match) {
+      return match[1];
+    }
+  }
+  return undefined;
 }
 
 export class GitHubUpdater {
@@ -89,15 +126,33 @@ export class GitHubUpdater {
       log.info(`GitHubUpdater: Release published at: ${release.published_at}`);
       log.info(`GitHubUpdater: Release assets count: ${release.assets.length}`);
 
-      const latestVersion = release.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
+      let latestVersion = release.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
+      // The `stable` pointer tag isn't a semver; recover the real version from
+      // the versioned asset names so version comparison still works.
+      if (!SEMVER_PREFIX.test(latestVersion)) {
+        const fromAssets = extractVersionFromAssets(release.assets);
+        if (fromAssets) {
+          log.info(
+            `GitHubUpdater: tag "${release.tag_name}" is not semver; using ${fromAssets} from assets`
+          );
+          latestVersion = fromAssets;
+        }
+      }
       const currentVersion = app.getVersion();
 
       log.info(
         `GitHubUpdater: Current version: ${currentVersion}, Latest version: ${latestVersion}`
       );
 
-      // Compare versions
-      const updateAvailable = compareVersions(latestVersion, currentVersion) > 0;
+      // Compare versions (guard against a non-semver tag we couldn't recover).
+      let updateAvailable = false;
+      try {
+        updateAvailable = compareVersions(latestVersion, currentVersion) > 0;
+      } catch (compareError) {
+        log.warn(
+          `GitHubUpdater: Could not compare versions ("${latestVersion}" vs "${currentVersion}"): ${errorMessage(compareError, 'unknown')}`
+        );
+      }
       log.info(`GitHubUpdater: Update available: ${updateAvailable}`);
 
       if (!updateAvailable) {
@@ -110,23 +165,22 @@ export class GitHubUpdater {
       const platform = process.platform;
       const arch = process.arch;
       let downloadUrl: string | undefined;
-      const assetName = resolveUpdateAssetName(platform, arch, this.bundleName);
+      const assetPattern = updateAssetPattern(platform, arch, this.bundleName);
 
       log.info(`GitHubUpdater: Looking for asset for platform: ${platform}, arch: ${arch}`);
-      log.info(`GitHubUpdater: Looking for asset named: ${assetName}`);
+      log.info(`GitHubUpdater: Matching asset pattern: ${assetPattern}`);
       log.info(`GitHubUpdater: Available assets: ${release.assets.map((a) => a.name).join(', ')}`);
 
-      if (/^Goose(\.zip|_intel_mac\.zip|-win32-|-Setup)/i.test(assetName)) {
-        throw new Error(`Refusing Goose-named update asset: ${assetName}`);
+      const asset = release.assets.find((a) => assetPattern.test(a.name));
+      if (asset && /^Goose(\.zip|_intel_mac\.zip|-win32-|-Setup)/i.test(asset.name)) {
+        throw new Error(`Refusing Goose-named update asset: ${asset.name}`);
       }
-
-      const asset = release.assets.find((a) => a.name.toLowerCase() === assetName.toLowerCase());
       if (asset) {
         downloadUrl = asset.browser_download_url;
         log.info(`GitHubUpdater: Found matching asset: ${asset.name} (${asset.size} bytes)`);
         log.info(`GitHubUpdater: Download URL: ${downloadUrl}`);
       } else {
-        log.warn(`GitHubUpdater: No matching asset found for ${assetName}`);
+        log.warn(`GitHubUpdater: No matching asset found for pattern ${assetPattern}`);
       }
 
       if (!downloadUrl) {

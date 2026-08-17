@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { resolveUpdateAssetName } from '../githubUpdater';
+import { resolveUpdateAssetName, updateAssetPattern } from '../githubUpdater';
 
 const require = createRequire(import.meta.url);
 const releaseAssetsPath = resolve(
@@ -36,5 +36,22 @@ describe('resolveUpdateAssetName', () => {
       expect(name.startsWith('Goose')).toBe(false);
       expect(name).not.toMatch(/^Goose(\.zip|_intel_mac\.zip|-win32-|-Setup)/);
     }
+  });
+});
+
+describe('updateAssetPattern', () => {
+  it('matches versioned update assets and GitHub period-sanitized names', () => {
+    const arm = updateAssetPattern('darwin', 'arm64', 'Avocado Work');
+    expect(arm.test('Avocado Work.zip')).toBe(true);
+    expect(arm.test('Avocado.Work-1.45.0.zip')).toBe(true);
+    // The arm64 zip pattern must not swallow the Intel zip.
+    expect(arm.test('Avocado Work-1.45.0_intel_mac.zip')).toBe(false);
+
+    const intel = updateAssetPattern('darwin', 'x64', 'Avocado Work');
+    expect(intel.test('Avocado.Work-1.45.0_intel_mac.zip')).toBe(true);
+
+    const win = updateAssetPattern('win32', 'x64', 'Avocado Work');
+    expect(win.test('Avocado Work-Setup-x64.exe')).toBe(true);
+    expect(win.test('Avocado.Work-Setup-1.45.0-x64.exe')).toBe(true);
   });
 });

@@ -5,7 +5,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { getReleaseAssets } = require('./release-assets.js');
+const { getReleaseAssets, getBundleName } = require('./release-assets.js');
 
 function usage() {
   console.error(
@@ -65,8 +65,8 @@ function yamlString(value) {
   return JSON.stringify(value);
 }
 
-function manifestFilePairs() {
-  const assets = getReleaseAssets();
+function manifestFilePairs(version = '') {
+  const assets = getReleaseAssets(getBundleName(), version);
   return [
     {
       sourceName: assets.macArm64.update,
@@ -80,7 +80,7 @@ function manifestFilePairs() {
 }
 
 function writeManifest({ directory, version }) {
-  const files = manifestFilePairs();
+  const files = manifestFilePairs(version);
 
   const entries = files.map(({ sourceName, updateName }) => {
     const sourcePath = path.join(directory, sourceName);

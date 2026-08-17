@@ -127,7 +127,7 @@ check_local() {
 const fs = require('node:fs');
 const path = require('node:path');
 const { getReleaseAssets } = require('./ui/desktop/scripts/release-assets.js');
-const assets = getReleaseAssets();
+const assets = getReleaseAssets(undefined, process.env.RELEASE_VERSION || '');
 const root = path.resolve(process.argv[1]);
 const platform = process.platform;
 const checks = [];
@@ -223,10 +223,12 @@ check_dev_channel() {
   grep -q 'allowUpdates: true' "$wf" || fail "$wf must set allowUpdates: true"
   ok "publishes tag dev with allowUpdates"
 
-  grep -q 'Avocado Work.dmg' "$wf" || fail "$wf must upload Avocado Work.dmg"
-  grep -q 'Avocado Work_intel_mac.dmg' "$wf" || fail "$wf must upload Avocado Work_intel_mac.dmg"
-  grep -q 'Avocado Work-Setup-x64.exe' "$wf" || fail "$wf must upload Avocado Work-Setup-x64.exe"
-  ok "website installer filenames present"
+  # DEV builds are unversioned; the workflow uploads by extension glob so a
+  # single release-action step covers the mac/win installer set.
+  grep -qE '(\*\.dmg|Avocado Work.dmg)' "$wf" || fail "$wf must upload the mac DMG(s)"
+  grep -qE '(\*\.exe|Avocado Work-Setup)' "$wf" || fail "$wf must upload the Windows installer"
+  grep -qE '(\*\.zip|Avocado Work.*\.zip)' "$wf" || fail "$wf must upload the update zip(s)"
+  ok "installer artifacts present"
 
   if grep -q 'windows_variant: cuda' "$wf" || grep -q 'bundle-desktop-linux' "$wf"; then
     fail "$wf must not require CUDA or Linux jobs (DEV is mac arm64 + mac x64 + win x64)"

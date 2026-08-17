@@ -24,6 +24,24 @@ concurrency:
 
 jobs:
   # ------------------------------------
+  # 0) Resolve the version that becomes part of every asset filename.
+  #    Tags (v1.2.3) -> "1.2.3"; release branches -> "" (unversioned, unchanged).
+  # ------------------------------------
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ------------------------------------
   # 1) Build CLI targets not produced by desktop workflows
   # ------------------------------------
   build-cli-linux:
@@ -46,10 +64,12 @@ jobs:
   # 3) Bundle CLI and Desktop (macOS ARM64)
   # ------------------------------------------------------------
   bundle-macos-arm64:
+    needs: version
     uses: ./.github/workflows/bundle-macos.yml
     permissions:
       contents: read
     with:
+      version: ${{ needs.version.outputs.version }}
       target: aarch64-apple-darwin
       package_cli: true
       package_desktop: true
@@ -61,10 +81,12 @@ jobs:
   # 4) Bundle CLI and Desktop (macOS x64)
   # ------------------------------------------------------------
   bundle-macos-x64:
+    needs: version
     uses: ./.github/workflows/bundle-macos.yml
     permissions:
       contents: read
     with:
+      version: ${{ needs.version.outputs.version }}
       target: x86_64-apple-darwin
       package_cli: true
       package_desktop: true
@@ -82,11 +104,13 @@ jobs:
   # 6) Bundle CLI and Desktop (Windows)
   # ------------------------------------------------------------
   bundle-windows:
+    needs: version
     uses: ./.github/workflows/bundle-windows.yml
     permissions:
       id-token: write
       contents: read
     with:
+      version: ${{ needs.version.outputs.version }}
       package_cli: true
       package_desktop: true
       signing: ${{ startsWith(github.ref, 'refs/tags/') }}
@@ -94,11 +118,13 @@ jobs:
     secrets: inherit
 
   bundle-windows-cuda:
+    needs: version
     uses: ./.github/workflows/bundle-windows.yml
     permissions:
       id-token: write
       contents: read
     with:
+      version: ${{ needs.version.outputs.version }}
       package_cli: true
       package_desktop: true
       signing: ${{ startsWith(github.ref, 'refs/tags/') }}
@@ -153,7 +179,7 @@ jobs:
             goose-*.zip
             Avocado Work*.zip
             Avocado Work*.dmg
-            Avocado Work-Setup-x64.exe
+            Avocado Work-Setup*-x64.exe
             *.deb
             *.rpm
             *.flatpak
@@ -170,7 +196,7 @@ jobs:
             goose-*.zip
             Avocado Work*.zip
             Avocado Work*.dmg
-            Avocado Work-Setup-x64.exe
+            Avocado Work-Setup*-x64.exe
             *.deb
             *.rpm
             *.flatpak
@@ -192,7 +218,7 @@ jobs:
             goose-*.zip
             Avocado Work*.zip
             Avocado Work*.dmg
-            Avocado Work-Setup-x64.exe
+            Avocado Work-Setup*-x64.exe
             *.deb
             *.rpm
             *.flatpak

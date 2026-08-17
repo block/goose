@@ -83,6 +83,47 @@ describe('release-assets contract', () => {
     );
   });
 
+  it('embeds the version in every filename when a version is supplied', () => {
+    delete process.env.GOOSE_BUNDLE_NAME;
+    const mod = loadReleaseAssets() as unknown as {
+      getReleaseAssets: (
+        bundleName?: string,
+        version?: string
+      ) => {
+        version: string;
+        macArm64: { website: string; update: string; appDir: string; appBundle: string };
+        macX64: { website: string; update: string };
+        winX64: { website: string; portableZip: string };
+      };
+    };
+    const assets = mod.getReleaseAssets('Avocado Work', 'v1.45.0');
+    expect(assets.version).toBe('1.45.0');
+    expect(assets.macArm64.website).toBe('Avocado Work-1.45.0.dmg');
+    expect(assets.macArm64.update).toBe('Avocado Work-1.45.0.zip');
+    expect(assets.macArm64.appDir).toBe('Avocado Work-1.45.0-darwin-arm64');
+    expect(assets.macArm64.appBundle).toBe('Avocado Work-1.45.0.app');
+    expect(assets.macX64.website).toBe('Avocado Work-1.45.0_intel_mac.dmg');
+    expect(assets.winX64.website).toBe('Avocado Work-Setup-1.45.0-x64.exe');
+    expect(assets.winX64.portableZip).toBe('Avocado Work-1.45.0-win32-x64.zip');
+  });
+
+  it('matches versioned and unversioned assets, including GitHub period-sanitized names', () => {
+    delete process.env.GOOSE_BUNDLE_NAME;
+    const mod = loadReleaseAssets() as unknown as {
+      assetMatchers: (bundleName?: string) => {
+        macArm64Website: RegExp;
+        macX64Website: RegExp;
+        winWebsite: RegExp;
+      };
+    };
+    const m = mod.assetMatchers('Avocado Work');
+    expect(m.macArm64Website.test('Avocado Work.dmg')).toBe(true);
+    expect(m.macArm64Website.test('Avocado.Work-1.45.0.dmg')).toBe(true);
+    expect(m.macArm64Website.test('Avocado Work-1.45.0_intel_mac.dmg')).toBe(false);
+    expect(m.macX64Website.test('Avocado.Work-1.45.0_intel_mac.dmg')).toBe(true);
+    expect(m.winWebsite.test('Avocado.Work-Setup-1.45.0-x64.exe')).toBe(true);
+  });
+
   it('uses a custom bundle name without hard-coding Avocado Work', () => {
     process.env.GOOSE_BUNDLE_NAME = 'Test Brand';
     const { getBundleName, getReleaseAssets, allReleaseFilenames } = loadReleaseAssets();

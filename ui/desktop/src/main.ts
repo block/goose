@@ -57,6 +57,23 @@ import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-insta
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { buildCSP } from './utils/csp';
 
+// The packaged bundle may be versioned (e.g. "Avocado Work-1.45.0.app"), but the
+// runtime identity must stay stable so auto-update continuity and the user's
+// sessions/config (stored under userData) survive across versions. Pin the name
+// and userData path here, before any app.getPath('userData') access below.
+const STABLE_APP_NAME = process.env.GOOSE_BUNDLE_NAME || 'Avocado Work';
+if (app.getName() !== STABLE_APP_NAME) {
+  app.setName(STABLE_APP_NAME);
+  try {
+    app.setPath('userData', path.join(app.getPath('appData'), STABLE_APP_NAME));
+  } catch (err) {
+    log.warn(`Could not pin userData path to "${STABLE_APP_NAME}": ${String(err)}`);
+  }
+}
+
+// Human-facing name that includes the version, e.g. "Avocado Work 1.45.0".
+const DISPLAY_APP_NAME = `${STABLE_APP_NAME} ${app.getVersion()}`;
+
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
   return UPDATES_ENABLED || process.env.ENABLE_DEV_UPDATES === 'true';
@@ -1281,6 +1298,7 @@ const createChat = async (
 
     mainWindow = new BrowserWindow({
       show: false,
+      title: DISPLAY_APP_NAME,
       titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
       trafficLightPosition: process.platform === 'darwin' ? { x: 20, y: 16 } : undefined,
       vibrancy: process.platform === 'darwin' ? 'window' : undefined,
