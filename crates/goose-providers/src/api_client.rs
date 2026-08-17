@@ -34,11 +34,12 @@ pub struct ApiClient {
     transport_policy: TransportPolicy,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum TransportPolicy {
     Default,
     HttpsOnly,
     LoopbackHttp,
+    SameOrigin(url::Origin),
 }
 
 pub enum AuthMethod {
@@ -305,7 +306,7 @@ impl ApiClient {
     fn rebuild_client(&mut self) -> Result<()> {
         let mut client_builder =
             Self::client_builder(self.timeout).default_headers(self.default_headers.clone());
-        client_builder = Self::configure_transport(client_builder, self.transport_policy);
+        client_builder = Self::configure_transport(client_builder, &self.transport_policy);
 
         // Configure TLS if needed
         if let Some(ref tls_config) = self.tls_config {
@@ -318,7 +319,7 @@ impl ApiClient {
 
     fn configure_transport(
         client_builder: reqwest::ClientBuilder,
-        transport_policy: TransportPolicy,
+        transport_policy: &TransportPolicy,
     ) -> reqwest::ClientBuilder {
         match transport_policy {
             TransportPolicy::Default => client_builder,
@@ -344,6 +345,19 @@ impl ApiClient {
                             attempt.error("redirect violates the loopback transport policy")
                         }
                     }))
+            }
+            TransportPolicy::SameOrigin(origin) => {
+                let origin = origin.clone();
+                client_builder.redirect(Policy::custom(move |attempt| {
+                    if attempt.previous().len() >= 10 {
+                        return attempt.error("too many redirects");
+                    }
+                    if attempt.url().origin() == origin {
+                        attempt.follow()
+                    } else {
+                        attempt.error("redirect crosses the authenticated request origin")
+                    }
+                }))
             }
         }
     }
@@ -415,6 +429,15 @@ impl ApiClient {
 
     pub fn with_loopback_http_only(mut self) -> Result<Self> {
         self.transport_policy = TransportPolicy::LoopbackHttp;
+        self.rebuild_client()?;
+        Ok(self)
+    }
+
+    pub fn with_same_origin_redirects(mut self) -> Result<Self> {
+        let origin = url::Url::parse(&self.host)
+            .map_err(|error| anyhow::anyhow!("Invalid base URL: {}", error))?
+            .origin();
+        self.transport_policy = TransportPolicy::SameOrigin(origin);
         self.rebuild_client()?;
         Ok(self)
     }
