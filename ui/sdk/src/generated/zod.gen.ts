@@ -665,13 +665,6 @@ export const zResetPromptRequest_unstable = z.object({
 });
 
 /**
- * Delete a session.
- */
-export const zDeleteSessionRequest = z.object({
-    sessionId: z.string()
-});
-
-/**
  * List configured extensions and any warnings.
  */
 export const zGetConfigExtensionsRequest_unstable = z.record(z.unknown());
@@ -2891,7 +2884,6 @@ export const zExtRequest = z.object({
             zGetPromptRequest_unstable,
             zSavePromptRequest_unstable,
             zResetPromptRequest_unstable,
-            zDeleteSessionRequest,
             zGetConfigExtensionsRequest_unstable,
             zGetAvailableExtensionsRequest_unstable,
             zAddConfigExtensionRequest_unstable,
