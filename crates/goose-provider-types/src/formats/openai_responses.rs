@@ -95,6 +95,9 @@ pub enum ResponseContentBlock {
     Refusal {
         refusal: String,
     },
+    ReasoningText {
+        text: String,
+    },
     ToolCall {
         id: String,
         name: String,
@@ -385,6 +388,9 @@ pub enum ContentBlockPart {
     },
     Refusal {
         refusal: String,
+    },
+    ReasoningText {
+        text: String,
     },
     ToolCall {
         id: String,
@@ -830,6 +836,12 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                                 content.push(MessageContentBlock::text(refusal));
                             }
                         }
+                        ResponseContentBlock::ReasoningText { text } => {
+                            let text = sanitize_unicode_tags(text);
+                            if !text.is_empty() {
+                                content.push(MessageContentBlock::thinking(text, ""));
+                            }
+                        }
                         ResponseContentBlock::ToolCall { id, name, input } => {
                             let id = sanitize_tool_request_id(id, &mut tool_request_ids)?;
                             content.push(MessageContentBlock::tool_request(
@@ -904,6 +916,12 @@ fn process_streaming_output_items(
                             let refusal = sanitize_unicode_tags(&refusal);
                             if !refusal.is_empty() && !is_text_response {
                                 content.push(MessageContentBlock::text(refusal));
+                            }
+                        }
+                        ContentBlockPart::ReasoningText { text } => {
+                            let text = sanitize_unicode_tags(&text);
+                            if !text.is_empty() {
+                                content.push(MessageContentBlock::thinking(text, ""));
                             }
                         }
                         ContentBlockPart::ToolCall {
@@ -2582,6 +2600,43 @@ mod tests {
             content.len(),
             1,
             "refusal should appear in non-streaming path"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_reasoning_text_content_part_deserializes() {
+        let json = r#"{"type":"response.content_part.added","content_index":0,"item_id":"64cda83e-03b0-4e61-ab77-30d06ffe7f23","output_index":0,"part":{"type":"reasoning_text","text":"thinking..."},"sequence_number":3}"#;
+
+        let event: ResponsesStreamEvent = serde_json::from_str(json).unwrap();
+        match event {
+            ResponsesStreamEvent::ContentBlockPartAdded { part, .. } => match part {
+                ContentBlockPart::ReasoningText { text } => {
+                    assert_eq!(text, "thinking...");
+                }
+                _ => panic!("expected ReasoningText part"),
+            },
+            _ => panic!("expected ContentBlockPartAdded event"),
+        }
+    }
+
+    #[test]
+    fn test_reasoning_text_surfaces_as_thinking_block() -> anyhow::Result<()> {
+        let output_items = vec![ResponseOutputItemInfo::Message {
+            id: Some("msg_1".to_string()),
+            status: Some("completed".to_string()),
+            role: "assistant".to_string(),
+            content: vec![ContentBlockPart::ReasoningText {
+                text: "thinking...".to_string(),
+            }],
+        }];
+
+        let content = process_streaming_output_items(output_items, true)?;
+        assert_eq!(content.len(), 1, "reasoning text should be kept");
+        assert!(
+            matches!(content[0], MessageContentBlock::Thinking(_)),
+            "reasoning text should become a thinking block"
         );
 
         Ok(())
