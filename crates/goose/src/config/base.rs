@@ -1,5 +1,6 @@
 use crate::config::paths::Paths;
 use crate::config::GooseMode;
+use crate::providers::private_file::write_private_file;
 use fs2::FileExt;
 use goose_providers::thinking::ThinkingEffort;
 #[cfg(feature = "system-keyring")]
@@ -17,25 +18,13 @@ use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
 fn write_secrets_file(path: &Path, content: &str) -> std::io::Result<()> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .mode(0o600)
-            .open(path)?;
+    write_private_file(path, content)
+}
 
-        file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
-        file.set_len(0)?;
-        file.write_all(content.as_bytes())
-    }
-
-    #[cfg(not(unix))]
-    {
-        std::fs::write(path, content)
-    }
+fn secrets_lock_path(path: &Path) -> PathBuf {
+    let mut lock_path = path.as_os_str().to_os_string();
+    lock_path.push(".lock");
+    PathBuf::from(lock_path)
 }
 
 #[cfg(feature = "system-keyring")]
@@ -684,32 +673,7 @@ impl Config {
             cached_secrets.clone()
         } else {
             tracing::debug!("secrets cache miss, fetching from storage");
-
-            let loaded = match &self.secrets {
-                #[cfg(feature = "system-keyring")]
-                SecretStorage::Keyring { service } => {
-                    let result =
-                        self.handle_keyring_operation(|entry| entry.get_password(), service, None);
-
-                    match result {
-                        Ok(content) => {
-                            let values: HashMap<String, Value> = serde_json::from_str(&content)?;
-                            values
-                        }
-                        Err(ConfigError::FallbackToFileStorage) => {
-                            self.fallback_to_file_storage()?
-                        }
-                        Err(ConfigError::KeyringError(msg))
-                            if msg.contains("No entry found")
-                                || msg.contains("No matching entry found") =>
-                        {
-                            self.fallback_to_file_storage()?
-                        }
-                        Err(e) => return Err(e),
-                    }
-                }
-                SecretStorage::File { path } => self.read_secrets_from_file(path)?,
-            };
+            let loaded = self.load_secrets_from_storage()?;
 
             *cache = Some(loaded.clone());
             loaded
@@ -944,6 +908,59 @@ impl Config {
         Ok(result)
     }
 
+    fn load_secrets_from_storage(&self) -> Result<HashMap<String, Value>, ConfigError> {
+        match &self.secrets {
+            #[cfg(feature = "system-keyring")]
+            SecretStorage::Keyring { service } => {
+                let result =
+                    self.handle_keyring_operation(|entry| entry.get_password(), service, None);
+
+                match result {
+                    Ok(content) => Ok(serde_json::from_str(&content)?),
+                    Err(ConfigError::FallbackToFileStorage) => self.fallback_to_file_storage(),
+                    Err(ConfigError::KeyringError(msg))
+                        if msg.contains("No entry found")
+                            || msg.contains("No matching entry found") =>
+                    {
+                        self.fallback_to_file_storage()
+                    }
+                    Err(e) => Err(e),
+                }
+            }
+            SecretStorage::File { path } => self.read_secrets_from_file(path),
+        }
+    }
+
+    fn secrets_mutation_lock_path(&self) -> PathBuf {
+        match &self.secrets {
+            #[cfg(feature = "system-keyring")]
+            SecretStorage::Keyring { .. } => secrets_lock_path(&Self::secrets_file_path()),
+            SecretStorage::File { path } => secrets_lock_path(path),
+        }
+    }
+
+    fn lock_secrets_for_mutation(&self) -> Result<std::fs::File, ConfigError> {
+        let lock_path = self.secrets_mutation_lock_path();
+        if let Some(parent) = lock_path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+        {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| ConfigError::DirectoryError(e.to_string()))?;
+        }
+
+        let lock_file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(lock_path)?;
+        lock_file
+            .lock_exclusive()
+            .map_err(|e| ConfigError::LockError(e.to_string()))?;
+        Ok(lock_file)
+    }
+
     fn write_all_secrets(&self, values: &HashMap<String, Value>) -> Result<(), ConfigError> {
         match &self.secrets {
             #[cfg(feature = "system-keyring")]
@@ -974,7 +991,8 @@ impl Config {
         mutate: impl FnOnce(&mut HashMap<String, Value>),
     ) -> Result<(), ConfigError> {
         let _guard = self.guard.lock().unwrap();
-        let mut values = self.all_secrets()?;
+        let _storage_lock = self.lock_secrets_for_mutation()?;
+        let mut values = self.load_secrets_from_storage()?;
         mutate(&mut values);
         self.write_all_secrets(&values)
     }
@@ -1543,6 +1561,82 @@ mod tests {
         let value2: String = config.get_secret("key2")?;
         assert!(matches!(result1, Err(ConfigError::NotFound(_))));
         assert_eq!(value2, "secret2");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_secret_mutation_does_not_restore_deleted_secret() -> Result<(), ConfigError> {
+        let directory = TempDir::new().unwrap();
+        let config_path = directory.path().join("config.yaml");
+        let secrets_path = directory.path().join("secrets.yaml");
+        let first = Config::new_with_file_secrets(&config_path, &secrets_path)?;
+        let second = Config::new_with_file_secrets(&config_path, &secrets_path)?;
+
+        first.set_secret("revoked", &"old-token")?;
+        first.set_secret("retained", &"retained-value")?;
+        let _: String = first.get_secret("revoked")?;
+
+        second.delete_secret("revoked")?;
+        first.set_secret("new", &"new-value")?;
+
+        let current = Config::new_with_file_secrets(&config_path, &secrets_path)?;
+        assert!(matches!(
+            current.get_secret::<String>("revoked"),
+            Err(ConfigError::NotFound(_))
+        ));
+        assert_eq!(current.get_secret::<String>("retained")?, "retained-value");
+        assert_eq!(current.get_secret::<String>("new")?, "new-value");
+
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_secret_mutation_atomically_replaces_storage_file() -> Result<(), ConfigError> {
+        use std::io::Read;
+        use std::os::unix::fs::MetadataExt;
+
+        let directory = TempDir::new().unwrap();
+        let config_path = directory.path().join("config.yaml");
+        let secrets_path = directory.path().join("secrets.yaml");
+        let config = Config::new_with_file_secrets(&config_path, &secrets_path)?;
+
+        config.set_secret("key", &"old-value")?;
+        let mut old_file = std::fs::File::open(&secrets_path)?;
+        let old_inode = old_file.metadata()?.ino();
+
+        config.set_secret("key", &"new-value")?;
+
+        assert_ne!(std::fs::metadata(&secrets_path)?.ino(), old_inode);
+        let mut old_contents = String::new();
+        old_file.read_to_string(&mut old_contents)?;
+        let old_values: HashMap<String, Value> = serde_yaml::from_str(&old_contents)?;
+        assert_eq!(
+            old_values.get("key"),
+            Some(&Value::String("old-value".into()))
+        );
+        assert_eq!(config.get_secret::<String>("key")?, "new-value");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_secret_reads_remain_cached_across_instances() -> Result<(), ConfigError> {
+        let directory = TempDir::new().unwrap();
+        let config_path = directory.path().join("config.yaml");
+        let secrets_path = directory.path().join("secrets.yaml");
+        let first = Config::new_with_file_secrets(&config_path, &secrets_path)?;
+        let second = Config::new_with_file_secrets(&config_path, &secrets_path)?;
+
+        first.set_secret("key", &"initial")?;
+        assert_eq!(first.get_secret::<String>("key")?, "initial");
+
+        second.set_secret("key", &"updated")?;
+        assert_eq!(first.get_secret::<String>("key")?, "initial");
+
+        first.invalidate_secrets_cache();
+        assert_eq!(first.get_secret::<String>("key")?, "updated");
 
         Ok(())
     }
