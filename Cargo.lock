@@ -3969,7 +3969,7 @@ dependencies = [
  "pem-rfc7468",
  "pkcs8 0.10.2",
  "rand_core 0.6.4",
- "sec1",
+ "sec1 0.7.3",
  "subtle",
  "zeroize",
 ]
@@ -5291,11 +5291,10 @@ dependencies = [
  "goose-provider-types",
  "include_dir",
  "pem 4.0.0",
- "pkcs1",
  "pkcs8 0.11.0",
  "reqwest 0.13.4",
  "rmcp 3.0.0",
- "sec1",
+ "sec1 0.8.1",
  "serde",
  "serde_json",
  "tempfile",
@@ -9750,6 +9749,16 @@ dependencies = [
  "generic-array",
  "pkcs8 0.10.2",
  "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "sec1"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d56d437c2f19203ce5f7122e507831de96f3d2d4d3be5af44a0b0a09d8a80e4d"
+dependencies = [
+ "der 0.8.1",
  "zeroize",
 ]
 
