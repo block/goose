@@ -30,26 +30,15 @@ impl GooseAcpAgent {
                     .data(format!("Failed to list apps: {}", error.message))
             })?;
 
+        McpAppCache::restore_bundled_default_apps(&mut apps);
+        McpAppCache::validate_apps(&apps).map_err(|error| {
+            agent_client_protocol::Error::internal_error()
+                .data(format!("Failed to list apps: {error}"))
+        })?;
+
         if let Some(cache) = cache.as_ref() {
-            let active_extensions = apps
-                .iter()
-                .flat_map(|app| app.mcp_servers.iter().cloned())
-                .collect::<std::collections::HashSet<_>>();
-
-            for extension_name in active_extensions {
-                if let Err(error) = cache.delete_extension_apps(&extension_name) {
-                    warn!(
-                        extension_name,
-                        %error,
-                        "Failed to clean MCP app cache for extension"
-                    );
-                }
-            }
-
-            for app in &apps {
-                if let Err(error) = cache.store_app(app) {
-                    warn!(app = %app.resource.name, %error, "Failed to cache MCP app");
-                }
+            if let Err(error) = cache.refresh_apps(&apps) {
+                warn!(%error, "Failed to refresh MCP app cache");
             }
         }
 

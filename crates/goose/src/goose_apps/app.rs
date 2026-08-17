@@ -1,9 +1,10 @@
 use crate::agents::ExtensionManager;
-use rmcp::model::ErrorData;
+use rmcp::model::{ErrorCode, ErrorData};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
+use super::cache::McpAppCache;
 use super::resource::McpAppResource;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -298,6 +299,13 @@ pub async fn fetch_mcp_apps(
                     };
 
                     apps.push(app);
+                    if let Err(error) = McpAppCache::validate_apps(&apps) {
+                        return Err(ErrorData::new(
+                            ErrorCode::INVALID_PARAMS,
+                            format!("MCP app refresh exceeds cache limits: {error}"),
+                            None,
+                        ));
+                    }
                 }
             }
             Err(e) => {
