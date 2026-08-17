@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use futures::future::BoxFuture;
 use goose_providers::images::ImageFormat;
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
@@ -105,18 +105,20 @@ fn is_gemini_model(model_name: &str) -> bool {
     model_name.starts_with("google/gemini")
 }
 
-fn contains_json_object_key(value: &Value, key: &str) -> bool {
+fn collect_json_object_keys(value: &Value, keys: &mut HashSet<String>) {
     match value {
         Value::Object(object) => {
-            object.contains_key(key)
-                || object
-                    .values()
-                    .any(|value| contains_json_object_key(value, key))
+            for (key, value) in object {
+                keys.insert(key.clone());
+                collect_json_object_keys(value, keys);
+            }
         }
-        Value::Array(array) => array
-            .iter()
-            .any(|value| contains_json_object_key(value, key)),
-        _ => false,
+        Value::Array(array) => {
+            for value in array {
+                collect_json_object_keys(value, keys);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -144,22 +146,14 @@ fn rename_json_object_key(value: &mut Value, source_key: &str, target_key: &str)
     }
 }
 
-fn collision_free_gemini_schema_ref_key(messages: &[Value]) -> String {
+fn collision_free_gemini_schema_ref_key(occupied_keys: &HashSet<String>) -> String {
     for suffix in 1.. {
         let candidate = if suffix == 1 {
             GEMINI_SAFE_SCHEMA_REF_KEY_BASE.to_string()
         } else {
             format!("{GEMINI_SAFE_SCHEMA_REF_KEY_BASE}_{suffix}")
         };
-        let collision = messages.iter().any(|message| {
-            message.get("role").and_then(Value::as_str) == Some("tool")
-                && message
-                    .get("content")
-                    .and_then(Value::as_str)
-                    .and_then(|content| serde_json::from_str::<Value>(content).ok())
-                    .is_some_and(|content| contains_json_object_key(&content, &candidate))
-        });
-        if !collision {
+        if !occupied_keys.contains(&candidate) {
             return candidate;
         }
     }
@@ -187,31 +181,31 @@ fn apply_gemini_compatibility(model_name: &str, payload: &mut Value, messages: &
 /// results and add a reversible note so the model can reconstruct the original
 /// text. Non-JSON tool output must remain byte-for-byte unchanged.
 fn escape_gemini_schema_ref_keys_in_tool_responses(payload: &mut Value) -> usize {
-    let Some(messages) = payload.get("messages").and_then(Value::as_array) else {
-        return 0;
-    };
-    let safe_key = collision_free_gemini_schema_ref_key(messages);
-    let note = gemini_schema_ref_note(&safe_key);
-
     let Some(messages) = payload.get_mut("messages").and_then(Value::as_array_mut) else {
         return 0;
     };
 
-    let mut escaped = 0;
-    for message in messages {
+    let mut occupied_keys = HashSet::new();
+    let mut parsed_tool_results = Vec::new();
+    for (message_index, message) in messages.iter().enumerate() {
         if message.get("role").and_then(Value::as_str) != Some("tool") {
             continue;
         }
 
-        let Some(content) = message.get_mut("content") else {
+        let Some(content_text) = message.get("content").and_then(Value::as_str) else {
             continue;
         };
-        let Some(content_text) = content.as_str() else {
+        let Ok(parsed_content) = serde_json::from_str::<Value>(content_text) else {
             continue;
         };
-        let Ok(mut parsed_content) = serde_json::from_str::<Value>(content_text) else {
-            continue;
-        };
+        collect_json_object_keys(&parsed_content, &mut occupied_keys);
+        parsed_tool_results.push((message_index, parsed_content));
+    }
+
+    let safe_key = collision_free_gemini_schema_ref_key(&occupied_keys);
+    let note = gemini_schema_ref_note(&safe_key);
+    let mut escaped = 0;
+    for (message_index, mut parsed_content) in parsed_tool_results {
         let message_escaped =
             rename_json_object_key(&mut parsed_content, GEMINI_SCHEMA_REF_KEY, &safe_key);
         if message_escaped == 0 {
@@ -220,7 +214,7 @@ fn escape_gemini_schema_ref_keys_in_tool_responses(payload: &mut Value) -> usize
 
         let sanitized = serde_json::to_string(&parsed_content)
             .expect("JSON values must serialize successfully");
-        *content = Value::String(format!("{note}{sanitized}"));
+        messages[message_index]["content"] = Value::String(format!("{note}{sanitized}"));
         escaped += message_escaped;
     }
 
@@ -726,6 +720,40 @@ mod tests {
                 "{}{{\"dollar_ref_3\":\"A\",\"dollar_ref\":\"B\",\"dollar_ref_2\":\"C\"}}",
                 gemini_schema_ref_note("dollar_ref_3")
             )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_advances_past_deep_collision_ladder() {
+        let mut payload = json!({
+            "messages": [
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_1",
+                    "content": "{\"$ref\":\"A\",\"dollar_ref\":\"B\",\"nested\":{\"dollar_ref_2\":\"C\",\"items\":[{\"dollar_ref_3\":\"D\"},{\"dollar_ref_4\":\"E\"}]}}"
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_2",
+                    "content": "{\"dollar_ref_5\":\"F\"}"
+                }
+            ]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                "{}{{\"dollar_ref_6\":\"A\",\"dollar_ref\":\"B\",\"nested\":{{\"dollar_ref_2\":\"C\",\"items\":[{{\"dollar_ref_3\":\"D\"}},{{\"dollar_ref_4\":\"E\"}}]}}}}",
+                gemini_schema_ref_note("dollar_ref_6")
+            )
+        );
+        assert_eq!(
+            payload["messages"][1]["content"],
+            "{\"dollar_ref_5\":\"F\"}"
         );
     }
 
