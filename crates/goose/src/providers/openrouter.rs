@@ -38,7 +38,7 @@ pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
 ];
 pub const OPENROUTER_DOC_URL: &str = "https://openrouter.ai/models";
 
-const GEMINI_SCHEMA_REF_KEY: &str = "$ref";
+const GEMINI_SCHEMA_REF_KEY_TOKEN: &str = "\"$ref\"";
 const GEMINI_SAFE_SCHEMA_REF_KEY: &str = "dollar_ref";
 const GEMINI_SCHEMA_REF_NOTE: &str =
     "[OpenRouter/Gemini compatibility: interpret `dollar_ref` as the JSON Schema key formed by `$` followed by `ref`.]\n";
@@ -110,9 +110,9 @@ fn is_gemini_model(model_name: &str) -> bool {
 /// OpenRouter translates OpenAI `role: tool` messages into Gemini
 /// `function_response` parts. Gemini rejects a response containing a literal
 /// JSON Schema `$ref` key, treating its value as a function-response part name
-/// instead of arbitrary tool text. Escape only that token, only in
-/// Gemini-bound tool results, and add a reversible note so the model can
-/// reconstruct the original text.
+/// instead of arbitrary tool text. Escape only double-quoted key occurrences,
+/// only in Gemini-bound tool results, and add a reversible note so the model
+/// can reconstruct the original text.
 fn escape_gemini_schema_ref_keys_in_tool_responses(payload: &mut Value) -> usize {
     let Some(messages) = payload.get_mut("messages").and_then(Value::as_array_mut) else {
         return 0;
@@ -130,14 +130,46 @@ fn escape_gemini_schema_ref_keys_in_tool_responses(payload: &mut Value) -> usize
         let Some(content_text) = content.as_str() else {
             continue;
         };
-        let occurrences = content_text.matches(GEMINI_SCHEMA_REF_KEY).count();
-        if occurrences == 0 {
+        let mut sanitized = String::with_capacity(content_text.len());
+        let mut copied_through = 0;
+        let mut message_escaped = 0;
+        for (start, _) in content_text.match_indices(GEMINI_SCHEMA_REF_KEY_TOKEN) {
+            let end = start + GEMINI_SCHEMA_REF_KEY_TOKEN.len();
+            let follows_object_delimiter = content_text.as_bytes()[..start]
+                .iter()
+                .rev()
+                .find(|byte| !matches!(byte, b' ' | b'\t' | b'\r' | b'\n'))
+                .is_some_and(|byte| matches!(byte, b'{' | b','));
+            let precedes_colon = content_text.as_bytes()[end..]
+                .iter()
+                .find(|byte| !matches!(byte, b' ' | b'\t' | b'\r' | b'\n'))
+                == Some(&b':');
+            if !follows_object_delimiter || !precedes_colon {
+                continue;
+            }
+
+            sanitized.push_str(
+                content_text
+                    .get(copied_through..start)
+                    .expect("match indices must be UTF-8 boundaries"),
+            );
+            sanitized.push('"');
+            sanitized.push_str(GEMINI_SAFE_SCHEMA_REF_KEY);
+            sanitized.push('"');
+            copied_through = end;
+            message_escaped += 1;
+        }
+        if message_escaped == 0 {
             continue;
         }
 
-        let sanitized = content_text.replace(GEMINI_SCHEMA_REF_KEY, GEMINI_SAFE_SCHEMA_REF_KEY);
+        sanitized.push_str(
+            content_text
+                .get(copied_through..)
+                .expect("match indices must be UTF-8 boundaries"),
+        );
         *content = Value::String(format!("{GEMINI_SCHEMA_REF_NOTE}{sanitized}"));
-        escaped += occurrences;
+        escaped += message_escaped;
     }
 
     escaped
@@ -332,14 +364,7 @@ impl Provider for OpenRouterProvider {
         }
 
         if is_gemini_model(&model_config.model_name) {
-            let escaped_schema_ref_keys =
-                escape_gemini_schema_ref_keys_in_tool_responses(&mut payload);
-            if escaped_schema_ref_keys > 0 {
-                tracing::warn!(
-                    escaped_schema_ref_keys,
-                    "escaped JSON Schema ref keys in Gemini-bound tool results"
-                );
-            }
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload);
             openrouter_format::add_reasoning_details_to_request(&mut payload, messages);
         }
         let sent_reasoning_disable =
@@ -517,7 +542,7 @@ mod tests {
                 {
                     "role": "tool",
                     "tool_call_id": "call_1",
-                    "content": "{'$ref': '#/components/schemas/Base64Image'} and {\"$ref\": \"#/components/schemas/Usage\"}"
+                    "content": "schema: {\"$ref\": \"#/components/schemas/Usage\", \"nested\": {\"$ref\" : \"#/components/schemas/Base64Image\"}, \"description\": \"use $ref here\", \"literal\": \"$ref\", \"identifier\": \"$reference\"}"
                 }
             ]
         });
@@ -533,17 +558,31 @@ mod tests {
         assert_eq!(
             payload["messages"][1]["content"],
             format!(
-                "{GEMINI_SCHEMA_REF_NOTE}{{'dollar_ref': '#/components/schemas/Base64Image'}} and {{\"dollar_ref\": \"#/components/schemas/Usage\"}}"
+                "{GEMINI_SCHEMA_REF_NOTE}schema: {{\"dollar_ref\": \"#/components/schemas/Usage\", \"nested\": {{\"dollar_ref\" : \"#/components/schemas/Base64Image\"}}, \"description\": \"use $ref here\", \"literal\": \"$ref\", \"identifier\": \"$reference\"}}"
             )
         );
-        assert!(!payload["messages"][1]["content"]
-            .as_str()
-            .unwrap()
-            .contains(GEMINI_SCHEMA_REF_KEY));
         assert_eq!(
             escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
             0
         );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_leaves_values_and_prose_unchanged() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "{\"description\":\"use $ref here\",\"literal\":\"$ref\",\"identifier\":\"$reference\"}\nshell output: use $ref here\nprose: \"$ref\": not a JSON key"
+            }]
+        });
+        let original = payload.clone();
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            0
+        );
+        assert_eq!(payload, original);
     }
 
     #[test]
