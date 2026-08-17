@@ -146,9 +146,6 @@ fn load_supporting_file(
     relative_path: &str,
 ) -> CallToolResult {
     let skill_dir = PathBuf::from(&skill.path);
-    let canonical_skill_dir = skill_dir
-        .canonicalize()
-        .unwrap_or_else(|_| skill_dir.clone());
     for file_path in &skill.supporting_files {
         let file_path = Path::new(file_path);
         let Ok(relative) = file_path.strip_prefix(&skill_dir) else {
@@ -157,22 +154,12 @@ fn load_supporting_file(
         if relative.to_string_lossy().replace('\\', "/") != relative_path {
             continue;
         }
-        return match file_path.canonicalize() {
-            Ok(canonical) if canonical.starts_with(&canonical_skill_dir) => {
-                match std::fs::read_to_string(&canonical) {
-                    Ok(content) => CallToolResult::success(vec![ContentBlock::text(format!(
-                        "# Loaded: {skill_name}\n\n{content}\n\n---\nFile loaded into context."
-                    ))]),
-                    Err(error) => CallToolResult::error(vec![ContentBlock::text(format!(
-                        "Failed to read '{skill_name}': {error}"
-                    ))]),
-                }
-            }
-            Ok(_) => CallToolResult::error(vec![ContentBlock::text(format!(
-                "Refusing to load '{skill_name}': resolves outside the skill directory"
+        return match crate::skills::read_supporting_file(&skill_dir, relative) {
+            Ok(content) => CallToolResult::success(vec![ContentBlock::text(format!(
+                "# Loaded: {skill_name}\n\n{content}\n\n---\nFile loaded into context."
             ))]),
             Err(error) => CallToolResult::error(vec![ContentBlock::text(format!(
-                "Failed to resolve '{skill_name}': {error}"
+                "Failed to read '{skill_name}': {error}"
             ))]),
         };
     }
@@ -358,5 +345,38 @@ impl Operation<Session, GooseEffect> for SkillOperation {
         }
         let response = emit.message(response).await;
         applied([response.into()])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn supporting_file_loader_reads_nested_regular_file() {
+        let root = tempfile::tempdir().unwrap();
+        let skill_dir = std::fs::canonicalize(root.path()).unwrap();
+        let nested = skill_dir.join("nested");
+        std::fs::create_dir(&nested).unwrap();
+        let file = nested.join("guide.md");
+        std::fs::write(&file, "Nested guidance.").unwrap();
+        let skill = SourceEntry {
+            source_type: SourceType::Skill,
+            name: "test-skill".to_string(),
+            description: String::new(),
+            content: String::new(),
+            path: skill_dir.to_string_lossy().into_owned(),
+            global: false,
+            writable: true,
+            supporting_files: vec![file.to_string_lossy().into_owned()],
+            properties: HashMap::new(),
+        };
+
+        let result = load_supporting_file(&skill, "test-skill/nested/guide.md", "nested/guide.md");
+
+        assert_eq!(result.is_error, Some(false));
+        let text = result.content[0].as_text().expect("expected text");
+        assert!(text.text.contains("Nested guidance."));
     }
 }

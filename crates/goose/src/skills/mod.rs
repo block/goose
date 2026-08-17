@@ -5,8 +5,10 @@
 mod arguments;
 mod builtin;
 pub mod client;
+mod supporting_files;
 
 pub use client::{SkillsClient, EXTENSION_NAME};
+pub(crate) use supporting_files::read_supporting_file;
 
 use crate::config::{paths::Paths, Config};
 use crate::plugins::installed_plugin_skill_dirs;
@@ -442,6 +444,9 @@ fn scan_skills_from_dir(dir: &Path, global: bool, seen: &mut HashSet<String>) ->
         let Some(skill_dir) = skill_file.parent() else {
             continue;
         };
+        let Ok(registered_skill_dir) = skill_dir.canonicalize() else {
+            continue;
+        };
         let content = match std::fs::read_to_string(&skill_file) {
             Ok(c) => c,
             Err(e) => {
@@ -450,7 +455,7 @@ fn scan_skills_from_dir(dir: &Path, global: bool, seen: &mut HashSet<String>) ->
             }
         };
 
-        if let Some(mut source) = parse_skill_content(&content, skill_dir, global) {
+        if let Some(mut source) = parse_skill_content(&content, &registered_skill_dir, global) {
             if !seen.contains(&source.name) {
                 let mut files = Vec::new();
                 let mut visited_support_dirs = HashSet::new();
@@ -460,7 +465,14 @@ fn scan_skills_from_dir(dir: &Path, global: bool, seen: &mut HashSet<String>) ->
                     &mut |path| !should_skip_dir(path) && !path.join("SKILL.md").is_file(),
                     &mut |path| {
                         if path.file_name().and_then(|n| n.to_str()) != Some("SKILL.md") {
-                            files.push(path.to_string_lossy().into_owned());
+                            if let Ok(relative) = path.strip_prefix(skill_dir) {
+                                files.push(
+                                    registered_skill_dir
+                                        .join(relative)
+                                        .to_string_lossy()
+                                        .into_owned(),
+                                );
+                            }
                         }
                     },
                 );
