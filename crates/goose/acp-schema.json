@@ -1506,20 +1506,6 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/config/prompts/reset"
     },
-    "DeleteSessionRequest": {
-      "type": "object",
-      "properties": {
-        "sessionId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "sessionId"
-      ],
-      "description": "Delete a session.",
-      "x-side": "agent",
-      "x-method": "session/delete"
-    },
     "GetConfigExtensionsRequest_unstable": {
       "type": "object",
       "description": "List configured extensions and any warnings.",
@@ -7199,15 +7185,6 @@
                   ],
                   "description": "Params for _goose/unstable/config/prompts/reset",
                   "title": "ResetPromptRequest_unstable"
-                },
-                {
-                  "allOf": [
-                    {
-                      "$ref": "#/$defs/DeleteSessionRequest"
-                    }
-                  ],
-                  "description": "Params for session/delete",
-                  "title": "DeleteSessionRequest"
                 },
                 {
                   "allOf": [

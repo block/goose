@@ -173,14 +173,6 @@ impl GooseAcpAgent {
         self.on_reset_prompt(req).await
     }
 
-    #[custom_method(DeleteSessionRequest)]
-    async fn dispatch_delete_session(
-        &self,
-        req: DeleteSessionRequest,
-    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        self.on_delete_session(req).await
-    }
-
     #[custom_method(GetConfigExtensionsRequest)]
     async fn dispatch_get_config_extensions(
         &self,
