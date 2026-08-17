@@ -364,8 +364,8 @@ impl Connection for AcpServerConnection {
                             assert!(
                                 resp.agent_capabilities
                                     .session_capabilities
+                                    .delete
                                     .as_ref()
-                                    .and_then(|capabilities| capabilities.delete.as_ref())
                                     .is_some(),
                                 "initialize response must advertise session/delete"
                             );
