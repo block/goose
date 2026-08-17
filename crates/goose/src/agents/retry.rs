@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command;
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
@@ -36,6 +37,8 @@ const GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS: &str = "GOOSE_RECIPE_RETRY_TIMEOUT_SEC
 
 /// Environment variable for configuring on_failure timeout globally
 const GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS: &str = "GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS";
+
+const MAX_COMMAND_STDERR_BYTES: usize = 8 * 1024;
 
 /// Manages retry state and operations for agent execution
 #[derive(Debug)]
@@ -242,18 +245,26 @@ pub async fn execute_shell_command(
 
         cmd.set_no_window();
 
-        let output = cmd
-            .stdout(Stdio::piped())
+        let mut child = cmd
+            .stdout(Stdio::null())
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
             .kill_on_drop(true)
-            .output()
-            .await?;
+            .spawn()?;
+        let stderr = child
+            .stderr
+            .take()
+            .expect("stderr was configured to be piped");
+        let (status, stderr) = tokio::try_join!(child.wait(), capture_tail(stderr))?;
+        let output = std::process::Output {
+            status,
+            stdout: Vec::new(),
+            stderr,
+        };
 
         debug!(
-            "Shell command completed with status: {}, stdout: {}, stderr: {}",
+            "Shell command completed with status: {}, stderr: {}",
             output.status,
-            String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
 
@@ -267,6 +278,36 @@ pub async fn execute_shell_command(
             warn!("{}", error_msg);
             Err(anyhow::anyhow!("{}", error_msg))
         }
+    }
+}
+
+async fn capture_tail<R>(mut reader: R) -> std::io::Result<Vec<u8>>
+where
+    R: AsyncRead + Unpin,
+{
+    let mut tail = Vec::with_capacity(MAX_COMMAND_STDERR_BYTES);
+    let mut chunk = [0; 4096];
+
+    loop {
+        let count = reader.read(&mut chunk).await?;
+        if count == 0 {
+            return Ok(tail);
+        }
+
+        if count >= MAX_COMMAND_STDERR_BYTES {
+            tail.clear();
+            tail.extend_from_slice(&chunk[count - MAX_COMMAND_STDERR_BYTES..count]);
+            continue;
+        }
+
+        let overflow = tail
+            .len()
+            .saturating_add(count)
+            .saturating_sub(MAX_COMMAND_STDERR_BYTES);
+        if overflow > 0 {
+            tail.drain(..overflow);
+        }
+        tail.extend_from_slice(&chunk[..count]);
     }
 }
 
@@ -390,7 +431,7 @@ mod tests {
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.status.success());
-        assert!(String::from_utf8_lossy(&output.stdout).contains("hello world"));
+        assert!(output.stdout.is_empty());
     }
 
     #[tokio::test]
@@ -399,6 +440,31 @@ mod tests {
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(!output.status.success());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_execute_shell_command_bounds_stderr_tail() {
+        let command = "i=0; while [ $i -lt 10000 ]; do printf x >&2; i=$((i + 1)); done; printf diagnostic-tail >&2; exit 1";
+        let output = execute_shell_command(command, Duration::from_secs(30))
+            .await
+            .unwrap();
+
+        assert!(!output.status.success());
+        assert_eq!(output.stderr.len(), MAX_COMMAND_STDERR_BYTES);
+        assert!(output.stderr.ends_with(b"diagnostic-tail"));
+    }
+
+    #[tokio::test]
+    async fn test_capture_tail_preserves_small_diagnostic() {
+        use tokio::io::AsyncWriteExt;
+
+        let diagnostic = b"useful diagnostic";
+        let (mut writer, reader) = tokio::io::duplex(diagnostic.len());
+        writer.write_all(diagnostic).await.unwrap();
+        writer.shutdown().await.unwrap();
+
+        assert_eq!(capture_tail(reader).await.unwrap(), diagnostic);
     }
 
     #[tokio::test]
