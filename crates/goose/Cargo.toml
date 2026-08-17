@@ -171,8 +171,12 @@ tokio-stream = { workspace = true, features = ["io-util"] }
 tempfile = { workspace = true }
 tokio-util = { workspace = true, features = ["compat"] }
 agent-client-protocol-schema = { workspace = true }
-agent-client-protocol = { workspace = true, features = ["unstable"] }
-agent-client-protocol-http = { workspace = true }
+agent-client-protocol = { workspace = true, features = [
+    "unstable_elicitation",
+    "unstable_end_turn_token_usage",
+    "unstable_session_fork",
+] }
+agent-client-protocol-http = { workspace = true, features = ["server"] }
 unicode-normalization = { version = "0.1.22", default-features = false, features = ["std"] }
 
 # For local Whisper transcription (optional, behind "local-inference" feature)

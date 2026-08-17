@@ -346,7 +346,7 @@ impl Connection for AcpServerConnection {
                         async move |cx: ConnectionTo<Agent>| {
                             let resp = cx
                                 .send_request(
-                                    InitializeRequest::new(ProtocolVersion::LATEST)
+                                    InitializeRequest::new(ProtocolVersion::V1)
                                         .client_capabilities(
                                             ClientCapabilities::new()
                                                 .fs(fs_cap)
@@ -356,6 +356,11 @@ impl Connection for AcpServerConnection {
                                 .block_task()
                                 .await
                                 .unwrap();
+                            assert_eq!(
+                                resp.protocol_version,
+                                ProtocolVersion::V1,
+                                "initialize response must negotiate ACP V1"
+                            );
                             assert_eq!(
                                 resp.agent_info.as_ref().map(|info| info.name.as_str()),
                                 Some("goose"),

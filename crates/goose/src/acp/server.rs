@@ -2808,8 +2808,7 @@ print(\"hello, world\")
 
     #[test]
     fn test_goose_custom_notifications_capability_defaults_to_false() {
-        let request =
-            InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST);
+        let request = InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::V1);
         let goose_client_capabilities =
             extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
 
@@ -2838,11 +2837,10 @@ print(\"hello, world\")
         let mut meta = serde_json::Map::new();
         meta.insert("goose".to_string(), serde_json::Value::Object(goose_meta));
 
-        let request =
-            InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST)
-                .client_capabilities(
-                    agent_client_protocol::schema::v1::ClientCapabilities::new().meta(meta),
-                );
+        let request = InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::V1)
+            .client_capabilities(
+                agent_client_protocol::schema::v1::ClientCapabilities::new().meta(meta),
+            );
         let goose_client_capabilities =
             extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
 
@@ -2853,8 +2851,7 @@ print(\"hello, world\")
 
     #[test]
     fn test_tool_call_label_enrichment_capability() {
-        let request =
-            InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST);
+        let request = InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::V1);
         let goose_client_capabilities =
             extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
         assert!(!goose_client_capabilities
@@ -2868,11 +2865,10 @@ print(\"hello, world\")
         );
         let mut meta = serde_json::Map::new();
         meta.insert("goose".to_string(), serde_json::Value::Object(goose_meta));
-        let request =
-            InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST)
-                .client_capabilities(
-                    agent_client_protocol::schema::v1::ClientCapabilities::new().meta(meta),
-                );
+        let request = InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::V1)
+            .client_capabilities(
+                agent_client_protocol::schema::v1::ClientCapabilities::new().meta(meta),
+            );
         let goose_client_capabilities =
             extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
         assert!(goose_client_capabilities

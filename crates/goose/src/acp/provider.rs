@@ -1243,8 +1243,7 @@ async fn handle_requests(
     let client_capabilities = ClientCapabilities::new();
     let init_response: InitializeResponse = cx
         .send_request(
-            InitializeRequest::new(ProtocolVersion::LATEST)
-                .client_capabilities(client_capabilities),
+            InitializeRequest::new(ProtocolVersion::V1).client_capabilities(client_capabilities),
         )
         .block_task()
         .await
