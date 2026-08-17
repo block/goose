@@ -38,10 +38,8 @@ pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
 ];
 pub const OPENROUTER_DOC_URL: &str = "https://openrouter.ai/models";
 
-const GEMINI_SCHEMA_REF_KEY_TOKEN: &str = "\"$ref\"";
-const GEMINI_SAFE_SCHEMA_REF_KEY: &str = "dollar_ref";
-const GEMINI_SCHEMA_REF_NOTE: &str =
-    "[OpenRouter/Gemini compatibility: interpret `dollar_ref` as the JSON Schema key formed by `$` followed by `ref`.]\n";
+const GEMINI_SCHEMA_REF_KEY: &str = "$ref";
+const GEMINI_SAFE_SCHEMA_REF_KEY_BASE: &str = "dollar_ref";
 
 #[derive(serde::Serialize)]
 pub struct OpenRouterProvider {
@@ -107,6 +105,55 @@ fn is_gemini_model(model_name: &str) -> bool {
     model_name.starts_with("google/")
 }
 
+fn is_json_object_key(content: &str, start: usize, end: usize) -> bool {
+    let follows_object_delimiter = content.as_bytes()[..start]
+        .iter()
+        .rev()
+        .find(|byte| !matches!(byte, b' ' | b'\t' | b'\r' | b'\n'))
+        .is_some_and(|byte| matches!(byte, b'{' | b','));
+    let precedes_colon = content.as_bytes()[end..]
+        .iter()
+        .find(|byte| !matches!(byte, b' ' | b'\t' | b'\r' | b'\n'))
+        == Some(&b':');
+
+    follows_object_delimiter && precedes_colon
+}
+
+fn contains_json_object_key(content: &str, key: &str) -> bool {
+    let token = format!("\"{key}\"");
+    content
+        .match_indices(&token)
+        .any(|(start, matched)| is_json_object_key(content, start, start + matched.len()))
+}
+
+fn collision_free_gemini_schema_ref_key(messages: &[Value]) -> String {
+    for suffix in 1.. {
+        let candidate = if suffix == 1 {
+            GEMINI_SAFE_SCHEMA_REF_KEY_BASE.to_string()
+        } else {
+            format!("{GEMINI_SAFE_SCHEMA_REF_KEY_BASE}_{suffix}")
+        };
+        let collision = messages.iter().any(|message| {
+            message.get("role").and_then(Value::as_str) == Some("tool")
+                && message
+                    .get("content")
+                    .and_then(Value::as_str)
+                    .is_some_and(|content| contains_json_object_key(content, &candidate))
+        });
+        if !collision {
+            return candidate;
+        }
+    }
+
+    unreachable!()
+}
+
+fn gemini_schema_ref_note(safe_key: &str) -> String {
+    format!(
+        "[OpenRouter/Gemini compatibility: interpret `{safe_key}` as the JSON Schema key formed by `$` followed by `ref`.]\n"
+    )
+}
+
 /// OpenRouter translates OpenAI `role: tool` messages into Gemini
 /// `function_response` parts. Gemini rejects a response containing a literal
 /// JSON Schema `$ref` key, treating its value as a function-response part name
@@ -114,6 +161,13 @@ fn is_gemini_model(model_name: &str) -> bool {
 /// only in Gemini-bound tool results, and add a reversible note so the model
 /// can reconstruct the original text.
 fn escape_gemini_schema_ref_keys_in_tool_responses(payload: &mut Value) -> usize {
+    let Some(messages) = payload.get("messages").and_then(Value::as_array) else {
+        return 0;
+    };
+    let safe_key = collision_free_gemini_schema_ref_key(messages);
+    let source_token = format!("\"{GEMINI_SCHEMA_REF_KEY}\"");
+    let note = gemini_schema_ref_note(&safe_key);
+
     let Some(messages) = payload.get_mut("messages").and_then(Value::as_array_mut) else {
         return 0;
     };
@@ -133,18 +187,9 @@ fn escape_gemini_schema_ref_keys_in_tool_responses(payload: &mut Value) -> usize
         let mut sanitized = String::with_capacity(content_text.len());
         let mut copied_through = 0;
         let mut message_escaped = 0;
-        for (start, _) in content_text.match_indices(GEMINI_SCHEMA_REF_KEY_TOKEN) {
-            let end = start + GEMINI_SCHEMA_REF_KEY_TOKEN.len();
-            let follows_object_delimiter = content_text.as_bytes()[..start]
-                .iter()
-                .rev()
-                .find(|byte| !matches!(byte, b' ' | b'\t' | b'\r' | b'\n'))
-                .is_some_and(|byte| matches!(byte, b'{' | b','));
-            let precedes_colon = content_text.as_bytes()[end..]
-                .iter()
-                .find(|byte| !matches!(byte, b' ' | b'\t' | b'\r' | b'\n'))
-                == Some(&b':');
-            if !follows_object_delimiter || !precedes_colon {
+        for (start, matched) in content_text.match_indices(&source_token) {
+            let end = start + matched.len();
+            if !is_json_object_key(content_text, start, end) {
                 continue;
             }
 
@@ -154,7 +199,7 @@ fn escape_gemini_schema_ref_keys_in_tool_responses(payload: &mut Value) -> usize
                     .expect("match indices must be UTF-8 boundaries"),
             );
             sanitized.push('"');
-            sanitized.push_str(GEMINI_SAFE_SCHEMA_REF_KEY);
+            sanitized.push_str(&safe_key);
             sanitized.push('"');
             copied_through = end;
             message_escaped += 1;
@@ -168,7 +213,7 @@ fn escape_gemini_schema_ref_keys_in_tool_responses(payload: &mut Value) -> usize
                 .get(copied_through..)
                 .expect("match indices must be UTF-8 boundaries"),
         );
-        *content = Value::String(format!("{GEMINI_SCHEMA_REF_NOTE}{sanitized}"));
+        *content = Value::String(format!("{note}{sanitized}"));
         escaped += message_escaped;
     }
 
@@ -558,7 +603,8 @@ mod tests {
         assert_eq!(
             payload["messages"][1]["content"],
             format!(
-                "{GEMINI_SCHEMA_REF_NOTE}schema: {{\"dollar_ref\": \"#/components/schemas/Usage\", \"nested\": {{\"dollar_ref\" : \"#/components/schemas/Base64Image\"}}, \"description\": \"use $ref here\", \"literal\": \"$ref\", \"identifier\": \"$reference\"}}"
+                "{}schema: {{\"dollar_ref\": \"#/components/schemas/Usage\", \"nested\": {{\"dollar_ref\" : \"#/components/schemas/Base64Image\"}}, \"description\": \"use $ref here\", \"literal\": \"$ref\", \"identifier\": \"$reference\"}}",
+                gemini_schema_ref_note("dollar_ref")
             )
         );
         assert_eq!(
@@ -583,6 +629,52 @@ mod tests {
             0
         );
         assert_eq!(payload, original);
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_avoids_existing_safe_key() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "{\"$ref\":\"A\",\"dollar_ref\":\"B\"}"
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                "{}{{\"dollar_ref_2\":\"A\",\"dollar_ref\":\"B\"}}",
+                gemini_schema_ref_note("dollar_ref_2")
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_advances_past_multiple_key_collisions() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "{\"$ref\":\"A\",\"dollar_ref\":\"B\",\"dollar_ref_2\":\"C\"}"
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                "{}{{\"dollar_ref_3\":\"A\",\"dollar_ref\":\"B\",\"dollar_ref_2\":\"C\"}}",
+                gemini_schema_ref_note("dollar_ref_3")
+            )
+        );
     }
 
     #[test]
