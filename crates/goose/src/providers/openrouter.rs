@@ -105,25 +105,43 @@ fn is_gemini_model(model_name: &str) -> bool {
     model_name.starts_with("google/gemini")
 }
 
-fn is_json_object_key(content: &str, start: usize, end: usize) -> bool {
-    let follows_object_delimiter = content.as_bytes()[..start]
-        .iter()
-        .rev()
-        .find(|byte| !matches!(byte, b' ' | b'\t' | b'\r' | b'\n'))
-        .is_some_and(|byte| matches!(byte, b'{' | b','));
-    let precedes_colon = content.as_bytes()[end..]
-        .iter()
-        .find(|byte| !matches!(byte, b' ' | b'\t' | b'\r' | b'\n'))
-        == Some(&b':');
-
-    follows_object_delimiter && precedes_colon
+fn contains_json_object_key(value: &Value, key: &str) -> bool {
+    match value {
+        Value::Object(object) => {
+            object.contains_key(key)
+                || object
+                    .values()
+                    .any(|value| contains_json_object_key(value, key))
+        }
+        Value::Array(array) => array
+            .iter()
+            .any(|value| contains_json_object_key(value, key)),
+        _ => false,
+    }
 }
 
-fn contains_json_object_key(content: &str, key: &str) -> bool {
-    let token = format!("\"{key}\"");
-    content
-        .match_indices(&token)
-        .any(|(start, matched)| is_json_object_key(content, start, start + matched.len()))
+fn rename_json_object_key(value: &mut Value, source_key: &str, target_key: &str) -> usize {
+    match value {
+        Value::Object(object) => {
+            let mut renamed = 0;
+            let original = std::mem::take(object);
+            for (key, mut value) in original {
+                renamed += rename_json_object_key(&mut value, source_key, target_key);
+                if key == source_key {
+                    object.insert(target_key.to_string(), value);
+                    renamed += 1;
+                } else {
+                    object.insert(key, value);
+                }
+            }
+            renamed
+        }
+        Value::Array(array) => array
+            .iter_mut()
+            .map(|value| rename_json_object_key(value, source_key, target_key))
+            .sum(),
+        _ => 0,
+    }
 }
 
 fn collision_free_gemini_schema_ref_key(messages: &[Value]) -> String {
@@ -138,7 +156,8 @@ fn collision_free_gemini_schema_ref_key(messages: &[Value]) -> String {
                 && message
                     .get("content")
                     .and_then(Value::as_str)
-                    .is_some_and(|content| contains_json_object_key(content, &candidate))
+                    .and_then(|content| serde_json::from_str::<Value>(content).ok())
+                    .is_some_and(|content| contains_json_object_key(&content, &candidate))
         });
         if !collision {
             return candidate;
@@ -164,15 +183,14 @@ fn apply_gemini_compatibility(model_name: &str, payload: &mut Value, messages: &
 /// OpenRouter translates OpenAI `role: tool` messages into Gemini
 /// `function_response` parts. Gemini rejects a response containing a literal
 /// JSON Schema `$ref` key, treating its value as a function-response part name
-/// instead of arbitrary tool text. Escape only double-quoted key occurrences,
-/// only in Gemini-bound tool results, and add a reversible note so the model
-/// can reconstruct the original text.
+/// instead of arbitrary tool text. Escape only keys in complete JSON tool
+/// results and add a reversible note so the model can reconstruct the original
+/// text. Non-JSON tool output must remain byte-for-byte unchanged.
 fn escape_gemini_schema_ref_keys_in_tool_responses(payload: &mut Value) -> usize {
     let Some(messages) = payload.get("messages").and_then(Value::as_array) else {
         return 0;
     };
     let safe_key = collision_free_gemini_schema_ref_key(messages);
-    let source_token = format!("\"{GEMINI_SCHEMA_REF_KEY}\"");
     let note = gemini_schema_ref_note(&safe_key);
 
     let Some(messages) = payload.get_mut("messages").and_then(Value::as_array_mut) else {
@@ -191,35 +209,17 @@ fn escape_gemini_schema_ref_keys_in_tool_responses(payload: &mut Value) -> usize
         let Some(content_text) = content.as_str() else {
             continue;
         };
-        let mut sanitized = String::with_capacity(content_text.len());
-        let mut copied_through = 0;
-        let mut message_escaped = 0;
-        for (start, matched) in content_text.match_indices(&source_token) {
-            let end = start + matched.len();
-            if !is_json_object_key(content_text, start, end) {
-                continue;
-            }
-
-            sanitized.push_str(
-                content_text
-                    .get(copied_through..start)
-                    .expect("match indices must be UTF-8 boundaries"),
-            );
-            sanitized.push('"');
-            sanitized.push_str(&safe_key);
-            sanitized.push('"');
-            copied_through = end;
-            message_escaped += 1;
-        }
+        let Ok(mut parsed_content) = serde_json::from_str::<Value>(content_text) else {
+            continue;
+        };
+        let message_escaped =
+            rename_json_object_key(&mut parsed_content, GEMINI_SCHEMA_REF_KEY, &safe_key);
         if message_escaped == 0 {
             continue;
         }
 
-        sanitized.push_str(
-            content_text
-                .get(copied_through..)
-                .expect("match indices must be UTF-8 boundaries"),
-        );
+        let sanitized = serde_json::to_string(&parsed_content)
+            .expect("JSON values must serialize successfully");
         *content = Value::String(format!("{note}{sanitized}"));
         escaped += message_escaped;
     }
@@ -591,14 +591,14 @@ mod tests {
                 {
                     "role": "tool",
                     "tool_call_id": "call_1",
-                    "content": "schema: {\"$ref\": \"#/components/schemas/Usage\", \"nested\": {\"$ref\" : \"#/components/schemas/Base64Image\"}, \"description\": \"use $ref here\", \"literal\": \"$ref\", \"identifier\": \"$reference\"}"
+                    "content": "{\"$ref\": \"#/components/schemas/Usage\", \"nested\": {\"$ref\" : \"#/components/schemas/Base64Image\"}, \"items\": [{\"$ref\": \"#/components/schemas/Item\"}], \"description\": \"use $ref here\", \"literal\": \"$ref\", \"identifier\": \"$reference\"}"
                 }
             ]
         });
 
         assert_eq!(
             escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
-            2
+            3
         );
         assert_eq!(
             payload["messages"][0]["content"],
@@ -607,7 +607,7 @@ mod tests {
         assert_eq!(
             payload["messages"][1]["content"],
             format!(
-                "{}schema: {{\"dollar_ref\": \"#/components/schemas/Usage\", \"nested\": {{\"dollar_ref\" : \"#/components/schemas/Base64Image\"}}, \"description\": \"use $ref here\", \"literal\": \"$ref\", \"identifier\": \"$reference\"}}",
+                "{}{{\"dollar_ref\":\"#/components/schemas/Usage\",\"nested\":{{\"dollar_ref\":\"#/components/schemas/Base64Image\"}},\"items\":[{{\"dollar_ref\":\"#/components/schemas/Item\"}}],\"description\":\"use $ref here\",\"literal\":\"$ref\",\"identifier\":\"$reference\"}}",
                 gemini_schema_ref_note("dollar_ref")
             )
         );
@@ -648,12 +648,30 @@ mod tests {
     }
 
     #[test]
-    fn gemini_schema_ref_escape_leaves_values_and_prose_unchanged() {
+    fn gemini_schema_ref_escape_leaves_values_unchanged() {
         let mut payload = json!({
             "messages": [{
                 "role": "tool",
                 "tool_call_id": "call_1",
-                "content": "{\"description\":\"use $ref here\",\"literal\":\"$ref\",\"identifier\":\"$reference\"}\nshell output: use $ref here\nprose: \"$ref\": not a JSON key"
+                "content": "{\"description\":\"use $ref here\",\"literal\":\"$ref\",\"identifier\":\"$reference\"}"
+            }]
+        });
+        let original = payload.clone();
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            0
+        );
+        assert_eq!(payload, original);
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_leaves_non_json_prose_unchanged() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "log entry, \"$ref\": not a JSON key"
             }]
         });
         let original = payload.clone();
