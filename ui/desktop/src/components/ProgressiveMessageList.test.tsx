@@ -85,6 +85,7 @@ describe('ProgressiveMessageList', () => {
     expect(screen.getByTestId('assistant-m2')).toBeInTheDocument();
     expect(screen.getByTestId('user-m5')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /1 hidden/i })).toBeInTheDocument();
+    expect(document.querySelector('[data-transcript-anchor="m4"]')).toBeInTheDocument();
   });
 
   it('keeps following the live edge until the user expands history', () => {

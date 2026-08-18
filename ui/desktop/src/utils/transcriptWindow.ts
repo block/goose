@@ -18,6 +18,13 @@ export function earlierTranscriptWindowStart(
   return Math.max(0, windowStart - pageSize);
 }
 
+export function transcriptMessageKey(message: { id?: string | null; role: string; created: number }): string {
+  if (message.id) {
+    return message.id;
+  }
+  return `${message.role}:${message.created}`;
+}
+
 export function visibleTranscriptWindowStart(input: {
   messageCount: number;
   showAll: boolean;

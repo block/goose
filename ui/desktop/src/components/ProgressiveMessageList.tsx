@@ -6,7 +6,7 @@
  * paged in with "Show earlier" or expanded fully for search.
  */
 
-import { Fragment, memo, useEffect, useMemo, useState } from 'react';
+import { Fragment, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { defineMessages, useIntl } from '../i18n';
 import GooseMessage from './GooseMessage';
 import UserMessage from './UserMessage';
@@ -40,6 +40,7 @@ import {
   DEFAULT_VISIBLE_MESSAGE_WINDOW,
   earlierTranscriptWindowStart,
   initialTranscriptWindowStart,
+  transcriptMessageKey,
   visibleTranscriptWindowStart,
 } from '../utils/transcriptWindow';
 
@@ -106,6 +107,7 @@ function renderSystemNotification(notification: SystemNotificationContent) {
 interface MessageRowProps {
   message: Message;
   index: number;
+  transcriptAnchor?: string;
   chatSessionId: string;
   isUser: boolean;
   messageIsInChain: boolean;
@@ -124,6 +126,7 @@ function messageRowPropsAreEqual(previous: MessageRowProps, next: MessageRowProp
   if (
     previous.message !== next.message ||
     previous.index !== next.index ||
+    previous.transcriptAnchor !== next.transcriptAnchor ||
     previous.chatSessionId !== next.chatSessionId ||
     previous.isUser !== next.isUser ||
     previous.messageIsInChain !== next.messageIsInChain ||
@@ -151,6 +154,7 @@ function messageRowPropsAreEqual(previous: MessageRowProps, next: MessageRowProp
 const MessageRow = memo(function MessageRow({
   message,
   index,
+  transcriptAnchor,
   chatSessionId,
   isUser,
   messageIsInChain,
@@ -171,6 +175,7 @@ const MessageRow = memo(function MessageRow({
       <div
         className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} assistant`}
         data-testid="message-container"
+        data-transcript-anchor={transcriptAnchor}
       >
         {renderSystemNotification(notification)}
       </div>
@@ -197,6 +202,7 @@ const MessageRow = memo(function MessageRow({
       <div
         className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} ${isUser ? 'user' : 'assistant'} ${messageIsInChain ? 'in-chain' : ''}`}
         data-testid="message-container"
+        data-transcript-anchor={transcriptAnchor}
       >
         {isUser ? (
           !hasOnlyToolResponses(message) && (
@@ -238,6 +244,7 @@ function ProgressiveMessageList({
   const [windowStart, setWindowStart] = useState(() =>
     initialTranscriptWindowStart(messages.length, visibleWindow)
   );
+  const pendingScrollRestoreKeyRef = useRef<string | null>(null);
 
   const effectiveWindowStart = visibleTranscriptWindowStart({
     messageCount: messages.length,
@@ -273,6 +280,19 @@ function ProgressiveMessageList({
   const toolCallLookups = useMemo(() => buildToolCallLookups(messages), [messages]);
   const hiddenCount = effectiveWindowStart;
   const messagesToRender = messages.slice(effectiveWindowStart);
+  useLayoutEffect(() => {
+    const restoreKey = pendingScrollRestoreKeyRef.current;
+    if (!restoreKey) {
+      return;
+    }
+    pendingScrollRestoreKeyRef.current = null;
+    const anchor = document.querySelector(
+      `[data-transcript-anchor="${restoreKey.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"]`
+    );
+    if (anchor instanceof HTMLElement && typeof anchor.scrollIntoView === 'function') {
+      anchor.scrollIntoView({ block: 'start' });
+    }
+  }, [hiddenCount]);
 
   return (
     <>
@@ -282,6 +302,10 @@ function ProgressiveMessageList({
             type="button"
             className="text-xs text-text-secondary hover:text-text-primary underline-offset-2 hover:underline"
             onClick={() => {
+              const firstVisible = messages[effectiveWindowStart];
+              pendingScrollRestoreKeyRef.current = firstVisible
+                ? transcriptMessageKey(firstVisible)
+                : null;
               setPinnedToLiveEdge(false);
               setWindowStart(earlierTranscriptWindowStart(effectiveWindowStart, visibleWindow));
             }}
@@ -305,13 +329,14 @@ function ProgressiveMessageList({
           message.role === 'assistant' && message.metadata.userVisible
             ? (message.metadata.inference?.resolvedModel ?? null)
             : null;
-        const messageKey = message.id ?? `msg-${index}-${message.created}`;
+        const messageKey = transcriptMessageKey(message);
 
         return (
           <MessageRow
             key={messageKey}
             message={message}
             index={index}
+            transcriptAnchor={messageKey}
             chatSessionId={chat.sessionId}
             isUser={isUserMessage(message)}
             messageIsInChain={isInChain(index, toolCallChains)}

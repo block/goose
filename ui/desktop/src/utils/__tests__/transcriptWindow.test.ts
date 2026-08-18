@@ -4,6 +4,7 @@ import {
   EARLIER_MESSAGE_PAGE_SIZE,
   earlierTranscriptWindowStart,
   initialTranscriptWindowStart,
+  transcriptMessageKey,
   visibleTranscriptWindowStart,
 } from '../transcriptWindow';
 
@@ -45,6 +46,11 @@ describe('transcriptWindow', () => {
         windowStart: 81,
       })
     ).toBe(81);
+  });
+
+  it('keeps restore keys stable when a message has no id', () => {
+    expect(transcriptMessageKey({ role: 'assistant', created: 42 })).toBe('assistant:42');
+    expect(transcriptMessageKey({ id: 'msg-1', role: 'assistant', created: 42 })).toBe('msg-1');
   });
 
   it('opens the full transcript when search expands it', () => {
