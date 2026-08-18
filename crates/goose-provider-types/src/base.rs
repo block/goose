@@ -390,6 +390,14 @@ pub async fn collect_stream(
         if let Some(msg) = msg_opt {
             final_message = Some(match final_message {
                 Some(mut prev) => {
+                    // A multi-block message is a complete unit from the
+                    // provider (e.g. a closing Thinking block bundled with the
+                    // start of subsequent content), not a raw incremental
+                    // delta — mirror Conversation::push's `content.len() == 1`
+                    // gate so thinking coalescing only fires for single-block
+                    // deltas, never absorbing the first block of a multi-block
+                    // chunk into the prior message's last block.
+                    let is_single_block_delta = msg.content.len() == 1;
                     for new_content in msg.content {
                         match (&mut prev.content.last_mut(), &new_content) {
                             // Coalesce consecutive text blocks
@@ -415,8 +423,9 @@ pub async fn collect_stream(
                             (
                                 Some(MessageContentBlock::Thinking(last_thinking)),
                                 MessageContentBlock::Thinking(new_thinking),
-                            ) if last_thinking.signature.is_empty()
-                                || new_thinking.signature == last_thinking.signature =>
+                            ) if is_single_block_delta
+                                && (last_thinking.signature.is_empty()
+                                    || new_thinking.signature == last_thinking.signature) =>
                             {
                                 last_thinking.thinking.push_str(&new_thinking.thinking);
                                 if !new_thinking.signature.is_empty() {
@@ -869,6 +878,105 @@ mod tests {
                 assert_eq!(b.signature, "sig-b");
             }
             other => panic!("expected two Thinking blocks, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_collect_stream_unsigned_body_adopts_closing_signature() {
+        use futures::stream;
+
+        let delta =
+            |t: &str, sig: &str| Ok((Some(Message::assistant().with_thinking(t, sig)), None));
+        // An unsigned body streamed as several deltas, closed by a delta that
+        // finally carries the signature — the whole block adopts it.
+        let stream = stream::iter([
+            delta("Thinking", ""),
+            delta(" more", ""),
+            delta("", "sig-final"),
+        ]);
+
+        let (message, _) = collect_stream(Box::pin(stream)).await.unwrap();
+
+        assert_eq!(message.content.len(), 1);
+        match &message.content[0] {
+            MessageContentBlock::Thinking(t) => {
+                assert_eq!(t.thinking, "Thinking more");
+                assert_eq!(t.signature, "sig-final");
+            }
+            other => panic!("expected Thinking, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_collect_stream_unsigned_thinking_after_signed_starts_a_new_block() {
+        use futures::stream;
+
+        let delta =
+            |t: &str, sig: &str| Ok((Some(Message::assistant().with_thinking(t, sig)), None));
+        // An unsigned delta arriving after a signed (closed) block belongs to
+        // the next block, not the closed one — signature-at-end streams emit
+        // the first text of block N+1 before its own signature.
+        let stream = stream::iter([delta("first", "sig-a"), delta("second", "")]);
+
+        let (message, _) = collect_stream(Box::pin(stream)).await.unwrap();
+
+        assert_eq!(message.content.len(), 2);
+        match (&message.content[0], &message.content[1]) {
+            (MessageContentBlock::Thinking(a), MessageContentBlock::Thinking(b)) => {
+                assert_eq!(a.thinking, "first");
+                assert_eq!(a.signature, "sig-a");
+                assert_eq!(b.thinking, "second");
+                assert_eq!(b.signature, "");
+            }
+            other => panic!("expected two Thinking blocks, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_collect_stream_multi_block_chunk_does_not_merge_into_prior_thinking() {
+        use futures::stream;
+
+        let unsigned_delta = |t: &str| Ok((Some(Message::assistant().with_thinking(t, "")), None));
+        // A single chunk that already bundles a complete (signed) Thinking
+        // block with subsequent content is a structured unit from the
+        // provider, not a raw delta — its first block must not merge into
+        // whatever unsigned Thinking preceded it (mirrors Conversation::push's
+        // `content.len() == 1` gate). Regression for a maintainer-caught bug:
+        // this used to sign the concatenation of "prior" + "next", erasing
+        // the block boundary.
+        let multi_block = Ok((
+            Some(
+                Message::assistant()
+                    .with_thinking("next", "sig")
+                    .with_text("after"),
+            ),
+            None,
+        ));
+        let stream = stream::iter([unsigned_delta("prior"), multi_block]);
+
+        let (message, _) = collect_stream(Box::pin(stream)).await.unwrap();
+
+        assert_eq!(message.content.len(), 3, "got {:?}", message.content);
+        match (
+            &message.content[0],
+            &message.content[1],
+            &message.content[2],
+        ) {
+            (
+                MessageContentBlock::Thinking(a),
+                MessageContentBlock::Thinking(b),
+                MessageContentBlock::Text(c),
+            ) => {
+                assert_eq!(a.thinking, "prior");
+                assert_eq!(
+                    a.signature, "",
+                    "prior block must stay unsigned and unmerged"
+                );
+                assert_eq!(b.thinking, "next");
+                assert_eq!(b.signature, "sig");
+                assert_eq!(c.text, "after");
+            }
+            other => panic!("expected Thinking, Thinking, Text, got {:?}", other),
         }
     }
 
