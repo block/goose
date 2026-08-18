@@ -66,10 +66,12 @@ export const GitBranchIndicator: React.FC<{ dir: string; className?: string }> =
     let cancelled = false;
     setBranches([]);
     setSearch('');
-    window.electron
-      .listGitBranches(dir)
-      .then((list) => {
-        if (!cancelled) setBranches(list);
+    Promise.all([window.electron.getGitBranchInfo(dir), window.electron.listGitBranches(dir)])
+      .then(([info, list]) => {
+        if (!cancelled) {
+          setBranch(info?.branch ?? null);
+          setBranches(list);
+        }
       })
       .catch(() => {});
     setTimeout(() => searchRef.current?.focus(), 50);
