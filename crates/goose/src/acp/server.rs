@@ -1373,7 +1373,7 @@ fn prompt_error_from_message_content(
             let mut data = serde_json::Map::new();
             data.insert(
                 "reason".to_string(),
-                serde_json::Value::String("credits_exhausted".to_string()),
+                serde_json::Value::String(crate::acp::CREDITS_EXHAUSTED_REASON.to_string()),
             );
             Some(
                 agent_client_protocol::Error::new(-32603, error.message.clone())
@@ -1390,7 +1390,7 @@ fn credits_exhausted_prompt_error(
     let mut data = serde_json::Map::new();
     data.insert(
         "reason".to_string(),
-        serde_json::Value::String("credits_exhausted".to_string()),
+        serde_json::Value::String(crate::acp::CREDITS_EXHAUSTED_REASON.to_string()),
     );
 
     if let Some(url) = notification

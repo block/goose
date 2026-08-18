@@ -152,6 +152,23 @@ enum AcpUpdate {
     Error(agent_client_protocol::Error),
 }
 
+/// Whether dropping the handoff memo could plausibly change the outcome. An agent that
+/// rejected the very first update has told us nothing except that it disliked the prompt,
+/// and the memo is the only part we added — but a spent account or a missing credential
+/// says nothing about the prompt at all, so retrying would burn the single fallback the
+/// session gets and consume a memo the agent never actually refused.
+fn retry_without_memo_could_help(error: &agent_client_protocol::Error) -> bool {
+    if error.code == agent_client_protocol::schema::v1::ErrorCode::AuthRequired {
+        return false;
+    }
+    error
+        .data
+        .as_ref()
+        .and_then(|data| data.get("reason"))
+        .and_then(serde_json::Value::as_str)
+        != Some(crate::acp::CREDITS_EXHAUSTED_REASON)
+}
+
 fn provider_error_from_acp(error: agent_client_protocol::Error) -> ProviderError {
     if error.code == agent_client_protocol::schema::v1::ErrorCode::AuthRequired {
         ProviderError::Authentication(error.to_string())
@@ -671,6 +688,12 @@ impl Provider for AcpProvider {
         } else {
             None
         };
+        if claim.include_context && memo.is_none() {
+            // Nothing fit beside this turn's prompt, so the context never left goose. Give
+            // it back rather than marking a handoff that never happened as done — a single
+            // oversized turn would otherwise cost the session its whole history.
+            handoff_claim_guard.rollback();
+        }
         // A memo is only ever an estimate of what the agent will accept, so keep the bare
         // prompt to retry with. Without it a bad estimate leaves the session unresumable.
         let (prompt_blocks, mut bare_retry_blocks) = match memo {
@@ -877,12 +900,9 @@ impl Provider for AcpProvider {
                         break;
                     }
                     AcpUpdate::Error(e) => {
+                        let retry_could_help = retry_without_memo_could_help(&e);
                         let error = provider_error_from_acp(e);
-                        // An agent that rejects the very first update has told us nothing
-                        // but that it disliked the prompt, and the memo is the only part
-                        // we added. Retry once without it rather than stranding the session.
-                        // An auth failure is not about the prompt, so it keeps the retry.
-                        if updates_seen == 1 && !matches!(error, ProviderError::Authentication(_)) {
+                        if updates_seen == 1 && retry_could_help {
                             if let Some((tx, session_id, blocks)) = bare_retry.take() {
                                 // Consume the handoff before retrying. The agent has already
                                 // seen and rejected this memo, so rebuilding it on a later
@@ -2784,12 +2804,107 @@ mod tests {
             .await
             .unwrap();
 
-        let results = handle.await.unwrap();
+        // As above: a retry would leave the stream waiting on a prompt nothing serves.
+        let results = tokio::time::timeout(std::time::Duration::from_secs(10), handle)
+            .await
+            .expect("stream ended without retrying")
+            .unwrap();
         assert!(matches!(
             results.as_slice(),
             [Err(ProviderError::Authentication(_))]
         ));
         assert!(rx.try_recv().is_err(), "no retry on an auth failure");
+    }
+
+    #[tokio::test]
+    async fn a_budget_too_small_for_a_memo_keeps_the_claim() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        // A window this small leaves no room for a memo beside the current prompt.
+        provider.context_size.store(64, Ordering::Relaxed);
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        let server = tokio::spawn(async move {
+            let Some(ClientRequest::Prompt {
+                content,
+                response_tx,
+                ..
+            }) = rx.recv().await
+            else {
+                return Vec::new();
+            };
+            let _ = response_tx
+                .send(AcpUpdate::Complete(StopReason::EndTurn, None))
+                .await;
+            content
+        });
+
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        assert!(stream.next().await.is_none());
+        let content = server.await.unwrap();
+        assert_eq!(content.len(), 1, "no memo fit beside the prompt");
+
+        assert!(
+            provider.claim_handoff_context(&messages).include_context,
+            "context that never left goose must still be handed off later"
+        );
+    }
+
+    #[tokio::test]
+    async fn exhausted_credits_surface_without_spending_the_handoff() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(2);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+
+        let handle = tokio::spawn(async move {
+            let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+            let mut results = Vec::new();
+            while let Some(item) = stream.next().await {
+                results.push(item);
+            }
+            (provider, results)
+        });
+
+        let (_, response_tx) = expect_prompt(rx.recv().await.unwrap());
+        response_tx
+            .send(AcpUpdate::Error(
+                agent_client_protocol::Error::internal_error()
+                    .data(serde_json::json!({ "reason": crate::acp::CREDITS_EXHAUSTED_REASON })),
+            ))
+            .await
+            .unwrap();
+
+        // A retry here would leave the stream waiting on a prompt nothing serves, so bound
+        // the wait rather than hanging the suite on a regression.
+        let (provider, results) = tokio::time::timeout(std::time::Duration::from_secs(10), handle)
+            .await
+            .expect("stream ended without retrying")
+            .unwrap();
+        assert!(matches!(
+            results.as_slice(),
+            [Err(ProviderError::RequestFailed(_))]
+        ));
+        assert!(
+            rx.try_recv().is_err(),
+            "a spent account is not a prompt the agent refused"
+        );
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        assert!(
+            provider.claim_handoff_context(&messages).include_context,
+            "the memo survives so a topped-up account still resumes the conversation"
+        );
     }
 
     fn test_provider_with_model_option(
