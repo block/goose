@@ -1,10 +1,9 @@
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
 use goose::agents::state_machine::{
-    yielded_with, Emitter, Inference, InferenceInput, Operation, OperationResult, StateEffect,
+    yielded_with, Emitter, GooseEffect, Inference, InferenceInput, Operation, OperationResult,
     StateMachine, Step,
 };
 use goose::agents::AgentEvent;
@@ -18,18 +17,11 @@ use goose_providers::conversation::token_usage::Usage;
 use goose_providers::model::ModelConfig;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
-use tracing::field::{Field, Visit};
-use tracing::span::{Attributes, Id, Record};
-use tracing::Subscriber;
-use tracing_futures::Instrument;
-use tracing_subscriber::layer::{Context, SubscriberExt};
-use tracing_subscriber::registry::LookupSpan;
-use tracing_subscriber::Layer;
 
 struct PromptPart;
 
 #[async_trait]
-impl Operation for PromptPart {
+impl Operation<Session, GooseEffect> for PromptPart {
     fn name(&self) -> &'static str {
         "prompt_part"
     }
@@ -46,14 +38,14 @@ impl Operation for PromptPart {
 struct TestInference;
 
 #[async_trait]
-impl Operation for TestInference {
+impl Operation<Session, GooseEffect> for TestInference {
     fn name(&self) -> &'static str {
         "test_inference"
     }
 }
 
 #[async_trait]
-impl Inference for TestInference {
+impl Inference<Session, GooseEffect> for TestInference {
     fn applies(&self, _conversation: &Conversation) -> bool {
         true
     }
@@ -64,7 +56,7 @@ impl Inference for TestInference {
         conversation: &Conversation,
         input: InferenceInput,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         assert_eq!(
             input.prompt_parts,
             [("test".to_string(), "custom context".to_string())]
@@ -80,8 +72,8 @@ impl Inference for TestInference {
             .message(Message::assistant().with_text(format!("{prompt} answered")))
             .await;
         yielded_with([
-            StateEffect::from(message),
-            StateEffect::RecordUsage(ProviderUsage::new(
+            GooseEffect::from(message),
+            GooseEffect::RecordUsage(ProviderUsage::new(
                 "test-model".to_string(),
                 Usage::new(Some(5), Some(7), Some(12)),
             )),
@@ -89,52 +81,8 @@ impl Inference for TestInference {
     }
 }
 
-#[derive(Clone, Default)]
-struct TraceFields(Arc<Mutex<HashMap<String, String>>>);
-
-impl<S> Layer<S> for TraceFields
-where
-    S: Subscriber + for<'lookup> LookupSpan<'lookup>,
-{
-    fn on_new_span(&self, attributes: &Attributes<'_>, id: &Id, context: Context<'_, S>) {
-        if context
-            .span(id)
-            .is_some_and(|span| span.metadata().name() == "state_machine_test")
-        {
-            attributes.record(&mut FieldVisitor(self.0.clone()));
-        }
-    }
-
-    fn on_record(&self, id: &Id, values: &Record<'_>, context: Context<'_, S>) {
-        if context
-            .span(id)
-            .is_some_and(|span| span.metadata().name() == "state_machine_test")
-        {
-            values.record(&mut FieldVisitor(self.0.clone()));
-        }
-    }
-}
-
-struct FieldVisitor(Arc<Mutex<HashMap<String, String>>>);
-
-impl Visit for FieldVisitor {
-    fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
-        self.0
-            .lock()
-            .unwrap()
-            .insert(field.name().to_string(), format!("{value:?}"));
-    }
-
-    fn record_str(&mut self, field: &Field, value: &str) {
-        self.0
-            .lock()
-            .unwrap()
-            .insert(field.name().to_string(), value.to_string());
-    }
-}
-
 #[tokio::test]
-async fn custom_pipeline_supports_step_apply_run_tracing_and_usage() -> Result<()> {
+async fn custom_pipeline_supports_step_apply_run_and_usage() -> Result<()> {
     let _env = goose_test_support::otel::clear_otel_env(&[(
         "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
         "true",
@@ -171,6 +119,12 @@ async fn custom_pipeline_supports_step_apply_run_tracing_and_usage() -> Result<(
 
     let session = session_manager.get_session(&session.id, true).await?;
     let mut result = machine.step(&session, &emit).await?.unwrap();
+    assert!(matches!(
+        result.effects.first(),
+        Some(GooseEffect::Conversation(
+            goose::agents::state_machine::ConversationEffect::AppendMessage(message)
+        )) if message.id.is_some()
+    ));
     machine
         .apply(&session_manager, &session, &mut result, &emit)
         .await?;
@@ -191,21 +145,7 @@ async fn custom_pipeline_supports_step_apply_run_tracing_and_usage() -> Result<(
     session_manager
         .add_message(&session.id, &Message::user().with_text("second turn"))
         .await?;
-    let fields = TraceFields::default();
-    let subscriber = tracing_subscriber::registry().with(fields.clone());
-    let _guard = tracing::subscriber::set_default(subscriber);
-    let span = tracing::info_span!(
-        "state_machine_test",
-        trace_input = tracing::field::Empty,
-        trace_output = tracing::field::Empty,
-        gen_ai.output.messages = tracing::field::Empty,
-        gen_ai.usage.input_tokens = tracing::field::Empty,
-        gen_ai.usage.output_tokens = tracing::field::Empty,
-    );
-    let session = machine
-        .run(&session_manager, &session.id, &emit)
-        .instrument(span)
-        .await?;
+    let session = machine.run(&session_manager, &session.id, &emit).await?;
 
     assert_eq!(
         session
@@ -230,33 +170,6 @@ async fn custom_pipeline_supports_step_apply_run_tracing_and_usage() -> Result<(
     let terminal_usage = token_state_from_session_and_totals(&session, &totals);
     assert_eq!(terminal_usage.total_tokens, 12);
     assert_eq!(terminal_usage.accumulated_total_tokens, 24);
-
-    let fields = fields.0.lock().unwrap();
-    assert_eq!(
-        fields.get("trace_input").map(String::as_str),
-        Some("second turn")
-    );
-    assert_eq!(
-        fields.get("trace_output").map(String::as_str),
-        Some("second turn answered")
-    );
-    assert_eq!(
-        fields.get("gen_ai.usage.input_tokens").map(String::as_str),
-        Some("5")
-    );
-    assert_eq!(
-        fields.get("gen_ai.usage.output_tokens").map(String::as_str),
-        Some("7")
-    );
-    let output: serde_json::Value = serde_json::from_str(&fields["gen_ai.output.messages"])?;
-    assert_eq!(
-        output,
-        serde_json::json!([{
-            "role": "assistant",
-            "content": "second turn answered",
-            "finish_reason": "stop",
-        }])
-    );
 
     Ok(())
 }

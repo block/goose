@@ -34,8 +34,13 @@ pub struct ProviderInventoryEntry {
     pub description: String,
     pub default_model: String,
     pub configured: bool,
+    pub available: bool,
     pub provider_type: ProviderType,
     pub category: ProviderSetupCategory,
+    pub acp: bool,
+    pub visible_in_setup: bool,
+    pub deprecated: bool,
+    pub replacement: Option<String>,
     pub config_keys: Vec<ConfigKey>,
     pub setup_steps: Vec<String>,
     pub supports_refresh: bool,
@@ -260,8 +265,13 @@ struct ProviderDescriptor {
     default_model: String,
     identity: InventoryIdentity,
     configured: bool,
+    available: bool,
     provider_type: ProviderType,
     category: ProviderSetupCategory,
+    acp: bool,
+    visible_in_setup: bool,
+    deprecated: bool,
+    replacement: Option<String>,
     config_keys: Vec<ConfigKey>,
     setup_steps: Vec<String>,
     supports_refresh: bool,
@@ -303,8 +313,13 @@ impl ProviderInventoryService {
             description: descriptor.description,
             default_model: descriptor.default_model,
             configured: descriptor.configured,
+            available: descriptor.available,
             provider_type: descriptor.provider_type,
             category: descriptor.category,
+            acp: descriptor.acp,
+            visible_in_setup: descriptor.visible_in_setup,
+            deprecated: descriptor.deprecated,
+            replacement: descriptor.replacement,
             config_keys: descriptor.config_keys,
             setup_steps: descriptor.setup_steps,
             supports_refresh: descriptor.supports_refresh,
@@ -715,10 +730,26 @@ impl ProviderInventoryService {
             description: metadata.description.clone(),
             default_model: metadata.default_model.clone(),
             identity,
-            configured: entry.inventory_configured(),
+            configured: if metadata.setup.as_ref().is_some_and(|setup| setup.acp) {
+                crate::config::get_provider_entry(Config::global(), provider_id)
+                    .is_some_and(|entry| entry.enabled && entry.configured)
+            } else {
+                entry.inventory_configured()
+            },
+            available: entry.inventory_configured(),
             provider_type: entry.provider_type(),
-            category: crate::providers::catalog::get_provider_setup_category(&metadata.name)
+            category: metadata
+                .setup
+                .as_ref()
+                .map(|setup| setup.category)
                 .unwrap_or(ProviderSetupCategory::Model),
+            acp: metadata.setup.as_ref().is_some_and(|setup| setup.acp),
+            visible_in_setup: metadata.deprecated.is_none(),
+            deprecated: metadata.deprecated.is_some(),
+            replacement: metadata
+                .deprecated
+                .as_ref()
+                .and_then(|deprecated| deprecated.replacement.clone()),
             config_keys: metadata.config_keys.clone(),
             setup_steps: metadata.setup_steps.clone(),
             supports_refresh: entry.supports_inventory_refresh(),

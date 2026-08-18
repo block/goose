@@ -73,22 +73,28 @@ impl AcpServer {
             scheduler.list_scheduled_jobs().await;
         }
 
-        let provider_factory: AcpProviderFactory =
-            Arc::new(move |provider_name, extensions, working_dir| {
+        let provider_factory: AcpProviderFactory = Arc::new(
+            move |provider_name, extensions, working_dir, use_default_model| {
                 Box::pin(async move {
-                    match working_dir {
-                        Some(working_dir) => {
-                            crate::providers::create_with_working_dir(
-                                &provider_name,
-                                extensions,
-                                working_dir,
-                            )
+                    if use_default_model {
+                        crate::providers::create_with_default_model(&provider_name, extensions)
                             .await
+                    } else {
+                        match working_dir {
+                            Some(working_dir) => {
+                                crate::providers::create_with_working_dir(
+                                    &provider_name,
+                                    extensions,
+                                    working_dir,
+                                )
+                                .await
+                            }
+                            None => crate::providers::create(&provider_name, extensions).await,
                         }
-                        None => crate::providers::create(&provider_name, extensions).await,
                     }
                 })
-            });
+            },
+        );
 
         let agent = GooseAcpAgent::new(GooseAcpAgentOptions {
             provider_factory,

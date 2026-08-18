@@ -399,35 +399,6 @@ fn test_custom_session_extensions_add_list_remove() {
 
 #[test]
 #[serial]
-fn test_custom_session_extensions_apply_recreates_provider() {
-    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
-    run_test(async move {
-        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
-        let mut conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
-
-        let SessionData { session, .. } = conn.new_session().await.unwrap();
-        let session_id = session.session_id().0.clone();
-
-        let result = send_custom(
-            conn.cx(),
-            "_goose/unstable/session/extensions/apply",
-            serde_json::json!({ "sessionId": session_id.clone() }),
-        )
-        .await;
-        assert!(result.is_ok(), "expected ok, got: {:?}", result);
-
-        let result = send_custom(
-            conn.cx(),
-            "_goose/unstable/session/extensions/apply",
-            serde_json::json!({ "sessionId": "missing-session" }),
-        )
-        .await;
-        assert!(result.is_err(), "apply for unknown session should fail");
-    });
-}
-
-#[test]
-#[serial]
 fn test_custom_get_available_extensions() {
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
@@ -1203,8 +1174,9 @@ fn test_custom_provider_supported_models_lists_raw_provider_models() {
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
-        let provider_factory: AcpProviderFactory =
-            Arc::new(|provider_name, _extensions, _working_dir| {
+        let provider_factory: AcpProviderFactory = Arc::new(
+            |provider_name, _extensions, _working_dir, use_default_model| {
+                assert!(use_default_model);
                 Box::pin(async move {
                     Ok(Arc::new(MockProvider {
                         name: provider_name,
@@ -1215,7 +1187,8 @@ fn test_custom_provider_supported_models_lists_raw_provider_models() {
                         ]),
                     }) as Arc<dyn Provider>)
                 })
-            });
+            },
+        );
         let conn = AcpServerConnection::new(
             TestConnectionConfig {
                 provider_factory: Some(provider_factory),
@@ -1253,7 +1226,7 @@ fn test_custom_provider_supported_models_maps_not_configured_error() {
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
-        let provider_factory: AcpProviderFactory = Arc::new(|provider_name, _, _| {
+        let provider_factory: AcpProviderFactory = Arc::new(|provider_name, _, _, _| {
             Box::pin(async move {
                 Ok(Arc::new(MockProvider {
                     name: provider_name,
@@ -1290,7 +1263,7 @@ fn test_custom_provider_supported_models_maps_authentication_error() {
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
-        let provider_factory: AcpProviderFactory = Arc::new(|provider_name, _, _| {
+        let provider_factory: AcpProviderFactory = Arc::new(|provider_name, _, _, _| {
             Box::pin(async move {
                 Ok(Arc::new(MockProvider {
                     name: provider_name,

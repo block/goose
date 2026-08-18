@@ -41,13 +41,14 @@ use crate::utils::sanitize_unicode_tags;
 use agent_client_protocol::schema::v1::{
     AgentCapabilities, Annotations, AuthMethod, AuthMethodAgent, AuthenticateRequest,
     AuthenticateResponse, CancelNotification, CloseSessionRequest, CloseSessionResponse,
-    ConfigOptionUpdate, ContentBlock, Cost, CurrentModeUpdate, EmbeddedResourceResource,
-    FileSystemCapabilities, ForkSessionRequest, ForkSessionResponse, ImageContent, Implementation,
-    InitializeRequest, InitializeResponse, ListSessionsRequest, ListSessionsResponse,
-    LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer, Meta, NewSessionRequest,
-    NewSessionResponse, PermissionOption, PermissionOptionKind, PromptCapabilities, PromptRequest,
-    PromptResponse, RequestPermissionOutcome, RequestPermissionRequest, ResourceLink,
-    SessionCapabilities, SessionCloseCapabilities, SessionConfigOption, SessionId,
+    ConfigOptionUpdate, ContentBlock, Cost, CurrentModeUpdate, DeleteSessionRequest,
+    DeleteSessionResponse, EmbeddedResourceResource, FileSystemCapabilities, ForkSessionRequest,
+    ForkSessionResponse, ImageContent, Implementation, InitializeRequest, InitializeResponse,
+    ListSessionsRequest, ListSessionsResponse, LoadSessionRequest, LoadSessionResponse,
+    McpCapabilities, McpServer, Meta, NewSessionRequest, NewSessionResponse, PermissionOption,
+    PermissionOptionKind, PromptCapabilities, PromptRequest, PromptResponse,
+    RequestPermissionOutcome, RequestPermissionRequest, ResourceLink, SessionCapabilities,
+    SessionCloseCapabilities, SessionConfigOption, SessionDeleteCapabilities, SessionId,
     SessionInfoUpdate, SessionListCapabilities, SessionNotification, SessionUpdate,
     SetSessionConfigOptionRequest, SetSessionConfigOptionResponse, SetSessionModeRequest,
     SetSessionModeResponse, StopReason, TextContent, ToolCallId, ToolCallUpdate, Usage,
@@ -120,6 +121,7 @@ pub type AcpProviderFactory = Arc<
             String,
             Vec<ExtensionConfig>,
             Option<PathBuf>,
+            bool,
         ) -> BoxFuture<'static, Result<Arc<dyn Provider>>>
         + Send
         + Sync,
@@ -400,6 +402,9 @@ fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConf
                     .collect(),
                 timeout,
                 socket: None,
+                client_id: None,
+                client_secret_key: None,
+                scopes: vec![],
                 bundled: Some(false),
                 available_tools: vec![],
             })
@@ -718,8 +723,15 @@ impl GooseAcpAgent {
         provider_name: &str,
         extensions: Vec<ExtensionConfig>,
         working_dir: Option<PathBuf>,
+        use_default_model: bool,
     ) -> Result<Arc<dyn Provider>> {
-        (self.provider_factory)(provider_name.to_string(), extensions, working_dir).await
+        (self.provider_factory)(
+            provider_name.to_string(),
+            extensions,
+            working_dir,
+            use_default_model,
+        )
+        .await
     }
 
     /// Warm the provider model-list cache after session creation.
@@ -1527,6 +1539,7 @@ impl GooseAcpAgent {
             .session_capabilities(
                 SessionCapabilities::new()
                     .list(SessionListCapabilities::new())
+                    .delete(SessionDeleteCapabilities::new())
                     .close(SessionCloseCapabilities::new()),
             )
             .prompt_capabilities(
@@ -2544,6 +2557,9 @@ extensions:
             )]),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
+            scopes: vec![],
             bundled: Some(false),
             available_tools: vec![],
         })
@@ -2806,8 +2822,7 @@ print(\"hello, world\")
 
     #[test]
     fn test_goose_custom_notifications_capability_defaults_to_false() {
-        let request =
-            InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST);
+        let request = InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::V1);
         let goose_client_capabilities =
             extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
 
@@ -2836,11 +2851,10 @@ print(\"hello, world\")
         let mut meta = serde_json::Map::new();
         meta.insert("goose".to_string(), serde_json::Value::Object(goose_meta));
 
-        let request =
-            InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST)
-                .client_capabilities(
-                    agent_client_protocol::schema::v1::ClientCapabilities::new().meta(meta),
-                );
+        let request = InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::V1)
+            .client_capabilities(
+                agent_client_protocol::schema::v1::ClientCapabilities::new().meta(meta),
+            );
         let goose_client_capabilities =
             extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
 
@@ -2851,8 +2865,7 @@ print(\"hello, world\")
 
     #[test]
     fn test_tool_call_label_enrichment_capability() {
-        let request =
-            InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST);
+        let request = InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::V1);
         let goose_client_capabilities =
             extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
         assert!(!goose_client_capabilities
@@ -2866,11 +2879,10 @@ print(\"hello, world\")
         );
         let mut meta = serde_json::Map::new();
         meta.insert("goose".to_string(), serde_json::Value::Object(goose_meta));
-        let request =
-            InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST)
-                .client_capabilities(
-                    agent_client_protocol::schema::v1::ClientCapabilities::new().meta(meta),
-                );
+        let request = InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::V1)
+            .client_capabilities(
+                agent_client_protocol::schema::v1::ClientCapabilities::new().meta(meta),
+            );
         let goose_client_capabilities =
             extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
         assert!(goose_client_capabilities

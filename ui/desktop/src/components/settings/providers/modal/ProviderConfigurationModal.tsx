@@ -25,6 +25,7 @@ import { AlertTriangle, LogIn } from 'lucide-react';
 import type { ProviderDetails } from '../../../../types/providers';
 import { Button } from '../../../../components/ui/button';
 import { errorMessage } from '../../../../utils/conversionUtils';
+import AcpReadinessPanel from '../AcpReadinessPanel';
 import { defineMessages, useIntl } from '../../../../i18n';
 import HuggingFaceSignInPrompt from '../../auth/HuggingFaceSignInPrompt';
 
@@ -98,6 +99,10 @@ const i18n = defineMessages({
   externalSetupIntro: {
     id: 'providerConfigurationModal.externalSetupIntro',
     defaultMessage: 'This provider is configured outside of goose. Follow these steps:',
+  },
+  chooseModel: {
+    id: 'providerConfigurationModal.chooseModel',
+    defaultMessage: 'Choose model',
   },
   seeDocumentation: {
     id: 'providerConfigurationModal.seeDocumentation',
@@ -192,6 +197,7 @@ export default function ProviderConfigurationModal({
     provider.metadata.config_keys.length === 0 &&
     provider.metadata.setup_steps &&
     provider.metadata.setup_steps.length > 0;
+  const usesAcpSetup = isExternalSetup && provider.uses_acp;
 
   const descriptionText = showDeleteConfirmation
     ? isActiveProvider
@@ -423,14 +429,27 @@ export default function ProviderConfigurationModal({
 
                 {isExternalSetup && (
                   <div className="space-y-3">
-                    <p className="text-sm text-text-secondary">
-                      {intl.formatMessage(i18n.externalSetupIntro)}
-                    </p>
-                    <ol className="ml-5 list-decimal text-sm text-text-primary space-y-2">
-                      {provider.metadata.setup_steps?.map((step, i) => (
-                        <li key={i}>{renderSetupStep(step)}</li>
-                      ))}
-                    </ol>
+                    {usesAcpSetup ? (
+                      <AcpReadinessPanel
+                        provider={provider}
+                        actionLabel={intl.formatMessage(i18n.chooseModel)}
+                        removeLabel={intl.formatMessage(i18n.removeConfiguration)}
+                        onConfigured={(configured) => onConfigured?.(configured)}
+                        onRemove={handleDelete}
+                        onError={setError}
+                      />
+                    ) : (
+                      <>
+                        <p className="text-sm text-text-secondary">
+                          {intl.formatMessage(i18n.externalSetupIntro)}
+                        </p>
+                        <ol className="ml-5 list-decimal text-sm text-text-primary space-y-2">
+                          {provider.metadata.setup_steps?.map((step, i) => (
+                            <li key={i}>{renderSetupStep(step)}</li>
+                          ))}
+                        </ol>
+                      </>
+                    )}
                     {provider.metadata.model_doc_link && (
                       <p className="text-sm text-text-secondary mt-4">
                         {intl.formatMessage(i18n.seeDocumentation, {
@@ -481,17 +500,11 @@ export default function ProviderConfigurationModal({
                   </Button>
                 )}
               </div>
-            ) : isExternalSetup && !showDeleteConfirmation ? (
-              <div className="w-full">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={handleCancel}
-                  className="w-full h-[60px] rounded-none border-t border-border-primary text-md hover:bg-background-secondary text-text-primary font-medium"
-                >
-                  {intl.formatMessage(i18n.close)}
-                </Button>
-              </div>
+            ) : usesAcpSetup && !showDeleteConfirmation ? null : isExternalSetup &&
+              !showDeleteConfirmation ? (
+              <Button type="button" variant="outline" onClick={handleCancel}>
+                {intl.formatMessage(i18n.close)}
+              </Button>
             ) : (
               <ProviderSetupActions
                 primaryParameters={primaryParameters}

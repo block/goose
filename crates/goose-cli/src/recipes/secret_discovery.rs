@@ -51,13 +51,18 @@ fn extract_secrets_from_extensions(
     let mut secrets = Vec::new();
 
     for ext in extensions {
-        let (extension_name, env_keys) = match ext {
-            ExtensionConfig::Stdio { name, env_keys, .. } => (name, env_keys),
-            ExtensionConfig::StreamableHttp { name, env_keys, .. } => (name, env_keys),
-            ExtensionConfig::Builtin { name, .. } => (name, &Vec::new()),
-            ExtensionConfig::Platform { name, .. } => (name, &Vec::new()),
-            ExtensionConfig::Frontend { name, .. } => (name, &Vec::new()),
-            ExtensionConfig::InlinePython { name, .. } => (name, &Vec::new()),
+        let (extension_name, env_keys, client_secret_key) = match ext {
+            ExtensionConfig::Stdio { name, env_keys, .. } => (name, env_keys, None),
+            ExtensionConfig::StreamableHttp {
+                name,
+                env_keys,
+                client_secret_key,
+                ..
+            } => (name, env_keys, client_secret_key.as_ref()),
+            ExtensionConfig::Builtin { name, .. } => (name, &Vec::new(), None),
+            ExtensionConfig::Platform { name, .. } => (name, &Vec::new(), None),
+            ExtensionConfig::Frontend { name, .. } => (name, &Vec::new(), None),
+            ExtensionConfig::InlinePython { name, .. } => (name, &Vec::new(), None),
             // SSE is unsupported - skip
             ExtensionConfig::Sse { name, .. } => {
                 tracing::warn!(name = %name, "SSE is unsupported, skipping");
@@ -65,7 +70,7 @@ fn extract_secrets_from_extensions(
             }
         };
 
-        for key in env_keys {
+        for key in env_keys.iter().chain(client_secret_key) {
             if seen_keys.insert(key.clone()) {
                 let secret_req = SecretRequirement::new(extension_name.clone(), key.clone());
                 secrets.push(secret_req);
@@ -167,6 +172,9 @@ mod tests {
                     description: "github-mcp".to_string(),
                     timeout: None,
                     socket: None,
+                    client_id: None,
+                    client_secret_key: None,
+                    scopes: vec![],
                     bundled: None,
                     available_tools: Vec::new(),
                     headers: HashMap::new(),
@@ -265,6 +273,9 @@ mod tests {
                     description: "service-a".to_string(),
                     timeout: None,
                     socket: None,
+                    client_id: None,
+                    client_secret_key: None,
+                    scopes: vec![],
                     bundled: None,
                     available_tools: Vec::new(),
                     headers: HashMap::new(),
@@ -300,6 +311,50 @@ mod tests {
     }
 
     #[test]
+    fn test_discover_recipe_secrets_includes_client_secret_key() {
+        let recipe = Recipe {
+            version: "1.0.0".to_string(),
+            title: "OAuth Recipe".to_string(),
+            description: "A recipe with a pre-registered OAuth client".to_string(),
+            instructions: Some("Test instructions".to_string()),
+            prompt: None,
+            extensions: Some(vec![ExtensionConfig::StreamableHttp {
+                name: "oauth-ext".to_string(),
+                uri: "http://localhost:8080/mcp".to_string(),
+                envs: Envs::new(HashMap::new()),
+                env_keys: vec!["API_TOKEN".to_string()],
+                description: "oauth-ext".to_string(),
+                timeout: None,
+                socket: None,
+                client_id: Some("registered-client".to_string()),
+                client_secret_key: Some("OAUTH_CLIENT_SECRET".to_string()),
+                scopes: vec![],
+                bundled: None,
+                available_tools: Vec::new(),
+                headers: HashMap::new(),
+            }]),
+            sub_recipes: None,
+            settings: None,
+            activities: None,
+            author: None,
+            parameters: None,
+            response: None,
+            retry: None,
+        };
+
+        let secrets = discover_recipe_secrets(&recipe);
+        let keys: Vec<&str> = secrets.iter().map(|s| s.key.as_str()).collect();
+
+        assert!(keys.contains(&"API_TOKEN"));
+        assert!(keys.contains(&"OAUTH_CLIENT_SECRET"));
+        let client_secret = secrets
+            .iter()
+            .find(|s| s.key == "OAUTH_CLIENT_SECRET")
+            .unwrap();
+        assert_eq!(client_secret.extension_name, "oauth-ext");
+    }
+
+    #[test]
     fn test_secret_requirement_creation() {
         let req = SecretRequirement::new("test-ext".to_string(), "API_TOKEN".to_string());
 
@@ -326,6 +381,9 @@ mod tests {
                 description: "parent-ext".to_string(),
                 timeout: None,
                 socket: None,
+                client_id: None,
+                client_secret_key: None,
+                scopes: vec![],
                 bundled: None,
                 available_tools: Vec::new(),
                 headers: HashMap::new(),

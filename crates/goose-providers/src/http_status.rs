@@ -107,7 +107,29 @@ fn parse_http_date(value: &str) -> Option<SystemTime> {
     None
 }
 
-pub fn is_context_length_exceeded_message(text: &str) -> bool {
+fn is_context_length_exceeded(payload: Option<&Value>, message: &str) -> bool {
+    let payload_exceeded = payload
+        .and_then(|payload| payload.get("error"))
+        .is_some_and(|error| {
+            error
+                .get("code")
+                .and_then(Value::as_str)
+                .is_some_and(|code| code.eq_ignore_ascii_case("context_length_exceeded"))
+                || match (
+                    error.get("n_prompt_tokens").and_then(Value::as_f64),
+                    error.get("n_ctx").and_then(Value::as_f64),
+                ) {
+                    (Some(prompt_tokens), Some(context_limit)) => {
+                        context_limit > 0.0 && prompt_tokens > context_limit
+                    }
+                    _ => false,
+                }
+        });
+
+    payload_exceeded || is_context_length_exceeded_message(message)
+}
+
+fn is_context_length_exceeded_message(text: &str) -> bool {
     let text_lower = text.to_lowercase();
 
     let direct_context_phrases = [
@@ -247,7 +269,7 @@ pub fn map_http_error_to_provider_error(
         StatusCode::PAYLOAD_TOO_LARGE => ProviderError::ContextLengthExceeded(extract_message()),
         StatusCode::BAD_REQUEST => {
             let payload_str = extract_message();
-            if is_context_length_exceeded_message(&payload_str) {
+            if is_context_length_exceeded(payload.as_ref(), &payload_str) {
                 ProviderError::ContextLengthExceeded(payload_str)
             } else {
                 ProviderError::RequestFailed(format!("Bad request (400): {}", payload_str))
@@ -354,6 +376,15 @@ mod tests {
         let mut h = HeaderMap::new();
         h.insert(RETRY_AFTER, value.parse().unwrap());
         h
+    }
+
+    fn error_payload<const N: usize>(fields: [(&str, Value); N]) -> Value {
+        let mut error = json!({ "message": "invalid request" });
+        let error = error.as_object_mut().unwrap();
+        for (key, value) in fields {
+            error.insert(key.to_string(), value);
+        }
+        json!({ "error": error })
     }
 
     #[test]
@@ -468,6 +499,11 @@ mod tests {
             "Input token count exceeds the maximum number of tokens allowed",
             "Please reduce the length of the messages",
             "prompt is too long for this model",
+            "Server received a request which exceeds maximum allowed content length. RequestSize(bytes): 34021227, Limit(bytes): 33554432.",
+            "Request body size exceeds the maximum allowed limit",
+            "Request body is too large",
+            "Request payload too large",
+            "Content-Length exceeds the maximum allowed request size",
         ];
 
         for message in messages {
@@ -487,12 +523,85 @@ mod tests {
             "temperature exceeds maximum allowed value",
             "schema is too long",
             "metadata length exceeds maximum allowed",
+            "Invalid request body: temperature exceeds maximum allowed value",
+            "tools[0].description content length exceeds maximum allowed",
+            "response content length exceeds maximum allowed",
         ];
 
         for message in messages {
             assert!(
                 !is_context_length_exceeded_message(message),
                 "expected generic bad request for: {message}"
+            );
+        }
+    }
+
+    #[test]
+    fn structured_context_length_classifier_handles_supported_and_invalid_payloads() {
+        let cases = [
+            (
+                "context overflow code",
+                error_payload([("code", json!("Context_Length_Exceeded"))]),
+                true,
+            ),
+            (
+                "prompt exceeds context limit",
+                error_payload([
+                    ("code", json!(400)),
+                    ("n_prompt_tokens", json!(49202)),
+                    ("n_ctx", json!(49152)),
+                ]),
+                true,
+            ),
+            (
+                "generic output token limit",
+                error_payload([(
+                    "message",
+                    json!("max_tokens must be less than or equal to 4096"),
+                )]),
+                false,
+            ),
+            (
+                "prompt count only",
+                error_payload([("n_prompt_tokens", json!(49202))]),
+                false,
+            ),
+            (
+                "null token counts",
+                error_payload([("n_prompt_tokens", Value::Null), ("n_ctx", Value::Null)]),
+                false,
+            ),
+            (
+                "zero context limit",
+                error_payload([("n_prompt_tokens", json!(1)), ("n_ctx", json!(0))]),
+                false,
+            ),
+            (
+                "equal token counts",
+                error_payload([("n_prompt_tokens", json!(49152)), ("n_ctx", json!(49152))]),
+                false,
+            ),
+            (
+                "top-level token counts",
+                json!({
+                    "error": { "message": "invalid request" },
+                    "n_prompt_tokens": 49202,
+                    "n_ctx": 49152
+                }),
+                false,
+            ),
+        ];
+
+        for (case, payload, expected_context_overflow) in cases {
+            let error = map_http_error_to_provider_error(
+                StatusCode::BAD_REQUEST,
+                Some(payload),
+                "http://test/endpoint",
+            );
+            assert_eq!(
+                matches!(&error, ProviderError::ContextLengthExceeded(_)),
+                expected_context_overflow,
+                "unexpected classification for {case}: {error:?}"
             );
         }
     }
