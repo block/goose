@@ -103,8 +103,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          for id in $(gh release view dev --json assets -q '.assets[].id'); do
-            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/assets/${id}"
+          for id in $(gh release view dev --repo "${GITHUB_OWNER}/${GITHUB_REPO}" --json assets -q '.assets[].id'); do
+            gh api -X DELETE "repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/assets/${id}" || true
           done
 
       - name: Publish GitHub Release tag dev
