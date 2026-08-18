@@ -577,7 +577,7 @@ fn codex_mcp_config_overrides(extensions: &[ExtensionConfig]) -> Result<Vec<Stri
                 ..
             } => {
                 return Err(anyhow!(
-                    "Codex provider does not support socket-backed Streamable HTTP extension '{name}'; use codex-acp or remove the socket setting"
+                    "Codex provider does not support socket-backed Streamable HTTP extension '{name}'; use a provider that preserves socket-backed MCP transport, or remove the socket setting only if remote HTTP is intended"
                 ));
             }
             ExtensionConfig::StreamableHttp { uri, headers, .. } => {
@@ -893,7 +893,7 @@ mod tests {
 
         assert_eq!(
             error.to_string(),
-            "Codex provider does not support socket-backed Streamable HTTP extension 'private-service'; use codex-acp or remove the socket setting"
+            "Codex provider does not support socket-backed Streamable HTTP extension 'private-service'; use a provider that preserves socket-backed MCP transport, or remove the socket setting only if remote HTTP is intended"
         );
     }
 
