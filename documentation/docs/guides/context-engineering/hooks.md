@@ -154,6 +154,8 @@ The matcher is a regular expression, not a glob. A bare `"*"` is an invalid rege
 `AfterFileEdit` and `AfterShellExecution` only run after successful tool calls. To react to failed edits, failed shell commands, or other failed tool calls, use `PostToolUseFailure`.
 :::
 
+`PreToolUseResult` is observation only in authority, not asynchronous in delivery. Matching hooks are run and awaited before goose continues to the tool or returns the denial, so a slow subscriber adds its runtime, up to its timeout, to the tool call. Delivery is best effort and not durable: a subscriber that fails or is absent changes nothing about the decision, and no record is kept if the hook does not run.
+
 ## Hook Payload
 
 When a hook runs, goose writes a JSON payload to the command's stdin. Every payload includes the event name and session ID. The remaining fields are only present when they apply to the event, so a hook should treat them as optional.

@@ -1012,6 +1012,46 @@ mod tests {
         );
     }
 
+    /// PreToolUseResult honours its matcher against the tool name like every
+    /// other tool-scoped event, so a subscriber can watch one tool rather than
+    /// every call.
+    #[tokio::test]
+    async fn pre_tool_use_result_matcher_targets_the_tool_name() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = write_plugin(
+            tmp.path(),
+            "p",
+            r#"{"hooks":{"PreToolUseResult":[{"matcher":"^developer__shell$","hooks":[{"type":"command","command":"echo ran >> \"$PLUGIN_ROOT/marker.log\""}]}]}}"#,
+        );
+        let marker = root.join("marker.log");
+        let mgr = make_manager(vec![DiscoveredPlugin {
+            name: "p".into(),
+            root,
+            scope: PluginScope::User,
+        }]);
+        let lines = || {
+            std::fs::read_to_string(&marker)
+                .unwrap_or_default()
+                .lines()
+                .filter(|line| !line.trim().is_empty())
+                .count()
+        };
+
+        mgr.emit(
+            HookEvent::PreToolUseResult,
+            HookContext::new(HookEvent::PreToolUseResult, "s").with_tool("developer__shell", None),
+        )
+        .await;
+        assert_eq!(lines(), 1, "the matching tool must run the hook");
+
+        mgr.emit(
+            HookEvent::PreToolUseResult,
+            HookContext::new(HookEvent::PreToolUseResult, "s").with_tool("other__tool", None),
+        )
+        .await;
+        assert_eq!(lines(), 1, "a non-matching tool must not run the hook");
+    }
+
     #[test]
     fn ignores_unknown_events() {
         let tmp = tempfile::tempdir().unwrap();
