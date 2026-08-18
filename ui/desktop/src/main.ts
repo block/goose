@@ -2003,6 +2003,21 @@ ipcMain.handle(
   }
 );
 
+ipcMain.handle('list-git-branches', (_event, dir: string): Promise<string[]> => {
+  if (!dir?.trim()) return Promise.resolve([]);
+  return new Promise<string[]>((resolve) => {
+    execFile(
+      'git',
+      ['-c', 'safe.bareRepository=explicit', '-c', 'core.fsmonitor=false', '-C', dir, 'for-each-ref', 'refs/heads/', '--format=%(refname:short)'],
+      { timeout: 3000 },
+      (error, stdout) => {
+        if (error) resolve([]);
+        else resolve(stdout.trim().split('\n').filter(Boolean));
+      }
+    );
+  });
+});
+
 ipcMain.handle('get-setting', (_event, key: SettingKey) => {
   const settings = getSettings();
   return settings[key];
