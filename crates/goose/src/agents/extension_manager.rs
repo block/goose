@@ -52,7 +52,8 @@ use crate::prompt_template;
 use crate::subprocess::configure_subprocess;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, ContentBlock, ErrorCode, ErrorData, GetPromptResult,
-    MetaObject, Prompt, Resource, ResourceContents, ServerInfo, ServerNotification, Tool,
+    ListResourcesResult, ListToolsResult, MetaObject, Prompt, Resource, ResourceContents,
+    ServerInfo, ServerNotification, Tool,
 };
 use rmcp::transport::auth::{AuthClient, CredentialStore};
 use schemars::_private::NoSerialize;
@@ -1771,6 +1772,35 @@ impl ExtensionManager {
         Ok(self.filter_tools(&all_tools, extension_name.as_deref(), None))
     }
 
+    pub async fn list_tools_from_extension(
+        &self,
+        session_id: &str,
+        extension_name: &str,
+        cancellation_token: CancellationToken,
+    ) -> Result<ListToolsResult, ErrorData> {
+        let client = self
+            .get_server_client(extension_name)
+            .await
+            .ok_or_else(|| {
+                ErrorData::new(
+                    ErrorCode::INVALID_PARAMS,
+                    format!("Extension {} is not valid", extension_name),
+                    None,
+                )
+            })?;
+
+        client
+            .list_tools(session_id, None, cancellation_token)
+            .await
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Unable to list tools for {}, {:?}", extension_name, e),
+                    None,
+                )
+            })
+    }
+
     pub async fn get_prefixed_tools_excluding(
         &self,
         session_id: &str,
@@ -2089,12 +2119,12 @@ impl ExtensionManager {
         Ok(ui_resources)
     }
 
-    async fn list_resources_from_extension(
+    pub async fn list_resources_result_from_extension(
         &self,
         session_id: &str,
         extension_name: &str,
         cancellation_token: CancellationToken,
-    ) -> Result<Vec<ContentBlock>, ErrorData> {
+    ) -> Result<ListResourcesResult, ErrorData> {
         let client = self
             .get_server_client(extension_name)
             .await
@@ -2116,6 +2146,16 @@ impl ExtensionManager {
                     None,
                 )
             })
+    }
+
+    async fn list_resources_from_extension(
+        &self,
+        session_id: &str,
+        extension_name: &str,
+        cancellation_token: CancellationToken,
+    ) -> Result<Vec<ContentBlock>, ErrorData> {
+        self.list_resources_result_from_extension(session_id, extension_name, cancellation_token)
+            .await
             .map(|lr| {
                 let resource_list = lr
                     .resources

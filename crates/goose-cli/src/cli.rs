@@ -1533,15 +1533,27 @@ async fn handle_mcp_probe(extension_command: String, script_path: Option<String>
         let result = match step {
             McpProbeStep::ListTools => serde_json::json!({
                 "action": "listTools",
-                "result": agent.list_tools(session_id, Some("probe".to_string())).await,
+                "result": agent.extension_manager.list_tools_from_extension(
+                    session_id,
+                    "probe",
+                    CancellationToken::new(),
+                ).await?,
             }),
             McpProbeStep::ListPrompts => serde_json::json!({
                 "action": "listPrompts",
-                "result": agent.extension_manager.list_prompts(session_id, CancellationToken::new()).await?,
+                "result": agent.extension_manager.list_prompts_from_extension(
+                    session_id,
+                    "probe",
+                    CancellationToken::new(),
+                ).await?,
             }),
             McpProbeStep::ListResources => serde_json::json!({
                 "action": "listResources",
-                "result": agent.extension_manager.get_ui_resources(session_id).await?,
+                "result": agent.extension_manager.list_resources_result_from_extension(
+                    session_id,
+                    "probe",
+                    CancellationToken::new(),
+                ).await?,
             }),
             McpProbeStep::CallTool { name, arguments } => {
                 let scoped_name = format!("probe__{name}");
