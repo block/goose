@@ -93,7 +93,11 @@ type ContentIcon = {
   theme?: 'light' | 'dark' | JsonObject;
 };
 
-export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage' | 'creditsExhausted';
+export type SystemNotificationType =
+  | 'thinkingMessage'
+  | 'progressMessage'
+  | 'inlineMessage'
+  | 'creditsExhausted';
 
 export type SystemNotificationContent = {
   data?: unknown;
@@ -164,12 +168,30 @@ export type InferenceMetadata = {
   provider: string;
   requestedModel: string;
   resolvedModel?: string | null;
+  providerSessionId?: string | null;
+};
+
+/** Mirrors the backend `MessageUsage` schema (camelCase). */
+export type MessageUsage = {
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  totalTokens?: number | null;
+  cacheReadTokens?: number | null;
+  cacheWriteTokens?: number | null;
+  cost?: number | null;
+  costSource?: 'provider_reported' | 'estimated' | null;
+  elapsedMs?: number | null;
+  timeToFirstTokenMs?: number | null;
+  isCompaction?: boolean;
 };
 
 export type MessageMetadata = {
   agentVisible: boolean;
+  fallbackContent?: boolean;
   inference?: InferenceMetadata | null;
+  outputTokenLimitReached?: boolean;
   steer?: boolean;
+  usage?: MessageUsage | null;
   userVisible: boolean;
 };
 
@@ -200,6 +222,11 @@ export type MessageEvent =
       message: Message;
       token_state: TokenState;
       type: 'Message';
+    }
+  | {
+      message_id?: string | null;
+      usage: MessageUsage;
+      type: 'MessageUsage';
     }
   | {
       error: string;
@@ -234,9 +261,35 @@ export type ToolConfirmationRequestContent = ToolConfirmationRequest & {
 };
 export type NotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
 
+export type LiveOutputNotificationParams = {
+  sequence: number;
+  chunks: LiveOutputNotificationChunk[];
+  truncated: boolean;
+};
+
+export type LiveOutputNotificationChunk = {
+  stream: 'stdout' | 'stderr';
+  output: string;
+};
+
+export type ImageMessageContent = Extract<Message['content'][number], { type: 'image' }>;
+
 export interface ImageData {
-  data: string; // base64 encoded image data
+  data: string;
   mimeType: string;
+  _meta?: ImageMessageContent['_meta'];
+  annotations?: ImageMessageContent['annotations'];
+}
+
+export function imageDataFromMessage(message: Message): ImageData[] {
+  return message.content
+    .filter((c): c is ImageMessageContent => c.type === 'image')
+    .map((c) => ({
+      data: c.data,
+      mimeType: c.mimeType,
+      ...(c._meta ? { _meta: c._meta } : {}),
+      ...(c.annotations ? { annotations: c.annotations } : {}),
+    }));
 }
 
 export interface UserInput {
@@ -257,6 +310,8 @@ export function createUserMessage(text: string, images?: ImageData[]): Message {
         type: 'image',
         data: img.data,
         mimeType: img.mimeType,
+        ...(img._meta ? { _meta: img._meta } : {}),
+        ...(img.annotations ? { annotations: img.annotations } : {}),
       });
     });
   }
@@ -380,15 +435,6 @@ export function getAnyToolConfirmationData(message: Message): ToolConfirmationDa
   return undefined;
 }
 
-export function getToolConfirmationId(
-  content: ActionRequired & { type: 'actionRequired' }
-): string | undefined {
-  if (content.data.actionType === 'toolConfirmation') {
-    return content.data.id;
-  }
-  return undefined;
-}
-
 export function getPendingToolConfirmationIds(messages: Message[]): Set<string> {
   const pendingIds = new Set<string>();
   const respondedIds = new Set<string>();
@@ -417,23 +463,4 @@ export function getElicitationContent(
     (content): content is ActionRequired & { type: 'actionRequired' } =>
       content.type === 'actionRequired' && content.data.actionType === 'elicitation'
   );
-}
-
-export function hasCompletedToolCalls(message: Message): boolean {
-  const toolRequests = getToolRequests(message);
-  return toolRequests.length > 0;
-}
-
-export function getThinkingMessage(message: Message | undefined): string | undefined {
-  if (!message || message.role !== 'assistant') {
-    return undefined;
-  }
-
-  for (const content of message.content) {
-    if (content.type === 'systemNotification' && content.notificationType === 'thinkingMessage') {
-      return content.msg;
-    }
-  }
-
-  return undefined;
 }

@@ -6,9 +6,9 @@ use std::borrow::Cow;
 use uuid::Uuid;
 
 use super::super::finalize_usage;
+use super::super::thinking_output::ThinkingOutputFilter;
 use super::inference_engine::{
-    generation_loop, prepare_generation, GenerationContext, StopSuffixTrimmer,
-    ThinkingOutputFilter, TokenAction,
+    generation_loop, prepare_generation, GenerationContext, StopSuffixTrimmer, TokenAction,
 };
 
 pub(super) fn generate_with_native_tools(

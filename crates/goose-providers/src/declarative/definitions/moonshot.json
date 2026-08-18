@@ -15,12 +15,16 @@
     }
   ],
   "models": [
-    {"name": "kimi-latest", "context_limit": 131072},
-    {"name": "kimi-thinking-preview", "context_limit": 131072},
-    {"name": "kimi-k2-0711", "context_limit": 131072},
-    {"name": "kimi-k2", "context_limit": 262144},
-    {"name": "moonshot-v1-8k", "context_limit": 8192},
-    {"name": "moonshot-v1-32k", "context_limit": 32768}
+    {"name": "kimi-k2-0711-preview", "context_limit": 131072},
+    {"name": "kimi-k2-0905-preview", "context_limit": 262144},
+    {"name": "kimi-k2-thinking", "context_limit": 262144},
+    {"name": "kimi-k2-thinking-turbo", "context_limit": 262144},
+    {"name": "kimi-k2-turbo-preview", "context_limit": 262144},
+    {"name": "kimi-k2.5", "context_limit": 262144},
+    {"name": "kimi-k2.6", "context_limit": 262144},
+    {"name": "kimi-k2.7-code", "context_limit": 262144},
+    {"name": "kimi-k2.7-code-highspeed", "context_limit": 262144},
+    {"name": "kimi-k3", "context_limit": 1048576}
   ],
   "preserves_thinking": true,
   "supports_streaming": true

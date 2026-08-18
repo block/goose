@@ -3,8 +3,8 @@ use indoc::formatdoc;
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, Content, ErrorCode, ErrorData, Implementation, InitializeResult, Meta,
-        ServerCapabilities, ServerInfo,
+        CallToolResult, ContentBlock, ErrorCode, ErrorData, Implementation, InitializeResult,
+        MetaObject, ServerCapabilities, ServerInfo,
     },
     schemars::JsonSchema,
     service::RequestContext,
@@ -20,7 +20,7 @@ use std::{
 
 const WORKING_DIR_HEADER: &str = "agent-working-dir";
 
-fn extract_working_dir_from_meta(meta: &Meta) -> Option<PathBuf> {
+fn extract_working_dir_from_meta(meta: &MetaObject) -> Option<PathBuf> {
     meta.0
         .get(WORKING_DIR_HEADER)
         .and_then(|v| v.as_str())
@@ -194,7 +194,7 @@ impl MemoryServer {
                     let category_memories = self.retrieve(&category, is_global, working_dir)?;
                     memories.insert(
                         category,
-                        category_memories.into_iter().flat_map(|(_, v)| v).collect(),
+                        category_memories.into_values().flatten().collect(),
                     );
                 }
             }
@@ -363,7 +363,7 @@ impl MemoryServer {
         )
         .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
-        Ok(CallToolResult::success(vec![Content::text(format!(
+        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
             "Stored memory in category: {}",
             params.category
         ))]))
@@ -389,7 +389,7 @@ impl MemoryServer {
         }
         .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
-        Ok(CallToolResult::success(vec![Content::text(format!(
+        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
             "Retrieved memories: {:?}",
             memories
         ))]))
@@ -421,7 +421,7 @@ impl MemoryServer {
             format!("Cleared memories in category: {}", params.category)
         };
 
-        Ok(CallToolResult::success(vec![Content::text(message)]))
+        Ok(CallToolResult::success(vec![ContentBlock::text(message)]))
     }
 
     /// Removes a specific memory within a specified category
@@ -445,7 +445,7 @@ impl MemoryServer {
         )
         .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
-        Ok(CallToolResult::success(vec![Content::text(format!(
+        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
             "Removed specific memory from category: {}",
             params.category
         ))]))

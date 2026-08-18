@@ -1,6 +1,7 @@
 use crate::agents::ExtensionLoadResult;
 use crate::config::{Config, GooseMode};
 use crate::providers::inventory::{ProviderInventoryEntry, ProviderInventoryService};
+use crate::session::session_manager::SessionUsageTotals;
 use crate::session::Session;
 use crate::slash_commands::types::{SlashCommandEntry, SlashCommandSource};
 use agent_client_protocol::schema::v1::{
@@ -401,10 +402,11 @@ fn available_commands_update(working_dir: &std::path::Path) -> AvailableCommands
 pub(super) fn send_session_setup_notifications(
     cx: &ConnectionTo<Client>,
     session: &Session,
+    totals: &SessionUsageTotals,
     supports_goose_custom_notifications: bool,
 ) -> Result<(), agent_client_protocol::Error> {
     let session_id = SessionId::new(session.id.clone());
-    if let Some(updates) = build_usage_updates(session) {
+    if let Some(updates) = build_usage_updates(session, totals) {
         if supports_goose_custom_notifications {
             cx.send_notification(updates.custom)?;
         }
@@ -455,8 +457,13 @@ mod tests {
             description: "Mock".to_string(),
             default_model: "unused".to_string(),
             configured: true,
+            available: true,
             provider_type: crate::providers::base::ProviderType::Builtin,
             category: crate::providers::catalog::ProviderSetupCategory::Model,
+            acp: false,
+            visible_in_setup: true,
+            deprecated: false,
+            replacement: None,
             config_keys: vec![],
             setup_steps: vec![],
             supports_refresh: true,

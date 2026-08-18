@@ -11,6 +11,7 @@ use super::openai_compatible::{handle_status, stream_openai_compat};
 use super::retry::ProviderRetry;
 use crate::conversation::message::Message;
 use crate::providers::formats::openrouter as openrouter_format;
+use goose_providers::cache_semantics::{apply_chat_payload_breakpoints, CacheSemantics};
 use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::create_request;
 use goose_providers::model::ModelConfig;
@@ -21,7 +22,6 @@ pub const OPENROUTER_PROVIDER_NAME: &str = "openrouter";
 const OPENROUTER_PARAMETERS_CONFIG_KEY: &str = "OPENROUTER_PARAMETERS";
 pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-sonnet-4";
 pub const OPENROUTER_DEFAULT_FAST_MODEL: &str = "google/gemini-2.5-flash";
-pub const OPENROUTER_MODEL_PREFIX_ANTHROPIC: &str = "anthropic";
 
 // OpenRouter can run many models, we suggest the default
 pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
@@ -74,79 +74,28 @@ impl OpenRouterProvider {
             configured_parameters,
         })
     }
+
+    async fn post_chat_completions(
+        &self,
+        model_config: &ModelConfig,
+        payload: &Value,
+    ) -> Result<reqwest::Response, ProviderError> {
+        self.with_retry(|| async {
+            let resp = self
+                .api_client
+                .request("api/v1/chat/completions")
+                .model_headers(model_config)?
+                .streaming(true)
+                .response_post(payload)
+                .await?;
+            handle_status(resp).await
+        })
+        .await
+    }
 }
 
-/// Update the request when using anthropic model.
-/// For anthropic model, we can enable prompt caching to save cost. Since openrouter is the OpenAI compatible
-/// endpoint, we need to modify the open ai request to have anthropic cache control field.
-fn update_request_for_anthropic(original_payload: &Value) -> Value {
-    let mut payload = original_payload.clone();
-
-    if let Some(messages_spec) = payload
-        .as_object_mut()
-        .and_then(|obj| obj.get_mut("messages"))
-        .and_then(|messages| messages.as_array_mut())
-    {
-        // Add "cache_control" to the last and second-to-last "user" messages.
-        // During each turn, we mark the final message with cache_control so the conversation can be
-        // incrementally cached. The second-to-last user message is also marked for caching with the
-        // cache_control parameter, so that this checkpoint can read from the previous cache.
-        let mut user_count = 0;
-        for message in messages_spec.iter_mut().rev() {
-            if message.get("role") == Some(&json!("user")) {
-                if let Some(content) = message.get_mut("content") {
-                    if let Some(content_str) = content.as_str() {
-                        *content = json!([{
-                            "type": "text",
-                            "text": content_str,
-                            "cache_control": { "type": "ephemeral" }
-                        }]);
-                    }
-                }
-                user_count += 1;
-                if user_count >= 2 {
-                    break;
-                }
-            }
-        }
-
-        // Update the system message to have cache_control field.
-        if let Some(system_message) = messages_spec
-            .iter_mut()
-            .find(|msg| msg.get("role") == Some(&json!("system")))
-        {
-            if let Some(content) = system_message.get_mut("content") {
-                if let Some(content_str) = content.as_str() {
-                    *system_message = json!({
-                        "role": "system",
-                        "content": [{
-                            "type": "text",
-                            "text": content_str,
-                            "cache_control": { "type": "ephemeral" }
-                        }]
-                    });
-                }
-            }
-        }
-    }
-
-    if let Some(tools_spec) = payload
-        .as_object_mut()
-        .and_then(|obj| obj.get_mut("tools"))
-        .and_then(|tools| tools.as_array_mut())
-    {
-        // Add "cache_control" to the last tool spec, if any. This means that all tool definitions,
-        // will be cached as a single prefix.
-        if let Some(last_tool) = tools_spec.last_mut() {
-            if let Some(function) = last_tool.get_mut("function") {
-                function
-                    .as_object_mut()
-                    .unwrap()
-                    .insert("cache_control".to_string(), json!({ "type": "ephemeral" }));
-            }
-        }
-    }
-    payload
+fn is_mandatory_reasoning_error(error: &ProviderError) -> bool {
+    matches!(error, ProviderError::RequestFailed(message) if message.contains("Reasoning is mandatory"))
 }
 
 fn is_gemini_model(model_name: &str) -> bool {
@@ -207,6 +156,12 @@ impl goose_providers::base::ProviderDescriptor for OpenRouterProvider {
                 ConfigKey::new(OPENROUTER_PARAMETERS_CONFIG_KEY, false, false, None, false),
             ],
         )
+        .with_setup(
+            crate::providers::catalog::ProviderSetupMetadata::api_key(
+                crate::providers::catalog::ProviderSetupGroup::Default,
+            )
+            .with_docs_url("https://openrouter.ai/keys"),
+        )
         .with_setup_steps(vec![
             "Go to https://openrouter.ai/settings/keys",
             "Click 'Create' or use an existing API key",
@@ -233,8 +188,11 @@ impl Provider for OpenRouterProvider {
         &self.name
     }
 
-    /// Fetch supported models from OpenRouter API (only models with tool support)
-    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+    fn skip_canonical_filtering(&self) -> bool {
+        true
+    }
+
+    async fn fetch_recommended_models(&self, toolshim: bool) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
             .request("api/v1/models")
@@ -273,10 +231,20 @@ impl Provider for OpenRouterProvider {
             .iter()
             .filter_map(|model| {
                 let id = model.get("id").and_then(|v| v.as_str())?;
-                Some(id.to_string())
+                if toolshim {
+                    return Some(id.to_string());
+                }
+                let supports_tools = model
+                    .get("supported_parameters")
+                    .and_then(|v| v.as_array())
+                    .is_some_and(|params| params.iter().any(|p| p.as_str() == Some("tools")));
+                if supports_tools {
+                    Some(id.to_string())
+                } else {
+                    None
+                }
             })
             .collect();
-
         models.sort();
         Ok(models)
     }
@@ -315,42 +283,43 @@ impl Provider for OpenRouterProvider {
             }
         }
 
-        if supports_cache_control(model_config) {
-            payload = update_request_for_anthropic(&payload);
+        if CacheSemantics::for_model(OPENROUTER_PROVIDER_NAME, &model_config.model_name)
+            .uses_explicit_breakpoints()
+            && !model_config.prompt_cache_disabled()
+        {
+            apply_chat_payload_breakpoints(&mut payload);
         }
 
         if is_gemini_model(&model_config.model_name) {
             openrouter_format::add_reasoning_details_to_request(&mut payload, messages);
         }
-        openrouter_format::apply_reasoning_config(&mut payload, model_config);
+        let sent_reasoning_disable =
+            openrouter_format::apply_reasoning_config(&mut payload, model_config);
 
         if let Some(obj) = payload.as_object_mut() {
             obj.insert("transforms".to_string(), json!(["middle-out"]));
+            obj.insert("usage".to_string(), json!({ "include": true }));
         }
 
         let mut log = start_log(model_config, &payload)?;
 
-        let response = self
-            .with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .response_post("api/v1/chat/completions", &payload)
-                    .await?;
-                handle_status(resp).await
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
+        let response = match self.post_chat_completions(model_config, &payload).await {
+            // Mandatory-reasoning endpoints reject the disable request, so
+            // downgrade to the lowest effort they all accept and retry once.
+            Err(error) if sent_reasoning_disable && is_mandatory_reasoning_error(&error) => {
+                let _ = log.error(&error);
+                payload["reasoning"] = json!({ "effort": "low" });
+                log = start_log(model_config, &payload)?;
+                self.post_chat_completions(model_config, &payload).await
+            }
+            result => result,
+        }
+        .inspect_err(|e| {
+            let _ = log.error(e);
+        })?;
 
         stream_openai_compat(response, log)
     }
-}
-
-fn supports_cache_control(model: &ModelConfig) -> bool {
-    model
-        .model_name
-        .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
 }
 
 #[cfg(test)]
@@ -368,6 +337,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         }
     }
 
@@ -429,5 +399,61 @@ mod tests {
         let request_params = model.request_params.as_ref().unwrap();
         assert_eq!(request_params["plugins"], json!([{ "id": "web" }]));
         assert_eq!(request_params["verbosity"], json!("xhigh"));
+    }
+
+    #[tokio::test]
+    async fn stream_downgrades_reasoning_disable_on_mandatory_endpoint() {
+        use wiremock::matchers::{body_partial_json, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/chat/completions"))
+            .and(body_partial_json(
+                json!({ "reasoning": { "enabled": false } }),
+            ))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!({
+                "error": { "message": "Reasoning is mandatory for this endpoint and cannot be disabled." }
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/chat/completions"))
+            .and(body_partial_json(
+                json!({ "reasoning": { "effort": "low" } }),
+            ))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-type", "text/event-stream")
+                    .set_body_string("data: [DONE]\n\n"),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let provider = OpenRouterProvider {
+            api_client: ApiClient::new_with_tls(
+                server.uri(),
+                AuthMethod::BearerToken("test-key".to_string()),
+                None,
+            )
+            .unwrap(),
+            supports_streaming: true,
+            name: OPENROUTER_PROVIDER_NAME.to_string(),
+            configured_parameters: None,
+        };
+
+        let mut config = model_config("google/gemini-3.5-flash");
+        config.reasoning = Some(true);
+        config.request_params = Some(HashMap::from([(
+            "thinking_effort".to_string(),
+            json!("off"),
+        )]));
+
+        let _stream = provider
+            .stream(&config, "system", &[Message::user().with_text("hi")], &[])
+            .await
+            .unwrap();
     }
 }

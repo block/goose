@@ -1,11 +1,13 @@
 use std::{borrow::Cow, io::Read as _, path::Path};
 
 use base64::Engine as _;
-use rmcp::model::{AnnotateAble as _, ImageContent, RawImageContent};
+use rmcp::model::ImageContent;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::errors::ProviderError;
+
+const MAX_IMAGE_BYTES: u64 = 20 * 1024 * 1024;
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum ImageFormat {
@@ -49,8 +51,7 @@ pub fn detect_image_path(text: &str) -> Option<Cow<'_, str>> {
         };
 
         let terminator = text.get(end..).and_then(|rest| rest.chars().next());
-        let terminated =
-            terminator.is_none_or(|c| c == '/' || c.is_whitespace() || c == '"' || c == '\'');
+        let terminated = terminator.is_none_or(is_path_terminator);
 
         if terminated {
             let mut floor = end.saturating_sub(MAX_PATH_LEN);
@@ -63,7 +64,7 @@ pub fn detect_image_path(text: &str) -> Option<Cow<'_, str>> {
                     let preceded_by_boundary = text
                         .get(..start)
                         .and_then(|prefix| prefix.chars().next_back())
-                        .is_none_or(|c| c.is_whitespace() || c == '"' || c == '\'');
+                        .is_none_or(is_path_leading_boundary);
                     if !preceded_by_boundary {
                         continue;
                     }
@@ -140,6 +141,30 @@ fn is_existing_image_path(candidate: &str) -> bool {
     path.is_absolute() && path.is_file() && is_image_file(path)
 }
 
+fn is_path_leading_boundary(c: char) -> bool {
+    c.is_whitespace()
+        || matches!(
+            c,
+            '"' | '\'' | '\u{00AB}' | '\u{00BB}' | '\u{2018}'
+                ..='\u{201F}' | '\u{2039}' | '\u{203A}'
+        )
+}
+
+fn is_path_terminator(c: char) -> bool {
+    c == '/'
+        || c.is_whitespace()
+        || matches!(
+            c,
+            '"' | '\'' | '\u{00AB}' | '\u{00BB}' | '\u{2013}'
+                ..='\u{201F}' | '\u{2026}' | '\u{2039}' | '\u{203A}'
+        )
+        || ('\u{2300}'..='\u{23FF}').contains(&c)
+        || ('\u{2600}'..='\u{27BF}').contains(&c)
+        || ('\u{2B00}'..='\u{2BFF}').contains(&c)
+        || ('\u{1F1E6}'..='\u{1F1FF}').contains(&c)
+        || ('\u{1F300}'..='\u{1FAFF}').contains(&c)
+}
+
 /// Case-insensitive ASCII substring search returning a byte index into
 /// `haystack` (no allocation, so the index stays valid for slicing).
 fn find_ascii_ci(haystack: &str, needle: &str, from: usize) -> Option<usize> {
@@ -160,37 +185,31 @@ fn is_image_file(path: &Path) -> bool {
     if let Ok(mut file) = std::fs::File::open(path) {
         let mut buffer = [0u8; 8]; // Large enough for most image magic numbers
         if file.read(&mut buffer).is_ok() {
-            // Check magic numbers for common image formats
-            return match &buffer[0..4] {
-                // PNG: 89 50 4E 47
-                [0x89, 0x50, 0x4E, 0x47] => true,
-                // JPEG: FF D8 FF
-                [0xFF, 0xD8, 0xFF, _] => true,
-                // GIF: 47 49 46 38
-                [0x47, 0x49, 0x46, 0x38] => true,
-                _ => false,
-            };
+            return has_image_magic(&buffer);
         }
     }
     false
+}
+
+fn has_image_magic(bytes: &[u8]) -> bool {
+    matches!(
+        bytes.get(..4),
+        Some([0x89, 0x50, 0x4E, 0x47])
+            | Some([0xFF, 0xD8, 0xFF, _])
+            | Some([0x47, 0x49, 0x46, 0x38])
+    )
+}
+
+fn read_bounded(reader: impl std::io::Read, max_bytes: u64) -> std::io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    reader.take(max_bytes + 1).read_to_end(&mut bytes)?;
+    Ok(bytes)
 }
 
 /// Convert a local image file to base64 encoded ImageContent
 pub fn load_image_file(path: &str) -> Result<ImageContent, ProviderError> {
     let path = Path::new(path);
 
-    // Verify it's an image before proceeding
-    if !is_image_file(path) {
-        return Err(ProviderError::RequestFailed(
-            "File is not a valid image".to_string(),
-        ));
-    }
-
-    // Read the file
-    let bytes = std::fs::read(path)
-        .map_err(|e| ProviderError::RequestFailed(format!("Failed to read image file: {}", e)))?;
-
-    // Detect mime type from extension
     let mime_type = match path.extension().and_then(|e| e.to_str()) {
         Some(ext) => match ext.to_lowercase().as_str() {
             "png" => "image/png",
@@ -208,20 +227,42 @@ pub fn load_image_file(path: &str) -> Result<ImageContent, ProviderError> {
         }
     };
 
-    // Convert to base64
+    let file = std::fs::File::open(path)
+        .map_err(|e| ProviderError::RequestFailed(format!("Failed to read image file: {e}")))?;
+    let file_size = file
+        .metadata()
+        .map_err(|e| ProviderError::RequestFailed(format!("Failed to read image file: {e}")))?
+        .len();
+    if file_size > MAX_IMAGE_BYTES {
+        return Err(ProviderError::RequestFailed(format!(
+            "Image file exceeds the {} MiB limit",
+            MAX_IMAGE_BYTES / (1024 * 1024)
+        )));
+    }
+
+    let bytes = read_bounded(file, MAX_IMAGE_BYTES)
+        .map_err(|e| ProviderError::RequestFailed(format!("Failed to read image file: {e}")))?;
+    if bytes.len() as u64 > MAX_IMAGE_BYTES {
+        return Err(ProviderError::RequestFailed(format!(
+            "Image file exceeds the {} MiB limit",
+            MAX_IMAGE_BYTES / (1024 * 1024)
+        )));
+    }
+    if !has_image_magic(&bytes) {
+        return Err(ProviderError::RequestFailed(
+            "File is not a valid image".to_string(),
+        ));
+    }
+
     let data = base64::prelude::BASE64_STANDARD.encode(&bytes);
 
-    Ok(RawImageContent {
-        mime_type: mime_type.to_string(),
-        data,
-        meta: None,
-    }
-    .no_annotation())
+    Ok(ImageContent::new(data, mime_type))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write as _;
     use tempfile;
 
     #[test]
@@ -285,6 +326,10 @@ mod tests {
         let text = format!("describe \"{}\" please", png_path_str);
         assert_eq!(detect_image_path(&text).as_deref(), Some(png_path_str));
         let text = format!("describe '{}'", png_path_str);
+        assert_eq!(detect_image_path(&text).as_deref(), Some(png_path_str));
+        let text = format!("describe “{}” please", png_path_str);
+        assert_eq!(detect_image_path(&text).as_deref(), Some(png_path_str));
+        let text = format!("describe «{}» please", png_path_str);
         assert_eq!(detect_image_path(&text).as_deref(), Some(png_path_str));
 
         // A stray closing quote in prose must not act as a terminator for an
@@ -356,6 +401,53 @@ mod tests {
     }
 
     #[test]
+    fn test_detect_image_path_with_unicode_separators() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let png_data = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        let png_path = temp_dir.path().join("photo.png");
+        std::fs::write(&png_path, png_data).unwrap();
+        let png_path_str = png_path.to_str().unwrap();
+
+        assert_eq!(
+            detect_image_path(&format!("{png_path_str}🙂")).as_deref(),
+            Some(png_path_str)
+        );
+        assert_eq!(
+            detect_image_path(&format!("{png_path_str}🇺🇸")).as_deref(),
+            Some(png_path_str)
+        );
+        assert_eq!(
+            detect_image_path(&format!("{png_path_str}⌚")).as_deref(),
+            Some(png_path_str)
+        );
+        assert_eq!(
+            detect_image_path(&format!("{png_path_str}⭐")).as_deref(),
+            Some(png_path_str)
+        );
+        assert_eq!(
+            detect_image_path(&format!("{png_path_str}… more text")).as_deref(),
+            Some(png_path_str)
+        );
+        assert_eq!(
+            detect_image_path(&format!("{png_path_str}\u{2014}more text")).as_deref(),
+            Some(png_path_str)
+        );
+
+        assert_eq!(
+            detect_image_path(&format!("{png_path_str}\u{200B}.backup")).as_deref(),
+            None
+        );
+        assert_eq!(
+            detect_image_path(&format!("{png_path_str}\u{0301}")).as_deref(),
+            None
+        );
+        assert_eq!(
+            detect_image_path(&format!("file:{png_path_str}")).as_deref(),
+            None
+        );
+    }
+
+    #[test]
     fn test_detect_image_path_ignores_urls_and_longer_extensions() {
         let temp_dir = tempfile::tempdir().unwrap();
         let png_data = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
@@ -407,6 +499,10 @@ mod tests {
         assert!(result.is_ok());
         let image = result.unwrap();
         assert_eq!(image.mime_type, "image/png");
+        assert_eq!(
+            base64::prelude::BASE64_STANDARD.decode(image.data).unwrap(),
+            png_data
+        );
 
         // Test loading fake PNG file
         let result = load_image_file(fake_png_path_str);
@@ -434,5 +530,23 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("Unsupported image format"));
+    }
+
+    #[test]
+    fn bounded_reader_accepts_limit_and_detects_extra_byte() {
+        assert_eq!(read_bounded(&b"12345678"[..], 8).unwrap().len(), 8);
+        assert_eq!(read_bounded(&b"123456789"[..], 8).unwrap().len(), 9);
+    }
+
+    #[test]
+    fn load_image_file_rejects_oversized_sparse_file() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let png_path = temp_dir.path().join("oversized.png");
+        let mut file = std::fs::File::create(&png_path).unwrap();
+        file.write_all(&[0x89, 0x50, 0x4E, 0x47]).unwrap();
+        file.set_len(MAX_IMAGE_BYTES + 1).unwrap();
+
+        let error = load_image_file(png_path.to_str().unwrap()).unwrap_err();
+        assert!(error.to_string().contains("exceeds the 20 MiB limit"));
     }
 }

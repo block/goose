@@ -3,23 +3,24 @@ mod imp {
     use std::any::Any;
     use std::path::{Path, PathBuf};
 
-    use mlx_lm::cache::ConcatKeyValueCache;
-    use mlx_lm::gemma4_mtp::generate_gemma4_mtp;
-    use mlx_lm::models::{gemma4_assistant::load_gemma4_assistant_model, LoadedModel, Model};
-    use mlx_lm_utils::tokenizer::{Chat, Conversation, Role};
-    use mlx_rs::transforms::eval;
+    use safemlx::transforms::eval;
+    use safemlx::{random, Array, Device, DeviceType, Stream};
+    use safemlx_lm::gemma4_mtp::generate_gemma4_mtp;
+    use safemlx_lm::models::{gemma4_assistant::load_gemma4_assistant_model, LoadedModel, Model};
+    use safemlx_lm_utils::tokenizer::{Chat, Conversation, Role, Tokenizer};
     use serde_json::json;
 
     use crate::backend::{BackendLoadedModel, LocalGenerationRequest, LocalInferenceBackend};
     use crate::local_model_registry::{ModelSettings, ToolCallingMode};
     use crate::native_tool_parsing::message_from_native_tool_text;
     use crate::provider_utils::filter_extensions_from_system_prompt;
+    use crate::thinking_output::ThinkingOutputFilter;
     use crate::tool_emulation::{
         build_emulator_tool_description, load_tiny_model_prompt, message_for_emulator_action,
         StreamingEmulatorParser, CODE_EXECUTION_TOOL,
     };
     use crate::{extract_text_content, ResolvedModelPaths};
-    use goose_provider_types::conversation::message::Message;
+    use goose_provider_types::conversation::message::{Message, MessageContent};
     use goose_provider_types::conversation::token_usage::{
         DraftStats, ProviderStats, ProviderUsage, Usage,
     };
@@ -57,14 +58,25 @@ mod imp {
             }
 
             let model_dir = model_dir_from_path(&resolved.model_path)?;
-            let model = LoadedModel::load(&model_dir).map_err(mlx_error)?;
+            let stream = Stream::new_with_device(&Device::new(DeviceType::Gpu, 0));
+            let weights_stream = Stream::new_with_device(&Device::new(DeviceType::Cpu, 0));
+            let model =
+                LoadedModel::load(&model_dir, &stream, &weights_stream).map_err(mlx_error)?;
+            let tokenizer =
+                Tokenizer::from_file(model_dir.join("tokenizer.json")).map_err(mlx_error)?;
             tracing::info!(
                 backend = self.id(),
                 model_id,
                 model_type = model.model_type(),
                 "MLX model loaded successfully"
             );
-            Ok(Box::new(MlxLoadedModel { model, model_dir }))
+            let stop_token_ids = mlx_stop_token_ids(&model, &model_dir);
+            Ok(Box::new(MlxLoadedModel {
+                model,
+                tokenizer,
+                model_dir,
+                stop_token_ids,
+            }))
         }
 
         fn generate(
@@ -79,6 +91,7 @@ mod imp {
                     ProviderError::ExecutionError("Loaded model backend mismatch".to_string())
                 })?;
 
+            let stream = Stream::new_with_device(&Device::new(DeviceType::Gpu, 0));
             let tool_mode = if request.tools.is_empty() {
                 ToolMode::None
             } else {
@@ -110,77 +123,114 @@ mod imp {
 
             let prompt_array = loaded
                 .model
-                .encode_to_array(&prompt, false)
+                .encode_to_array(&prompt, false, &stream)
                 .map_err(mlx_error)?;
-            let max_tokens = request
-                .settings
-                .max_output_tokens
-                .or_else(|| {
-                    request
-                        .max_tokens
-                        .and_then(|tokens| usize::try_from(tokens).ok())
-                })
-                .unwrap_or(512);
-            let temp = request
-                .temperature
-                .unwrap_or_else(|| temperature(request.settings));
-            let eos_token_ids = loaded.model.eos_token_ids().to_vec();
+            let max_tokens = mlx_max_tokens(
+                request.settings,
+                request.max_tokens,
+                request.context_limit,
+                prompt_tokens.len(),
+            );
+            let (settings_temp, seed) = sampling(request.settings);
+            let temp = request.temperature.unwrap_or(settings_temp);
+            let prng_key = prng_key(temp, seed)?;
+            let eos_token_ids = loaded.stop_token_ids.clone();
             let generation_started = std::time::Instant::now();
-            let (generated_ids, draft_stats) =
-                if let Some(draft_model_path) = &request.draft_model_path {
-                    if matches!(loaded.model.model_mut(), Model::Gemma4(_)) {
-                        let mut assistant =
-                            load_gemma4_assistant_model(draft_model_path).map_err(|error| {
+            let MlxGeneration {
+                generated_ids,
+                generated_text,
+                draft_stats,
+                time_to_first_token_ms,
+                streamed_response,
+            } = if let Some(draft_model_path) = &request.draft_model_path {
+                if matches!(loaded.model.model_mut(), Model::Gemma4(_)) {
+                    let weights_stream = Stream::new_with_device(&Device::new(DeviceType::Cpu, 0));
+                    let mut assistant =
+                        load_gemma4_assistant_model(draft_model_path, &stream, &weights_stream)
+                            .map_err(|error| {
                                 mlx_error(format!("failed to load MLX draft model: {error}"))
                             })?;
-                        let target = match loaded.model.model_mut() {
-                            Model::Gemma4(target) => target,
-                            _ => unreachable!(),
-                        };
-                        let (ids, stats) = generate_gemma4_mtp(
-                            target,
-                            &mut assistant,
-                            &prompt_array,
-                            &eos_token_ids,
-                            max_tokens,
-                            temp,
-                        )
-                        .map_err(mlx_error)?;
-                        (
-                            ids,
-                            Some(DraftStats {
-                                model: Some(draft_model_path.display().to_string()),
-                                draft_tokens: stats.draft_tokens,
-                                accepted_tokens: stats.accepted_tokens,
-                                target_tokens: stats.target_tokens,
-                                rounds: stats.rounds,
-                                accept_rate: stats.accept_rate(),
-                            }),
-                        )
-                    } else {
-                        generate_single_model(
-                            &mut loaded.model,
-                            &prompt_array,
-                            &eos_token_ids,
-                            max_tokens,
-                            temp,
-                        )?
-                    }
-                } else {
-                    generate_single_model(
-                        &mut loaded.model,
+                    let target = match loaded.model.model_mut() {
+                        Model::Gemma4(target) => target,
+                        _ => unreachable!(),
+                    };
+                    let (ids, stats) = generate_gemma4_mtp(
+                        target,
+                        &mut assistant,
                         &prompt_array,
                         &eos_token_ids,
                         max_tokens,
                         temp,
+                        prng_key,
+                        &stream,
+                    )
+                    .map_err(mlx_error)?;
+                    let generated_text = loaded.tokenizer.decode(&ids, true).map_err(mlx_error)?;
+                    MlxGeneration {
+                        generated_ids: ids,
+                        generated_text,
+                        draft_stats: Some(DraftStats {
+                            model: Some(draft_model_path.display().to_string()),
+                            draft_tokens: stats.draft_tokens,
+                            accepted_tokens: stats.accepted_tokens,
+                            target_tokens: stats.target_tokens,
+                            rounds: stats.rounds,
+                            accept_rate: stats.accept_rate(),
+                        }),
+                        time_to_first_token_ms: None,
+                        streamed_response: false,
+                    }
+                } else {
+                    generate_single_model(
+                        &mut loaded.model,
+                        &loaded.tokenizer,
+                        &prompt_array,
+                        &eos_token_ids,
+                        max_tokens,
+                        temp,
+                        prng_key,
+                        &stream,
+                        generation_started,
+                        MlxStreamEmitter::new(
+                            request.message_id,
+                            tool_mode,
+                            request.settings.enable_thinking,
+                            &prompt,
+                            request.tx,
+                        ),
                     )?
-                };
+                }
+            } else {
+                generate_single_model(
+                    &mut loaded.model,
+                    &loaded.tokenizer,
+                    &prompt_array,
+                    &eos_token_ids,
+                    max_tokens,
+                    temp,
+                    prng_key,
+                    &stream,
+                    generation_started,
+                    MlxStreamEmitter::new(
+                        request.message_id,
+                        tool_mode,
+                        request.settings.enable_thinking,
+                        &prompt,
+                        request.tx,
+                    ),
+                )?
+            };
 
-            let generated_text = loaded
-                .model
-                .decode(&generated_ids, true)
-                .map_err(mlx_error)?;
-            emit_generated_response(&generated_text, request.message_id, tool_mode, request.tx)?;
+            if !streamed_response {
+                emit_generated_response(
+                    &generated_text,
+                    &prompt,
+                    request.settings.enable_thinking,
+                    request.message_id,
+                    tool_mode,
+                    request.tx,
+                )?;
+            }
 
             let output_tokens = generated_ids.len() as i32;
             let input_tokens = prompt_tokens.len() as i32;
@@ -194,12 +244,16 @@ mod imp {
                 "model_dir": loaded.model_dir,
                 "prompt_tokens": input_tokens,
                 "output_tokens": output_tokens,
+                "model_load_ms": request.model_load_ms,
+                "time_to_first_token_ms": time_to_first_token_ms,
+                "elapsed_ms": generation_started.elapsed().as_millis() as u64,
                 "generated_text": generated_text,
                 "draft": draft_stats,
             });
             let _ = request.log.write(&log_json, Some(&usage));
             let stats = ProviderStats {
-                time_to_first_token_ms: None,
+                time_to_first_token_ms,
+                model_load_ms: request.model_load_ms,
                 elapsed_ms: Some(generation_started.elapsed().as_millis() as u64),
                 output_tokens: Some(generated_ids.len()),
                 draft: draft_stats,
@@ -221,9 +275,19 @@ mod imp {
         Emulated { code_mode_enabled: bool },
     }
 
+    struct MlxGeneration {
+        generated_ids: Vec<u32>,
+        generated_text: String,
+        draft_stats: Option<DraftStats>,
+        time_to_first_token_ms: Option<u64>,
+        streamed_response: bool,
+    }
+
     struct MlxLoadedModel {
         model: LoadedModel,
+        tokenizer: Tokenizer,
         model_dir: PathBuf,
+        stop_token_ids: Vec<u32>,
     }
 
     impl BackendLoadedModel for MlxLoadedModel {
@@ -240,6 +304,44 @@ mod imp {
                 .map(Path::to_path_buf)
                 .ok_or_else(|| mlx_error("MLX model path has no parent directory"))
         }
+    }
+
+    fn mlx_stop_token_ids(model: &LoadedModel, model_dir: &Path) -> Vec<u32> {
+        let mut ids = model.eos_token_ids().to_vec();
+        for id in generation_config_eos_token_ids(model_dir) {
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
+        ids
+    }
+
+    fn generation_config_eos_token_ids(model_dir: &Path) -> Vec<u32> {
+        let Ok(config_json) = std::fs::read_to_string(model_dir.join("generation_config.json"))
+        else {
+            return Vec::new();
+        };
+        let Ok(config) = serde_json::from_str::<serde_json::Value>(&config_json) else {
+            return Vec::new();
+        };
+        match config.get("eos_token_id") {
+            Some(value) => token_id_or_ids(value),
+            None => Vec::new(),
+        }
+    }
+
+    fn token_id_or_ids(value: &serde_json::Value) -> Vec<u32> {
+        if let Some(id) = value.as_u64().and_then(|id| u32::try_from(id).ok()) {
+            return vec![id];
+        }
+        value
+            .as_array()
+            .map(|ids| {
+                ids.iter()
+                    .filter_map(|id| id.as_u64().and_then(|id| u32::try_from(id).ok()))
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     fn build_prompt(
@@ -316,28 +418,107 @@ mod imp {
 
     fn generate_single_model(
         model: &mut LoadedModel,
-        prompt_array: &mlx_rs::Array,
+        tokenizer: &Tokenizer,
+        prompt_array: &Array,
         eos_token_ids: &[u32],
         max_tokens: usize,
         temp: f32,
-    ) -> Result<(Vec<u32>, Option<DraftStats>), ProviderError> {
-        let mut cache: Vec<Option<ConcatKeyValueCache>> = Vec::new();
+        prng_key: Option<Array>,
+        stream: &Stream,
+        generation_started: std::time::Instant,
+        mut emitter: MlxStreamEmitter<'_>,
+    ) -> Result<MlxGeneration, ProviderError> {
+        let mut cache = model.new_cache();
         let mut generated_ids = Vec::new();
+        let mut streamed_text = String::new();
+        let mut time_to_first_token_ms = None;
+        let stream_generation = emitter.can_stream();
+        let mut decode_stream = tokenizer.decode_stream(true);
         {
             let generator = model
-                .generate(&mut cache, temp, prompt_array)
+                .generate_with_cache(&mut cache, temp, prompt_array, prng_key, stream)
                 .take(max_tokens);
             for token in generator {
                 let token = token.map_err(mlx_error)?;
                 eval([&token]).map_err(mlx_error)?;
-                let token_id = token.item::<u32>();
+                let token_id = token.item::<u32>(stream);
+                time_to_first_token_ms.get_or_insert_with(|| {
+                    u64::try_from(generation_started.elapsed().as_millis()).unwrap_or(u64::MAX)
+                });
                 if eos_token_ids.contains(&token_id) {
                     break;
                 }
                 generated_ids.push(token_id);
+                if stream_generation {
+                    if let Some(piece) = decode_stream.step(token_id).map_err(mlx_error)? {
+                        if !piece.is_empty() {
+                            let should_continue = emitter.push_text(&piece)?;
+                            streamed_text.push_str(&piece);
+                            if !should_continue {
+                                break;
+                            }
+                        }
+                    }
+                }
             }
         }
-        Ok((generated_ids, None))
+        let generated_text = tokenizer.decode(&generated_ids, true).map_err(mlx_error)?;
+        let streamed_response = if stream_generation {
+            match final_stream_suffix(&generated_text, &streamed_text)? {
+                Some(suffix) => {
+                    if !suffix.is_empty() {
+                        emitter.push_text(suffix)?;
+                    }
+                    true
+                }
+                None => false,
+            }
+        } else {
+            false
+        };
+        if streamed_response {
+            emitter.finish()?;
+        }
+        Ok(MlxGeneration {
+            generated_ids,
+            generated_text,
+            draft_stats: None,
+            time_to_first_token_ms,
+            streamed_response,
+        })
+    }
+
+    fn final_stream_suffix<'a>(
+        generated_text: &'a str,
+        streamed_text: &str,
+    ) -> Result<Option<&'a str>, ProviderError> {
+        if streamed_text.is_empty() {
+            return Ok(None);
+        }
+
+        generated_text
+            .strip_prefix(streamed_text)
+            .map(Some)
+            .ok_or_else(|| mlx_error("streamed MLX decode did not match final tokenizer decode"))
+    }
+
+    fn mlx_max_tokens(
+        settings: &ModelSettings,
+        request_max_tokens: Option<i32>,
+        context_limit: usize,
+        prompt_tokens: usize,
+    ) -> usize {
+        let configured_max = settings
+            .max_output_tokens
+            .or_else(|| request_max_tokens.and_then(|tokens| usize::try_from(tokens).ok()));
+        if context_limit == 0 {
+            return configured_max.unwrap_or(4096);
+        }
+
+        let context_headroom = context_limit.saturating_sub(prompt_tokens);
+        configured_max
+            .map(|max| max.min(context_headroom))
+            .unwrap_or(context_headroom)
     }
 
     fn is_gemma4(model: &LoadedModel) -> bool {
@@ -463,6 +644,8 @@ mod imp {
 
     fn emit_generated_response(
         generated_text: &str,
+        generation_prompt: &str,
+        enable_thinking: bool,
         message_id: &str,
         tool_mode: ToolMode,
         tx: &tokio::sync::mpsc::Sender<
@@ -473,30 +656,27 @@ mod imp {
             return Ok(());
         }
 
+        let (content, thinking) =
+            split_generated_thinking(generated_text, generation_prompt, enable_thinking);
+
         match tool_mode {
             ToolMode::None => {
-                let mut msg = Message::assistant().with_text(generated_text);
-                msg.id = Some(message_id.to_string());
-                tx.blocking_send(Ok((Some(msg), None))).map_err(|_| {
-                    ProviderError::ExecutionError("Failed to stream MLX response".to_string())
-                })?;
+                emit_assistant_message(message_id, &thinking, &content, tx)?;
             }
             ToolMode::Native => {
-                if let Some(message) = message_from_native_tool_text(generated_text, message_id)? {
+                if let Some(mut message) = message_from_native_tool_text(&content, message_id)? {
+                    prepend_thinking(&mut message, &thinking);
                     tx.blocking_send(Ok((Some(message), None))).map_err(|_| {
                         ProviderError::ExecutionError("Failed to stream MLX response".to_string())
                     })?;
                 } else {
-                    let mut msg = Message::assistant().with_text(generated_text);
-                    msg.id = Some(message_id.to_string());
-                    tx.blocking_send(Ok((Some(msg), None))).map_err(|_| {
-                        ProviderError::ExecutionError("Failed to stream MLX response".to_string())
-                    })?;
+                    emit_assistant_message(message_id, &thinking, &content, tx)?;
                 }
             }
             ToolMode::Emulated { code_mode_enabled } => {
+                emit_assistant_message(message_id, &thinking, "", tx)?;
                 let mut parser = StreamingEmulatorParser::new(code_mode_enabled);
-                let mut actions = parser.process_chunk(generated_text);
+                let mut actions = parser.process_chunk(&content);
                 actions.extend(parser.flush());
 
                 for action in actions {
@@ -510,14 +690,191 @@ mod imp {
         Ok(())
     }
 
-    fn temperature(settings: &ModelSettings) -> f32 {
-        match &settings.sampling {
-            crate::local_model_registry::SamplingConfig::Greedy => 0.0,
-            crate::local_model_registry::SamplingConfig::Temperature { temperature, .. } => {
-                *temperature
+    struct MlxStreamEmitter<'a> {
+        message_id: &'a str,
+        tool_mode: ToolMode,
+        tx: &'a tokio::sync::mpsc::Sender<
+            Result<(Option<Message>, Option<ProviderUsage>), ProviderError>,
+        >,
+        output_filter: ThinkingOutputFilter,
+        emulator_parser: Option<StreamingEmulatorParser>,
+        stop_after_tool_call: bool,
+    }
+
+    impl<'a> MlxStreamEmitter<'a> {
+        fn new(
+            message_id: &'a str,
+            tool_mode: ToolMode,
+            enable_thinking: bool,
+            generation_prompt: &str,
+            tx: &'a tokio::sync::mpsc::Sender<
+                Result<(Option<Message>, Option<ProviderUsage>), ProviderError>,
+            >,
+        ) -> Self {
+            let emulator_parser = match tool_mode {
+                ToolMode::Emulated { code_mode_enabled } => {
+                    Some(StreamingEmulatorParser::new(code_mode_enabled))
+                }
+                ToolMode::None | ToolMode::Native => None,
+            };
+            Self {
+                message_id,
+                tool_mode,
+                tx,
+                output_filter: ThinkingOutputFilter::new(enable_thinking, generation_prompt),
+                emulator_parser,
+                stop_after_tool_call: false,
             }
-            crate::local_model_registry::SamplingConfig::MirostatV2 { .. } => 0.0,
         }
+
+        fn can_stream(&self) -> bool {
+            !matches!(self.tool_mode, ToolMode::Native)
+        }
+
+        fn push_text(&mut self, text: &str) -> Result<bool, ProviderError> {
+            let filtered = self.output_filter.push_text(text);
+            if !filtered.content.is_empty() {
+                self.emit_content(&filtered.content)?;
+            }
+            Ok(!self.stop_after_tool_call)
+        }
+
+        fn finish(&mut self) -> Result<(), ProviderError> {
+            self.flush_filtered_output()?;
+            let actions = self
+                .emulator_parser
+                .as_mut()
+                .map(StreamingEmulatorParser::flush)
+                .unwrap_or_default();
+            for action in actions {
+                let (message, is_tool) = message_for_emulator_action(&action, self.message_id);
+                if is_tool {
+                    self.flush_filtered_output()?;
+                }
+                self.send(message)?;
+                self.stop_after_tool_call |= is_tool;
+                if is_tool {
+                    break;
+                }
+            }
+            Ok(())
+        }
+
+        fn flush_filtered_output(&mut self) -> Result<(), ProviderError> {
+            let filtered = self.output_filter.finish();
+            if !filtered.thinking.is_empty() {
+                let mut message = Message::assistant().with_thinking(filtered.thinking, "");
+                message.id = Some(self.message_id.to_string());
+                self.send(message)?;
+            }
+            if !filtered.content.is_empty() {
+                self.emit_content(&filtered.content)?;
+            }
+            Ok(())
+        }
+
+        fn emit_content(&mut self, content: &str) -> Result<(), ProviderError> {
+            match self.tool_mode {
+                ToolMode::None => {
+                    let mut message = Message::assistant().with_text(content);
+                    message.id = Some(self.message_id.to_string());
+                    self.send(message)
+                }
+                ToolMode::Emulated { .. } => {
+                    let actions = self
+                        .emulator_parser
+                        .as_mut()
+                        .map(|parser| parser.process_chunk(content))
+                        .unwrap_or_default();
+                    for action in actions {
+                        let (message, is_tool) =
+                            message_for_emulator_action(&action, self.message_id);
+                        if is_tool {
+                            self.flush_filtered_output()?;
+                        }
+                        self.send(message)?;
+                        self.stop_after_tool_call |= is_tool;
+                        if is_tool {
+                            break;
+                        }
+                    }
+                    Ok(())
+                }
+                ToolMode::Native => Ok(()),
+            }
+        }
+
+        fn send(&self, message: Message) -> Result<(), ProviderError> {
+            self.tx
+                .blocking_send(Ok((Some(message), None)))
+                .map_err(|_| {
+                    ProviderError::ExecutionError("Failed to stream MLX response".to_string())
+                })
+        }
+    }
+
+    fn split_generated_thinking(
+        generated_text: &str,
+        generation_prompt: &str,
+        enable_thinking: bool,
+    ) -> (String, String) {
+        let mut filter = ThinkingOutputFilter::new(enable_thinking, generation_prompt);
+        let mut filtered = filter.push_text(generated_text);
+        let final_filtered = filter.finish();
+        filtered.content.push_str(&final_filtered.content);
+        filtered.thinking.push_str(&final_filtered.thinking);
+        (filtered.content, filtered.thinking)
+    }
+
+    fn emit_assistant_message(
+        message_id: &str,
+        thinking: &str,
+        content: &str,
+        tx: &tokio::sync::mpsc::Sender<
+            Result<(Option<Message>, Option<ProviderUsage>), ProviderError>,
+        >,
+    ) -> Result<(), ProviderError> {
+        if thinking.is_empty() && content.is_empty() {
+            return Ok(());
+        }
+
+        let mut message = Message::assistant();
+        if !thinking.is_empty() {
+            message = message.with_thinking(thinking, "");
+        }
+        if !content.is_empty() {
+            message = message.with_text(content);
+        }
+        message.id = Some(message_id.to_string());
+        tx.blocking_send(Ok((Some(message), None)))
+            .map_err(|_| ProviderError::ExecutionError("Failed to stream MLX response".to_string()))
+    }
+
+    fn prepend_thinking(message: &mut Message, thinking: &str) {
+        if !thinking.is_empty() {
+            message
+                .content
+                .insert(0, MessageContent::thinking(thinking, ""));
+        }
+    }
+
+    fn sampling(settings: &ModelSettings) -> (f32, Option<u32>) {
+        match &settings.sampling {
+            crate::local_model_registry::SamplingConfig::Greedy => (0.0, None),
+            crate::local_model_registry::SamplingConfig::Temperature {
+                temperature, seed, ..
+            } => (*temperature, *seed),
+            crate::local_model_registry::SamplingConfig::MirostatV2 { seed, .. } => (0.0, *seed),
+        }
+    }
+
+    fn prng_key(temp: f32, seed: Option<u32>) -> Result<Option<Array>, ProviderError> {
+        if temp == 0.0 {
+            return Ok(None);
+        }
+        random::key(seed.unwrap_or(0) as u64)
+            .map(Some)
+            .map_err(mlx_error)
     }
 
     fn render_prompt(system: &str, messages: &[Message]) -> String {
@@ -546,6 +903,90 @@ mod imp {
 
     fn mlx_error(error: impl std::fmt::Display) -> ProviderError {
         ProviderError::ExecutionError(format!("MLX backend error: {}", error))
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::{
+            final_stream_suffix, mlx_max_tokens, split_generated_thinking, token_id_or_ids,
+        };
+        use crate::local_model_registry::ModelSettings;
+        use serde_json::json;
+
+        #[test]
+        fn extracts_thinking_started_by_generation_prompt() {
+            let (content, thinking) = split_generated_thinking(
+                "hidden reasoning</think>visible answer",
+                "<|im_start|>assistant\n<think>\n",
+                true,
+            );
+
+            assert_eq!(thinking.trim(), "hidden reasoning");
+            assert_eq!(content, "visible answer");
+        }
+
+        #[test]
+        fn leaves_think_tags_as_content_when_thinking_disabled() {
+            let generated = "hidden reasoning</think>visible answer";
+            let (content, thinking) =
+                split_generated_thinking(generated, "<|im_start|>assistant\n<think>\n", false);
+
+            assert!(thinking.is_empty());
+            assert_eq!(content, generated);
+        }
+
+        #[test]
+        fn parses_single_and_multiple_eos_token_ids() {
+            assert_eq!(token_id_or_ids(&json!(248044)), vec![248044]);
+            assert_eq!(
+                token_id_or_ids(&json!([248046, 248044])),
+                vec![248046, 248044]
+            );
+        }
+
+        #[test]
+        fn final_stream_suffix_flushes_append_only_suffix() {
+            assert_eq!(
+                final_stream_suffix("hello world", "hello").unwrap(),
+                Some(" world")
+            );
+        }
+
+        #[test]
+        fn final_stream_suffix_does_not_replay_fully_streamed_text() {
+            assert_eq!(
+                final_stream_suffix("run tool", "run tool").unwrap(),
+                Some("")
+            );
+        }
+
+        #[test]
+        fn final_stream_suffix_allows_unstreamed_fallback() {
+            assert_eq!(final_stream_suffix("hello world", "").unwrap(), None);
+        }
+
+        #[test]
+        fn final_stream_suffix_rejects_rewritten_streamed_prefix() {
+            assert!(final_stream_suffix("corrected response", "stale prefix").is_err());
+        }
+
+        #[test]
+        fn max_tokens_defaults_to_context_headroom() {
+            let settings = ModelSettings::default();
+
+            assert_eq!(mlx_max_tokens(&settings, None, 128_000, 1_752), 126_248);
+        }
+
+        #[test]
+        fn max_tokens_respects_configured_caps() {
+            let mut settings = ModelSettings::default();
+            settings.max_output_tokens = Some(2048);
+
+            assert_eq!(mlx_max_tokens(&settings, None, 128_000, 1_752), 2048);
+
+            let settings = ModelSettings::default();
+            assert_eq!(mlx_max_tokens(&settings, Some(1024), 128_000, 1_752), 1024);
+        }
     }
 }
 

@@ -1,8 +1,8 @@
 # Canonical Model System
 
 Provides a unified view of model metadata (pricing, capabilities, context limits) across different LLM providers. 
-Normalizes provider-specific model names (e.g., `claude-3-5-sonnet-20241022`) 
-to canonical IDs (e.g., `anthropic/claude-3.5-sonnet`).
+Normalizes provider-specific model names (e.g., `claude-sonnet-4-5-20250929`)
+to canonical IDs (e.g., `anthropic/claude-sonnet-4.5`).
 
 ## Build Canonical Models
 Fetches latest model metadata from OpenRouter and validates provider mappings:

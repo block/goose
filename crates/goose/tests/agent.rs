@@ -14,11 +14,14 @@ mod tests {
         use super::*;
         use async_trait::async_trait;
         use chrono::{DateTime, Utc};
-        use goose::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
-        use goose::agents::AgentConfig;
+        use goose::agents::platform_extensions::scheduler::{
+            EXTENSION_NAME as SCHEDULER_EXTENSION_NAME, MANAGE_SCHEDULE_TOOL_NAME_COMPLETE,
+        };
+        use goose::agents::ExtensionConfig;
+        use goose::agents::{AgentConfig, ScheduleTool};
         use goose::config::permission::PermissionManager;
         use goose::config::GooseMode;
-        use goose::scheduler::{ScheduledJob, SchedulerError};
+        use goose::scheduler::{ScheduledJob, SchedulerError, ValidatedScheduleRecipe};
         use goose::scheduler_trait::SchedulerTrait;
         use goose::session::{Session, SessionManager};
         use std::path::PathBuf;
@@ -45,6 +48,14 @@ mod tests {
                 &self,
                 _job: ScheduledJob,
                 _copy: bool,
+            ) -> Result<(), SchedulerError> {
+                Ok(())
+            }
+
+            async fn add_scheduled_job_with_recipe(
+                &self,
+                _job: ScheduledJob,
+                _validated_recipe: ValidatedScheduleRecipe,
             ) -> Result<(), SchedulerError> {
                 Ok(())
             }
@@ -117,12 +128,41 @@ mod tests {
             }
         }
 
+        async fn add_scheduler_extension(agent: &Agent) {
+            agent
+                .extension_manager
+                .add_extension(
+                    ExtensionConfig::Platform {
+                        name: SCHEDULER_EXTENSION_NAME.to_string(),
+                        description: "Create and manage scheduled recipe execution".to_string(),
+                        display_name: Some("Scheduler".to_string()),
+                        bundled: Some(true),
+                        available_tools: vec![],
+                    },
+                    None,
+                    None,
+                    None,
+                )
+                .await
+                .unwrap();
+        }
+
         #[async_trait]
         impl SchedulerTrait for MockScheduler {
             async fn add_scheduled_job(
                 &self,
                 job: ScheduledJob,
                 _copy: bool,
+            ) -> Result<(), SchedulerError> {
+                let mut jobs = self.jobs.lock().await;
+                jobs.push(job);
+                Ok(())
+            }
+
+            async fn add_scheduled_job_with_recipe(
+                &self,
+                job: ScheduledJob,
+                _validated_recipe: ValidatedScheduleRecipe,
             ) -> Result<(), SchedulerError> {
                 let mut jobs = self.jobs.lock().await;
                 jobs.push(job);
@@ -212,11 +252,12 @@ mod tests {
                 GoosePlatform::GooseCli,
             );
             let agent = Agent::with_config(config);
+            add_scheduler_extension(&agent).await;
 
             let tools = agent.list_tools("test-session-id", None).await;
             let schedule_tool = tools
                 .iter()
-                .find(|tool| tool.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME);
+                .find(|tool| tool.name == MANAGE_SCHEDULE_TOOL_NAME_COMPLETE);
             assert!(schedule_tool.is_some());
 
             let tool = schedule_tool.unwrap();
@@ -230,16 +271,17 @@ mod tests {
         #[tokio::test]
         async fn test_no_schedule_management_tool_without_scheduler() {
             let agent = Agent::new();
+            add_scheduler_extension(&agent).await;
 
             let tools = agent.list_tools("test-session-id", None).await;
             let schedule_tool = tools
                 .iter()
-                .find(|tool| tool.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME);
+                .find(|tool| tool.name == MANAGE_SCHEDULE_TOOL_NAME_COMPLETE);
             assert!(schedule_tool.is_none());
         }
 
         #[tokio::test]
-        async fn test_schedule_management_tool_in_platform_tools() {
+        async fn test_schedule_management_tool_in_scheduler_extension() {
             let temp_dir = TempDir::new().unwrap();
             let data_dir = temp_dir.path().to_path_buf();
             let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
@@ -254,15 +296,18 @@ mod tests {
                 GoosePlatform::GooseCli,
             );
             let agent = Agent::with_config(config);
+            add_scheduler_extension(&agent).await;
 
             let tools = agent
-                .list_tools("test-session-id", Some("platform".to_string()))
+                .list_tools(
+                    "test-session-id",
+                    Some(SCHEDULER_EXTENSION_NAME.to_string()),
+                )
                 .await;
 
-            // Check that the schedule management tool is included in platform tools
             let schedule_tool = tools
                 .iter()
-                .find(|tool| tool.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME);
+                .find(|tool| tool.name == MANAGE_SCHEDULE_TOOL_NAME_COMPLETE);
             assert!(schedule_tool.is_some());
 
             let tool = schedule_tool.unwrap();
@@ -309,11 +354,12 @@ mod tests {
                 GoosePlatform::GooseCli,
             );
             let agent = Agent::with_config(config);
+            add_scheduler_extension(&agent).await;
 
             let tools = agent.list_tools("test-session-id", None).await;
             let schedule_tool = tools
                 .iter()
-                .find(|tool| tool.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME);
+                .find(|tool| tool.name == MANAGE_SCHEDULE_TOOL_NAME_COMPLETE);
             assert!(schedule_tool.is_some());
 
             let tool = schedule_tool.unwrap();
@@ -340,9 +386,7 @@ mod tests {
         #[tokio::test]
         async fn test_schedule_sessions_reports_message_count_without_conversation() {
             let temp_dir = TempDir::new().unwrap();
-            let data_dir = temp_dir.path().to_path_buf();
-            let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
-            let permission_manager = Arc::new(PermissionManager::new(data_dir));
+            let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
 
             let session = Session {
                 id: "session-123".to_string(),
@@ -355,31 +399,22 @@ mod tests {
                 "session-123".to_string(),
                 session,
             )]));
-            let config = AgentConfig::new(
-                session_manager,
-                permission_manager,
-                Some(mock_scheduler),
-                GooseMode::Auto,
-                false,
-                GoosePlatform::GooseCli,
-            );
-            let agent = Agent::with_config(config);
+            let schedule_tool = ScheduleTool::new(mock_scheduler, session_manager);
 
-            let result = agent
-                .handle_schedule_management(
-                    serde_json::json!({
-                        "action": "sessions",
-                        "job_id": "daily-report"
-                    }),
-                    "test-request".to_string(),
-                )
+            let result = schedule_tool
+                .execute(serde_json::json!({
+                    "action": "sessions",
+                    "job_id": "daily-report"
+                }))
                 .await
                 .expect("schedule sessions should succeed");
 
             let text = result
                 .into_iter()
-                .filter_map(|content| match &content.raw {
-                    rmcp::model::RawContent::Text(text_content) => Some(text_content.text.clone()),
+                .filter_map(|content| match content {
+                    rmcp::model::ContentBlock::Text(text_content) => {
+                        Some(text_content.text.clone())
+                    }
                     _ => None,
                 })
                 .collect::<String>();
@@ -506,6 +541,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -599,6 +636,7 @@ mod tests {
                     }
                     Ok(AgentEvent::McpNotification(_)) => {}
                     Ok(AgentEvent::Usage(_)) => {}
+                    Ok(AgentEvent::MessageUsage { .. }) => {}
                     Ok(AgentEvent::HistoryReplaced(_updated_conversation)) => {
                         // We should update the conversation here, but we're not reading it
                     }
@@ -677,6 +715,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -813,18 +853,19 @@ mod tests {
     mod tool_pair_summarization_tests {
         use super::*;
         use async_trait::async_trait;
-        use goose::agents::SessionConfig;
+        use goose::agents::{AgentConfig, SessionConfig};
         use goose::config::base::Config;
+        use goose::config::permission::PermissionManager;
         use goose::config::GooseMode;
         use goose::conversation::message::Message;
         use goose::providers::base::{
             stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
         };
-        use goose::session::session_manager::SessionType;
+        use goose::session::{SessionManager, SessionType};
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
         use goose_providers::errors::ProviderError;
         use goose_providers::model::ModelConfig;
-        use rmcp::model::{AnnotateAble, CallToolRequestParams, CallToolResult, RawContent, Tool};
+        use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, Tool};
         use std::path::PathBuf;
         use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::Arc;
@@ -857,6 +898,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -916,8 +959,16 @@ mod tests {
                 .set_param("GOOSE_TOOL_CALL_CUTOFF", 2)
                 .unwrap();
 
-            let agent = Agent::new();
-            let session_manager = agent.config.session_manager.clone();
+            let temp_dir = tempfile::tempdir()?;
+            let session_manager = Arc::new(SessionManager::new(temp_dir.path().join("data")));
+            let agent = Agent::with_config(AgentConfig::new(
+                Arc::clone(&session_manager),
+                Arc::new(PermissionManager::new(temp_dir.path().join("config"))),
+                None,
+                GooseMode::Auto,
+                true,
+                GoosePlatform::GooseCli,
+            ));
             let provider = Arc::new(SummarizationTestProvider::new());
 
             let session = session_manager
@@ -954,11 +1005,10 @@ mod tests {
                 let mut resp_msg = Message::user()
                     .with_tool_response(
                         &call_id,
-                        Ok(CallToolResult::success(vec![RawContent::text(format!(
+                        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                             "content of file {}",
                             i
-                        ))
-                        .no_annotation()])),
+                        ))])),
                     )
                     .with_generated_id();
                 resp_msg.created = base_ts + i as i64 + 1;
@@ -1209,6 +1259,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -1360,7 +1412,11 @@ mod tests {
                 .messages()
                 .to_vec();
 
-            let user_count = messages.iter().filter(|m| m.role == Role::User).count();
+            // Turn-context events are excluded; this test is about streaming deltas.
+            let user_count = messages
+                .iter()
+                .filter(|m| m.role == Role::User && m.is_user_visible())
+                .count();
             let asst_count = messages
                 .iter()
                 .filter(|m| m.role == Role::Assistant)
@@ -1409,7 +1465,10 @@ mod tests {
                 .messages()
                 .to_vec();
 
-            let user_count2 = messages2.iter().filter(|m| m.role == Role::User).count();
+            let user_count2 = messages2
+                .iter()
+                .filter(|m| m.role == Role::User && m.is_user_visible())
+                .count();
             let asst_count2 = messages2
                 .iter()
                 .filter(|m| m.role == Role::Assistant)
@@ -1480,6 +1539,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -1621,6 +1682,7 @@ mod tests {
                 &ImageFormat::OpenAi,
                 OpenAiFormatOptions {
                     preserve_thinking_context: true,
+                    ..Default::default()
                 },
             );
             let has_reasoning_on_tool_call = spec.iter().any(|m| {
@@ -1680,6 +1742,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -1831,6 +1895,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -1894,7 +1960,7 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn test_reasoning_preserved_on_all_tool_calls_when_thinking_in_separate_chunk(
+        async fn test_multi_tool_response_preserves_reasoning_and_message_id_correlation(
         ) -> Result<()> {
             use goose_providers::formats::openai::{
                 format_messages_with_options, OpenAiFormatOptions,
@@ -1943,8 +2009,23 @@ mod tests {
                 )
                 .await?;
             tokio::pin!(reply_stream);
+            let mut live_tool_message_id = None;
+            let mut usage_message_ids = Vec::new();
             while let Some(event) = reply_stream.next().await {
-                event?;
+                match event? {
+                    AgentEvent::Message(message)
+                        if message
+                            .content
+                            .iter()
+                            .any(|content| matches!(content, MessageContent::ToolRequest(_))) =>
+                    {
+                        live_tool_message_id = message.id;
+                    }
+                    AgentEvent::MessageUsage { message_id, .. } => {
+                        usage_message_ids.push(message_id);
+                    }
+                    _ => {}
+                }
             }
 
             let reloaded = session_manager.get_session(&session_id, true).await?;
@@ -1954,11 +2035,51 @@ mod tests {
                 .messages()
                 .to_vec();
 
+            let live_tool_message_id =
+                live_tool_message_id.expect("live tool message must have a generated ID");
+            let persisted_tool_message_ids: Vec<&str> = messages
+                .iter()
+                .filter(|message| {
+                    message
+                        .content
+                        .iter()
+                        .any(|content| matches!(content, MessageContent::ToolRequest(_)))
+                })
+                .map(|message| {
+                    message
+                        .id
+                        .as_deref()
+                        .expect("persisted tool message must have an ID")
+                })
+                .collect();
+
+            assert_eq!(persisted_tool_message_ids.len(), 2);
+            assert_ne!(
+                persisted_tool_message_ids[0], persisted_tool_message_ids[1],
+                "split tool messages must keep distinct message IDs"
+            );
+            assert_eq!(
+                persisted_tool_message_ids
+                    .iter()
+                    .copied()
+                    .filter(|message_id| *message_id == live_tool_message_id.as_str())
+                    .count(),
+                1,
+                "exactly one persisted tool message must retain the live message ID"
+            );
+            assert!(
+                usage_message_ids.iter().any(|message_id| {
+                    message_id.as_deref() == Some(live_tool_message_id.as_str())
+                }),
+                "tool-turn usage must reference the live message ID"
+            );
+
             let spec = format_messages_with_options(
                 &messages,
                 &ImageFormat::OpenAi,
                 OpenAiFormatOptions {
                     preserve_thinking_context: true,
+                    ..Default::default()
                 },
             );
 
@@ -1984,6 +2105,105 @@ mod tests {
             );
             let tool_calls = assistant_msgs[0]["tool_calls"].as_array().unwrap();
             assert_eq!(tool_calls.len(), 2, "both tool calls must be present");
+
+            Ok(())
+        }
+
+        /// Regression for the Anthropic 400: signed thinking arriving in a
+        /// separate chunk before the tool calls must be stored once per
+        /// tool-call message and never as an extra standalone message. When the
+        /// Anthropic formatter serializes the persisted history, each assistant
+        /// turn must carry exactly one thinking block — a duplicate signed block
+        /// is rejected with `thinking blocks ... cannot be modified`.
+        #[tokio::test]
+        async fn test_signed_thinking_not_duplicated_for_anthropic() -> Result<()> {
+            use goose_providers::formats::anthropic::format_messages as anthropic_format;
+
+            let temp_dir = tempfile::tempdir()?;
+            let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+            let config = AgentConfig::new(
+                session_manager.clone(),
+                PermissionManager::instance(),
+                None,
+                GooseMode::Auto,
+                true,
+                GoosePlatform::GooseCli,
+            );
+            let agent = Agent::with_config(config);
+            let provider = Arc::new(MultiToolThinkingProvider::new());
+
+            let session = session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "anthropic-signed-thinking-test".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+
+            let session_id = session.id.clone();
+            agent
+                .update_provider(provider, ModelConfig::new("mock-model"), &session_id)
+                .await?;
+
+            let session_config = SessionConfig {
+                id: session_id.clone(),
+                schedule_id: None,
+                max_turns: Some(2),
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(
+                    Message::user().with_text("Use both tools"),
+                    session_config,
+                    None,
+                )
+                .await?;
+            tokio::pin!(reply_stream);
+            while let Some(event) = reply_stream.next().await {
+                event?;
+            }
+
+            let reloaded = session_manager.get_session(&session_id, true).await?;
+            let messages = reloaded
+                .conversation
+                .expect("should have conversation")
+                .messages()
+                .to_vec();
+
+            // No standalone thinking-only assistant message should be persisted —
+            // thinking lives on the tool-call messages.
+            let standalone_thinking = messages.iter().any(|m| {
+                m.role == rmcp::model::Role::Assistant
+                    && !m.content.is_empty()
+                    && m.content
+                        .iter()
+                        .all(|c| matches!(c, MessageContent::Thinking(_)))
+            });
+            assert!(
+                !standalone_thinking,
+                "thinking must not be persisted as a standalone message: {messages:#?}"
+            );
+
+            // Every serialized Anthropic assistant message must contain at most
+            // one thinking block; a duplicate is what triggers the 400.
+            let spec = anthropic_format(&messages);
+            for msg in &spec {
+                if msg.get("role") == Some(&serde_json::json!("assistant")) {
+                    if let Some(content) = msg.get("content").and_then(|c| c.as_array()) {
+                        let thinking_blocks = content
+                            .iter()
+                            .filter(|c| c.get("type") == Some(&serde_json::json!("thinking")))
+                            .count();
+                        assert!(
+                            thinking_blocks <= 1,
+                            "assistant message has {thinking_blocks} thinking blocks, \
+                             Anthropic rejects duplicates: {msg}"
+                        );
+                    }
+                }
+            }
 
             Ok(())
         }
@@ -2036,6 +2256,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -2366,14 +2588,63 @@ mod tests {
                 .reply(Message::user().with_text("/goal"), session_config, None)
                 .await?;
             tokio::pin!(reply_stream);
+
+            let mut emitted_user_id = None;
+            let mut emitted_response_id = None;
             while let Some(event) = reply_stream.next().await {
-                let _ = event?;
+                if let AgentEvent::Message(message) = event? {
+                    if message.role == rmcp::model::Role::User
+                        && message.as_concat_text() == "/goal"
+                    {
+                        emitted_user_id = message.id;
+                    } else if message.role == rmcp::model::Role::Assistant
+                        && message.as_concat_text().contains("No goal set")
+                    {
+                        emitted_response_id = message.id;
+                    }
+                }
             }
 
             assert_eq!(
                 provider.call_count.load(Ordering::SeqCst),
                 0,
                 "Querying the goal should not start an agent turn"
+            );
+
+            let emitted_user_id = emitted_user_id.expect("User message should be emitted with ID");
+            assert!(emitted_user_id.starts_with("msg_"));
+            let emitted_response_id =
+                emitted_response_id.expect("Slash command response should be emitted with ID");
+            assert!(emitted_response_id.starts_with("msg_"));
+
+            let reloaded = session_manager.get_session(&session.id, true).await?;
+            let conversation = reloaded
+                .conversation
+                .expect("Session should have a conversation");
+            let stored_user_message = conversation
+                .messages()
+                .iter()
+                .find(|message| {
+                    message.role == rmcp::model::Role::User && message.as_concat_text() == "/goal"
+                })
+                .expect("User message should be stored");
+
+            assert_eq!(
+                stored_user_message.id.as_deref(),
+                Some(emitted_user_id.as_str())
+            );
+            let stored_response_message = conversation
+                .messages()
+                .iter()
+                .find(|message| {
+                    message.role == rmcp::model::Role::Assistant
+                        && message.as_concat_text().contains("No goal set")
+                })
+                .expect("Slash command response should be stored");
+
+            assert_eq!(
+                stored_response_message.id.as_deref(),
+                Some(emitted_response_id.as_str())
             );
 
             Ok(())
@@ -2680,6 +2951,992 @@ mod tests {
                     "expected frontend dispatch state for {tool_name}",
                 );
             }
+        }
+    }
+
+    mod audience_tool_result_tests {
+        use super::*;
+        use async_trait::async_trait;
+        use goose::agents::{AgentConfig, SessionConfig};
+        use goose::config::{ExtensionConfig, GooseMode, PermissionManager};
+        use goose::conversation::message::{Message, MessageContent};
+        use goose::providers::base::{stream_from_single_message, MessageStream, Provider};
+        use goose::session::{SessionManager, SessionType};
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
+        use goose_providers::model::ModelConfig;
+        use goose_test_support::McpFixture;
+        use rmcp::model::{CallToolRequestParams, Tool};
+        use std::path::PathBuf;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        struct AudienceToolProvider {
+            call_count: AtomicUsize,
+        }
+
+        fn tool_response_texts(messages: &[Message], id: &str) -> Option<Vec<String>> {
+            messages.iter().find_map(|message| {
+                message.content.iter().find_map(|content| {
+                    let MessageContent::ToolResponse(response) = content else {
+                        return None;
+                    };
+                    if response.id != id {
+                        return None;
+                    }
+                    let result = response.tool_result.as_ref().ok()?;
+                    Some(
+                        result
+                            .content
+                            .iter()
+                            .filter_map(|content| content.as_text().map(|text| text.text.clone()))
+                            .collect(),
+                    )
+                })
+            })
+        }
+
+        #[async_trait]
+        impl Provider for AudienceToolProvider {
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _system_prompt: &str,
+                messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                let call = self.call_count.fetch_add(1, Ordering::SeqCst);
+                let message = match call {
+                    0 => Message::assistant().with_tool_request(
+                        "call-1",
+                        Ok(CallToolRequestParams::new(
+                            "mcp-fixture__get_audience_content",
+                        )),
+                    ),
+                    1 => {
+                        assert_eq!(
+                            tool_response_texts(messages, "call-1"),
+                            Some(vec!["visible".to_string(), "provider-only".to_string()]),
+                            "provider history must retain canonical tool content"
+                        );
+                        Message::assistant().with_text("done")
+                    }
+                    _ => panic!("unexpected provider call {call}"),
+                };
+                let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
+                Ok(stream_from_single_message(message, usage))
+            }
+
+            fn get_name(&self) -> &str {
+                "audience-tool-mock"
+            }
+        }
+
+        #[tokio::test]
+        async fn live_tool_result_projects_user_content_but_persists_canonical_result() -> Result<()>
+        {
+            let mcp = McpFixture::new().await;
+            let extension =
+                ExtensionConfig::streamable_http("mcp-fixture", &mcp.url, "MCP fixture", 30_u64);
+            let temp_dir = tempfile::tempdir()?;
+            let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+            let permission_manager =
+                Arc::new(PermissionManager::new(temp_dir.path().to_path_buf()));
+            let agent = Agent::with_config(AgentConfig::new(
+                session_manager.clone(),
+                permission_manager,
+                None,
+                GooseMode::Auto,
+                true,
+                GoosePlatform::GooseCli,
+            ));
+            let provider = Arc::new(AudienceToolProvider {
+                call_count: AtomicUsize::new(0),
+            });
+            let session = session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "audience-tool-result".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::Auto,
+                )
+                .await?;
+            let session_id = session.id.clone();
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model"),
+                    &session_id,
+                )
+                .await?;
+            agent.add_extension(extension, &session_id).await?;
+
+            let stream = agent
+                .reply(
+                    Message::user().with_text("use the audience tool"),
+                    SessionConfig {
+                        id: session_id.clone(),
+                        schedule_id: None,
+                        max_turns: Some(3),
+                        retry_config: None,
+                    },
+                    None,
+                )
+                .await?;
+            tokio::pin!(stream);
+            let mut live_messages = Vec::new();
+            while let Some(event) = stream.next().await {
+                if let AgentEvent::Message(message) = event? {
+                    live_messages.push(message);
+                }
+            }
+
+            assert_eq!(
+                tool_response_texts(&live_messages, "call-1"),
+                Some(vec!["visible".to_string()]),
+                "live events must project out provider-only tool content"
+            );
+            assert_eq!(provider.call_count.load(Ordering::SeqCst), 2);
+
+            let persisted = session_manager
+                .get_session(&session_id, true)
+                .await?
+                .conversation
+                .expect("persisted conversation");
+            assert_eq!(
+                tool_response_texts(persisted.messages(), "call-1"),
+                Some(vec!["visible".to_string(), "provider-only".to_string()]),
+                "persisted provider history must remain canonical"
+            );
+            Ok(())
+        }
+    }
+
+    mod empty_turn_tests {
+        use super::*;
+        use async_trait::async_trait;
+        use goose::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME;
+        use goose::agents::{AgentConfig, AgentEvent, GoosePlatform, SessionConfig};
+        use goose::config::permission::PermissionManager;
+        use goose::config::GooseMode;
+        use goose::conversation::message::{Message, MessageContent};
+        use goose::conversation::Conversation;
+        use goose::providers::base::{
+            stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
+        };
+        use goose::session::session_manager::SessionType;
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
+        use goose_providers::model::ModelConfig;
+        use rmcp::model::{CallToolRequestParams, Tool};
+        use rmcp::object;
+        use std::path::PathBuf;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        fn usage() -> ProviderUsage {
+            ProviderUsage::new(
+                "mock-model".to_string(),
+                Usage::new(Some(10), Some(5), Some(15)),
+            )
+        }
+
+        /// Yields empty responses (no text, no tool calls) for the first
+        /// `empty_count` provider calls, then a normal text response.
+        struct EmptyThenTextProvider {
+            call_count: AtomicUsize,
+            empty_count: usize,
+            wrap_empty_text: bool,
+        }
+
+        struct AssistantOnlyProvider;
+
+        struct FinalOutputRequestProvider {
+            call_count: AtomicUsize,
+        }
+
+        impl goose::providers::base::ProviderDescriptor for AssistantOnlyProvider {
+            fn metadata() -> ProviderMetadata {
+                ProviderMetadata {
+                    name: "assistant-only-mock".to_string(),
+                    display_name: "Assistant Only Mock".to_string(),
+                    description: "Mock provider for audience-filtered response tests".to_string(),
+                    default_model: "mock-model".to_string(),
+                    known_models: vec![],
+                    model_doc_link: "".to_string(),
+                    config_keys: vec![],
+                    setup_steps: vec![],
+                    model_selection_hint: None,
+                    fast_model: None,
+                    setup: None,
+                    deprecated: None,
+                }
+            }
+        }
+
+        impl ProviderDef for AssistantOnlyProvider {
+            type Provider = Self;
+
+            fn from_env(
+                _extensions: Vec<goose::config::ExtensionConfig>,
+                _tls_config: Option<goose::providers::api_client::TlsConfig>,
+            ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+                unimplemented!()
+            }
+        }
+
+        #[async_trait]
+        impl Provider for AssistantOnlyProvider {
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _system_prompt: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                use rmcp::model::{Annotations, Role, TextContent};
+
+                let assistant_only = TextContent::new("provider-private-state")
+                    .with_annotations(Annotations::default().with_audience(vec![Role::Assistant]));
+                Ok(stream_from_single_message(
+                    Message::assistant().with_content(MessageContent::Text(assistant_only)),
+                    usage(),
+                ))
+            }
+
+            fn get_name(&self) -> &str {
+                "assistant-only-mock"
+            }
+        }
+
+        impl EmptyThenTextProvider {
+            fn new(empty_count: usize) -> Self {
+                Self {
+                    call_count: AtomicUsize::new(0),
+                    empty_count,
+                    wrap_empty_text: false,
+                }
+            }
+
+            fn with_wrapped_empty_text(empty_count: usize) -> Self {
+                Self {
+                    call_count: AtomicUsize::new(0),
+                    empty_count,
+                    wrap_empty_text: true,
+                }
+            }
+        }
+
+        impl FinalOutputRequestProvider {
+            fn new() -> Self {
+                Self {
+                    call_count: AtomicUsize::new(0),
+                }
+            }
+        }
+
+        impl goose::providers::base::ProviderDescriptor for EmptyThenTextProvider {
+            fn metadata() -> ProviderMetadata {
+                ProviderMetadata {
+                    name: "empty-then-text-mock".to_string(),
+                    display_name: "Empty Then Text Mock".to_string(),
+                    description: "Mock provider for empty-turn tests".to_string(),
+                    default_model: "mock-model".to_string(),
+                    known_models: vec![],
+                    model_doc_link: "".to_string(),
+                    config_keys: vec![],
+                    setup_steps: vec![],
+                    model_selection_hint: None,
+                    fast_model: None,
+                    setup: None,
+                    deprecated: None,
+                }
+            }
+        }
+
+        impl ProviderDef for EmptyThenTextProvider {
+            type Provider = Self;
+
+            fn from_env(
+                _extensions: Vec<goose::config::ExtensionConfig>,
+                _tls_config: Option<goose::providers::api_client::TlsConfig>,
+            ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+                unimplemented!()
+            }
+        }
+
+        #[async_trait]
+        impl Provider for EmptyThenTextProvider {
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _system_prompt: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                let call = self.call_count.fetch_add(1, Ordering::SeqCst);
+                if call < self.empty_count {
+                    // Empty assistant turn: no text, no tool calls.
+                    let message = if self.wrap_empty_text {
+                        Message::assistant().with_text("")
+                    } else {
+                        Message::assistant()
+                    };
+                    Ok(stream_from_single_message(message, usage()))
+                } else {
+                    Ok(stream_from_single_message(
+                        Message::assistant().with_text("All done."),
+                        usage(),
+                    ))
+                }
+            }
+
+            fn get_name(&self) -> &str {
+                "empty-then-text-mock"
+            }
+        }
+
+        #[async_trait]
+        impl Provider for FinalOutputRequestProvider {
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _system_prompt: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                let call = self.call_count.fetch_add(1, Ordering::SeqCst);
+                if call != 0 {
+                    panic!("unexpected provider call after final-output tool request");
+                }
+
+                let tool_call = CallToolRequestParams::new(FINAL_OUTPUT_TOOL_NAME)
+                    .with_arguments(object!({"result": "Final answer"}));
+                Ok(stream_from_single_message(
+                    Message::assistant().with_tool_request("final-output-call", Ok(tool_call)),
+                    usage(),
+                ))
+            }
+
+            fn get_name(&self) -> &str {
+                "final-output-request-mock"
+            }
+        }
+
+        /// Runs a reply to completion and returns the messages yielded to the
+        /// caller along with the conversation persisted to the session store.
+        async fn run_reply(
+            provider: Arc<dyn Provider>,
+            session_name: &str,
+        ) -> Result<(Vec<Message>, Vec<Message>)> {
+            let agent = Agent::new();
+            let session = agent
+                .config
+                .session_manager
+                .create_session(
+                    PathBuf::default(),
+                    session_name.to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+            agent
+                .update_provider(provider, ModelConfig::new("mock-model"), &session.id)
+                .await?;
+
+            let session_id = session.id.clone();
+            let session_config = SessionConfig {
+                id: session.id,
+                schedule_id: None,
+                max_turns: Some(50),
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(Message::user().with_text("Hi"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+
+            let mut messages = Vec::new();
+            while let Some(event) = reply_stream.next().await {
+                if let AgentEvent::Message(m) = event? {
+                    messages.push(m);
+                }
+            }
+
+            let persisted = agent
+                .config
+                .session_manager
+                .get_session(&session_id, true)
+                .await?
+                .conversation
+                .map(|c| c.messages().to_vec())
+                .unwrap_or_default();
+
+            Ok((messages, persisted))
+        }
+
+        fn concat_text(messages: &[Message]) -> String {
+            messages
+                .iter()
+                .flat_map(|m| m.content.iter())
+                .filter_map(|c| match c {
+                    MessageContent::Text(t) => Some(t.text.clone()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        }
+
+        fn is_empty_assistant(message: &Message) -> bool {
+            message.role == rmcp::model::Role::Assistant && message.content.is_empty()
+        }
+
+        /// A transient empty response should be retried and recover, ultimately
+        /// delivering the real text response instead of stopping silently.
+        #[tokio::test]
+        async fn test_empty_turn_retries_then_recovers() -> Result<()> {
+            let provider = Arc::new(EmptyThenTextProvider::new(2));
+            let (messages, persisted) = run_reply(provider, "empty-retry-recover").await?;
+
+            let text = concat_text(&messages);
+            assert!(
+                text.contains("All done."),
+                "expected recovery to deliver the real response, got: {text:?}"
+            );
+            assert!(
+                !text.contains("empty response"),
+                "should not surface the empty-turn fallback when recovery succeeds: {text:?}"
+            );
+            assert!(
+                !persisted.iter().any(is_empty_assistant),
+                "retried empty turns must not be persisted: {persisted:?}"
+            );
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_wrapped_empty_text_retries_then_recovers() -> Result<()> {
+            let provider = Arc::new(EmptyThenTextProvider::with_wrapped_empty_text(1));
+            let (messages, persisted) = run_reply(provider, "wrapped-empty-retry").await?;
+
+            assert!(concat_text(&messages).contains("All done."));
+            assert!(!persisted.iter().any(|message| {
+                message.role == rmcp::model::Role::Assistant
+                    && matches!(message.content.as_slice(), [MessageContent::Text(text)] if text.text.is_empty())
+            }));
+            Ok(())
+        }
+
+        /// A provider that only ever returns empty responses must not hang
+        /// silently — after the retry budget it surfaces a visible message.
+        #[tokio::test]
+        async fn test_persistent_empty_turn_surfaces_message() -> Result<()> {
+            let provider = Arc::new(EmptyThenTextProvider::new(usize::MAX));
+            let (messages, persisted) = run_reply(provider, "empty-persistent").await?;
+
+            let text = concat_text(&messages);
+            assert!(
+                text.contains("empty response"),
+                "expected a visible empty-response message, got: {text:?}"
+            );
+
+            let last = messages.last().expect("expected at least one message");
+            assert!(
+                matches!(last.content.first(), Some(MessageContent::Text(_))),
+                "expected the final message to be visible text, got: {:?}",
+                last.content
+            );
+            assert!(
+                !persisted.iter().any(is_empty_assistant),
+                "empty assistant turn must not be persisted alongside the fallback: {persisted:?}"
+            );
+
+            let emitted_fallback_id = last
+                .id
+                .as_deref()
+                .expect("empty-turn fallback should be emitted with ID");
+            assert!(emitted_fallback_id.starts_with("msg_"));
+
+            let stored_fallback = persisted
+                .iter()
+                .find(|message| message.as_concat_text().contains("empty response"))
+                .expect("empty-turn fallback should be stored");
+            assert_eq!(stored_fallback.id.as_deref(), Some(emitted_fallback_id));
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_assistant_only_response_is_persisted_without_empty_turn_retry() -> Result<()>
+        {
+            let provider = Arc::new(AssistantOnlyProvider);
+            let (messages, persisted) = run_reply(provider, "assistant-only-response").await?;
+
+            assert!(
+                messages.iter().all(|message| !is_empty_assistant(message)),
+                "audience filtering must not emit an empty user-visible message: {messages:?}"
+            );
+            assert!(
+                messages
+                    .iter()
+                    .all(|message| !message.as_concat_text().contains("provider-private-state")),
+                "assistant-only content must not be emitted to the user: {messages:?}"
+            );
+            assert!(
+                !concat_text(&messages).contains("empty response"),
+                "assistant-only content must not trigger the empty-turn fallback: {messages:?}"
+            );
+            assert!(persisted.iter().any(|message| {
+                message.role == rmcp::model::Role::Assistant
+                    && message.as_concat_text() == "provider-private-state"
+            }));
+            let restored = Conversation::new_unvalidated(persisted.clone()).user_visible_messages();
+            assert!(
+                !concat_text(&restored).contains("provider-private-state"),
+                "restored user history must project out assistant-only content: {restored:?}"
+            );
+            Ok(())
+        }
+
+        /// An empty response with a queued steer hands the turn to the steer
+        /// rather than the empty-turn fallback, but the empty assistant message
+        /// must still not be persisted ahead of the steer.
+        #[tokio::test]
+        async fn test_empty_response_with_steer_drops_empty_message() -> Result<()> {
+            let agent = Agent::new();
+            let session = agent
+                .config
+                .session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "empty-steer".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+            agent
+                .update_provider(
+                    Arc::new(EmptyThenTextProvider::new(1)),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
+
+            // Queue the steer before reply so it stays pending through the first
+            // (empty) turn instead of being drained at the loop's start.
+            agent
+                .steer(&session.id, Message::user().with_text("keep going"))
+                .await;
+
+            let session_id = session.id.clone();
+            let session_config = SessionConfig {
+                id: session.id,
+                schedule_id: None,
+                max_turns: Some(50),
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(Message::user().with_text("Hi"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+            let mut emitted_steer_id = None;
+            while let Some(event) = reply_stream.next().await {
+                if let AgentEvent::Message(message) = event? {
+                    if message.role == rmcp::model::Role::User
+                        && message.as_concat_text().contains("keep going")
+                    {
+                        emitted_steer_id = message.id;
+                    }
+                }
+            }
+
+            let persisted = agent
+                .config
+                .session_manager
+                .get_session(&session_id, true)
+                .await?
+                .conversation
+                .map(|c| c.messages().to_vec())
+                .unwrap_or_default();
+
+            assert!(
+                !persisted.iter().any(is_empty_assistant),
+                "empty assistant turn must not be persisted before the steer: {persisted:?}"
+            );
+            assert!(
+                persisted
+                    .iter()
+                    .any(|m| m.as_concat_text().contains("keep going")),
+                "the queued steer should have been consumed: {persisted:?}"
+            );
+            let emitted_steer_id =
+                emitted_steer_id.expect("queued steer should be emitted with ID");
+            assert!(emitted_steer_id.starts_with("msg_"));
+            let stored_steer = persisted
+                .iter()
+                .find(|message| message.as_concat_text().contains("keep going"))
+                .expect("queued steer should be stored");
+            assert_eq!(stored_steer.id.as_deref(), Some(emitted_steer_id.as_str()));
+            Ok(())
+        }
+
+        /// When a final-output tool is installed and the model stops without
+        /// calling it, the empty turn must yield the mandatory final-output nudge
+        /// — not the generic empty-response fallback — so structured-output
+        /// recipes are not abandoned without producing a result.
+        #[tokio::test]
+        async fn test_empty_turn_with_final_output_tool_nudges() -> Result<()> {
+            use goose::agents::final_output_tool::FINAL_OUTPUT_CONTINUATION_MESSAGE;
+            use goose::recipe::Response;
+
+            let agent = Agent::new();
+            let session = agent
+                .config
+                .session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "empty-final-output".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+            agent
+                .update_provider(
+                    Arc::new(EmptyThenTextProvider::new(usize::MAX)),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
+            agent
+                .add_final_output_tool(Response {
+                    json_schema: Some(serde_json::json!({
+                        "type": "object",
+                        "properties": { "result": { "type": "string" } }
+                    })),
+                })
+                .await;
+
+            let session_config = SessionConfig {
+                id: session.id.clone(),
+                schedule_id: None,
+                max_turns: Some(3),
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(Message::user().with_text("Hi"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+
+            let mut messages = Vec::new();
+            let mut emitted_nudge_ids = Vec::new();
+            while let Some(event) = reply_stream.next().await {
+                if let AgentEvent::Message(m) = event? {
+                    if m.role == rmcp::model::Role::User
+                        && m.as_concat_text()
+                            .contains(FINAL_OUTPUT_CONTINUATION_MESSAGE)
+                    {
+                        emitted_nudge_ids.push(
+                            m.id.clone()
+                                .expect("Final-output nudge should be emitted with ID"),
+                        );
+                    }
+                    messages.push(m);
+                }
+            }
+
+            let text = concat_text(&messages);
+            assert!(
+                text.contains(FINAL_OUTPUT_CONTINUATION_MESSAGE),
+                "expected the final-output nudge, got: {text:?}"
+            );
+            assert!(
+                !text.contains("empty response"),
+                "empty-turn fallback must not pre-empt the final-output nudge: {text:?}"
+            );
+
+            assert!(
+                !emitted_nudge_ids.is_empty(),
+                "expected at least one emitted final-output nudge"
+            );
+            assert!(emitted_nudge_ids.iter().all(|id| id.starts_with("msg_")));
+
+            let reloaded = agent
+                .config
+                .session_manager
+                .get_session(&session.id, true)
+                .await?;
+            let conversation = reloaded
+                .conversation
+                .expect("Session should have a conversation");
+            let stored_nudge_ids = conversation
+                .messages()
+                .iter()
+                .filter(|message| {
+                    message.role == rmcp::model::Role::User
+                        && message
+                            .as_concat_text()
+                            .contains(FINAL_OUTPUT_CONTINUATION_MESSAGE)
+                })
+                .map(|message| {
+                    message
+                        .id
+                        .clone()
+                        .expect("Stored final-output nudge should have ID")
+                })
+                .collect::<Vec<_>>();
+
+            assert_eq!(stored_nudge_ids, emitted_nudge_ids);
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_final_output_result_id_matches_persisted_message() -> Result<()> {
+            use goose::recipe::Response;
+            use goose::session::SessionManager;
+            use tempfile::TempDir;
+
+            let temp_dir = TempDir::new()?;
+            let session_manager = Arc::new(SessionManager::new(temp_dir.path().join("data")));
+            let agent = Agent::with_config(AgentConfig::new(
+                session_manager.clone(),
+                Arc::new(PermissionManager::new(temp_dir.path().join("config"))),
+                None,
+                GooseMode::Auto,
+                true,
+                GoosePlatform::GooseCli,
+            ));
+
+            let session = session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "final-output-result".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::Auto,
+                )
+                .await?;
+            let session_id = session.id.clone();
+            let provider = Arc::new(FinalOutputRequestProvider::new());
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
+            agent
+                .add_final_output_tool(Response {
+                    json_schema: Some(serde_json::json!({
+                        "type": "object",
+                        "properties": { "result": { "type": "string" } },
+                        "required": ["result"]
+                    })),
+                })
+                .await;
+
+            let session_config = SessionConfig {
+                id: session.id,
+                schedule_id: None,
+                max_turns: Some(5),
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(Message::user().with_text("Hi"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+
+            let mut messages = Vec::new();
+            while let Some(event) = reply_stream.next().await {
+                if let AgentEvent::Message(m) = event? {
+                    messages.push(m);
+                }
+            }
+
+            let emitted_final_output = messages
+                .iter()
+                .find(|message| {
+                    message.role == rmcp::model::Role::Assistant
+                        && message.as_concat_text().contains("Final answer")
+                })
+                .expect("final-output result should be emitted");
+            let emitted_final_output_id = emitted_final_output
+                .id
+                .as_deref()
+                .expect("final-output result should be emitted with ID");
+            assert!(emitted_final_output_id.starts_with("msg_"));
+
+            let persisted = session_manager
+                .get_session(&session_id, true)
+                .await?
+                .conversation
+                .map(|c| c.messages().to_vec())
+                .unwrap_or_default();
+            let stored_final_output = persisted
+                .iter()
+                .find(|message| {
+                    message.role == rmcp::model::Role::Assistant
+                        && message.as_concat_text().contains("Final answer")
+                })
+                .expect("final-output result should be stored");
+
+            assert_eq!(
+                stored_final_output.id.as_deref(),
+                Some(emitted_final_output_id)
+            );
+            assert_eq!(provider.call_count.load(Ordering::SeqCst), 1);
+            Ok(())
+        }
+
+        /// A recipe with retry_config owns the turn: recipe retry logic runs
+        /// its success checks before the empty-turn fallback. When the check
+        /// already passes, an empty final turn is the successful end of the
+        /// recipe, not a generic empty-response error.
+        #[tokio::test]
+        async fn test_empty_turn_defers_to_recipe_retry() -> Result<()> {
+            use goose::agents::types::{RetryConfig, SuccessCheck};
+
+            let agent = Agent::new();
+            let session = agent
+                .config
+                .session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "empty-recipe-retry".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+            agent
+                .update_provider(
+                    Arc::new(EmptyThenTextProvider::new(usize::MAX)),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
+
+            let session_config = SessionConfig {
+                id: session.id,
+                schedule_id: None,
+                max_turns: Some(3),
+                retry_config: Some(RetryConfig {
+                    max_retries: 2,
+                    checks: vec![SuccessCheck::Shell {
+                        command: "true".to_string(),
+                    }],
+                    on_failure: None,
+                    timeout_seconds: Some(30),
+                    on_failure_timeout_seconds: None,
+                }),
+            };
+
+            let reply_stream = agent
+                .reply(Message::user().with_text("Hi"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+
+            let mut messages = Vec::new();
+            while let Some(event) = reply_stream.next().await {
+                if let AgentEvent::Message(m) = event? {
+                    messages.push(m);
+                }
+            }
+
+            let text = concat_text(&messages);
+            assert!(
+                !text.contains("empty response"),
+                "recipe retry (passing check) must own the empty turn, not the fallback: {text:?}"
+            );
+            Ok(())
+        }
+
+        /// When a recipe exhausts its retries on empty turns, the max-attempts
+        /// failure message must be surfaced and persisted — not swallowed into a
+        /// silent stop.
+        #[tokio::test]
+        async fn test_recipe_max_retries_surfaces_failure() -> Result<()> {
+            use goose::agents::types::{RetryConfig, SuccessCheck};
+
+            let agent = Agent::new();
+            let session = agent
+                .config
+                .session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "recipe-max-retries".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+            let session_id = session.id.clone();
+            agent
+                .update_provider(
+                    Arc::new(EmptyThenTextProvider::new(usize::MAX)),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
+
+            let session_config = SessionConfig {
+                id: session.id,
+                schedule_id: None,
+                max_turns: Some(5),
+                retry_config: Some(RetryConfig {
+                    max_retries: 1,
+                    checks: vec![SuccessCheck::Shell {
+                        command: "false".to_string(),
+                    }],
+                    on_failure: None,
+                    timeout_seconds: Some(30),
+                    on_failure_timeout_seconds: None,
+                }),
+            };
+
+            let reply_stream = agent
+                .reply(Message::user().with_text("Hi"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+
+            let mut messages = Vec::new();
+            while let Some(event) = reply_stream.next().await {
+                if let AgentEvent::Message(m) = event? {
+                    messages.push(m);
+                }
+            }
+
+            let text = concat_text(&messages);
+            assert!(
+                text.contains("Maximum retry attempts"),
+                "exhausted recipe retries must surface the failure message: {text:?}"
+            );
+            let emitted_failure = messages
+                .iter()
+                .find(|message| message.as_concat_text().contains("Maximum retry attempts"))
+                .expect("max-retry failure message should be emitted");
+            let emitted_failure_id = emitted_failure
+                .id
+                .as_deref()
+                .expect("max-retry failure message should be emitted with ID");
+            assert!(emitted_failure_id.starts_with("msg_"));
+
+            let persisted = agent
+                .config
+                .session_manager
+                .get_session(&session_id, true)
+                .await?
+                .conversation
+                .map(|c| c.messages().to_vec())
+                .unwrap_or_default();
+            assert!(
+                concat_text(&persisted).contains("Maximum retry attempts"),
+                "the max-retry failure message must be persisted: {persisted:?}"
+            );
+            let stored_failure = persisted
+                .iter()
+                .find(|message| message.as_concat_text().contains("Maximum retry attempts"))
+                .expect("max-retry failure message should be stored");
+            assert_eq!(stored_failure.id.as_deref(), Some(emitted_failure_id));
+            Ok(())
         }
     }
 }

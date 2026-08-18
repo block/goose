@@ -87,6 +87,8 @@ module.exports = [
         URLSearchParams: 'readonly',
         Response: 'readonly',
         ReadableStream: 'readonly',
+        ReadableStreamDefaultController: 'readonly',
+        WritableStream: 'readonly',
         AbortController: 'readonly',
         RequestCredentials: 'readonly',
         HeadersInit: 'readonly',

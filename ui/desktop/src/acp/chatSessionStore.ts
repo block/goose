@@ -19,6 +19,7 @@ export interface AcpChatSessionSnapshot {
   messages: Message[];
   tokenState: TokenState;
   notifications: NotificationEvent[];
+  progressMessage: string | undefined;
   chatState: ChatState;
   sessionLoadError: string | undefined;
   activePromptAttemptId: string | null;
@@ -37,6 +38,11 @@ interface StoreEntry extends AcpChatSessionSnapshot {
   } | null;
   pendingUserInputRequestIds: Set<string>;
   pendingLocalSteerMessageIds: Set<string>;
+  preConfirmedSteerMessageIds: Set<string>;
+  // Cached result of the last notify(); reused while a session-load replay is
+  // in flight so per-notification reads don't deep-clone the growing message
+  // array (see applyAcpSessionNotification / getSnapshot).
+  lastSnapshot?: AcpChatSessionSnapshot;
 }
 
 const initialTokenState: TokenState = {
@@ -98,7 +104,7 @@ export interface AcpChatSessionActions {
     promptAttemptId: string
   ): AcpChatSessionSnapshot | undefined;
   waitForPromptCancellation(sessionId: string, promptAttemptId: string): Promise<void>;
-  finishPromptAttemptIfCurrent(sessionId: string, promptAttemptId: string, error?: string): boolean;
+  finishPromptAttemptIfCurrent(sessionId: string, promptAttemptId: string): boolean;
   clearActivePromptAttempt(sessionId: string): AcpChatSessionSnapshot | undefined;
   isCurrentPromptAttempt(sessionId: string, promptAttemptId: string): boolean;
 }
@@ -113,7 +119,16 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
 
   const getSnapshot: AcpChatSessionStore['getSnapshot'] = (sessionId) => {
     const entry = sessionsById.get(sessionId);
-    return entry ? snapshotFromEntry(entry) : undefined;
+    if (!entry) {
+      return undefined;
+    }
+    // While a session-load replay is streaming in, serve the snapshot cached
+    // by the last notify() instead of deep-cloning the growing message array
+    // on every read (getSnapshot is called per replay notification).
+    if (entry.chatState === ChatState.LoadingConversation && entry.lastSnapshot) {
+      return entry.lastSnapshot;
+    }
+    return snapshotFromEntry(entry);
   };
 
   const subscribe: AcpChatSessionStoreInternal['subscribe'] = (sessionId, listener) => {
@@ -155,6 +170,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
       messages: [],
       tokenState: { ...initialTokenState },
       notifications: [],
+      progressMessage: undefined,
       chatState: ChatState.Idle,
       sessionLoadError: undefined,
       activePromptAttemptId: null,
@@ -163,6 +179,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
       promptCancellationRestoreState: null,
       pendingUserInputRequestIds: new Set(),
       pendingLocalSteerMessageIds: new Set(),
+      preConfirmedSteerMessageIds: new Set(),
       adapter: createAcpSessionNotificationAdapter(),
     };
     sessionsById.set(sessionId, entry);
@@ -171,6 +188,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
 
   const notify = (sessionId: string, entry: StoreEntry): AcpChatSessionSnapshot => {
     const snapshot = snapshotFromEntry(entry);
+    entry.lastSnapshot = snapshot;
     const listeners = listenersBySessionId.get(sessionId);
     if (listeners) {
       for (const listener of listeners) {
@@ -190,6 +208,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     const entry = getOrCreateEntry(sessionId);
     resetReplayState(entry);
     entry.sessionLoadError = undefined;
+    entry.progressMessage = undefined;
     entry.chatState = ChatState.LoadingConversation;
     return notify(sessionId, entry);
   };
@@ -198,6 +217,11 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     const entry = getOrCreateEntry(sessionId);
     entry.session = session;
     entry.sessionLoadError = undefined;
+    entry.progressMessage = undefined;
+    // Materialize the replayed conversation in one pass (the per-notification
+    // fast path above skips message copies while loading).
+    entry.messages = entry.adapter.getMessages();
+    retainPendingLocalSteerMessageIds(entry);
     entry.chatState = entry.activePromptAttemptId ? ChatState.Streaming : ChatState.Idle;
     return notify(sessionId, entry);
   };
@@ -208,6 +232,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
   ) => {
     const entry = getOrCreateEntry(sessionId);
     entry.sessionLoadError = sessionLoadError;
+    entry.progressMessage = undefined;
     entry.chatState = ChatState.Idle;
     return notify(sessionId, entry);
   };
@@ -230,13 +255,18 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     }
 
     entry.messages = [...entry.messages, cloneMessage(message)];
-    entry.pendingLocalSteerMessageIds.add(message.id);
+    if (!entry.preConfirmedSteerMessageIds.delete(message.id)) {
+      entry.pendingLocalSteerMessageIds.add(message.id);
+    }
     entry.adapter = createAdapterForEntry(entry);
     return notify(sessionId, entry);
   };
 
   const setChatState: AcpChatSessionActions['setChatState'] = (sessionId, chatState) => {
     const entry = getOrCreateEntry(sessionId);
+    if (chatState === ChatState.Idle) {
+      entry.progressMessage = undefined;
+    }
     entry.chatState = chatState;
     return notify(sessionId, entry);
   };
@@ -287,6 +317,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     entry.chatState = ChatState.Streaming;
     entry.sessionLoadError = undefined;
     entry.notifications = [];
+    entry.progressMessage = undefined;
     return notify(sessionId, entry);
   };
 
@@ -309,6 +340,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     entry.pendingCancelPromptAttemptId = promptAttemptId;
     entry.pendingUserInputRequestIds.clear();
     discardPendingLocalSteerMessages(entry);
+    entry.progressMessage = undefined;
     entry.chatState = ChatState.Idle;
     return notify(sessionId, entry);
   };
@@ -371,8 +403,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
 
   const finishPromptAttemptIfCurrent: AcpChatSessionActions['finishPromptAttemptIfCurrent'] = (
     sessionId,
-    promptAttemptId,
-    error
+    promptAttemptId
   ) => {
     const entry = sessionsById.get(sessionId);
     if (!entry || entry.activePromptAttemptId !== promptAttemptId) {
@@ -385,8 +416,8 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     entry.promptCancellationRestoreState = null;
     entry.pendingUserInputRequestIds.clear();
     discardPendingLocalSteerMessages(entry);
+    entry.progressMessage = undefined;
     entry.chatState = ChatState.Idle;
-    entry.sessionLoadError = error;
     notify(sessionId, entry);
     return true;
   };
@@ -416,7 +447,21 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     notification
   ) => {
     const entry = getOrCreateEntry(notification.sessionId);
+    if (shouldClearProgressMessage(notification)) {
+      entry.progressMessage = undefined;
+    }
     const changes = entry.adapter.apply(notification);
+    // Session-load replay fast path: messages accumulate inside the adapter
+    // and are materialized once in finishSessionLoad. Copying them into the
+    // entry and re-notifying per replayed message is O(n^2) over the whole
+    // conversation and freezes the renderer on large sessions.
+    if (entry.chatState === ChatState.LoadingConversation && entry.lastSnapshot) {
+      applyChatStateChanges(
+        entry,
+        changes.filter((change) => change.type !== 'messages')
+      );
+      return entry.lastSnapshot;
+    }
     applyChatStateChanges(entry, changes);
     return notify(notification.sessionId, entry);
   };
@@ -425,6 +470,14 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     (notification) => {
       const entry = getOrCreateEntry(notification.sessionId);
       const changes = entry.adapter.applyGoose(notification);
+      // Same session-load replay fast path as applyAcpSessionNotification.
+      if (entry.chatState === ChatState.LoadingConversation && entry.lastSnapshot) {
+        applyChatStateChanges(
+          entry,
+          changes.filter((change) => change.type !== 'messages')
+        );
+        return entry.lastSnapshot;
+      }
       applyChatStateChanges(entry, changes);
       return notify(notification.sessionId, entry);
     };
@@ -580,6 +633,9 @@ function applyChatStateChanges(entry: StoreEntry, changes: AcpChatStateChange[])
       case 'tokenState':
         entry.tokenState = { ...entry.tokenState, ...change.tokenState };
         break;
+      case 'progressMessage':
+        entry.progressMessage = change.message;
+        break;
       case 'sessionInfo':
         if (change.name && entry.session) {
           entry.session = { ...entry.session, name: change.name };
@@ -589,7 +645,9 @@ function applyChatStateChanges(entry: StoreEntry, changes: AcpChatStateChange[])
         }
         break;
       case 'localSteerConfirmed':
-        entry.pendingLocalSteerMessageIds.delete(change.messageId);
+        if (!entry.pendingLocalSteerMessageIds.delete(change.messageId)) {
+          entry.preConfirmedSteerMessageIds.add(change.messageId);
+        }
         break;
       case 'notification':
         entry.notifications = [...entry.notifications, change.notification];
@@ -598,15 +656,28 @@ function applyChatStateChanges(entry: StoreEntry, changes: AcpChatStateChange[])
   }
 }
 
+function shouldClearProgressMessage(notification: SessionNotification): boolean {
+  switch (notification.update.sessionUpdate) {
+    case 'agent_message_chunk':
+    case 'agent_thought_chunk':
+    case 'tool_call':
+      return true;
+    default:
+      return false;
+  }
+}
+
 function resetReplayState(entry: StoreEntry): void {
   entry.messages = [];
   entry.tokenState = { ...initialTokenState };
   entry.notifications = [];
+  entry.progressMessage = undefined;
   entry.activeRunId = null;
   entry.pendingCancelPromptAttemptId = null;
   entry.promptCancellationRestoreState = null;
   entry.pendingUserInputRequestIds.clear();
   entry.pendingLocalSteerMessageIds.clear();
+  entry.preConfirmedSteerMessageIds.clear();
   entry.adapter = createAcpSessionNotificationAdapter();
 }
 
@@ -675,6 +746,7 @@ function snapshotFromEntry(entry: StoreEntry): AcpChatSessionSnapshot {
     messages: cloneMessages(entry.messages),
     tokenState: { ...entry.tokenState },
     notifications: [...entry.notifications],
+    progressMessage: entry.progressMessage,
     chatState: entry.chatState,
     sessionLoadError: entry.sessionLoadError,
     activePromptAttemptId: entry.activePromptAttemptId,

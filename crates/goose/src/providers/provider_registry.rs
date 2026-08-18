@@ -14,6 +14,7 @@ pub type ProviderConstructor = Arc<
             Vec<ExtensionConfig>,
             Option<PathBuf>,
             Option<TlsConfig>,
+            bool,
         ) -> BoxFuture<'static, Result<Arc<dyn Provider>>>
         + Send
         + Sync,
@@ -80,11 +81,11 @@ impl ProviderEntry {
         &self,
         extensions: Vec<ExtensionConfig>,
     ) -> Result<Arc<dyn Provider>> {
-        self.create(extensions).await
+        (self.constructor)(extensions, None, self.tls_config.clone(), true).await
     }
 
     pub async fn create(&self, extensions: Vec<ExtensionConfig>) -> Result<Arc<dyn Provider>> {
-        (self.constructor)(extensions, None, self.tls_config.clone()).await
+        (self.constructor)(extensions, None, self.tls_config.clone(), false).await
     }
 
     pub async fn create_with_working_dir(
@@ -92,7 +93,13 @@ impl ProviderEntry {
         extensions: Vec<ExtensionConfig>,
         working_dir: PathBuf,
     ) -> Result<Arc<dyn Provider>> {
-        (self.constructor)(extensions, Some(working_dir), self.tls_config.clone()).await
+        (self.constructor)(
+            extensions,
+            Some(working_dir),
+            self.tls_config.clone(),
+            false,
+        )
+        .await
     }
 }
 
@@ -133,14 +140,15 @@ impl ProviderRegistry {
             name,
             ProviderEntry {
                 metadata,
-                constructor: Arc::new(|extensions, working_dir, tls_config| {
+                constructor: Arc::new(|extensions, working_dir, tls_config, use_default_model| {
                     Box::pin(async move {
-                        let provider = match working_dir {
-                            Some(working_dir) => {
-                                F::from_env_with_working_dir(extensions, working_dir, tls_config)
-                                    .await?
-                            }
-                            None => F::from_env(extensions, tls_config).await?,
+                        let provider = if use_default_model {
+                            F::from_env_with_default_model(extensions, tls_config).await?
+                        } else if let Some(working_dir) = working_dir {
+                            F::from_env_with_working_dir(extensions, working_dir, tls_config)
+                                .await?
+                        } else {
+                            F::from_env(extensions, tls_config).await?
                         };
                         Ok(Arc::new(provider) as Arc<dyn Provider>)
                     })
@@ -232,14 +240,9 @@ impl ProviderRegistry {
             .models
             .iter()
             .map(|m| ModelInfo {
-                name: m.name.clone(),
                 resolved_model: None,
-                context_limit: m.context_limit,
-                input_token_cost: m.input_token_cost,
-                output_token_cost: m.output_token_cost,
-                currency: m.currency.clone(),
                 supports_cache_control: Some(m.supports_cache_control.unwrap_or(false)),
-                reasoning: m.reasoning,
+                ..m.clone()
             })
             .collect();
 
@@ -298,6 +301,8 @@ impl ProviderRegistry {
             setup_steps: config.setup_steps.clone(),
             model_selection_hint: None,
             fast_model: config.fast_model.clone(),
+            setup: config.setup.clone(),
+            deprecated: None,
         };
         let inventory_config_keys = custom_metadata.config_keys.clone();
         let default_inventory_configured = Arc::new(move || {
@@ -311,7 +316,7 @@ impl ProviderRegistry {
             config.name.clone(),
             ProviderEntry {
                 metadata: custom_metadata,
-                constructor: Arc::new(move |_extensions, _working_dir, tls_config| {
+                constructor: Arc::new(move |_extensions, _working_dir, tls_config, _| {
                     let result = constructor(tls_config);
                     Box::pin(async move {
                         let provider = result?;
@@ -395,6 +400,7 @@ mod tests {
             setup_steps: vec![],
             fast_model: None,
             preserves_thinking: false,
+            setup: None,
         }
     }
 
@@ -413,5 +419,7 @@ mod tests {
         let entry = registry.entries.get("custom_hf").unwrap();
 
         assert!(!entry.inventory_configured());
+        assert!(entry.metadata().setup.is_none());
+        assert!(entry.metadata().deprecated.is_none());
     }
 }

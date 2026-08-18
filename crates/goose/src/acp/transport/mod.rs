@@ -216,10 +216,6 @@ pub fn create_acp_router(server: Arc<AcpServer>) -> Router {
     create_acp_router_with_policy(server, AcpOriginPolicy::loopback(), None)
 }
 
-pub fn create_authenticated_acp_router(server: Arc<AcpServer>, secret_key: String) -> Router {
-    create_acp_router_with_policy(server, AcpOriginPolicy::local_default(), Some(secret_key))
-}
-
 async fn health() -> &'static str {
     "ok"
 }

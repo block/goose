@@ -6,7 +6,7 @@ use crate::agents::ToolCallContext;
 use async_trait::async_trait;
 use goose_sdk_types::custom_requests::{SourceEntry, SourceType};
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    CallToolResult, ContentBlock, Implementation, InitializeResult, JsonObject, ListToolsResult,
     ServerCapabilities, ServerNotification, Tool,
 };
 use std::path::{Path, PathBuf};
@@ -18,6 +18,7 @@ pub static EXTENSION_NAME: &str = "skills";
 pub struct SkillsClient {
     info: InitializeResult,
     working_dir: PathBuf,
+    exclude_builtin_skills: bool,
 }
 
 impl SkillsClient {
@@ -31,7 +32,27 @@ impl SkillsClient {
         let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Skills"));
 
-        Ok(Self { info, working_dir })
+        Ok(Self {
+            info,
+            working_dir,
+            exclude_builtin_skills: false,
+        })
+    }
+
+    /// Controls whether Goose's bundled skills are exposed by this client.
+    /// Bundled skills are enabled by default.
+    pub fn with_builtin_skills(mut self, enabled: bool) -> Self {
+        self.exclude_builtin_skills = !enabled;
+        self
+    }
+
+    fn discover_skills(&self) -> Vec<SourceEntry> {
+        discover_skills(Some(&self.working_dir))
+            .into_iter()
+            .filter(|skill| {
+                !self.exclude_builtin_skills || skill.source_type != SourceType::BuiltinSkill
+            })
+            .collect()
     }
 }
 
@@ -75,6 +96,7 @@ impl McpClientTrait for SkillsClient {
             tools: vec![tool],
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 
@@ -86,7 +108,7 @@ impl McpClientTrait for SkillsClient {
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         if name != "load_skill" {
-            return Ok(CallToolResult::error(vec![Content::text(format!(
+            return Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Unknown tool: {}",
                 name
             ))]));
@@ -99,7 +121,7 @@ impl McpClientTrait for SkillsClient {
             .unwrap_or("");
 
         if skill_name.is_empty() {
-            return Ok(CallToolResult::error(vec![Content::text(
+            return Ok(CallToolResult::error(vec![ContentBlock::text(
                 "Missing required parameter: name",
             )]));
         }
@@ -108,12 +130,12 @@ impl McpClientTrait for SkillsClient {
             .and_then(|args| args.get("args"))
             .and_then(|v| v.as_str());
 
-        let skills = discover_skills(Some(&self.working_dir));
+        let skills = self.discover_skills();
 
         if let Some(skill) = skills.iter().find(|s| s.name == skill_name) {
             return match loaded_skill_context_with_args(skill, args) {
-                Ok(rendered) => Ok(CallToolResult::success(vec![Content::text(rendered)])),
-                Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
+                Ok(rendered) => Ok(CallToolResult::success(vec![ContentBlock::text(rendered)])),
+                Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                     "Failed to parse skill arguments: {}",
                     e
                 ))])),
@@ -144,22 +166,22 @@ impl McpClientTrait for SkillsClient {
                         Ok(canonical) if canonical.starts_with(&canonical_skill_dir) => {
                             match std::fs::read_to_string(&canonical) {
                                 Ok(content) => {
-                                    CallToolResult::success(vec![Content::text(format!(
+                                    CallToolResult::success(vec![ContentBlock::text(format!(
                                         "# Loaded: {}\n\n{}\n\n---\nFile loaded into context.",
                                         skill_name, content
                                     ))])
                                 }
-                                Err(e) => CallToolResult::error(vec![Content::text(format!(
+                                Err(e) => CallToolResult::error(vec![ContentBlock::text(format!(
                                     "Failed to read '{}': {}",
                                     skill_name, e
                                 ))]),
                             }
                         }
-                        Ok(_) => CallToolResult::error(vec![Content::text(format!(
+                        Ok(_) => CallToolResult::error(vec![ContentBlock::text(format!(
                             "Refusing to load '{}': resolves outside the skill directory",
                             skill_name
                         ))]),
-                        Err(e) => CallToolResult::error(vec![Content::text(format!(
+                        Err(e) => CallToolResult::error(vec![ContentBlock::text(format!(
                             "Failed to resolve '{}': {}",
                             skill_name, e
                         ))]),
@@ -179,12 +201,12 @@ impl McpClientTrait for SkillsClient {
                     .collect();
 
                 return Ok(if available.is_empty() {
-                    CallToolResult::error(vec![Content::text(format!(
+                    CallToolResult::error(vec![ContentBlock::text(format!(
                         "Skill '{}' has no supporting files.",
                         skill.name
                     ))])
                 } else {
-                    CallToolResult::error(vec![Content::text(format!(
+                    CallToolResult::error(vec![ContentBlock::text(format!(
                         "File '{}' not found. Available: {}",
                         skill_name,
                         available.join(", ")
@@ -204,12 +226,12 @@ impl McpClientTrait for SkillsClient {
             .collect();
 
         Ok(if suggestions.is_empty() {
-            CallToolResult::error(vec![Content::text(format!(
+            CallToolResult::error(vec![ContentBlock::text(format!(
                 "Skill '{}' not found.",
                 skill_name
             ))])
         } else {
-            CallToolResult::error(vec![Content::text(format!(
+            CallToolResult::error(vec![ContentBlock::text(format!(
                 "Skill '{}' not found. Did you mean: {}?",
                 skill_name,
                 suggestions.join(", ")
@@ -222,7 +244,7 @@ impl McpClientTrait for SkillsClient {
     }
 
     fn get_instructions(&self) -> Option<String> {
-        let sources = discover_skills(Some(&self.working_dir));
+        let sources = self.discover_skills();
         let mut skills: Vec<&SourceEntry> = sources
             .iter()
             .filter(|s| {
@@ -258,7 +280,7 @@ mod tests {
     use tempfile::TempDir;
 
     #[tokio::test]
-    async fn test_load_skill_from_filesystem() {
+    async fn test_load_filesystem_skill_without_builtin_skills() {
         let temp_dir = TempDir::new().unwrap();
         let skill_dir = temp_dir.path().join(".goose/skills/my-skill");
         fs::create_dir_all(&skill_dir).unwrap();
@@ -275,10 +297,17 @@ mod tests {
         let client = SkillsClient::new(PlatformExtensionContext {
             extension_manager: None,
             session_manager: Arc::new(crate::session::SessionManager::instance()),
+            scheduler: None,
             session: Some(session),
             use_login_shell_path: false,
         })
-        .unwrap();
+        .unwrap()
+        .with_builtin_skills(false);
+
+        assert!(client
+            .discover_skills()
+            .iter()
+            .all(|skill| skill.source_type != SourceType::BuiltinSkill));
 
         let ctx = ToolCallContext::new("test".to_string(), None, None);
         let args: JsonObject =
@@ -289,8 +318,8 @@ mod tests {
             .unwrap();
 
         assert!(!result.is_error.unwrap_or(false));
-        let text = match &result.content[0].raw {
-            rmcp::model::RawContent::Text(t) => &t.text,
+        let text = match &result.content[0] {
+            rmcp::model::ContentBlock::Text(t) => &t.text,
             _ => panic!("expected text"),
         };
         assert!(text.contains("my-skill"));
@@ -302,6 +331,7 @@ mod tests {
         let client = SkillsClient::new(PlatformExtensionContext {
             extension_manager: None,
             session_manager: Arc::new(crate::session::SessionManager::instance()),
+            scheduler: None,
             session: None,
             use_login_shell_path: false,
         })
