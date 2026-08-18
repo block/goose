@@ -1,6 +1,7 @@
 //! Ends the turn when the agent has used its autonomous turn budget.
 
-use crate::agents::state_machine::operation::{
+use crate::agents::state_machine::effects::GooseEffect;
+use crate::agents::state_machine::{
     assistant_turn_count, messages_since_kickoff, not_applicable, yielded_with, Emitter, Operation,
     OperationResult,
 };
@@ -33,7 +34,7 @@ impl MaxTurnsOperation {
 }
 
 #[async_trait]
-impl Operation for MaxTurnsOperation {
+impl Operation<Session, GooseEffect> for MaxTurnsOperation {
     fn name(&self) -> &'static str {
         "max_turns"
     }
@@ -54,7 +55,7 @@ impl Operation for MaxTurnsOperation {
         _session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let messages = messages_since_kickoff(conversation)?;
         if assistant_turn_count(messages) < self.max_turns {
             return not_applicable();

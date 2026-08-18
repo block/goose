@@ -375,8 +375,7 @@ fn format_options_for_provider(preserves_thinking: bool) -> AnthropicFormatOptio
     AnthropicFormatOptions {
         preserve_unsigned_thinking: preserves_thinking,
         preserve_thinking_context: preserves_thinking,
-        thinking_disabled: false,
-        current_model: None,
+        ..Default::default()
     }
 }
 

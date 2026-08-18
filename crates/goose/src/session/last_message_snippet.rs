@@ -2,7 +2,7 @@ use crate::conversation::message::Message;
 use crate::session::session_manager::Session;
 use anyhow::Result;
 use rmcp::model::Role;
-use sqlx::{Pool, Sqlite};
+use sqlx::{AssertSqlSafe, Pool, Sqlite};
 use std::collections::HashMap;
 
 const LAST_MESSAGE_SNIPPET_MAX_CHARS: usize = 128;
@@ -78,7 +78,7 @@ async fn recent_message_rows(
         .collect::<Vec<_>>()
         .join(" UNION ALL ");
 
-    let mut query = sqlx::query_as::<_, RecentMessageRow>(&sql);
+    let mut query = sqlx::query_as::<_, RecentMessageRow>(AssertSqlSafe(sql));
     for session_id in session_ids {
         query = query
             .bind(session_id)

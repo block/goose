@@ -4,7 +4,7 @@ use async_stream::try_stream;
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use futures::TryStreamExt;
-use goose_providers::formats::anthropic::{AnthropicFormatOptions, ANTHROPIC_PROVIDER_NAME};
+use goose_providers::formats::anthropic::AnthropicFormatOptions;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -420,7 +420,7 @@ impl Provider for KimiCodeProvider {
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let mut payload = create_request(
-            ANTHROPIC_PROVIDER_NAME,
+            KIMI_CODE_PROVIDER_NAME,
             model_config,
             system,
             messages,

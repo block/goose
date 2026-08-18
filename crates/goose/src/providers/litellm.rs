@@ -22,6 +22,7 @@ use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
 
 const LITELLM_PROVIDER_NAME: &str = "litellm";
+const LITELLM_DEFAULT_HOST: &str = "http://localhost:4000";
 pub const LITELLM_DEFAULT_MODEL: &str = "gpt-4o-mini";
 pub const LITELLM_DOC_URL: &str = "https://docs.litellm.ai/docs/";
 
@@ -47,7 +48,7 @@ impl LiteLLMProvider {
         let api_key = secrets.get("LITELLM_API_KEY").cloned().unwrap_or_default();
         let host: String = config
             .get_param("LITELLM_HOST")
-            .unwrap_or_else(|_| "https://api.litellm.ai".to_string());
+            .unwrap_or_else(|_| LITELLM_DEFAULT_HOST.to_string());
         let base_path: String = config
             .get_param("LITELLM_BASE_PATH")
             .unwrap_or_else(|_| "v1/chat/completions".to_string());
@@ -177,7 +178,7 @@ impl goose_providers::base::ProviderDescriptor for LiteLLMProvider {
                     "LITELLM_HOST",
                     true,
                     false,
-                    Some("http://localhost:4000"),
+                    Some(LITELLM_DEFAULT_HOST),
                     true,
                 ),
                 ConfigKey::new(
@@ -190,6 +191,25 @@ impl goose_providers::base::ProviderDescriptor for LiteLLMProvider {
                 ConfigKey::new("LITELLM_CUSTOM_HEADERS", false, true, None, false),
                 ConfigKey::new("LITELLM_TIMEOUT", false, false, Some("600"), false),
             ],
+        )
+        .with_setup(
+            crate::providers::catalog::ProviderSetupMetadata::new(
+                crate::providers::catalog::ProviderSetupCategory::Model,
+                crate::providers::catalog::ProviderSetupMethod::ConfigFields,
+                crate::providers::catalog::ProviderSetupGroup::Additional,
+            )
+            .with_field(
+                "LITELLM_HOST",
+                "Host URL",
+                Some("https://your-proxy.example.com"),
+                None,
+            )
+            .with_field(
+                "LITELLM_API_KEY",
+                "API Key",
+                Some("Paste your API key"),
+                None,
+            ),
         )
     }
 }
@@ -248,7 +268,8 @@ impl Provider for LiteLLMProvider {
             false,
         )?;
 
-        if self.supports_cache_control(model_config).await {
+        if !model_config.prompt_cache_disabled() && self.supports_cache_control(model_config).await
+        {
             apply_chat_payload_breakpoints(&mut payload);
         }
 

@@ -383,6 +383,21 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                 .if_request({
                     let agent = agent.clone();
                     let cx = cx.clone();
+                    |req: DeleteSessionRequest, responder: Responder<DeleteSessionResponse>| async move {
+                        cx.spawn(async move {
+                            match agent.on_delete_session(req).await {
+                                Ok(response) => responder.respond(response)?,
+                                Err(e) => responder.respond_with_error(e)?,
+                            }
+                            Ok(())
+                        })?;
+                        Ok(())
+                    }
+                })
+                .await
+                .if_request({
+                    let agent = agent.clone();
+                    let cx = cx.clone();
                     |req: CloseSessionRequest, responder: Responder<CloseSessionResponse>| async move {
                         cx.spawn(async move {
                             match agent.on_close_session(&req.session_id.0).await {
@@ -449,7 +464,7 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                             }
                             Dispatch::Response(result, router) => {
                                 debug!(method = %router.method(), id = %router.id(), ok = result.is_ok(), "routing response");
-                                router.respond_with_result(result)?;
+                                router.route_with_result(result)?;
                                 Ok(())
                             }
                             Dispatch::Notification(notif) => {

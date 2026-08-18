@@ -323,14 +323,6 @@ pub struct PromptOperationResponse {
     pub message: String,
 }
 
-/// Delete a session.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
-#[request(method = "session/delete", response = EmptyResponse)]
-#[serde(rename_all = "camelCase")]
-pub struct DeleteSessionRequest {
-    pub session_id: String,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum GooseExtension {
@@ -361,7 +353,7 @@ pub enum GooseExtension {
         available_tools: Option<Vec<String>>,
     },
     Mcp {
-        server: McpServer,
+        server: Box<McpServer>,
         #[serde(default, rename = "envKeys", skip_serializing_if = "Vec::is_empty")]
         env_keys: Vec<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -370,6 +362,19 @@ pub enum GooseExtension {
         timeout: Option<u64>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         socket: Option<String>,
+        /// Pre-registered OAuth client ID for the server's authorization server.
+        #[serde(default, rename = "clientId", skip_serializing_if = "Option::is_none")]
+        client_id: Option<String>,
+        /// Name of the env/secret key holding the OAuth client secret.
+        #[serde(
+            default,
+            rename = "clientSecretKey",
+            skip_serializing_if = "Option::is_none"
+        )]
+        client_secret_key: Option<String>,
+        /// OAuth scopes to request with `client_id`.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        scopes: Vec<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         bundled: Option<bool>,
         /// Tool allowlist for this extension. Omit this field to allow all tools.
@@ -1109,6 +1114,9 @@ pub struct ProviderSetupCatalogEntryDto {
     pub provider_id: String,
     pub name: String,
     pub category: ProviderSetupCategoryDto,
+    /// Whether this provider communicates through ACP.
+    #[serde(default)]
+    pub acp: bool,
     pub description: String,
     pub setup_method: ProviderSetupMethodDto,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1670,6 +1678,26 @@ pub struct ListProvidersResponse {
     pub entries: Vec<ProviderInventoryEntryDto>,
 }
 
+/// Check whether an ACP provider can initialize and create a session.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/providers/readiness/check",
+    response = ProviderReadinessCheckResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderReadinessCheckRequest {
+    pub provider_id: String,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderReadinessCheckResponse {
+    pub provider_id: String,
+    pub ready: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
 /// List the raw model identifiers returned by a provider's live supported-models API.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
@@ -1765,10 +1793,22 @@ pub struct ProviderInventoryEntryDto {
     pub default_model: String,
     /// Whether Goose has enough configuration to use this provider.
     pub configured: bool,
+    /// Whether the provider's external runtime or required configuration is available.
+    pub available: bool,
     /// Provider classification such as `Preferred`, `Builtin`, `Declarative`, or `Custom`.
     pub provider_type: String,
     /// Whether this inventory entry represents an agent provider or a model provider.
     pub category: ProviderSetupCategoryDto,
+    /// Whether this provider communicates through ACP.
+    #[serde(default)]
+    pub acp: bool,
+    /// Whether this provider should appear in normal provider setup UIs.
+    pub visible_in_setup: bool,
+    /// Whether this provider is retained only for compatibility.
+    pub deprecated: bool,
+    /// Preferred replacement for a deprecated provider.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub replacement: Option<String>,
     /// Required configuration keys and setup metadata.
     pub config_keys: Vec<ProviderConfigKey>,
     /// Step-by-step setup instructions, when present.

@@ -178,11 +178,16 @@ fn config_to_goose_extension(
             available_tools,
             ..
         } => GooseExtension::Mcp {
-            server: McpServer::Stdio(McpServerStdio::new(name, cmd).args(args.clone())),
+            server: Box::new(McpServer::Stdio(
+                McpServerStdio::new(name, cmd).args(args.clone()),
+            )),
             env_keys: env_keys.clone(),
             description: empty_string_to_none(description),
             timeout: *timeout,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
+            scopes: vec![],
             bundled: *bundled,
             available_tools: available_tools_to_wire(available_tools),
         },
@@ -194,6 +199,9 @@ fn config_to_goose_extension(
             headers,
             timeout,
             socket,
+            client_id,
+            client_secret_key,
+            scopes,
             bundled,
             available_tools,
             ..
@@ -203,11 +211,16 @@ fn config_to_goose_extension(
                 .map(|(key, value)| HttpHeader::new(key, value))
                 .collect();
             GooseExtension::Mcp {
-                server: McpServer::Http(McpServerHttp::new(name, uri).headers(headers)),
+                server: Box::new(McpServer::Http(
+                    McpServerHttp::new(name, uri).headers(headers),
+                )),
                 env_keys: env_keys.clone(),
                 description: empty_string_to_none(description),
                 timeout: *timeout,
                 socket: socket.clone(),
+                client_id: client_id.clone(),
+                client_secret_key: client_secret_key.clone(),
+                scopes: scopes.clone(),
                 bundled: *bundled,
                 available_tools: available_tools_to_wire(available_tools),
             }
@@ -263,13 +276,21 @@ fn goose_extension_to_config(
             description,
             timeout,
             socket,
+            client_id,
+            client_secret_key,
+            scopes,
             bundled,
             available_tools,
-        } => match server {
+        } => match *server {
             McpServer::Stdio(stdio) => {
                 if socket.is_some() {
                     return Err(agent_client_protocol::Error::invalid_params()
                         .data("socket is only supported for streamable_http MCP extensions"));
+                }
+                if client_id.is_some() || client_secret_key.is_some() || !scopes.is_empty() {
+                    return Err(agent_client_protocol::Error::invalid_params().data(
+                        "OAuth client fields are only supported for streamable_http MCP extensions",
+                    ));
                 }
                 let mut env_keys = env_keys;
                 for env in stdio.env {
@@ -304,6 +325,9 @@ fn goose_extension_to_config(
                     .collect(),
                 timeout,
                 socket,
+                client_id,
+                client_secret_key,
+                scopes,
                 bundled,
                 available_tools: available_tools.unwrap_or_default(),
             },
@@ -477,6 +501,9 @@ mod tests {
             description,
             timeout,
             socket,
+            client_id,
+            client_secret_key,
+            scopes,
             bundled,
             available_tools,
         } = extension
@@ -488,10 +515,13 @@ mod tests {
         assert_eq!(description.as_deref(), Some("Test stdio"));
         assert_eq!(timeout, Some(42));
         assert_eq!(socket, None);
+        assert_eq!(client_id, None);
+        assert_eq!(client_secret_key, None);
+        assert!(scopes.is_empty());
         assert_eq!(bundled, None);
         assert_eq!(available_tools, Some(vec!["run".to_string()]));
 
-        let McpServer::Stdio(stdio) = server else {
+        let McpServer::Stdio(stdio) = *server else {
             panic!("expected stdio server");
         };
 
@@ -518,6 +548,9 @@ mod tests {
             )]),
             timeout: Some(99),
             socket: Some("@egress.sock".to_string()),
+            client_id: Some("registered-client".to_string()),
+            client_secret_key: Some("OAUTH_CLIENT_SECRET".to_string()),
+            scopes: vec!["scope.read".to_string()],
             bundled: None,
             available_tools: vec!["fetch".to_string()],
         };
@@ -532,6 +565,9 @@ mod tests {
             description,
             timeout,
             socket,
+            client_id,
+            client_secret_key,
+            scopes,
             bundled,
             available_tools,
         } = extension
@@ -543,10 +579,13 @@ mod tests {
         assert_eq!(description.as_deref(), Some("Test HTTP"));
         assert_eq!(timeout, Some(99));
         assert_eq!(socket.as_deref(), Some("@egress.sock"));
+        assert_eq!(client_id.as_deref(), Some("registered-client"));
+        assert_eq!(client_secret_key.as_deref(), Some("OAUTH_CLIENT_SECRET"));
+        assert_eq!(scopes, vec!["scope.read"]);
         assert_eq!(bundled, None);
         assert_eq!(available_tools, Some(vec!["fetch".to_string()]));
 
-        let McpServer::Http(http) = server else {
+        let McpServer::Http(http) = *server else {
             panic!("expected http server");
         };
 
@@ -618,14 +657,17 @@ mod tests {
     #[test]
     fn goose_mcp_stdio_extension_converts_to_config_without_literal_envs() {
         let extension = GooseExtension::Mcp {
-            server: McpServer::Stdio(
+            server: Box::new(McpServer::Stdio(
                 McpServerStdio::new("test-stdio", "test-command")
                     .args(vec!["--flag".to_string(), "value".to_string()]),
-            ),
+            )),
             env_keys: vec!["SECRET_TOKEN".to_string()],
             description: Some("Test stdio".to_string()),
             timeout: Some(42),
             socket: None,
+            client_id: None,
+            client_secret_key: None,
+            scopes: vec![],
             bundled: Some(true),
             available_tools: Some(vec!["run".to_string()]),
         };
@@ -666,17 +708,25 @@ mod tests {
     #[test]
     fn goose_mcp_stdio_extension_extracts_literal_envs_for_config_add() {
         let extension = GooseExtension::Mcp {
-            server: McpServer::Stdio(McpServerStdio::new("test-stdio", "test-command").env(vec![
-                agent_client_protocol::schema::v1::EnvVariable::new(
-                    "SECRET_TOKEN",
-                    "literal-secret",
-                ),
-                agent_client_protocol::schema::v1::EnvVariable::new("OTHER_TOKEN", "other-secret"),
-            ])),
+            server: Box::new(McpServer::Stdio(
+                McpServerStdio::new("test-stdio", "test-command").env(vec![
+                    agent_client_protocol::schema::v1::EnvVariable::new(
+                        "SECRET_TOKEN",
+                        "literal-secret",
+                    ),
+                    agent_client_protocol::schema::v1::EnvVariable::new(
+                        "OTHER_TOKEN",
+                        "other-secret",
+                    ),
+                ]),
+            )),
             env_keys: vec!["SECRET_TOKEN".to_string()],
             description: Some("Test stdio".to_string()),
             timeout: Some(42),
             socket: None,
+            client_id: None,
+            client_secret_key: None,
+            scopes: vec![],
             bundled: Some(true),
             available_tools: None,
         };
@@ -711,15 +761,18 @@ mod tests {
     #[test]
     fn goose_mcp_streamable_http_extension_converts_to_config_without_literal_envs() {
         let extension = GooseExtension::Mcp {
-            server: McpServer::Http(
+            server: Box::new(McpServer::Http(
                 McpServerHttp::new("test-http", "https://example.com/mcp").headers(vec![
                     HttpHeader::new("Authorization", "Bearer ${API_TOKEN}"),
                 ]),
-            ),
+            )),
             env_keys: vec!["API_TOKEN".to_string()],
             description: Some("Test HTTP".to_string()),
             timeout: Some(99),
             socket: Some("@egress.sock".to_string()),
+            client_id: Some("registered-client".to_string()),
+            client_secret_key: Some("OAUTH_CLIENT_SECRET".to_string()),
+            scopes: vec!["scope.read".to_string()],
             bundled: Some(true),
             available_tools: Some(vec!["fetch".to_string()]),
         };
@@ -736,6 +789,9 @@ mod tests {
             headers,
             timeout,
             socket,
+            client_id,
+            client_secret_key,
+            scopes,
             bundled,
             available_tools,
         } = conversion.config
@@ -760,6 +816,9 @@ mod tests {
         );
         assert_eq!(timeout, Some(99));
         assert_eq!(socket.as_deref(), Some("@egress.sock"));
+        assert_eq!(client_id.as_deref(), Some("registered-client"));
+        assert_eq!(client_secret_key.as_deref(), Some("OAUTH_CLIENT_SECRET"));
+        assert_eq!(scopes, vec!["scope.read"]);
         assert_eq!(bundled, Some(true));
         assert_eq!(available_tools, vec!["fetch"]);
     }
@@ -832,11 +891,17 @@ mod tests {
     #[test]
     fn goose_mcp_sse_extension_is_rejected_for_config_add() {
         let extension = GooseExtension::Mcp {
-            server: McpServer::Sse(McpServerSse::new("legacy-sse", "https://example.com/sse")),
+            server: Box::new(McpServer::Sse(McpServerSse::new(
+                "legacy-sse",
+                "https://example.com/sse",
+            ))),
             env_keys: Vec::new(),
             description: None,
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
+            scopes: vec![],
             bundled: None,
             available_tools: None,
         };

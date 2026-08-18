@@ -303,13 +303,31 @@ impl OpenAiFixture {
     }
 }
 
-pub type DuplexTransport = agent_client_protocol::ByteStreams<
-    tokio_util::compat::Compat<tokio::io::DuplexStream>,
-    tokio_util::compat::Compat<tokio::io::DuplexStream>,
->;
+type CompatDuplexStream = tokio_util::compat::Compat<tokio::io::DuplexStream>;
+
+pub struct DuplexTransport {
+    outgoing: CompatDuplexStream,
+    incoming: CompatDuplexStream,
+}
+
+impl DuplexTransport {
+    fn new(outgoing: CompatDuplexStream, incoming: CompatDuplexStream) -> Self {
+        Self { outgoing, incoming }
+    }
+
+    fn into_byte_streams(
+        self,
+    ) -> agent_client_protocol::ByteStreams<CompatDuplexStream, CompatDuplexStream> {
+        agent_client_protocol::ByteStreams::new(self.outgoing, self.incoming)
+    }
+
+    fn into_parts(self) -> (CompatDuplexStream, CompatDuplexStream) {
+        (self.outgoing, self.incoming)
+    }
+}
 
 /// Wires up duplex streams, spawns `serve` for the given agent, and returns
-/// a ready-to-use agent_client_protocol transport plus the server handle.
+/// the client transport plus the server handle.
 #[allow(dead_code)]
 pub async fn serve_agent_in_process(
     agent: Arc<GooseAcpAgent>,
@@ -323,8 +341,7 @@ pub async fn serve_agent_in_process(
         }
     });
 
-    let transport =
-        agent_client_protocol::ByteStreams::new(client_write.compat_write(), client_read.compat());
+    let transport = DuplexTransport::new(client_write.compat_write(), client_read.compat());
     (transport, handle)
 }
 
@@ -355,19 +372,21 @@ pub async fn spawn_acp_server_in_process(
     write_global_test_config(&config_path, openai_base_url);
     let provider_factory = provider_factory.unwrap_or_else(|| {
         let base_url = openai_base_url.to_string();
-        Arc::new(move |_provider_name, _extensions, _working_dir| {
-            let base_url = base_url.clone();
-            Box::pin(async move {
-                let api_client = ApiClient::new_with_tls(
-                    base_url,
-                    ApiAuthMethod::BearerToken("test-key".to_string()),
-                    None,
-                )
-                .unwrap();
-                let provider: Arc<dyn Provider> = Arc::new(OpenAiProvider::new(api_client));
-                Ok(provider)
-            })
-        })
+        Arc::new(
+            move |_provider_name, _extensions, _working_dir, _use_default_model| {
+                let base_url = base_url.clone();
+                Box::pin(async move {
+                    let api_client = ApiClient::new_with_tls(
+                        base_url,
+                        ApiAuthMethod::BearerToken("test-key".to_string()),
+                        None,
+                    )
+                    .unwrap();
+                    let provider: Arc<dyn Provider> = Arc::new(OpenAiProvider::new(api_client));
+                    Ok(provider)
+                })
+            },
+        )
     });
 
     let agent = GooseAcpAgent::new(GooseAcpAgentOptions {

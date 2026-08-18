@@ -19,5 +19,16 @@
   "models": [],
   "supports_streaming": true,
   "requires_auth": false,
-  "skip_canonical_filtering": true
+  "skip_canonical_filtering": true,
+  "setup": {
+    "category": "model",
+    "setup_method": "config_fields",
+    "group": "additional",
+    "docs_url": "https://lmstudio.ai/docs/app/api",
+    "field_overrides": [{
+      "key": "LMSTUDIO_HOST",
+      "label": "Host URL",
+      "placeholder": "http://localhost:1234/v1/chat/completions"
+    }]
+  }
 }

@@ -6,11 +6,12 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use tracing_futures::Instrument;
 
-use crate::agents::state_machine::operation::{
-    applied, last_effective_role, messages_since_kickoff, not_applicable, trailing_error, yielded,
-    yielded_with, Emitter, Operation, OperationResult, SlashCommand, StateEffect,
-};
 use crate::agents::state_machine::ops_llm::{chat_span, record_chat_usage};
+use crate::agents::state_machine::{
+    applied, last_effective_role, messages_since_kickoff, not_applicable, trailing_error, yielded,
+    yielded_with, ConversationEffect, Emitter, GooseEffect, Operation, OperationResult,
+    SlashCommand,
+};
 use crate::context_mgmt::compact_messages;
 use crate::conversation::message::{Message, MessageErrorKind, SystemNotificationType};
 use crate::conversation::{Conversation, EffectiveRole};
@@ -79,7 +80,7 @@ impl CompactionOperation {
         conversation: &Conversation,
         message: String,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let command = messages_since_kickoff(conversation)?
             .first()
             .cloned()
@@ -95,16 +96,20 @@ impl CompactionOperation {
         emit.message(command).await;
         let response = emit.message(response).await;
         yielded_with([
-            StateEffect::SetMessageVisibility {
+            ConversationEffect::SetMessageVisibility {
                 message_id,
                 user_visible: true,
                 agent_visible: false,
-            },
+            }
+            .into(),
             response.into(),
         ])
     }
 
-    async fn clear(conversation: &Conversation, emit: &Emitter) -> Result<OperationResult> {
+    async fn clear(
+        conversation: &Conversation,
+        emit: &Emitter,
+    ) -> Result<OperationResult<GooseEffect>> {
         let command = messages_since_kickoff(conversation)?
             .first()
             .cloned()
@@ -124,7 +129,7 @@ impl CompactionOperation {
 }
 
 #[async_trait]
-impl Operation for CompactionOperation {
+impl Operation<Session, GooseEffect> for CompactionOperation {
     fn name(&self) -> &'static str {
         "compaction"
     }
@@ -135,7 +140,7 @@ impl Operation for CompactionOperation {
         session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         match command.command {
             "clear" => return Self::clear(conversation, emit).await,
             "compact" => {}
@@ -179,7 +184,7 @@ impl Operation for CompactionOperation {
         emit.message(command).await;
         let response = emit.message(response).await;
         yielded_with([
-            StateEffect::ReplaceConversation {
+            GooseEffect::ReplaceConversation {
                 conversation: compacted,
                 usage: Some(usage),
             },
@@ -209,7 +214,7 @@ impl Operation for CompactionOperation {
         session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         if self.manages_own_context {
             return not_applicable();
         }
@@ -294,7 +299,7 @@ impl Operation for CompactionOperation {
                     "Compaction complete",
                 ))
                 .await;
-                applied([StateEffect::ReplaceConversation {
+                applied([GooseEffect::ReplaceConversation {
                     conversation: compacted,
                     usage: Some(usage),
                 }])

@@ -4,11 +4,12 @@ use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::{CallToolResult, ContentBlock};
 
-use crate::agents::state_machine::operation::{
-    applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
-};
+use crate::agents::state_machine::effects::GooseEffect;
 use crate::agents::state_machine::ops_toolcalling::{
     pending_tool_requests, tool_span, ToolDisposition,
+};
+use crate::agents::state_machine::{
+    applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
 };
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
@@ -19,7 +20,7 @@ pub(super) const UNCLAIMED_TOOL_ERROR: &str = "goose.unclaimed_tool";
 pub struct UnknownToolOperation;
 
 #[async_trait]
-impl Operation for UnknownToolOperation {
+impl Operation<Session, GooseEffect> for UnknownToolOperation {
     fn name(&self) -> &'static str {
         "unknown_tool"
     }
@@ -29,7 +30,7 @@ impl Operation for UnknownToolOperation {
         session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let pending = pending_tool_requests(messages_since_kickoff(conversation)?);
         if pending.is_empty() {
             return not_applicable();

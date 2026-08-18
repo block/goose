@@ -405,15 +405,19 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
         for content in &message.content {
             match content {
                 MessageContentBlock::Text(text) if !text.text.is_empty() => {
-                    let content_type = if message.role == Role::Assistant {
-                        "output_text"
+                    if message.role == Role::Assistant {
+                        // Responses output_text items require annotations even when empty.
+                        text_items.push(json!({
+                            "type": "output_text",
+                            "text": text.text,
+                            "annotations": []
+                        }));
                     } else {
-                        "input_text"
-                    };
-                    text_items.push(json!({
-                        "type": content_type,
-                        "text": text.text
-                    }));
+                        text_items.push(json!({
+                            "type": "input_text",
+                            "text": text.text
+                        }));
+                    }
                 }
                 MessageContentBlock::ToolRequest(request) if message.role == Role::Assistant => {
                     if !text_items.is_empty() {
@@ -2329,7 +2333,7 @@ mod tests {
     }
 
     #[test]
-    fn test_assistant_text_uses_output_text_type() {
+    fn test_assistant_text_uses_output_text_with_annotations() {
         use crate::conversation::message::Message;
 
         let messages = vec![Message::assistant().with_text("hello")];
@@ -2352,6 +2356,7 @@ mod tests {
         assert_eq!(input[0]["role"], "assistant");
         assert_eq!(input[0]["content"][0]["type"], "output_text");
         assert_eq!(input[0]["content"][0]["text"], "hello");
+        assert_eq!(input[0]["content"][0]["annotations"], serde_json::json!([]));
     }
 
     #[test]

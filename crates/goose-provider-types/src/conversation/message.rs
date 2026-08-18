@@ -262,6 +262,7 @@ pub struct SystemNotificationContent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum MessageErrorKind {
+    Authentication,
     ContextLengthExceeded,
     CreditsExhausted,
     #[serde(other)]
@@ -272,6 +273,7 @@ impl From<&crate::errors::ProviderError> for MessageErrorKind {
     fn from(err: &crate::errors::ProviderError) -> Self {
         use crate::errors::ProviderError;
         match err {
+            ProviderError::Authentication(_) => MessageErrorKind::Authentication,
             ProviderError::ContextLengthExceeded(_) => MessageErrorKind::ContextLengthExceeded,
             ProviderError::CreditsExhausted { .. } => MessageErrorKind::CreditsExhausted,
             _ => MessageErrorKind::Other,
@@ -1320,9 +1322,10 @@ pub struct TokenState {
 #[cfg(test)]
 mod tests {
     use crate::conversation::message::{
-        ActionRequiredData, Message, MessageContentBlock, MessageMetadata, ProviderMetadata,
-        ToolResponse,
+        ActionRequiredData, Message, MessageContentBlock, MessageErrorKind, MessageMetadata,
+        ProviderMetadata, ToolResponse,
     };
+    use crate::errors::ProviderError;
     use base64::Engine;
     use rmcp::model::{
         Annotations, CallToolResult, ElicitationAction, ErrorCode, ErrorData, ImageContent,
@@ -1331,6 +1334,17 @@ mod tests {
     use rmcp::model::{CallToolRequestParams, ContentBlock, EmbeddedResource, PromptMessage, Role};
     use rmcp::object;
     use serde_json::Value;
+
+    #[test]
+    fn provider_authentication_error_has_authentication_kind() {
+        let message = Message::from_provider_error(&ProviderError::Authentication(
+            "Authentication required".to_string(),
+        ));
+
+        assert_eq!(message.error_kind(), Some(MessageErrorKind::Authentication));
+        assert!(message.is_user_visible());
+        assert!(!message.is_agent_visible());
+    }
 
     #[test]
     fn test_sanitize_with_text() {
