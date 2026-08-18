@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import { useClientExtensions } from './ClientExtensionsContext';
 import { parseClientExtensionViewPath } from './routes';
 

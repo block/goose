@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import type { Message } from '../types/message';
 import { useClientExtensions } from './ClientExtensionsContext';
 import {
