@@ -402,7 +402,9 @@ async fn handle_status_with_limit(
     if !status.is_success() {
         let url = sanitize_url(response.url().as_str());
         let headers = response.headers().clone();
-        let body = read_response_body_with_limit(response, limit).await?;
+        let body = read_response_body_with_limit(response, limit)
+            .await
+            .unwrap_or_default();
         let body = String::from_utf8_lossy(&body);
         let payload = serde_json::from_str::<Value>(&body).ok();
         let mut err = map_http_error_to_provider_error(status, payload.clone(), &url);
@@ -492,10 +494,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn bounded_status_rejects_oversized_chunked_error_body() {
+    async fn bounded_status_preserves_authentication_for_oversized_error_body() {
         let body = format!("{{\"error\":{{\"message\":\"{}\"}}}}", "a".repeat(64));
         let raw = format!(
-            "HTTP/1.1 400 Bad Request\r\ncontent-type: application/json\r\ntransfer-encoding: chunked\r\n\r\n{:x}\r\n{}\r\n0\r\n\r\n",
+            "HTTP/1.1 401 Unauthorized\r\ncontent-type: application/json\r\ntransfer-encoding: chunked\r\n\r\n{:x}\r\n{}\r\n0\r\n\r\n",
             body.len(),
             body
         )
@@ -503,7 +505,34 @@ mod tests {
         let response = response_from_raw(raw).await;
 
         let err = handle_status_with_limit(response, 64).await.unwrap_err();
-        assert!(err.to_string().contains("64 byte limit"), "got: {err}");
+        assert!(
+            matches!(err, ProviderError::Authentication(_)),
+            "got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn bounded_status_preserves_retry_after_for_oversized_error_body() {
+        let body = format!("{{\"error\":{{\"message\":\"{}\"}}}}", "a".repeat(64));
+        let raw = format!(
+            "HTTP/1.1 429 Too Many Requests\r\ncontent-type: application/json\r\nretry-after: 17\r\ntransfer-encoding: chunked\r\n\r\n{:x}\r\n{}\r\n0\r\n\r\n",
+            body.len(),
+            body
+        )
+        .into_bytes();
+        let response = response_from_raw(raw).await;
+
+        let err = handle_status_with_limit(response, 64).await.unwrap_err();
+        assert!(
+            matches!(
+                err,
+                ProviderError::RateLimitExceeded {
+                    retry_delay: Some(delay),
+                    ..
+                } if delay == Duration::from_secs(17)
+            ),
+            "got: {err}"
+        );
     }
 
     #[tokio::test]
