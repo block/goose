@@ -1039,4 +1039,144 @@ mod tests {
         );
         assert_eq!(payload, original);
     }
+
+    #[test]
+    fn gemini_schema_ref_escape_ignores_braces_inside_string_literals() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": r#"{"a":"}}}}","$ref":"B"}"#
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            Value::String(
+                gemini_schema_ref_note("dollar_ref") + r#"{"a":"}}}}","dollar_ref":"B"}"#
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_ignores_brackets_inside_string_literals() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": r#"{"a":"[[[","$ref":"B"}"#
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            Value::String(gemini_schema_ref_note("dollar_ref") + r#"{"a":"[[[","dollar_ref":"B"}"#)
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_avoids_safe_key_used_in_another_tool_result() {
+        let untouched = r#"{"dollar_ref":"x"}"#;
+        let mut payload = json!({
+            "messages": [
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_1",
+                    "content": r#"{"$ref":"A"}"#
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_2",
+                    "content": untouched
+                }
+            ]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            Value::String(gemini_schema_ref_note("dollar_ref_2") + r#"{"dollar_ref_2":"A"}"#)
+        );
+        assert_eq!(
+            payload["messages"][1]["content"],
+            Value::String(untouched.to_string())
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_leaves_embedded_json_string_values_unchanged() {
+        let original = r#"{"payload":"{\"$ref\":\"A\"}"}"#;
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": original
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            0
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            Value::String(original.to_string())
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_preserves_multibyte_content() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "{\"\u{540d}\u{524d}\":\"\u{1f389} ok\",\"$ref\":\"A\"}"
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            Value::String(
+                gemini_schema_ref_note("dollar_ref")
+                    + "{\"\u{540d}\u{524d}\":\"\u{1f389} ok\",\"dollar_ref\":\"A\"}"
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_is_idempotent() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": r#"{"$ref":"A","b":[{"$ref":"B"}]}"#
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            2
+        );
+        let after_first_pass = payload.clone();
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            0
+        );
+        assert_eq!(payload, after_first_pass);
+    }
 }
