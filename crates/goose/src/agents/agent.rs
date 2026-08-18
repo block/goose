@@ -31,7 +31,7 @@ use crate::agents::state_machine::{
     EntryHookOperation, ExitOnErrorOperation, GooseEffect, GooseInferenceHooks,
     GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation,
     RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation, StateMachine,
-    SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
+    StatusOperation, SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
     ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation, MAX_TURNS_MESSAGE,
 };
 use crate::agents::types::{
@@ -1692,6 +1692,8 @@ impl Agent {
             tool_inspection_manager: &self.tool_inspection_manager,
             frontend_instructions: &self.frontend_instructions,
         };
+        let status_operation =
+            Arc::new(StatusOperation::new(provider.clone(), model_config.clone()));
         let inference = Arc::new(InferenceRunner::new(
             provider,
             model_config,
@@ -1699,7 +1701,7 @@ impl Agent {
             Arc::new(GooseInferenceHooks),
         ));
         let mut command_handlers = operations.clone();
-        command_handlers.push(inference.clone());
+        command_handlers.push(status_operation);
         let command_operation: Arc<dyn Operation<Session, GooseEffect> + '_> =
             Arc::new(SlashCommandOperation::new(command_handlers));
         let operations: Vec<_> =

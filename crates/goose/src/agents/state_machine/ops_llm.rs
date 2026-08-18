@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 pub use goose_agent::inference::InferenceRunner;
-use goose_agent::inference::{EffectAdapter, InferenceHooks};
+use goose_agent::inference::{InferenceEffect, InferenceHooks};
 use goose_agent::operation::ConversationEffect;
 use goose_providers::base::{MessageStream, Provider};
 use goose_providers::conversation::message::Message;
@@ -14,7 +14,6 @@ use goose_providers::conversation::Conversation;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
 
-use crate::agents::state_machine::ops_unknown_tool::UNCLAIMED_TOOL_ERROR;
 use crate::agents::state_machine::GooseEffect;
 use crate::session::Session;
 
@@ -22,22 +21,13 @@ pub(super) use goose_agent::inference::{chat_span, record_chat_usage};
 
 pub struct GooseInferenceHooks;
 
-impl EffectAdapter<GooseEffect> for GooseInferenceHooks {
-    fn effect_from_message(&self, message: Message) -> GooseEffect {
-        message.into()
-    }
-    fn effect_from_conversation(&self, conversation: Conversation) -> GooseEffect {
-        conversation.into()
-    }
-    fn effect_from_conversation_effect(&self, effect: ConversationEffect) -> GooseEffect {
-        effect.into()
-    }
-    fn usage_effect(&self, usage: ProviderUsage) -> GooseEffect {
+impl InferenceEffect for GooseEffect {
+    fn record_usage(usage: ProviderUsage) -> Self {
         GooseEffect::RecordUsage(usage)
     }
 
-    fn appended_message<'a>(&self, effect: &'a GooseEffect) -> Option<&'a Message> {
-        match effect {
+    fn appended_message(&self) -> Option<&Message> {
+        match self {
             GooseEffect::Conversation(ConversationEffect::AppendMessage(message)) => Some(message),
             _ => None,
         }
@@ -45,29 +35,9 @@ impl EffectAdapter<GooseEffect> for GooseInferenceHooks {
 }
 
 #[async_trait]
-impl InferenceHooks<Session, GooseEffect> for GooseInferenceHooks {
+impl InferenceHooks<Session> for GooseInferenceHooks {
     fn session_id<'a>(&self, session: &'a Session) -> &'a str {
         &session.id
-    }
-
-    fn status(&self, session: &Session) -> (String, i64, i64) {
-        (
-            session.goose_mode.to_string(),
-            session.usage.total_tokens.unwrap_or(0) as i64,
-            session.accumulated_usage.total_tokens.unwrap_or(0) as i64,
-        )
-    }
-
-    fn unclaimed_tool_error_key(&self) -> &'static str {
-        UNCLAIMED_TOOL_ERROR
-    }
-
-    fn latest_provider_session_id<'a>(
-        &self,
-        conversation: &'a Conversation,
-        provider: &str,
-    ) -> Option<&'a str> {
-        super::super::latest_provider_session_id(conversation.messages(), provider)
     }
 
     async fn prepare_tools(
@@ -145,10 +115,5 @@ impl InferenceHooks<Session, GooseEffect> for GooseInferenceHooks {
             tools,
         )
         .await
-    }
-
-    fn report_error(&self, _error: &ProviderError) {
-        #[cfg(feature = "telemetry")]
-        crate::posthog::emit_error(_error.telemetry_type(), &_error.to_string());
     }
 }

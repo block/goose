@@ -15,7 +15,7 @@ use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::session::Session;
 
-pub(super) const UNCLAIMED_TOOL_ERROR: &str = "goose.unclaimed_tool";
+use goose_agent::inference::UNCLAIMED_TOOL_ERROR;
 
 pub struct UnknownToolOperation;
 

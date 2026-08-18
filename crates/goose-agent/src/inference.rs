@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use futures::StreamExt;
 use goose_provider_types::base::{MessageStream, Provider};
@@ -16,7 +16,6 @@ use tracing_futures::Instrument;
 use crate::operation::{
     applied, messages_since_kickoff, not_applicable, trailing_error, yielded_with,
     ConversationEffect, Emitter, Inference, InferenceInput, Operation, OperationResult,
-    SlashCommand,
 };
 
 pub struct PreparedInferenceRequest {
@@ -53,28 +52,16 @@ impl<S: Sync> InferenceRequestPreparer<S> for IdentityInferenceRequestPreparer {
     }
 }
 
-#[async_trait]
-pub trait EffectAdapter<E>: Send + Sync {
-    fn effect_from_message(&self, message: Message) -> E;
-    fn effect_from_conversation(&self, conversation: Conversation) -> E;
-    fn effect_from_conversation_effect(&self, effect: ConversationEffect) -> E;
-    fn usage_effect(&self, usage: ProviderUsage) -> E;
-    fn appended_message<'a>(&self, effect: &'a E) -> Option<&'a Message>;
+pub trait InferenceEffect:
+    From<Message> + From<Conversation> + From<ConversationEffect> + Send + 'static
+{
+    fn record_usage(usage: ProviderUsage) -> Self;
+    fn appended_message(&self) -> Option<&Message>;
 }
 
 #[async_trait]
-pub trait InferenceHooks<S, E>: EffectAdapter<E> + Send + Sync
-where
-    E: Send + 'static,
-{
+pub trait InferenceHooks<S>: Send + Sync {
     fn session_id<'a>(&self, session: &'a S) -> &'a str;
-    fn status(&self, session: &S) -> (String, i64, i64);
-    fn unclaimed_tool_error_key(&self) -> &'static str;
-    fn latest_provider_session_id<'a>(
-        &self,
-        conversation: &'a Conversation,
-        provider: &str,
-    ) -> Option<&'a str>;
     async fn prepare_tools(
         &self,
         tools: Vec<rmcp::model::Tool>,
@@ -107,11 +94,11 @@ where
         response: &Message,
         tools: &[rmcp::model::Tool],
     ) -> Result<()>;
-    fn report_error(&self, error: &ProviderError);
 }
 
 const EMPTY_RESPONSE_MESSAGE: &str =
     "The model returned an empty response. Please resend your message to continue.";
+pub const UNCLAIMED_TOOL_ERROR: &str = "goose.unclaimed_tool";
 const CANCELLED_TOOL_RESPONSE: &str = "Tool call was cancelled before execution";
 
 fn is_thinking(content: &MessageContent) -> bool {
@@ -202,7 +189,8 @@ pub struct InferenceRunner<'a, S, E> {
     provider: Arc<dyn Provider>,
     model_config: ModelConfig,
     request_preparer: Arc<dyn InferenceRequestPreparer<S> + 'a>,
-    hooks: Arc<dyn InferenceHooks<S, E> + 'a>,
+    hooks: Arc<dyn InferenceHooks<S> + 'a>,
+    effect: std::marker::PhantomData<fn() -> E>,
 }
 
 /// The agent-visible conversation as the provider sees it: tool requests left
@@ -233,6 +221,19 @@ fn messages_for_provider(conversation: &Conversation, turn: &[Message]) -> Vec<M
         .collect()
 }
 
+fn latest_provider_session_id<'a>(
+    conversation: &'a Conversation,
+    provider: &str,
+) -> Option<&'a str> {
+    conversation.messages().iter().rev().find_map(|message| {
+        message.metadata.inference.as_ref().and_then(|inference| {
+            (inference.provider == provider)
+                .then_some(inference.provider_session_id.as_deref())
+                .flatten()
+        })
+    })
+}
+
 fn ends_with_provider_turn(messages: &[Message]) -> bool {
     messages.last().is_some_and(|message| {
         matches!(
@@ -242,12 +243,12 @@ fn ends_with_provider_turn(messages: &[Message]) -> bool {
     })
 }
 
-impl<'a, S: Sync, E: Send + 'static> InferenceRunner<'a, S, E> {
+impl<'a, S: Sync, E: InferenceEffect> InferenceRunner<'a, S, E> {
     pub fn new(
         provider: Arc<dyn Provider>,
         model_config: ModelConfig,
         request_preparer: Option<Arc<dyn InferenceRequestPreparer<S> + 'a>>,
-        hooks: Arc<dyn InferenceHooks<S, E> + 'a>,
+        hooks: Arc<dyn InferenceHooks<S> + 'a>,
     ) -> Self {
         Self {
             provider,
@@ -255,21 +256,21 @@ impl<'a, S: Sync, E: Send + 'static> InferenceRunner<'a, S, E> {
             request_preparer: request_preparer
                 .unwrap_or_else(|| Arc::new(IdentityInferenceRequestPreparer)),
             hooks,
+            effect: std::marker::PhantomData,
         }
     }
 
     async fn error_outcome(&self, err: &ProviderError, emit: &Emitter) -> Vec<E> {
-        self.hooks.report_error(err);
         tracing::Span::current().record("error.type", err.telemetry_type());
         tracing::error!("LLM provider error: {err}");
         let message = Message::from_provider_error(err);
         let message = emit.message(message).await;
-        vec![self.hooks.effect_from_message(message)]
+        vec![E::from(message)]
     }
 }
 
 #[async_trait]
-impl<S: Sync, E: Send + 'static> Operation<S, E> for InferenceRunner<'_, S, E> {
+impl<S: Sync, E: InferenceEffect> Operation<S, E> for InferenceRunner<'_, S, E> {
     fn name(&self) -> &'static str {
         "llm"
     }
@@ -310,7 +311,7 @@ impl<S: Sync, E: Send + 'static> Operation<S, E> for InferenceRunner<'_, S, E> {
         }
         if let OperationResult::Applied(step) = &result {
             for effect in &step.effects {
-                if let Some(message) = self.hooks.appended_message(effect) {
+                if let Some(message) = effect.appended_message() {
                     collect(message);
                 }
             }
@@ -334,81 +335,17 @@ impl<S: Sync, E: Send + 'static> Operation<S, E> for InferenceRunner<'_, S, E> {
 
         let response = emit.message(response).await;
         match result {
-            OperationResult::NotApplicable => applied([self.hooks.effect_from_message(response)]),
+            OperationResult::NotApplicable => applied([E::from(response)]),
             OperationResult::Applied(mut step) => {
-                step.effects.push(self.hooks.effect_from_message(response));
+                step.effects.push(E::from(response));
                 Ok(OperationResult::Applied(step))
             }
         }
     }
-
-    async fn run_command(
-        &self,
-        command: &SlashCommand<'_>,
-        session: &S,
-        conversation: &Conversation,
-        emit: &Emitter,
-    ) -> Result<OperationResult<E>> {
-        if command.command != "status" {
-            return not_applicable();
-        }
-
-        let context_limit = self
-            .provider
-            .get_context_limit(&self.model_config)
-            .await
-            .unwrap_or_else(|_| self.model_config.context_limit());
-        let (mode, context_tokens, lifetime_tokens) = self.hooks.status(session);
-        let context_tokens = context_tokens.max(0) as usize;
-        let lifetime_tokens = lifetime_tokens.max(0) as usize;
-        let context_pct = if context_limit > 0 {
-            let pct = ((context_tokens as f64 / context_limit as f64) * 100.0).round() as usize;
-            format!("{}%", pct.min(100))
-        } else {
-            "N/A".to_string()
-        };
-        let response = Message::assistant()
-            .with_text(format!(
-                "**Session status**\n\n\
-                 - Model: {}\n\
-                 - Provider: {}\n\
-                 - Mode: {}\n\
-                 - Tokens (lifetime): {}\n\
-                 - Context: {} / {} tokens ({})",
-                self.model_config.model_name,
-                self.provider.get_name(),
-                mode,
-                lifetime_tokens,
-                context_tokens,
-                context_limit,
-                context_pct,
-            ))
-            .with_visibility(true, false);
-        let command_message = messages_since_kickoff(conversation)?
-            .first()
-            .cloned()
-            .ok_or_else(|| anyhow!("status command conversation has no kickoff message"))?;
-        let message_id = command_message
-            .id
-            .clone()
-            .ok_or_else(|| anyhow!("Persisted slash command message has no id"))?;
-        emit.message(command_message.with_visibility(true, false))
-            .await;
-        let response = emit.message(response).await;
-        yielded_with([
-            self.hooks
-                .effect_from_conversation_effect(ConversationEffect::SetMessageVisibility {
-                    message_id,
-                    user_visible: true,
-                    agent_visible: false,
-                }),
-            self.hooks.effect_from_message(response),
-        ])
-    }
 }
 
 #[async_trait]
-impl<S: Sync, E: Send + 'static> Inference<S, E> for InferenceRunner<'_, S, E> {
+impl<S: Sync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S, E> {
     fn applies(&self, conversation: &Conversation) -> bool {
         let Ok(turn) = messages_since_kickoff(conversation) else {
             return false;
@@ -461,7 +398,7 @@ impl<S: Sync, E: Send + 'static> Inference<S, E> for InferenceRunner<'_, S, E> {
                     let Some(metadata) = &mut response.metadata else {
                         continue;
                     };
-                    if metadata.remove(self.hooks.unclaimed_tool_error_key()).is_none() {
+                    if metadata.remove(UNCLAIMED_TOOL_ERROR).is_none() {
                         continue;
                     }
                     let Ok(result) = &mut response.tool_result else {
@@ -480,7 +417,7 @@ impl<S: Sync, E: Send + 'static> Inference<S, E> for InferenceRunner<'_, S, E> {
                 .await
                 .unwrap_or_else(|_| self.model_config.context_limit());
             let provider_name = self.provider.get_name();
-            if let Some(session_id) = self.hooks.latest_provider_session_id(conversation, provider_name) {
+            if let Some(session_id) = latest_provider_session_id(conversation, provider_name) {
                 if let Err(error) = self.provider.resume(session_id).await {
                     tracing::warn!(
                         provider = provider_name,
@@ -496,7 +433,7 @@ impl<S: Sync, E: Send + 'static> Inference<S, E> for InferenceRunner<'_, S, E> {
             }
             let conversation_for_provider = Conversation::new_unvalidated(messages_for_provider);
             let mut usage_effects: Vec<E> = turn_context
-                .into_iter().map(|message| self.hooks.effect_from_message(message)).collect();
+                .into_iter().map(|message| E::from(message)).collect();
 
             let stream = self.hooks.stream(
                 self.provider.clone(), self.model_config.clone(), self.hooks.session_id(session),
@@ -538,7 +475,7 @@ impl<S: Sync, E: Send + 'static> Inference<S, E> for InferenceRunner<'_, S, E> {
                         let (msg_opt, usage_opt) = match result {
                             Ok(chunk) => chunk,
                             Err(err) => {
-                                usage_effects.extend(accumulator.into_iter().map(|message| self.hooks.effect_from_message(message)));
+                                usage_effects.extend(accumulator.into_iter().map(|message| E::from(message)));
                                 usage_effects.extend(self.error_outcome(&err, emit).await);
                                 return applied(usage_effects);
                             }
@@ -547,7 +484,7 @@ impl<S: Sync, E: Send + 'static> Inference<S, E> for InferenceRunner<'_, S, E> {
                             has_recorded_usage = true;
                             let span = tracing::Span::current();
                             record_chat_usage(&span, &usage);
-                            usage_effects.push(self.hooks.usage_effect(usage));
+                            usage_effects.push(E::record_usage(usage));
                         }
                         if let Some(mut chunk) = msg_opt {
                             if let Some(inference) = &inference {
@@ -587,7 +524,7 @@ impl<S: Sync, E: Send + 'static> Inference<S, E> for InferenceRunner<'_, S, E> {
             if empty_response {
                 let message = Message::assistant().with_text(EMPTY_RESPONSE_MESSAGE);
                 let message = emit.message(message).await;
-                usage_effects.push(self.hooks.effect_from_message(message));
+                usage_effects.push(E::from(message));
                 return yielded_with(usage_effects);
             }
 
@@ -600,11 +537,11 @@ impl<S: Sync, E: Send + 'static> Inference<S, E> for InferenceRunner<'_, S, E> {
                     self.hooks.ensure_usage(&mut usage, &system_prompt,
                         conversation_for_provider.messages(), response, &tools).await?;
                     record_chat_usage(&tracing::Span::current(), &usage);
-                    usage_effects.push(self.hooks.usage_effect(usage));
+                    usage_effects.push(E::record_usage(usage));
                 }
             }
 
-            usage_effects.extend(accumulator.into_iter().map(|message| self.hooks.effect_from_message(message)));
+            usage_effects.extend(accumulator.into_iter().map(|message| E::from(message)));
             applied(usage_effects)
         }
         .instrument(span)

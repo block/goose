@@ -18,9 +18,9 @@ use crate::agents::state_machine::{
     BangShellOperation, CompactionOperation, DoctorOperation, Emitter, EntryHookOperation,
     ExitOnErrorOperation, GooseEffect, GooseInferenceHooks, GooseInferenceRequestPreparer,
     InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation, RecipeOperation,
-    RetryOperation, SkillOperation, SlashCommandOperation, StateMachine, SteerOperation,
-    SteerQueue, Step, StopHookOperation, ToolApprovalOperation, ToolExecutionOperation,
-    ToolPairCompactionOperation, UnknownToolOperation,
+    RetryOperation, SkillOperation, SlashCommandOperation, StateMachine, StatusOperation,
+    SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
+    ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation,
 };
 use crate::agents::AgentEvent;
 use crate::config::permission::{PermissionLevel, PermissionManager};
@@ -173,6 +173,10 @@ impl TestPipeline {
             tool_inspection_manager: &self.tool_inspection_manager,
             frontend_instructions: &self.frontend_instructions,
         };
+        let status_operation = Arc::new(StatusOperation::new(
+            provider.clone(),
+            self.model_config.clone(),
+        ));
         let inference = Arc::new(InferenceRunner::new(
             provider,
             self.model_config.clone(),
@@ -180,7 +184,7 @@ impl TestPipeline {
             Arc::new(GooseInferenceHooks),
         ));
         let mut command_handlers = operations.clone();
-        command_handlers.push(inference.clone());
+        command_handlers.push(status_operation);
         let command_operation: Arc<dyn Operation<Session, GooseEffect> + '_> =
             Arc::new(SlashCommandOperation::new(command_handlers));
         let steps = std::iter::once(Arc::new(EntryHookOperation::new(self.hook_manager.clone()))
