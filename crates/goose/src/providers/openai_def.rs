@@ -399,4 +399,57 @@ mod tests {
     fn parse_base_url_rejects_whitespace_only() {
         assert!(parse_base_url("  ").is_err());
     }
+
+    /// Regression pin for the decorator-composition bug.
+    ///
+    /// `from_custom_config` installs the session-id decorator *after*
+    /// `from_declarative_config` has installed the nonce decorator. While
+    /// `ApiClient::with_request_builder` replaced a single `Option` slot, the second
+    /// install silently discarded the first, so the CLI and Desktop paths sent no nonce
+    /// even though the `goose-providers` tests passed — those call
+    /// `from_declarative_config` directly and never exercise this wrapper.
+    ///
+    /// Both headers must arrive on the same request.
+    #[tokio::test]
+    async fn from_custom_config_composes_nonce_and_session_decorators() {
+        use crate::providers::base::Provider;
+        use crate::session_context::{with_session_id, SESSION_ID_HEADER};
+
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::any())
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+
+        let config: DeclarativeProviderConfig = serde_json::from_value(serde_json::json!({
+            "name": "t", "engine": "openai", "display_name": "T",
+            "base_url": server.uri(),
+            "models": [{"name": "m", "context_limit": 4096}],
+            "requires_auth": false,
+            "nonce_header": "x-test-nonce"
+        }))
+        .unwrap();
+
+        let provider = from_custom_config(config, None).unwrap();
+
+        // Any public call that reaches the wire; the response is irrelevant.
+        with_session_id(Some("session-abc".to_string()), async {
+            let _ = provider.fetch_supported_models().await;
+        })
+        .await;
+
+        let reqs = server.received_requests().await.unwrap();
+        assert_eq!(reqs.len(), 1, "expected exactly one request");
+        let headers = &reqs[0].headers;
+
+        assert!(
+            headers.get("x-test-nonce").is_some(),
+            "nonce header missing — the session decorator replaced it instead of composing"
+        );
+        assert_eq!(
+            headers.get(SESSION_ID_HEADER).map(|v| v.to_str().unwrap()),
+            Some("session-abc"),
+            "session header missing — the nonce decorator replaced it instead of composing"
+        );
+    }
 }

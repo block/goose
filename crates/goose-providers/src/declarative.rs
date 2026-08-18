@@ -155,6 +155,21 @@ pub struct DeclarativeProviderConfig {
     pub emit_clear_thinking: bool,
     #[serde(default)]
     pub setup: Option<goose_provider_types::canonical::catalog::ProviderSetupMetadata>,
+    /// Optional header name carrying a fresh per-request value (UUIDv4).
+    /// Absent means no decorator is installed and no code path is taken.
+    ///
+    /// Currently honoured only by the OpenAI declarative builder
+    /// ([`crate::openai::from_declarative_config`]). Other engines, and
+    /// specialised constructors that build their own `ApiClient` (for example
+    /// `HuggingFaceProvider::from_custom_config`), do not install the decorator
+    /// and will ignore this field.
+    ///
+    /// Names overwritten by a later request stage are rejected at config load:
+    /// `agent-session-id`, `authorization`, `proxy-authorization`. A name matching
+    /// a provider's own configured `ApiKey` auth header is also overwritten, since
+    /// authentication is applied after all decorators.
+    #[serde(default)]
+    pub nonce_header: Option<String>,
 }
 
 fn default_requires_auth() -> bool {
