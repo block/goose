@@ -61,6 +61,16 @@ fn script_for_scenario(scenario: Option<&str>) -> Value {
         Some("http-invalid-tool-headers") => json!({
             "steps": [{ "action": "callTool", "name": "valid_tool", "arguments": {} }],
         }),
+        Some("http-standard-headers") => json!({
+            "steps": [
+                { "action": "listTools" },
+                { "action": "callTool", "name": "test_headers", "arguments": {} },
+                { "action": "listPrompts" },
+                { "action": "getPrompt", "name": "test_prompt", "arguments": {} },
+                { "action": "listResources" },
+                { "action": "readResource", "uri": "file:///path/to/file%20name.txt" },
+            ],
+        }),
         _ => json!({
             "steps": [
                 { "action": "listTools" },

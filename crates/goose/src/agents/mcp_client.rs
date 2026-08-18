@@ -608,7 +608,7 @@ impl std::fmt::Debug for GooseMcpClientCapabilities {
 
 /// The MCP client is the interface for MCP operations.
 pub struct McpClient {
-    client: Mutex<RunningService<RoleClient, GooseClient>>,
+    client: Mutex<Arc<RunningService<RoleClient, GooseClient>>>,
     notification_subscribers: Arc<Mutex<Vec<mpsc::Sender<ServerNotification>>>>,
     server_info: Option<InitializeResult>,
     timeout: std::time::Duration,
@@ -706,7 +706,7 @@ impl McpClient {
         });
 
         Ok(Self {
-            client: Mutex::new(client),
+            client: Mutex::new(Arc::new(client)),
             notification_subscribers,
             server_info,
             timeout,
@@ -833,14 +833,27 @@ impl McpClientTrait for McpClient {
         uri: &str,
         cancel_token: CancellationToken,
     ) -> Result<ReadResourceResult, Error> {
+        let params = ReadResourceRequestParams::new(uri.to_string());
+        let client = self.client.lock().await.clone();
+        if client
+            .peer_info()
+            .is_some_and(|info| info.protocol_version == ProtocolVersion::V_2026_07_28)
+        {
+            client.service().set_session_id(session_id).await;
+            return tokio::select! {
+                result = client.read_resource(params) => result,
+                _ = tokio::time::sleep(self.timeout) => Err(ServiceError::Timeout { timeout: self.timeout }),
+                _ = cancel_token.cancelled() => Err(ServiceError::Cancelled { reason: None }),
+            };
+        }
+        drop(client);
+
         let res = self
             .send_request_with_context(
                 session_id,
                 None,
                 None,
-                ClientRequest::ReadResourceRequest(Request::new(ReadResourceRequestParams::new(
-                    uri.to_string(),
-                ))),
+                ClientRequest::ReadResourceRequest(Request::new(params)),
                 cancel_token,
             )
             .await?;
@@ -904,7 +917,7 @@ impl McpClientTrait for McpClient {
                         .map(|(key, value)| (key.clone(), value.clone())),
                 );
             }
-            let client = self.client.lock().await;
+            let client = self.client.lock().await.clone();
             client.service().set_session_id(&ctx.session_id).await;
             let _active_tool_call_guard = ctx
                 .tool_call_request_id
@@ -983,6 +996,20 @@ impl McpClientTrait for McpClient {
         if let Some(args) = arguments {
             params = params.with_arguments(args);
         }
+        let client = self.client.lock().await.clone();
+        if client
+            .peer_info()
+            .is_some_and(|info| info.protocol_version == ProtocolVersion::V_2026_07_28)
+        {
+            client.service().set_session_id(session_id).await;
+            return tokio::select! {
+                result = client.get_prompt(params) => result,
+                _ = tokio::time::sleep(self.timeout) => Err(ServiceError::Timeout { timeout: self.timeout }),
+                _ = cancel_token.cancelled() => Err(ServiceError::Cancelled { reason: None }),
+            };
+        }
+        drop(client);
+
         let res = self
             .send_request_with_context(
                 session_id,

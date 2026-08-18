@@ -591,7 +591,13 @@ async fn clear_credentials_on_post_refresh_auth_failure(
         return false;
     };
 
-    if !is_oauth_auth_failure(err) {
+    if !is_oauth_auth_failure(err)
+        || auth_challenge_from_error(err).is_some_and(|challenge| {
+            challenge
+                .to_ascii_lowercase()
+                .contains("insufficient_scope")
+        })
+    {
         return false;
     }
 
@@ -826,17 +832,34 @@ struct OAuthStepUpClient {
     server_info: Option<ServerInfo>,
     params: tokio::sync::RwLock<StreamableHttpConnectParams>,
     step_up_lock: tokio::sync::Mutex<()>,
+    notification_subscribers: Arc<Mutex<Vec<mpsc::Sender<ServerNotification>>>>,
 }
 
 impl OAuthStepUpClient {
-    fn new(inner: McpClient, params: StreamableHttpConnectParams) -> Self {
+    async fn new(inner: McpClient, params: StreamableHttpConnectParams) -> Self {
         let server_info = inner.get_info().cloned();
+        let notification_subscribers = Arc::new(Mutex::new(Vec::new()));
+        Self::forward_notifications(&inner, notification_subscribers.clone()).await;
         Self {
             inner: tokio::sync::RwLock::new(inner),
             server_info,
             params: tokio::sync::RwLock::new(params),
             step_up_lock: tokio::sync::Mutex::new(()),
+            notification_subscribers,
         }
+    }
+
+    async fn forward_notifications(
+        client: &McpClient,
+        subscribers: Arc<Mutex<Vec<mpsc::Sender<ServerNotification>>>>,
+    ) {
+        let mut receiver = client.subscribe().await;
+        tokio::spawn(async move {
+            while let Some(notification) = receiver.recv().await {
+                let mut subscribers = subscribers.lock().await;
+                subscribers.retain(|subscriber| subscriber.try_send(notification.clone()).is_ok());
+            }
+        });
     }
 
     async fn step_up_reconnect(
@@ -878,6 +901,7 @@ impl OAuthStepUpClient {
                 None,
             ))
         })?;
+        Self::forward_notifications(&client, self.notification_subscribers.clone()).await;
         *self.inner.write().await = client;
         Ok(())
     }
@@ -1054,7 +1078,9 @@ impl McpClientTrait for OAuthStepUpClient {
     }
 
     async fn subscribe(&self) -> tokio::sync::mpsc::Receiver<rmcp::model::ServerNotification> {
-        self.inner.read().await.subscribe().await
+        let (sender, receiver) = mpsc::channel(32);
+        self.notification_subscribers.lock().await.push(sender);
+        receiver
     }
 
     async fn get_moim(&self, session_id: &str) -> Option<String> {
@@ -1193,16 +1219,14 @@ async fn create_streamable_http_client(
                             name
                         );
                     } else {
-                        return Ok(Box::new(OAuthStepUpClient::new(
-                            auth_result?,
-                            connect_params,
-                        )));
+                        return Ok(Box::new(
+                            OAuthStepUpClient::new(auth_result?, connect_params).await,
+                        ));
                     }
                 } else {
-                    return Ok(Box::new(OAuthStepUpClient::new(
-                        auth_result?,
-                        connect_params,
-                    )));
+                    return Ok(Box::new(
+                        OAuthStepUpClient::new(auth_result?, connect_params).await,
+                    ));
                 }
             }
             Err(e) => {
@@ -1250,7 +1274,9 @@ async fn create_streamable_http_client(
                     extension_manager,
                 )
                 .await?;
-                Ok(Box::new(OAuthStepUpClient::new(client, connect_params)))
+                Ok(Box::new(
+                    OAuthStepUpClient::new(client, connect_params).await,
+                ))
             }
             Err(e) => {
                 warn!(
@@ -1261,10 +1287,9 @@ async fn create_streamable_http_client(
             }
         }
     } else {
-        Ok(Box::new(OAuthStepUpClient::new(
-            client_res?,
-            connect_params,
-        )))
+        Ok(Box::new(
+            OAuthStepUpClient::new(client_res?, connect_params).await,
+        ))
     }
 }
 

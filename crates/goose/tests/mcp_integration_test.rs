@@ -167,11 +167,15 @@ async fn test_replayed_session(
     tool_calls: Vec<CallToolRequestParams>,
     required_envs: Vec<&str>,
 ) {
+    let working_dir = env::current_dir().expect("current directory should be available");
+    let working_dir = working_dir
+        .to_str()
+        .expect("current directory should be valid UTF-8");
     let _env = env_lock::lock_env([
         ("GOOSE_MCP_CLIENT_VERSION", Some("0.0.0")),
         ("GOOSE_PROVIDER", Some("openai")),
         ("GOOSE_MODEL", Some("gpt-4o")),
-        ("GOOSE_WORKING_DIR", Some(".")),
+        ("GOOSE_WORKING_DIR", Some(working_dir)),
     ]);
 
     // Setup test file for developer extension tests
