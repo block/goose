@@ -1974,6 +1974,35 @@ ipcMain.handle('list-git-worktree-dirs', async (_event, dir: string) => {
   return await listGitWorktreeDirs(dir);
 });
 
+ipcMain.handle(
+  'get-git-branch-info',
+  async (_event, dir: string): Promise<{ branch: string } | null> => {
+    if (!dir?.trim()) return null;
+
+    const git = (args: string[]) =>
+      new Promise<string>((resolve, reject) => {
+        execFile(
+          'git',
+          ['-c', 'safe.bareRepository=explicit', '-c', 'core.fsmonitor=false', '-C', dir, ...args],
+          { timeout: 3000 },
+          (error, stdout) => {
+            if (error) reject(error);
+            else resolve(stdout.trim());
+          }
+        );
+      });
+
+    try {
+      const branch = await git(['rev-parse', '--abbrev-ref', 'HEAD']);
+      const displayBranch =
+        branch === 'HEAD' ? await git(['rev-parse', '--short', 'HEAD']) : branch;
+      return { branch: displayBranch };
+    } catch {
+      return null;
+    }
+  }
+);
+
 ipcMain.handle('get-setting', (_event, key: SettingKey) => {
   const settings = getSettings();
   return settings[key];
