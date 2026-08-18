@@ -7,8 +7,8 @@ registry: https://registry.npmjs.org/
 preferOffline: true
 nodeLinker: hoisted
 supportedArchitectures:
-  os: [current, linux, darwin, win32]
-  cpu: [current, x64, arm64]
+  os: [ current, linux, darwin, win32 ]
+  cpu: [ current, x64, arm64 ]
 overrides:
   react: ^19.2.8
   react-dom: ^19.2.8
@@ -17,5 +17,10 @@ allowBuilds:
   electron: true
   electron-winstaller: true
   esbuild: true
+# macOS-only natives. Auto-build on Windows CI fails (node-gyp vs VS 18).
+# Desktop `premake` compiles them before DMG make.
+ignoredBuiltDependencies:
+  - fs-xattr
+  - macos-alias
 # Electron Forge resolves @electron/node-gyp from git.
 blockExoticSubdeps: false

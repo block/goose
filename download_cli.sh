@@ -2,16 +2,17 @@
 set -eu
 
 ##############################################################################
-# goose CLI Install Script
+# goose CLI Install Script (Avocado Work / avcd-agent)
 #
-# This script downloads the latest stable 'goose' CLI binary from GitHub releases
-# and installs it to your system.
+# This script downloads the latest stable 'goose' CLI binary from the
+# Avocado-Technology/avcd-agent GitHub releases and installs it to your system.
+# The on-disk binary name remains `goose` (CLI archive contract unchanged).
 #
 # Supported OS: macOS (darwin), Linux, Windows (MSYS2/Git Bash/WSL), Android (Termux)
 # Supported Architectures: x86_64, arm64
 #
 # Usage:
-#   curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh | bash
+#   curl -fsSL https://github.com/Avocado-Technology/avcd-agent/releases/download/stable/download_cli.sh | bash
 #
 # Environment variables:
 #   GOOSE_BIN_DIR  - Directory to which goose will be installed (default: $HOME/.local/bin)
@@ -54,7 +55,7 @@ fi
 
 
 # --- 2) Variables ---
-REPO="aaif-goose/goose"
+REPO="Avocado-Technology/avcd-agent"
 OUT_FILE="goose"
 
 # Set default bin directory based on detected OS environment
@@ -230,7 +231,7 @@ echo "Downloading $RELEASE_TAG release: $FILE..."
 if ! curl -sLf "$DOWNLOAD_URL" --output "$FILE"; then
   # If the download fails, only fall back to latest stable when no version was specified and canary was not requested).
   if ! [ -n "${GOOSE_VERSION:-}" ] && [ "${CANARY:-false}" != "true" ]; then
-    LATEST_TAG=$(curl -s https://api.github.com/repos/aaif-goose/goose/releases/latest | \
+    LATEST_TAG=$(curl -s https://api.github.com/repos/Avocado-Technology/avcd-agent/releases/latest | \
       grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
     if [ -z "$LATEST_TAG" ]; then
       echo "Error: Failed to download $DOWNLOAD_URL and latest tag unavailable"

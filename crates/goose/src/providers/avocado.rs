@@ -1,0 +1,544 @@
+use super::api_client::{ApiClient, AuthMethod, AuthProvider};
+use super::avocado_auth;
+use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
+use super::openai_compatible::{
+    handle_response_openai_compat, handle_status, map_http_error_to_provider_error,
+    stream_openai_compat,
+};
+use super::retry::ProviderRetry;
+use crate::conversation::message::Message;
+use anyhow::Result;
+use async_trait::async_trait;
+use futures::future::BoxFuture;
+use goose_providers::errors::ProviderError;
+use goose_providers::images::ImageFormat;
+
+use goose_providers::formats::openai::create_request;
+use goose_providers::model::ModelConfig;
+use goose_providers::request_log::{start_log, LoggerHandleExt};
+use rmcp::model::Tool;
+use serde::Deserialize;
+use serde_json::Value;
+use std::sync::{LazyLock, RwLock};
+
+pub const AVOCADO_PROVIDER_NAME: &str = "avocado";
+pub const AVOCADO_DOC_URL: &str = "https://dev.avocado.tech/llm-api";
+pub const AVOCADO_BILLING_URL: &str = "https://dev.avocado.tech/llm-api/billing";
+pub const AVOCADO_DEFAULT_MODEL: &str = "deepseek/deepseek-v4-flash";
+pub const AVOCADO_DEFAULT_HOST: &str = "https://dev.avocado.tech/llm";
+
+const BUDGET_MARKERS: &[&str] = &[
+    "exceededbudget",
+    "exceededtokenbudget",
+    "budget has been exceeded",
+    "budget_exceeded",
+    "over budget",
+];
+
+/// Offline fallback ids when the server catalog is unreachable.
+/// Authoritative curated list (alias/subtext/order) is served by avcd-llm
+/// at `GET /models/catalog`.
+pub const AVOCADO_KNOWN_MODELS: &[&str] = &[
+    "deepseek/deepseek-v4-flash",
+    "moonshotai/kimi-k3",
+    "z-ai/glm-5.2",
+    "deepseek/deepseek-v4-pro",
+    "moonshotai/kimi-k2.6",
+    "qwen/qwen3.7-flash",
+    "z-ai/glm-5.1",
+    "minimax/minimax-m3",
+    "qwen/qwen3.6-35b-a3b",
+    "qwen/qwen3-coder-next",
+    "z-ai/glm-5-turbo",
+    "openai/gpt-oss-120b",
+    "nvidia/nemotron-3-super-120b-a12b",
+    "google/gemini-2.5-flash",
+    "anthropic/claude-haiku-4.5",
+    "openai/gpt-4.1-mini",
+];
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogModelEntry {
+    pub name: String,
+    pub alias: String,
+    pub subtext: String,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AvocadoModelCatalog {
+    pub provider: String,
+    pub default_model: String,
+    pub models: Vec<CatalogModelEntry>,
+}
+
+static LAST_FETCHED_CATALOG: LazyLock<RwLock<Option<AvocadoModelCatalog>>> =
+    LazyLock::new(|| RwLock::new(None));
+
+/// Derive `GET /models/catalog` from the provision URL.
+pub fn catalog_url_from_provision_url(provision_url: &str) -> String {
+    let trimmed = provision_url.trim_end_matches('/');
+    if let Some(base) = trimmed.strip_suffix("/keys/provision") {
+        return format!("{base}/models/catalog");
+    }
+    format!("{trimmed}/models/catalog")
+}
+
+pub fn take_last_fetched_catalog() -> Option<AvocadoModelCatalog> {
+    LAST_FETCHED_CATALOG
+        .read()
+        .ok()
+        .and_then(|guard| guard.clone())
+}
+
+pub fn clear_last_fetched_catalog() {
+    if let Ok(mut guard) = LAST_FETCHED_CATALOG.write() {
+        *guard = None;
+    }
+}
+
+pub async fn fetch_model_catalog_from_url(
+    catalog_url: &str,
+) -> Result<AvocadoModelCatalog, ProviderError> {
+    let response = reqwest::Client::new()
+        .get(catalog_url)
+        .send()
+        .await
+        .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+
+    if !response.status().is_success() {
+        return Err(ProviderError::RequestFailed(format!(
+            "catalog endpoint returned {}",
+            response.status()
+        )));
+    }
+
+    let catalog: AvocadoModelCatalog = response
+        .json()
+        .await
+        .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+
+    if catalog.models.is_empty() {
+        return Err(ProviderError::RequestFailed(
+            "catalog models empty".to_string(),
+        ));
+    }
+    if catalog.default_model != catalog.models[0].name {
+        return Err(ProviderError::RequestFailed(
+            "catalog defaultModel must equal models[0].name".to_string(),
+        ));
+    }
+
+    if let Ok(mut guard) = LAST_FETCHED_CATALOG.write() {
+        *guard = Some(catalog.clone());
+    }
+
+    Ok(catalog)
+}
+
+pub async fn fetch_model_catalog() -> Result<AvocadoModelCatalog, ProviderError> {
+    let provision_url = avocado_auth::ZitadelOidcConfig::from_env().provision_url;
+    let catalog_url = catalog_url_from_provision_url(&provision_url);
+    fetch_model_catalog_from_url(&catalog_url).await
+}
+
+struct AvocadoBearerAuth;
+
+#[async_trait]
+impl AuthProvider for AvocadoBearerAuth {
+    async fn get_auth_header(&self) -> Result<(String, String)> {
+        let key = avocado_auth::resolve_api_key().ok_or_else(|| {
+            anyhow::anyhow!(
+                "Avocado is not configured. Sign in with Avocado to obtain a virtual API key."
+            )
+        })?;
+        Ok(("Authorization".to_string(), format!("Bearer {key}")))
+    }
+}
+
+#[derive(serde::Serialize)]
+pub struct AvocadoProvider {
+    #[serde(skip)]
+    api_client: ApiClient,
+    #[serde(skip)]
+    name: String,
+}
+
+impl AvocadoProvider {
+    pub async fn from_env(
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
+        let config = crate::config::Config::global();
+        let host: String = config
+            .get_param("AVOCADO_HOST")
+            .unwrap_or_else(|_| AVOCADO_DEFAULT_HOST.to_string());
+
+        // Lazy auth so ACP authenticate can construct the provider before OAuth.
+        let auth = AuthMethod::Custom(Box::new(AvocadoBearerAuth));
+        let api_client = ApiClient::new_with_tls(host, auth, tls_config)?
+            .with_request_builder(crate::session_context::session_id_request_builder())
+            .with_header("HTTP-Referer", "https://goose-docs.ai")?
+            .with_header("X-Title", "goose")?;
+
+        Ok(Self {
+            api_client,
+            name: AVOCADO_PROVIDER_NAME.to_string(),
+        })
+    }
+
+    pub async fn cleanup() -> Result<()> {
+        avocado_auth::clear_configured_key()
+    }
+
+    fn enrich_credits_error(err: ProviderError) -> ProviderError {
+        match err {
+            ProviderError::CreditsExhausted { details, .. } => ProviderError::CreditsExhausted {
+                details,
+                top_up_url: Some(AVOCADO_BILLING_URL.to_string()),
+            },
+            other => other,
+        }
+    }
+
+    fn details_indicate_budget_exceeded(details: &str) -> bool {
+        let lower = details.to_ascii_lowercase();
+        BUDGET_MARKERS.iter().any(|marker| lower.contains(marker))
+    }
+
+    /// Map budget-marker responses to CreditsExhausted (LiteLLM uses 429 historically and
+    /// 400 with `ExceededBudget` / `budget_exceeded` in current builds), enrich 402.
+    fn classify_budget_error(err: ProviderError) -> ProviderError {
+        match err {
+            ProviderError::RateLimitExceeded { details, .. }
+                if Self::details_indicate_budget_exceeded(&details) =>
+            {
+                ProviderError::CreditsExhausted {
+                    details,
+                    top_up_url: Some(AVOCADO_BILLING_URL.to_string()),
+                }
+            }
+            ProviderError::RequestFailed(details)
+                if Self::details_indicate_budget_exceeded(&details) =>
+            {
+                ProviderError::CreditsExhausted {
+                    details,
+                    top_up_url: Some(AVOCADO_BILLING_URL.to_string()),
+                }
+            }
+            other => Self::enrich_credits_error(other),
+        }
+    }
+
+    fn error_from_avocado_error_payload(payload: Value, url: &str) -> ProviderError {
+        let code = payload
+            .get("error")
+            .and_then(|e| e.get("code"))
+            .and_then(|c| c.as_u64())
+            .unwrap_or(500) as u16;
+        let status = reqwest::StatusCode::from_u16(code)
+            .unwrap_or(reqwest::StatusCode::INTERNAL_SERVER_ERROR);
+        Self::classify_budget_error(map_http_error_to_provider_error(status, Some(payload), url))
+    }
+}
+
+impl goose_providers::base::ProviderDescriptor for AvocadoProvider {
+    fn metadata() -> ProviderMetadata {
+        ProviderMetadata::new(
+            AVOCADO_PROVIDER_NAME,
+            "Avocado",
+            "Sign in to your Avocado account",
+            AVOCADO_DEFAULT_MODEL,
+            AVOCADO_KNOWN_MODELS.to_vec(),
+            AVOCADO_DOC_URL,
+            vec![
+                ConfigKey::new_oauth("AVOCADO_API_KEY", true, true, None, true),
+                ConfigKey::new(
+                    "AVOCADO_HOST",
+                    false,
+                    false,
+                    Some(AVOCADO_DEFAULT_HOST),
+                    false,
+                ),
+            ],
+        )
+    }
+}
+
+impl ProviderDef for AvocadoProvider {
+    type Provider = Self;
+
+    fn from_env(
+        _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(tls_config))
+    }
+}
+
+#[async_trait]
+impl Provider for AvocadoProvider {
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
+    fn skip_canonical_filtering(&self) -> bool {
+        true
+    }
+
+    async fn configure_oauth(&self) -> Result<(), ProviderError> {
+        avocado_auth::configure_oauth()
+            .await
+            .map_err(|e| ProviderError::Authentication(e.to_string()))
+    }
+
+    async fn fetch_recommended_models(
+        &self,
+        _toolshim: bool,
+    ) -> Result<Vec<String>, ProviderError> {
+        match fetch_model_catalog().await {
+            Ok(catalog) => Ok(catalog.models.into_iter().map(|m| m.name).collect()),
+            Err(_) => Ok(AVOCADO_KNOWN_MODELS
+                .iter()
+                .map(|s| (*s).to_string())
+                .collect()),
+        }
+    }
+
+    async fn stream(
+        &self,
+        model_config: &ModelConfig,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        if avocado_auth::resolve_api_key().is_none() {
+            return Err(ProviderError::Authentication(
+                "Avocado is not configured. Sign in with Avocado to obtain a virtual API key."
+                    .to_string(),
+            ));
+        }
+
+        let payload = create_request(
+            model_config,
+            system,
+            messages,
+            tools,
+            &ImageFormat::OpenAi,
+            true,
+        )?;
+
+        let mut log = start_log(model_config, &payload)?;
+
+        let response = self
+            .with_retry(|| async {
+                let resp = self
+                    .api_client
+                    .request("v1/chat/completions")
+                    .model_headers(model_config)?
+                    .streaming(true)
+                    .response_post(&payload)
+                    .await?;
+                let resp = handle_status(resp)
+                    .await
+                    .map_err(Self::classify_budget_error)?;
+
+                let is_json = resp
+                    .headers()
+                    .get(reqwest::header::CONTENT_TYPE)
+                    .and_then(|v| v.to_str().ok())
+                    .map(|v| v.to_ascii_lowercase())
+                    .is_some_and(|v| v.contains("json"));
+
+                if is_json {
+                    let body = goose_providers::http_status::read_error_body(resp)
+                        .await
+                        .unwrap_or_default();
+                    if let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body) {
+                        if payload.get("error").is_some() {
+                            return Err(Self::error_from_avocado_error_payload(
+                                payload,
+                                "v1/chat/completions",
+                            ));
+                        }
+                    }
+
+                    return Err(ProviderError::ExecutionError(format!(
+                        "Expected streaming response but received non-streaming payload: {body}"
+                    )));
+                }
+
+                Ok(resp)
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
+
+        stream_openai_compat(response, log)
+    }
+
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        // Prefer curated catalog order from avcd-llm; fall back to LiteLLM /v1/models.
+        if let Ok(catalog) = fetch_model_catalog().await {
+            return Ok(catalog.models.into_iter().map(|m| m.name).collect());
+        }
+
+        let response = self
+            .api_client
+            .response_get("v1/models")
+            .await
+            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+        let json = handle_response_openai_compat(response)
+            .await
+            .map_err(Self::classify_budget_error)?;
+
+        if json.get("error").is_some() {
+            return Err(Self::error_from_avocado_error_payload(json, "v1/models"));
+        }
+
+        let arr = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::RequestFailed("Missing 'data' array in models response".to_string())
+        })?;
+        let models: Vec<String> = arr
+            .iter()
+            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
+            .collect();
+        Ok(models)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use goose_providers::base::ProviderDescriptor as _;
+
+    #[test]
+    fn given_429_exceeded_budget_when_classify_then_credits_exhausted_with_billing_url() {
+        let err = ProviderError::RateLimitExceeded {
+            details: "ExceededBudget: monthly token allotment used".to_string(),
+            retry_delay: None,
+        };
+        match AvocadoProvider::classify_budget_error(err) {
+            ProviderError::CreditsExhausted {
+                details,
+                top_up_url,
+            } => {
+                assert!(details.to_ascii_lowercase().contains("exceededbudget"));
+                assert_eq!(top_up_url.as_deref(), Some(AVOCADO_BILLING_URL));
+            }
+            other => panic!("Expected CreditsExhausted, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn given_429_budget_has_been_exceeded_when_classify_then_credits_exhausted() {
+        let err = ProviderError::RateLimitExceeded {
+            details: "Budget has been exceeded for this organization".to_string(),
+            retry_delay: None,
+        };
+        match AvocadoProvider::classify_budget_error(err) {
+            ProviderError::CreditsExhausted { top_up_url, .. } => {
+                assert_eq!(top_up_url.as_deref(), Some(AVOCADO_BILLING_URL));
+            }
+            other => panic!("Expected CreditsExhausted, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn given_429_uppercase_budget_exceeded_when_classify_then_credits_exhausted() {
+        let err = ProviderError::RateLimitExceeded {
+            details: "BUDGET_EXCEEDED".to_string(),
+            retry_delay: None,
+        };
+        match AvocadoProvider::classify_budget_error(err) {
+            ProviderError::CreditsExhausted { top_up_url, .. } => {
+                assert_eq!(top_up_url.as_deref(), Some(AVOCADO_BILLING_URL));
+            }
+            other => panic!("Expected CreditsExhausted, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn given_429_rate_limit_when_classify_then_stays_rate_limit_exceeded() {
+        let err = ProviderError::RateLimitExceeded {
+            details: "Rate limit exceeded".to_string(),
+            retry_delay: None,
+        };
+        match AvocadoProvider::classify_budget_error(err) {
+            ProviderError::RateLimitExceeded { details, .. } => {
+                assert!(details.contains("Rate limit exceeded"));
+            }
+            other => panic!("Expected RateLimitExceeded, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn given_400_request_failed_with_exceeded_budget_when_classify_then_credits_exhausted() {
+        // Real LiteLLM (v1.83.x) returns HTTP 400 + type budget_exceeded, which
+        // http_status maps to RequestFailed — not RateLimitExceeded.
+        let err = ProviderError::RequestFailed(
+            "Bad request (400): ExceededBudget: User=tenant:user over budget. Spend=1.35e-05, Budget=0.0"
+                .to_string(),
+        );
+        match AvocadoProvider::classify_budget_error(err) {
+            ProviderError::CreditsExhausted {
+                details,
+                top_up_url,
+            } => {
+                assert!(details.to_ascii_lowercase().contains("over budget"));
+                assert_eq!(top_up_url.as_deref(), Some(AVOCADO_BILLING_URL));
+            }
+            other => panic!("Expected CreditsExhausted, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn given_402_credits_exhausted_without_url_when_enrich_then_adds_billing_url() {
+        let err = ProviderError::CreditsExhausted {
+            details: "out of credits".to_string(),
+            top_up_url: None,
+        };
+        match AvocadoProvider::classify_budget_error(err) {
+            ProviderError::CreditsExhausted {
+                details,
+                top_up_url,
+            } => {
+                assert_eq!(details, "out of credits");
+                assert_eq!(top_up_url.as_deref(), Some(AVOCADO_BILLING_URL));
+            }
+            other => panic!("Expected CreditsExhausted, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn given_server_error_when_classify_then_passes_through_unchanged() {
+        let err = ProviderError::ServerError("boom".to_string());
+        assert!(matches!(
+            AvocadoProvider::classify_budget_error(err),
+            ProviderError::ServerError(msg) if msg == "boom"
+        ));
+    }
+
+    #[test]
+    fn given_metadata_when_read_then_api_key_required_secret_primary_and_host_default() {
+        let meta = AvocadoProvider::metadata();
+        let api_key = meta
+            .config_keys
+            .iter()
+            .find(|k| k.name == "AVOCADO_API_KEY")
+            .expect("AVOCADO_API_KEY config key");
+        assert!(api_key.required);
+        assert!(api_key.secret);
+        assert!(api_key.primary);
+        assert!(api_key.oauth_flow, "AC-1: oauth_flow must be true");
+
+        let host = meta
+            .config_keys
+            .iter()
+            .find(|k| k.name == "AVOCADO_HOST")
+            .expect("AVOCADO_HOST config key");
+        assert!(!host.required);
+        assert_eq!(host.default.as_deref(), Some(AVOCADO_DEFAULT_HOST));
+    }
+}

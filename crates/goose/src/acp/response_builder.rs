@@ -468,6 +468,8 @@ mod tests {
                 .map(|id| crate::providers::inventory::InventoryModel {
                     name: id.clone(),
                     id,
+                    alias: None,
+                    subtext: None,
                     family: None,
                     context_limit: None,
                     reasoning: None,

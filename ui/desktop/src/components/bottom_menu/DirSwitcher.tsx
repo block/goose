@@ -11,6 +11,7 @@ import {
 } from '../ui/dropdown-menu';
 import { toast } from 'react-toastify';
 import { defineMessages, useIntl } from '../../i18n';
+import { GIT_WORKTREES_UI_ENABLED } from '../../updates';
 
 const i18n = defineMessages({
   failedToUpdateWorkingDir: {
@@ -93,7 +94,9 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
 
     const [recent, worktrees] = await Promise.all([
       window.electron.listRecentDirs().catch(() => []),
-      window.electron.listGitWorktreeDirs(workingDir).catch(() => []),
+      GIT_WORKTREES_UI_ENABLED
+        ? window.electron.listGitWorktreeDirs(workingDir).catch(() => [])
+        : Promise.resolve([] as string[]),
     ]);
 
     if (version !== refreshVersionRef.current) return;
@@ -218,23 +221,27 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
               <Check className="ml-auto h-4 w-4 flex-shrink-0" />
             </DropdownMenuItem>
 
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>{intl.formatMessage(i18n.gitWorktrees)}</DropdownMenuLabel>
-            {filteredWorktreeDirs.length > 0 ? (
-              filteredWorktreeDirs.map((dir) => (
-                <DropdownMenuItem
-                  key={`worktree-${dir}`}
-                  onSelect={() => void handleSelectDirectory(dir)}
-                >
-                  <GitBranch className="mr-2 h-4 w-4 flex-shrink-0" />
-                  <DirNameLabel dir={dir} />
-                </DropdownMenuItem>
-              ))
-            ) : (
-              <DropdownMenuItem disabled>
-                <GitBranch className="mr-2 h-4 w-4" />
-                <span>{intl.formatMessage(i18n.noWorktreesFound)}</span>
-              </DropdownMenuItem>
+            {GIT_WORKTREES_UI_ENABLED && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>{intl.formatMessage(i18n.gitWorktrees)}</DropdownMenuLabel>
+                {filteredWorktreeDirs.length > 0 ? (
+                  filteredWorktreeDirs.map((dir) => (
+                    <DropdownMenuItem
+                      key={`worktree-${dir}`}
+                      onSelect={() => void handleSelectDirectory(dir)}
+                    >
+                      <GitBranch className="mr-2 h-4 w-4 flex-shrink-0" />
+                      <DirNameLabel dir={dir} />
+                    </DropdownMenuItem>
+                  ))
+                ) : (
+                  <DropdownMenuItem disabled>
+                    <GitBranch className="mr-2 h-4 w-4" />
+                    <span>{intl.formatMessage(i18n.noWorktreesFound)}</span>
+                  </DropdownMenuItem>
+                )}
+              </>
             )}
 
             {filteredRecentDirs.length > 0 && (

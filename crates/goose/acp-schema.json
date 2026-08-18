@@ -1520,6 +1520,13 @@
             "string",
             "null"
           ]
+        },
+        "authenticated": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "Present for `streamable_http` extensions: whether OAuth credentials exist locally."
         }
       },
       "required": [
@@ -1598,6 +1605,38 @@
       "description": "Set the `enabled` flag for a persisted extension in the user's global goose config.",
       "x-side": "agent",
       "x-method": "_goose/unstable/config/extensions/set-enabled"
+    },
+    "AuthenticateConfigExtensionRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "configKey": {
+          "type": "string"
+        },
+        "force": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "configKey"
+      ],
+      "description": "Run the OAuth browser flow for a persisted streamable HTTP extension.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/extensions/authenticate"
+    },
+    "DeauthenticateConfigExtensionRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "configKey": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "configKey"
+      ],
+      "description": "Clear locally stored OAuth credentials for a streamable HTTP extension.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/extensions/deauthenticate"
     },
     "GetSessionExtensionsRequest_unstable": {
       "type": "object",
@@ -1826,6 +1865,20 @@
         "name": {
           "type": "string",
           "description": "Human-readable display name."
+        },
+        "alias": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Curated short label for picker rows (server catalog)."
+        },
+        "subtext": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Secondary line under the alias (server catalog)."
         },
         "family": {
           "type": [
@@ -6836,6 +6889,24 @@
       ],
       "description": "Per-message token usage/cost/timing, keyed by the message id used for\nchunk matching. Sent live after a turn's messages and on replay."
     },
+    "ExtensionAuthorizationRequiredNotification_unstable": {
+      "type": "object",
+      "properties": {
+        "extensionName": {
+          "type": "string"
+        },
+        "authorizationUrl": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "extensionName",
+        "authorizationUrl"
+      ],
+      "description": "Asks the client to open an OAuth authorization URL in the user's browser.\n\nThe agent may run in a container or on a remote host, so it cannot reach the\nuser's browser itself. Clients advertising `customNotifications` are expected\nto open the URL externally; the agent meanwhile blocks on its loopback\ncallback until the user finishes or the flow times out.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/extensions/authorization-required"
+    },
     "RequestRecipeParams_unstable": {
       "type": "object",
       "properties": {
@@ -7108,6 +7179,24 @@
                   ],
                   "description": "Params for _goose/unstable/config/extensions/set-enabled",
                   "title": "SetConfigExtensionEnabledRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/AuthenticateConfigExtensionRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/extensions/authenticate",
+                  "title": "AuthenticateConfigExtensionRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/DeauthenticateConfigExtensionRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/extensions/deauthenticate",
+                  "title": "DeauthenticateConfigExtensionRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -8603,6 +8692,15 @@
                   ],
                   "description": "Params for _goose/unstable/session/update",
                   "title": "GooseSessionNotification_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ExtensionAuthorizationRequiredNotification_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/extensions/authorization-required",
+                  "title": "ExtensionAuthorizationRequiredNotification_unstable"
                 }
               ]
             },

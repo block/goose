@@ -142,6 +142,10 @@ pub fn get_extension_by_name(name: &str) -> Option<ExtensionConfig> {
     get_extension_by_name_with_config(Config::global(), name)
 }
 
+pub fn get_extension_entry(key: &str) -> Option<ExtensionEntry> {
+    get_extensions_map().get(key).cloned()
+}
+
 fn get_extension_by_name_with_config(config: &Config, name: &str) -> Option<ExtensionConfig> {
     let extensions = get_extensions_map_with_config(config);
     let key = name_to_key(name);
@@ -805,6 +809,7 @@ extensions:
     fn test_default_off_extension_disabled_when_config_empty() {
         let (config, _config_file, _secrets_file) = test_config("");
 
-        assert_eq!(configured_enabled_state(&config, "chatrecall"), Some(false));
+        // Avocado consumer distro enables chatrecall by default.
+        assert_eq!(configured_enabled_state(&config, "chatrecall"), Some(true));
     }
 }

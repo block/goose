@@ -1,5 +1,5 @@
 import { Card } from '../ui/card';
-import GooseLogo from '../GooseLogo';
+import { Avocado } from '../icons';
 import MarkdownContent from '../MarkdownContent';
 import { substituteParameters } from '../../utils/parameterSubstitution';
 
@@ -33,7 +33,7 @@ export default function RecipeActivities({
       <div className="flex flex-col px-6">
         {/* Animated goose icon */}
         <div className="flex justify-start mb-6">
-          <GooseLogo size="default" hover={true} />
+          <Avocado className="size-16" />
         </div>
 
         {messagePill && (

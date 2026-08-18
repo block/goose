@@ -22,6 +22,7 @@ import { RecipeHeader } from './RecipeHeader';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import { scanRecipe } from '../recipe';
 import type { Recipe } from '../recipe';
+import type { ChatSkillDraft } from './skills/lib/skillChatPrompt';
 import RecipeActivities from './recipes/RecipeActivities';
 import {
   getTextAndImageContent,
@@ -31,7 +32,7 @@ import {
 } from '../types/message';
 import { substituteParameters } from '../utils/parameterSubstitution';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
-import { Goose } from './icons';
+import { Avocado } from './icons';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 import SessionActionsHeader from './SessionActionsHeader';
 import { isAcpRecovering, subscribeToAcpRecovery } from '../acp/acpConnection';
@@ -63,6 +64,7 @@ interface BaseChatProps {
   sessionId: string;
   isActiveSession: boolean;
   initialMessage?: UserInput;
+  initialSkillDrafts?: ChatSkillDraft[];
   noAutoSubmit?: boolean;
 }
 
@@ -73,6 +75,7 @@ export default function BaseChat({
   customMainLayoutProps = {},
   sessionId,
   initialMessage,
+  initialSkillDrafts,
   noAutoSubmit,
   isActiveSession,
 }: BaseChatProps) {
@@ -412,19 +415,12 @@ export default function BaseChat({
 
         {/* Chat container with sticky recipe header */}
         <div className="flex flex-col flex-1 min-h-0 relative">
-          {/* Goose watermark - top right */}
+          {/* Avocado Work watermark - top right */}
           <div className="absolute top-[14px] right-4 z-[60] flex flex-row items-center gap-1">
-            <a
-              href="https://goose-docs.ai"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="no-drag flex flex-row items-center gap-1 hover:opacity-80 transition-opacity"
-            >
-              <Goose className="size-5 goose-icon-animation" />
-              <span className="text-sm leading-none text-text-secondary -translate-y-px">
-                goose
-              </span>
-            </a>
+            <div className="no-drag flex flex-row items-center gap-1.5 text-text-secondary">
+              <Avocado className="size-5 goose-icon-animation" />
+              <span className="text-sm leading-none -translate-y-px">Avocado Work</span>
+            </div>
             <EnvironmentBadge className="translate-y-px" />
           </div>
 
@@ -508,6 +504,7 @@ export default function BaseChat({
             queueProcessingBlocked={queueProcessingBlocked || acpRecovering}
             commandHistory={commandHistory}
             initialValue={initialPrompt}
+            initialSkillDrafts={initialSkillDrafts}
             setView={setView}
             totalTokens={tokenState?.totalTokens ?? session?.usage?.total_tokens ?? undefined}
             accumulatedInputTokens={

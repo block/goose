@@ -1,0 +1,48 @@
+{
+  "attacker": "contract",
+  "arena": "avcd-agent local make-dev",
+  "timestamp_utc": "2026-08-08T23:11:16Z",
+  "pass": true,
+  "checks": [
+    {
+      "name": "GET /status with valid secret",
+      "expected_http": 200,
+      "actual_http": 200,
+      "body": "ok",
+      "pass": true
+    },
+    {
+      "name": "GET /health",
+      "expected_http": 200,
+      "actual_http": 200,
+      "body": "ok",
+      "pass": true
+    },
+    {
+      "name": "goose run pong",
+      "expected": "exit 0 and reply contains pong",
+      "actual": "reply pong; model deepseek/deepseek-v4-flash; ~3.263s",
+      "has_pong": true,
+      "duration_seconds": 3.263,
+      "pass": true
+    },
+    {
+      "name": "GET /acp without SSE Accept",
+      "expected_http": 406,
+      "actual_http": 406,
+      "body": "client must accept text/event-stream",
+      "pass": true
+    }
+  ],
+  "continuous_probe": {
+    "interval_seconds": 5,
+    "log": "stress/artifacts/contract-probe.log",
+    "samples": 7,
+    "ok": 7,
+    "fail": 0,
+    "fail_lines": [],
+    "note": "Failures during intentional stop/kill windows are expected; logged if probe sampled them. Post-restore /status must be 200."
+  },
+  "findings": [],
+  "summary": "Contract happy path all pass: /status 200, /health 200, goose pong, /acp 406 without SSE."
+}

@@ -50,12 +50,29 @@ import {
   setupAutoUpdater,
   updateTrayMenu,
 } from './utils/autoUpdater';
-import { UPDATES_ENABLED } from './updates';
+import { APPS_UI_ENABLED, UPDATES_ENABLED, DISTRO_DEFAULT_PROVIDER, DISTRO_DEFAULT_MODEL, DISTRO_AVOCADO_HOST, DISTRO_AVOCADO_PROVISION_URL } from './updates';
 import './utils/recipeHash';
 import type { GooseApp } from './types/apps';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { buildCSP } from './utils/csp';
+
+// The packaged bundle may be versioned (e.g. "Avocado Work-1.45.0.app"), but the
+// runtime identity must stay stable so auto-update continuity and the user's
+// sessions/config (stored under userData) survive across versions. Pin the name
+// and userData path here, before any app.getPath('userData') access below.
+const STABLE_APP_NAME = process.env.GOOSE_BUNDLE_NAME || 'Avocado Work';
+if (app.getName() !== STABLE_APP_NAME) {
+  app.setName(STABLE_APP_NAME);
+  try {
+    app.setPath('userData', path.join(app.getPath('appData'), STABLE_APP_NAME));
+  } catch (err) {
+    log.warn(`Could not pin userData path to "${STABLE_APP_NAME}": ${String(err)}`);
+  }
+}
+
+// Human-facing name that includes the version, e.g. "Avocado Work 1.45.0".
+const DISPLAY_APP_NAME = `${STABLE_APP_NAME} ${app.getVersion()}`;
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -96,11 +113,11 @@ const MENU_TRANSLATIONS_ZH_CN: Record<string, string> = {
   'New Chat Window': '新建聊天窗口',
   'Open Directory...': '打开目录…',
   'Recent Directories': '最近的目录',
-  'Focus Goose Window': '聚焦 Goose 窗口',
+  'Focus Avocado Work Window': '聚焦 Avocado Work 窗口',
   'Quick Launcher': '快速启动器',
   'Always on Top': '窗口置顶',
   'Toggle Navigation': '切换导航',
-  'About Goose': '关于 Goose',
+  'About Avocado Work': '关于 Avocado Work',
   // Electron's default role-based labels we want to translate as well.
   // (The menu role itself still provides the correct behaviour; only the
   // display string is overridden.)
@@ -126,7 +143,7 @@ const MENU_TRANSLATIONS_ZH_CN: Record<string, string> = {
   'Bring All to Front': '全部置于最前',
   'Emoji & Symbols': '表情符号',
   'Start Dictation…': '开始听写…',
-  'Hide Goose': '隐藏 Goose',
+  'Hide Avocado Work': '隐藏 Avocado Work',
   'Hide Others': '隐藏其他',
   'Show All': '全部显示',
   Services: '服务',
@@ -592,7 +609,14 @@ function deliverExtensionOrSessionDeepLink(
     return;
   }
 
-  if (parsedUrl.hostname === 'extension') {
+  if (parsedUrl.hostname === 'extension-authenticate') {
+    targetWindow.webContents.send('authenticate-extension', url);
+  } else if (
+    parsedUrl.hostname === 'extension' &&
+    parsedUrl.searchParams.get('action') === 'authenticate'
+  ) {
+    targetWindow.webContents.send('authenticate-extension', url);
+  } else if (parsedUrl.hostname === 'extension') {
     targetWindow.webContents.send('add-extension', url);
   } else if (parsedUrl.hostname === 'sessions') {
     sendOpenSharedSession(targetWindow, url);
@@ -671,7 +695,14 @@ async function processProtocolUrl(url: string, parsedUrl: URL, window: BrowserWi
   const recentDirs = loadRecentDirs();
   const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
-  if (parsedUrl.hostname === 'extension') {
+  if (parsedUrl.hostname === 'extension-authenticate') {
+    window.webContents.send('authenticate-extension', url);
+  } else if (
+    parsedUrl.hostname === 'extension' &&
+    parsedUrl.searchParams.get('action') === 'authenticate'
+  ) {
+    window.webContents.send('authenticate-extension', url);
+  } else if (parsedUrl.hostname === 'extension') {
     window.webContents.send('add-extension', url);
   } else if (parsedUrl.hostname === 'sessions') {
     sendOpenSharedSession(window, url);
@@ -765,7 +796,7 @@ app.on('open-url', async (_event, url) => {
 app.on('will-finish-launching', () => {
   if (process.platform === 'darwin') {
     app.setAboutPanelOptions({
-      applicationName: 'Goose',
+      applicationName: 'Avocado Work',
       applicationVersion: app.getVersion(),
     });
   }
@@ -820,7 +851,7 @@ async function handleFileOpen(filePath: string) {
 
     // Show user-friendly error notification
     new Notification({
-      title: 'Goose',
+      title: 'Avocado Work',
       body: `Could not open directory: ${path.basename(filePath)}`,
     }).show();
   }
@@ -874,8 +905,8 @@ const getBundledConfig = (): BundledConfig => {
   //needed when goose is bundled for a specific provider
   //{env-macro-end}//
   return {
-    defaultProvider: process.env.GOOSE_DEFAULT_PROVIDER,
-    defaultModel: process.env.GOOSE_DEFAULT_MODEL,
+    defaultProvider: process.env.GOOSE_DEFAULT_PROVIDER || DISTRO_DEFAULT_PROVIDER,
+    defaultModel: process.env.GOOSE_DEFAULT_MODEL || DISTRO_DEFAULT_MODEL,
     predefinedModels: process.env.GOOSE_PREDEFINED_MODELS,
     version: process.env.GOOSE_VERSION,
   };
@@ -890,6 +921,10 @@ interface ExternalBackend {
   url: string;
   secret: string;
   certFingerprint?: string;
+}
+
+function canOfferDisableExternalBackend(source: 'env' | 'settings'): boolean {
+  return source === 'settings';
 }
 
 const getExternalBackendUrlFromEnv = (): string | null => {
@@ -983,6 +1018,87 @@ const appWindows = new Map<string, BrowserWindow>();
 
 const gooseServeLeases = new GooseServeLeaseRegistry(log);
 
+async function tryCreateExternalBackendLease(
+  externalBackend: ExternalBackend,
+  probeSecret: string,
+  authMode: 'secret' | 'bearer'
+): Promise<GooseServeLease | null> {
+  let externalCertificateTrust: BackendCertificateTrustRegistration | null = null;
+
+  try {
+    const externalBaseUrl = normalizeAcpHttpBaseUrl(externalBackend.url);
+    const externalBase = new URL(externalBaseUrl);
+    if (externalBase.protocol === 'https:') {
+      externalCertificateTrust = trustBackendCertificate(
+        externalBase.hostname,
+        externalBackend.certFingerprint ?? null
+      );
+    }
+
+    const externalBackendReady = await checkBackendStatus({
+      baseUrl: externalBaseUrl,
+      serverSecret: probeSecret,
+      authMode,
+      fetch: net.fetch as unknown as typeof globalThis.fetch,
+    });
+    if (!externalBackendReady) {
+      externalCertificateTrust?.release();
+      const canDisable = canOfferDisableExternalBackend(externalBackend.source);
+      const response = dialog.showMessageBoxSync({
+        type: 'error',
+        title: 'External Backend Unreachable',
+        message: `Could not connect to external backend at ${externalBaseUrl}`,
+        detail:
+          'The external backend must be running and the configured secret must match GOOSE_SERVER__SECRET_KEY on the server.',
+        buttons: canDisable ? ['Disable External Backend & Retry', 'Quit'] : ['Quit'],
+        defaultId: 0,
+        cancelId: canDisable ? 1 : 0,
+      });
+
+      if (canDisable && response === 0) {
+        updateSettings((s) => {
+          if (s.externalGoosed) {
+            s.externalGoosed.enabled = false;
+          }
+        });
+      }
+
+      return null;
+    }
+
+    const leaseCertificateTrust = externalCertificateTrust;
+    externalCertificateTrust = null;
+    return gooseServeLeases.createExternal(
+      acpWebSocketUrlFromHttpBase(externalBaseUrl, probeSecret),
+      probeSecret,
+      leaseCertificateTrust ? async () => leaseCertificateTrust.release() : undefined
+    );
+  } catch (error) {
+    externalCertificateTrust?.release();
+    log.error('External ACP backend is misconfigured', error);
+    const canDisable = canOfferDisableExternalBackend(externalBackend.source);
+    const response = dialog.showMessageBoxSync({
+      type: 'error',
+      title: 'External Backend Misconfigured',
+      message: 'The external backend URL is invalid.',
+      detail: errorMessage(error),
+      buttons: canDisable ? ['Disable External Backend & Retry', 'Quit'] : ['Quit'],
+      defaultId: 0,
+      cancelId: canDisable ? 1 : 0,
+    });
+
+    if (canDisable && response === 0) {
+      updateSettings((s) => {
+        if (s.externalGoosed) {
+          s.externalGoosed.enabled = false;
+        }
+      });
+    }
+
+    return null;
+  }
+}
+
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
 // Track pending initial messages per window
 const pendingInitialMessages = new Map<number, string>(); // windowId -> initialMessage
@@ -1043,17 +1159,18 @@ const createChat = async (
     })();
 
     if (!usesHttps) {
+      const canDisable = canOfferDisableExternalBackend(externalBackend.source);
       const response = dialog.showMessageBoxSync({
         type: 'error',
         title: 'External Backend Misconfigured',
         message: 'Certificate fingerprint requires an HTTPS external backend URL.',
         detail: 'Use an https:// URL or remove the configured certificate fingerprint.',
-        buttons: ['Disable External Backend & Retry', 'Quit'],
+        buttons: canDisable ? ['Disable External Backend & Retry', 'Quit'] : ['Quit'],
         defaultId: 0,
-        cancelId: 1,
+        cancelId: canDisable ? 1 : 0,
       });
 
-      if (response === 0) {
+      if (canDisable && response === 0) {
         updateSettings((s) => {
           if (s.externalGoosed) {
             s.externalGoosed.enabled = false;
@@ -1068,88 +1185,25 @@ const createChat = async (
   }
 
   const serverSecret = externalBackend ? externalBackend.secret : GENERATED_SECRET;
-  let workingDir = dir || os.homedir();
+  // Prefer an explicit cwd (e.g. /workspace for Docker ACP via make dev-ui).
+  // Host paths from process.cwd()/recent-dirs are not visible inside the compose container.
+  const configuredWorkingDir = process.env.GOOSE_WORKING_DIR?.trim() || '';
+  let workingDir = dir || configuredWorkingDir || os.homedir();
+  if (externalBackend && configuredWorkingDir) {
+    workingDir = configuredWorkingDir;
+  }
   let gooseServeLease: GooseServeLease | null = null;
 
   if (externalBackend) {
-    let externalCertificateTrust: BackendCertificateTrustRegistration | null = null;
-
-    try {
-      const externalBaseUrl = normalizeAcpHttpBaseUrl(externalBackend.url);
-      const externalBase = new URL(externalBaseUrl);
-      if (externalBase.protocol === 'https:') {
-        externalCertificateTrust = trustBackendCertificate(
-          externalBase.hostname,
-          externalBackend.certFingerprint ?? null
-        );
-      }
-
-      const externalBackendReady = await checkBackendStatus({
-        baseUrl: externalBaseUrl,
-        serverSecret,
-        fetch: net.fetch as unknown as typeof globalThis.fetch,
-      });
-      if (!externalBackendReady) {
-        externalCertificateTrust?.release();
-        const canDisableExternalBackend = externalBackend.source === 'settings';
-        const response = dialog.showMessageBoxSync({
-          type: 'error',
-          title: 'External Backend Unreachable',
-          message: `Could not connect to external backend at ${externalBaseUrl}`,
-          detail:
-            'The external backend must be running and the configured secret must match GOOSE_SERVER__SECRET_KEY on the server.',
-          buttons: canDisableExternalBackend
-            ? ['Disable External Backend & Retry', 'Quit']
-            : ['Quit'],
-          defaultId: 0,
-          cancelId: canDisableExternalBackend ? 1 : 0,
-        });
-
-        if (canDisableExternalBackend && response === 0) {
-          updateSettings((s) => {
-            if (s.externalGoosed) {
-              s.externalGoosed.enabled = false;
-            }
-          });
-          return createChat(app, options);
-        }
-
-        app.quit();
-        return;
-      }
-
-      const leaseCertificateTrust = externalCertificateTrust;
-      externalCertificateTrust = null;
-      gooseServeLease = gooseServeLeases.createExternal(
-        acpWebSocketUrlFromHttpBase(externalBaseUrl, serverSecret),
-        serverSecret,
-        leaseCertificateTrust ? async () => leaseCertificateTrust.release() : undefined
-      );
-    } catch (error) {
-      externalCertificateTrust?.release();
-      log.error('External ACP backend is misconfigured', error);
-      const canDisableExternalBackend = externalBackend.source === 'settings';
-      const response = dialog.showMessageBoxSync({
-        type: 'error',
-        title: 'External Backend Misconfigured',
-        message: 'The external backend URL is invalid.',
-        detail: errorMessage(error),
-        buttons: canDisableExternalBackend
-          ? ['Disable External Backend & Retry', 'Quit']
-          : ['Quit'],
-        defaultId: 0,
-        cancelId: canDisableExternalBackend ? 1 : 0,
-      });
-
-      if (canDisableExternalBackend && response === 0) {
-        updateSettings((s) => {
-          if (s.externalGoosed) {
-            s.externalGoosed.enabled = false;
-          }
-        });
-        return createChat(app, options);
-      }
-
+    gooseServeLease = await tryCreateExternalBackendLease(
+      externalBackend,
+      serverSecret,
+      'secret'
+    );
+    if (!gooseServeLease && externalBackend.source === 'settings') {
+      return createChat(app, options);
+    }
+    if (!gooseServeLease) {
       app.quit();
       return;
     }
@@ -1166,6 +1220,10 @@ const createChat = async (
         tls: true,
         env: {
           GOOSE_PATH_ROOT: appConfig.GOOSE_PATH_ROOT as string | undefined,
+          GOOSE_DEFAULT_PROVIDER: defaultProvider,
+          GOOSE_DEFAULT_MODEL: defaultModel,
+          AVOCADO_HOST: process.env.AVOCADO_HOST || DISTRO_AVOCADO_HOST,
+          AVOCADO_PROVISION_URL: process.env.AVOCADO_PROVISION_URL || DISTRO_AVOCADO_PROVISION_URL,
         },
         loginShellPath,
         isPackaged: app.isPackaged,
@@ -1195,7 +1253,7 @@ const createChat = async (
       log.error('goose serve failed to start', error);
       dialog.showMessageBoxSync({
         type: 'error',
-        title: 'Goose Failed to Start',
+        title: 'Avocado Work Failed to Start',
         message: 'The backend server failed to start.',
         detail: [
           'Backend: goose serve',
@@ -1240,6 +1298,7 @@ const createChat = async (
 
     mainWindow = new BrowserWindow({
       show: false,
+      title: DISPLAY_APP_NAME,
       titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
       trafficLightPosition: process.platform === 'darwin' ? { x: 20, y: 16 } : undefined,
       vibrancy: process.platform === 'darwin' ? 'window' : undefined,
@@ -1979,7 +2038,7 @@ ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
   }
 });
 
-ipcMain.handle('get-secret-key', (event) => {
+ipcMain.handle('get-secret-key', async (event) => {
   const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
   if (!windowId) {
     return null;
@@ -1994,6 +2053,14 @@ ipcMain.handle('get-acp-url', async (event) => {
   }
   return gooseServeLeases.getAcpUrl(windowId) ?? null;
 });
+
+ipcMain.handle('auth-is-enabled', () => false);
+
+ipcMain.handle('auth-get-status', () => ({ state: 'disabled' as const }));
+
+ipcMain.handle('auth-login', async () => ({ state: 'disabled' as const }));
+
+ipcMain.handle('auth-logout', async () => ({ state: 'disabled' as const }));
 
 // Handle menu bar icon visibility
 ipcMain.handle('set-menu-bar-icon', async (_event, show: boolean) => {
@@ -2530,7 +2597,7 @@ async function appMain() {
 
   const shortcuts = getKeyboardShortcuts(settings);
 
-  const appMenu = menu?.items.find((item) => item.label === 'Goose');
+  const appMenu = menu?.items.find((item) => item.label === 'Avocado Work');
   if (appMenu?.submenu) {
     appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
     if (shortcuts.settings) {
@@ -2658,7 +2725,7 @@ async function appMain() {
     if (shortcuts.focusWindow) {
       fileMenu.submenu.append(
         new MenuItem({
-          label: menuT('Focus Goose Window'),
+          label: menuT('Focus Avocado Work Window'),
           accelerator: shortcuts.focusWindow,
           click() {
             focusWindow();
@@ -2767,7 +2834,7 @@ async function appMain() {
 
       // Create the About Goose menu item with a submenu
       const aboutGooseMenuItem = new MenuItem({
-        label: menuT('About Goose'),
+        label: menuT('About Avocado Work'),
         submenu: Menu.buildFromTemplate([]), // Start with an empty submenu for About
       });
 
@@ -2988,6 +3055,10 @@ async function appMain() {
 
   ipcMain.handle('launch-app', async (event, gooseApp: GooseApp) => {
     try {
+      if (!APPS_UI_ENABLED) {
+        throw new Error('Apps UI is temporarily disabled.');
+      }
+
       if (isRetiredGooseChatApp(gooseApp)) {
         throw new Error('This built-in Chat app is no longer supported.');
       }
@@ -3098,7 +3169,7 @@ app.whenReady().then(async () => {
   try {
     await appMain();
   } catch (error) {
-    dialog.showErrorBox('Goose Error', `Failed to create main window: ${error}`);
+    dialog.showErrorBox('Avocado Work Error', `Failed to create main window: ${error}`);
     app.quit();
   }
 });

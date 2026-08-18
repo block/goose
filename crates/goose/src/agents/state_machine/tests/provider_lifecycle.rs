@@ -242,7 +242,10 @@ async fn provider_lifecycle() -> Result<()> {
     result.assert_message(-1, Agent, "The standard prompt is active.");
     let call = api.calls().last().cloned().expect("provider request");
     assert!(call.uses_model("gpt-4.1"));
-    assert!(call.system_contains("general-purpose AI agent called goose"));
+    assert!(
+        call.system_contains("general-purpose AI agent called Avocado Work")
+            || call.system_contains("general-purpose AI agent called goose")
+    );
 
     Ok(())
 }

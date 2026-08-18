@@ -11,6 +11,7 @@ import MiniMaxLogo from './icons/minimax@3x.png';
 import TanzuLogo from './icons/tanzu@3x.png';
 import AzureFoundryLogo from './icons/azure_foundry@3x.png';
 import DefaultLogo from './icons/default@3x.png';
+import { Avocado } from '../../../../icons/Avocado';
 import { defineMessages, useIntl } from '../../../../../i18n';
 
 const i18n = defineMessages({
@@ -47,6 +48,8 @@ export default function ProviderLogo({ providerName }: ProviderLogoProps) {
   const logoKey = providerName.toLowerCase();
   const logo = providerLogos[logoKey] || DefaultLogo;
 
+  const isAvocado = logoKey === 'avocado';
+
   // Special handling for xAI logo
   const isXai = logoKey === 'xai';
   const imageStyle = isXai ? { filter: 'invert(1)', opacity: 0.9 } : {};
@@ -58,13 +61,21 @@ export default function ProviderLogo({ providerName }: ProviderLogoProps) {
 
   return (
     <div className="flex justify-center mb-2">
-      <div className="w-12 h-12 bg-black rounded-full overflow-hidden flex items-center justify-center">
-        <img
-          src={logo}
-          alt={intl.formatMessage(i18n.logoAlt, { providerName })}
-          className={imageClassName}
-          style={imageStyle}
-        />
+      <div
+        className={`w-12 h-12 rounded-full overflow-hidden flex items-center justify-center ${
+          isAvocado ? '' : 'bg-black'
+        }`}
+      >
+        {isAvocado ? (
+          <Avocado className="w-8 h-8 text-text-secondary" />
+        ) : (
+          <img
+            src={logo}
+            alt={intl.formatMessage(i18n.logoAlt, { providerName })}
+            className={imageClassName}
+            style={imageStyle}
+          />
+        )}
       </div>
     </div>
   );

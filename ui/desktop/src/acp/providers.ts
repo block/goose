@@ -54,6 +54,8 @@ export async function acpListProviderDetails(): Promise<ProviderDetails[]> {
       })),
       known_models: entry.models.map((model) => ({
         name: model.id,
+        alias: model.alias ?? undefined,
+        subtext: model.subtext ?? undefined,
         context_limit: model.contextLimit ?? 0,
         reasoning: model.reasoning ?? undefined,
       })),

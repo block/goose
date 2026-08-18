@@ -607,4 +607,43 @@ mod tests {
 
         assert_eq!(rendered, skill.content);
     }
+
+    #[test]
+    fn discover_skills_includes_builtin_skill_authoring() {
+        let discovered = discover_skills(None);
+        let skill = discovered
+            .iter()
+            .find(|s| s.name == "skill-authoring" && s.source_type == SourceType::BuiltinSkill)
+            .expect("skill-authoring builtin must be discoverable");
+
+        assert!(skill.description.to_lowercase().contains("create"));
+        assert!(skill.path.contains("skill-authoring"));
+    }
+
+    #[test]
+    fn discover_skills_finds_project_agents_skills_layout() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        for name in ["hello-world", "code-review", "planning"] {
+            let skill_dir = tmp.path().join(".agents").join("skills").join(name);
+            std::fs::create_dir_all(&skill_dir).unwrap();
+            std::fs::write(
+                skill_dir.join("SKILL.md"),
+                format!(
+                    "---\nname: {name}\ndescription: Test skill {name}\n---\nBody for {name}.\n"
+                ),
+            )
+            .unwrap();
+        }
+
+        let discovered = discover_skills(Some(tmp.path()));
+        let names: HashSet<_> = discovered
+            .iter()
+            .filter(|s| s.source_type == SourceType::Skill)
+            .map(|s| s.name.as_str())
+            .collect();
+
+        assert!(names.contains("hello-world"));
+        assert!(names.contains("code-review"));
+        assert!(names.contains("planning"));
+    }
 }

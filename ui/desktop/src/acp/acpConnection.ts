@@ -12,6 +12,7 @@ import {
 } from './chatNotifications';
 import { createWebSocketStream } from './createWebSocketStream';
 import { requestAcpElicitation } from './elicitationRequests';
+import { openExtensionAuthorizationUrl } from './extensionAuthorization';
 import { requestAcpPermission } from './permissionRequests';
 import { requestAcpRecipeParams } from './recipeParamRequests';
 
@@ -219,6 +220,7 @@ function createClientCallbacks(): () => GooseClientCallbacks {
     unstable_sessionRecipeRequestParams: requestAcpRecipeParams,
     sessionUpdate: handleAcpSessionNotification,
     unstable_sessionUpdate: handleAcpGooseSessionNotification,
+    unstable_extensionsAuthorizationRequired: openExtensionAuthorizationUrl,
   });
 }
 

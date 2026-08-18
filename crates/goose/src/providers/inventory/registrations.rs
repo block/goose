@@ -5,6 +5,7 @@ use super::{
 use crate::config::{self, Config};
 use crate::providers::acp_tooling::{acp_adapter_installed, resolved_acp_command};
 use crate::providers::amp_acp::{AMP_ACP_BINARY, AMP_ACP_PROVIDER_NAME};
+use crate::providers::avocado_auth;
 use crate::providers::base::ProviderDescriptor;
 use crate::providers::chatgpt_codex::TokenCache as ChatGptCodexTokenCache;
 use crate::providers::claude_acp::{CLAUDE_ACP_BINARY, CLAUDE_ACP_PROVIDER_NAME};
@@ -193,6 +194,10 @@ pub fn refresh_only() -> InventoryRegistration {
         identity: default_inventory_identity_resolver(),
         configured: None,
     }
+}
+
+pub fn avocado_inventory() -> InventoryRegistration {
+    refresh_only().with_configured(avocado_auth::has_configured_key)
 }
 
 pub fn kimi_code_inventory() -> InventoryRegistration {

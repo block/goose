@@ -45,11 +45,11 @@ function isSlashCommand(message: string): boolean {
 const i18n = defineMessages({
   notificationTitle: {
     id: 'chat.notification.taskComplete.title',
-    defaultMessage: 'Goose finished the task.',
+    defaultMessage: 'Avocado Work finished the task.',
   },
   notificationBody: {
     id: 'chat.notification.taskComplete.body',
-    defaultMessage: 'Click here to bring Goose back into focus.',
+    defaultMessage: 'Click here to bring Avocado Work back into focus.',
   },
 });
 
@@ -151,12 +151,12 @@ export function useChatSession({
   }, [sessionId, onSessionLoaded]);
 
   const handleSubmit = useCallback(
-    async (input: UserInput) => {
+    async (input: UserInput): Promise<boolean> => {
       if (isAcpRecovering()) {
-        return;
+        return false;
       }
 
-      const { msg: userMessage, images } = input;
+      const { msg: userMessage, images, sendOptions } = input;
       const currentSnapshot = getCurrentSnapshot();
 
       if (
@@ -167,16 +167,18 @@ export function useChatSession({
         currentSnapshot.chatState === ChatState.Compacting ||
         currentSnapshot.pendingCancelPromptAttemptId !== null
       ) {
-        return;
+        return false;
       }
 
       const currentMessages = currentSnapshot.messages;
       const hasExistingMessages = currentMessages.length > 0;
-      const hasNewMessage = userMessage.trim().length > 0 || images.length > 0;
+      const hasSkillChips = (sendOptions?.chips?.length ?? 0) > 0;
+      const hasNewMessage =
+        userMessage.trim().length > 0 || images.length > 0 || hasSkillChips;
       const clearsConversation = hasNewMessage && isClearCommand(userMessage);
 
       if (!hasNewMessage && !hasExistingMessages) {
-        return;
+        return false;
       }
 
       // Emit session-created event for first message in a new session
@@ -185,7 +187,7 @@ export function useChatSession({
       }
 
       const newMessage = hasNewMessage
-        ? createUserMessage(userMessage, images)
+        ? createUserMessage(userMessage, images, input.sendOptions)
         : currentMessages[currentMessages.length - 1];
       const messagesForStore = clearsConversation
         ? []
@@ -198,6 +200,7 @@ export function useChatSession({
       }
 
       await submitToAcpSession(sessionId, newMessage);
+      return true;
     },
     [getCurrentSnapshot, sessionId, submitToAcpSession]
   );

@@ -1,4 +1,40 @@
 {
+  "addSkillDialog.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "addSkillDialog.contentLabel": {
+    "defaultMessage": "Instructions"
+  },
+  "addSkillDialog.contentPlaceholder": {
+    "defaultMessage": "# My Skill Step-by-step guidance for the agent…"
+  },
+  "addSkillDialog.create": {
+    "defaultMessage": "Create skill"
+  },
+  "addSkillDialog.creating": {
+    "defaultMessage": "Creating…"
+  },
+  "addSkillDialog.description": {
+    "defaultMessage": "Creates a SKILL.md under .agents/skills/ (project) or ~/.agents/skills/ (global)."
+  },
+  "addSkillDialog.descriptionLabel": {
+    "defaultMessage": "Description"
+  },
+  "addSkillDialog.descriptionPlaceholder": {
+    "defaultMessage": "What it does and when to use it"
+  },
+  "addSkillDialog.globalLabel": {
+    "defaultMessage": "Global skill (available in all projects)"
+  },
+  "addSkillDialog.nameLabel": {
+    "defaultMessage": "Name"
+  },
+  "addSkillDialog.namePlaceholder": {
+    "defaultMessage": "my-skill-name"
+  },
+  "addSkillDialog.title": {
+    "defaultMessage": "Add Skill"
+  },
   "alertBox.autoCompactAt": {
     "defaultMessage": "Auto compact at"
   },
@@ -62,66 +98,6 @@
   "appsView.title": {
     "defaultMessage": "Apps"
   },
-  "authSettings.activeProviderWarning": {
-    "defaultMessage": "This is the active provider. New requests may fail until you configure another credential."
-  },
-  "authSettings.cancel": {
-    "defaultMessage": "Cancel"
-  },
-  "authSettings.delete": {
-    "defaultMessage": "Delete"
-  },
-  "authSettings.deleteCredential": {
-    "defaultMessage": "Delete credential"
-  },
-  "authSettings.deleteMessage": {
-    "defaultMessage": "Delete the {name} credential for {provider}?"
-  },
-  "authSettings.deleteTitle": {
-    "defaultMessage": "Delete credential"
-  },
-  "authSettings.deleted": {
-    "defaultMessage": "Credential deleted"
-  },
-  "authSettings.description": {
-    "defaultMessage": "Manage provider credentials stored locally by goose."
-  },
-  "authSettings.empty": {
-    "defaultMessage": "No locally stored provider credentials were found."
-  },
-  "authSettings.expiresAt": {
-    "defaultMessage": "Expires {date}"
-  },
-  "authSettings.failedToConfigure": {
-    "defaultMessage": "Failed to configure credential: {error}"
-  },
-  "authSettings.failedToDelete": {
-    "defaultMessage": "Failed to delete credential: {error}"
-  },
-  "authSettings.failedToLoad": {
-    "defaultMessage": "Failed to load provider credentials"
-  },
-  "authSettings.loading": {
-    "defaultMessage": "Loading credentials..."
-  },
-  "authSettings.reauthorize": {
-    "defaultMessage": "Reauthorize"
-  },
-  "authSettings.signIn": {
-    "defaultMessage": "Sign in"
-  },
-  "authSettings.signedIn": {
-    "defaultMessage": "Credential configured"
-  },
-  "authSettings.storageProviderCache": {
-    "defaultMessage": "Provider cache"
-  },
-  "authSettings.storageSecretStore": {
-    "defaultMessage": "Secret store"
-  },
-  "authSettings.title": {
-    "defaultMessage": "Provider Credentials"
-  },
   "backButton.back": {
     "defaultMessage": "Back"
   },
@@ -168,10 +144,10 @@
     "defaultMessage": "Launch"
   },
   "chat.notification.taskComplete.body": {
-    "defaultMessage": "Click here to bring Goose back into focus."
+    "defaultMessage": "Click here to bring Avocado Work back into focus."
   },
   "chat.notification.taskComplete.title": {
-    "defaultMessage": "Goose finished the task."
+    "defaultMessage": "Avocado Work finished the task."
   },
   "chatInput.contextWindow": {
     "defaultMessage": "Context window"
@@ -222,13 +198,13 @@
     "defaultMessage": "Waiting for images to save..."
   },
   "chatSettings.modeDescription": {
-    "defaultMessage": "Choose the default mode Goose uses for new sessions. Existing sessions keep their current mode."
+    "defaultMessage": "Choose the default mode Avocado Work uses for new sessions. Existing sessions keep their current mode."
   },
   "chatSettings.modeTitle": {
     "defaultMessage": "Default Mode"
   },
   "chatSettings.responseStylesDescription": {
-    "defaultMessage": "Choose how Goose should format and style its responses"
+    "defaultMessage": "Choose how Avocado Work should format and style its responses"
   },
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "Response Styles"
@@ -324,7 +300,7 @@
     "defaultMessage": "Max Turns"
   },
   "conversationLimitsDropdown.maxTurnsDescription": {
-    "defaultMessage": "Maximum agent turns before Goose asks for user input"
+    "defaultMessage": "Maximum agent turns before Avocado Work asks for user input"
   },
   "costTracker.costUnavailable": {
     "defaultMessage": "Cost data not available for {model} ({inputTokens} input, {outputTokens} output tokens)"
@@ -936,7 +912,7 @@
     "defaultMessage": "Information request was cancelled."
   },
   "elicitationRequest.defaultMessage": {
-    "defaultMessage": "Goose needs some information from you."
+    "defaultMessage": "Avocado Work needs some information from you."
   },
   "elicitationRequest.expired": {
     "defaultMessage": "This request has expired. The extension will need to ask again."
@@ -981,7 +957,7 @@
     "defaultMessage": "An error occurred."
   },
   "errorBoundary.errorWithVersion": {
-    "defaultMessage": "An error occurred in Goose v{version}."
+    "defaultMessage": "An error occurred in Avocado Work v{version}."
   },
   "errorBoundary.heading": {
     "defaultMessage": "Honk!"
@@ -1091,11 +1067,32 @@
   "extensionInstallModal.yes": {
     "defaultMessage": "Yes"
   },
+  "extensionItem.authLinkCopied": {
+    "defaultMessage": "Sign-in link copied"
+  },
   "extensionItem.configureExtension": {
     "defaultMessage": "Configure {name} Extension"
   },
+  "extensionItem.copyAuthLink": {
+    "defaultMessage": "Copy sign-in link"
+  },
+  "extensionItem.signedIn": {
+    "defaultMessage": "Signed in"
+  },
+  "extensionItem.signedOut": {
+    "defaultMessage": "Not signed in"
+  },
+  "extensionItem.signingIn": {
+    "defaultMessage": "Signing in…"
+  },
+  "extensionItem.signingOut": {
+    "defaultMessage": "Signing out…"
+  },
   "extensionItem.toggleExtension": {
     "defaultMessage": "Toggle {name} extension On or Off"
+  },
+  "extensionItem.toggleOAuthExtension": {
+    "defaultMessage": "Turn {name} on to sign in, or off to sign out"
   },
   "extensionList.availableExtensions": {
     "defaultMessage": "Available Extensions ({count})"
@@ -1164,13 +1161,13 @@
     "defaultMessage": "Browse extensions"
   },
   "extensionsView.defaultNote": {
-    "defaultMessage": "Extensions enabled here are used as the default for new chats. You can also toggle active extensions during chat."
+    "defaultMessage": "Connections enabled here are used for new chats. Turn Google Workspace on to sign in in your browser; turn it off to sign out."
   },
   "extensionsView.description": {
-    "defaultMessage": "These extensions use the Model Context Protocol (MCP). They can expand Goose's capabilities using three main components: Prompts, Resources, and Tools. {searchShortcut} to search."
+    "defaultMessage": "Connect tools your team uses — Google Workspace, files, and more. Turn a connection on to sign in; turn it off to sign out. {searchShortcut} to search."
   },
   "extensionsView.heading": {
-    "defaultMessage": "Extensions"
+    "defaultMessage": "Connections"
   },
   "extensionsView.searchPlaceholder": {
     "defaultMessage": "Search extensions..."
@@ -1185,13 +1182,13 @@
     "defaultMessage": "AA:BB:CC:... or sha256/base64"
   },
   "externalBackendSection.description": {
-    "defaultMessage": "By default Goose starts a local backend. Use this to connect to an external ACP-compatible backend."
+    "defaultMessage": "By default Avocado Work starts a local backend. Use this to connect to an external ACP-compatible backend."
   },
   "externalBackendSection.fingerprintRequiresHttps": {
     "defaultMessage": "Certificate fingerprint requires an https URL"
   },
   "externalBackendSection.restartNote": {
-    "defaultMessage": "Changes apply to new chat windows. Restart Goose to update existing windows."
+    "defaultMessage": "Changes apply to new chat windows. Restart Avocado Work to update existing windows."
   },
   "externalBackendSection.secretKey": {
     "defaultMessage": "Secret Key"
@@ -1206,7 +1203,7 @@
     "defaultMessage": "Backend Base URL"
   },
   "externalBackendSection.serverUrlHelp": {
-    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+    "defaultMessage": "Enter the HTTP(S) base URL. Avocado Work checks /status and connects to /acp under this base."
   },
   "externalBackendSection.title": {
     "defaultMessage": "External Backend (ACP)"
@@ -1233,7 +1230,7 @@
     "defaultMessage": "Developer"
   },
   "goosehintsModal.dialogDescription": {
-    "defaultMessage": "Provide additional context about your project to improve communication with Goose"
+    "defaultMessage": "Provide additional context about your project to improve communication with Avocado Work"
   },
   "goosehintsModal.dialogTitle": {
     "defaultMessage": "Configure Project Hints (.goosehints)"
@@ -1254,7 +1251,7 @@
     "defaultMessage": ".goosehints file found at: {filePath}"
   },
   "goosehintsModal.helpText1": {
-    "defaultMessage": ".goosehints is a text file used to provide additional context about your project and improve the communication with Goose."
+    "defaultMessage": ".goosehints is a text file used to provide additional context about your project and improve communication with Avocado Work."
   },
   "goosehintsModal.helpText2": {
     "defaultMessage": "Please make sure {bold} extension is enabled in the extensions page. This extension is required to use .goosehints. You'll need to restart your session for .goosehints updates to take effect."
@@ -1281,7 +1278,7 @@
     "defaultMessage": "Configure"
   },
   "goosehintsSection.description": {
-    "defaultMessage": "Configure your project's .goosehints file to provide additional context to Goose"
+    "defaultMessage": "Configure your project's .goosehints file to provide additional context to Avocado Work"
   },
   "goosehintsSection.title": {
     "defaultMessage": "Project Hints (.goosehints)"
@@ -1354,6 +1351,9 @@
   },
   "hub.goodMorning": {
     "defaultMessage": "Good morning"
+  },
+  "hub.sessionCreateFailed": {
+    "defaultMessage": "Could not start chat"
   },
   "huggingFaceModelSearch.download": {
     "defaultMessage": "Download"
@@ -1566,13 +1566,13 @@
     "defaultMessage": "Application Shortcuts"
   },
   "keyboardShortcuts.categoryApplicationDescription": {
-    "defaultMessage": "These shortcuts work when Goose is the active application"
+    "defaultMessage": "These shortcuts work when Avocado Work is the active application"
   },
   "keyboardShortcuts.categoryGlobal": {
     "defaultMessage": "Global Shortcuts"
   },
   "keyboardShortcuts.categoryGlobalDescription": {
-    "defaultMessage": "These shortcuts work system-wide, even when Goose is not focused"
+    "defaultMessage": "These shortcuts work system-wide, even when Avocado Work is not focused"
   },
   "keyboardShortcuts.categorySearch": {
     "defaultMessage": "Search Shortcuts"
@@ -1614,10 +1614,10 @@
     "defaultMessage": "Find Previous"
   },
   "keyboardShortcuts.focusWindowDescription": {
-    "defaultMessage": "Bring Goose window to front from anywhere"
+    "defaultMessage": "Bring Avocado Work window to front from anywhere"
   },
   "keyboardShortcuts.focusWindowLabel": {
-    "defaultMessage": "Focus Goose Window"
+    "defaultMessage": "Focus Avocado Work Window"
   },
   "keyboardShortcuts.loading": {
     "defaultMessage": "Loading..."
@@ -1629,7 +1629,7 @@
     "defaultMessage": "New Chat"
   },
   "keyboardShortcuts.newChatWindowDescription": {
-    "defaultMessage": "Open a new Goose window"
+    "defaultMessage": "Open a new Avocado Work window"
   },
   "keyboardShortcuts.newChatWindowLabel": {
     "defaultMessage": "New Chat Window"
@@ -1668,7 +1668,7 @@
     "defaultMessage": "Reset to Defaults"
   },
   "keyboardShortcuts.restartDescription": {
-    "defaultMessage": "Changes to application shortcuts (like New Chat, Settings, etc.) require restarting Goose to take effect. Global shortcuts (Focus Window, Quick Launcher) work immediately."
+    "defaultMessage": "Changes to application shortcuts (like New Chat and Settings) require restarting Avocado Work to take effect. Global shortcuts (Focus Window and Quick Launcher) work immediately."
   },
   "keyboardShortcuts.restartRequired": {
     "defaultMessage": "Restart Required"
@@ -1701,10 +1701,10 @@
     "defaultMessage": "Ask goose anything..."
   },
   "loadingGoose.compacting": {
-    "defaultMessage": "goose is compacting the conversation..."
+    "defaultMessage": "Avocado Work is compacting the conversation..."
   },
   "loadingGoose.idle": {
-    "defaultMessage": "goose is working on it…"
+    "defaultMessage": "Avocado Work is working on it…"
   },
   "loadingGoose.loadingConversation": {
     "defaultMessage": "loading conversation..."
@@ -1713,13 +1713,13 @@
     "defaultMessage": "restarting session..."
   },
   "loadingGoose.streaming": {
-    "defaultMessage": "goose is working on it…"
+    "defaultMessage": "Avocado Work is working on it…"
   },
   "loadingGoose.thinking": {
-    "defaultMessage": "goose is thinking…"
+    "defaultMessage": "Avocado Work is thinking…"
   },
   "loadingGoose.waiting": {
-    "defaultMessage": "goose is waiting…"
+    "defaultMessage": "Avocado Work is waiting…"
   },
   "localInferenceSettings.deleteConfirm": {
     "defaultMessage": "Delete this model? You can re-download it later."
@@ -2337,7 +2337,7 @@
     "defaultMessage": "Apps"
   },
   "navigation.itemExtensions": {
-    "defaultMessage": "Extensions"
+    "defaultMessage": "Connections"
   },
   "navigation.itemHome": {
     "defaultMessage": "New Chat"
@@ -2393,23 +2393,35 @@
   "navigationPanel.untitledSession": {
     "defaultMessage": "Untitled session"
   },
+  "onboardingGuard.accessDeniedDescription": {
+    "defaultMessage": "Your account does not have the agent-access role. Ask an Avocado admin to grant access, then try again."
+  },
+  "onboardingGuard.accessDeniedTitle": {
+    "defaultMessage": "Access denied"
+  },
   "onboardingGuard.checkProviderErrorDescription": {
     "defaultMessage": "The server may be starting up or temporarily unavailable."
   },
   "onboardingGuard.checkProviderErrorTitle": {
-    "defaultMessage": "Unable to connect to Goose server"
+    "defaultMessage": "Unable to connect to Avocado Work server"
+  },
+  "onboardingGuard.connecting": {
+    "defaultMessage": "Connecting to Avocado Work..."
   },
   "onboardingGuard.retry": {
     "defaultMessage": "Retry"
   },
+  "onboardingGuard.tryAgain": {
+    "defaultMessage": "Try again"
+  },
   "onboardingGuard.welcomeDescription": {
-    "defaultMessage": "Your local AI agent. Connect an AI model provider to get started."
+    "defaultMessage": "Your local AI agent. Connect a provider to get started."
   },
   "onboardingGuard.welcomeTitle": {
-    "defaultMessage": "Welcome to goose"
+    "defaultMessage": "Welcome to Avocado Work"
   },
   "onboardingSuccess.allSet": {
-    "defaultMessage": "You're all set to start using goose."
+    "defaultMessage": "You're all set to start using Avocado Work."
   },
   "onboardingSuccess.connectedTo": {
     "defaultMessage": "Connected to {providerName}"
@@ -2424,7 +2436,7 @@
     "defaultMessage": "Local model ready"
   },
   "onboardingSuccess.privacyDescription": {
-    "defaultMessage": "Anonymous usage data helps improve goose. We never collect your conversations, code, or personal data."
+    "defaultMessage": "Anonymous usage data helps improve Avocado Work. We never collect your conversations, code, or personal data."
   },
   "onboardingSuccess.privacyTitle": {
     "defaultMessage": "Privacy"
@@ -2592,10 +2604,10 @@
     "defaultMessage": "Session metrics (duration, interaction count, token usage)"
   },
   "privacyInfoModal.collectVersion": {
-    "defaultMessage": "goose version and install method"
+    "defaultMessage": "Avocado Work version and install method"
   },
   "privacyInfoModal.description": {
-    "defaultMessage": "Anonymous usage data helps us understand how goose is used and identify areas for improvement."
+    "defaultMessage": "Anonymous usage data helps us understand how Avocado Work is used and identify areas for improvement."
   },
   "privacyInfoModal.neverCollect": {
     "defaultMessage": "We never collect your conversations, code, tool arguments, error messages, or any personal data. You can change this setting anytime in Settings."
@@ -2749,6 +2761,9 @@
   },
   "providerConfigForm.deviceCodeFlowHint": {
     "defaultMessage": "A browser window will open and the verification code will be copied to your clipboard. Paste it in the browser to complete sign-in."
+  },
+  "providerConfigForm.logInToAvocado": {
+    "defaultMessage": "Log in to Avocado"
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Don't have an API key?"
@@ -3789,7 +3804,7 @@
     "defaultMessage": "Chat history"
   },
   "sessions.chatHistoryDesc": {
-    "defaultMessage": "View and search your past conversations with Goose. {shortcut} to search."
+    "defaultMessage": "View and search your past conversations with Avocado Work. {shortcut} to search."
   },
   "sessions.close": {
     "defaultMessage": "Close"
@@ -3825,7 +3840,7 @@
     "defaultMessage": "Import Link"
   },
   "sessions.importNostr.description": {
-    "defaultMessage": "Paste a Goose Nostr share link to fetch, decrypt, and import the session."
+    "defaultMessage": "Paste an Avocado Work Nostr share link to fetch, decrypt, and import the session."
   },
   "sessions.importNostr.placeholder": {
     "defaultMessage": "goose://sessions/nostr?nevent=...&key=..."
@@ -4038,7 +4053,7 @@
     "defaultMessage": "Open Settings"
   },
   "settings.notifications.task.description": {
-    "defaultMessage": "Notify when Goose finishes a task while the window is in the background"
+    "defaultMessage": "Notify when Avocado Work finishes a task while the window is in the background"
   },
   "settings.notifications.task.title": {
     "defaultMessage": "Task completion notifications"
@@ -4069,9 +4084,6 @@
   },
   "settingsView.tabApp": {
     "defaultMessage": "App"
-  },
-  "settingsView.tabAuth": {
-    "defaultMessage": "Auth"
   },
   "settingsView.tabChat": {
     "defaultMessage": "Chat"
@@ -4109,14 +4121,35 @@
   "shortcutRecorder.save": {
     "defaultMessage": "Save"
   },
+  "signOutSection.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "signOutSection.confirmDescription": {
+    "defaultMessage": "This removes your Avocado credentials stored on this device. You can sign in again from the welcome screen."
+  },
+  "signOutSection.confirmTitle": {
+    "defaultMessage": "Sign out of Avocado?"
+  },
+  "signOutSection.description": {
+    "defaultMessage": "Sign out of Avocado on this device. You will need to sign in again to chat."
+  },
+  "signOutSection.failedTitle": {
+    "defaultMessage": "Could not sign out"
+  },
+  "signOutSection.signOut": {
+    "defaultMessage": "Sign out"
+  },
+  "signOutSection.signingOut": {
+    "defaultMessage": "Signing out…"
+  },
+  "signOutSection.title": {
+    "defaultMessage": "Account"
+  },
   "skillsView.addSkill": {
     "defaultMessage": "Add Skill"
   },
   "skillsView.adjustSearchTerms": {
     "defaultMessage": "Try adjusting your search terms"
-  },
-  "skillsView.comingSoon": {
-    "defaultMessage": "Coming soon"
   },
   "skillsView.errorLoadingSkills": {
     "defaultMessage": "Error Loading Skills"
@@ -4125,7 +4158,7 @@
     "defaultMessage": "No matching skills found"
   },
   "skillsView.noSkillsDescription": {
-    "defaultMessage": "Skills are loaded from SKILL.md files in ~/.config/agents/skills/, .goose/skills/, or other supported directories."
+    "defaultMessage": "Skills are loaded from SKILL.md files in .agents/skills/, ~/.agents/skills/, or other supported directories."
   },
   "skillsView.noSkillsInstalled": {
     "defaultMessage": "No skills installed"
@@ -4133,14 +4166,23 @@
   "skillsView.searchSkillsPlaceholder": {
     "defaultMessage": "Search skills..."
   },
+  "skillsView.skillCreated": {
+    "defaultMessage": "Created skill \"{name}\"."
+  },
   "skillsView.skillsDescription": {
-    "defaultMessage": "View installed skills that extend Goose capabilities. {shortcut} to search."
+    "defaultMessage": "View installed skills that extend Avocado Work capabilities. {shortcut} to search."
   },
   "skillsView.skillsTitle": {
     "defaultMessage": "Skills"
   },
+  "skillsView.startingChat": {
+    "defaultMessage": "Starting…"
+  },
   "skillsView.tryAgain": {
     "defaultMessage": "Try Again"
+  },
+  "skillsView.useInChat": {
+    "defaultMessage": "Use in chat"
   },
   "spellcheckToggle.description": {
     "defaultMessage": "Check spelling in the chat input. Requires restart to take effect."
@@ -4485,10 +4527,10 @@
     "defaultMessage": "Allow {toolName}?"
   },
   "toolConfirmation.gooseWouldLikeToCallWithName": {
-    "defaultMessage": "Goose would like to call {toolName}. Allow?"
+    "defaultMessage": "Avocado Work would like to call {toolName}. Allow?"
   },
   "updateSection.autoDownload": {
-    "defaultMessage": "Goose will download the update in the background and install it the next time you quit or restart."
+    "defaultMessage": "Avocado Work will download the update in the background and install it the next time you quit or restart."
   },
   "updateSection.autoDownloadDisabledByEnv": {
     "defaultMessage": "Automatic downloads are disabled via the GOOSE_DISABLE_AUTO_DOWNLOAD environment variable."
@@ -4512,7 +4554,7 @@
     "defaultMessage": "Disable automatic update downloads"
   },
   "updateSection.disableAutoDownloadDesc": {
-    "defaultMessage": "When enabled, Goose will notify you of new versions but will not download them automatically."
+    "defaultMessage": "When enabled, Avocado Work will notify you of new versions but will not download them automatically."
   },
   "updateSection.downloadNow": {
     "defaultMessage": "Download Now"
@@ -4545,7 +4587,7 @@
     "defaultMessage": "Manual installation required for this update method."
   },
   "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ Update is ready. Restart Goose to finish installing it, or quit when you're done."
+    "defaultMessage": "Update is ready. Restart Avocado Work to finish installing it, or quit when you're done."
   },
   "updateSection.readyInstallManual": {
     "defaultMessage": "✓ Update is ready! Click \"Install & Restart\" for installation instructions."

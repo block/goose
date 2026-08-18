@@ -66,6 +66,10 @@ pub struct InventoryModel {
     pub id: String,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub alias: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subtext: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub family: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_limit: Option<usize>,
@@ -245,11 +249,11 @@ fn recover_poisoned_write<'a, T>(
 }
 
 #[derive(Debug, Clone)]
-struct InventorySnapshot {
-    models: Vec<InventoryModel>,
-    last_updated_at: Option<DateTime<Utc>>,
-    last_refresh_attempt_at: Option<DateTime<Utc>>,
-    last_refresh_error: Option<String>,
+pub struct InventorySnapshot {
+    pub models: Vec<InventoryModel>,
+    pub last_updated_at: Option<DateTime<Utc>>,
+    pub last_refresh_attempt_at: Option<DateTime<Utc>>,
+    pub last_refresh_error: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -489,30 +493,88 @@ impl ProviderInventoryService {
             .await?;
 
         for (ordinal, model) in models.iter().enumerate() {
-            sqlx::query(
-                r#"
-                INSERT INTO provider_inventory_models (
-                    inventory_key,
-                    ordinal,
-                    model_id,
-                    name,
-                    family,
-                    context_limit,
-                    reasoning,
-                    recommended
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                "#,
-            )
+            insert_inventory_model(&mut tx, &identity.inventory_key, ordinal, model).await?;
+        }
+
+        tx.commit().await?;
+        Ok(())
+    }
+
+    /// Prefer avocado server catalog metadata when available; otherwise enrich ids.
+    pub async fn store_refreshed_models_preferring_catalog(
+        &self,
+        provider_id: &str,
+        identity: &InventoryIdentity,
+        model_ids: &[String],
+    ) -> Result<()> {
+        if provider_id == crate::providers::avocado::AVOCADO_PROVIDER_NAME {
+            if let Some(catalog) = crate::providers::avocado::take_last_fetched_catalog() {
+                let models = catalog
+                    .models
+                    .iter()
+                    .map(|entry| InventoryModel {
+                        id: entry.name.clone(),
+                        name: entry.alias.clone(),
+                        alias: Some(entry.alias.clone()),
+                        subtext: Some(entry.subtext.clone()),
+                        family: None,
+                        context_limit: None,
+                        reasoning: None,
+                        recommended: true,
+                    })
+                    .collect::<Vec<_>>();
+                return self.store_refreshed_catalog_models(identity, &models).await;
+            }
+        }
+        self.store_refreshed_models_for_identity(identity, model_ids)
+            .await
+    }
+
+    /// Store curated catalog models (alias/subtext/order) without canonical enrichment.
+    pub async fn store_refreshed_catalog_models(
+        &self,
+        identity: &InventoryIdentity,
+        models: &[InventoryModel],
+    ) -> Result<()> {
+        let now = Utc::now();
+        let pool = self.storage.pool().await?;
+        let mut tx = pool.begin().await?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO provider_inventory_entries (
+                inventory_key,
+                provider_id,
+                provider_family,
+                last_updated_at,
+                last_refresh_attempt_at,
+                last_refresh_error,
+                updated_at
+            ) VALUES (?, ?, ?, ?, ?, NULL, CURRENT_TIMESTAMP)
+            ON CONFLICT(inventory_key) DO UPDATE SET
+                provider_id = excluded.provider_id,
+                provider_family = excluded.provider_family,
+                last_updated_at = excluded.last_updated_at,
+                last_refresh_attempt_at = excluded.last_refresh_attempt_at,
+                last_refresh_error = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            "#,
+        )
+        .bind(&identity.inventory_key)
+        .bind(&identity.provider_id)
+        .bind(&identity.provider_family)
+        .bind(now.to_rfc3339())
+        .bind(now.to_rfc3339())
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query("DELETE FROM provider_inventory_models WHERE inventory_key = ?")
             .bind(&identity.inventory_key)
-            .bind(i64::try_from(ordinal)?)
-            .bind(&model.id)
-            .bind(&model.name)
-            .bind(&model.family)
-            .bind(model.context_limit.map(i64::try_from).transpose()?)
-            .bind(model.reasoning)
-            .bind(model.recommended)
             .execute(&mut *tx)
             .await?;
+
+        for (ordinal, model) in models.iter().enumerate() {
+            insert_inventory_model(&mut tx, &identity.inventory_key, ordinal, model).await?;
         }
 
         tx.commit().await?;
@@ -636,7 +698,11 @@ impl ProviderInventoryService {
                     match fetch_result {
                         Ok(models) => {
                             if let Err(error) = self
-                                .store_refreshed_models_for_identity(&refresh_job.identity, &models)
+                                .store_refreshed_models_preferring_catalog(
+                                    &provider_id,
+                                    &refresh_job.identity,
+                                    &models,
+                                )
                                 .await
                             {
                                 warn!(
@@ -767,7 +833,7 @@ impl ProviderInventoryService {
         Ok(())
     }
 
-    async fn read_snapshot(
+    pub async fn read_snapshot(
         &self,
         identity: &InventoryIdentity,
     ) -> Result<Option<InventorySnapshot>> {
@@ -794,7 +860,7 @@ impl ProviderInventoryService {
 
         let rows = sqlx::query(
             r#"
-            SELECT model_id, name, family, context_limit, reasoning, recommended
+            SELECT model_id, name, alias, subtext, family, context_limit, reasoning, recommended
             FROM provider_inventory_models
             WHERE inventory_key = ?
             ORDER BY ordinal
@@ -810,6 +876,8 @@ impl ProviderInventoryService {
                 Ok(InventoryModel {
                     id: row.try_get("model_id")?,
                     name: row.try_get("name")?,
+                    alias: row.try_get("alias")?,
+                    subtext: row.try_get("subtext")?,
                     family: row.try_get("family")?,
                     context_limit: row
                         .try_get::<Option<i64>, _>("context_limit")?
@@ -1020,6 +1088,8 @@ fn enrich_model_ids_with_canonical(
             .map(|id| InventoryModel {
                 id: id.clone(),
                 name: id.clone(),
+                alias: None,
+                subtext: None,
                 family: None,
                 context_limit: None,
                 reasoning: None,
@@ -1138,6 +1208,8 @@ fn enriched_model(
             .as_ref()
             .map(|model| model.name.clone())
             .unwrap_or_else(|| model_id.to_string()),
+        alias: None,
+        subtext: None,
         family: canonical.as_ref().and_then(|model| model.family.clone()),
         context_limit: canonical
             .as_ref()
@@ -1146,6 +1218,43 @@ fn enriched_model(
         reasoning: canonical.as_ref().and_then(|model| model.reasoning),
         recommended: false,
     }
+}
+
+async fn insert_inventory_model(
+    tx: &mut sqlx::Transaction<'_, Sqlite>,
+    inventory_key: &str,
+    ordinal: usize,
+    model: &InventoryModel,
+) -> Result<()> {
+    sqlx::query(
+        r#"
+        INSERT INTO provider_inventory_models (
+            inventory_key,
+            ordinal,
+            model_id,
+            name,
+            alias,
+            subtext,
+            family,
+            context_limit,
+            reasoning,
+            recommended
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        "#,
+    )
+    .bind(inventory_key)
+    .bind(i64::try_from(ordinal)?)
+    .bind(&model.id)
+    .bind(&model.name)
+    .bind(&model.alias)
+    .bind(&model.subtext)
+    .bind(&model.family)
+    .bind(model.context_limit.map(i64::try_from).transpose()?)
+    .bind(model.reasoning)
+    .bind(model.recommended)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
 }
 
 pub async fn create_tables(tx: &mut Transaction<'_, Sqlite>) -> Result<()> {
@@ -1173,6 +1282,8 @@ pub async fn create_tables(tx: &mut Transaction<'_, Sqlite>) -> Result<()> {
             ordinal INTEGER NOT NULL,
             model_id TEXT NOT NULL,
             name TEXT NOT NULL,
+            alias TEXT,
+            subtext TEXT,
             family TEXT,
             context_limit INTEGER,
             reasoning BOOLEAN,
@@ -1183,6 +1294,14 @@ pub async fn create_tables(tx: &mut Transaction<'_, Sqlite>) -> Result<()> {
     )
     .execute(&mut **tx)
     .await?;
+
+    for column in ["alias", "subtext"] {
+        let _ = sqlx::query(&format!(
+            "ALTER TABLE provider_inventory_models ADD COLUMN {column} TEXT"
+        ))
+        .execute(&mut **tx)
+        .await;
+    }
 
     sqlx::query(
         "CREATE INDEX IF NOT EXISTS idx_provider_inventory_provider_id ON provider_inventory_entries(provider_id)",
@@ -1235,6 +1354,49 @@ mod tests {
         service.clear_refreshing_many(&[left, right]);
 
         assert!(service.refreshing_keys.read().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn store_catalog_models_roundtrips_alias_subtext_and_order() {
+        // covers AC-2
+        let temp_dir = tempfile::tempdir().unwrap();
+        let service = ProviderInventoryService::new(Arc::new(SessionStorage::new(
+            temp_dir.path().to_path_buf(),
+        )));
+        let identity = test_identity("avocado", "catalog-key");
+        let models = vec![
+            InventoryModel {
+                id: "zeta/a".to_string(),
+                name: "Zeta A".to_string(),
+                alias: Some("Zeta A".to_string()),
+                subtext: Some("First".to_string()),
+                family: None,
+                context_limit: None,
+                reasoning: None,
+                recommended: true,
+            },
+            InventoryModel {
+                id: "alpha/b".to_string(),
+                name: "Alpha B".to_string(),
+                alias: Some("Alpha B".to_string()),
+                subtext: Some("Second".to_string()),
+                family: None,
+                context_limit: None,
+                reasoning: None,
+                recommended: true,
+            },
+        ];
+
+        service
+            .store_refreshed_catalog_models(&identity, &models)
+            .await
+            .unwrap();
+
+        let snapshot = service.read_snapshot(&identity).await.unwrap().unwrap();
+        assert_eq!(snapshot.models[0].id, "zeta/a");
+        assert_eq!(snapshot.models[0].alias.as_deref(), Some("Zeta A"));
+        assert_eq!(snapshot.models[0].subtext.as_deref(), Some("First"));
+        assert_eq!(snapshot.models[1].id, "alpha/b");
     }
 
     #[tokio::test]
@@ -1356,6 +1518,8 @@ mod tests {
             models: vec![InventoryModel {
                 id: "gpt-5.5".to_string(),
                 name: "gpt-5.5".to_string(),
+                alias: None,
+                subtext: None,
                 family: None,
                 context_limit: None,
                 reasoning: None,

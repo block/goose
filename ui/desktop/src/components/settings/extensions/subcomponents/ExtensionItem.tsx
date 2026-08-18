@@ -6,6 +6,9 @@ import { FixedExtensionEntry } from '../../../ConfigContext';
 import { getSubtitle, getFriendlyTitle } from './ExtensionList';
 import { Card, CardHeader, CardTitle, CardContent, CardAction } from '../../../ui/card';
 import { defineMessages, useIntl } from '../../../../i18n';
+import { toastService } from '../../../../toasts';
+import { buildExtensionAuthenticateLink } from '../extensionAuthDeeplink';
+import { nameToKey } from '../utils';
 
 const i18n = defineMessages({
   configureExtension: {
@@ -16,13 +19,41 @@ const i18n = defineMessages({
     id: 'extensionItem.toggleExtension',
     defaultMessage: 'Toggle {name} extension On or Off',
   },
+  toggleOAuthExtension: {
+    id: 'extensionItem.toggleOAuthExtension',
+    defaultMessage: 'Turn {name} on to sign in, or off to sign out',
+  },
+  signedIn: {
+    id: 'extensionItem.signedIn',
+    defaultMessage: 'Signed in',
+  },
+  signedOut: {
+    id: 'extensionItem.signedOut',
+    defaultMessage: 'Not signed in',
+  },
+  signingIn: {
+    id: 'extensionItem.signingIn',
+    defaultMessage: 'Signing in…',
+  },
+  signingOut: {
+    id: 'extensionItem.signingOut',
+    defaultMessage: 'Signing out…',
+  },
+  copyAuthLink: {
+    id: 'extensionItem.copyAuthLink',
+    defaultMessage: 'Copy sign-in link',
+  },
+  authLinkCopied: {
+    id: 'extensionItem.authLinkCopied',
+    defaultMessage: 'Sign-in link copied',
+  },
 });
 
 interface ExtensionItemProps {
   extension: FixedExtensionEntry;
   onToggle: (extension: FixedExtensionEntry) => Promise<boolean | void> | void;
   onConfigure?: (extension: FixedExtensionEntry) => void;
-  isStatic?: boolean; // to not allow users to edit configuration
+  isStatic?: boolean;
 }
 
 export default function ExtensionItem({
@@ -32,34 +63,37 @@ export default function ExtensionItem({
   isStatic,
 }: ExtensionItemProps) {
   const intl = useIntl();
-  // Add local state to track the visual toggle state
   const [visuallyEnabled, setVisuallyEnabled] = useState(extension.enabled);
-  // Track if we're in the process of toggling
   const [isToggling, setIsToggling] = useState(false);
 
+  const isStreamableHttp = extension.type === 'streamable_http';
+
   const handleToggle = async (ext: FixedExtensionEntry) => {
-    // Prevent multiple toggles while one is in progress
     if (isToggling) return;
 
     setIsToggling(true);
-
-    // Immediately update visual state
     const newState = !ext.enabled;
     setVisuallyEnabled(newState);
 
     try {
-      // Call the actual toggle function that performs the async operation
       await onToggle(ext);
-      // Success case is handled by the useEffect below when extension.enabled changes
     } catch {
-      // If there was an error, revert the visual state
       setVisuallyEnabled(!newState);
     } finally {
       setIsToggling(false);
     }
   };
 
-  // Update visual state when the actual extension state changes
+  const handleCopyAuthLink = async () => {
+    const configKey = extension.configKey ?? nameToKey(extension.name);
+    const link = buildExtensionAuthenticateLink(configKey);
+    await navigator.clipboard.writeText(link);
+    toastService.success({
+      title: getFriendlyTitle(extension),
+      msg: intl.formatMessage(i18n.authLinkCopied),
+    });
+  };
+
   useEffect(() => {
     if (!isToggling) {
       setVisuallyEnabled(extension.enabled);
@@ -77,12 +111,16 @@ export default function ExtensionItem({
     );
   };
 
-  // Bundled extensions and builtins are not editable
-  // Over time we can take the first part of the conditional away as people have bundled: true in their config.yaml entries
-
-  // allow configuration editing if extension is not a builtin/bundled extension AND isStatic = false
   const editable =
     !(extension.type === 'builtin' || ('bundled' in extension && extension.bundled)) && !isStatic;
+
+  const authStatusMessage = isToggling
+    ? visuallyEnabled
+      ? i18n.signingIn
+      : i18n.signingOut
+    : extension.authenticated
+      ? i18n.signedIn
+      : i18n.signedOut;
 
   return (
     <Card
@@ -110,15 +148,35 @@ export default function ExtensionItem({
               onCheckedChange={() => handleToggle(extension)}
               disabled={isToggling}
               variant="mono"
-              aria-label={intl.formatMessage(i18n.toggleExtension, {
-                name: getFriendlyTitle(extension),
-              })}
+              aria-label={
+                isStreamableHttp
+                  ? intl.formatMessage(i18n.toggleOAuthExtension, {
+                      name: getFriendlyTitle(extension),
+                    })
+                  : intl.formatMessage(i18n.toggleExtension, {
+                      name: getFriendlyTitle(extension),
+                    })
+              }
             />
           </div>
         </CardAction>
       </CardHeader>
       <CardContent className="px-4 overflow-hidden text-sm break-words text-text-secondary">
         {renderSubtitle()}
+        {isStreamableHttp && (
+          <div className="mt-2 flex items-center gap-3 text-xs">
+            <span className={extension.authenticated ? 'text-text-primary' : 'text-text-secondary'}>
+              {intl.formatMessage(authStatusMessage)}
+            </span>
+            <button
+              type="button"
+              className="text-text-primary underline hover:no-underline"
+              onClick={handleCopyAuthLink}
+            >
+              {intl.formatMessage(i18n.copyAuthLink)}
+            </button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

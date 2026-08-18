@@ -51,6 +51,8 @@ export async function fetchModelsForProviders(
           ({
             name: m.id,
             provider: p.name,
+            alias: m.alias ?? undefined,
+            subtext: m.subtext ?? undefined,
             context_limit: m.contextLimit ?? undefined,
             reasoning: m.reasoning ?? undefined,
           }) as Model

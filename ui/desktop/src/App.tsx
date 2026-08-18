@@ -4,6 +4,7 @@ import {
   HashRouter,
   Routes,
   Route,
+  Navigate,
   useNavigate,
   useLocation,
   useSearchParams,
@@ -11,6 +12,7 @@ import {
 import { importNostrSessionFromDeepLink } from './sessionLinks';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ExtensionInstallModal } from './components/ExtensionInstallModal';
+import { ExtensionAuthenticateHandler } from './components/ExtensionAuthenticateHandler';
 import RecipeParamsModalContainer from './components/RecipeParamsModalContainer';
 import { isRecipeParamsCancelled } from './acp/errors';
 import { toast, ToastContainer } from 'react-toastify';
@@ -19,16 +21,12 @@ import TelemetryConsentPrompt from './components/TelemetryConsentPrompt';
 import OnboardingGuard from './components/onboarding/OnboardingGuard';
 import { createSession } from './sessions';
 import { acpListSessions, acpDeleteSession } from './acp/sessions';
+import { selectPhantomSessionsForPurge } from './utils/phantomSessions';
 
 import { ChatType } from './types/chat';
 import Hub from './components/Hub';
 import { UserInput } from './types/message';
-
-interface PairRouteState {
-  resumeSessionId?: string;
-  initialMessage?: UserInput;
-  noAutoSubmit?: boolean;
-}
+import type { ChatSkillDraft } from './components/skills/lib/skillChatPrompt';
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
 import SchedulesView from './components/schedule/SchedulesView';
@@ -43,14 +41,12 @@ import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { FeaturesProvider } from './contexts/FeaturesContext';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
-
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
 import SkillsView from './components/skills/SkillsView';
 import AppsView from './components/apps/AppsView';
 import StandaloneAppView from './components/apps/StandaloneAppView';
 import { View, ViewOptions } from './utils/navigationUtils';
-
 import { useNavigation } from './hooks/useNavigation';
 import { errorMessage } from './utils/conversionUtils';
 import { getInitialWorkingDir } from './utils/workingDir';
@@ -59,6 +55,19 @@ import { trackErrorWithContext } from './utils/analytics';
 import { AppEvents } from './constants/events';
 import { registerPlatformEventHandlers } from './utils/platform_events';
 import { reconnectAcpAfterSystemResume } from './acp/acpConnection';
+import {
+  APPS_UI_ENABLED,
+  EXTENSIONS_INSTALL_ENABLED,
+  EXTENSIONS_UI_ENABLED,
+  PROVIDER_MANAGEMENT_ENABLED,
+} from './updates';
+
+interface PairRouteState {
+  resumeSessionId?: string;
+  initialMessage?: UserInput;
+  initialSkillDrafts?: ChatSkillDraft[];
+  noAutoSubmit?: boolean;
+}
 
 function PageViewTracker() {
   usePageViewTracking();
@@ -87,10 +96,16 @@ const PairRouteWrapper = ({
   activeSessions: Array<{
     sessionId: string;
     initialMessage?: UserInput;
+    initialSkillDrafts?: ChatSkillDraft[];
     noAutoSubmit?: boolean;
   }>;
   setActiveSessions: (
-    sessions: Array<{ sessionId: string; initialMessage?: UserInput; noAutoSubmit?: boolean }>
+    sessions: Array<{
+      sessionId: string;
+      initialMessage?: UserInput;
+      initialSkillDrafts?: ChatSkillDraft[];
+      noAutoSubmit?: boolean;
+    }>
   ) => void;
 }) => {
   const { extensionsList } = useConfig();
@@ -105,6 +120,7 @@ const PairRouteWrapper = ({
   const recipeDeeplinkFromConfig = window.appConfig?.get('recipeDeeplink') as string | undefined;
   const recipeIdFromConfig = window.appConfig?.get('recipeId') as string | undefined;
   const initialMessage = routeState.initialMessage;
+  const initialSkillDrafts = routeState.initialSkillDrafts;
   const noAutoSubmit = routeState.noAutoSubmit;
 
   // Create session if we have an initialMessage, recipeDeeplink, or recipeId but no sessionId
@@ -130,6 +146,7 @@ const PairRouteWrapper = ({
               detail: {
                 sessionId: newSession.id,
                 initialMessage: sessionInitialMessage,
+                initialSkillDrafts,
                 noAutoSubmit,
               },
             })
@@ -173,12 +190,13 @@ const PairRouteWrapper = ({
           detail: {
             sessionId: resumeSessionId,
             initialMessage: initialMessage,
+            initialSkillDrafts,
             noAutoSubmit,
           },
         })
       );
     }
-  }, [resumeSessionId, activeSessions, initialMessage, noAutoSubmit]);
+  }, [resumeSessionId, activeSessions, initialMessage, initialSkillDrafts, noAutoSubmit]);
 
   return null;
 };
@@ -323,30 +341,47 @@ export function AppInner() {
   const MAX_ACTIVE_SESSIONS = 10;
 
   const [activeSessions, setActiveSessions] = useState<
-    Array<{ sessionId: string; initialMessage?: UserInput; noAutoSubmit?: boolean }>
+    Array<{
+      sessionId: string;
+      initialMessage?: UserInput;
+      initialSkillDrafts?: ChatSkillDraft[];
+      noAutoSubmit?: boolean;
+    }>
   >([]);
+  // Protect Hub-created sessions from the mount-time phantom purge race.
+  const protectedSessionIdsRef = useRef(new Set<string>());
 
   useEffect(() => {
     const handleAddActiveSession = (event: Event) => {
-      const { sessionId, initialMessage, noAutoSubmit } = (
+      const { sessionId, initialMessage, initialSkillDrafts, noAutoSubmit } = (
         event as CustomEvent<{
           sessionId: string;
           initialMessage?: UserInput;
+          initialSkillDrafts?: ChatSkillDraft[];
           noAutoSubmit?: boolean;
         }>
       ).detail;
+
+      protectedSessionIdsRef.current.add(sessionId);
 
       setActiveSessions((prev) => {
         const existingIndex = prev.findIndex((s) => s.sessionId === sessionId);
 
         if (existingIndex !== -1) {
-          // Session exists - move to end of LRU list (most recently used)
+          // Session exists - move to end of LRU list (most recently used).
+          // Merge initialMessage so a late ADD with the Hub prompt is not dropped.
           const existing = prev[existingIndex];
-          return [...prev.slice(0, existingIndex), ...prev.slice(existingIndex + 1), existing];
+          const merged = {
+            ...existing,
+            initialMessage: initialMessage ?? existing.initialMessage,
+            ...(initialSkillDrafts ? { initialSkillDrafts } : {}),
+            noAutoSubmit: noAutoSubmit ?? existing.noAutoSubmit,
+          };
+          return [...prev.slice(0, existingIndex), ...prev.slice(existingIndex + 1), merged];
         }
 
         // New session - add to end with LRU eviction if needed
-        const newSession = { sessionId, initialMessage, noAutoSubmit };
+        const newSession = { sessionId, initialMessage, initialSkillDrafts, noAutoSubmit };
         const updated = [...prev, newSession];
         if (updated.length > MAX_ACTIVE_SESSIONS) {
           return updated.slice(updated.length - MAX_ACTIVE_SESSIONS);
@@ -404,16 +439,28 @@ export function AppInner() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
     acpListSessions()
       .then(({ sessions }) => {
-        const phantom = sessions.filter(
-          (s) => s.messageCount === 0 && !s.userSetName && !s.hasRecipe
+        if (cancelled) return;
+
+        // Re-check protection at delete time: Hub may ADD_ACTIVE_SESSION while the
+        // list request was in flight, and brand-new empties must not be purged.
+        const phantom = selectPhantomSessionsForPurge(
+          sessions,
+          protectedSessionIdsRef.current
         );
         for (const s of phantom) {
+          if (protectedSessionIdsRef.current.has(s.id)) continue;
           acpDeleteSession(s.id).catch(() => {});
         }
       })
       .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -624,15 +671,30 @@ export function AppInner() {
         closeOnClick
         pauseOnHover
       />
-      <ExtensionInstallModal addExtension={addExtension} setView={setView} />
+      {EXTENSIONS_INSTALL_ENABLED && (
+        <ExtensionInstallModal addExtension={addExtension} setView={setView} />
+      )}
+      <ExtensionAuthenticateHandler />
       <RecipeParamsModalContainer />
       <div className="relative w-screen h-screen overflow-hidden bg-background-secondary flex flex-col">
         <div className="titlebar-drag-region" />
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
           <Routes>
             <Route path="launcher" element={<LauncherView />} />
-            <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
-            <Route path="standalone-app" element={<StandaloneAppView />} />
+            <Route
+              path="configure-providers"
+              element={
+                PROVIDER_MANAGEMENT_ENABLED ? (
+                  <ConfigureProvidersRoute />
+                ) : (
+                  <Navigate to="/settings" replace />
+                )
+              }
+            />
+            <Route
+              path="standalone-app"
+              element={APPS_UI_ENABLED ? <StandaloneAppView /> : <Navigate to="/" replace />}
+            />
             <Route
               path="/"
               element={
@@ -657,12 +719,19 @@ export function AppInner() {
               <Route
                 path="extensions"
                 element={
-                  <ChatProvider chat={chat} setChat={setChat} contextKey="extensions">
-                    <ExtensionsRoute />
-                  </ChatProvider>
+                  EXTENSIONS_UI_ENABLED ? (
+                    <ChatProvider chat={chat} setChat={setChat} contextKey="extensions">
+                      <ExtensionsRoute />
+                    </ChatProvider>
+                  ) : (
+                    <Navigate to="/" replace />
+                  )
                 }
               />
-              <Route path="apps" element={<AppsView />} />
+              <Route
+                path="apps"
+                element={APPS_UI_ENABLED ? <AppsView /> : <Navigate to="/" replace />}
+              />
               <Route path="sessions" element={<SessionsRoute />} />
               <Route path="schedules" element={<SchedulesRoute />} />
               <Route path="recipes" element={<RecipesRoute />} />

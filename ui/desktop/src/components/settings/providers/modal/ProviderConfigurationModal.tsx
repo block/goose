@@ -27,6 +27,7 @@ import { Button } from '../../../../components/ui/button';
 import { errorMessage } from '../../../../utils/conversionUtils';
 import { defineMessages, useIntl } from '../../../../i18n';
 import HuggingFaceSignInPrompt from '../../auth/HuggingFaceSignInPrompt';
+import { PROVIDER_MANAGEMENT_ENABLED } from '../../../../updates';
 
 const i18n = defineMessages({
   deleteConfigHeader: {
@@ -497,14 +498,14 @@ export default function ProviderConfigurationModal({
                 primaryParameters={primaryParameters}
                 onCancel={handleCancel}
                 onSubmit={handleSubmitForm}
-                onDelete={handleDelete}
+                onDelete={PROVIDER_MANAGEMENT_ENABLED ? handleDelete : undefined}
                 showDeleteConfirmation={showDeleteConfirmation}
                 onConfirmDelete={handleConfirmDelete}
                 onCancelDelete={() => {
                   setIsActiveProvider(false);
                   setShowDeleteConfirmation(false);
                 }}
-                canDelete={isConfigured && !isActiveProvider}
+                canDelete={PROVIDER_MANAGEMENT_ENABLED && isConfigured && !isActiveProvider}
                 providerName={provider.metadata.display_name}
                 isActiveProvider={isActiveProvider}
               />

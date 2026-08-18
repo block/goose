@@ -13,8 +13,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use uuid::Uuid;
 
-const POSTHOG_API_KEY: &str = "phc_RyX5CaY01VtZJCQyhSR5KFh6qimUy81YwxsEpotAftT";
-const POSTHOG_CAPTURE_URL: &str = "https://us.i.posthog.com/capture/";
+const POSTHOG_API_KEY: &str = "";
+const POSTHOG_CAPTURE_URL: &str = "";
 
 /// Config key for telemetry opt-out preference
 pub const TELEMETRY_ENABLED_KEY: &str = "GOOSE_TELEMETRY_ENABLED";
@@ -69,6 +69,10 @@ async fn posthog_capture(
     distinct_id: &str,
     properties: HashMap<String, serde_json::Value>,
 ) -> Result<(), String> {
+    if POSTHOG_API_KEY.is_empty() || POSTHOG_CAPTURE_URL.is_empty() {
+        return Ok(());
+    }
+
     let payload = CaptureEvent {
         api_key: POSTHOG_API_KEY,
         event: event_name.to_string(),

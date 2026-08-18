@@ -8,11 +8,14 @@ import { providerConfigSubmitHandler } from '../settings/providers/modal/subcomp
 import ProviderLogo from '../settings/providers/modal/subcomponents/ProviderLogo';
 import { SecureStorageNotice } from '../settings/providers/modal/subcomponents/SecureStorageNotice';
 import { Button } from '../ui/button';
+import { Avocado } from '../icons';
 import { LogIn, ChevronRight } from 'lucide-react';
 import { defineMessages, useIntl } from '../../i18n';
 import { errorMessage } from '../../utils/conversionUtils';
 
 type OnConfigured = (name: string) => void | Promise<void>;
+
+const AVOCADO_PROVIDER = 'avocado';
 
 const i18n = defineMessages({
   browserWindowOpen: {
@@ -31,6 +34,10 @@ const i18n = defineMessages({
   signInWith: {
     id: 'providerConfigForm.signInWith',
     defaultMessage: 'Sign in with {providerName}',
+  },
+  logInToAvocado: {
+    id: 'providerConfigForm.logInToAvocado',
+    defaultMessage: 'Log in to Avocado',
   },
   noApiKey: {
     id: 'providerConfigForm.noApiKey',
@@ -91,21 +98,27 @@ function OAuthForm({
   };
 
   const isDeviceCodeFlow = provider.metadata.config_keys.some((key) => key.device_code_flow);
+  const isAvocado = provider.name.toLowerCase() === AVOCADO_PROVIDER;
+
+  const label = isLoading
+    ? intl.formatMessage(i18n.signingIn)
+    : isAvocado
+      ? intl.formatMessage(i18n.logInToAvocado)
+      : intl.formatMessage(i18n.signInWith, { providerName: provider.metadata.display_name });
 
   return (
     <div className="flex flex-col items-center gap-3 py-4">
+      {isAvocado && <Avocado className="size-10 text-text-secondary mb-6" />}
       <Button
         onClick={handleLogin}
         disabled={isLoading}
         className="flex items-center gap-2 px-6 py-3"
         size="lg"
       >
-        <LogIn size={20} />
-        {isLoading
-          ? intl.formatMessage(i18n.signingIn)
-          : intl.formatMessage(i18n.signInWith, { providerName: provider.metadata.display_name })}
+        {!isAvocado && <LogIn size={20} />}
+        {label}
       </Button>
-      <p className="text-xs text-text-muted text-center">
+      <p className="text-xs text-text-secondary text-center">
         {isDeviceCodeFlow
           ? intl.formatMessage(i18n.deviceCodeFlowHint)
           : intl.formatMessage(i18n.browserWindowOpen)}
@@ -212,19 +225,45 @@ function ApiKeyForm({
 interface ProviderConfigFormProps {
   provider: ProviderDetails;
   onConfigured: OnConfigured;
+  onError?: (message: string) => void;
 }
 
-export default function ProviderConfigForm({ provider, onConfigured }: ProviderConfigFormProps) {
+export default function ProviderConfigForm({
+  provider,
+  onConfigured,
+  onError,
+}: ProviderConfigFormProps) {
   const [error, setError] = useState<string | null>(null);
 
+  const reportError = (message: string) => {
+    setError(message);
+    onError?.(message);
+  };
+
   const isOAuthProvider = provider.metadata.config_keys.some((key) => key.oauth_flow);
+  const isAvocado = provider.name.toLowerCase() === AVOCADO_PROVIDER;
 
   const renderForm = () => {
     if (isOAuthProvider) {
-      return <OAuthForm provider={provider} onConfigured={onConfigured} onError={setError} />;
+      return <OAuthForm provider={provider} onConfigured={onConfigured} onError={reportError} />;
     }
-    return <ApiKeyForm provider={provider} onConfigured={onConfigured} onError={setError} />;
+    return <ApiKeyForm provider={provider} onConfigured={onConfigured} onError={reportError} />;
   };
+
+  const errorBanner = error && (
+    <div className="mt-3 p-3 rounded-lg bg-red-50 text-red-800 border border-red-200 dark:bg-red-900/20 dark:text-red-200 dark:border-red-800 text-sm">
+      {error}
+    </div>
+  );
+
+  if (isAvocado) {
+    return (
+      <div>
+        {renderForm()}
+        {errorBanner}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -233,17 +272,13 @@ export default function ProviderConfigForm({ provider, onConfigured }: ProviderC
           <ProviderLogo providerName={provider.name} />
           <div>
             <h3 className="font-medium text-text-default">{provider.metadata.display_name}</h3>
-            <p className="text-xs text-text-muted">{provider.metadata.description}</p>
+            <p className="text-xs text-text-secondary">{provider.metadata.description}</p>
           </div>
         </div>
 
         {renderForm()}
 
-        {error && (
-          <div className="mt-3 p-3 rounded-lg bg-red-50 text-red-800 border border-red-200 dark:bg-red-900/20 dark:text-red-200 dark:border-red-800 text-sm">
-            {error}
-          </div>
-        )}
+        {errorBanner}
       </div>
     </div>
   );

@@ -80,3 +80,45 @@ async fn prompt_and_skill_lifecycle() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn prompt_multi_skills_slash_command_loads_via_nudge() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+
+    let review_dir = pipeline.working_dir().join(".agents/skills/review");
+    std::fs::create_dir_all(&review_dir)?;
+    std::fs::write(
+        review_dir.join("SKILL.md"),
+        "---\nname: review\ndescription: Review newly added code\n---\nHOT_SKILL_INSTRUCTION",
+    )?;
+    let insight_dir = pipeline.working_dir().join(".agents/skills/insight");
+    std::fs::create_dir_all(&insight_dir)?;
+    std::fs::write(
+        insight_dir.join("SKILL.md"),
+        "---\nname: insight\ndescription: Teach the why\n---\nINSIGHT_SKILL_BODY",
+    )?;
+
+    let nudge = "Use the load_skill tool to load the following skills: \"review\", \"insight\".";
+    api.on(nudge).calls([
+        ("call-review", "load_skill", json!({ "name": "review" })),
+        ("call-insight", "load_skill", json!({ "name": "insight" })),
+    ]);
+    api.on("HOT_SKILL_INSTRUCTION").reply("both skills loaded");
+
+    let multi = pipeline.run(["/skills review insight"]).await?;
+    assert!(
+        multi
+            .conversation()
+            .messages()
+            .iter()
+            .any(|message| message.as_concat_text().contains(nudge)),
+        "expected multi-skill load nudge in conversation history"
+    );
+    assert!(
+        api.calls().iter().any(|call| call.input_contains(nudge)),
+        "expected provider to receive multi-skill load nudge"
+    );
+    multi.assert_message(-1, Agent, "both skills loaded");
+
+    Ok(())
+}

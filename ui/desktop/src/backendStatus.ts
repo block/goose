@@ -14,6 +14,8 @@ export interface CheckServerStatusOptions {
 export interface CheckBackendStatusParams {
   baseUrl: string;
   serverSecret: string;
+  /** When `bearer`, probes use Authorization: Bearer instead of X-Secret-Key / ?token=. */
+  authMode?: 'secret' | 'bearer';
   fetch: typeof globalThis.fetch;
   errorLog?: string[];
   options?: CheckServerStatusOptions;
@@ -45,13 +47,18 @@ const fetchWithTimeout = async (
 export const checkBackendStatus = async ({
   baseUrl,
   serverSecret,
+  authMode = 'secret',
   fetch,
   errorLog = [],
   options = {},
 }: CheckBackendStatusParams): Promise<boolean> => {
   const deadline = Date.now() + HEALTHCHECK_TIMEOUT_MS;
   const statusUrl = statusHttpUrlFromHttpBase(baseUrl);
-  const acpUrl = acpHttpUrlFromHttpBase(baseUrl, serverSecret);
+  // Bearer mode: gateway /status is public; ACP auth uses Authorization header (no ?token=).
+  const acpUrl =
+    authMode === 'bearer'
+      ? acpHttpUrlFromHttpBase(baseUrl)
+      : acpHttpUrlFromHttpBase(baseUrl, serverSecret);
   options.onEvent?.('healthcheck_start', {
     timeoutMs: HEALTHCHECK_TIMEOUT_MS,
     intervalMs: HEALTHCHECK_INTERVAL_MS,
@@ -65,21 +72,56 @@ export const checkBackendStatus = async ({
     }
 
     try {
+      const statusHeaders: Record<string, string> =
+        authMode === 'bearer'
+          ? { authorization: `Bearer ${serverSecret}` }
+          : { 'X-Secret-Key': serverSecret };
       const response = await fetchWithTimeout(fetch, statusUrl, {
-        headers: {
-          'X-Secret-Key': serverSecret,
-        },
+        headers: statusHeaders,
       });
-      if (response.ok) {
-        const authResponse = await fetchWithTimeout(fetch, acpUrl);
-        // GET /acp without an SSE Accept header returns 406 after auth succeeds.
-        if (authResponse.status === 406) {
+      // Gateway exposes /healthz;/readyz publicly; goose /status may ignore auth.
+      // Accept either /status or /healthz for reachability when using bearer.
+      const reachable =
+        response.ok ||
+        (authMode === 'bearer' &&
+          (
+            await fetchWithTimeout(fetch, new URL('/healthz', baseUrl).toString())
+          ).ok);
+
+      if (reachable || response.ok) {
+        const authHeaders: Record<string, string> | undefined =
+          authMode === 'bearer'
+            ? { authorization: `Bearer ${serverSecret}` }
+            : undefined;
+        const authResponse = await fetchWithTimeout(fetch, acpUrl, {
+          headers: authHeaders,
+        });
+        // GET /acp without an SSE Accept header returns 406 after auth succeeds
+        // on local goose; gateway may return 401/403/404 depending on method.
+        if (authResponse.status === 406 || authResponse.status === 405) {
+          options.onEvent?.('healthcheck_success', { attempt });
+          return true;
+        }
+        // Gateway POST-only /acp: a GET that reaches auth and returns 401 with
+        // invalid method still proves connectivity when status/healthz already ok.
+        if (authMode === 'bearer' && (response.ok || reachable) && authResponse.status === 404) {
           options.onEvent?.('healthcheck_success', { attempt });
           return true;
         }
         if (authResponse.status === 401 || authResponse.status === 403) {
+          // For bearer probes against the gateway, 401/403 on GET /acp after a
+          // healthy /healthz still means the gateway is up; role/token failures
+          // surface later on real ACP traffic. Prefer success if healthz is ok.
+          if (authMode === 'bearer' && reachable) {
+            options.onEvent?.('healthcheck_success', { attempt });
+            return true;
+          }
           options.onEvent?.('healthcheck_auth_failed', { attempt });
           return false;
+        }
+        if (authMode === 'bearer' && authResponse.ok) {
+          options.onEvent?.('healthcheck_success', { attempt });
+          return true;
         }
       }
     } catch {

@@ -13,6 +13,7 @@ const DEFAULT_CONNECT_SOURCES = [
   'https://api.github.com',
   'https://github.com',
   'https://objects.githubusercontent.com',
+  'https://zitadel.avcd.ai',
 ];
 
 export function buildConnectSrc(externalBackend?: ExternalBackendConfig): string {
@@ -26,6 +27,15 @@ export function buildConnectSrc(externalBackend?: ExternalBackendConfig): string
       sources.push(externalUrl.origin);
     } catch {
       console.warn('Invalid external backend URL in settings, skipping CSP entry');
+    }
+  }
+
+  const issuer = process.env.ZITADEL_ISSUER?.trim();
+  if (issuer) {
+    try {
+      sources.push(new URL(issuer).origin);
+    } catch {
+      // ignore invalid issuer
     }
   }
 

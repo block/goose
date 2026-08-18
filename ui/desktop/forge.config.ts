@@ -1,11 +1,25 @@
 const { FusesPlugin } = require('@electron-forge/plugin-fuses');
 const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 const { resolve } = require('path');
+const { getReleaseAssets } = require('./scripts/release-assets.js');
 
 const isLinuxVulkanBuild = process.env.GOOSE_DESKTOP_LINUX_VARIANT === 'vulkan';
 
+// When RELEASE_VERSION is set (semver release CI), the version becomes part of
+// the on-disk names: `Avocado Work-1.45.0.app`, `Avocado Work-1.45.0.dmg`,
+// `Avocado Work-Setup-1.45.0-x64.exe`. Left unset (local `pnpm make` and the
+// moving `dev` channel), names stay unversioned so those flows are unchanged.
+// Every name is derived from the single source of truth so CI, the updater, and
+// the website agree.
+const RELEASE_VERSION = process.env.RELEASE_VERSION || '';
+const BUNDLE_NAME = process.env.GOOSE_BUNDLE_NAME || 'Avocado Work';
+const ASSETS = getReleaseAssets(BUNDLE_NAME, RELEASE_VERSION);
+const PACKAGED_APP_NAME = ASSETS.macArm64.appBundle.replace(/\.app$/, '');
+
 let cfg = {
   asar: true,
+  name: PACKAGED_APP_NAME,
+  executableName: 'avocado-work',
   extraResource: ['src/bin', 'src/images', 'src/app-update.yml'],
   icon: 'src/images/icon',
   // Windows specific configuration
@@ -19,8 +33,8 @@ let cfg = {
   // Protocol registration
   protocols: [
     {
-      name: 'GooseProtocol',
-      schemes: ['goose'],
+      name: 'AvocadoWorkProtocol',
+      schemes: ['avocado-work'],
     },
   ],
   // macOS Info.plist extensions for drag-and-drop support
@@ -36,9 +50,9 @@ let cfg = {
     ],
     // Usage descriptions for macOS TCC (Transparency, Consent, and Control)
     NSMicrophoneUsageDescription:
-      'Goose needs access to your microphone for voice dictation.',
+      'Avocado Work needs access to your microphone for voice dictation.',
     NSAppleEventsUsageDescription:
-      'Goose needs access to send Apple Events to control other apps on your behalf.',
+      'Avocado Work needs access to send Apple Events to control other apps on your behalf.',
   },
 };
 
@@ -65,8 +79,8 @@ module.exports = {
       name: '@electron-forge/publisher-github',
       config: {
         repository: {
-          owner: process.env.GITHUB_OWNER || 'aaif-goose',
-          name: process.env.GITHUB_REPO || 'goose',
+          owner: process.env.GITHUB_OWNER || 'Avocado-Technology',
+          name: process.env.GITHUB_REPO || 'avcd-agent',
         },
         prerelease: false,
         draft: true,
@@ -85,12 +99,32 @@ module.exports = {
       },
     },
     {
+      name: '@electron-forge/maker-dmg',
+      platforms: ['darwin'],
+      config: {
+        name: PACKAGED_APP_NAME,
+        icon: 'src/images/icon.icns',
+        overwrite: true,
+      },
+    },
+    {
+      name: '@electron-forge/maker-squirrel',
+      platforms: ['win32'],
+      config: {
+        name: 'avocado-work',
+        authors: 'Avocado Technology',
+        exe: 'avocado-work.exe',
+        setupExe: ASSETS.winX64.website,
+        setupIcon: 'src/images/icon.ico',
+      },
+    },
+    {
       name: '@electron-forge/maker-deb',
       config: {
-        name: 'Goose',
-        bin: 'Goose',
-        maintainer: 'AAIF (Agentic AI Foundation)',
-        homepage: 'https://goose-docs.ai/',
+        name: 'avocado-work',
+        bin: 'avocado-work',
+        maintainer: 'Avocado Technology',
+        homepage: 'https://avocado.tech/',
         categories: ['Development'],
         desktopTemplate: './forge.deb.desktop',
         options: {
@@ -103,10 +137,10 @@ module.exports = {
     {
       name: '@electron-forge/maker-rpm',
       config: {
-        name: 'Goose',
-        bin: 'Goose',
-        maintainer: 'AAIF (Agentic AI Foundation)',
-        homepage: 'https://goose-docs.ai/',
+        name: 'avocado-work',
+        bin: 'avocado-work',
+        maintainer: 'Avocado Technology',
+        homepage: 'https://avocado.tech/',
         categories: ['Development'],
         desktopTemplate: './forge.rpm.desktop',
         options: {
@@ -120,17 +154,17 @@ module.exports = {
       name: '@electron-forge/maker-flatpak',
       config: {
         options: {
-          id: 'io.github.block.Goose', // NOTE: kept for backwards compat with existing installs
+          id: 'ai.avocado.Work',
           categories: ['Development'],
-          mimeType: ['x-scheme-handler/goose'],
+          mimeType: ['x-scheme-handler/avocado-work'],
           icon: {
             scalable: 'src/images/icon.svg',
             '512x512': 'src/images/icon-512.png',
           },
-          homepage: 'https://goose-docs.ai/',
+          homepage: 'https://avocado.tech/',
           runtimeVersion: '25.08',
           baseVersion: '25.08',
-          bin: 'Goose',
+          bin: 'avocado-work',
           modules: [
             {
               name: 'libbz2-shim',

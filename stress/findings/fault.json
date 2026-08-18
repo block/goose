@@ -1,0 +1,45 @@
+{
+  "attacker": "fault",
+  "arena": "avcd-agent local make-dev",
+  "timestamp_utc": "2026-08-08T23:11:16Z",
+  "pass": true,
+  "recovery_slo_seconds": 60,
+  "injections": [
+    {
+      "id": "stop_server",
+      "action": "docker compose stop server",
+      "status_while_down": "000",
+      "status_while_down_expected": "connection_fail_or_non_200",
+      "restore": "docker compose start server",
+      "recovery_seconds": 0.152,
+      "recovered": true,
+      "finding": null,
+      "note": "curl failed immediately while stopped (exit/http 000). Recovered on first probe attempt after start."
+    },
+    {
+      "id": "kill_9",
+      "action": "docker compose kill -s KILL server (host kill of State.Pid failed: no such process \u2014 Docker Desktop VM)",
+      "container_exit": 137,
+      "status_while_down": "000",
+      "restore": "docker compose start server",
+      "recovery_seconds": 0.146,
+      "recovered": true,
+      "finding": null,
+      "note": "SIGKILL via compose produced Exited(137); /status unavailable; recovered <1s after start."
+    },
+    {
+      "id": "connection_close_burst",
+      "action": "50x GET /status with Connection: close (HTTP/1.1)",
+      "requests": 50,
+      "http_200": 50,
+      "http_non_200": 0,
+      "elapsed_seconds": 0.37,
+      "recovered": true,
+      "finding": null,
+      "note": "All 50 responses HTTP 200; contract held under rapid Connection: close."
+    }
+  ],
+  "findings": [],
+  "post_test_status_http": 200,
+  "summary": "All fault injections restored within SLO (<60s). stop\u22480.15s, kill-9\u22480.15s, Connection:close burst 50/50 200."
+}

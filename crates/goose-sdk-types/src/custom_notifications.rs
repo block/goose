@@ -119,6 +119,20 @@ pub enum StatusMessage {
     Progress { message: String },
 }
 
+/// Asks the client to open an OAuth authorization URL in the user's browser.
+///
+/// The agent may run in a container or on a remote host, so it cannot reach the
+/// user's browser itself. Clients advertising `customNotifications` are expected
+/// to open the URL externally; the agent meanwhile blocks on its loopback
+/// callback until the user finishes or the flow times out.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcNotification)]
+#[notification(method = "_goose/unstable/extensions/authorization-required")]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionAuthorizationRequiredNotification {
+    pub extension_name: String,
+    pub authorization_url: String,
+}
+
 fn notification_schema<T>(generator: &mut SchemaGenerator) -> CustomMethodSchema
 where
     T: Default + JsonRpcMessage + JsonSchema,
@@ -142,7 +156,10 @@ where
 /// notification, define the struct above (with `JsonRpcNotification` +
 /// `Default`) and add one line below.
 pub fn custom_notification_schemas(generator: &mut SchemaGenerator) -> Vec<CustomMethodSchema> {
-    vec![notification_schema::<GooseSessionNotification>(generator)]
+    vec![
+        notification_schema::<GooseSessionNotification>(generator),
+        notification_schema::<ExtensionAuthorizationRequiredNotification>(generator),
+    ]
 }
 
 #[cfg(test)]
@@ -174,6 +191,26 @@ mod tests {
                         "message": "Compaction complete"
                     }
                 }
+            })
+        );
+    }
+
+    #[test]
+    fn extension_authorization_required_serializes_to_expected_wire_shape() {
+        let notification = ExtensionAuthorizationRequiredNotification {
+            extension_name: "google-workspace".to_string(),
+            authorization_url: "https://example.test/authorize?client_id=abc".to_string(),
+        };
+
+        assert_eq!(
+            notification.method(),
+            "_goose/unstable/extensions/authorization-required"
+        );
+        assert_eq!(
+            serde_json::to_value(notification).unwrap(),
+            json!({
+                "extensionName": "google-workspace",
+                "authorizationUrl": "https://example.test/authorize?client_id=abc"
             })
         );
     }

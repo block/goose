@@ -12,7 +12,7 @@ use rmcp::transport::auth::{AuthorizationRequest, CredentialStore, OAuthState, S
 use rmcp::transport::AuthorizationManager;
 use serde::Deserialize;
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tokio::sync::{oneshot, Mutex};
 use tracing::warn;
@@ -47,6 +47,53 @@ fn oauth_callback_timeout() -> Duration {
     resolve_oauth_callback_timeout(timeout.as_deref())
 }
 
+/// An authorization URL the user has to open to complete an OAuth flow.
+#[derive(Debug, Clone)]
+pub struct AuthorizationPrompt {
+    pub extension_name: String,
+    pub authorization_url: String,
+}
+
+pub type AuthorizationUrlHandler = Arc<dyn Fn(AuthorizationPrompt) + Send + Sync>;
+
+static AUTHORIZATION_URL_HANDLER: RwLock<Option<AuthorizationUrlHandler>> = RwLock::new(None);
+
+/// Delegate opening authorization URLs to the connected client.
+///
+/// goose can run in a container or on a remote host, where `webbrowser::open`
+/// would target that machine rather than the user's. Front ends that can open a
+/// browser for the user register a handler here; without one we fall back to
+/// opening a browser in this process, which is correct for the CLI.
+pub fn set_authorization_url_handler(handler: AuthorizationUrlHandler) {
+    if let Ok(mut slot) = AUTHORIZATION_URL_HANDLER.write() {
+        *slot = Some(handler);
+    }
+}
+
+fn authorization_url_handler() -> Option<AuthorizationUrlHandler> {
+    AUTHORIZATION_URL_HANDLER
+        .read()
+        .ok()
+        .and_then(|slot| slot.as_ref().cloned())
+}
+
+fn open_authorization_url(name: &str, authorization_url: &str) {
+    if let Some(handler) = authorization_url_handler() {
+        handler(AuthorizationPrompt {
+            extension_name: name.to_string(),
+            authorization_url: authorization_url.to_string(),
+        });
+        return;
+    }
+
+    if let Err(e) = webbrowser::open(authorization_url) {
+        warn!(
+            "[OAuth:{}] Failed to open browser automatically: {}",
+            name, e
+        );
+    }
+}
+
 fn announce_authorization_url(name: &str, authorization_url: &str) {
     warn!(
         "[OAuth:{}] If the browser did not open, authorize manually at: {}",
@@ -79,6 +126,93 @@ async fn wait_for_callback(
             );
             warn!("[OAuth:{}] {}", name, message);
             Err(anyhow::anyhow!(message))
+        }
+    }
+}
+
+/// Authorize using only credentials already on disk.
+///
+/// Never opens a browser and never waits for a callback, so it is safe to call on
+/// paths that must not block — notably loading a session's extensions, where a
+/// pending browser flow would stall session creation for
+/// `DEFAULT_OAUTH_CALLBACK_TIMEOUT_SECS`.
+/// Run the browser OAuth flow for a streamable HTTP MCP extension.
+///
+/// When `force` is false and valid credentials already exist, only refreshes stored
+/// tokens. When `force` is true, always opens the browser (re-authorize).
+pub async fn authenticate_streamable_http_extension(
+    mcp_server_url: &str,
+    name: &str,
+    force: bool,
+) -> Result<(), anyhow::Error> {
+    if !force {
+        let credential_store = GooseCredentialStore::new(name.to_string());
+        if credential_store.load().await?.is_some() {
+            match oauth_flow_stored_credentials_only(&mcp_server_url.to_string(), &name.to_string())
+                .await
+            {
+                Ok(_) => return Ok(()),
+                Err(e) => {
+                    warn!(
+                        "[OAuth:{}] Stored credentials invalid, starting browser auth: {}",
+                        name, e
+                    );
+                }
+            }
+        }
+    }
+
+    oauth_flow(&mcp_server_url.to_string(), &name.to_string()).await?;
+    Ok(())
+}
+
+/// Remove locally stored OAuth credentials for a streamable HTTP MCP extension.
+pub async fn deauthenticate_streamable_http_extension(name: &str) -> Result<(), anyhow::Error> {
+    GooseCredentialStore::new(name.to_string())
+        .clear()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to clear OAuth credentials for {}: {}", name, e))?;
+    Ok(())
+}
+
+pub async fn streamable_http_has_stored_credentials(name: &str) -> bool {
+    GooseCredentialStore::new(name.to_string())
+        .load()
+        .await
+        .ok()
+        .flatten()
+        .is_some()
+}
+
+pub async fn oauth_flow_stored_credentials_only(
+    mcp_server_url: &String,
+    name: &String,
+) -> Result<AuthorizationManager, anyhow::Error> {
+    let credential_store = GooseCredentialStore::new(name.clone());
+    let mut auth_manager = AuthorizationManager::new(mcp_server_url).await?;
+    auth_manager.set_credential_store(credential_store.clone());
+
+    if !auth_manager.initialize_from_store().await? {
+        return Err(anyhow::anyhow!(
+            "{} is not authorized yet. Connect it from Connections to sign in.",
+            name
+        ));
+    }
+
+    match auth_manager.refresh_token().await {
+        Ok(_) => Ok(auth_manager),
+        Err(e) => {
+            warn!(
+                "[OAuth:{}] Token refresh failed: {} - clearing stored credentials",
+                name, e
+            );
+            if let Err(e) = credential_store.clear().await {
+                warn!("[OAuth:{}] error clearing bad credentials: {}", name, e);
+            }
+            Err(anyhow::anyhow!(
+                "{} authorization expired. Reconnect it from Connections to sign in again.",
+                name
+            ))
         }
     }
 }
@@ -133,7 +267,16 @@ pub async fn oauth_flow(
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(0);
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    // Default loopback. In Docker ACP, set GOOSE_OAUTH_CALLBACK_BIND=0.0.0.0 and publish
+    // the callback port so the host browser can complete the redirect.
+    let bind_ip = match std::env::var("GOOSE_OAUTH_CALLBACK_BIND")
+        .unwrap_or_else(|_| "127.0.0.1".to_string())
+        .as_str()
+    {
+        "0.0.0.0" | "*" => [0, 0, 0, 0],
+        _ => [127, 0, 0, 1],
+    };
+    let addr = SocketAddr::from((bind_ip, port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let used_addr = listener.local_addr()?;
     let server_handle = tokio::spawn(async move {
@@ -145,6 +288,8 @@ pub async fn oauth_flow(
 
     let mut oauth_state = OAuthState::new(mcp_server_url, None).await?;
 
+    // Always advertise loopback to the auth server / host browser, even when the
+    // callback listener is bound to 0.0.0.0 inside a container.
     let redirect_uri = format!("http://127.0.0.1:{}/oauth_callback", used_addr.port());
     oauth_state
         .start_authorization(
@@ -156,12 +301,7 @@ pub async fn oauth_flow(
 
     let authorization_url = oauth_state.get_authorization_url().await?;
     announce_authorization_url(name, authorization_url.as_str());
-    if let Err(e) = webbrowser::open(authorization_url.as_str()) {
-        warn!(
-            "[OAuth:{}] Failed to open browser automatically: {}",
-            name, e
-        );
-    }
+    open_authorization_url(name, authorization_url.as_str());
 
     let callback_params = wait_for_callback(
         code_receiver,

@@ -1,9 +1,10 @@
 ---
 source: crates/goose/src/agents/prompt_manager.rs
+assertion_line: 482
 expression: system_prompt
 ---
-You are a general-purpose AI agent called goose, created by AAIF (Agentic AI Foundation).
-goose is being developed as an open-source software project.
+You are a general-purpose AI agent called Avocado Work, created by Avocado Technology.
+Avocado Work is based on the open-source goose project developed by the Agentic AI Foundation.
 
 # Turn Context
 

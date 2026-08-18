@@ -16,6 +16,7 @@ import { Input } from '../../../ui/input';
 import { Select } from '../../../ui/Select';
 import {
   acpListProviderDetails,
+  acpListProviderModels,
   acpReadThinkingEffort,
   acpSaveThinkingEffort,
 } from '../../../../acp/providers';
@@ -26,9 +27,15 @@ import Model, {
   fetchModelsForProviders,
   getProviderMetadata,
 } from '../modelInterface';
-import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
+import {
+  getCuratedModels,
+  getPredefinedModelsFromEnv,
+  setCuratedModels,
+  shouldShowPredefinedModels,
+} from '../predefinedModelsUtils';
 import type { ProviderDetails, ProviderType, ThinkingEffort } from '../../../../types/providers';
 import { trackModelChanged } from '../../../../utils/analytics';
+import { PROVIDER_MANAGEMENT_ENABLED } from '../../../../updates';
 
 const i18n = defineMessages({
   thinkingEffortOff: {
@@ -298,9 +305,9 @@ export const SwitchModelModal = ({
   });
   const [isValid, setIsValid] = useState(true);
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
-  const [usePredefinedModels] = useState(shouldShowPredefinedModels());
+  const [usePredefinedModels, setUsePredefinedModels] = useState(shouldShowPredefinedModels());
   const [selectedPredefinedModel, setSelectedPredefinedModel] = useState<Model | null>(null);
-  const [predefinedModels, setPredefinedModels] = useState<Model[]>([]);
+  const [predefinedModels, setPredefinedModels] = useState<Model[]>(() => getCuratedModels());
   const [loadingModels, setLoadingModels] = useState<boolean>(false);
   const [userClearedModel, setUserClearedModel] = useState(false);
   const [providerErrors, setProviderErrors] = useState<Record<string, string>>({});
@@ -444,7 +451,7 @@ export const SwitchModelModal = ({
   // Separate effect so it re-runs when currentModel loads asynchronously.
   useEffect(() => {
     if (!usePredefinedModels || !currentModel) return;
-    const models = getPredefinedModelsFromEnv();
+    const models = predefinedModels.length > 0 ? predefinedModels : getCuratedModels();
     const matchingModel = models.find((m) => m.name === currentModel);
     if (matchingModel) {
       setSelectedPredefinedModel(matchingModel);
@@ -454,7 +461,7 @@ export const SwitchModelModal = ({
         matchingModel.reasoning
       );
     }
-  }, [usePredefinedModels, currentModel, resolveSelectedModelReasoning]);
+  }, [usePredefinedModels, currentModel, predefinedModels, resolveSelectedModelReasoning]);
 
   // For manual mode: one-time sync of provider/model when session data
   // arrives after the modal has already mounted. Uses a ref so it only
@@ -472,11 +479,6 @@ export const SwitchModelModal = ({
   }, [currentModel, currentProvider, usePredefinedModels, provider, model, initialProvider]);
 
   useEffect(() => {
-    if (usePredefinedModels) {
-      const models = getPredefinedModelsFromEnv();
-      setPredefinedModels(models);
-    }
-
     (async () => {
       try {
         const providersResponse = await acpListProviderDetails();
@@ -487,16 +489,52 @@ export const SwitchModelModal = ({
             value: name,
             label: metadata.display_name,
           })),
-          {
-            value: 'configure_providers',
-            label: intl.formatMessage(i18n.useOtherProvider),
-          },
+          ...(PROVIDER_MANAGEMENT_ENABLED
+            ? [
+                {
+                  value: 'configure_providers',
+                  label: intl.formatMessage(i18n.useOtherProvider),
+                },
+              ]
+            : []),
         ]);
+
+        const avocado = activeProviders.find((p) => p.name === 'avocado');
+        if (avocado) {
+          const inventoryModels = await acpListProviderModels('avocado');
+          const curated = inventoryModels
+            .filter((m) => m.alias || m.subtext)
+            .map(
+              (m) =>
+                ({
+                  name: m.id,
+                  provider: 'avocado',
+                  alias: m.alias ?? m.name ?? m.id,
+                  subtext: m.subtext ?? undefined,
+                  context_limit: m.contextLimit ?? undefined,
+                  reasoning: m.reasoning ?? undefined,
+                }) as Model
+            );
+          if (curated.length > 0) {
+            setCuratedModels(curated);
+            setPredefinedModels(curated);
+            setUsePredefinedModels(true);
+            return;
+          }
+        }
+
+        const envModels = getPredefinedModelsFromEnv();
+        if (envModels.length > 0) {
+          setPredefinedModels(envModels);
+          setUsePredefinedModels(true);
+        } else {
+          setUsePredefinedModels(false);
+        }
       } catch (error: unknown) {
         console.error('Failed to query providers:', error);
       }
     })();
-  }, [usePredefinedModels, intl]);
+  }, [intl]);
 
   useEffect(() => {
     if (!provider || usePredefinedModels) return;
@@ -775,8 +813,6 @@ export const SwitchModelModal = ({
                         </div>
                         <div className="flex items-center gap-2 mt-[2px]">
                           <span className="text-xs text-text-secondary">{model.subtext}</span>
-                          <span className="text-xs text-text-secondary">•</span>
-                          <span className="text-xs text-text-secondary">{model.provider}</span>
                         </div>
                       </div>
 
@@ -818,8 +854,10 @@ export const SwitchModelModal = ({
                     const option = newValue as { value: string; label: string } | null;
                     if (option?.value === 'configure_providers') {
                       // Navigate to ConfigureProviders view
-                      setView('ConfigureProviders');
-                      onClose(); // Close the current modal
+                      if (PROVIDER_MANAGEMENT_ENABLED) {
+                        setView('ConfigureProviders');
+                        onClose(); // Close the current modal
+                      }
                     } else {
                       setProvider(option?.value || null);
                       setModel('');

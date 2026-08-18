@@ -205,6 +205,8 @@ function McpAppWrapper({
       ? (resultWithMeta.value as unknown as CallToolResult)
       : undefined;
 
+  // Inline MCP App UIs (Autovisualiser charts, etc.) must render even when the
+  // Apps gallery / standalone windows are disabled via APPS_UI_ENABLED.
   if (!appMetadata) return null;
   if (requestWithMeta.toolCall.status !== 'success') return null;
 

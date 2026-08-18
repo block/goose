@@ -1,63 +1,102 @@
-<div align="center">
+# Avocado Work
 
-# goose
+Avocado Work is Avocado Technology's native AI agent for code, workflows, and
+automation. It includes a desktop app, CLI, and Agent Client Protocol (ACP)
+server, with support for multiple model providers and Model Context Protocol
+(MCP) extensions.
 
-_your native open source AI agent — desktop app, CLI, and API — for code, workflows, and everything in between_
+## Local development
 
-<p align="center">
-  <a href="https://opensource.org/licenses/Apache-2.0"
-    ><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
-  <a href="https://discord.gg/n8R5VaWDAn"
-    ><img src="https://img.shields.io/discord/1287729918100246654?logo=discord&logoColor=white&label=Join+Us&color=blueviolet" alt="Discord"></a>
-  <a href="https://github.com/aaif-goose/goose/actions/workflows/ci.yml"
-     ><img src="https://img.shields.io/github/actions/workflow/status/aaif-goose/goose/ci.yml?branch=main" alt="CI"></a>
-  <a href="https://insights.linuxfoundation.org/project/goose"><img src="https://insights.linuxfoundation.org/api/badge/health-score?project=goose"></a>
-  <a href="https://repology.org/project/goose-cli/versions"><img src="https://repology.org/badge/tiny-repos/goose-cli.svg" alt="Packaging status"></a>
-</p>
+Requirements: Docker Desktop, Make, Node.js 24.10 or newer, and pnpm 10.30 or
+newer.
 
-<a href="https://trendshift.io/repositories/25298?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-25298" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/25298" alt="aaif-goose%2Fgoose | Trendshift" width="250" height="55"/></a>
-
-</div>
-
-
-goose is a general-purpose AI agent that runs on your machine. Not just for code — use it for research, writing, automation, data analysis, or anything you need to get done.
-
-A native desktop app for macOS, Linux, and Windows. A full CLI for terminal workflows. An API to embed it anywhere. Built in Rust for performance and portability.
-
-goose works with 15+ providers — Anthropic, OpenAI, Google, Ollama, OpenRouter, Azure, Bedrock, and more. Use API keys or your existing Claude, ChatGPT, or Gemini subscriptions via [ACP](https://goose-docs.ai/docs/guides/acp-providers). Connect to 70+ extensions via the [Model Context Protocol](https://modelcontextprotocol.io/) open standard.
-
-goose is part of the [Agentic AI Foundation (AAIF)](https://aaif.io/) at the Linux Foundation.
-
-# Get started
-
-**[Download the desktop app](https://goose-docs.ai/docs/getting-started/installation)** for macOS, Linux, and Windows.
-
-Or install the CLI:
+On macOS, the current upstream Electron Forge stack exits before writing the
+bundle under Node 24. Use `nvm use 22.18.0` for `make package-ui`; development,
+linting, and tests continue to use the declared Node 24 runtime.
 
 ```bash
-curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh | bash
+make dev # creates .env.local from the example when it is missing
+make test-smoke
 ```
 
-# Quick links
-- [Quickstart](https://goose-docs.ai/docs/quickstart)
-- [Installation](https://goose-docs.ai/docs/getting-started/installation)
-- [Tutorials](https://goose-docs.ai/docs/category/tutorials)
-- [Documentation](https://goose-docs.ai/docs/category/getting-started)
-- [Governance](https://github.com/aaif-goose/goose/blob/main/GOVERNANCE.md)
-- [Custom Distributions](https://github.com/aaif-goose/goose/blob/main/CUSTOM_DISTROS.md) — build your own goose distro with preconfigured providers, extensions, and branding
+Avocado Work uses the Avocado provider with a curated OpenRouter-backed model
+catalog (open-weight models first, then affordable hosted options). Add the
+shared credential to `.env.local` before starting a chat when using the legacy
+OpenRouter CLI path:
 
-## Need help?
-- [Diagnostics & Reporting](https://goose-docs.ai/docs/troubleshooting/diagnostics-and-reporting)
-- [Known Issues](https://goose-docs.ai/docs/troubleshooting/known-issues)
+```bash
+# Same secret value as OPENROUTER_KEY in avcd-ai; goose uses this variable name.
+OPENROUTER_API_KEY="<openrouter-key>"
+```
 
-# a little goose humor 🪿
+The default model is `deepseek/deepseek-v4-flash`. Verify the catalog, Docker
+configuration, generated desktop environment, and (when a key is present)
+provider connectivity with:
 
-> Why did the developer choose goose as their AI agent?
-> 
-> Because it always helps them "migrate" their code to production! 🚀
+```bash
+make validate-openrouter
+```
 
-# goose around with us
-- [Discord](https://discord.gg/n8R5VaWDAn)
-- [YouTube](https://www.youtube.com/@goose-oss)
-- [LinkedIn](https://www.linkedin.com/company/goose-oss)
-- [Twitter/X](https://x.com/goose_oss)
+The ACP backend listens on `http://localhost:3000`. Run the Electron desktop
+against that backend on the host:
+
+```bash
+nvm use          # reads .nvmrc (Node 24.16.0)
+make dev-ui
+```
+
+Provider and model environment variables override persisted configuration in
+the local Docker volume. If an old keyring or secret-storage setting still
+interferes, reset only the local development state:
+
+```bash
+make dev-down
+docker volume rm avcd-agent_avcd-agent-config
+make dev
+```
+
+Use `make help` for the complete local workflow. Provider credentials can be
+synced after an Infisical organization administrator creates the `avcd-agent`
+project:
+
+```bash
+export INFISICAL_PROJECT_ID="<project-uuid>"
+make pull-secrets
+```
+
+The same project ID is used by `make upload-secrets`. Project creation is an
+account-level action; no project ID or credential is committed to this fork.
+
+## Keeping the fork current
+
+The `origin` remote is the AVCD distribution and `upstream` is the AAIF
+project. Keep rebranding isolated to the files described in
+[`CUSTOM_DISTROS.md`](CUSTOM_DISTROS.md) and the living skill
+[`.cursor/skills/architecture/avcd-agent-custom-distro/SKILL.md`](.cursor/skills/architecture/avcd-agent-custom-distro/SKILL.md),
+then update from upstream:
+
+```bash
+git fetch upstream
+git merge upstream/main
+```
+
+Resolve upstream changes without removing AVCD branding, the fork-owned
+updater destination, or the disabled upstream telemetry configuration.
+
+## Attribution and license
+
+Avocado Work is a modified distribution of
+[goose](https://github.com/aaif-goose/goose), developed by the
+[Agentic AI Foundation](https://aaif.io/) and its contributors. The project is
+licensed under the Apache License 2.0. See [LICENSE](LICENSE) and
+[NOTICE](NOTICE).
+
+Upstream technical documentation remains available at
+[goose-docs.ai](https://goose-docs.ai/).
+
+## Desktop data directory
+
+After the Avocado Work rebrand, Electron stores settings under
+`~/Library/Application Support/Avocado Work` on macOS (previously
+`AVCD Agent`). Local sessions and settings do not migrate automatically.
+

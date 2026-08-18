@@ -17,6 +17,8 @@ export type ModelInfo = {
   currency?: string | null;
   input_token_cost?: number | null;
   name: string;
+  alias?: string | null;
+  subtext?: string | null;
   output_token_cost?: number | null;
   reasoning?: boolean;
   resolved_model?: string | null;

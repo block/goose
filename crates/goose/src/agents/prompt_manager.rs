@@ -576,7 +576,8 @@ mod tests {
         let system_prompt = manager
             .builder()
             .with_extensions(extensions.into_iter())
-            .build();
+            .build()
+            .replace(&temp_root, "[TEMP_ROOT]");
 
         assert_snapshot!(system_prompt);
     }

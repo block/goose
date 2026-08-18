@@ -250,7 +250,8 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                 match fetch_result {
                                     Ok(models) => match agent_bg
                                         .provider_inventory
-                                        .store_refreshed_models_for_identity(
+                                        .store_refreshed_models_preferring_catalog(
+                                            &refresh_provider_id,
                                             &refresh_identity,
                                             &models,
                                         )

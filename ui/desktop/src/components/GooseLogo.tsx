@@ -1,4 +1,4 @@
-import { Goose, Rain } from './icons/Goose';
+import { Avocado } from './icons/Avocado';
 import { cn } from '../utils';
 
 interface GooseLogoProps {
@@ -7,6 +7,7 @@ interface GooseLogoProps {
   hover?: boolean;
 }
 
+/** Brand mark shown in loading / splash surfaces (legacy name kept for call sites). */
 export default function GooseLogo({
   className = '',
   size = 'default',
@@ -15,13 +16,11 @@ export default function GooseLogo({
   const sizes = {
     default: {
       frame: 'w-16 h-16',
-      rain: 'w-[275px] h-[275px]',
-      goose: 'w-16 h-16',
+      mark: 'w-16 h-16',
     },
     small: {
       frame: 'w-8 h-8',
-      rain: 'w-[150px] h-[150px]',
-      goose: 'w-8 h-8',
+      mark: 'w-8 h-8',
     },
   } as const;
 
@@ -32,18 +31,17 @@ export default function GooseLogo({
       className={cn(
         className,
         currentSize.frame,
-        'relative overflow-hidden',
+        'relative overflow-hidden flex items-center justify-center text-text-primary',
         hover && 'group/with-hover'
       )}
     >
-      <Rain
+      <Avocado
         className={cn(
-          currentSize.rain,
-          'absolute left-0 bottom-0 transition-all duration-300 z-1',
-          hover && 'opacity-0 group-hover/with-hover:opacity-100'
+          currentSize.mark,
+          'transition-transform duration-300',
+          hover && 'group-hover/with-hover:scale-105'
         )}
       />
-      <Goose className={cn(currentSize.goose, 'absolute left-0 bottom-0 z-2')} />
     </div>
   );
 }

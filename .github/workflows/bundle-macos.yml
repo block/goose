@@ -128,12 +128,33 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: bash scripts/set-cargo-version.sh "$VERSION"
 
+      # rust-cache hashes the rustc currently on PATH. Activate Hermit first so
+      # the key matches the compiler used by `cargo build` (see rust-cache README
+      # and bundle-desktop-linux.yml). Workspace crates are still not cached —
+      # restore the goose-cli binary separately so UI-only republishes skip rustc.
+      - name: Activate Hermit
+        run: |
+          source ./bin/activate-hermit
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+          [ -n "$CARGO_HOME" ] && echo "CARGO_HOME=${CARGO_HOME}" >> "$GITHUB_ENV"
+          [ -n "$RUSTUP_HOME" ] && echo "RUSTUP_HOME=${RUSTUP_HOME}" >> "$GITHUB_ENV"
+
+      - name: Restore goose CLI binary
+        id: goose-bin
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: artifacts/internal-goose-${{ inputs.target }}
+          key: goose-cli-${{ inputs.target }}-${{ env.MACOSX_DEPLOYMENT_TARGET }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'crates/**', '.cargo/**', 'bin/.rustup-*.pkg') }}
+
       - name: Cache Rust dependencies
+        if: steps.goose-bin.outputs.cache-hit != 'true'
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4  # v2.9.1
         with:
+          shared-key: goose-cli-${{ inputs.target }}
           key: ${{ inputs.target == 'x86_64-apple-darwin' && 'intel-macos-deployment-target-12' || 'macos-deployment-target-12' }}
 
       - name: Build goose
+        if: steps.goose-bin.outputs.cache-hit != 'true'
         env:
           TARGET: ${{ inputs.target }}
         run: |
@@ -142,11 +163,17 @@ jobs:
           cargo build --release -p goose-cli --bin goose --target "$TARGET"
 
       - name: Prepare binary artifact
+        if: steps.goose-bin.outputs.cache-hit != 'true'
         env:
           TARGET: ${{ inputs.target }}
         run: |
           mkdir -p artifacts
           cp "target/${TARGET}/release/goose" "artifacts/internal-goose-${TARGET}"
+
+      - name: Ensure goose CLI is executable
+        env:
+          TARGET: ${{ inputs.target }}
+        run: chmod +x "artifacts/internal-goose-${TARGET}"
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
@@ -249,6 +276,30 @@ jobs:
         run: source ../../bin/activate-hermit && pnpm install --frozen-lockfile
         working-directory: ui/desktop
 
+      # Derive every (possibly versioned) filename from the single source of
+      # truth. When inputs.version is empty (the moving `dev` channel and local
+      # builds), names stay unversioned so those flows are unchanged.
+      - name: Resolve desktop asset names
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          GOOSE_BUNDLE_NAME: Avocado Work
+          TARGET: ${{ inputs.target }}
+        run: |
+          if [ "$TARGET" = "x86_64-apple-darwin" ]; then KEY=macX64; else KEY=macArm64; fi
+          APP_DIR=$(node scripts/release-assets.js "$RELEASE_VERSION" --field "${KEY}.appDir")
+          APP_BUNDLE=$(node scripts/release-assets.js "$RELEASE_VERSION" --field "${KEY}.appBundle")
+          UPDATE_ZIP=$(node scripts/release-assets.js "$RELEASE_VERSION" --field "${KEY}.update")
+          WEBSITE_DMG=$(node scripts/release-assets.js "$RELEASE_VERSION" --field "${KEY}.website")
+          PACKAGED_NAME="${APP_BUNDLE%.app}"
+          {
+            echo "APP_DIR=${APP_DIR}"
+            echo "APP_BUNDLE=${APP_BUNDLE}"
+            echo "UPDATE_ZIP=${UPDATE_ZIP}"
+            echo "WEBSITE_DMG=${WEBSITE_DMG}"
+            echo "RAW_DMG=${PACKAGED_NAME}.dmg"
+          } >> "$GITHUB_ENV"
+        working-directory: ui/desktop
+
       - name: Configure for Intel build
         if: ${{ inputs.target == 'x86_64-apple-darwin' }}
         run: jq '.build.mac.target[0].arch = "x64"' package.json > package.json.tmp && mv package.json.tmp package.json
@@ -270,6 +321,10 @@ jobs:
           APPLE_ID_PASSWORD: ${{ inputs.signing && secrets.APPLE_ID_PASSWORD || '' }}
           APPLE_TEAM_ID: ${{ inputs.signing && secrets.APPLE_TEAM_ID || '' }}
           BUNDLE_SCRIPT: ${{ inputs.target == 'x86_64-apple-darwin' && 'bundle:intel' || 'bundle:default' }}
+          GITHUB_OWNER: Avocado-Technology
+          GITHUB_REPO: avcd-agent
+          GOOSE_BUNDLE_NAME: Avocado Work
+          RELEASE_VERSION: ${{ inputs.version }}
         run: |
           source ../../bin/activate-hermit
           attempt=0
@@ -288,8 +343,50 @@ jobs:
 
       - name: Verify macOS updater resources
         env:
-          APP_PATH: ${{ inputs.target == 'x86_64-apple-darwin' && 'out/Goose-darwin-x64/Goose.app' || 'out/Goose-darwin-arm64/Goose.app' }}
+          APP_PATH: out/${{ env.APP_DIR }}/${{ env.APP_BUNDLE }}
+          GITHUB_OWNER: Avocado-Technology
+          GITHUB_REPO: avcd-agent
         run: node scripts/verify-mac-update-resources.js "$APP_PATH"
+        working-directory: ui/desktop
+
+      - name: Notarize and staple DMG
+        if: ${{ inputs.signing }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          RAW_DMG: out/make/${{ env.RAW_DMG }}
+          WEBSITE_DMG: out/make/${{ env.WEBSITE_DMG }}
+        run: |
+          set -euo pipefail
+          # maker-dmg emits the raw (arch-agnostic) name; rename to the final
+          # website name (Intel gets the _intel_mac suffix).
+          DMG_PATH="$WEBSITE_DMG"
+          if [ ! -f "$DMG_PATH" ]; then
+            if [ -f "$RAW_DMG" ]; then
+              mv "$RAW_DMG" "$DMG_PATH"
+            else
+              echo "DMG not found at $DMG_PATH or $RAW_DMG" >&2
+              ls -la out/make || true
+              exit 1
+            fi
+          fi
+          codesign --force --sign "Developer ID Application" --timestamp "$DMG_PATH"
+          xcrun notarytool submit "$DMG_PATH" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "$DMG_PATH"
+          xcrun stapler validate "$DMG_PATH"
+        working-directory: ui/desktop
+
+      - name: Normalize Intel DMG filename (unsigned)
+        if: ${{ !inputs.signing && inputs.target == 'x86_64-apple-darwin' }}
+        run: |
+          if [ -f "out/make/${RAW_DMG}" ] && [ ! -f "out/make/${WEBSITE_DMG}" ]; then
+            mv "out/make/${RAW_DMG}" "out/make/${WEBSITE_DMG}"
+          fi
         working-directory: ui/desktop
 
       - name: Clean up signing keychain
@@ -304,28 +401,36 @@ jobs:
           rm -f ui/desktop/src/bin/goose
           df -h
 
-      - name: Upload Desktop artifact
+      - name: Upload Desktop zip artifact
         id: upload-app-bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          name: ${{ inputs.target == 'x86_64-apple-darwin' && 'Goose-darwin-x64' || 'Goose-darwin-arm64' }}
-          path: ${{ inputs.target == 'x86_64-apple-darwin' && 'ui/desktop/out/Goose-darwin-x64/Goose_intel_mac.zip' || 'ui/desktop/out/Goose-darwin-arm64/Goose.zip' }}
+          name: ${{ inputs.target == 'x86_64-apple-darwin' && 'Avocado Work-darwin-x64' || 'Avocado Work-darwin-arm64' }}
+          path: ui/desktop/out/${{ env.APP_DIR }}/${{ env.UPDATE_ZIP }}
+          if-no-files-found: error
+          overwrite: true
+
+      - name: Upload Desktop DMG artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: ${{ inputs.target == 'x86_64-apple-darwin' && 'Avocado Work-darwin-x64-dmg' || 'Avocado Work-darwin-arm64-dmg' }}
+          path: ui/desktop/out/make/${{ env.WEBSITE_DMG }}
           if-no-files-found: error
           overwrite: true
 
       - name: Quick launch test (macOS)
         env:
-          APP_PATH: ${{ inputs.target == 'x86_64-apple-darwin' && 'ui/desktop/out/Goose-darwin-x64/Goose.app' || 'ui/desktop/out/Goose-darwin-arm64/Goose.app' }}
+          APP_PATH: ui/desktop/out/${{ env.APP_DIR }}/${{ env.APP_BUNDLE }}
         run: |
           xattr -cr "$APP_PATH"
-          echo "Opening Goose.app..."
+          echo "Opening ${APP_PATH}..."
           open -g "$APP_PATH"
           sleep 5
 
-          if pgrep -f "Goose.app/Contents/MacOS/Goose" > /dev/null; then
+          if pgrep -f "${APP_BUNDLE}/Contents/MacOS/avocado-work" > /dev/null; then
             echo "App appears to be running."
           else
             echo "App did not stay open. Possible crash or startup error."
             exit 1
           fi
-          pkill -f "Goose.app/Contents/MacOS/Goose"
+          pkill -f "${APP_BUNDLE}/Contents/MacOS/avocado-work"

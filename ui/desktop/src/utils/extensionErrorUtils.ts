@@ -7,6 +7,15 @@ import { toastService, ExtensionLoadingStatus } from '../toasts';
 
 export const MAX_ERROR_MESSAGE_LENGTH = 70;
 
+function isExtensionAuthorizationRequired(errorMsg: string): boolean {
+  const normalized = errorMsg.toLowerCase();
+  return (
+    normalized.includes('not authorized yet') ||
+    normalized.includes('authorization expired') ||
+    normalized.includes('connect it from connections')
+  );
+}
+
 /**
  * Creates recovery hints for the "Ask goose" feature when extension loading fails
  */
@@ -47,6 +56,15 @@ export function showExtensionLoadResults(results: ExtensionLoadResult[] | null |
   if (results.length === 1 && failedExtensions.length === 1) {
     const failed = failedExtensions[0];
     const errorMsg = failed.error || 'Unknown error';
+
+    if (isExtensionAuthorizationRequired(errorMsg)) {
+      toastService.success({
+        title: failed.name,
+        msg: 'Sign in from Connections to use this extension in new chats.',
+      });
+      return;
+    }
+
     const recoverHints = createExtensionRecoverHints(errorMsg);
     const displayMsg = formatExtensionErrorMessage(errorMsg, 'Failed to load extension');
 
@@ -61,11 +79,12 @@ export function showExtensionLoadResults(results: ExtensionLoadResult[] | null |
 
   const extensionStatuses: ExtensionLoadingStatus[] = results.map((r) => {
     const errorMsg = r.error || 'Unknown error';
+    const needsAuth = !r.success && isExtensionAuthorizationRequired(errorMsg);
     return {
       name: r.name,
       status: r.success ? 'success' : 'error',
-      error: r.success ? undefined : errorMsg,
-      recoverHints: r.success ? undefined : createExtensionRecoverHints(errorMsg),
+      error: r.success ? undefined : needsAuth ? 'Sign in required (Connections)' : errorMsg,
+      recoverHints: r.success || needsAuth ? undefined : createExtensionRecoverHints(errorMsg),
     };
   });
 

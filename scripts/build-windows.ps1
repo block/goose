@@ -1,6 +1,6 @@
 # build-windows.ps1
-# Build Goose Desktop for Windows with VMware Tanzu Platform provider
-# Run this script from the root of the goose-fork repository in PowerShell
+# Build Avocado Work Desktop for Windows
+# Run this script from the root of the avcd-agent repository in PowerShell
 #
 # Prerequisites:
 #   - Git (https://git-scm.com/download/win)
@@ -9,12 +9,13 @@
 #   - pnpm: npm install -g pnpm
 #
 # Usage:
-#   cd C:\path\to\goose-fork
+#   cd C:\path\to\avcd-agent
 #   .\scripts\build-windows.ps1
 
 $ErrorActionPreference = "Stop"
+$BundleName = if ($env:GOOSE_BUNDLE_NAME) { $env:GOOSE_BUNDLE_NAME } else { "Avocado Work" }
 
-Write-Host "=== Goose Windows Build Script ===" -ForegroundColor Cyan
+Write-Host "=== Avocado Work Windows Build Script ===" -ForegroundColor Cyan
 Write-Host ""
 
 # Check prerequisites
@@ -84,7 +85,7 @@ Write-Host ""
 Write-Host "[5/7] Building Goose SDK, clearing Vite cache, and compiling i18n messages..." -ForegroundColor Yellow
 pnpm run build-goose-sdk
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Goose SDK build or Vite cache cleanup failed!" -ForegroundColor Red
+    Write-Host "SDK build or Vite cache cleanup failed!" -ForegroundColor Red
     Pop-Location
     exit 1
 }
@@ -98,7 +99,7 @@ Write-Host "  Desktop assets built." -ForegroundColor Green
 Write-Host ""
 
 # Step 5: Package
-Write-Host "[6/7] Packaging Goose Desktop..." -ForegroundColor Yellow
+Write-Host "[6/7] Packaging Avocado Work Desktop..." -ForegroundColor Yellow
 pnpm exec electron-forge package
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Packaging failed!" -ForegroundColor Red
@@ -110,7 +111,7 @@ Write-Host ""
 
 # Step 6: Make installer
 Write-Host "[7/7] Creating Windows installer..." -ForegroundColor Yellow
-pnpm exec electron-forge make
+pnpm exec electron-forge make --targets=@electron-forge/maker-squirrel,@electron-forge/maker-zip
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Make failed! Trying with squirrel only..." -ForegroundColor Yellow
     pnpm exec electron-forge make --targets=@electron-forge/maker-squirrel
@@ -124,12 +125,13 @@ Pop-Location
 Write-Host ""
 
 # Done
+$AppDir = "ui\desktop\out\$BundleName-win32-x64"
 Write-Host "=== Build Complete ===" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Packaged app:  ui\desktop\out\Goose-win32-x64\Goose.exe" -ForegroundColor Green
-Write-Host "Installer:     ui\desktop\out\make\" -ForegroundColor Green
+Write-Host "Packaged app:  $AppDir\avocado-work.exe" -ForegroundColor Green
+Write-Host "Installer:     ui\desktop\out\make\$BundleName-Setup-x64.exe" -ForegroundColor Green
 Write-Host ""
 Write-Host "To run the app directly:" -ForegroundColor Yellow
-Write-Host "  .\ui\desktop\out\Goose-win32-x64\Goose.exe"
+Write-Host "  .\$AppDir\avocado-work.exe"
 Write-Host ""
-Write-Host "To install, find the .exe installer in ui\desktop\out\make\"
+Write-Host "To install, run the Setup.exe in ui\desktop\out\make\"

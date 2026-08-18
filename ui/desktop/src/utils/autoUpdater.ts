@@ -290,12 +290,16 @@ export function registerUpdateIpcHandlers() {
           throw new Error('Update file not found. Please download the update first.');
         }
 
-        // Improved dialog with clearer instructions
+        const downloadedPath = githubUpdateInfo.downloadPath || '';
+        const isWindowsInstaller = downloadedPath.toLowerCase().endsWith('.exe');
+        const detail = isWindowsInstaller
+          ? `The installer has been downloaded to your Downloads folder.\n\n1. Click "Open Folder" to find Avocado Work-Setup-x64.exe\n2. Quit Avocado Work\n3. Run the installer and follow the prompts\n\nAvocado Work will open at the new version after install.`
+          : `The update file has been downloaded to your Downloads folder.\n\n1. Click "Open Folder" to find the downloaded file\n2. Quit Avocado Work\n3. Open the downloaded file (zip/app) and replace the existing Avocado Work.app in Applications\n\nThe update will be available the next time you launch Avocado Work.`;
         const dialogResult = (await dialog.showMessageBox({
           type: 'info',
           title: 'Update Ready to Install',
           message: `Version ${githubUpdateInfo.latestVersion} is ready to install.`,
-          detail: `The update has been downloaded and extracted. To complete the installation:\n\n1. Click "Open Folder" to view the new Goose.app\n2. Quit Goose (this app will close)\n3. Drag the new Goose.app to your Applications folder\n4. Replace the existing app when prompted\n\nThe update will be available the next time you launch Goose.`,
+          detail,
           buttons: ['Open Folder & Quit', 'Open Folder Only', 'Cancel'],
           defaultId: 0,
           cancelId: 2,
@@ -368,11 +372,14 @@ export function setupAutoUpdater(tray?: Tray) {
   log.info(`App path: ${app.getAppPath()}`);
   log.info(`Resources path: ${process.resourcesPath}`);
 
-  // Set the feed URL for GitHub releases
+  // Set the feed URL for GitHub releases. Must target this fork — pointing at
+  // upstream aaif-goose/goose meant the native updater checked the wrong repo.
+  // `releaseType: 'release'` excludes prereleases (the moving `dev` tag), so the
+  // native path tracks the semver `stable`/`vX.Y.Z` releases only.
   const feedConfig = {
     provider: 'github' as const,
-    owner: 'aaif-goose',
-    repo: 'goose',
+    owner: process.env.GITHUB_OWNER || 'Avocado-Technology',
+    repo: process.env.GITHUB_REPO || 'avcd-agent',
     releaseType: 'release' as const,
   };
 
@@ -675,7 +682,7 @@ export function setupAutoUpdater(tray?: Tray) {
     // Show native notification
     const notification = new Notification({
       title: 'Update Ready',
-      body: `Version ${info.version} will be installed when you quit Goose. Click to install now.`,
+      body: `Version ${info.version} will be installed when you quit Avocado Work. Click to install now.`,
     });
     notification.show();
 
@@ -766,7 +773,7 @@ function updateTrayIcon(hasUpdate: boolean) {
     } else {
       iconPath = path.join(process.resourcesPath, 'images', 'iconTemplateUpdate.png');
     }
-    trayRef.setToolTip('Goose - Update Available');
+    trayRef.setToolTip('Avocado Work - Update Available');
   } else {
     // Use normal icon
     if (isDev) {
@@ -774,7 +781,7 @@ function updateTrayIcon(hasUpdate: boolean) {
     } else {
       iconPath = path.join(process.resourcesPath, 'images', 'iconTemplate.png');
     }
-    trayRef.setToolTip('Goose');
+    trayRef.setToolTip('Avocado Work');
   }
 
   const icon = nativeImage.createFromPath(iconPath);

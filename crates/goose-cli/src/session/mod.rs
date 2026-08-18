@@ -1106,14 +1106,9 @@ impl CliSession {
     async fn handle_load_skills(&mut self, names: &[String]) -> Result<()> {
         // NOTE: We don't validate the skill names here because the load_skill tool will
         // handle that and provide feedback to the user if any skill names are invalid.
-        let message = format!(
-            "Use the load_skill tool to load the following skills: {}.",
-            names
-                .iter()
-                .map(|n| format!("\"{}\"", n))
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
+        let name_refs: Vec<&str> = names.iter().map(String::as_str).collect();
+        let message =
+            goose::slash_commands::skill_slash_command::format_load_skills_nudge(&name_refs);
         self.push_message(Message::user().with_text(&message));
         output::show_thinking();
         let result = self

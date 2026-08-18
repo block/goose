@@ -1,0 +1,108 @@
+[
+  {
+    "id": "ISO-001",
+    "category": "isolation",
+    "attacker": "input+isolation",
+    "severity": "high",
+    "title": "GET /status returns 200 ok without X-Secret-Key",
+    "oracle": "Isolation: wrong/missing secret must not get 200 on /status (body must not be ok)",
+    "vector": "GET http://127.0.0.1:3000/status with no X-Secret-Key header",
+    "expected": "Non-200 (e.g. 401/403) or body not 'ok'",
+    "actual": {
+      "http_status": 200,
+      "body": "ok"
+    },
+    "reproduction": {
+      "attempts": 3,
+      "successes": 3,
+      "ratio": "3/3"
+    },
+    "evidence": [
+      "curl -sS -D- http://127.0.0.1:3000/status \u2192 HTTP/1.1 200 OK body=ok",
+      "Also via /./status without secret \u2192 200 ok",
+      "Long query string without secret \u2192 200 ok",
+      "Route wiring: crates/goose/src/acp/transport/mod.rs .route(\"/status\", get(health)) without auth middleware"
+    ],
+    "notes": "Contrast: GET /acp without secret correctly returns 401. /health is also public (200 ok) but SCOPE isolation oracle names /status.",
+    "rng_seed": 42,
+    "artifact": "stress/artifacts/input-raw.log"
+  },
+  {
+    "id": "ISO-002",
+    "category": "isolation",
+    "attacker": "input+isolation",
+    "severity": "high",
+    "title": "GET /status returns 200 ok with wrong X-Secret-Key",
+    "oracle": "Isolation: wrong/missing secret must not get 200 on /status (body must not be ok)",
+    "vector": "GET /status with X-Secret-Key: wrong-secret-value (also emoji/unicode wrong values)",
+    "expected": "Non-200 (e.g. 401/403) or body not 'ok'",
+    "actual": {
+      "http_status": 200,
+      "body": "ok"
+    },
+    "reproduction": {
+      "attempts": 3,
+      "successes": 3,
+      "ratio": "3/3"
+    },
+    "evidence": [
+      "X-Secret-Key: wrong-secret-value \u2192 200 ok (3/3)",
+      "X-Secret-Key: \ud83d\udd10\ud83d\udd11\ud83d\ude08 \u2192 200 ok",
+      "X-Secret-Key: wrong + Accept SSE on /acp \u2192 401 (ACP enforces; /status does not)"
+    ],
+    "notes": "Invalid secrets are treated the same as the valid local key for /status.",
+    "rng_seed": 42,
+    "artifact": "stress/artifacts/input-raw.log"
+  },
+  {
+    "id": "ISO-003",
+    "category": "isolation",
+    "attacker": "input+isolation",
+    "severity": "high",
+    "title": "GET /status returns 200 ok with empty X-Secret-Key",
+    "oracle": "Isolation: wrong/missing secret must not get 200 on /status (body must not be ok)",
+    "vector": "GET /status with header 'X-Secret-Key:' (empty value)",
+    "expected": "Non-200 (e.g. 401/403) or body not 'ok'",
+    "actual": {
+      "http_status": 200,
+      "body": "ok"
+    },
+    "reproduction": {
+      "attempts": 3,
+      "successes": 3,
+      "ratio": "3/3"
+    },
+    "evidence": [
+      "curl -H 'X-Secret-Key:' http://127.0.0.1:3000/status \u2192 200 ok (3/3)"
+    ],
+    "notes": "Empty secret is not rejected on the protected /status surface defined by SCOPE.",
+    "rng_seed": 42,
+    "artifact": "stress/artifacts/input-raw.log"
+  },
+  {
+    "id": "ISO-004",
+    "category": "isolation",
+    "attacker": "input+isolation",
+    "severity": "high",
+    "title": "GET /status returns 200 ok with 10KB X-Secret-Key",
+    "oracle": "Isolation: wrong/missing secret must not get 200 on /status (body must not be ok)",
+    "vector": "GET /status with X-Secret-Key set to 10240 'A' characters",
+    "expected": "Non-200 (e.g. 401/403) or body not 'ok'; server remains healthy",
+    "actual": {
+      "http_status": 200,
+      "body": "ok"
+    },
+    "reproduction": {
+      "attempts": 3,
+      "successes": 3,
+      "ratio": "3/3"
+    },
+    "evidence": [
+      "10KB secret header \u2192 200 ok (3/3)",
+      "No crash; subsequent /status still 200"
+    ],
+    "notes": "Oversized invalid secret is accepted for /status (same auth bypass class as ISO-001\u2013003).",
+    "rng_seed": 42,
+    "artifact": "stress/artifacts/input-raw.log"
+  }
+]

@@ -18,6 +18,7 @@ import { SwitchModelModal } from '../models/subcomponents/SwitchModelModal';
 import { useModelAndProvider } from '../../ModelAndProviderContext';
 import type { View } from '../../../utils/navigationUtils';
 import { defineMessages, useIntl } from '../../../i18n';
+import { PROVIDER_MANAGEMENT_ENABLED } from '../../../updates';
 
 const i18n = defineMessages({
   addProvider: {
@@ -268,9 +269,11 @@ function ProviderCards({
       />
     ));
 
-    cards.push(
-      <CustomProviderCard key="add-custom" onClick={() => setShowCustomProviderModal(true)} />
-    );
+    if (PROVIDER_MANAGEMENT_ENABLED) {
+      cards.push(
+        <CustomProviderCard key="add-custom" onClick={() => setShowCustomProviderModal(true)} />
+      );
+    }
 
     return cards;
   }, [

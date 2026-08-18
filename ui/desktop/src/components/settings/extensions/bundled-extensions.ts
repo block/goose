@@ -1,5 +1,6 @@
 import type { ExtensionConfig } from '../../../types/extensions';
 import { FixedExtensionEntry } from '../../ConfigContext';
+import { GOOGLE_WORKSPACE_ENABLED } from '../../../updates';
 import bundledExtensionsData from './bundled-extensions.json';
 import deprecatedBundledExtensionsData from './deprecated-bundled-extensions.json';
 import { nameToKey } from './utils';
@@ -72,7 +73,13 @@ export async function syncBundledExtensions(
 ): Promise<void> {
   try {
     // Cast the imported JSON data to the expected type
-    const bundledExtensions = bundledExtensionsData as BundledExtension[];
+    const bundledExtensions = (bundledExtensionsData as BundledExtension[]).filter((ext) => {
+      // Consumer lockdown: skip hosted Google Workspace unless explicitly enabled.
+      if (ext.id === 'google-workspace' && !GOOGLE_WORKSPACE_ENABLED) {
+        return false;
+      }
+      return true;
+    });
 
     // Process each bundled extension
     for (const bundledExt of bundledExtensions) {

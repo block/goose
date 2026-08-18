@@ -1,0 +1,182 @@
+[
+  {
+    "id": "UI-001",
+    "severity": "high",
+    "title": "Browser Vite probe: chat-input missing — blank #root",
+    "summary": "Playwright Chromium against http://localhost:5174/ loaded title \"Avocado Work\" (HTTP 200) but #root stayed empty (0 children, no body text). [data-testid=\"chat-input\"] absent. Typing into chat is impossible in this probe. Screenshot: stress/artifacts/ui-screenshot.png (solid white).",
+    "typing_works_in_browser_probe": false,
+    "ui_gate_showing": "blank_white_screen / empty #root (not onboarding copy, not telemetry dialog)",
+    "observed": {
+      "spa_title": "Avocado Work",
+      "http_status": 200,
+      "hasElectron": false,
+      "hasAppConfig": false,
+      "rootChildCount": 0,
+      "pageErrors_sample": [
+        "Cannot read properties of undefined (reading 'logInfo')",
+        "Cannot read properties of undefined (reading 'getAcpUrl')"
+      ]
+    },
+    "repro_steps": [
+      "With Vite serving Avocado Work UI on localhost:5174, run: node stress/scripts/ui-type-probe.mjs (uses system Chrome channel).",
+      "Optionally run: node stress/scripts/ui-type-probe-deep.mjs for console/DOM dump.",
+      "Observe #root empty, no [data-testid=\"chat-input\"], white screenshot.",
+      "Confirm console: ExtensionInstallModal TypeError reading window.electron.on → ErrorBoundary; OnboardingGuard acpReadDefaults fails on getAcpUrl."
+    ],
+    "harness_note": "Browser-only probe lacks Electron preload/IPC. Proves Vite HTML shell loads; does not prove Electron composer state. Still a valid finding that chat-input is not reachable without Electron bridges.",
+    "evidence": {
+      "screenshot": "stress/artifacts/ui-screenshot.png",
+      "probe_meta": "stress/artifacts/ui-type-probe-meta.json",
+      "scripts": [
+        "stress/scripts/ui-type-probe.mjs",
+        "stress/scripts/ui-type-probe-deep.mjs"
+      ]
+    }
+  },
+  {
+    "id": "UI-002",
+    "severity": "high",
+    "title": "Missing window.electron crashes SPA via ExtensionInstallModal → ErrorBoundary",
+    "summary": "Without preload, App effects call window.electron.reactReady/on and ExtensionInstallModal calls window.electron.on — pageerror + ErrorBoundary recreation leaves blank root. Primary reason browser probe shows no chat-input.",
+    "code_refs": [
+      "ui/desktop/src/App.tsx (reactReady / electron.on handlers)",
+      "ui/desktop/src/components/ExtensionInstallModal.tsx:~260",
+      "ui/desktop/src/components/ErrorBoundary.tsx"
+    ],
+    "repro_steps": [
+      "Open http://localhost:5174/ in plain Chromium (no Electron preload).",
+      "Watch console for TypeError: Cannot read properties of undefined (reading 'on').",
+      "Confirm React reports error in ExtensionInstallModal / ErrorBoundary; #root empty."
+    ],
+    "evidence": {
+      "probe_meta": "stress/artifacts/ui-type-probe-meta.json"
+    }
+  },
+  {
+    "id": "UI-003",
+    "severity": "medium",
+    "title": "TelemetryConsentPrompt unlikely to block typing (config evidence)",
+    "summary": "Dialog opens only when TELEMETRY_UI_ENABLED, read('GOOSE_PROVIDER') is non-empty, AND read('GOOSE_TELEMETRY_ENABLED') === null. ~/.config/goose/config.yaml has GOOSE_TELEMETRY_ENABLED: true and no GOOSE_PROVIDER key — so the consent Dialog should not open. Telemetry is not the primary typing gate for this machine state.",
+    "code_refs": [
+      "ui/desktop/src/components/TelemetryConsentPrompt.tsx:46-57",
+      "ui/desktop/src/updates.ts (TELEMETRY_UI_ENABLED=true)"
+    ],
+    "config_evidence": {
+      "path": "~/.config/goose/config.yaml",
+      "GOOSE_TELEMETRY_ENABLED": true,
+      "GOOSE_PROVIDER": "absent",
+      "active_provider": "local"
+    },
+    "repro_steps": [
+      "Read TelemetryConsentPrompt useEffect open conditions.",
+      "cat ~/.config/goose/config.yaml | rg GOOSE_TELEMETRY|GOOSE_PROVIDER|active_provider",
+      "Expect: no telemetry modal from null-check path when GOOSE_TELEMETRY_ENABLED is already true."
+    ]
+  },
+  {
+    "id": "UI-004",
+    "severity": "high",
+    "title": "OnboardingGuard can hide chat-input (null while checking / welcome / server error)",
+    "summary": "OnboardingGuard wraps the chat route. While isCheckingProvider it returns null (blank). If acpReadDefaults has no provider and fallback GOOSE_DEFAULT_* save/re-read fails, welcome ProviderSelector shows (no chat-input). After 4 failed ACP attempts, \"Unable to connect to Avocado Work server\" replaces chat. Electron forge process had GOOSE_DEFAULT_PROVIDER=openrouter at start — fallback can pass IF ACP works.",
+    "code_refs": [
+      "ui/desktop/src/components/onboarding/OnboardingGuard.tsx:65-167",
+      "ui/desktop/src/components/ModelAndProviderContext.tsx:145-156 (getFallbackModelAndProvider)"
+    ],
+    "repro_steps": [
+      "Launch desktop with ACP unreachable or defaults empty.",
+      "Observe blank screen during checkProvider retries (~seconds), then welcome or error UI.",
+      "Confirm children (AppLayout/ChatInput) not mounted → no [data-testid=\"chat-input\"]."
+    ],
+    "browser_probe_signal": "OnboardingGuard logged Error checking provider (attempt 1/4..4/4) getAcpUrl undefined — would end on provider_error screen if tree survived ExtensionInstallModal crash."
+  },
+  {
+    "id": "UI-005",
+    "severity": "high",
+    "title": "Forge Avocado Work session used external backend — no local goose serve in main.log",
+    "summary": "At 19:05 forge start, main.log shows Opening URL http://localhost:5174 and React ready twice, but no \"Starting goose serve\" line (unlike packaged 19:02 session). stress-status.json notes GOOSE_EXTERNAL_BACKEND set. Composer/ACP (and thus OnboardingGuard provider check) depend on that external backend being healthy with matching secret.",
+    "evidence": {
+      "main_log": "~/Library/Application Support/Avocado Work/logs/main.log",
+      "stress_status": "stress/stress-status.json notes.goose_external_backend_env",
+      "packaged_contrast": "19:02 started goose serve on port 58239 then SIGTERM ~7s later"
+    },
+    "repro_steps": [
+      "rg 'Starting goose serve|Opening URL|React ready' \"~/Library/Application Support/Avocado Work/logs/main.log\"",
+      "Compare forge (19:05) vs packaged (19:02) blocks.",
+      "Confirm GOOSE_EXTERNAL_BACKEND env on desktop launch."
+    ]
+  },
+  {
+    "id": "UI-006",
+    "severity": "medium",
+    "title": "Second desktop app still running: Goose 2.app (not Avocado Work)",
+    "summary": "While Avocado Work forge used userData \"Avocado Work\" (single Electron main PID 37350 at investigation start), a separate Goose 2.app (PID 10439, ~13 days uptime, userData Application Support/Goose) remains. System Events lists process name \"Goose\". User typing into the wrong window would look like \"typing not working\" in Avocado Work.",
+    "repro_steps": [
+      "pgrep -fl 'Goose|Avocado Work|Electron.app/Contents/MacOS/Electron'",
+      "Note Goose 2.app under AppTranslocation vs Avocado Work user-data-dir.",
+      "Confirm only one Avocado Work main at start; Goose 2.app is an additional long-lived instance."
+    ],
+    "electron_instance_check": {
+      "at_probe_start_avocado_work_mains": 1,
+      "pid": 37350,
+      "userData": "Avocado Work",
+      "goose_2_still_running": true,
+      "pid_goose2": 10439
+    }
+  },
+  {
+    "id": "UI-007",
+    "severity": "high",
+    "title": "Avocado Work + Vite 5174 died mid-investigation; bare Electron default_app left",
+    "summary": "At start: forge Electron PID 37350 (userData Avocado Work) + Vite listen [::1]:5174. After probes: port 5174 down, no Avocado Work userData process, leftover Electron PID using userData Application Support/Electron + default_app.asar (not the product UI). stress-status notes avcd_agent_killed=true. User report timing may overlap process death / wrong Electron window.",
+    "repro_steps": [
+      "At T0: lsof -iTCP:5174; pgrep -fl 'user-data-dir=.*Avocado Work'.",
+      "Run UI probes / stress kill path.",
+      "At T1: confirm 5174 gone; Electron default_app may remain after `tell application \"Electron\" to activate`.",
+      "curl http://localhost:5174/ fails connection."
+    ],
+    "harness_side_effect": "osascript activate Electron may launch stock Electron.app from ui/node_modules — distinguish from Avocado Work."
+  },
+  {
+    "id": "UI-008",
+    "severity": "low",
+    "title": "Vite bound IPv6-only [::1]:5174",
+    "summary": "Forge Vite listened on [::1]:5174 only. localhost/::1 → 200; 127.0.0.1:5174 → connection fail. Electron opened http://localhost:5174 which works; tools using 127.0.0.1 would falsely conclude UI is down.",
+    "repro_steps": [
+      "lsof -nP -iTCP:5174 -sTCP:LISTEN",
+      "curl -s -o /dev/null -w '%{http_code}' http://localhost:5174/",
+      "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5174/"
+    ],
+    "evidence": "stress/stress-status.json notes.vite_bind; stress/findings/smoke-findings.md"
+  },
+  {
+    "id": "UI-HARNESS-001",
+    "severity": "info",
+    "title": "Harness failure: AppleScript keystroke blocked (assistive access)",
+    "summary": "Could not inject keystrokes into frontmost Electron/Avocado window. osascript System Events error -25211: not allowed assistive access. cliclick not installed.",
+    "harness_failure": true,
+    "repro_steps": [
+      "osascript to set Electron frontmost and keystroke text",
+      "Observe -25211 assistive access denial"
+    ]
+  },
+  {
+    "id": "UI-HARNESS-002",
+    "severity": "info",
+    "title": "Harness failure: screencapture of Electron window denied",
+    "summary": "screencapture -R from window-state.json and full-display capture both failed (\"could not create image\"). Cannot visually confirm Electron gate (onboarding vs chat) without Screen Recording permission.",
+    "harness_failure": true,
+    "repro_steps": [
+      "Read ~/Library/Application Support/Avocado Work/window-state.json bounds",
+      "screencapture -x -R x,y,w,h stress/artifacts/electron-window.png",
+      "Observe failure without Screen Recording entitlement"
+    ]
+  },
+  {
+    "id": "UI-HARNESS-003",
+    "severity": "info",
+    "title": "Playwright browser revision mismatch (mitigated via Chrome channel)",
+    "summary": "Initial chromium.launch failed: missing ms-playwright chromium_headless_shell-1208. Probe updated to channel:'chrome' (system Google Chrome) and succeeded. Not a product bug.",
+    "harness_failure": true,
+    "mitigation": "stress/scripts/ui-type-probe.mjs uses channel: 'chrome'"
+  }
+]

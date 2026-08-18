@@ -15,6 +15,7 @@ permissions:
 jobs:
   build-native:
     name: Build native library (${{ matrix.name }})
+    if: github.repository == 'aaif-goose/goose'
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container || null }}
     strategy:
@@ -67,6 +68,7 @@ jobs:
 
   package:
     name: Package Maven artifact
+    if: github.repository == 'aaif-goose/goose'
     needs: build-native
     runs-on: ubuntu-latest
     steps:
@@ -126,7 +128,7 @@ jobs:
     name: Publish to Maven Central
     needs: package
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    if: github.repository == 'aaif-goose/goose' && github.event_name == 'workflow_dispatch' && inputs.publish
     environment: maven-central
     steps:
       - name: Checkout code

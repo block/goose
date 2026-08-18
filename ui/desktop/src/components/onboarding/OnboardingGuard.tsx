@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { Loader2 } from 'lucide-react';
 import { useConfig } from '../ConfigContext';
 import { useModelAndProvider } from '../ModelAndProviderContext';
 import { acpListProviderDetails, acpReadDefaults, acpSaveDefaults } from '../../acp/providers';
-import { Goose } from '../icons';
+import { Avocado } from '../icons';
 import { Button } from '../ui/button';
 import ProviderSelector from './ProviderSelector';
 import OnboardingSuccess from './OnboardingSuccess';
+import { PROVIDER_MANAGEMENT_ENABLED } from '../../updates';
 import {
   trackOnboardingStarted,
   trackOnboardingCompleted,
@@ -19,15 +21,15 @@ import { defineMessages, useIntl } from '../../i18n';
 const i18n = defineMessages({
   welcomeTitle: {
     id: 'onboardingGuard.welcomeTitle',
-    defaultMessage: 'Welcome to goose',
+    defaultMessage: 'Welcome to Avocado Work',
   },
   welcomeDescription: {
     id: 'onboardingGuard.welcomeDescription',
-    defaultMessage: 'Your local AI agent. Connect an AI model provider to get started.',
+    defaultMessage: 'Your local AI agent. Connect a provider to get started.',
   },
   checkProviderErrorTitle: {
     id: 'onboardingGuard.checkProviderErrorTitle',
-    defaultMessage: 'Unable to connect to Goose server',
+    defaultMessage: 'Unable to connect to Avocado Work server',
   },
   checkProviderErrorDescription: {
     id: 'onboardingGuard.checkProviderErrorDescription',
@@ -37,6 +39,23 @@ const i18n = defineMessages({
     id: 'onboardingGuard.retry',
     defaultMessage: 'Retry',
   },
+  connecting: {
+    id: 'onboardingGuard.connecting',
+    defaultMessage: 'Connecting to Avocado Work...',
+  },
+  accessDeniedTitle: {
+    id: 'onboardingGuard.accessDeniedTitle',
+    defaultMessage: 'Access denied',
+  },
+  accessDeniedDescription: {
+    id: 'onboardingGuard.accessDeniedDescription',
+    defaultMessage:
+      'Your account does not have the agent-access role. Ask an Avocado admin to grant access, then try again.',
+  },
+  tryAgain: {
+    id: 'onboardingGuard.tryAgain',
+    defaultMessage: 'Try again',
+  },
 });
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
@@ -45,11 +64,21 @@ interface OnboardingGuardProps {
   children: React.ReactNode;
 }
 
+function isAccessDeniedError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('agent-access') ||
+    lower.includes('forbidden') ||
+    lower.includes('access denied') ||
+    lower.includes('403')
+  );
+}
+
 export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   const intl = useIntl();
   const navigate = useNavigate();
   const { upsert } = useConfig();
-  const { getFallbackModelAndProvider, refreshCurrentModelAndProvider } = useModelAndProvider();
+  const { refreshCurrentModelAndProvider } = useModelAndProvider();
 
   const [isCheckingProvider, setIsCheckingProvider] = useState(true);
   const [hasProvider, setHasProvider] = useState(false);
@@ -60,25 +89,22 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
     null
   );
   const [configuredModel, setConfiguredModel] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
   const hasTrackedOnboardingStart = useRef(false);
 
-  const checkProvider = async (retries = 3, delay = 1000) => {
+  const checkProvider = async (retries = 12, delay = 1000) => {
     setIsCheckingProvider(true);
     setCheckProviderError(false);
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const { providerId: provider } = await acpReadDefaults();
-        if (provider?.trim()) {
-          setHasProvider(true);
-          setIsCheckingProvider(false);
-          return;
-        }
+        const { providerId, modelId } = await acpReadDefaults();
+        const providers = await acpListProviderDetails();
 
-        const fallback = await getFallbackModelAndProvider();
-        if (fallback.provider?.trim() && fallback.model?.trim()) {
-          const { providerId: configuredProvider, modelId: configuredModel } =
-            await acpReadDefaults();
-          if (configuredProvider?.trim() && configuredModel?.trim()) {
+        if (providerId?.trim() && modelId?.trim()) {
+          // AC-6: baked defaults are not enough — provider must actually be configured
+          // (virtual key present after avocado OAuth).
+          const match = providers.find((p) => p.name === providerId);
+          if (match?.is_configured) {
             await refreshCurrentModelAndProvider();
             setHasProvider(true);
             setIsCheckingProvider(false);
@@ -86,6 +112,7 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
           }
         }
 
+        // Backend answered — show Sign in immediately (do not spin on retries).
         setHasProvider(false);
         setIsCheckingProvider(false);
         return;
@@ -106,7 +133,12 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   }, []);
 
   useEffect(() => {
-    if (!isCheckingProvider && !hasProvider && !checkProviderError && !hasTrackedOnboardingStart.current) {
+    if (
+      !isCheckingProvider &&
+      !hasProvider &&
+      !checkProviderError &&
+      !hasTrackedOnboardingStart.current
+    ) {
       trackOnboardingStarted();
       hasTrackedOnboardingStart.current = true;
     }
@@ -122,6 +154,13 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
     await refreshCurrentModelAndProvider();
     setConfiguredProvider(providerName);
     setConfiguredProviderDisplayName(matchedProvider?.metadata.display_name || providerName);
+    setAccessDenied(false);
+  };
+
+  const handleConfigError = (message: string) => {
+    if (isAccessDeniedError(message)) {
+      setAccessDenied(true);
+    }
   };
 
   const finishOnboarding = async (telemetryEnabled: boolean) => {
@@ -142,7 +181,20 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   };
 
   if (isCheckingProvider) {
-    return null;
+    return (
+      <div
+        className="h-screen w-full bg-background-default flex flex-col items-center justify-center"
+        data-testid="onboarding-connecting"
+      >
+        <div className="text-center">
+          <Avocado className="size-8 mx-auto mb-4" />
+          <p className="text-text-muted flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {intl.formatMessage(i18n.connecting)}
+          </p>
+        </div>
+      </div>
+    );
   }
 
   if (checkProviderError) {
@@ -150,13 +202,15 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
       <div className="h-screen w-full bg-background-default flex flex-col items-center justify-center">
         <div className="text-center max-w-md">
           <div className="mb-4">
-            <Goose className="size-8 mx-auto" />
+            <Avocado className="size-8 mx-auto" />
           </div>
-          <h1 className="text-xl font-light mb-3">{intl.formatMessage(i18n.checkProviderErrorTitle)}</h1>
-          <p className="text-text-muted mb-6">{intl.formatMessage(i18n.checkProviderErrorDescription)}</p>
-          <Button onClick={() => checkProvider()}>
-            {intl.formatMessage(i18n.retry)}
-          </Button>
+          <h1 className="text-xl font-light mb-3">
+            {intl.formatMessage(i18n.checkProviderErrorTitle)}
+          </h1>
+          <p className="text-text-muted mb-6">
+            {intl.formatMessage(i18n.checkProviderErrorDescription)}
+          </p>
+          <Button onClick={() => checkProvider()}>{intl.formatMessage(i18n.retry)}</Button>
         </div>
       </div>
     );
@@ -166,14 +220,67 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
     return <>{children}</>;
   }
 
+  if (accessDenied) {
+    return (
+      <div
+        className="h-screen w-full bg-background-default flex flex-col items-center justify-center"
+        data-testid="onboarding-access-denied"
+      >
+        <div className="text-center max-w-md">
+          <div className="mb-4">
+            <Avocado className="size-8 mx-auto" />
+          </div>
+          <h1 className="text-xl font-light mb-3">
+            {intl.formatMessage(i18n.accessDeniedTitle)}
+          </h1>
+          <p className="text-text-muted mb-6">
+            {intl.formatMessage(i18n.accessDeniedDescription)}
+          </p>
+          <Button
+            onClick={() => {
+              setAccessDenied(false);
+              setHasSelection(true);
+            }}
+          >
+            {intl.formatMessage(i18n.tryAgain)}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (configuredProviderDisplayName) {
     return (
       <OnboardingSuccess providerName={configuredProviderDisplayName} onFinish={finishOnboarding} />
     );
   }
 
+  // Distro mode auto-selects Avocado, so the welcome header would only flash before
+  // collapsing. Show the sign-in on its own, vertically centred.
+  if (!PROVIDER_MANAGEMENT_ENABLED) {
+    return (
+      <div
+        className="h-screen w-full bg-background-default overflow-hidden"
+        data-testid="onboarding-signin"
+      >
+        <div className="h-full overflow-y-auto flex items-center justify-center p-4">
+          <div className="max-w-sm w-full mx-auto">
+            <ProviderSelector
+              onConfigured={handleConfigured}
+              onFirstSelection={() => setHasSelection(true)}
+              onConfigError={handleConfigError}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-screen w-full bg-background-default overflow-hidden">
+    <div
+      className="h-screen w-full bg-background-default overflow-hidden"
+      data-testid="onboarding-signin"
+    >
       <div className="h-full overflow-y-auto">
         <div
           className={`flex flex-col items-center p-4 pb-8 transition-all duration-500 ease-in-out ${hasSelection ? 'pt-8' : 'pt-[15vh]'}`}
@@ -183,10 +290,12 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
               className={`text-left transition-all duration-500 ease-in-out overflow-hidden ${hasSelection ? 'max-h-0 opacity-0 mb-0' : 'max-h-60 opacity-100 mb-8'}`}
             >
               <div className="mb-4">
-                <Goose className="size-8" />
+                <Avocado className="size-8" />
               </div>
-              <h1 className="text-2xl sm:text-4xl font-light mb-3">{intl.formatMessage(i18n.welcomeTitle)}</h1>
-              <p className="text-text-muted text-base sm:text-lg">
+              <h1 className="text-2xl sm:text-4xl font-light mb-3">
+                {intl.formatMessage(i18n.welcomeTitle)}
+              </h1>
+              <p className="text-text-secondary text-base sm:text-lg">
                 {intl.formatMessage(i18n.welcomeDescription)}
               </p>
             </div>
@@ -194,6 +303,7 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
             <ProviderSelector
               onConfigured={handleConfigured}
               onFirstSelection={() => setHasSelection(true)}
+              onConfigError={handleConfigError}
             />
           </div>
         </div>

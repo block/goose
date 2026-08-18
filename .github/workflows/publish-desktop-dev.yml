@@ -1,9 +1,21 @@
 # Unsigned DEV desktop publish — overwrites GitHub Release tag `dev`.
+# Follows upstream canary.yml: reusable bundle-macos.yml / bundle-windows.yml,
+# goose-cli built once per target, unsigned, then ncipollo release-action.
+# Differences from canary (intentional for DEV speed): no Linux/CUDA/CLI archives.
 # Does not use the signing environment. Do not copy canary.yml's aaif-goose guard.
 name: Publish Avocado Work desktop (dev, unsigned)
 
 on:
   workflow_dispatch:
+    inputs:
+      include_intel_mac:
+        description: 'Build Intel Mac DMG (macos-15-intel; usually the slowest job). Official canary always builds this.'
+        type: boolean
+        default: true
+      include_windows:
+        description: 'Build Windows installer'
+        type: boolean
+        default: true
   push:
     branches: [main]
     paths:
@@ -33,6 +45,7 @@ jobs:
     secrets: inherit
 
   bundle-macos-x64:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.include_intel_mac }}
     uses: ./.github/workflows/bundle-macos.yml
     permissions:
       contents: read
@@ -44,6 +57,7 @@ jobs:
     secrets: inherit
 
   bundle-windows:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.include_windows }}
     uses: ./.github/workflows/bundle-windows.yml
     permissions:
       id-token: write
@@ -58,6 +72,12 @@ jobs:
     name: Release dev
     runs-on: ubuntu-latest
     needs: [bundle-macos-arm64, bundle-macos-x64, bundle-windows]
+    if: >
+      always() &&
+      !cancelled() &&
+      needs.bundle-macos-arm64.result == 'success' &&
+      (needs.bundle-macos-x64.result == 'success' || needs.bundle-macos-x64.result == 'skipped') &&
+      (needs.bundle-windows.result == 'success' || needs.bundle-windows.result == 'skipped')
     permissions:
       contents: write
     env:
@@ -86,7 +106,6 @@ jobs:
           omitBody: true
           replacesArtifacts: true
           artifacts: |
-            Avocado Work.dmg
-            Avocado Work_intel_mac.dmg
-            Avocado Work-Setup-x64.exe
-            Avocado Work*.zip
+            *.dmg
+            *.exe
+            *.zip

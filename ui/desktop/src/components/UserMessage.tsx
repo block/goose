@@ -7,6 +7,7 @@ import {
   type ImageData,
   type Message,
 } from '../types/message';
+import { Sparkles } from 'lucide-react';
 import MessageCopyLink from './MessageCopyLink';
 import { formatMessageTimestamp } from '../utils/timeUtils';
 import Close from './icons/Close';
@@ -322,6 +323,20 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
           <div className="message flex justify-end w-full">
             <div className="flex-col max-w-[85%] w-fit">
               <div className="flex flex-col group">
+                {message.metadata.chips && message.metadata.chips.length > 0 && (
+                  <div className="flex flex-wrap justify-end gap-1.5 mb-1.5">
+                    {message.metadata.chips.map((chip) => (
+                      <span
+                        key={`${chip.type}-${chip.label}`}
+                        className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-100 px-2 py-0.5 text-xs"
+                        data-testid="message-skill-chip"
+                      >
+                        <Sparkles className="size-3" />
+                        {chip.label}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 {textContent.trim() && (
                   <div className="user-message-bubble flex bg-text-primary text-background-primary rounded-xl py-2.5 px-4">
                     <div ref={contentRef}>

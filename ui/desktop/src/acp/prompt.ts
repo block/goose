@@ -38,10 +38,12 @@ export function messageToAcpPromptContent(message: Message): ContentBlock[] {
   for (const content of message.content) {
     switch (content.type) {
       case 'text':
-        if (content.text.trim()) {
+        if (content.text.trim() || content.annotations) {
           prompt.push({
             type: 'text',
             text: content.text,
+            ...(content._meta ? { _meta: content._meta } : {}),
+            ...(content.annotations ? { annotations: content.annotations } : {}),
           });
         }
         break;

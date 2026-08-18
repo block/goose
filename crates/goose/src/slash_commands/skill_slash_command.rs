@@ -9,6 +9,18 @@ pub fn list_commands(working_dir: Option<&Path>) -> Vec<SlashCommandEntry> {
     commands_from_sources(crate::skills::list_installed_skills(working_dir))
 }
 
+/// Build the user/agent nudge that asks the model to call `load_skill` for each name.
+/// Matches the goose-cli `/skills a b` wording so ACP and CLI stay aligned.
+pub fn format_load_skills_nudge(names: &[&str]) -> String {
+    let quoted = names
+        .iter()
+        .map(|name| format!("\"{}\"", name.trim()))
+        .filter(|name| name != "\"\"")
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("Use the load_skill tool to load the following skills: {quoted}.")
+}
+
 pub fn format_installed_skills(working_dir: Option<&Path>) -> String {
     let sources = crate::skills::list_installed_skills(working_dir);
     let skills: Vec<_> = sources
@@ -86,6 +98,15 @@ mod tests {
     use goose_sdk_types::custom_requests::SourceType;
     use std::collections::HashMap;
     use tempfile::TempDir;
+
+    #[test]
+    fn format_load_skills_nudge_quotes_and_joins_names() {
+        let nudge = format_load_skills_nudge(&["code-review", "insight"]);
+        assert_eq!(
+            nudge,
+            "Use the load_skill tool to load the following skills: \"code-review\", \"insight\"."
+        );
+    }
 
     #[test]
     fn commands_from_sources_marks_entries_as_skill() {

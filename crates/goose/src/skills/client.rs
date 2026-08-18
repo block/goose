@@ -54,66 +54,83 @@ impl SkillsClient {
             })
             .collect()
     }
-}
 
-#[async_trait]
-impl McpClientTrait for SkillsClient {
-    async fn list_tools(
-        &self,
-        _session_id: &str,
-        _next_cursor: Option<String>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ListToolsResult, Error> {
-        let schema = serde_json::json!({
-            "type": "object",
-            "required": ["name"],
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "Name of the skill to load. Use \"skill-name/path\" to load a supporting file."
-                },
-                "args": {
-                    "type": "string",
-                    "description": "Optional arguments to provide when loading the skill."
-                }
-            }
-        });
+    fn handle_create_skill(&self, arguments: Option<JsonObject>) -> Result<CallToolResult, Error> {
+        let args = arguments.as_ref();
+        let name = args
+            .and_then(|a| a.get("name"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
+        let description = args
+            .and_then(|a| a.get("description"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
+        let content = args
+            .and_then(|a| a.get("content"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let global = args
+            .and_then(|a| a.get("global"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
 
-        let tool = Tool::new(
-            "load_skill",
-            "Load a skill's full content into your context so you can follow its instructions.\n\n\
-             Skills are listed in your system instructions. When you need to use one, \
-             load it first to get the detailed instructions.\n\n\
-             Examples:\n\
-             - load_skill(name: \"gdrive\") → Loads the gdrive skill instructions\n\
-             - load_skill(name: \"my-skill\", args: \"the arguments for the skill\") → Loads a skill with arguments\n\
-             - load_skill(name: \"my-skill/template.md\") → Loads a supporting file"
-                .to_string(),
-            schema.as_object().unwrap().clone(),
-        );
-
-        Ok(ListToolsResult {
-            tools: vec![tool],
-            next_cursor: None,
-            meta: None,
-            ..Default::default()
-        })
-    }
-
-    async fn call_tool(
-        &self,
-        _ctx: &ToolCallContext,
-        name: &str,
-        arguments: Option<JsonObject>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<CallToolResult, Error> {
-        if name != "load_skill" {
-            return Ok(CallToolResult::error(vec![ContentBlock::text(format!(
-                "Unknown tool: {}",
-                name
-            ))]));
+        if name.is_empty() {
+            return Ok(CallToolResult::error(vec![ContentBlock::text(
+                "Missing required parameter: name",
+            )]));
+        }
+        if description.is_empty() {
+            return Ok(CallToolResult::error(vec![ContentBlock::text(
+                "Missing required parameter: description",
+            )]));
+        }
+        if content.trim().is_empty() {
+            return Ok(CallToolResult::error(vec![ContentBlock::text(
+                "Missing required parameter: content",
+            )]));
         }
 
+        let project_dir = if global {
+            None
+        } else {
+            Some(self.working_dir.to_string_lossy().into_owned())
+        };
+
+        match crate::sources::create_source(
+            SourceType::Skill,
+            name,
+            description,
+            content,
+            global,
+            project_dir.as_deref(),
+            std::collections::HashMap::new(),
+        ) {
+            Ok(source) => {
+                let path = source.path.replace('\\', "/");
+                Ok(CallToolResult::success(vec![ContentBlock::text(format!(
+                    "Created skill '{}' at {}.\n\n\
+                     Verify discovery with /skills or the Skills page. \
+                     Prefer create_skill for future skills — never write to skills/ or workspace/skills/.",
+                    source.name, path
+                ))]))
+            }
+            Err(e) => {
+                let message = match &e.data {
+                    Some(serde_json::Value::String(s)) => s.clone(),
+                    Some(other) => other.to_string(),
+                    None => e.message.clone(),
+                };
+                Ok(CallToolResult::error(vec![ContentBlock::text(format!(
+                    "Failed to create skill: {}",
+                    message
+                ))]))
+            }
+        }
+    }
+
+    fn handle_load_skill(&self, arguments: Option<JsonObject>) -> Result<CallToolResult, Error> {
         let skill_name = arguments
             .as_ref()
             .and_then(|args| args.get("name"))
@@ -238,6 +255,105 @@ impl McpClientTrait for SkillsClient {
             ))])
         })
     }
+}
+
+#[async_trait]
+impl McpClientTrait for SkillsClient {
+    async fn list_tools(
+        &self,
+        _session_id: &str,
+        _next_cursor: Option<String>,
+        _cancellation_token: CancellationToken,
+    ) -> Result<ListToolsResult, Error> {
+        let load_schema = serde_json::json!({
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name of the skill to load. Use \"skill-name/path\" to load a supporting file."
+                },
+                "args": {
+                    "type": "string",
+                    "description": "Optional arguments to provide when loading the skill."
+                }
+            }
+        });
+
+        let load_tool = Tool::new(
+            "load_skill",
+            "Load a skill's full content into your context so you can follow its instructions.\n\n\
+             Skills are listed in your system instructions. When you need to use one, \
+             load it first to get the detailed instructions.\n\n\
+             Examples:\n\
+             - load_skill(name: \"gdrive\") → Loads the gdrive skill instructions\n\
+             - load_skill(name: \"my-skill\", args: \"the arguments for the skill\") → Loads a skill with arguments\n\
+             - load_skill(name: \"my-skill/template.md\") → Loads a supporting file"
+                .to_string(),
+            load_schema.as_object().unwrap().clone(),
+        );
+
+        let create_schema = serde_json::json!({
+            "type": "object",
+            "required": ["name", "description", "content"],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Kebab-case skill name (lowercase letters, digits, hyphens; max 64 chars)."
+                },
+                "description": {
+                    "type": "string",
+                    "description": "What the skill does and when to use it (discovery trigger)."
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Markdown body of the skill (instructions below the frontmatter)."
+                },
+                "global": {
+                    "type": "boolean",
+                    "description": "If true, create under ~/.agents/skills/. Default false (project .agents/skills/)."
+                }
+            }
+        });
+
+        let create_tool = Tool::new(
+            "create_skill",
+            "Create a new Agent Skill at the canonical filesystem path.\n\n\
+             Project skills go to {working_dir}/.agents/skills/{name}/SKILL.md.\n\
+             Global skills go to ~/.agents/skills/{name}/SKILL.md when global=true.\n\n\
+             Prefer this tool over writing SKILL.md with file tools. Never write to \
+             skills/ or workspace/skills/ — those paths are not discovered.\n\n\
+             Examples:\n\
+             - create_skill(name: \"code-review\", description: \"…\", content: \"# Code Review\\n…\")\n\
+             - create_skill(name: \"my-skill\", description: \"…\", content: \"…\", global: true)"
+                .to_string(),
+            create_schema.as_object().unwrap().clone(),
+        );
+
+        Ok(ListToolsResult {
+            tools: vec![load_tool, create_tool],
+            next_cursor: None,
+            meta: None,
+            ..Default::default()
+        })
+    }
+
+    async fn call_tool(
+        &self,
+        _ctx: &ToolCallContext,
+        name: &str,
+        arguments: Option<JsonObject>,
+        _cancellation_token: CancellationToken,
+    ) -> Result<CallToolResult, Error> {
+        match name {
+            "load_skill" => self.handle_load_skill(arguments),
+            "create_skill" => self.handle_create_skill(arguments),
+            _ => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
+                "Unknown tool: {}",
+                name
+            ))])),
+        }
+    }
 
     fn get_info(&self) -> Option<&InitializeResult> {
         Some(&self.info)
@@ -253,16 +369,24 @@ impl McpClientTrait for SkillsClient {
             .collect();
         skills.sort_by(|a, b| (&a.name, &a.path).cmp(&(&b.name, &b.path)));
 
-        if skills.is_empty() {
-            return None;
-        }
-
         let mut instructions = String::from(
             "\n\nYou have these skills at your disposal, when it is clear they can help you solve a problem or you are asked to use them:",
         );
-        for skill in &skills {
-            instructions.push_str(&format!("\n• {} - {}", skill.name, skill.description));
+        if skills.is_empty() {
+            instructions.push_str("\n(none discovered yet)");
+        } else {
+            for skill in &skills {
+                instructions.push_str(&format!("\n• {} - {}", skill.name, skill.description));
+            }
         }
+
+        let working_dir = self.working_dir.to_string_lossy().replace('\\', "/");
+        instructions.push_str(&format!(
+            "\n\nWhen creating skills, write ONLY to {working_dir}/.agents/skills/<name>/SKILL.md (project) \
+             or ~/.agents/skills/<name>/SKILL.md (global). Use the create_skill tool when available. \
+             Never use skills/ or workspace/skills/."
+        ));
+
         Some(instructions)
     }
 
@@ -346,5 +470,81 @@ mod tests {
             .unwrap();
 
         assert!(result.is_error.unwrap_or(false));
+    }
+
+    fn test_client(working_dir: PathBuf) -> SkillsClient {
+        let session = Arc::new(crate::session::Session {
+            working_dir,
+            ..crate::session::Session::default()
+        });
+        SkillsClient::new(PlatformExtensionContext {
+            extension_manager: None,
+            session_manager: Arc::new(crate::session::SessionManager::instance()),
+            scheduler: None,
+            session: Some(session),
+            use_login_shell_path: false,
+        })
+        .unwrap()
+        .with_builtin_skills(false)
+    }
+
+    #[tokio::test]
+    async fn get_instructions_includes_agents_skills_path_and_create_skill() {
+        let temp_dir = TempDir::new().unwrap();
+        let client = test_client(temp_dir.path().to_path_buf());
+        let instructions = client.get_instructions().expect("instructions");
+
+        assert!(instructions.contains(".agents/skills"));
+        assert!(instructions.contains("create_skill"));
+        assert!(instructions.contains("Never use skills/ or workspace/skills/"));
+    }
+
+    #[tokio::test]
+    async fn test_create_skill_writes_agents_skills_and_is_discoverable() {
+        let temp_dir = TempDir::new().unwrap();
+        let client = test_client(temp_dir.path().to_path_buf());
+        let ctx = ToolCallContext::new("test".to_string(), None, None);
+        let args: JsonObject = serde_json::from_value(serde_json::json!({
+            "name": "e2e-smoke-test",
+            "description": "Greeting skill for smoke tests",
+            "content": "# E2E Smoke\n\nSay hello."
+        }))
+        .unwrap();
+
+        let result = client
+            .call_tool(&ctx, "create_skill", Some(args), CancellationToken::new())
+            .await
+            .unwrap();
+        assert!(!result.is_error.unwrap_or(false));
+
+        let skill_md = temp_dir
+            .path()
+            .join(".agents/skills/e2e-smoke-test/SKILL.md");
+        assert!(skill_md.is_file(), "expected {}", skill_md.display());
+
+        let names: Vec<_> = client
+            .discover_skills()
+            .into_iter()
+            .map(|s| s.name)
+            .collect();
+        assert!(names.iter().any(|n| n == "e2e-smoke-test"));
+
+        let text = match &result.content[0] {
+            rmcp::model::ContentBlock::Text(t) => &t.text,
+            _ => panic!("expected text"),
+        };
+        assert!(text.contains(".agents/skills/e2e-smoke-test"));
+    }
+
+    #[tokio::test]
+    async fn test_list_tools_includes_create_skill() {
+        let client = test_client(TempDir::new().unwrap().path().to_path_buf());
+        let tools = client
+            .list_tools("test", None, CancellationToken::new())
+            .await
+            .unwrap();
+        let names: Vec<_> = tools.tools.iter().map(|t| t.name.to_string()).collect();
+        assert!(names.contains(&"load_skill".to_string()));
+        assert!(names.contains(&"create_skill".to_string()));
     }
 }

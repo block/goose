@@ -11,11 +11,13 @@ permissions:
 
 jobs:
   build-cli:
+    if: github.repository == 'aaif-goose/goose'
     uses: ./.github/workflows/build-cli.yml
 
   # Build npm packages (no environment needed)
   build:
     name: Build npm packages
+    if: github.repository == 'aaif-goose/goose'
     runs-on: ubuntu-latest
     needs: [build-cli]
     steps:
@@ -142,6 +144,7 @@ jobs:
 
   publish:
     name: Publish to npm
+    if: github.repository == 'aaif-goose/goose'
     runs-on: ubuntu-latest
     needs: [build]
     environment: npm-production-publishing

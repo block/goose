@@ -2,7 +2,10 @@ import type { ExtensionConfig, ExtensionEntry } from '../types/extensions';
 import type { GooseExtension, GooseExtensionEntry } from '@aaif/goose-sdk';
 import { getAcpClient } from './acpConnection';
 
-export type ConfiguredExtensionEntry = ExtensionEntry & { configKey?: string };
+export type ConfiguredExtensionEntry = ExtensionEntry & {
+  configKey?: string;
+  authenticated?: boolean;
+};
 
 export interface ConfiguredExtensionsResponse {
   extensions: ConfiguredExtensionEntry[];
@@ -71,7 +74,7 @@ function gooseExtensionEntryToExtensionEntry(
   if (!config) {
     return null;
   }
-  return { ...config, enabled: entry.enabled, configKey: entry.configKey ?? undefined };
+  return { ...config, enabled: entry.enabled, configKey: entry.configKey ?? undefined, authenticated: entry.authenticated ?? undefined };
 }
 
 export async function getConfiguredGooseExtensions(): Promise<GooseExtensionEntry[]> {
@@ -165,4 +168,20 @@ export async function setConfigExtensionEnabled(
 ): Promise<void> {
   const client = await getAcpClient();
   await client.goose.configExtensionsSetEnabled_unstable({ configKey, enabled });
+}
+
+export async function authenticateConfigExtension(
+  configKey: string,
+  options?: { force?: boolean }
+): Promise<void> {
+  const client = await getAcpClient();
+  await client.goose.configExtensionsAuthenticate_unstable({
+    configKey,
+    force: options?.force ?? false,
+  });
+}
+
+export async function deauthenticateConfigExtension(configKey: string): Promise<void> {
+  const client = await getAcpClient();
+  await client.goose.configExtensionsDeauthenticate_unstable({ configKey });
 }

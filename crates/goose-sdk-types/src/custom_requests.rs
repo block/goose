@@ -398,6 +398,9 @@ pub struct GooseExtensionEntry {
     pub enabled: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config_key: Option<String>,
+    /// Present for `streamable_http` extensions: whether OAuth credentials exist locally.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authenticated: Option<bool>,
 }
 
 /// List Goose-owned extension definitions available to configure or enable.
@@ -461,6 +464,30 @@ pub struct RemoveConfigExtensionRequest {
 pub struct SetConfigExtensionEnabledRequest {
     pub config_key: String,
     pub enabled: bool,
+}
+
+/// Run the OAuth browser flow for a persisted streamable HTTP extension.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/config/extensions/authenticate",
+    response = EmptyResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthenticateConfigExtensionRequest {
+    pub config_key: String,
+    #[serde(default)]
+    pub force: bool,
+}
+
+/// Clear locally stored OAuth credentials for a streamable HTTP extension.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/config/extensions/deauthenticate",
+    response = EmptyResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct DeauthenticateConfigExtensionRequest {
+    pub config_key: String,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
@@ -1737,6 +1764,12 @@ pub struct ProviderInventoryModelDto {
     pub id: String,
     /// Human-readable display name.
     pub name: String,
+    /// Curated short label for picker rows (server catalog).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alias: Option<String>,
+    /// Secondary line under the alias (server catalog).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subtext: Option<String>,
     /// Model family for grouping in UI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub family: Option<String>,
