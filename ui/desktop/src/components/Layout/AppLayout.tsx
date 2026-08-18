@@ -120,6 +120,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
           <PanelLeft className="w-5 h-5" />
         </Button>
       </div>
+
       {/* Main content with navigation. Shared white canvas; the sidebar is a
           rounded outlined card floating on it with breathing room. */}
       <div className="flex flex-1 w-full h-full min-h-0 flex-row">
