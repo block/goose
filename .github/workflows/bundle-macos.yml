@@ -136,8 +136,8 @@ jobs:
         run: |
           source ./bin/activate-hermit
           echo "$PWD/bin" >> "$GITHUB_PATH"
-          [ -n "$CARGO_HOME" ] && echo "CARGO_HOME=${CARGO_HOME}" >> "$GITHUB_ENV"
-          [ -n "$RUSTUP_HOME" ] && echo "RUSTUP_HOME=${RUSTUP_HOME}" >> "$GITHUB_ENV"
+          if [ -n "$CARGO_HOME" ]; then echo "CARGO_HOME=${CARGO_HOME}" >> "$GITHUB_ENV"; fi
+          if [ -n "$RUSTUP_HOME" ]; then echo "RUSTUP_HOME=${RUSTUP_HOME}" >> "$GITHUB_ENV"; fi
 
       - name: Restore goose CLI binary
         id: goose-bin
