@@ -19,19 +19,22 @@ const git = (dir: string, args: string[], timeout = 3000) =>
     });
   });
 
+const getCurrentBranch = async (dir: string) => {
+  try {
+    const ref = await git(dir, ['symbolic-ref', 'HEAD']);
+    return ref.startsWith('refs/heads/') ? ref.slice('refs/heads/'.length) : ref;
+  } catch {
+    return git(dir, ['rev-parse', '--short', 'HEAD']).catch(() => null);
+  }
+};
+
 ipcMain.handle(
   'get-git-branch-info',
   async (_event, dir: string): Promise<{ branch: string } | null> => {
     if (!dir?.trim()) return null;
 
-    try {
-      const branch = await git(dir, ['rev-parse', '--abbrev-ref', 'HEAD']);
-      const displayBranch =
-        branch === 'HEAD' ? await git(dir, ['rev-parse', '--short', 'HEAD']) : branch;
-      return { branch: displayBranch };
-    } catch {
-      return null;
-    }
+    const branch = await getCurrentBranch(dir);
+    return branch ? { branch } : null;
   }
 );
 
@@ -59,7 +62,7 @@ ipcMain.handle(
       await git(dir, ['checkout', branch], 30000);
       return { success: true };
     } catch (error) {
-      const currentBranch = await git(dir, ['rev-parse', '--abbrev-ref', 'HEAD']).catch(() => null);
+      const currentBranch = await getCurrentBranch(dir);
       if (currentBranch === branch) return { success: true };
 
       const gitError = error as Error & { stderr?: string };
