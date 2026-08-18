@@ -4645,5 +4645,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "Проверьте подключение учетной записи, прежде чем продолжить."
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "и введите:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "Копировать"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "Перейдите на"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "и введите:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "Копировать"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "Перейдите на"
   }
 }

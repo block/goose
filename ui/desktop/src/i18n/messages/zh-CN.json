@@ -4645,5 +4645,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "请先检查账户连接，然后再继续。"
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "并输入："
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "复制"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "访问"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "并输入："
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "复制"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "访问"
   }
 }

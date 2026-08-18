@@ -4645,5 +4645,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "Hãy kiểm tra kết nối tài khoản trước khi tiếp tục."
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "và nhập:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "Sao chép"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "Truy cập"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "và nhập:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "Sao chép"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "Truy cập"
   }
 }

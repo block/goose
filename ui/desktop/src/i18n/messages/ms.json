@@ -4645,5 +4645,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "Semak sambungan akaun anda sebelum meneruskan."
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "dan masukkan:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "Salin"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "Lawati"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "dan masukkan:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "Salin"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "Lawati"
   }
 }

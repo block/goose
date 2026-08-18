@@ -2768,8 +2768,17 @@
   "providerConfigForm.continue": {
     "defaultMessage": "Continue"
   },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "and enter:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "Copy"
+  },
   "providerConfigForm.deviceCodeFlowHint": {
     "defaultMessage": "A browser window will open and the verification code will be copied to your clipboard. Paste it in the browser to complete sign-in."
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "Visit"
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Don't have an API key?"
@@ -2810,8 +2819,17 @@
   "providerConfigurationModal.deleteConfirmation": {
     "defaultMessage": "This will permanently delete the current provider configuration."
   },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "and enter:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "Copy"
+  },
   "providerConfigurationModal.deviceCodeFlowHint": {
     "defaultMessage": "A browser window will open and the verification code will be copied to your clipboard. Paste it in the browser to complete sign-in."
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "Visit"
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "There was an error checking this provider configuration."

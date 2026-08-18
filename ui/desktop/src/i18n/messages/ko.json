@@ -4645,5 +4645,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "계속하기 전에 계정 연결을 확인하세요."
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "코드를 입력하세요:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "복사"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "방문하여"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "코드를 입력하세요:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "복사"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "방문하여"
   }
 }

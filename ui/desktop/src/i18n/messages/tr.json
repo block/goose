@@ -4645,5 +4645,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "Devam etmeden önce hesap bağlantınızı kontrol edin."
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "ve girin:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "Kopyala"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "Ziyaret edin"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "ve girin:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "Kopyala"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "Ziyaret edin"
   }
 }

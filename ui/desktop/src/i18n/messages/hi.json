@@ -4645,5 +4645,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "आगे बढ़ने से पहले अपने खाते का कनेक्शन जाँचें।"
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "और दर्ज करें:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "कॉपी करें"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "जाएं"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "और दर्ज करें:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "कॉपी करें"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "जाएं"
   }
 }

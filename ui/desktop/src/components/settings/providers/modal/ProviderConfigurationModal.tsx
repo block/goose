@@ -125,6 +125,18 @@ const i18n = defineMessages({
     defaultMessage:
       'Sign in to use Hugging Face Inference Providers without manually entering an API token.',
   },
+  deviceCodeVisit: {
+    id: 'providerConfigurationModal.deviceCodeVisit',
+    defaultMessage: 'Visit',
+  },
+  deviceCodeAndEnter: {
+    id: 'providerConfigurationModal.deviceCodeAndEnter',
+    defaultMessage: 'and enter:',
+  },
+  deviceCodeCopy: {
+    id: 'providerConfigurationModal.deviceCodeCopy',
+    defaultMessage: 'Copy',
+  },
 });
 
 /** Render a setup step string, turning `backtick` spans into <code> and newlines into <br/>. */
@@ -406,7 +418,7 @@ export default function ProviderConfigurationModal({
                     {hasDeviceCodeFlow && isOAuthLoading && deviceCode ? (
                       <div className="flex flex-col items-center gap-2">
                         <p className="text-sm text-text-secondary text-center">
-                          Visit{' '}
+                          {intl.formatMessage(i18n.deviceCodeVisit)}{' '}
                           <a
                             href="#"
                             onClick={(e) => {
@@ -417,7 +429,7 @@ export default function ProviderConfigurationModal({
                           >
                             {deviceCode.verificationUri}
                           </a>{' '}
-                          and enter:
+                          {intl.formatMessage(i18n.deviceCodeAndEnter)}
                         </p>
                         <div className="flex items-center gap-2">
                           <code className="text-xl font-mono tracking-widest bg-background-muted px-4 py-2 rounded">
@@ -428,7 +440,7 @@ export default function ProviderConfigurationModal({
                             onClick={() => navigator.clipboard.writeText(deviceCode.userCode)}
                             className="text-xs text-text-muted hover:text-text-default underline"
                           >
-                            Copy
+                            {intl.formatMessage(i18n.deviceCodeCopy)}
                           </button>
                         </div>
                       </div>

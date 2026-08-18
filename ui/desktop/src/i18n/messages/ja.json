@@ -4645,5 +4645,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "続行する前にアカウントの接続を確認してください。"
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "コードを入力してください："
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "コピー"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "次のURLにアクセスし、"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "コードを入力してください："
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "コピー"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "次のURLにアクセスし、"
   }
 }

@@ -45,6 +45,18 @@ const i18n = defineMessages({
     id: 'providerConfigForm.continue',
     defaultMessage: 'Continue',
   },
+  deviceCodeVisit: {
+    id: 'providerConfigForm.deviceCodeVisit',
+    defaultMessage: 'Visit',
+  },
+  deviceCodeAndEnter: {
+    id: 'providerConfigForm.deviceCodeAndEnter',
+    defaultMessage: 'and enter:',
+  },
+  deviceCodeCopy: {
+    id: 'providerConfigForm.deviceCodeCopy',
+    defaultMessage: 'Copy',
+  },
 });
 
 function parseLinks(text: string) {
@@ -119,7 +131,7 @@ function OAuthForm({
       {isDeviceCodeFlow && isLoading && deviceCode ? (
         <div className="flex flex-col items-center gap-2 w-full">
           <p className="text-xs text-text-muted text-center">
-            Visit{' '}
+            {intl.formatMessage(i18n.deviceCodeVisit)}{' '}
             <a
               href="#"
               onClick={(e) => {
@@ -130,7 +142,7 @@ function OAuthForm({
             >
               {deviceCode.verificationUri}
             </a>{' '}
-            and enter:
+            {intl.formatMessage(i18n.deviceCodeAndEnter)}
           </p>
           <div className="flex items-center gap-2">
             <code className="text-lg font-mono tracking-widest bg-background-muted px-3 py-1 rounded">
@@ -141,7 +153,7 @@ function OAuthForm({
               onClick={() => navigator.clipboard.writeText(deviceCode.userCode)}
               className="text-xs text-text-muted hover:text-text-default underline"
             >
-              Copy
+              {intl.formatMessage(i18n.deviceCodeCopy)}
             </button>
           </div>
         </div>

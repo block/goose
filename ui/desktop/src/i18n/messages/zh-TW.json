@@ -4645,5 +4645,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "請先檢查帳戶連線，然後再繼續。"
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "並輸入："
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "複製"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "前往"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "並輸入："
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "複製"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "前往"
   }
 }

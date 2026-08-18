@@ -4645,5 +4645,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "Verifica la connessione del tuo account prima di continuare."
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "e inserisci:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "Copia"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "Visita"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "e inserisci:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "Copia"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "Visita"
   }
 }
