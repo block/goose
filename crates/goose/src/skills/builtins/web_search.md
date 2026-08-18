@@ -30,7 +30,7 @@ for res in r['results']:
 
 **SearXNG (self-hosted, requires `SEARXNG_URL`):**
 ```bash
-curl -s "${SEARXNG_URL}/search?q=your+query&format=json" | python3 -c "
+curl -sG --data-urlencode "q=your query here" --data "format=json" "${SEARXNG_URL}/search" | python3 -c "
 import json, sys
 data = json.load(sys.stdin)
 for r in data.get('results', [])[:5]:
@@ -46,7 +46,7 @@ Pick the first available: Tavily if `TAVILY_API_KEY` is set, SearXNG if `SEARXNG
 
 ```bash
 url="https://example.com"
-tmpfile=$(mktemp /tmp/page-XXXXXX.txt)
+tmpfile=$(mktemp /tmp/page-XXXXXX)
 curl -sL --max-time 15 -A "Mozilla/5.0" "$url" | uvx html2text --ignore-links > "$tmpfile" 2>/dev/null
 wc -c "$tmpfile"
 head -c 15000 "$tmpfile"
