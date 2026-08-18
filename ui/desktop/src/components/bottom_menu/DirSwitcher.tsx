@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, FolderDot, FolderOpen, GitBranch, Plus } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
+import { Input } from '../ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,6 +41,14 @@ const i18n = defineMessages({
   noWorktreesFound: {
     id: 'dirSwitcher.noWorktreesFound',
     defaultMessage: 'No worktrees found',
+  },
+  enterPath: {
+    id: 'dirSwitcher.enterPath',
+    defaultMessage: 'Enter path',
+  },
+  enterPathPlaceholder: {
+    id: 'dirSwitcher.enterPathPlaceholder',
+    defaultMessage: 'Enter an absolute path (e.g. /home/goose/workspace)',
   },
 });
 
@@ -84,6 +93,7 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [recentDirs, setRecentDirs] = useState<string[]>([]);
   const [worktreeDirs, setWorktreeDirs] = useState<string[]>([]);
+  const [customDirInput, setCustomDirInput] = useState('');
   const refreshVersionRef = useRef(0);
 
   const refreshMenuData = useCallback(async () => {
@@ -217,6 +227,24 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
               <DirNameLabel dir={workingDir} />
               <Check className="ml-auto h-4 w-4 flex-shrink-0" />
             </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>{intl.formatMessage(i18n.enterPath)}</DropdownMenuLabel>
+            <div className="px-2 py-1.5">
+              <Input
+                value={customDirInput}
+                placeholder={intl.formatMessage(i18n.enterPathPlaceholder)}
+                onChange={(e) => setCustomDirInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && customDirInput.trim()) {
+                    const newDir = customDirInput.trim();
+                    setCustomDirInput('');
+                    setIsMenuOpen(false);
+                    void applyDirectoryChange(newDir);
+                  }
+                }}
+              />
+            </div>
 
             <DropdownMenuSeparator />
             <DropdownMenuLabel>{intl.formatMessage(i18n.gitWorktrees)}</DropdownMenuLabel>

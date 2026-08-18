@@ -16,7 +16,7 @@ import { ChatState } from '../types/chatState';
 import 'react-toastify/dist/ReactToastify.css';
 import { View, ViewOptions } from '../utils/navigationUtils';
 import { useConfig } from './ConfigContext';
-import { getInitialWorkingDir } from '../utils/workingDir';
+import { getEffectiveWorkingDir, getInitialWorkingDir } from '../utils/workingDir';
 import { createSession } from '../sessions';
 import LoadingGoose from './LoadingGoose';
 import { UserInput } from '../types/message';
@@ -62,6 +62,18 @@ export default function Hub({
     useState<NextChatExtensionDraft | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { time, meridiem, hour } = useClock();
+
+  // Re-resolve the working dir on mount: GOOSE_WORKING_DIR is fixed at window
+  // creation, so a configured remote directory may have changed since then.
+  useEffect(() => {
+    let active = true;
+    void getEffectiveWorkingDir().then((dir) => {
+      if (active) setWorkingDir(dir);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const greeting = useMemo(() => {
     if (hour < 12) return intl.formatMessage(i18n.goodMorning);

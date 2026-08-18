@@ -917,6 +917,12 @@
   "dirSwitcher.currentDirectory": {
     "defaultMessage": "Aktuelles Verzeichnis"
   },
+  "dirSwitcher.enterPath": {
+    "defaultMessage": "Pfad eingeben"
+  },
+  "dirSwitcher.enterPathPlaceholder": {
+    "defaultMessage": "Absoluten Pfad eingeben (z. B. /home/goose/workspace)"
+  },
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Aktualisieren des Arbeitsverzeichnisses fehlgeschlagen"
   },
