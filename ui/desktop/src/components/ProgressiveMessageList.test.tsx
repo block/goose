@@ -167,6 +167,53 @@ describe('ProgressiveMessageList', () => {
     expect(gooseMessageRenderCounts.get('m3')).toBe(2);
   });
 
+  it('keeps a 241-message session inside the default 80-message window', () => {
+    const messages = Array.from({ length: 241 }, (_, index) =>
+      visibleMessage(`m${index + 1}`, index % 2 === 0 ? 'user' : 'assistant')
+    );
+
+    render(
+      <ProgressiveMessageList
+        messages={messages}
+        chat={{ sessionId: 'session-1' }}
+        isUserMessage={(message) => message.role === 'user'}
+      />,
+      { wrapper: IntlTestWrapper }
+    );
+
+    expect(screen.queryByTestId('user-m1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('assistant-m161')).not.toBeInTheDocument();
+    expect(screen.getByTestId('assistant-m162')).toBeInTheDocument();
+    expect(screen.getByTestId('user-m241')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /161 hidden/i })).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^(user|assistant)-m\d+$/)).toHaveLength(80);
+  });
+
+  it('does not remount earlier rows while a long session streams', () => {
+    const messages = Array.from({ length: 80 }, (_, index) =>
+      visibleMessage(`m${index + 1}`, index % 2 === 0 ? 'user' : 'assistant')
+    );
+    const earlierAssistant = messages[77];
+    const streaming = messages[79];
+
+    const { rerender } = renderList(messages, 80);
+    expect(gooseMessageRenderCounts.get(earlierAssistant.id ?? '')).toBe(1);
+    expect(gooseMessageRenderCounts.get(streaming.id ?? '')).toBe(1);
+
+    const nextMessages = messages.slice(0, -1).concat([visibleMessage('m80', 'assistant')]);
+    rerender(
+      <ProgressiveMessageList
+        messages={nextMessages}
+        chat={{ sessionId: 'session-1' }}
+        isUserMessage={(message) => message.role === 'user'}
+        visibleWindow={80}
+      />
+    );
+
+    expect(gooseMessageRenderCounts.get(earlierAssistant.id ?? '')).toBe(1);
+    expect(gooseMessageRenderCounts.get('m80')).toBe(2);
+  });
+
   it('expands the full transcript when search is triggered', async () => {
     const user = userEvent.setup();
     renderList(
