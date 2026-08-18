@@ -78,34 +78,12 @@ fn materialize_model_config_inner(
     Ok(model)
 }
 
-fn configured_model_name(key: &str) -> Option<String> {
+fn configured_fast_model_name() -> Option<String> {
     Config::global()
-        .get_param::<String>(key)
+        .get_param::<String>("GOOSE_FAST_MODEL")
         .ok()
         .map(|v| v.trim().to_string())
         .filter(|v| !v.is_empty())
-}
-
-fn configured_fast_model_name() -> Option<String> {
-    configured_model_name("GOOSE_FAST_MODEL")
-}
-
-fn configured_compaction_model_name() -> Option<String> {
-    configured_model_name("GOOSE_COMPACTION_MODEL")
-}
-
-fn resolve_override_model(
-    override_name: Option<String>,
-    provider_name: &str,
-    model_config: &ModelConfig,
-) -> Result<ModelConfig> {
-    match override_name {
-        Some(name) if name != model_config.model_name => {
-            model_config_from_user_config(provider_name, name)
-                .map(|config| config.with_request_headers(model_config.request_headers.clone()))
-        }
-        _ => Ok(model_config.clone()),
-    }
 }
 
 /// Resolve the model config to use for lightweight "fast" tasks (session
@@ -125,7 +103,13 @@ pub async fn get_fast_model(
         None => provider_default_fast_model(provider_name).await,
     };
 
-    resolve_override_model(fast_model_name, provider_name, model_config)
+    match fast_model_name {
+        Some(name) if name != model_config.model_name => {
+            model_config_from_user_config(provider_name, name)
+                .map(|config| config.with_request_headers(model_config.request_headers.clone()))
+        }
+        _ => Ok(model_config.clone()),
+    }
 }
 
 /// A one-shot task summarizes a transcript or tool result that never recurs, so
@@ -135,19 +119,6 @@ fn one_shot_model_config(model_config: ModelConfig) -> ModelConfig {
     model_config
         .with_thinking_effort(ThinkingEffort::Off)
         .with_prompt_cache_disabled()
-}
-
-/// Resolve the model config for compaction and tool-result summarization:
-/// `GOOSE_COMPACTION_MODEL` if set, otherwise the supplied main `model_config`.
-pub fn get_compaction_model(
-    provider_name: &str,
-    model_config: &ModelConfig,
-) -> Result<ModelConfig> {
-    resolve_override_model(
-        configured_compaction_model_name(),
-        provider_name,
-        model_config,
-    )
 }
 
 /// Run a completion for a lightweight "fast" task (session naming, tool-call
@@ -161,70 +132,23 @@ pub async fn complete_fast(
     messages: &[Message],
     tools: &[Tool],
 ) -> Result<(Message, ProviderUsage), ProviderError> {
-    let fast_model_config = get_fast_model(provider.get_name(), model_config)
-        .await
-        .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
-
-    complete_with_main_fallback(
-        provider,
-        fast_model_config,
-        model_config,
-        session_id,
-        system,
-        messages,
-        tools,
-    )
-    .await
-}
-
-/// Run a completion for compaction or tool-result summarization on the model
-/// resolved by [`get_compaction_model`], falling back to the supplied main
-/// `model_config` if an overridden compaction model errors.
-pub async fn complete_compaction(
-    provider: &dyn Provider,
-    model_config: &ModelConfig,
-    session_id: &str,
-    system: &str,
-    messages: &[Message],
-    tools: &[Tool],
-) -> Result<(Message, ProviderUsage), ProviderError> {
-    let compaction_model_config = get_compaction_model(provider.get_name(), model_config)
-        .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
-
-    complete_with_main_fallback(
-        provider,
-        compaction_model_config,
-        model_config,
-        session_id,
-        system,
-        messages,
-        tools,
-    )
-    .await
-}
-
-async fn complete_with_main_fallback(
-    provider: &dyn Provider,
-    task_model_config: ModelConfig,
-    model_config: &ModelConfig,
-    session_id: &str,
-    system: &str,
-    messages: &[Message],
-    tools: &[Tool],
-) -> Result<(Message, ProviderUsage), ProviderError> {
-    let task_model_config = one_shot_model_config(task_model_config);
+    let fast_model_config = one_shot_model_config(
+        get_fast_model(provider.get_name(), model_config)
+            .await
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?,
+    );
 
     match crate::session_context::with_session_id(
         Some(session_id.to_string()),
-        provider.complete(&task_model_config, system, messages, tools),
+        provider.complete(&fast_model_config, system, messages, tools),
     )
     .await
     {
         Ok(response) => Ok(response),
-        Err(e) if task_model_config.model_name != model_config.model_name => {
+        Err(e) if fast_model_config.model_name != model_config.model_name => {
             tracing::warn!(
-                "Model {} failed with error: {}. Falling back to main model {}",
-                task_model_config.model_name,
+                "Fast model {} failed with error: {}. Falling back to main model {}",
+                fast_model_config.model_name,
                 e,
                 model_config.model_name
             );
@@ -237,6 +161,25 @@ async fn complete_with_main_fallback(
         }
         Err(e) => Err(e),
     }
+}
+
+/// Run a completion for compaction or tool-result summarization on the main
+/// session model with one-shot semantics (thinking off, no prompt-cache writes).
+pub async fn complete_compaction(
+    provider: &dyn Provider,
+    model_config: &ModelConfig,
+    session_id: &str,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+) -> Result<(Message, ProviderUsage), ProviderError> {
+    let compaction_model_config = one_shot_model_config(model_config.clone());
+
+    crate::session_context::with_session_id(
+        Some(session_id.to_string()),
+        provider.complete(&compaction_model_config, system, messages, tools),
+    )
+    .await
 }
 
 async fn provider_default_fast_model(provider_name: &str) -> Option<String> {
@@ -352,63 +295,6 @@ mod one_shot_tests {
     #[test]
     fn prompt_cache_is_disabled() {
         assert!(one_shot_model_config(ModelConfig::new("claude-haiku-4-5")).prompt_cache_disabled());
-    }
-}
-
-#[cfg(test)]
-mod compaction_model_tests {
-    use super::*;
-    use serial_test::serial;
-
-    struct EnvGuard {
-        keys: Vec<&'static str>,
-    }
-
-    impl EnvGuard {
-        fn set(vars: &[(&'static str, &str)]) -> Self {
-            for (key, value) in vars {
-                std::env::set_var(key, value);
-            }
-            Self {
-                keys: vars.iter().map(|(key, _)| *key).collect(),
-            }
-        }
-    }
-
-    impl Drop for EnvGuard {
-        fn drop(&mut self) {
-            for key in &self.keys {
-                std::env::remove_var(key);
-            }
-        }
-    }
-
-    fn main_model() -> ModelConfig {
-        ModelConfig::new("gpt-5.1")
-    }
-
-    #[test]
-    #[serial(compaction_model_env)]
-    fn compaction_model_env_var_wins_over_fast_model() {
-        let _guard = EnvGuard::set(&[
-            ("GOOSE_COMPACTION_MODEL", "gpt-5.1-mini"),
-            ("GOOSE_FAST_MODEL", "gpt-4o-mini"),
-        ]);
-
-        let resolved = get_compaction_model("openai", &main_model()).unwrap();
-        assert_eq!(resolved.model_name, "gpt-5.1-mini");
-    }
-
-    #[test]
-    #[serial(compaction_model_env)]
-    fn fast_model_does_not_affect_compaction() {
-        let _guard = EnvGuard::set(&[
-            ("GOOSE_COMPACTION_MODEL", "   "),
-            ("GOOSE_FAST_MODEL", "gpt-4o-mini"),
-        ]);
-
-        let resolved = get_compaction_model("openai", &main_model()).unwrap();
-        assert_eq!(resolved.model_name, "gpt-5.1");
     }
 }
 
