@@ -1,6 +1,8 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
-use crate::agents::subagent_handler::{run_subagent_task, OnMessageCallback, SubagentRunParams};
+use crate::agents::subagent_handler::{
+    run_subagent_task, OnMessageCallback, SubagentRunParams, SubagentRunResult,
+};
 use crate::agents::subagent_task_config::{TaskConfig, DEFAULT_SUBAGENT_MAX_TURNS};
 use crate::agents::tool_execution::{ToolCallContext, ToolCallNotificationEmitter};
 use crate::agents::AgentConfig;
@@ -71,7 +73,7 @@ pub struct BackgroundTask {
     pub started_at: Instant,
     pub turns: Arc<AtomicU32>,
     pub last_activity: Arc<AtomicU64>,
-    pub handle: JoinHandle<Result<String>>,
+    pub handle: JoinHandle<Result<SubagentRunResult>>,
     pub cancellation_token: CancellationToken,
     notification_sink: SharedNotificationSink,
 }
@@ -79,7 +81,7 @@ pub struct BackgroundTask {
 pub struct CompletedTask {
     pub id: String,
     pub description: String,
-    pub result: Result<String, String>,
+    pub result: Result<SubagentRunResult, String>,
     pub turns_taken: u32,
     pub duration: Duration,
     pub completed_at: Instant,
@@ -1041,7 +1043,7 @@ impl SummonClient {
                 _ => "✗ Failed",
             };
             let output = match result {
-                Ok(output) => output,
+                Ok(run_result) => run_result.text_with_report(),
                 Err(error) => format!("Error: {}", error),
             };
             return Ok(TaskLoadResult {
@@ -1117,7 +1119,7 @@ impl SummonClient {
                 let output = tokio::select! {
                     result = &mut handle => {
                         match result {
-                            Ok(Ok(s)) => s,
+                            Ok(Ok(run_result)) => run_result.text_with_report(),
                             Ok(Err(e)) => format!("Error: {}", e),
                             Err(e) => format!("Task panicked: {}", e),
                         }
@@ -1157,7 +1159,7 @@ impl SummonClient {
             tokio::select! {
                 result = &mut task.handle => {
                     let (output, status_key) = match result {
-                        Ok(Ok(s)) => (s, "completed"),
+                        Ok(Ok(run_result)) => (run_result.text_with_report(), "completed"),
                         Ok(Err(e)) => (format!("Error: {}", e), "failed"),
                         Err(e) => (format!("Task panicked: {}", e), "panicked"),
                     };
@@ -1417,9 +1419,10 @@ impl SummonClient {
         );
 
         match result {
-            Ok(text) => {
-                Ok(CallToolResult::success(vec![ContentBlock::text(text)]).with_meta(Some(meta)))
-            }
+            Ok(run_result) => Ok(CallToolResult::success(vec![ContentBlock::text(
+                run_result.text_with_report(),
+            )])
+            .with_meta(Some(meta))),
             Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Delegation failed: {}",
                 e
@@ -3602,7 +3605,10 @@ You review code."#;
                     last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
                     handle: tokio::spawn(async {
                         tokio::time::sleep(Duration::from_millis(50)).await;
-                        Ok("done".to_string())
+                        Ok(SubagentRunResult {
+                            text: "done".to_string(),
+                            extension_load_results: Vec::new(),
+                        })
                     }),
                     cancellation_token: CancellationToken::new(),
                     notification_sink,
@@ -3639,7 +3645,10 @@ You review code."#;
                 CompletedTask {
                     id: "20260204_2".to_string(),
                     description: "Successful task".to_string(),
-                    result: Ok("Task completed successfully with output".to_string()),
+                    result: Ok(SubagentRunResult {
+                        text: "Task completed successfully with output".to_string(),
+                        extension_load_results: Vec::new(),
+                    }),
                     turns_taken: 5,
                     duration: Duration::from_secs(60),
                     completed_at: Instant::now(),
@@ -3739,7 +3748,10 @@ You review code."#;
                             .lock()
                             .await
                             .route(test_tool_notification("cancel", task_id));
-                        Ok("cancelled gracefully".to_string())
+                        Ok(SubagentRunResult {
+                            text: "cancelled gracefully".to_string(),
+                            extension_load_results: Vec::new(),
+                        })
                     }),
                     cancellation_token: token.clone(),
                     notification_sink,
@@ -3904,7 +3916,10 @@ You review code."#;
                     last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
                     handle: tokio::spawn(async {
                         tokio::time::sleep(Duration::from_secs(1000)).await;
-                        Ok("eventual result".to_string())
+                        Ok(SubagentRunResult {
+                            text: "eventual result".to_string(),
+                            extension_load_results: Vec::new(),
+                        })
                     }),
                     cancellation_token: CancellationToken::new(),
                     notification_sink: buffered_notification_sink(Vec::new()),
@@ -3952,7 +3967,10 @@ You review code."#;
                 CompletedTask {
                     id: "20260204_1".to_string(),
                     description: "Finished task".to_string(),
-                    result: Ok("final output".to_string()),
+                    result: Ok(SubagentRunResult {
+                        text: "final output".to_string(),
+                        extension_load_results: Vec::new(),
+                    }),
                     turns_taken: 4,
                     duration: Duration::from_secs(30),
                     completed_at: Instant::now(),

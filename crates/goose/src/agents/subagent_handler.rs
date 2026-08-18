@@ -1,5 +1,8 @@
 use crate::{
-    agents::{subagent_task_config::TaskConfig, Agent, AgentConfig, AgentEvent, SessionConfig},
+    agents::{
+        subagent_task_config::TaskConfig, Agent, AgentConfig, AgentEvent, ExtensionLoadResult,
+        SessionConfig,
+    },
     conversation::{
         message::{Message, MessageContent},
         Conversation,
@@ -30,8 +33,12 @@ pub struct SubagentPromptContext {
     pub available_tools: String,
 }
 
-type AgentMessagesFuture =
-    Pin<Box<dyn Future<Output = Result<(Conversation, Option<String>)>> + Send>>;
+type AgentMessagesFuture = Pin<
+    Box<
+        dyn Future<Output = Result<(Conversation, Option<String>, Vec<ExtensionLoadResult>)>>
+            + Send,
+    >,
+>;
 
 pub struct SubagentRunParams {
     pub config: AgentConfig,
@@ -44,21 +51,76 @@ pub struct SubagentRunParams {
     pub notification_tx: Option<tokio::sync::mpsc::UnboundedSender<ServerNotification>>,
 }
 
-pub async fn run_subagent_task(params: SubagentRunParams) -> Result<String, anyhow::Error> {
-    let return_last_only = params.return_last_only;
-    let (messages, final_output) = get_agent_messages(params).await.map_err(|e| {
-        ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!("Failed to execute task: {}", e),
-            None,
-        )
-    })?;
+/// Output of a subagent run.
+///
+/// Carries the text a caller would previously have seen as the bare `String`
+/// return, plus a per-extension load status so the parent (LLM or orchestrator)
+/// can tell when a delegate ran with fewer tools than requested.
+#[derive(Debug, Clone)]
+pub struct SubagentRunResult {
+    pub text: String,
+    pub extension_load_results: Vec<ExtensionLoadResult>,
+}
 
-    if let Some(output) = final_output {
-        return Ok(output);
+impl SubagentRunResult {
+    /// Format the extension-load results as a human- and LLM-readable block,
+    /// suitable for appending to a delegate tool response.
+    ///
+    /// Returns `None` when every requested extension loaded successfully or
+    /// when no extensions were requested — in that case callers should emit
+    /// the plain `text` output unchanged.
+    pub fn format_extension_load_report(&self) -> Option<String> {
+        if self.extension_load_results.is_empty()
+            || self.extension_load_results.iter().all(|r| r.success)
+        {
+            return None;
+        }
+
+        let mut lines = String::from("Subagent extension load results:");
+        for result in &self.extension_load_results {
+            if result.success {
+                lines.push_str(&format!("\n  loaded: {}", result.name));
+            } else {
+                let err = result.error.as_deref().unwrap_or("unknown error");
+                lines.push_str(&format!("\n  failed: {} ({})", result.name, err));
+            }
+        }
+        Some(lines)
     }
 
-    Ok(extract_response_text(&messages, return_last_only))
+    /// Return the tool-response text a caller should surface to the parent,
+    /// appending the extension-load report only when at least one extension
+    /// failed to attach.
+    pub fn text_with_report(&self) -> String {
+        match self.format_extension_load_report() {
+            Some(report) => format!("{}\n\n{}", self.text, report),
+            None => self.text.clone(),
+        }
+    }
+}
+
+pub async fn run_subagent_task(
+    params: SubagentRunParams,
+) -> Result<SubagentRunResult, anyhow::Error> {
+    let return_last_only = params.return_last_only;
+    let (messages, final_output, extension_load_results) =
+        get_agent_messages(params).await.map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to execute task: {}", e),
+                None,
+            )
+        })?;
+
+    let text = match final_output {
+        Some(output) => output,
+        None => extract_response_text(&messages, return_last_only),
+    };
+
+    Ok(SubagentRunResult {
+        text,
+        extension_load_results,
+    })
 }
 
 fn extract_response_text(messages: &Conversation, return_last_only: bool) -> String {
@@ -148,13 +210,24 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
             .await
             .map_err(|e| anyhow!("Failed to set provider on sub agent: {}", e))?;
 
+        let mut extension_load_results: Vec<ExtensionLoadResult> =
+            Vec::with_capacity(task_config.extensions.len());
         for extension in &task_config.extensions {
-            if let Err(e) = agent.add_extension(extension.clone(), &session_id).await {
-                debug!(
-                    "Failed to add extension '{}' to subagent: {}",
-                    extension.name(),
-                    e
-                );
+            let name = extension.name();
+            match agent.add_extension(extension.clone(), &session_id).await {
+                Ok(_) => extension_load_results.push(ExtensionLoadResult {
+                    name,
+                    success: true,
+                    error: None,
+                }),
+                Err(e) => {
+                    debug!("Failed to add extension '{}' to subagent: {}", name, e);
+                    extension_load_results.push(ExtensionLoadResult {
+                        name,
+                        success: false,
+                        error: Some(e.to_string()),
+                    });
+                }
             }
         }
 
@@ -234,7 +307,7 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
 
         let final_output = get_final_output(&agent, has_response_schema).await;
 
-        Ok((conversation, final_output))
+        Ok((conversation, final_output, extension_load_results))
     })
 }
 
@@ -313,7 +386,8 @@ pub fn create_tool_notification(
 
 #[cfg(test)]
 mod tests {
-    use super::{create_tool_notification, SUBAGENT_TOOL_REQUEST_TYPE};
+    use super::{create_tool_notification, SubagentRunResult, SUBAGENT_TOOL_REQUEST_TYPE};
+    use crate::agents::ExtensionLoadResult;
     use crate::conversation::message::MessageContent;
     use rmcp::model::{CallToolRequestParams, ServerNotification};
     use serde_json::json;
@@ -357,5 +431,94 @@ mod tests {
     fn create_tool_notification_ignores_non_tool_request() {
         let content = MessageContent::text("hello");
         assert!(create_tool_notification(&content, "session_1").is_none());
+    }
+
+    #[test]
+    fn subagent_run_result_no_report_when_all_extensions_succeed() {
+        let result = SubagentRunResult {
+            text: "subagent output".to_string(),
+            extension_load_results: vec![
+                ExtensionLoadResult {
+                    name: "developer".to_string(),
+                    success: true,
+                    error: None,
+                },
+                ExtensionLoadResult {
+                    name: "computercontroller".to_string(),
+                    success: true,
+                    error: None,
+                },
+            ],
+        };
+
+        assert!(result.format_extension_load_report().is_none());
+        assert_eq!(result.text_with_report(), "subagent output");
+    }
+
+    #[test]
+    fn subagent_run_result_no_report_when_no_extensions_requested() {
+        let result = SubagentRunResult {
+            text: "subagent output".to_string(),
+            extension_load_results: Vec::new(),
+        };
+
+        assert!(result.format_extension_load_report().is_none());
+        assert_eq!(result.text_with_report(), "subagent output");
+    }
+
+    #[test]
+    fn subagent_run_result_reports_partial_extension_failures() {
+        let result = SubagentRunResult {
+            text: "subagent output".to_string(),
+            extension_load_results: vec![
+                ExtensionLoadResult {
+                    name: "developer".to_string(),
+                    success: true,
+                    error: None,
+                },
+                ExtensionLoadResult {
+                    name: "memory".to_string(),
+                    success: false,
+                    error: Some("extension not registered".to_string()),
+                },
+            ],
+        };
+
+        let report = result
+            .format_extension_load_report()
+            .expect("report expected when any extension fails");
+        assert!(report.contains("Subagent extension load results"));
+        assert!(report.contains("loaded: developer"));
+        assert!(report.contains("failed: memory (extension not registered)"));
+
+        let combined = result.text_with_report();
+        assert!(combined.starts_with("subagent output"));
+        assert!(combined.contains("failed: memory"));
+    }
+
+    #[test]
+    fn subagent_run_result_reports_all_extension_failures() {
+        let result = SubagentRunResult {
+            text: "subagent output".to_string(),
+            extension_load_results: vec![
+                ExtensionLoadResult {
+                    name: "memory".to_string(),
+                    success: false,
+                    error: Some("not registered".to_string()),
+                },
+                ExtensionLoadResult {
+                    name: "sqlite".to_string(),
+                    success: false,
+                    error: None,
+                },
+            ],
+        };
+
+        let report = result
+            .format_extension_load_report()
+            .expect("report expected when all extensions fail");
+        assert!(report.contains("failed: memory (not registered)"));
+        assert!(report.contains("failed: sqlite (unknown error)"));
+        assert!(!report.contains("loaded:"));
     }
 }
