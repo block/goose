@@ -8,16 +8,22 @@ export const getInitialWorkingDir = (): string => {
  *
  * GOOSE_WORKING_DIR is fixed when the window is created, so it goes stale when
  * the user switches to an external backend (or changes the configured remote
- * directory) afterwards. When an external backend is enabled with a configured
- * remote directory, that directory takes precedence — the local path is
- * meaningless on the remote host and would fail the server's cwd validation.
+ * directory) afterwards. The configured remote directory is only applied when
+ * the window is actually bound to an external backend (fixed at window creation
+ * via the gooseServeLeases) and that backend still matches the current
+ * settings; otherwise the remote path would be sent to the local (or a
+ * different remote) server, where it fails the cwd existence validation.
  */
 export const getEffectiveWorkingDir = async (): Promise<string> => {
   const initial = getInitialWorkingDir();
+  const boundUrl = window.appConfig?.get('GOOSE_EXTERNAL_BACKEND_URL') as string | undefined;
+  if (window.appConfig?.get('GOOSE_EXTERNAL_BACKEND') !== true || !boundUrl) {
+    return initial;
+  }
   try {
     const external = await window.electron.getSetting('externalGoosed');
     const remote = external?.workingDir?.trim();
-    if (external?.enabled && remote) {
+    if (external?.enabled && remote && normalizeUrl(boundUrl) === normalizeUrl(external.url)) {
       return remote;
     }
   } catch {
@@ -25,6 +31,8 @@ export const getEffectiveWorkingDir = async (): Promise<string> => {
   }
   return initial;
 };
+
+const normalizeUrl = (url: string): string => url.trim().replace(/\/+$/, '');
 
 export const resolveWorkingDir = (
   externalWorkingDir: string | undefined,

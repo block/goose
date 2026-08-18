@@ -15,6 +15,15 @@ describe('getEffectiveWorkingDir', () => {
   const getSettingMock = vi.fn();
   const appConfigGetMock = vi.fn();
 
+  const mockWindow = (externalBackend: boolean, boundUrl: string) => {
+    appConfigGetMock.mockImplementation((key: string) => {
+      if (key === 'GOOSE_EXTERNAL_BACKEND') return externalBackend;
+      if (key === 'GOOSE_EXTERNAL_BACKEND_URL') return boundUrl;
+      if (key === 'GOOSE_WORKING_DIR') return '/Users/johannes/home/workspace';
+      return undefined;
+    });
+  };
+
   beforeEach(() => {
     getSettingMock.mockReset();
     appConfigGetMock.mockReset();
@@ -24,26 +33,46 @@ describe('getEffectiveWorkingDir', () => {
     } as unknown as typeof globalThis;
   });
 
-  it('prefers the configured remote directory when the external backend is enabled', async () => {
-    appConfigGetMock.mockReturnValue('/Users/johannes/home/workspace');
-    getSettingMock.mockResolvedValue({ enabled: true, workingDir: ' /home/goose/workspace ' });
+  it('prefers the configured remote directory when bound to the matching external backend', async () => {
+    mockWindow(true, 'http://remote:3000/');
+    getSettingMock.mockResolvedValue({
+      enabled: true,
+      url: 'http://remote:3000',
+      workingDir: ' /home/goose/workspace ',
+    });
     await expect(getEffectiveWorkingDir()).resolves.toBe('/home/goose/workspace');
   });
 
+  it('ignores the remote directory when the window is bound to the local backend', async () => {
+    mockWindow(false, '');
+    getSettingMock.mockResolvedValue({ enabled: true, workingDir: '/home/goose/workspace' });
+    await expect(getEffectiveWorkingDir()).resolves.toBe('/Users/johannes/home/workspace');
+  });
+
+  it('falls back to the remembered directory when the bound backend no longer matches settings', async () => {
+    mockWindow(true, 'http://server-a:3000');
+    getSettingMock.mockResolvedValue({
+      enabled: true,
+      url: 'http://server-b:3000',
+      workingDir: '/home/goose/workspace',
+    });
+    await expect(getEffectiveWorkingDir()).resolves.toBe('/Users/johannes/home/workspace');
+  });
+
   it('falls back to the remembered directory when the external backend is disabled', async () => {
-    appConfigGetMock.mockReturnValue('/Users/johannes/home/workspace');
+    mockWindow(true, 'http://remote:3000');
     getSettingMock.mockResolvedValue({ enabled: false, workingDir: '/home/goose/workspace' });
     await expect(getEffectiveWorkingDir()).resolves.toBe('/Users/johannes/home/workspace');
   });
 
   it('falls back to the remembered directory when the remote directory is blank', async () => {
-    appConfigGetMock.mockReturnValue('/Users/johannes/home/workspace');
+    mockWindow(true, 'http://remote:3000');
     getSettingMock.mockResolvedValue({ enabled: true, workingDir: '   ' });
     await expect(getEffectiveWorkingDir()).resolves.toBe('/Users/johannes/home/workspace');
   });
 
   it('falls back to the remembered directory when the setting cannot be read', async () => {
-    appConfigGetMock.mockReturnValue('/Users/johannes/home/workspace');
+    mockWindow(true, 'http://remote:3000');
     getSettingMock.mockRejectedValue(new Error('settings unavailable'));
     await expect(getEffectiveWorkingDir()).resolves.toBe('/Users/johannes/home/workspace');
   });

@@ -50,7 +50,14 @@ const i18n = defineMessages({
     id: 'dirSwitcher.enterPathPlaceholder',
     defaultMessage: 'Enter an absolute path (e.g. /home/goose/workspace)',
   },
+  enterPathInvalid: {
+    id: 'dirSwitcher.enterPathInvalid',
+    defaultMessage: 'Working directory must be an absolute path',
+  },
 });
+
+const isAbsolutePath = (p: string): boolean =>
+  p.startsWith('/') || p.startsWith('\\\\') || /^[A-Za-z]:[\\/]/.test(p);
 
 const splitDirPath = (dir: string): { name: string; parent: string } => {
   const normalized = dir.replace(/[\\/]+$/, '');
@@ -238,6 +245,10 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && customDirInput.trim()) {
                     const newDir = customDirInput.trim();
+                    if (!isAbsolutePath(newDir)) {
+                      toast.error(intl.formatMessage(i18n.enterPathInvalid));
+                      return;
+                    }
                     setCustomDirInput('');
                     setIsMenuOpen(false);
                     void applyDirectoryChange(newDir);

@@ -941,6 +941,9 @@
   "dirSwitcher.enterPath": {
     "defaultMessage": "Enter path"
   },
+  "dirSwitcher.enterPathInvalid": {
+    "defaultMessage": "Working directory must be an absolute path"
+  },
   "dirSwitcher.enterPathPlaceholder": {
     "defaultMessage": "Enter an absolute path (e.g. /home/goose/workspace)"
   },

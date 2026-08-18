@@ -923,6 +923,10 @@
   "dirSwitcher.enterPathPlaceholder": {
     "defaultMessage": "Absoluten Pfad eingeben (z. B. /home/goose/workspace)"
   },
+  "dirSwitcher.enterPathInvalid": {
+    "defaultMessage": "Arbeitsverzeichnis muss ein absoluter Pfad sein"
+  },
+
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Aktualisieren des Arbeitsverzeichnisses fehlgeschlagen"
   },

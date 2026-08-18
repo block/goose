@@ -987,6 +987,10 @@ let appConfig = {
   GOOSE_PREDEFINED_MODELS: predefinedModels,
   GOOSE_PATH_ROOT: sanitizeGoosePathRoot(process.env),
   GOOSE_WORKING_DIR: '',
+  // Whether the window is bound to an external backend (fixed at window
+  // creation via gooseServeLeases) and which URL it is bound to.
+  GOOSE_EXTERNAL_BACKEND: false,
+  GOOSE_EXTERNAL_BACKEND_URL: '',
   // Start with the env-var override; the OS region locale is filled in after app.ready
   // (see updateLocaleFromSystem below) since getSystemLocale() cannot be called earlier.
   GOOSE_LOCALE: process.env.GOOSE_LOCALE || undefined,
@@ -1309,6 +1313,8 @@ const createChat = async (
             ...appConfig,
             GOOSE_LOCALE: getConfiguredGooseLocale(),
             GOOSE_WORKING_DIR: workingDir,
+            GOOSE_EXTERNAL_BACKEND: externalBackend !== null,
+            GOOSE_EXTERNAL_BACKEND_URL: externalBackend?.url ?? '',
             REQUEST_DIR: dir,
             GOOSE_VERSION: version,
             recipeDeeplink: recipeDeeplink,
