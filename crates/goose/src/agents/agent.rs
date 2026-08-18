@@ -1229,13 +1229,23 @@ impl Agent {
                 let result = self.with_post_tool_hook(result, &tool_call, session, &request_id);
                 (request_id, Ok(result))
             } else {
-                let result = ToolCallResult::from(Err(ErrorData::new(
+                // This method has always reported a missing final-output tool as
+                // the outer error. Keep that contract and emit the failure
+                // observation directly, the same event the wrapper would emit.
+                let error = ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
                     "Final output tool not defined".to_string(),
                     None,
-                )));
-                let result = self.with_post_tool_hook(result, &tool_call, session, &request_id);
-                (request_id, Ok(result))
+                );
+                let failure = crate::hooks::HookEvent::PostToolUseFailure;
+                if self.hook_manager.has_hooks(failure) {
+                    let ctx = crate::hooks::HookContext::new(failure, &session.id)
+                        .with_tool(tool_call.name.to_string(), tool_input_for_hooks.clone())
+                        .with_tool_call_id(request_id.as_str())
+                        .with_working_dir(session.working_dir.to_string_lossy().to_string());
+                    self.hook_manager.emit(failure, ctx).await;
+                }
+                (request_id, Err(error))
             };
         }
 
@@ -5562,5 +5572,53 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         assert_eq!(results[0]["decision"], "allow");
         assert_eq!(results[0]["policy_evaluated"], false);
         assert_eq!(results[0]["tool_call_id"], "call-abnormal-1");
+    }
+
+    /// inactive final output: the tool is not installed, so nothing executes. The
+    /// outer error stays the one this method has always returned, and the failure
+    /// is still observed exactly once, carrying the request id.
+    #[tokio::test]
+    async fn inactive_final_output_keeps_the_outer_error_and_emits_one_failure_event() {
+        use rmcp::object;
+
+        let env = RecordingHookEnv::new(&[
+            ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+            ("PostToolUse", "", "post.sh", RECORD_POST_SCRIPT),
+            (
+                "PostToolUseFailure",
+                "",
+                "postfail.sh",
+                RECORD_POST_FAILURE_SCRIPT,
+            ),
+        ]);
+        // agent_with_hooks builds the agent through Agent::with_config, which
+        // leaves final_output_tool as None, so the tool is inactive here without
+        // any extra setup.
+        let (agent, session, _data_dir) = agent_with_hooks(env.hook_manager()).await;
+
+        let call = CallToolRequestParams::new(FINAL_OUTPUT_TOOL_NAME)
+            .with_arguments(object!({ "answer": "unused" }));
+        let (_, result) = agent
+            .dispatch_tool_call(call, "call-inactive-1".to_string(), None, &session)
+            .await;
+
+        let Err(error) = result else {
+            panic!("an inactive final-output tool must report the outer error");
+        };
+        assert_eq!(error.message, "Final output tool not defined");
+        assert_eq!(error.code, ErrorCode::INTERNAL_ERROR);
+
+        let failures = env.payloads("postfail.log");
+        assert_eq!(
+            failures.len(),
+            1,
+            "the failure must be observed exactly once",
+        );
+        assert_eq!(failures[0]["tool_call_id"], "call-inactive-1");
+        assert_eq!(failures[0]["tool_name"], FINAL_OUTPUT_TOOL_NAME);
+        assert!(
+            env.payloads("post.log").is_empty(),
+            "PostToolUse must not fire for a tool that never ran",
+        );
     }
 }
