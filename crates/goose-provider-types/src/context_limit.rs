@@ -31,9 +31,20 @@ impl ContextLimitResolver {
         self
     }
 
+    fn configured_limit(&self, model: &str) -> Option<usize> {
+        self.configured_limits.get(model).copied().or_else(|| {
+            let mut matches = self
+                .configured_limits
+                .iter()
+                .filter(|(configured_model, _)| configured_model.eq_ignore_ascii_case(model));
+            let (_, limit) = matches.next()?;
+            matches.next().is_none().then_some(*limit)
+        })
+    }
+
     pub fn resolve_local(&self, model: &str, override_limit: Option<usize>) -> usize {
         override_limit
-            .or_else(|| self.configured_limits.get(model).copied())
+            .or_else(|| self.configured_limit(model))
             .or_else(|| {
                 maybe_get_canonical_model(&self.provider_name, model)
                     .map(|canonical| canonical.limit.context)
@@ -55,8 +66,8 @@ impl ContextLimitResolver {
             return limit;
         }
 
-        if let Some(limit) = self.configured_limits.get(model) {
-            return *limit;
+        if let Some(limit) = self.configured_limit(model) {
+            return limit;
         }
 
         match discover().await {
@@ -98,6 +109,29 @@ mod tests {
                 .resolve("claude-sonnet-4-5", None, || async { Ok(Some(16_000)) })
                 .await,
             64_000
+        );
+    }
+
+    #[test]
+    fn configured_limits_match_case_insensitively() {
+        let resolver = ContextLimitResolver::new("unknown-provider")
+            .with_configured_limits([("MyModel".to_string(), 64_000)]);
+
+        assert_eq!(resolver.resolve_local("mymodel", None), 64_000);
+    }
+
+    #[test]
+    fn exact_match_wins_over_case_insensitive_matches() {
+        let resolver = ContextLimitResolver::new("unknown-provider").with_configured_limits([
+            ("MyModel".to_string(), 64_000),
+            ("mymodel".to_string(), 32_000),
+        ]);
+
+        assert_eq!(resolver.resolve_local("MyModel", None), 64_000);
+        assert_eq!(resolver.resolve_local("mymodel", None), 32_000);
+        assert_eq!(
+            resolver.resolve_local("MYMODEL", None),
+            DEFAULT_CONTEXT_LIMIT
         );
     }
 
