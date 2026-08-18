@@ -407,6 +407,22 @@ pub async fn collect_stream(
                             {
                                 last_text.text.push_str(&new_text.text);
                             }
+                            // Coalesce consecutive thinking blocks, mirroring
+                            // Conversation::push's signature rules: append while
+                            // the previous block is unsigned or the incoming
+                            // delta shares its signature; a signed block never
+                            // absorbs a differently-signed delta.
+                            (
+                                Some(MessageContentBlock::Thinking(last_thinking)),
+                                MessageContentBlock::Thinking(new_thinking),
+                            ) if last_thinking.signature.is_empty()
+                                || new_thinking.signature == last_thinking.signature =>
+                            {
+                                last_thinking.thinking.push_str(&new_thinking.thinking);
+                                if !new_thinking.signature.is_empty() {
+                                    last_thinking.signature = new_thinking.signature.clone();
+                                }
+                            }
                             _ => {
                                 prev.content.push(new_content);
                             }
@@ -809,6 +825,51 @@ mod tests {
         assert_eq!(message.content.len(), 2);
         assert_eq!(message.user_visible_content().as_concat_text(), "public");
         assert_eq!(message.agent_visible_content().as_concat_text(), "private");
+    }
+
+    #[tokio::test]
+    async fn test_collect_stream_coalesces_thinking_deltas() {
+        use futures::stream;
+
+        let delta = |t: &str| Ok((Some(Message::assistant().with_thinking(t, "")), None));
+        let stream = stream::iter([delta("Thinking"), delta(" Process"), delta(":")]);
+
+        let (message, _) = collect_stream(Box::pin(stream)).await.unwrap();
+
+        assert_eq!(
+            message.content.len(),
+            1,
+            "thinking deltas must coalesce into one block, got {:?}",
+            message.content
+        );
+        match &message.content[0] {
+            MessageContentBlock::Thinking(t) => assert_eq!(t.thinking, "Thinking Process:"),
+            other => panic!("expected Thinking, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_collect_stream_never_merges_distinctly_signed_thinking_blocks() {
+        use futures::stream;
+
+        let delta =
+            |t: &str, sig: &str| Ok((Some(Message::assistant().with_thinking(t, sig)), None));
+        // Two complete, independently-signed thinking blocks streamed back to
+        // back must stay separate, not merge into one.
+        let stream = stream::iter([delta("first", "sig-a"), delta("second", "sig-b")]);
+
+        let (message, _) = collect_stream(Box::pin(stream)).await.unwrap();
+
+        assert_eq!(message.content.len(), 2);
+        match (&message.content[0], &message.content[1]) {
+            (MessageContentBlock::Thinking(a), MessageContentBlock::Thinking(b)) => {
+                assert_eq!(a.thinking, "first");
+                assert_eq!(a.signature, "sig-a");
+                assert_eq!(b.thinking, "second");
+                assert_eq!(b.signature, "sig-b");
+            }
+            other => panic!("expected two Thinking blocks, got {:?}", other),
+        }
     }
 
     #[tokio::test]
