@@ -2008,7 +2008,7 @@ ipcMain.handle('list-git-branches', (_event, dir: string): Promise<string[]> => 
   return new Promise<string[]>((resolve) => {
     execFile(
       'git',
-      ['-c', 'safe.bareRepository=explicit', '-c', 'core.fsmonitor=false', '-C', dir, 'for-each-ref', 'refs/heads/', '--format=%(refname:short)'],
+      ['-c', 'safe.bareRepository=explicit', '-c', 'core.fsmonitor=false', '-C', dir, 'for-each-ref', 'refs/heads/', '--format=%(refname:lstrip=2)'],
       { timeout: 3000 },
       (error, stdout) => {
         if (error) resolve([]);
