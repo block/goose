@@ -933,16 +933,16 @@
     "defaultMessage": "Недавние каталоги"
   },
   "gitBranchIndicator.failedToSwitch": {
-    "defaultMessage": "Failed to switch to {branch}"
+    "defaultMessage": "Не удалось переключиться на {branch}"
   },
   "gitBranchIndicator.noBranchesFound": {
-    "defaultMessage": "No branches found"
+    "defaultMessage": "Ветки не найдены"
   },
   "gitBranchIndicator.searchBranches": {
-    "defaultMessage": "Search branches…"
+    "defaultMessage": "Поиск веток…"
   },
   "gitBranchIndicator.uncommittedChanges": {
-    "defaultMessage": "You may have uncommitted changes."
+    "defaultMessage": "Возможно, у вас есть незакоммиченные изменения."
   },
   "elicitationRequest.accept": {
     "defaultMessage": "Принять"

@@ -933,16 +933,16 @@
     "defaultMessage": "Cartelle recenti"
   },
   "gitBranchIndicator.failedToSwitch": {
-    "defaultMessage": "Failed to switch to {branch}"
+    "defaultMessage": "Impossibile passare a {branch}"
   },
   "gitBranchIndicator.noBranchesFound": {
-    "defaultMessage": "No branches found"
+    "defaultMessage": "Nessun branch trovato"
   },
   "gitBranchIndicator.searchBranches": {
-    "defaultMessage": "Search branches…"
+    "defaultMessage": "Cerca branch…"
   },
   "gitBranchIndicator.uncommittedChanges": {
-    "defaultMessage": "You may have uncommitted changes."
+    "defaultMessage": "Potresti avere modifiche non incluse in un commit."
   },
   "elicitationRequest.accept": {
     "defaultMessage": "Accetta"

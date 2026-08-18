@@ -933,16 +933,16 @@
     "defaultMessage": "Diretórios recentes"
   },
   "gitBranchIndicator.failedToSwitch": {
-    "defaultMessage": "Failed to switch to {branch}"
+    "defaultMessage": "Falha ao mudar para {branch}"
   },
   "gitBranchIndicator.noBranchesFound": {
-    "defaultMessage": "No branches found"
+    "defaultMessage": "Nenhum ramo encontrado"
   },
   "gitBranchIndicator.searchBranches": {
-    "defaultMessage": "Search branches…"
+    "defaultMessage": "Pesquisar ramos…"
   },
   "gitBranchIndicator.uncommittedChanges": {
-    "defaultMessage": "You may have uncommitted changes."
+    "defaultMessage": "Pode haver alterações sem commit."
   },
   "elicitationRequest.accept": {
     "defaultMessage": "Aceitar"

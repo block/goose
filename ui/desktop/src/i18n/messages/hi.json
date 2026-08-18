@@ -933,16 +933,16 @@
     "defaultMessage": "हाल की निर्देशिकाएँ"
   },
   "gitBranchIndicator.failedToSwitch": {
-    "defaultMessage": "Failed to switch to {branch}"
+    "defaultMessage": "{branch} पर स्विच नहीं किया जा सका"
   },
   "gitBranchIndicator.noBranchesFound": {
-    "defaultMessage": "No branches found"
+    "defaultMessage": "कोई ब्रांच नहीं मिली"
   },
   "gitBranchIndicator.searchBranches": {
-    "defaultMessage": "Search branches…"
+    "defaultMessage": "ब्रांच खोजें…"
   },
   "gitBranchIndicator.uncommittedChanges": {
-    "defaultMessage": "You may have uncommitted changes."
+    "defaultMessage": "आपके कुछ बदलाव कमिट नहीं हुए हो सकते हैं।"
   },
   "elicitationRequest.accept": {
     "defaultMessage": "स्वीकार करो"

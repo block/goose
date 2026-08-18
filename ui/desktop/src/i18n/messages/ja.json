@@ -933,16 +933,16 @@
     "defaultMessage": "最近のディレクトリ"
   },
   "gitBranchIndicator.failedToSwitch": {
-    "defaultMessage": "Failed to switch to {branch}"
+    "defaultMessage": "{branch} への切り替えに失敗しました"
   },
   "gitBranchIndicator.noBranchesFound": {
-    "defaultMessage": "No branches found"
+    "defaultMessage": "ブランチが見つかりません"
   },
   "gitBranchIndicator.searchBranches": {
-    "defaultMessage": "Search branches…"
+    "defaultMessage": "ブランチを検索…"
   },
   "gitBranchIndicator.uncommittedChanges": {
-    "defaultMessage": "You may have uncommitted changes."
+    "defaultMessage": "コミットされていない変更がある可能性があります。"
   },
   "elicitationRequest.accept": {
     "defaultMessage": "承諾"
