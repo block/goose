@@ -568,8 +568,10 @@ mod tests {
 
     #[test]
     fn agent_name_returns_recipe_title_when_present() {
-        let mut session = Session::default();
-        session.recipe = Some(test_recipe("My Recipe"));
+        let session = Session {
+            recipe: Some(test_recipe("My Recipe")),
+            ..Default::default()
+        };
         assert_eq!(agent_name(&session), "My Recipe");
     }
 
@@ -581,9 +583,11 @@ mod tests {
 
     #[test]
     fn agent_name_prefers_explicit_agent_name() {
-        let mut session = Session::default();
-        session.agent_name = Some("custom-agent".to_string());
-        session.recipe = Some(test_recipe("My Recipe"));
+        let session = Session {
+            agent_name: Some("custom-agent".to_string()),
+            recipe: Some(test_recipe("My Recipe")),
+            ..Default::default()
+        };
         assert_eq!(agent_name(&session), "custom-agent");
     }
 }
