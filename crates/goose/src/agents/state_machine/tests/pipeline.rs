@@ -16,7 +16,7 @@ use crate::agents::mcp_client::McpClientTrait;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::state_machine::{
     BangShellOperation, CompactionOperation, DoctorOperation, Emitter, EntryHookOperation,
-    ExitOnErrorOperation, GooseEffect, GooseInferenceRequestPreparer, GooseInferenceRuntime,
+    ExitOnErrorOperation, GooseEffect, GooseInferenceHooks, GooseInferenceRequestPreparer,
     InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation, RecipeOperation,
     RetryOperation, SkillOperation, SlashCommandOperation, StateMachine, SteerOperation,
     SteerQueue, Step, StopHookOperation, ToolApprovalOperation, ToolExecutionOperation,
@@ -177,7 +177,7 @@ impl TestPipeline {
             provider,
             self.model_config.clone(),
             Some(Arc::new(request_preparer)),
-            Arc::new(GooseInferenceRuntime),
+            Arc::new(GooseInferenceHooks),
         ));
         let mut command_handlers = operations.clone();
         command_handlers.push(inference.clone());

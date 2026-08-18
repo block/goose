@@ -28,8 +28,8 @@ use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::state_machine::{
     run_goose, BangShellOperation, CompactionOperation, DoctorOperation, Emitter,
-    EntryHookOperation, ExitOnErrorOperation, GooseEffect, GooseInferenceRequestPreparer,
-    GooseInferenceRuntime, InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation,
+    EntryHookOperation, ExitOnErrorOperation, GooseEffect, GooseInferenceHooks,
+    GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation,
     RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation, StateMachine,
     SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
     ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation, MAX_TURNS_MESSAGE,
@@ -1696,7 +1696,7 @@ impl Agent {
             provider,
             model_config,
             Some(Arc::new(request_preparer)),
-            Arc::new(GooseInferenceRuntime),
+            Arc::new(GooseInferenceHooks),
         ));
         let mut command_handlers = operations.clone();
         command_handlers.push(inference.clone());

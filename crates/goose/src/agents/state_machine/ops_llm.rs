@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 pub use goose_agent::inference::InferenceRunner;
-use goose_agent::inference::InferenceRuntime;
+use goose_agent::inference::{EffectAdapter, InferenceHooks};
 use goose_agent::operation::ConversationEffect;
 use goose_providers::base::{MessageStream, Provider};
 use goose_providers::conversation::message::Message;
@@ -20,22 +20,9 @@ use crate::session::Session;
 
 pub(super) use goose_agent::inference::{chat_span, record_chat_usage};
 
-pub struct GooseInferenceRuntime;
+pub struct GooseInferenceHooks;
 
-#[async_trait]
-impl InferenceRuntime<Session, GooseEffect> for GooseInferenceRuntime {
-    fn session_id<'a>(&self, session: &'a Session) -> &'a str {
-        &session.id
-    }
-
-    fn status(&self, session: &Session) -> (String, i64, i64) {
-        (
-            session.goose_mode.to_string(),
-            session.usage.total_tokens.unwrap_or(0) as i64,
-            session.accumulated_usage.total_tokens.unwrap_or(0) as i64,
-        )
-    }
-
+impl EffectAdapter<GooseEffect> for GooseInferenceHooks {
     fn effect_from_message(&self, message: Message) -> GooseEffect {
         message.into()
     }
@@ -54,6 +41,21 @@ impl InferenceRuntime<Session, GooseEffect> for GooseInferenceRuntime {
             GooseEffect::Conversation(ConversationEffect::AppendMessage(message)) => Some(message),
             _ => None,
         }
+    }
+}
+
+#[async_trait]
+impl InferenceHooks<Session, GooseEffect> for GooseInferenceHooks {
+    fn session_id<'a>(&self, session: &'a Session) -> &'a str {
+        &session.id
+    }
+
+    fn status(&self, session: &Session) -> (String, i64, i64) {
+        (
+            session.goose_mode.to_string(),
+            session.usage.total_tokens.unwrap_or(0) as i64,
+            session.accumulated_usage.total_tokens.unwrap_or(0) as i64,
+        )
     }
 
     fn unclaimed_tool_error_key(&self) -> &'static str {
