@@ -342,9 +342,11 @@ pub async fn handle_term_info() -> Result<()> {
         .unwrap_or(0) as usize;
 
     let config = goose::config::Config::global();
-    let model_name = config
-        .get_goose_model()
-        .ok()
+    let model_name = session
+        .as_ref()
+        .and_then(|session| session.model_config.as_ref())
+        .map(|model| model.model_name.clone())
+        .or_else(|| config.get_goose_model().ok())
         .map(|name| {
             let short = name.rsplit('/').next().unwrap_or(&name);
             if let Some(stripped) = short.strip_prefix("goose-") {

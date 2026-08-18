@@ -299,6 +299,16 @@ impl Provider for LiteLLMProvider {
     }
 }
 
+fn parse_custom_headers(headers_str: String) -> HashMap<String, String> {
+    let mut headers = HashMap::new();
+    for line in headers_str.lines() {
+        if let Some((key, value)) = line.split_once(':') {
+            headers.insert(key.trim().to_string(), value.trim().to_string());
+        }
+    }
+    headers
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -349,14 +359,4 @@ mod tests {
             32_000
         );
     }
-}
-
-fn parse_custom_headers(headers_str: String) -> HashMap<String, String> {
-    let mut headers = HashMap::new();
-    for line in headers_str.lines() {
-        if let Some((key, value)) = line.split_once(':') {
-            headers.insert(key.trim().to_string(), value.trim().to_string());
-        }
-    }
-    headers
 }
