@@ -266,6 +266,16 @@ export default function BaseChat({
   const initialRenderRef = useRef(true);
 
   // Auto-scroll when messages are loaded (for session resuming)
+  const appendMessage = useCallback(
+    (text: string) => {
+      handleSubmit({ msg: text, images: [] });
+    },
+    [handleSubmit]
+  );
+
+  const isUserMessage = useCallback((message: Message) => message.role === 'user', []);
+  const chat = useMemo(() => ({ sessionId }), [sessionId]);
+
   const handleRenderingComplete = React.useCallback(() => {
     // Only force scroll on the very first render
     if (initialRenderRef.current && messages.length > 0) {
@@ -455,7 +465,7 @@ export default function BaseChat({
             {recipe && (
               <div className={hasStartedUsingRecipe ? 'mb-6' : ''}>
                 <RecipeActivities
-                  append={(text: string) => handleSubmit({ msg: text, images: [] })}
+                  append={appendMessage}
                   activities={Array.isArray(recipe.activities) ? recipe.activities : null}
                   title={recipe.title}
                   parameterValues={session?.user_recipe_values || {}}
@@ -467,11 +477,12 @@ export default function BaseChat({
               <>
                 <SearchView>
                   <ProgressiveMessageList
+                    key={sessionId}
                     messages={messages}
-                    chat={{ sessionId }}
+                    chat={chat}
                     toolCallNotifications={toolCallNotifications}
-                    append={(text: string) => handleSubmit({ msg: text, images: [] })}
-                    isUserMessage={(m: Message) => m.role === 'user'}
+                    append={appendMessage}
+                    isUserMessage={isUserMessage}
                     isStreamingMessage={chatState !== ChatState.Idle}
                     onRenderingComplete={handleRenderingComplete}
                     onMessageUpdate={onMessageUpdate}

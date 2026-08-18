@@ -11,7 +11,7 @@ import {
   type AcpSessionNotificationAdapter,
 } from './sessionNotificationAdapter';
 import type { ElicitationStatus } from './adapter/elicitations';
-import { cloneMessage } from './adapter/shared';
+import { cloneMessage, cloneMessagesSharingUnchanged } from './adapter/shared';
 import type { AcpElicitationRequest } from './elicitationRequests';
 
 export interface AcpChatSessionSnapshot {
@@ -43,6 +43,7 @@ interface StoreEntry extends AcpChatSessionSnapshot {
   // in flight so per-notification reads don't deep-clone the growing message
   // array (see applyAcpSessionNotification / getSnapshot).
   lastSnapshot?: AcpChatSessionSnapshot;
+  publishedByLiveMessage: Map<Message, Message>;
 }
 
 const initialTokenState: TokenState = {
@@ -180,6 +181,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
       pendingUserInputRequestIds: new Set(),
       pendingLocalSteerMessageIds: new Set(),
       preConfirmedSteerMessageIds: new Set(),
+      publishedByLiveMessage: new Map(),
       adapter: createAcpSessionNotificationAdapter(),
     };
     sessionsById.set(sessionId, entry);
@@ -219,9 +221,13 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     entry.sessionLoadError = undefined;
     entry.progressMessage = undefined;
     // Materialize the replayed conversation in one pass (the per-notification
-    // fast path above skips message copies while loading).
-    entry.messages = entry.adapter.getMessages();
-    retainPendingLocalSteerMessageIds(entry);
+    // fast path below skips message copies while loading). Keep any messages
+    // already written via setMessages when the adapter has nothing yet.
+    const replayedMessages = entry.adapter.getMessages();
+    if (replayedMessages.length > 0) {
+      entry.messages = replayedMessages;
+      retainPendingLocalSteerMessageIds(entry);
+    }
     entry.chatState = entry.activePromptAttemptId ? ChatState.Streaming : ChatState.Idle;
     return notify(sessionId, entry);
   };
@@ -627,7 +633,9 @@ function applyChatStateChanges(entry: StoreEntry, changes: AcpChatStateChange[])
   for (const change of changes) {
     switch (change.type) {
       case 'messages':
-        entry.messages = cloneMessages(change.messages);
+        // Adapter replaces only changed messages and returns the live array.
+        // Unchanged objects keep their identity so React can skip those rows.
+        entry.messages = change.messages;
         retainPendingLocalSteerMessageIds(entry);
         break;
       case 'tokenState':
@@ -678,6 +686,8 @@ function resetReplayState(entry: StoreEntry): void {
   entry.pendingUserInputRequestIds.clear();
   entry.pendingLocalSteerMessageIds.clear();
   entry.preConfirmedSteerMessageIds.clear();
+  entry.publishedByLiveMessage = new Map();
+  entry.lastSnapshot = undefined;
   entry.adapter = createAcpSessionNotificationAdapter();
 }
 
@@ -741,11 +751,33 @@ function confirmedLocalSteerTextByMessageId(entry: StoreEntry): Map<string, stri
 }
 
 function snapshotFromEntry(entry: StoreEntry): AcpChatSessionSnapshot {
+  const messages = cloneMessagesSharingUnchanged(
+    entry.messages,
+    entry.publishedByLiveMessage,
+    entry.lastSnapshot?.messages
+  );
+  entry.publishedByLiveMessage = new Map(
+    entry.messages.map((live, index) => [live, messages[index]])
+  );
+  const previous = entry.lastSnapshot;
+  const notifications =
+    previous &&
+    previous.notifications.length === entry.notifications.length &&
+    previous.notifications.every(
+      (notification, index) => notification === entry.notifications[index]
+    )
+      ? previous.notifications
+      : [...entry.notifications];
+  const tokenState =
+    previous && shallowEqualTokenState(previous.tokenState, entry.tokenState)
+      ? previous.tokenState
+      : { ...entry.tokenState };
+
   return {
     session: entry.session,
-    messages: cloneMessages(entry.messages),
-    tokenState: { ...entry.tokenState },
-    notifications: [...entry.notifications],
+    messages,
+    tokenState,
+    notifications,
     progressMessage: entry.progressMessage,
     chatState: entry.chatState,
     sessionLoadError: entry.sessionLoadError,
@@ -753,6 +785,22 @@ function snapshotFromEntry(entry: StoreEntry): AcpChatSessionSnapshot {
     activeRunId: entry.activeRunId,
     pendingCancelPromptAttemptId: entry.pendingCancelPromptAttemptId,
   };
+}
+
+function shallowEqualTokenState(left: TokenState, right: TokenState): boolean {
+  return (
+    left.inputTokens === right.inputTokens &&
+    left.outputTokens === right.outputTokens &&
+    left.totalTokens === right.totalTokens &&
+    left.accumulatedInputTokens === right.accumulatedInputTokens &&
+    left.accumulatedOutputTokens === right.accumulatedOutputTokens &&
+    left.accumulatedTotalTokens === right.accumulatedTotalTokens &&
+    left.accumulatedCost === right.accumulatedCost &&
+    left.cacheReadTokens === right.cacheReadTokens &&
+    left.cacheWriteTokens === right.cacheWriteTokens &&
+    left.accumulatedCacheReadTokens === right.accumulatedCacheReadTokens &&
+    left.accumulatedCacheWriteTokens === right.accumulatedCacheWriteTokens
+  );
 }
 
 function cloneMessages(messages: Message[]): Message[] {

@@ -2630,8 +2630,8 @@
   "privacyInfoModal.whatWeCollect": {
     "defaultMessage": "Ne topluyoruz:"
   },
-  "progressiveMessageList.loadingMessages": {
-    "defaultMessage": "Mesajlar yükleniyor... ({renderedCount}/{totalCount})"
+  "progressiveMessageList.showEarlier": {
+    "defaultMessage": "Daha önceki iletileri göster ({hiddenCount} gizli)"
   },
   "progressiveMessageList.modelChanged": {
     "defaultMessage": "Model değişti: {previousModel} → {currentModel}"

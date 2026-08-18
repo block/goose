@@ -5,7 +5,7 @@ import type {
 } from '@agentclientprotocol/sdk';
 import type { Message } from '../../types/message';
 import type { ContentBlock as GooseContentBlock } from '../../types/message';
-import { findMessageForChunk } from './messages';
+import { findMessageForChunk, replaceMessage } from './messages';
 import { toolNotificationChange } from './toolNotifications';
 import {
   type AcpChatStateChange,
@@ -38,18 +38,24 @@ export function applyToolCall(state: AdapterState, update: ToolCall): AcpChatSta
   const identity = toolIdentity(update);
   const metadata = toolRequestMetadata(update, identity);
 
-  message.content.push({
-    type: 'toolRequest',
-    id: update.toolCallId,
-    toolCall: {
-      status: 'success',
-      value: {
-        name: identity.toolName ?? update.title,
-        arguments: rawInputToArguments(update.rawInput),
+  replaceMessage(state, message, {
+    ...message,
+    content: [
+      ...message.content,
+      {
+        type: 'toolRequest',
+        id: update.toolCallId,
+        toolCall: {
+          status: 'success',
+          value: {
+            name: identity.toolName ?? update.title,
+            arguments: rawInputToArguments(update.rawInput),
+          },
+        },
+        ...(metadata ? { metadata } : {}),
+        ...(update._meta ? { _meta: update._meta } : {}),
       },
-    },
-    ...(metadata ? { metadata } : {}),
-    ...(update._meta ? { _meta: update._meta } : {}),
+    ],
   });
 
   return messagesChange(state);
@@ -77,17 +83,23 @@ export function applyToolCallUpdate(
   const identity = toolIdentity(update);
   const metadata = toolResponseMetadata(toolCallState, identity);
 
-  message.content.push({
-    type: 'toolResponse',
-    id: update.toolCallId,
-    toolResult:
-      toolCallState.status === 'failed'
-        ? { status: 'error', error: toolError(toolCallState) }
-        : {
-            status: 'success',
-            value: toolResultValue(toolCallState, mcpAppMetadata(update)),
-          },
-    ...(metadata ? { metadata } : {}),
+  replaceMessage(state, message, {
+    ...message,
+    content: [
+      ...message.content,
+      {
+        type: 'toolResponse',
+        id: update.toolCallId,
+        toolResult:
+          toolCallState.status === 'failed'
+            ? { status: 'error', error: toolError(toolCallState) }
+            : {
+                status: 'success',
+                value: toolResultValue(toolCallState, mcpAppMetadata(update)),
+              },
+        ...(metadata ? { metadata } : {}),
+      },
+    ],
   });
 
   state.toolCallStatesById.delete(update.toolCallId);

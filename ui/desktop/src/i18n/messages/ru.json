@@ -2630,8 +2630,8 @@
   "privacyInfoModal.whatWeCollect": {
     "defaultMessage": "Что мы собираем:"
   },
-  "progressiveMessageList.loadingMessages": {
-    "defaultMessage": "Загрузка сообщений... ({renderedCount}/{totalCount})"
+  "progressiveMessageList.showEarlier": {
+    "defaultMessage": "Показать более ранние сообщения (скрыто: {hiddenCount})"
   },
   "progressiveMessageList.modelChanged": {
     "defaultMessage": "Модель изменена: {previousModel} → {currentModel}"

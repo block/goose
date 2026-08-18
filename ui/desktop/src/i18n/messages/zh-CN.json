@@ -2630,8 +2630,8 @@
   "privacyInfoModal.whatWeCollect": {
     "defaultMessage": "我们采集的内容："
   },
-  "progressiveMessageList.loadingMessages": {
-    "defaultMessage": "正在加载消息…（{renderedCount}/{totalCount}）"
+  "progressiveMessageList.showEarlier": {
+    "defaultMessage": "显示更早的消息（已隐藏 {hiddenCount} 条）"
   },
   "progressiveMessageList.modelChanged": {
     "defaultMessage": "模型已更改：{previousModel} → {currentModel}"

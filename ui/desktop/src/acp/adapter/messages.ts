@@ -51,11 +51,20 @@ export function applyContentChunk(
     }
 
     if (lastContent?.type === 'text' && content.type === 'text') {
-      lastContent.text += content.text;
+      replaceMessage(state, existing, {
+        ...existing,
+        content: [
+          ...existing.content.slice(0, -1),
+          { ...lastContent, text: lastContent.text + content.text },
+        ],
+      });
     } else if (content.type === 'image' && hasImageContent(existing, content)) {
       return messagesChangeWithLocalSteerConfirmation(state, existing, gooseMeta.steer);
     } else {
-      existing.content.push(content);
+      replaceMessage(state, existing, {
+        ...existing,
+        content: [...existing.content, content],
+      });
     }
 
     return messagesChangeWithLocalSteerConfirmation(state, existing, gooseMeta.steer);
@@ -87,26 +96,39 @@ export function applyThoughtChunk(
 
   const gooseMeta = getGooseMessageMeta(update);
   const messageId = update.messageId ?? gooseMeta.messageId;
-  let message = findMessageForChunk(state, 'assistant', messageId, gooseMeta.created);
+  const existing = findMessageForChunk(state, 'assistant', messageId, gooseMeta.created);
 
-  if (!message) {
-    message = {
+  if (existing) {
+    const lastContent = existing.content[existing.content.length - 1];
+    const nextContent =
+      lastContent?.type === 'thinking'
+        ? [
+            ...existing.content.slice(0, -1),
+            { ...lastContent, thinking: lastContent.thinking + update.content.text },
+          ]
+        : [
+            ...existing.content,
+            { type: 'thinking' as const, thinking: update.content.text, signature: '' },
+          ];
+    replaceMessage(state, existing, {
+      ...existing,
+      metadata: {
+        ...existing.metadata,
+        outputTokenLimitReached: gooseMeta.outputTokenLimitReached,
+      },
+      content: nextContent,
+    });
+  } else {
+    state.messages.push({
       ...(messageId ? { id: messageId } : {}),
       role: 'assistant',
       created: gooseMeta.created ?? Math.floor(Date.now() / 1000),
-      content: [],
-      metadata: { ...DEFAULT_VISIBLE_MESSAGE_METADATA },
-    };
-    state.messages.push(message);
-  }
-
-  message.metadata.outputTokenLimitReached = gooseMeta.outputTokenLimitReached;
-
-  const lastContent = message.content[message.content.length - 1];
-  if (lastContent?.type === 'thinking') {
-    lastContent.thinking += update.content.text;
-  } else {
-    message.content.push({ type: 'thinking', thinking: update.content.text, signature: '' });
+      content: [{ type: 'thinking', thinking: update.content.text, signature: '' }],
+      metadata: {
+        ...DEFAULT_VISIBLE_MESSAGE_METADATA,
+        outputTokenLimitReached: gooseMeta.outputTokenLimitReached,
+      },
+    });
   }
 
   return messagesChange(state);
@@ -155,9 +177,11 @@ export function findMessageForChunk(
 
   const pending = lastMergeableMessageWithRole(state, role);
   if (pending && !pending.id) {
-    pending.id = messageId;
-    pending.created = created ?? pending.created;
-    return pending;
+    return replaceMessage(state, pending, {
+      ...pending,
+      id: messageId,
+      created: created ?? pending.created,
+    });
   }
 
   return undefined;
@@ -220,7 +244,20 @@ function reconcileLocalSteerTextChunk(
     state.localSteerTextByMessageId.set(message.id, nextText);
   }
 
-  message.content = [{ ...content, text: nextText }, ...message.content.slice(1)];
-  message.metadata = { ...message.metadata, steer: true };
+  replaceMessage(state, message, {
+    ...message,
+    content: [{ ...content, text: nextText }, ...message.content.slice(1)],
+    metadata: { ...message.metadata, steer: true },
+  });
   return true;
+}
+
+export function replaceMessage(state: AdapterState, previous: Message, next: Message): Message {
+  const index = state.messages.indexOf(previous);
+  if (index === -1) {
+    state.messages.push(next);
+    return next;
+  }
+  state.messages[index] = next;
+  return next;
 }

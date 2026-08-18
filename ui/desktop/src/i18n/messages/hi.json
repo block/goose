@@ -2630,8 +2630,8 @@
   "privacyInfoModal.whatWeCollect": {
     "defaultMessage": "हम क्या एकत्र करते हैं:"
   },
-  "progressiveMessageList.loadingMessages": {
-    "defaultMessage": "संदेश लोड हो रहे हैं... ({renderedCount}/{totalCount})"
+  "progressiveMessageList.showEarlier": {
+    "defaultMessage": "पहले के संदेश दिखाएँ ({hiddenCount} छिपे हुए)"
   },
   "progressiveMessageList.modelChanged": {
     "defaultMessage": "मॉडल बदला गया: {previousModel} → {currentModel}"

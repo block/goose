@@ -2630,8 +2630,8 @@
   "privacyInfoModal.whatWeCollect": {
     "defaultMessage": "Những gì chúng tôi thu thập:"
   },
-  "progressiveMessageList.loadingMessages": {
-    "defaultMessage": "Đang tải tin nhắn... ({renderedCount}/{totalCount})"
+  "progressiveMessageList.showEarlier": {
+    "defaultMessage": "Hiện tin nhắn trước đó (đã ẩn {hiddenCount})"
   },
   "progressiveMessageList.modelChanged": {
     "defaultMessage": "Mô hình đã thay đổi: {previousModel} → {currentModel}"

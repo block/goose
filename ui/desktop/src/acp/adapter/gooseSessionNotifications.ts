@@ -1,6 +1,7 @@
 import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
 import type { MessageUsage } from '../../types/message';
 import { type AcpChatStateChange, type AdapterState, messagesChange } from './shared';
+import { replaceMessage } from './messages';
 
 export function applyGooseSessionNotification(
   state: AdapterState,
@@ -101,6 +102,9 @@ function applyMessageUsage(
     isCompaction: update.usage.isCompaction,
   };
 
-  target.metadata = { ...target.metadata, usage };
+  replaceMessage(state, target, {
+    ...target,
+    metadata: { ...target.metadata, usage },
+  });
   return messagesChange(state);
 }

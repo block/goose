@@ -540,6 +540,40 @@ describe('acpChatSessionStore', () => {
     expect(finishedSnapshot.messages[0].content).toEqual([{ type: 'text', text: 'Hello' }]);
   });
 
+  it('defers replayed messages until session load finishes', () => {
+    const currentSessionId = sessionId('session-load-defer');
+    const replayedChunk = agentMessageChunkNotification(currentSessionId, 'message-1', 'Hello');
+
+    acpChatSessionActions.startSessionLoad(currentSessionId);
+    const loadingSnapshot = acpChatSessionActions.applyAcpSessionNotification(replayedChunk);
+    expect(loadingSnapshot.messages).toEqual([]);
+
+    const finished = acpChatSessionActions.finishSessionLoad(
+      currentSessionId,
+      session(currentSessionId)
+    );
+    expect(finished.messages).toHaveLength(1);
+    expect(finished.messages[0].content).toEqual([{ type: 'text', text: 'Hello' }]);
+  });
+
+  it('reuses unchanged message objects across streamed snapshots', () => {
+    const currentSessionId = sessionId('session-shared-identity');
+    acpChatSessionActions.setMessages(currentSessionId, [message('user-1', 'Hello')]);
+
+    const firstSnapshot = acpChatSessionActions.applyAcpSessionNotification(
+      agentMessageChunkNotification(currentSessionId, 'assistant-1', 'Hel')
+    );
+    const secondSnapshot = acpChatSessionActions.applyAcpSessionNotification(
+      agentMessageChunkNotification(currentSessionId, 'assistant-1', 'lo')
+    );
+
+    expect(secondSnapshot.messages).toHaveLength(2);
+    expect(secondSnapshot.messages[0]).toBe(firstSnapshot.messages[0]);
+    expect(secondSnapshot.messages[1]).not.toBe(firstSnapshot.messages[1]);
+    expect(secondSnapshot.messages[1].content).toEqual([{ type: 'text', text: 'Hello' }]);
+    expect(firstSnapshot.messages[1].content).toEqual([{ type: 'text', text: 'Hel' }]);
+  });
+
   it('applies permission requests as waiting action-required messages', () => {
     const currentSessionId = sessionId('session-1');
 
@@ -676,6 +710,10 @@ describe('useAcpChatSessionSnapshot', () => {
       acpChatSessionActions.setMessages(sessionId, [nextMessage]);
     });
 
-    expect(result.current?.messages).toEqual([nextMessage]);
+    expect(result.current?.messages).toHaveLength(1);
+    expect(result.current?.messages[0]).toMatchObject({
+      id: nextMessage.id,
+      content: nextMessage.content,
+    });
   });
 });

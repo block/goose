@@ -306,7 +306,7 @@ interface SessionListViewProps {
 const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSession }) => {
   const intl = useIntl();
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
-  const [isPrefetchingSessions, setIsPrefetchingSessions] = useState(false);
+  const [isLoadingMoreSessions, setIsLoadingMoreSessions] = useState(false);
   const [dateGroups, setDateGroups] = useState<DateGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showSkeleton, setShowSkeleton] = useState(true);
@@ -360,34 +360,34 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
     }
   }, [debouncedSearchTerm, dateGroups.length]);
 
-  const loadRemainingSessionPages = useCallback(
-    async (initialCursor: string, loadId: number, keyword?: string) => {
-      let cursor: string | null = initialCursor;
-      setIsPrefetchingSessions(true);
+  const nextCursorRef = useRef<string | null>(null);
 
-      try {
-        while (cursor && loadGenerationRef.current === loadId) {
-          const resp = await acpListSessions(cursor, { keyword });
-          if (loadGenerationRef.current !== loadId) return;
+  const loadNextSessionPage = useCallback(async (loadId: number, keyword?: string) => {
+    const cursor = nextCursorRef.current;
+    if (!cursor || loadGenerationRef.current !== loadId) {
+      return;
+    }
 
-          cursor = resp.nextCursor;
-          startTransition(() => {
-            setSessions((prev) => {
-              const seen = new Set(prev.map((s) => s.id));
-              return [...prev, ...resp.sessions.filter((s) => !seen.has(s.id))];
-            });
-          });
-        }
-      } catch (err) {
-        console.error('Failed to load remaining sessions:', err);
-      } finally {
-        if (loadGenerationRef.current === loadId) {
-          setIsPrefetchingSessions(false);
-        }
+    setIsLoadingMoreSessions(true);
+    try {
+      const resp = await acpListSessions(cursor, { keyword });
+      if (loadGenerationRef.current !== loadId) return;
+
+      nextCursorRef.current = resp.nextCursor;
+      startTransition(() => {
+        setSessions((prev) => {
+          const seen = new Set(prev.map((s) => s.id));
+          return [...prev, ...resp.sessions.filter((s) => !seen.has(s.id))];
+        });
+      });
+    } catch (err) {
+      console.error('Failed to load remaining sessions:', err);
+    } finally {
+      if (loadGenerationRef.current === loadId) {
+        setIsLoadingMoreSessions(false);
       }
-    },
-    []
-  );
+    }
+  }, []);
 
   const loadSessions = useCallback(
     async (keyword: string = debouncedSearchTermRef.current) => {
@@ -396,7 +396,8 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
       // Only show the skeleton on the first load; subsequent loads (e.g. typing a
       // search keyword) update the list in place without flashing the skeleton.
       const isFirstLoad = !hasLoadedRef.current;
-      setIsPrefetchingSessions(false);
+      setIsLoadingMoreSessions(false);
+      nextCursorRef.current = null;
       setError(null);
       if (isFirstLoad) {
         setIsLoading(true);
@@ -408,13 +409,10 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
         if (loadGenerationRef.current !== loadId) return;
         hasLoadedRef.current = true;
 
+        nextCursorRef.current = resp.nextCursor;
         startTransition(() => {
           setSessions(resp.sessions);
         });
-
-        if (resp.nextCursor) {
-          void loadRemainingSessionPages(resp.nextCursor, loadId, keyword);
-        }
       } catch (err) {
         if (loadGenerationRef.current !== loadId) return;
 
@@ -427,7 +425,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
         }
       }
     },
-    [loadRemainingSessionPages]
+    []
   );
 
   const handleScroll = useCallback(
@@ -439,9 +437,14 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
 
       if (visibleGroupsCount < dateGroups.length) {
         setVisibleGroupsCount((prev) => Math.min(prev + 5, dateGroups.length));
+        return;
+      }
+
+      if (nextCursorRef.current && !isLoadingMoreSessions) {
+        void loadNextSessionPage(loadGenerationRef.current, debouncedSearchTermRef.current);
       }
     },
-    [visibleGroupsCount, dateGroups.length]
+    [visibleGroupsCount, dateGroups.length, isLoadingMoreSessions, loadNextSessionPage]
   );
 
   useEffect(() => {
@@ -972,7 +975,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
           </div>
         ))}
 
-        {isPrefetchingSessions && (
+        {isLoadingMoreSessions && (
           <div className="flex justify-center py-8">
             <div className="flex items-center space-x-2 text-text-secondary">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2"></div>

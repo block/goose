@@ -57,6 +57,40 @@ export function cloneMessage(message: Message): Message {
   };
 }
 
+export function cloneMessagesSharingUnchanged(
+  nextLive: Message[],
+  publishedByLive?: Map<Message, Message>,
+  previousPublished?: Message[]
+): Message[] {
+  if (!publishedByLive || publishedByLive.size === 0) {
+    return nextLive.map(cloneMessage);
+  }
+
+  if (!previousPublished || previousPublished.length === 0) {
+    return nextLive.map((message) => publishedByLive.get(message) ?? cloneMessage(message));
+  }
+
+  let prefixUnchanged = previousPublished.length === nextLive.length;
+  let lastChanged = false;
+  const nextPublished = nextLive.map((message, index) => {
+    const published = publishedByLive.get(message) ?? cloneMessage(message);
+    if (previousPublished[index] !== published) {
+      if (index === nextLive.length - 1) {
+        lastChanged = true;
+      } else {
+        prefixUnchanged = false;
+      }
+    }
+    return published;
+  });
+
+  if (prefixUnchanged && !lastChanged && previousPublished.length === nextPublished.length) {
+    return previousPublished;
+  }
+
+  return nextPublished;
+}
+
 export function getGooseMessageMeta(update: { _meta?: unknown }): GooseMessageMeta {
   if (!isRecord(update._meta)) {
     return {};

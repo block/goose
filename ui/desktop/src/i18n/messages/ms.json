@@ -2630,8 +2630,8 @@
   "privacyInfoModal.whatWeCollect": {
     "defaultMessage": "Apa yang kami kumpul:"
   },
-  "progressiveMessageList.loadingMessages": {
-    "defaultMessage": "Memuatkan mesej... ({renderedCount}/{totalCount})"
+  "progressiveMessageList.showEarlier": {
+    "defaultMessage": "Tunjukkan mesej terdahulu ({hiddenCount} tersembunyi)"
   },
   "progressiveMessageList.modelChanged": {
     "defaultMessage": "Model ditukar: {previousModel} → {currentModel}"

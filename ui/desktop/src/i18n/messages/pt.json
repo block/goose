@@ -2630,8 +2630,8 @@
   "privacyInfoModal.whatWeCollect": {
     "defaultMessage": "O que recolhemos:"
   },
-  "progressiveMessageList.loadingMessages": {
-    "defaultMessage": "A carregar mensagens... ({renderedCount}/{totalCount})"
+  "progressiveMessageList.showEarlier": {
+    "defaultMessage": "Mostrar mensagens anteriores ({hiddenCount} ocultas)"
   },
   "progressiveMessageList.modelChanged": {
     "defaultMessage": "Modelo alterado: {previousModel} → {currentModel}"
