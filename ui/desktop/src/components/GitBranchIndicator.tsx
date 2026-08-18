@@ -27,10 +27,9 @@ export const GitBranchIndicator: React.FC<{ dir: string; className?: string }> =
     const refresh = () => {
       window.electron
         .getGitBranchInfo(dir)
-        .then((info) => { if (!cancelled && info) setBranch(info.branch); })
+        .then((info) => { if (!cancelled) setBranch(info?.branch ?? null); })
         .catch(() => {});
     };
-    setBranch(null);
     refresh();
     window.addEventListener('focus', refresh);
     return () => {
