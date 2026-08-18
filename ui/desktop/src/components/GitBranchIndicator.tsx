@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { GitBranch, Check, Search } from 'lucide-react';
 import { toastError } from '../toasts';
 import { cn } from '../utils';
+import { defineMessages, useIntl } from '../i18n';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,6 +10,25 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+
+const i18n = defineMessages({
+  noBranchesFound: {
+    id: 'gitBranchIndicator.noBranchesFound',
+    defaultMessage: 'No branches found',
+  },
+  searchBranches: {
+    id: 'gitBranchIndicator.searchBranches',
+    defaultMessage: 'Search branches…',
+  },
+  failedToSwitch: {
+    id: 'gitBranchIndicator.failedToSwitch',
+    defaultMessage: 'Failed to switch to {branch}',
+  },
+  uncommittedChanges: {
+    id: 'gitBranchIndicator.uncommittedChanges',
+    defaultMessage: 'You may have uncommitted changes.',
+  },
+});
 
 export const GitBranchIndicator: React.FC<{ dir: string; className?: string }> = ({
   dir,
@@ -19,6 +39,7 @@ export const GitBranchIndicator: React.FC<{ dir: string; className?: string }> =
   const [branches, setBranches] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [switching, setSwitching] = useState(false);
+  const intl = useIntl();
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -63,8 +84,8 @@ export const GitBranchIndicator: React.FC<{ dir: string; className?: string }> =
       setBranch(target);
     } else {
       toastError({
-        title: `Failed to switch to ${target}`,
-        msg: result.error ?? 'You may have uncommitted changes.',
+        title: intl.formatMessage(i18n.failedToSwitch, { branch: target }),
+        msg: result.error ?? intl.formatMessage(i18n.uncommittedChanges),
       });
     }
     setSwitching(false);
@@ -88,7 +109,7 @@ export const GitBranchIndicator: React.FC<{ dir: string; className?: string }> =
       <DropdownMenuContent side="top" align="start" className="w-64 p-0 overflow-hidden">
         <div className="overflow-y-auto p-1 max-h-52 space-y-0.5">
           {filtered.length === 0 && (
-            <div className="px-2 py-1.5 text-sm text-text-primary/50">No branches found</div>
+            <div className="px-2 py-1.5 text-sm text-text-primary/50">{intl.formatMessage(i18n.noBranchesFound)}</div>
           )}
           {filtered.map((b) => (
             <DropdownMenuItem key={b} onSelect={() => void handleSwitch(b)}>
@@ -105,8 +126,8 @@ export const GitBranchIndicator: React.FC<{ dir: string; className?: string }> =
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.stopPropagation()}
-            placeholder="Search branches..."
-            aria-label="Search branches"
+            placeholder={intl.formatMessage(i18n.searchBranches)}
+            aria-label={intl.formatMessage(i18n.searchBranches)}
             className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-primary/50 outline-none"
           />
         </div>
