@@ -51,6 +51,7 @@ import {
   updateTrayMenu,
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
+import './utils/gitBranchIpc';
 import './utils/recipeHash';
 import type { GooseApp } from './types/apps';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
@@ -1973,77 +1974,6 @@ ipcMain.handle('list-recent-dirs', () => {
 ipcMain.handle('list-git-worktree-dirs', async (_event, dir: string) => {
   return await listGitWorktreeDirs(dir);
 });
-
-ipcMain.handle(
-  'get-git-branch-info',
-  async (_event, dir: string): Promise<{ branch: string } | null> => {
-    if (!dir?.trim()) return null;
-
-    const git = (args: string[]) =>
-      new Promise<string>((resolve, reject) => {
-        execFile(
-          'git',
-          ['-c', 'safe.bareRepository=explicit', '-c', 'core.fsmonitor=false', '-C', dir, ...args],
-          { timeout: 3000 },
-          (error, stdout) => {
-            if (error) reject(error);
-            else resolve(stdout.trim());
-          }
-        );
-      });
-
-    try {
-      const branch = await git(['rev-parse', '--abbrev-ref', 'HEAD']);
-      const displayBranch =
-        branch === 'HEAD' ? await git(['rev-parse', '--short', 'HEAD']) : branch;
-      return { branch: displayBranch };
-    } catch {
-      return null;
-    }
-  }
-);
-
-ipcMain.handle('list-git-branches', (_event, dir: string): Promise<string[]> => {
-  if (!dir?.trim()) return Promise.resolve([]);
-  return new Promise<string[]>((resolve) => {
-    execFile(
-      'git',
-      ['-c', 'safe.bareRepository=explicit', '-c', 'core.fsmonitor=false', '-C', dir, 'for-each-ref', 'refs/heads/', '--format=%(refname:lstrip=2)'],
-      { timeout: 3000 },
-      (error, stdout) => {
-        if (error) resolve([]);
-        else resolve(stdout.trim().split('\n').filter(Boolean));
-      }
-    );
-  });
-});
-
-ipcMain.handle(
-  'switch-git-branch',
-  (_event, dir: string, branch: string): Promise<{ success: boolean; error?: string }> => {
-    if (!dir?.trim() || !branch?.trim()) return Promise.resolve({ success: false });
-    return new Promise<{ success: boolean; error?: string }>((resolve) => {
-      execFile(
-        'git',
-        [
-          '-c',
-          'safe.bareRepository=explicit',
-          '-c',
-          'core.fsmonitor=false',
-          '-C',
-          dir,
-          'checkout',
-          branch,
-        ],
-        { timeout: 30000 },
-        (error) => {
-          if (error) resolve({ success: false, error: error.stderr?.toString() || error.message });
-          else resolve({ success: true });
-        }
-      );
-    });
-  }
-);
 
 ipcMain.handle('get-setting', (_event, key: SettingKey) => {
   const settings = getSettings();

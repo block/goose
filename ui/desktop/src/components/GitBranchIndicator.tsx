@@ -48,7 +48,9 @@ export const GitBranchIndicator: React.FC<{ dir: string; className?: string }> =
     const refresh = () => {
       window.electron
         .getGitBranchInfo(dir)
-        .then((info) => { if (!cancelled) setBranch(info?.branch ?? null); })
+        .then((info) => {
+          if (!cancelled) setBranch(info?.branch ?? null);
+        })
         .catch(() => {});
     };
     refresh();
@@ -64,9 +66,16 @@ export const GitBranchIndicator: React.FC<{ dir: string; className?: string }> =
     let cancelled = false;
     setBranches([]);
     setSearch('');
-    window.electron.listGitBranches(dir).then((list) => { if (!cancelled) setBranches(list); }).catch(() => {});
+    window.electron
+      .listGitBranches(dir)
+      .then((list) => {
+        if (!cancelled) setBranches(list);
+      })
+      .catch(() => {});
     setTimeout(() => searchRef.current?.focus(), 50);
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [open, dir]);
 
   if (!branch) return null;
@@ -109,7 +118,9 @@ export const GitBranchIndicator: React.FC<{ dir: string; className?: string }> =
       <DropdownMenuContent side="top" align="start" className="w-64 p-0 overflow-hidden">
         <div className="overflow-y-auto p-1 max-h-52 space-y-0.5">
           {filtered.length === 0 && (
-            <div className="px-2 py-1.5 text-sm text-text-primary/50">{intl.formatMessage(i18n.noBranchesFound)}</div>
+            <div className="px-2 py-1.5 text-sm text-text-primary/50">
+              {intl.formatMessage(i18n.noBranchesFound)}
+            </div>
           )}
           {filtered.map((b) => (
             <DropdownMenuItem key={b} onSelect={() => void handleSwitch(b)}>
@@ -125,7 +136,9 @@ export const GitBranchIndicator: React.FC<{ dir: string; className?: string }> =
             ref={searchRef}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key.length === 1) e.stopPropagation();
+            }}
             placeholder={intl.formatMessage(i18n.searchBranches)}
             aria-label={intl.formatMessage(i18n.searchBranches)}
             className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-primary/50 outline-none"
