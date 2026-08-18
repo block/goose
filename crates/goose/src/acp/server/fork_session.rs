@@ -42,13 +42,20 @@ impl GooseAcpAgent {
             .await
             .internal_err()?;
 
+        // Mirror the session/load cwd seam: a host-imposed cwd wins, and a
+        // remote client with no meaningful cwd (e.g. the roam web client)
+        // sends "/" — never let that rewrite the forked session's stored
+        // working dir; keep what the copy already has.
+        let cwd = if let Some(host_cwd) = &self.session_cwd {
+            host_cwd.clone()
+        } else if args.cwd == std::path::Path::new("/") {
+            new_session.working_dir.clone()
+        } else {
+            args.cwd.clone()
+        };
+
         let goose_session = self
-            .prepare_session_for_activation(
-                new_session.clone(),
-                args.cwd.clone(),
-                args.mcp_servers,
-                false,
-            )
+            .prepare_session_for_activation(new_session.clone(), cwd, args.mcp_servers, false)
             .await?;
 
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &goose_session).await?;

@@ -11,9 +11,12 @@
 use futures::io::{AsyncReadExt, AsyncWriteExt};
 use iroh::{
     endpoint::{presets::Minimal, Connection},
-    Endpoint, EndpointAddr, EndpointId, RelayConfig, RelayMap, RelayMode, SecretKey, TransportAddr,
+    Endpoint, EndpointAddr, EndpointId, RelayConfig, RelayMap, RelayMode, RelayUrl, SecretKey,
+    TransportAddr,
 };
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
+use std::sync::Arc;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
@@ -168,7 +171,9 @@ async fn write_frame<W: futures::io::AsyncWrite + Unpin>(
 
 async fn read_frame<R: futures::io::AsyncRead + Unpin>(r: &mut R) -> Result<Vec<u8>, String> {
     let mut len_buf = [0u8; 4];
-    r.read_exact(&mut len_buf).await.map_err(|e| e.to_string())?;
+    r.read_exact(&mut len_buf)
+        .await
+        .map_err(|e| e.to_string())?;
     let len = u32::from_le_bytes(len_buf);
     if len > MAX_FRAME_BYTES {
         return Err("handshake frame too large".into());
@@ -197,6 +202,14 @@ fn relay_mode_from_urls(urls: &[String]) -> RelayMode {
 #[wasm_bindgen]
 pub struct RoamClient {
     secret: SecretKey,
+    // One endpoint per identity, created lazily on the first dial and reused
+    // for every host connection. A second endpoint bound to the same secret
+    // would register the same endpoint id on the shared relays, letting the
+    // newer registration hijack relay routing and break the first host's
+    // traffic — so all connections share this one. wasm is single-threaded,
+    // so a RefCell is sufficient. Mirrors the native RoamingNode, which owns
+    // a single Endpoint and dials all peers through it.
+    endpoint: RefCell<Option<Endpoint>>,
 }
 
 #[wasm_bindgen]
@@ -213,7 +226,10 @@ impl RoamClient {
             }
             _ => SecretKey::generate(),
         };
-        Ok(RoamClient { secret })
+        Ok(RoamClient {
+            secret,
+            endpoint: RefCell::new(None),
+        })
     }
 
     /// This client's public key (its iroh endpoint id) as a string — the value
@@ -248,6 +264,25 @@ impl RoamClient {
         Ok(format!("{CARD_SCHEME}{b64}"))
     }
 
+    /// Return the shared endpoint, binding it on first use. Every host
+    /// connection dials through this one endpoint so the identity registers a
+    /// single endpoint id on the relays; a per-connection endpoint would
+    /// re-register the same id and hijack relay routing for already-connected
+    /// hosts.
+    async fn ensure_endpoint(&self, relay_urls: &[String]) -> Result<Endpoint, JsValue> {
+        if let Some(ep) = self.endpoint.borrow().as_ref() {
+            return Ok(ep.clone());
+        }
+        let ep = Endpoint::builder(Minimal)
+            .secret_key(self.secret.clone())
+            .relay_mode(relay_mode_from_urls(relay_urls))
+            .bind()
+            .await
+            .map_err(|e| js_err(format!("bind endpoint: {e}")))?;
+        *self.endpoint.borrow_mut() = Some(ep.clone());
+        Ok(ep)
+    }
+
     /// Dial a host from its `goose+roam://` card, run the roam handshake, and
     /// return an authorized [`RoamConnection`] carrying the ACP byte stream.
     #[wasm_bindgen]
@@ -263,18 +298,21 @@ impl RoamClient {
             card.relay_urls.len()
         );
 
-        let ep = Endpoint::builder(Minimal)
-            .secret_key(self.secret.clone())
-            .relay_mode(relay_mode_from_urls(&card.relay_urls))
-            .bind()
-            .await
-            .map_err(|e| js_err(format!("bind endpoint: {e}")))?;
+        let ep = self.ensure_endpoint(&card.relay_urls).await?;
 
         let mut addr = EndpointAddr::new(card.endpoint_id);
         for url in &card.relay_urls {
-            let parsed = url
+            let parsed: RelayUrl = url
                 .parse()
                 .map_err(|_| js_err(format!("bad relay url {url}")))?;
+            // Teach the shared endpoint about this host's relay so a second host
+            // reachable only via a relay the endpoint wasn't bound with can
+            // still be dialed through the one shared endpoint.
+            ep.insert_relay(
+                parsed.clone(),
+                Arc::new(RelayConfig::new(parsed.clone(), None)),
+            )
+            .await;
             addr.addrs.insert(TransportAddr::Relay(parsed));
         }
 
@@ -289,7 +327,8 @@ impl RoamClient {
         let mut send = send.compat_write();
         let mut recv = recv.compat();
 
-        let hello = serde_json::to_vec(&ClientHello { label }).map_err(|e| js_err(e.to_string()))?;
+        let hello =
+            serde_json::to_vec(&ClientHello { label }).map_err(|e| js_err(e.to_string()))?;
         write_frame(&mut send, &hello).await.map_err(js_err)?;
         let ack_bytes = read_frame(&mut recv).await.map_err(js_err)?;
         let ack: HostAck =
@@ -350,8 +389,10 @@ pub struct RoamConnection {
     peer_id: String,
     to_host_tx: async_channel::Sender<Vec<u8>>,
     from_host_rx: async_channel::Receiver<Vec<u8>>,
-    // Kept alive for the life of the connection; dropping either tears the
-    // QUIC session down.
+    // A clone of the client's shared endpoint, kept alive for the life of the
+    // connection (the endpoint is Arc-backed, so this is a handle, not a second
+    // endpoint). Dropping the connection drops this handle; the endpoint itself
+    // survives on RoamClient until the client is dropped.
     _endpoint: Endpoint,
     _conn: Connection,
 }
