@@ -4,6 +4,7 @@ use futures::future::BoxFuture;
 use goose_providers::images::ImageFormat;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
+use std::ops::Range;
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
@@ -105,45 +106,110 @@ fn is_gemini_model(model_name: &str) -> bool {
     model_name.starts_with("google/gemini")
 }
 
-fn collect_json_object_keys(value: &Value, keys: &mut HashSet<String>) {
-    match value {
-        Value::Object(object) => {
-            for (key, value) in object {
-                keys.insert(key.clone());
-                collect_json_object_keys(value, keys);
-            }
-        }
-        Value::Array(array) => {
-            for value in array {
-                collect_json_object_keys(value, keys);
-            }
-        }
-        _ => {}
-    }
+#[derive(Default)]
+struct JsonObjectKeyScan {
+    occupied_keys: HashSet<String>,
+    schema_ref_key_spans: Vec<Range<usize>>,
 }
 
-fn rename_json_object_key(value: &mut Value, source_key: &str, target_key: &str) -> usize {
-    match value {
-        Value::Object(object) => {
-            let mut renamed = 0;
-            let original = std::mem::take(object);
-            for (key, mut value) in original {
-                renamed += rename_json_object_key(&mut value, source_key, target_key);
-                if key == source_key {
-                    object.insert(target_key.to_string(), value);
-                    renamed += 1;
-                } else {
-                    object.insert(key, value);
+fn decode_json_string_literal(content: &str, span: &Range<usize>) -> Option<String> {
+    serde_json::from_str(content.get(span.clone())?).ok()
+}
+
+/// Tolerantly scans JSON-like text without requiring the entire input to parse.
+/// A string is treated as an object key only when it is inside an object,
+/// follows `{` or `,`, and is followed by `:` outside the string.
+fn scan_json_object_keys(content: &str) -> JsonObjectKeyScan {
+    let bytes = content.as_bytes();
+    let mut scan = JsonObjectKeyScan::default();
+    let mut containers = Vec::new();
+    let mut previous_non_whitespace = None;
+    let mut pending_key_span = None;
+    let mut string_start = 0;
+    let mut string_container = None;
+    let mut string_preceding_byte = None;
+    let mut in_string = false;
+    let mut escaped = false;
+
+    for (index, byte) in bytes.iter().copied().enumerate() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                in_string = false;
+                let span = string_start..index + 1;
+                if string_container == Some(b'{')
+                    && matches!(string_preceding_byte, Some(b'{') | Some(b','))
+                {
+                    pending_key_span = Some(span);
+                }
+                previous_non_whitespace = Some(b'"');
+            }
+            continue;
+        }
+
+        if byte.is_ascii_whitespace() {
+            continue;
+        }
+
+        if let Some(span) = pending_key_span.take() {
+            if byte == b':' {
+                if let Some(key) = decode_json_string_literal(content, &span) {
+                    if key == GEMINI_SCHEMA_REF_KEY {
+                        scan.schema_ref_key_spans.push(span);
+                    }
+                    scan.occupied_keys.insert(key);
                 }
             }
-            renamed
         }
-        Value::Array(array) => array
-            .iter_mut()
-            .map(|value| rename_json_object_key(value, source_key, target_key))
-            .sum(),
-        _ => 0,
+
+        match byte {
+            b'"' => {
+                in_string = true;
+                escaped = false;
+                string_start = index;
+                string_container = containers.last().copied();
+                string_preceding_byte = previous_non_whitespace;
+            }
+            b'{' | b'[' => containers.push(byte),
+            b'}' if containers.last() == Some(&b'{') => {
+                containers.pop();
+            }
+            b']' if containers.last() == Some(&b'[') => {
+                containers.pop();
+            }
+            _ => {}
+        }
+        previous_non_whitespace = Some(byte);
     }
+
+    scan
+}
+
+fn replace_json_key_spans(content: &str, spans: &[Range<usize>], replacement: &str) -> String {
+    let serialized_replacement =
+        serde_json::to_string(replacement).expect("JSON object keys must serialize successfully");
+    let mut rewritten = String::with_capacity(content.len());
+    let mut copied_through = 0;
+
+    for span in spans {
+        rewritten.push_str(
+            content
+                .get(copied_through..span.start)
+                .expect("scanned JSON key spans must lie on UTF-8 boundaries"),
+        );
+        rewritten.push_str(&serialized_replacement);
+        copied_through = span.end;
+    }
+    rewritten.push_str(
+        content
+            .get(copied_through..)
+            .expect("scanned JSON key spans must lie on UTF-8 boundaries"),
+    );
+
+    rewritten
 }
 
 fn collision_free_gemini_schema_ref_key(occupied_keys: &HashSet<String>) -> String {
@@ -177,16 +243,16 @@ fn apply_gemini_compatibility(model_name: &str, payload: &mut Value, messages: &
 /// OpenRouter translates OpenAI `role: tool` messages into Gemini
 /// `function_response` parts. Gemini rejects a response containing a literal
 /// JSON Schema `$ref` key, treating its value as a function-response part name
-/// instead of arbitrary tool text. Escape only keys in complete JSON tool
-/// results and add a reversible note so the model can reconstruct the original
-/// text. Non-JSON tool output must remain byte-for-byte unchanged.
+/// instead of arbitrary tool text. Escape object keys in otherwise opaque tool
+/// text and add a reversible note so the model can reconstruct the original
+/// text. All bytes outside matching key spans remain unchanged.
 fn escape_gemini_schema_ref_keys_in_tool_responses(payload: &mut Value) -> usize {
     let Some(messages) = payload.get_mut("messages").and_then(Value::as_array_mut) else {
         return 0;
     };
 
     let mut occupied_keys = HashSet::new();
-    let mut parsed_tool_results = Vec::new();
+    let mut scanned_tool_results = Vec::new();
     for (message_index, message) in messages.iter().enumerate() {
         if message.get("role").and_then(Value::as_str) != Some("tool") {
             continue;
@@ -195,27 +261,25 @@ fn escape_gemini_schema_ref_keys_in_tool_responses(payload: &mut Value) -> usize
         let Some(content_text) = message.get("content").and_then(Value::as_str) else {
             continue;
         };
-        let Ok(parsed_content) = serde_json::from_str::<Value>(content_text) else {
-            continue;
-        };
-        collect_json_object_keys(&parsed_content, &mut occupied_keys);
-        parsed_tool_results.push((message_index, parsed_content));
+        let scan = scan_json_object_keys(content_text);
+        occupied_keys.extend(scan.occupied_keys);
+        scanned_tool_results.push((message_index, scan.schema_ref_key_spans));
     }
 
     let safe_key = collision_free_gemini_schema_ref_key(&occupied_keys);
     let note = gemini_schema_ref_note(&safe_key);
     let mut escaped = 0;
-    for (message_index, mut parsed_content) in parsed_tool_results {
-        let message_escaped =
-            rename_json_object_key(&mut parsed_content, GEMINI_SCHEMA_REF_KEY, &safe_key);
-        if message_escaped == 0 {
+    for (message_index, schema_ref_key_spans) in scanned_tool_results {
+        if schema_ref_key_spans.is_empty() {
             continue;
         }
 
-        let sanitized = serde_json::to_string(&parsed_content)
-            .expect("JSON values must serialize successfully");
+        let content_text = messages[message_index]["content"]
+            .as_str()
+            .expect("scanned tool result content must remain a string");
+        let sanitized = replace_json_key_spans(content_text, &schema_ref_key_spans, &safe_key);
         messages[message_index]["content"] = Value::String(format!("{note}{sanitized}"));
-        escaped += message_escaped;
+        escaped += schema_ref_key_spans.len();
     }
 
     escaped
@@ -601,7 +665,7 @@ mod tests {
         assert_eq!(
             payload["messages"][1]["content"],
             format!(
-                "{}{{\"dollar_ref\":\"#/components/schemas/Usage\",\"nested\":{{\"dollar_ref\":\"#/components/schemas/Base64Image\"}},\"items\":[{{\"dollar_ref\":\"#/components/schemas/Item\"}}],\"description\":\"use $ref here\",\"literal\":\"$ref\",\"identifier\":\"$reference\"}}",
+                "{}{{\"dollar_ref\": \"#/components/schemas/Usage\", \"nested\": {{\"dollar_ref\" : \"#/components/schemas/Base64Image\"}}, \"items\": [{{\"dollar_ref\": \"#/components/schemas/Item\"}}], \"description\": \"use $ref here\", \"literal\": \"$ref\", \"identifier\": \"$reference\"}}",
                 gemini_schema_ref_note("dollar_ref")
             )
         );
@@ -626,6 +690,11 @@ mod tests {
         apply_gemini_compatibility("google/gemma-3-27b-it", &mut gemma_payload, &[]);
 
         assert_eq!(gemma_payload, original_gemma_payload);
+
+        let mut anthropic_payload = original_gemma_payload.clone();
+        apply_gemini_compatibility("anthropic/claude-sonnet-4.5", &mut anthropic_payload, &[]);
+
+        assert_eq!(anthropic_payload, original_gemma_payload);
 
         let mut gemini_payload = original_gemma_payload;
         apply_gemini_compatibility("google/gemini-2.5-flash", &mut gemini_payload, &[]);
@@ -675,6 +744,201 @@ mod tests {
             0
         );
         assert_eq!(payload, original);
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_preserves_duplicate_ref_members() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "{\"$ref\":\"A\",\"$ref\":\"B\"}"
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            2
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                "{}{{\"dollar_ref\":\"A\",\"dollar_ref\":\"B\"}}",
+                gemini_schema_ref_note("dollar_ref")
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_preserves_unrelated_duplicate_members() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "{\"duplicate\":\"first\",\"$ref\":\"A\",\"duplicate\":\"second\"}"
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                "{}{{\"duplicate\":\"first\",\"dollar_ref\":\"A\",\"duplicate\":\"second\"}}",
+                gemini_schema_ref_note("dollar_ref")
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_rewrites_json_embedded_in_prose() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "before output { \"$ref\" : \"A\" } after output"
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                "{}before output {{ \"dollar_ref\" : \"A\" }} after output",
+                gemini_schema_ref_note("dollar_ref")
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_rewrites_multiple_occurrences_in_one_result() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "{\"$ref\":\"A\",\"nested\":{\"$ref\":\"B\"}}"
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            2
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                "{}{{\"dollar_ref\":\"A\",\"nested\":{{\"dollar_ref\":\"B\"}}}}",
+                gemini_schema_ref_note("dollar_ref")
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_matches_decoded_keys_and_collisions() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": r#"{"\u0024ref":"A","\u0064ollar_ref":"B"}"#
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                r#"{}{{"dollar_ref_2":"A","\u0064ollar_ref":"B"}}"#,
+                gemini_schema_ref_note("dollar_ref_2")
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_honors_escaped_quotes_and_backslashes() {
+        let original_content =
+            r#"{"text":"escaped quote \" then \\ and \"$ref\": still text","$ref":"A"}"#;
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": original_content
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                r#"{}{{"text":"escaped quote \" then \\ and \"$ref\": still text","dollar_ref":"A"}}"#,
+                gemini_schema_ref_note("dollar_ref")
+            )
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_preserves_absent_content_bytes() {
+        let original_content = "prefix { \"ordinary\" : [ 1, 2 ] } suffix";
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": original_content
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            0
+        );
+        assert_eq!(
+            payload["messages"][0]["content"]
+                .as_str()
+                .unwrap()
+                .as_bytes(),
+            original_content.as_bytes()
+        );
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_tolerates_malformed_json() {
+        let mut payload = json!({
+            "messages": [
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_1",
+                    "content": "{\"$ref\": \"A\""
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_2",
+                    "content": "}"
+                }
+            ]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert_eq!(
+            payload["messages"][0]["content"],
+            format!(
+                "{}{{\"dollar_ref\": \"A\"",
+                gemini_schema_ref_note("dollar_ref")
+            )
+        );
+        assert_eq!(payload["messages"][1]["content"], "}");
     }
 
     #[test]
@@ -761,7 +1025,8 @@ mod tests {
     fn gemini_schema_ref_escape_ignores_non_tool_content_and_safe_tool_results() {
         let mut payload = json!({
             "messages": [
-                { "role": "user", "content": "{'$ref': '#/components/schemas/UserText'}" },
+                { "role": "user", "content": "{\"$ref\":\"#/components/schemas/UserText\"}" },
+                { "role": "assistant", "content": "{\"$ref\":\"#/components/schemas/AssistantText\"}" },
                 { "role": "tool", "tool_call_id": "call_1", "content": "ordinary output" },
                 { "role": "tool", "tool_call_id": "call_2", "content": [{ "type": "text", "text": "{'$ref': '#/components/schemas/Structured'}" }] }
             ]
