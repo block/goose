@@ -242,6 +242,10 @@ const RECORD_EXTENDED_SCRIPT: &str =
     "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/extended.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/extended.log\"\nexit 0\n";
 const DENY_AND_RECORD_SCRIPT: &str =
     "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/pre.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/pre.log\"\necho \"blocked by test policy\" >&2\nexit 2\n";
+/// Logs its stdin like the others, writes nothing to stdout, and exits
+/// non-zero. That is a hook that ran but never returned a decision.
+const ABNORMAL_EXIT_AND_RECORD_SCRIPT: &str =
+    "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/pre.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/pre.log\"\necho boom >&2\nexit 3\n";
 
 /// deny-invisible: the tool never dispatches, neither post event fires, and a
 /// PreToolUseResult subscriber still sees the denial with blocked_by and reason.
@@ -375,6 +379,44 @@ async fn pre_tool_use_result_reports_allow_and_unevaluated_when_no_hook_matches(
     assert_eq!(results[0]["policy_evaluated"], false);
     assert!(results[0].get("blocked_by").is_none());
     assert!(results[0].get("reason").is_none());
+    Ok(())
+}
+
+/// sole abnormal hook: the only matching PreToolUse hook runs, writes nothing to
+/// stdout and exits non-zero, so it never returned a decision. Execution stays
+/// fail-open and the event reports allow with policy_evaluated false.
+#[tokio::test]
+async fn pre_tool_use_result_reports_unevaluated_when_the_only_hook_exits_without_a_decision(
+) -> Result<()> {
+    let env = RecordingHookEnv::new(&[
+        ("PreToolUse", "", "pre.sh", ABNORMAL_EXIT_AND_RECORD_SCRIPT),
+        ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+    ]);
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_hook_manager(env.hook_manager());
+    api.on("add one").call(ADD, value(1));
+    api.on("result: 1").reply("done");
+
+    pipeline.run(["add one"]).await?;
+    assert_eq!(pipeline.calculator_total(), 1, "tool must still run");
+
+    assert_eq!(
+        env.payloads("pre.log").len(),
+        1,
+        "the matching hook must still run"
+    );
+    let results = env.payloads("result.log");
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0]["decision"], "allow");
+    assert_eq!(results[0]["policy_evaluated"], false);
+    // The pipeline mints the id rather than the caller, so pin that one is
+    // present and non-empty instead of pinning a literal.
+    assert!(
+        results[0]["tool_call_id"]
+            .as_str()
+            .is_some_and(|id| !id.is_empty()),
+        "the result event must carry the tool_call_id"
+    );
     Ok(())
 }
 

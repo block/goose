@@ -170,7 +170,7 @@ When a hook runs, goose writes a JSON payload to the command's stdin. Every payl
 | `working_dir` | Working directory of the session, on tool events. |
 | `tool_call_id` | Stable identifier for one tool call, on `PreToolUse`, `PreToolUseResult`, `PostToolUse`, and `PostToolUseFailure`. Correlates the events of a single call, which tool name plus input cannot do when the same call repeats. |
 | `decision` | `allow` or `deny`, on `PreToolUseResult`. There is no third value. |
-| `policy_evaluated` | `true` when at least one matching `PreToolUse` hook process returned an exit status, on `PreToolUseResult`. Spawn failures, timeouts, and no matching hook leave it `false`. A non-zero exit still counts because the hook completed. |
+| `policy_evaluated` | `true` when at least one matching `PreToolUse` hook exited 0 or returned a decision (exit `2`, or `{"decision":"block"}` on stdout), on `PreToolUseResult`. A hook that exits non-zero without a decision, fails to spawn, or times out does not count, and neither does the absence of a matching hook. It is an at-least-one value: a hook that evaluated keeps it `true` even if a later hook fails. |
 | `blocked_by` | Plugin whose hook denied the call, on `PreToolUseResult` when `decision` is `deny`. |
 | `reason` | Reason the denying hook gave, on `PreToolUseResult` when `decision` is `deny`. |
 

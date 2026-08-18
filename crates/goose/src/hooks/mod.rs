@@ -274,8 +274,10 @@ pub enum HookDecision {
 }
 
 /// Result of running a blocking hook chain: the decision, plus whether any
-/// matching hook actually ran to completion for this event. A hook that failed
-/// to spawn, timed out, or was never reached does not count as evaluated.
+/// matching hook actually ran to completion for this event. A hook counts as
+/// evaluated when it exited 0 or returned a decision. A hook that exited
+/// non-zero without a decision, failed to spawn, timed out, or was never
+/// reached does not count.
 ///
 /// Crate-internal: the public [`HookManager::emit_blocking`] contract is
 /// unchanged and still returns a [`HookDecision`].
@@ -582,9 +584,14 @@ impl HookManager {
                     .run_action(event, &ctx.session_id, rule, command, &payload, *timeout)
                     .await
                 {
-                    Ok(o) => {
-                        policy_evaluated = true;
-                        o
+                    Ok(output) => {
+                        // Exiting 0 or returning a decision is what makes a hook
+                        // an evaluation. A non-zero exit with no decision means
+                        // the hook did not answer, so it does not count.
+                        if output.status.success() || deny_reason(&output).is_some() {
+                            policy_evaluated = true;
+                        }
+                        output
                     }
                     Err(err) => {
                         warn!(
@@ -932,6 +939,77 @@ mod tests {
         let unevaluated = payload(&HookChainOutcome::allow(false));
         assert_eq!(unevaluated["decision"], "allow");
         assert_eq!(unevaluated["policy_evaluated"], false);
+    }
+
+    /// A hook is an evaluation only if it exited 0 or returned a decision. A
+    /// non-zero exit carrying no decision means the hook never answered, and an
+    /// earlier hook that did answer keeps the aggregate true.
+    #[tokio::test]
+    async fn policy_evaluated_counts_clean_exits_and_decisions_only() {
+        let plugin = |root: &Path, name: &str, command: &str| -> DiscoveredPlugin {
+            let hooks = format!(
+                r#"{{"hooks":{{"PreToolUse":[{{"hooks":[{{"type":"command","command":"{command}"}}]}}]}}}}"#
+            );
+            DiscoveredPlugin {
+                name: name.into(),
+                root: write_plugin(root, name, &hooks),
+                scope: PluginScope::User,
+            }
+        };
+        let ctx =
+            || HookContext::new(HookEvent::PreToolUse, "s").with_tool("developer__shell", None);
+
+        // Case 1: the only hook exits non-zero with nothing on stdout. It gave no
+        // decision, so the call is allowed and nothing was evaluated.
+        let tmp = tempfile::tempdir().unwrap();
+        let mgr = make_manager(vec![plugin(tmp.path(), "abnormal", "exit 3")]);
+        let outcome = mgr
+            .emit_blocking_with_outcome(HookEvent::PreToolUse, ctx())
+            .await;
+        assert_eq!(outcome.decision, HookDecision::Allow);
+        assert!(
+            !outcome.policy_evaluated,
+            "a sole hook exiting 3 with no decision must not count as evaluated",
+        );
+
+        // Case 2: one hook exits 0 and another exits non-zero. policy_evaluated is
+        // an at-least-one aggregate, so the clean exit keeps it true.
+        let tmp = tempfile::tempdir().unwrap();
+        let mgr = make_manager(vec![
+            plugin(tmp.path(), "a", "exit 0"),
+            plugin(tmp.path(), "b", "exit 3"),
+        ]);
+        let outcome = mgr
+            .emit_blocking_with_outcome(HookEvent::PreToolUse, ctx())
+            .await;
+        assert_eq!(outcome.decision, HookDecision::Allow);
+        assert!(
+            outcome.policy_evaluated,
+            "a hook that exited 0 must keep policy_evaluated true when a later hook fails",
+        );
+
+        // Case 3: the only hook exits 2 with a reason. That is a decision, so it
+        // both denies and counts as evaluated.
+        let tmp = tempfile::tempdir().unwrap();
+        let mgr = make_manager(vec![plugin(
+            tmp.path(),
+            "denier",
+            "echo refused by policy >&2; exit 2",
+        )]);
+        let outcome = mgr
+            .emit_blocking_with_outcome(HookEvent::PreToolUse, ctx())
+            .await;
+        assert_eq!(
+            outcome.decision,
+            HookDecision::Deny {
+                reason: "refused by policy".to_string(),
+                plugin: "denier".to_string(),
+            }
+        );
+        assert!(
+            outcome.policy_evaluated,
+            "an exit 2 decision must count as evaluated",
+        );
     }
 
     #[test]

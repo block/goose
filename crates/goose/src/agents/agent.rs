@@ -5348,6 +5348,10 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/postfail.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/postfail.log\"\nexit 0\n";
     const DENY_AND_RECORD_SCRIPT: &str =
         "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/pre.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/pre.log\"\necho \"blocked by test policy\" >&2\nexit 2\n";
+    /// Logs its stdin like the others, writes nothing to stdout, and exits
+    /// non-zero. That is a hook that ran but never returned a decision.
+    const ABNORMAL_EXIT_AND_RECORD_SCRIPT: &str =
+        "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/pre.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/pre.log\"\necho boom >&2\nexit 3\n";
 
     async fn agent_with_hooks(
         hook_manager: crate::hooks::HookManager,
@@ -5527,5 +5531,36 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         assert!(results[0].get("blocked_by").is_none());
         assert!(results[0].get("reason").is_none());
         assert_eq!(results[0]["tool_call_id"], "call-allow-1");
+    }
+
+    /// sole abnormal hook: the only matching PreToolUse hook runs, writes nothing
+    /// to stdout and exits non-zero, so it never returned a decision. Execution
+    /// stays fail-open and the event reports allow with policy_evaluated false.
+    #[tokio::test]
+    async fn pre_tool_use_result_reports_unevaluated_when_the_only_hook_exits_without_a_decision() {
+        let env = RecordingHookEnv::new(&[
+            ("PreToolUse", "", "pre.sh", ABNORMAL_EXIT_AND_RECORD_SCRIPT),
+            ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
+        ]);
+        let (agent, session, _data_dir) = agent_with_hooks(env.hook_manager()).await;
+
+        let (_, result) = agent
+            .dispatch_tool_call(shell_call(), "call-abnormal-1".to_string(), None, &session)
+            .await;
+        let Ok(handle) = result else {
+            panic!("dispatch must stay fail-open and return a result handle");
+        };
+        let _ = handle.result.await;
+
+        assert_eq!(
+            env.payloads("pre.log").len(),
+            1,
+            "the matching hook must still run",
+        );
+        let results = env.payloads("result.log");
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0]["decision"], "allow");
+        assert_eq!(results[0]["policy_evaluated"], false);
+        assert_eq!(results[0]["tool_call_id"], "call-abnormal-1");
     }
 }
