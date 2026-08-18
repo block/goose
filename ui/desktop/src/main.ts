@@ -1415,7 +1415,7 @@ const createChat = async (
 
   // Handle new window creation for links (fallback for any links not handled by onClick)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    void openExternalUrl(url, mainWindow).catch((error) => {
+    void openExternalUrl(url, mainWindow, getConfiguredGooseLocale()).catch((error) => {
       log.error('Failed to open external URL:', error);
     });
     return { action: 'deny' };
@@ -1426,7 +1426,7 @@ const createChat = async (
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mainWindow.webContents.on('new-window' as any, function (event: any, url: string) {
     event.preventDefault();
-    void openExternalUrl(url, mainWindow).catch((error) => {
+    void openExternalUrl(url, mainWindow, getConfiguredGooseLocale()).catch((error) => {
       log.error('Failed to open external URL:', error);
     });
   });
@@ -1932,7 +1932,7 @@ ipcMain.on('react-ready', (event) => {
 
 ipcMain.handle('open-external', async (event, url: string) => {
   const senderWindow = BrowserWindow.fromWebContents(event.sender) ?? undefined;
-  return openExternalUrl(url, senderWindow);
+  return openExternalUrl(url, senderWindow, getConfiguredGooseLocale());
 });
 
 ipcMain.handle('directory-chooser', async () => {

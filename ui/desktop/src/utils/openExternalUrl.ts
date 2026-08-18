@@ -1,9 +1,11 @@
 import { dialog, shell, type BrowserWindow, type MessageBoxOptions } from 'electron';
+import { getExternalLinkLabels } from './externalLinkTranslations';
 import { BLOCKED_PROTOCOLS, SAFE_PROTOCOLS, type OpenExternalUrlResult } from './urlSecurity';
 
 export const openExternalUrl = async (
   url: string,
-  parentWindow?: BrowserWindow
+  parentWindow?: BrowserWindow,
+  locale?: string
 ): Promise<OpenExternalUrlResult> => {
   let protocol: string;
   try {
@@ -15,14 +17,15 @@ export const openExternalUrl = async (
   if (BLOCKED_PROTOCOLS.includes(protocol)) return 'blocked';
 
   if (!SAFE_PROTOCOLS.includes(protocol)) {
+    const labels = getExternalLinkLabels(locale);
     const options: MessageBoxOptions = {
       type: 'warning',
-      buttons: ['Cancel', 'Open'],
+      buttons: [labels.cancel, labels.open],
       defaultId: 0,
       cancelId: 0,
-      title: 'Open external link?',
-      message: `Open ${protocol} link?`,
-      detail: url,
+      title: labels.title,
+      message: labels.message.replace('{protocol}', protocol),
+      detail: labels.detail.replace('{href}', url),
     };
     const result = parentWindow
       ? await dialog.showMessageBox(parentWindow, options)
