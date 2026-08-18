@@ -189,6 +189,7 @@ type ElectronAPI = {
   getGitBranchInfo: (dir: string) => Promise<{ branch: string } | null>;
   listGitBranches: (dir: string) => Promise<string[]>;
   switchGitBranch: (dir: string, branch: string) => Promise<{ success: boolean; error?: string }>;
+  emitPluginSessionEvent: (event: import('./client-extensions/plugin-events').PluginSessionEvent) => void;
 };
 
 type AppConfigAPI = {
@@ -362,6 +363,7 @@ const electronAPI: ElectronAPI = {
   listGitBranches: (dir: string) => ipcRenderer.invoke('list-git-branches', dir),
   switchGitBranch: (dir: string, branch: string) =>
     ipcRenderer.invoke('switch-git-branch', dir, branch),
+  emitPluginSessionEvent: (event) => ipcRenderer.send('plugin-host:session-event', event),
 };
 
 function getAppLocale(): unknown {

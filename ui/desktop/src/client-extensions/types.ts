@@ -56,6 +56,7 @@ export interface ClientExtensionManifest {
     grc?: string;
   };
   main: string;
+  host?: string;
   hostCapabilities?: HostCapability[];
   contributes?: ClientExtensionContributes;
 }

@@ -12,12 +12,12 @@ import { defineMessages, useIntl } from '../../i18n';
 const i18n = defineMessages({
   title: {
     id: 'addonsView.title',
-    defaultMessage: 'Add-ons',
+    defaultMessage: 'Plugins',
   },
   description: {
     id: 'addonsView.description',
     defaultMessage:
-      'Install UI add-ons that extend goose Desktop with custom pages, chat actions, side panels, and message decorations. Distinct from MCP Extensions, which connect goose to external tools.',
+      'Install UI plugins that extend goose Desktop with custom pages, chat actions, side panels, and message decorations. Distinct from MCP Extensions, which connect goose to external tools.',
   },
 });
 

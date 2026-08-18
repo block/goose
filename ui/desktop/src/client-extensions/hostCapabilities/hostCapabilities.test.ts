@@ -75,7 +75,7 @@ describe('hostCapabilities', () => {
     vi.unstubAllGlobals();
   });
 
-  it('documents common host powers for add-on authors', () => {
+  it('documents common host powers for plugin authors', () => {
     expect(platformPower.methods).toContain('getInfo');
   });
 });

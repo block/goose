@@ -29,7 +29,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'apps', path: '/apps', label: 'Apps', icon: AppWindow },
   { id: 'scheduler', path: '/schedules', label: 'Scheduler', icon: Clock },
   { id: 'extensions', path: '/extensions', label: 'Extensions', icon: Puzzle },
-  { id: 'addons', path: '/addons', label: 'Add-ons', icon: Layers },
+  { id: 'addons', path: '/plugins', label: 'Plugins', icon: Layers },
   { id: 'sessions', path: '/sessions', label: 'Session History', icon: History },
 ];
 
@@ -70,7 +70,7 @@ const navItemMessages = defineMessages({
   },
   addons: {
     id: 'navigation.itemAddons',
-    defaultMessage: 'Add-ons',
+    defaultMessage: 'Plugins',
   },
   sessions: {
     id: 'navigation.itemSessions',

@@ -248,6 +248,10 @@ function parseManifest(raw: unknown, rootPath: string): ClientExtensionManifest 
     manifest.engines = { grc: raw.engines.grc };
   }
 
+  if (typeof raw.host === 'string' && raw.host.trim()) {
+    manifest.host = raw.host.trim();
+  }
+
   if (Array.isArray(raw.hostCapabilities)) {
     const allowed = new Set<string>(KNOWN_HOST_CAPABILITIES);
     const hostCapabilities = raw.hostCapabilities.filter(
@@ -350,6 +354,14 @@ function discoverInDirectory(
         continue;
       }
 
+      if (manifest.host) {
+        const hostPath = path.join(rootPath, manifest.host);
+        if (!fs.existsSync(hostPath)) {
+          console.warn(`[client-extensions] "${manifest.id}": host entry missing at ${hostPath}, continuing without host plugin`);
+          manifest.host = undefined;
+        }
+      }
+
       discovered.push({
         id: manifest.id,
         rootPath,
@@ -431,6 +443,13 @@ export function installClientExtension(sourcePath: string): DiscoveredClientExte
     throw new Error(`Main entry missing at ${mainPath}`);
   }
 
+  if (manifest.host) {
+    const hostPath = path.join(resolved, manifest.host);
+    if (!fs.existsSync(hostPath)) {
+      throw new Error(`Host entry missing at ${hostPath}`);
+    }
+  }
+
   const destination = path.join(userClientExtensionsDir(), manifest.id);
   if (fs.existsSync(destination)) {
     throw new Error(`Client extension "${manifest.id}" is already installed`);
@@ -461,7 +480,7 @@ export function uninstallClientExtension(extensionId: string): DiscoveredClientE
   }
   if (extension.source !== 'installed') {
     throw new Error(
-      `Cannot uninstall dev extension "${extensionId}" — disable it from Add-ons instead`
+      `Cannot uninstall dev extension "${extensionId}" — disable it from Plugins instead`
     );
   }
 

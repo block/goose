@@ -2,7 +2,7 @@ import { postHostCapabilityError, postHostCapabilityResult, type HostCapabilityD
 
 export const platformPower: HostCapabilityDefinition = {
   id: 'platform',
-  description: 'OS and runtime info available to privileged add-ons.',
+  description: 'OS and runtime info available to privileged plugins.',
   methods: ['getInfo'],
   async handleInvoke(context, method) {
     if (method !== 'getInfo') {

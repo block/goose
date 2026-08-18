@@ -27,12 +27,12 @@ function useClientExtensionsInstallDir(): string | null {
 const i18n = defineMessages({
   emptyTitle: {
     id: 'addonsView.emptyTitle',
-    defaultMessage: 'No add-ons installed yet',
+    defaultMessage: 'No plugins installed yet',
   },
   empty: {
     id: 'addonsView.empty',
     defaultMessage:
-      'Use Install add-on to pick a folder with client-extension.json, or enable dev examples from your local checkout.',
+      'Use Install plugin to pick a folder with client-extension.json, or enable dev examples from your local checkout.',
   },
   installHint: {
     id: 'addonsView.installHint',
@@ -44,23 +44,23 @@ const i18n = defineMessages({
   },
   install: {
     id: 'addonsView.install',
-    defaultMessage: 'Install add-on',
+    defaultMessage: 'Install plugin',
   },
   installSuccess: {
     id: 'addonsView.installSuccess',
-    defaultMessage: 'Installed add-on',
+    defaultMessage: 'Installed plugin',
   },
   installFailed: {
     id: 'addonsView.installFailed',
-    defaultMessage: 'Failed to install add-on',
+    defaultMessage: 'Failed to install plugin',
   },
   uninstallSuccess: {
     id: 'addonsView.uninstallSuccess',
-    defaultMessage: 'Uninstalled add-on',
+    defaultMessage: 'Uninstalled plugin',
   },
   uninstallFailed: {
     id: 'addonsView.uninstallFailed',
-    defaultMessage: 'Failed to uninstall add-on',
+    defaultMessage: 'Failed to uninstall plugin',
   },
   confirmUninstall: {
     id: 'addonsView.confirmUninstall',

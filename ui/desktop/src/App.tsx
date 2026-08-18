@@ -674,7 +674,7 @@ export function AppInner() {
               <Route path="schedules" element={<SchedulesRoute />} />
               <Route path="recipes" element={<RecipesRoute />} />
               <Route path="skills" element={<SkillsRoute />} />
-              <Route path="addons" element={<AddonsRoute />} />
+              <Route path="plugins" element={<AddonsRoute />} />
               <Route path="permission" element={<PermissionRoute />} />
               <Route path="ext/:extensionId/:viewId" element={<ClientExtensionPageView />} />
             </Route>

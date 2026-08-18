@@ -51,6 +51,8 @@ struct ClientExtensionManifest {
     id: String,
     version: String,
     main: String,
+    #[serde(default)]
+    host: Option<String>,
 }
 
 pub fn client_extensions_dir() -> PathBuf {
@@ -291,6 +293,14 @@ fn validate_manifest_files(root: &Path, manifest: &ClientExtensionManifest) -> R
     let main_path = root.join(&manifest.main);
     if !main_path.is_file() {
         bail!("manifest main entry missing at {}", main_path.display());
+    }
+    if let Some(host) = &manifest.host {
+        if !host.trim().is_empty() {
+            let host_path = root.join(host);
+            if !host_path.is_file() {
+                bail!("manifest host entry missing at {}", host_path.display());
+            }
+        }
     }
     Ok(())
 }

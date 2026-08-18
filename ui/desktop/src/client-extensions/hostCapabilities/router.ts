@@ -46,7 +46,7 @@ export async function handleHostCapabilityInvoke(
       context,
       capability,
       method,
-      `Add-on "${extensionId}" is not granted host capability "${capability}"`
+      `Plugin "${extensionId}" is not granted host capability "${capability}"`
     );
     return true;
   }

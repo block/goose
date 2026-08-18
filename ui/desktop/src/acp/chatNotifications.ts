@@ -4,6 +4,11 @@ import { AppEvents } from '../constants/events';
 import { maybeHandlePlatformEvent } from '../utils/platform_events';
 import { toolNotificationEvent } from './adapter/toolNotifications';
 import { acpChatSessionActions, acpChatSessionStore } from './chatSessionStore';
+import type { PluginSessionEvent } from '../client-extensions/plugin-events';
+
+function forwardPluginEvent(event: PluginSessionEvent): void {
+  window.electron.emitPluginSessionEvent(event);
+}
 
 export function handleAcpSessionNotification(notification: SessionNotification): Promise<void> {
   const sessionNameBeforeNotification = acpChatSessionStore.getSnapshot(
@@ -22,6 +27,19 @@ export function handleAcpSessionNotification(notification: SessionNotification):
         detail: { sessionId: notification.sessionId, newName: updatedName },
       })
     );
+  }
+
+  const { sessionId, update } = notification;
+  if (update.sessionUpdate === 'agent_message_chunk') {
+    forwardPluginEvent({ type: 'agent_message_chunk', sessionId, content: update.content });
+  } else if (update.sessionUpdate === 'tool_call_update') {
+    forwardPluginEvent({
+      type: 'tool_call',
+      sessionId,
+      toolCallId: update.toolCallId,
+      title: update.title,
+      status: update.status,
+    });
   }
 
   return Promise.resolve();
@@ -47,5 +65,17 @@ export function handleAcpGooseSessionNotification(
   notification: GooseSessionNotification_unstable
 ): Promise<void> {
   acpChatSessionActions.applyAcpGooseSessionNotification(notification);
+
+  const update = notification.update;
+  if (update.sessionUpdate === 'status_message') {
+    const status = update.status;
+    forwardPluginEvent({
+      type: 'status_message',
+      sessionId: notification.sessionId,
+      message: status.message,
+      level: status.type,
+    });
+  }
+
   return Promise.resolve();
 }
