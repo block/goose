@@ -930,7 +930,25 @@ impl McpClientTrait for McpClient {
                 );
             }
             let client = self.client.lock().await;
-            return client.call_tool(params).await;
+            client.service().set_session_id(&ctx.session_id).await;
+            let _active_tool_call_guard = ctx
+                .tool_call_request_id
+                .as_deref()
+                .filter(|id| !id.is_empty())
+                .map(|tool_call_request_id| {
+                    client
+                        .service()
+                        .register_active_tool_call(&ctx.session_id, tool_call_request_id)
+                });
+            return tokio::select! {
+                result = client.call_tool(params) => result,
+                _ = tokio::time::sleep(self.timeout) => {
+                    Err(ServiceError::Timeout { timeout: self.timeout })
+                }
+                _ = cancel_token.cancelled() => {
+                    Err(ServiceError::Cancelled { reason: None })
+                }
+            };
         }
 
         let request = ClientRequest::CallToolRequest(Request::new(params));
