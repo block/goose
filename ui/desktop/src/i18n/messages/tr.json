@@ -1889,9 +1889,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "{modelId}'yi kullanın"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "İptal"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "Kodu kopyala"
   },
@@ -1901,23 +1898,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "Bu bağlantıyı açacak uygulama bulunamadı."
   },
-  "markdownContent.open": {
-    "defaultMessage": "Açık"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "Dış Bağlantıyı Aç"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "{protocol} bağlantısı açılsın mı?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "Bu açılacak: {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "Uygulama"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "İptal"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "Kapat"
@@ -1942,18 +1924,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "Resim İçinde Resim penceresini taşıyın (ok tuşlarını kullanın)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "Açık"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Dış Bağlantıyı Aç"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "Bu açılacak: {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "{protocol} bağlantısı açılsın mı?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Resim İçinde Resim"

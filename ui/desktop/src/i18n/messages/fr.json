@@ -1889,9 +1889,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "Utiliser {modelId}"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "Annuler"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "Copier le code"
   },
@@ -1901,23 +1898,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "Aucune application trouvée pour ouvrir ce lien."
   },
-  "markdownContent.open": {
-    "defaultMessage": "Ouvrir"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "Ouvrir le lien externe"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "Ouvrir le lien {protocol} ?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "Cela ouvrira : {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "Application"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "Annuler"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "Fermer"
@@ -1942,18 +1924,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "Déplacer la fenêtre Picture-in-Picture (utilisez les touches fléchées)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "Ouvrir"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Ouvrir le lien externe"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "Cela ouvrira : {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "Ouvrir le lien {protocol} ?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Picture-in-Picture"

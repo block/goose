@@ -1889,9 +1889,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "Sử dụng {modelId}"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "Hủy"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "Sao chép mã"
   },
@@ -1901,23 +1898,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "Không tìm thấy ứng dụng nào để mở liên kết này."
   },
-  "markdownContent.open": {
-    "defaultMessage": "Mở"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "Mở liên kết bên ngoài"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "Mở liên kết {protocol}?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "Thao tác này sẽ mở: {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "Ứng dụng"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "Hủy"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "Đóng"
@@ -1942,18 +1924,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "Di chuyển cửa sổ Hình-trong-hình (dùng phím mũi tên)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "Mở"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Mở liên kết bên ngoài"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "Thao tác này sẽ mở: {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "Mở liên kết {protocol}?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Hình-trong-hình"

@@ -1,7 +1,5 @@
 import { dialog, shell, type BrowserWindow, type MessageBoxOptions } from 'electron';
-import { BLOCKED_PROTOCOLS, SAFE_PROTOCOLS } from './urlSecurity';
-
-export type OpenExternalUrlResult = 'opened' | 'blocked' | 'cancelled';
+import { BLOCKED_PROTOCOLS, SAFE_PROTOCOLS, type OpenExternalUrlResult } from './urlSecurity';
 
 export const openExternalUrl = async (
   url: string,
