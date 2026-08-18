@@ -797,9 +797,8 @@ where
     F: Future<Output = ()> + Send + 'static,
 {
     let _guard = ACP_TEST_LOCK.lock().unwrap_or_else(|err| err.into_inner());
-    if std::env::var_os("GOOSE_PATH_ROOT").is_none() {
-        std::env::set_var("GOOSE_PATH_ROOT", ACP_CONFIG_ROOT.path());
-    }
+    let test_root = ACP_CONFIG_ROOT.path().to_string_lossy().into_owned();
+    let _env = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(test_root.as_str()))]);
     register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
 
     let handle = std::thread::Builder::new()
