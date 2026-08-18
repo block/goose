@@ -215,6 +215,40 @@ async fn recipe_retry_and_final_output_run_to_completion() -> Result<()> {
 }
 
 #[tokio::test]
+async fn structured_output_fails_fast_on_an_acp_bridged_provider() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_provider_name("claude-code").await?;
+    api.on("compute the answer").reply("thinking about it");
+    api.on(FINAL_OUTPUT_CONTINUATION_MESSAGE)
+        .call(FINAL_OUTPUT_TOOL_NAME, json!({ "result": "42" }));
+    let recipe = Recipe::builder()
+        .title("Structured output")
+        .description("Return structured output")
+        .instructions("Compute the answer")
+        .response(Response {
+            json_schema: Some(json!({
+                "type": "object",
+                "properties": { "result": { "type": "string" } },
+                "required": ["result"]
+            })),
+        })
+        .build()
+        .expect("valid recipe");
+    pipeline.set_recipe(recipe).await?;
+
+    let result = pipeline.run(["compute the answer"]).await?;
+    result.assert_message(-1, Agent, "provider `claude-code` can't support it");
+    assert!(
+        api.calls()
+            .iter()
+            .all(|call| !call.input_contains(FINAL_OUTPUT_CONTINUATION_MESSAGE)),
+        "must fail fast without ever entering the continuation-nudge loop"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn scheduler_is_advertised_only_when_configured_and_manages_jobs() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
     api.on("can I schedule work?").reply("not here");

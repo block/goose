@@ -22,7 +22,10 @@ use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{
     get_parameter_names, ExtensionManager, ExtensionManagerCapabilities,
 };
-use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
+use crate::agents::final_output_tool::{
+    frontend_tools_unsupported_message, provider_discards_frontend_tools,
+    FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
+};
 use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
@@ -3151,6 +3154,19 @@ impl Agent {
                     };
 
                     match final_output {
+                        Some(None) if provider_discards_frontend_tools(&provider_name) => {
+                            warn!(
+                                provider = %provider_name,
+                                "Recipe declares structured response, but this provider can't receive the final_output tool; failing fast instead of looping"
+                            );
+                            let message = push_message_with_id(
+                                &mut messages_to_add,
+                                Message::assistant()
+                                    .with_text(frontend_tools_unsupported_message(&provider_name)),
+                            );
+                            yield AgentEvent::Message(message);
+                            exit_chat = true;
+                        }
                         Some(None) => {
                             warn!("Final output tool has not been called yet. Continuing agent loop.");
                             let message = push_message_with_id(

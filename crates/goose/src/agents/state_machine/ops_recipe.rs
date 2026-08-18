@@ -8,7 +8,8 @@ use rmcp::model::Tool;
 use tracing_futures::Instrument;
 
 use crate::agents::final_output_tool::{
-    FinalOutputTool, FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
+    frontend_tools_unsupported_message, provider_discards_frontend_tools, FinalOutputTool,
+    FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
 };
 use crate::agents::state_machine::ops_toolcalling::{
     pending_tool_requests, tool_span, ToolDisposition,
@@ -188,6 +189,18 @@ impl Operation<Session, GooseEffect> for RecipeOperation {
         let Some(mut final_output) = Self::final_output(session)? else {
             return not_applicable();
         };
+
+        if let Some(provider_name) = session.provider_name.as_deref() {
+            if provider_discards_frontend_tools(provider_name) {
+                return self
+                    .command_error(
+                        conversation,
+                        frontend_tools_unsupported_message(provider_name),
+                        emit,
+                    )
+                    .await;
+            }
+        }
 
         let messages = messages_since_kickoff(conversation)?;
         let pending = pending_tool_requests(messages)
