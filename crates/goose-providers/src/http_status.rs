@@ -420,11 +420,15 @@ async fn handle_status_with_limit(
 }
 
 pub async fn handle_response(response: Response) -> Result<Value, ProviderError> {
-    let response = handle_status(response).await?;
+    handle_response_with_limit(response, MAX_PROVIDER_JSON_RESPONSE_BYTES).await
+}
 
-    response.json::<Value>().await.map_err(|e| {
-        ProviderError::RequestFailed(format!("Response body is not valid JSON: {}", e))
-    })
+async fn handle_response_with_limit(
+    response: Response,
+    limit: usize,
+) -> Result<Value, ProviderError> {
+    let response = handle_status_with_limit(response, limit).await?;
+    read_json_response_with_limit(response, limit).await
 }
 
 #[cfg(test)]
@@ -490,6 +494,21 @@ mod tests {
         let err = read_json_response_with_limit::<Value>(response, 64)
             .await
             .unwrap_err();
+        assert!(err.to_string().contains("64 byte limit"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn bounded_handle_response_rejects_oversized_success_body() {
+        let body = format!("{{\"value\":\"{}\"}}", "a".repeat(64));
+        let raw = format!(
+            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ntransfer-encoding: chunked\r\n\r\n{:x}\r\n{}\r\n0\r\n\r\n",
+            body.len(),
+            body
+        )
+        .into_bytes();
+        let response = response_from_raw(raw).await;
+
+        let err = handle_response_with_limit(response, 64).await.unwrap_err();
         assert!(err.to_string().contains("64 byte limit"), "got: {err}");
     }
 
