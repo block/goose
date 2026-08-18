@@ -907,14 +907,16 @@ impl OAuthStepUpClient {
                         let client = self.inner.read().await;
                         op(&client).await
                     };
-                    if auth_challenge_from_service_error(retry.as_ref().err().unwrap_or(&err))
-                        .is_some()
-                    {
-                        self.step_up_reconnect(challenge).await?;
-                        let client = self.inner.read().await;
-                        op(&client).await
-                    } else {
-                        retry
+                    match retry {
+                        Ok(value) => Ok(value),
+                        Err(retry_err)
+                            if auth_challenge_from_service_error(&retry_err).is_some() =>
+                        {
+                            self.step_up_reconnect(challenge).await?;
+                            let client = self.inner.read().await;
+                            op(&client).await
+                        }
+                        Err(retry_err) => Err(retry_err),
                     }
                 } else {
                     Err(err)
