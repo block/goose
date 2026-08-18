@@ -30,7 +30,7 @@ pub struct ApiClient {
     default_query: Vec<(String, String)>,
     timeout: Duration,
     tls_config: Option<TlsConfig>,
-    request_builder: Option<RequestBuilderDecorator>,
+    request_builder: Vec<RequestBuilderDecorator>,
     transport_policy: TransportPolicy,
 }
 
@@ -283,7 +283,7 @@ impl ApiClient {
             default_query: Vec::new(),
             timeout,
             tls_config,
-            request_builder: None,
+            request_builder: Vec::new(),
             transport_policy: TransportPolicy::Default,
         })
     }
@@ -402,8 +402,10 @@ impl ApiClient {
         Ok(self)
     }
 
+    /// Append a request decorator. Decorators compose and run in installation
+    /// order; this does not replace previously installed ones.
     pub fn with_request_builder(mut self, request_builder: RequestBuilderDecorator) -> Self {
-        self.request_builder = Some(request_builder);
+        self.request_builder.push(request_builder);
         self
     }
 
@@ -549,7 +551,7 @@ impl<'a> ApiRequestBuilder<'a> {
             request = request.timeout(self.client.timeout);
         }
 
-        if let Some(decorator) = &self.client.request_builder {
+        for decorator in &self.client.request_builder {
             request = decorator(request)?;
         }
 

@@ -134,6 +134,7 @@ mod tests {
             fast_model: None,
             preserves_thinking: false,
             setup: None,
+            nonce_header: None,
         }
     }
 
