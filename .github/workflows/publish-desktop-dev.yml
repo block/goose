@@ -95,6 +95,18 @@ jobs:
           pattern: '!internal-*'
           merge-multiple: true
 
+      # GitHub stores assets with spaces replaced by periods (Avocado.Work.dmg).
+      # ncipollo/replacesArtifacts matches the local filename, so stale period-named
+      # assets block uploads of the freshly built space-named files.
+      - name: Clear existing dev release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          for id in $(gh release view dev --json assets -q '.assets[].id'); do
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/assets/${id}"
+          done
+
       - name: Publish GitHub Release tag dev
         uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd  # v1.21.0
         with:
