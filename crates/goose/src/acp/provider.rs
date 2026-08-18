@@ -884,6 +884,10 @@ impl Provider for AcpProvider {
                         // An auth failure is not about the prompt, so it keeps the retry.
                         if updates_seen == 1 && !matches!(error, ProviderError::Authentication(_)) {
                             if let Some((tx, session_id, blocks)) = bare_retry.take() {
+                                // Consume the handoff before retrying. The agent has already
+                                // seen and rejected this memo, so rebuilding it on a later
+                                // turn would reproduce the rejection forever.
+                                handoff_claim_guard.commit();
                                 let (response_tx, response_rx) = mpsc::channel(64);
                                 let request = ClientRequest::Prompt {
                                     session_id,
@@ -891,9 +895,6 @@ impl Provider for AcpProvider {
                                     response_tx,
                                 };
                                 if tx.send(request).await.is_ok() {
-                                    // Consume the handoff before retrying so a memo the agent
-                                    // rejected cannot be rebuilt and rejected on every later turn.
-                                    handoff_claim_guard.commit();
                                     tracing::error!(
                                         %error,
                                         "ACP prompt with handoff context rejected, retrying without it"

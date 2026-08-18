@@ -19,7 +19,7 @@ const MAX_MEMO_TOKENS: usize = 64_000;
 /// Per-image charge against the memo budget. Images reach the agent verbatim, and their
 /// real cost depends on dimensions we would have to decode, so assume the ceiling a
 /// full-size image reaches rather than under-counting the window they occupy.
-pub(crate) const IMAGE_TOKEN_ESTIMATE: usize = 1_600;
+const IMAGE_TOKEN_ESTIMATE: usize = 1_600;
 /// Tool exchanges this recent keep their responses; older ones are redacted.
 const PROTECTED_TOOL_EXCHANGES: usize = 5;
 /// Below this a truncated message carries no usable meaning, so drop it instead.
@@ -195,29 +195,58 @@ fn fit_unit(
     // Eliding a message that carries protected responses would cut individual calls out of
     // the middle of a batch. Degrade the exchange the way a stale one is degraded instead —
     // requests intact, responses replaced whole — so nothing is left half-reported.
-    if unit
+    let degraded = if unit
         .iter()
         .any(|&index| holds_tool_response(&redacted[index]))
     {
-        let stripped: Vec<String> = unit
-            .iter()
+        unit.iter()
             .map(|&index| {
                 format_message_for_compacting(&redact_tool_responses(&redacted[index], |_| false))
             })
-            .collect();
-        return (unit_cost(&stripped, counter) <= budget).then_some(FittedUnit {
-            messages: stripped,
+            .collect()
+    } else {
+        members
+    };
+
+    if unit_cost(&degraded, counter) <= budget {
+        return Some(FittedUnit {
+            messages: degraded,
             cost: None,
         });
     }
 
-    let [message] = members.as_slice() else {
-        return None;
-    };
-    elide_to_budget(message, budget - 1, counter).map(|elided| FittedUnit {
-        messages: vec![elided],
+    elide_unit_to_budget(degraded, budget, counter).map(|messages| FittedUnit {
+        messages,
         cost: None,
     })
+}
+
+/// Shrink the largest members until the whole unit fits. Nothing here carries a protected
+/// response any more, so an oversized tool request is truncated rather than taking the
+/// entire memo down with it.
+fn elide_unit_to_budget(
+    mut members: Vec<String>,
+    budget: usize,
+    counter: &TokenCounter,
+) -> Option<Vec<String>> {
+    for _ in 0..members.len() {
+        let costs: Vec<usize> = members
+            .iter()
+            .map(|message| counter.count_tokens(message) + 1)
+            .collect();
+        let total: usize = costs.iter().sum();
+        if total <= budget {
+            return Some(members);
+        }
+        let (index, largest) = costs
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, &cost)| cost)
+            .map(|(index, &cost)| (index, cost))?;
+        let room = budget.checked_sub(total - largest + 1)?;
+        members[index] = elide_to_budget(&members[index], room, counter)?;
+    }
+    (unit_cost(&members, counter) <= budget).then_some(members)
 }
 
 fn unit_cost(members: &[String], counter: &TokenCounter) -> usize {
@@ -235,8 +264,8 @@ fn holds_tool_response(message: &Message) -> bool {
 }
 
 fn redact_tool_responses(message: &Message, keep: impl Fn(&str) -> bool) -> Message {
-    let is_stale = |content: &MessageContent| matches!(content, MessageContent::ToolResponse(response) if !keep(&response.id));
-    if !message.content.iter().any(is_stale) {
+    let should_redact = |content: &MessageContent| matches!(content, MessageContent::ToolResponse(response) if !keep(&response.id));
+    if !message.content.iter().any(should_redact) {
         return message.clone();
     }
 
@@ -244,7 +273,7 @@ fn redact_tool_responses(message: &Message, keep: impl Fn(&str) -> bool) -> Mess
         .content
         .iter()
         .map(|content| {
-            if is_stale(content) {
+            if should_redact(content) {
                 MessageContent::text(REDACTED_TOOL_RESPONSE)
             } else {
                 content.clone()
@@ -267,7 +296,9 @@ fn elide_to_budget(text: &str, budget: usize, counter: &TokenCounter) -> Option<
     let total = counter.count_tokens(text).max(1);
     let mut ratio = budget as f64 / total as f64;
     for _ in 0..6 {
-        let keep = (text.len() as f64 * ratio * 0.9) as usize;
+        // Bytes to keep, so the floor below is a floor on the head and tail worth emitting
+        // rather than a token count.
+        let keep = ((text.len() as f64 * ratio * 0.9) as usize).min(text.len());
         if keep < 2 * MIN_ELIDED_TOKENS {
             return None;
         }
@@ -498,6 +529,39 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn an_oversized_tool_request_is_elided_rather_than_losing_the_memo() {
+        let counter = create_token_counter().await.unwrap();
+        let messages = vec![
+            Message::user().with_text("start"),
+            Message::assistant().with_tool_request(
+                "call-1",
+                Ok(CallToolRequestParams::new("write_file").with_arguments(
+                    serde_json::json!({ "contents": format!("HEAD {} TAIL", "payload ".repeat(4_000)) })
+                        .as_object()
+                        .unwrap()
+                        .clone(),
+                )),
+            ),
+            Message::user().with_tool_response(
+                "call-1",
+                Ok(CallToolResult::success(vec![RmcpContent::text("written")])),
+            ),
+        ];
+
+        let memo = build_handoff_context_memo(&messages, 500, &counter).unwrap();
+
+        assert!(counter.count_tokens(&memo) <= 500);
+        assert!(
+            memo.contains(ELISION_MARKER.trim()),
+            "the request is truncated, not dropped"
+        );
+        assert!(
+            memo.contains("write_file"),
+            "the exchange is still readable"
+        );
+    }
+
+    #[tokio::test]
     async fn a_protected_response_is_never_kept_without_its_request() {
         let counter = create_token_counter().await.unwrap();
         let messages = vec![
@@ -520,13 +584,19 @@ mod tests {
         let overhead = counter.count_tokens(MEMO_HEADER)
             + counter.count_tokens(MEMO_FOOTER)
             + OMISSION_MARKER_TOKENS;
-        // Room for the response alone, which is exactly what must not be kept by itself.
-        let budget = overhead + response_tokens + 4;
+        // Room for the response and a truncated request, but not for the request in full.
+        let budget = overhead + response_tokens + 120;
 
-        let memo = build_handoff_context_memo(&messages, budget, &counter);
+        // Newest-first selection over bare messages would keep the small response here and
+        // drop the request that explains it.
+        let memo = build_handoff_context_memo(&messages, budget, &counter).unwrap();
 
         assert!(
-            memo.is_none_or(|memo| !memo.contains("output-1")),
+            memo.contains("tool_response"),
+            "the exchange is in the memo"
+        );
+        assert!(
+            memo.contains("tool_request(read_file)"),
             "an orphaned response tells the agent a call happened but not what was asked"
         );
     }
