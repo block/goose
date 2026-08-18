@@ -32,7 +32,7 @@ use tokio::process::{Child, Command};
 use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex};
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 
-use crate::acp::handoff::{build_handoff_context_memo, memo_token_budget};
+use crate::acp::handoff::{build_handoff_context_memo, memo_token_budget, prompt_token_cost};
 use crate::acp::{map_permission_response, PermissionDecision};
 use crate::config::{ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
@@ -535,15 +535,8 @@ impl AcpProvider {
             }
         };
 
-        let current_prompt_tokens = current_prompt
-            .iter()
-            .map(|block| match block {
-                ContentBlock::Text(text) => counter.count_tokens(&text.text),
-                _ => 0,
-            })
-            .sum();
         let context_limit = self.get_context_limit(model_config).await.ok()?;
-        let budget = memo_token_budget(context_limit, current_prompt_tokens);
+        let budget = memo_token_budget(context_limit, prompt_token_cost(current_prompt, &counter));
 
         build_handoff_context_memo(&messages[..last_user_index], budget, &counter)
     }
@@ -694,9 +687,12 @@ impl Provider for AcpProvider {
         }
         let mut rx = match self.prompt(session_id.clone(), prompt_blocks).await {
             Ok(rx) => rx,
-            // The guard rolls the claim back when it drops on either failure path.
             Err(e) => match bare_retry_blocks.take() {
                 Some(blocks) => {
+                    // Consume the handoff before retrying. The memo is the only thing this
+                    // attempt added, so rebuilding it next time would reproduce the same
+                    // rejection and leave the session permanently unresumable.
+                    handoff_claim_guard.commit();
                     self.prompt(session_id.clone(), blocks)
                         .await
                         .map_err(|retry_error| {
@@ -705,6 +701,8 @@ impl Provider for AcpProvider {
                             ))
                         })?
                 }
+                // Nothing was added to this prompt, so the guard rolls the claim back as
+                // it drops and the next attempt can still carry the context.
                 None => {
                     return Err(ProviderError::RequestFailed(format!(
                         "Failed to send ACP prompt: {e}"
@@ -893,6 +891,9 @@ impl Provider for AcpProvider {
                                     response_tx,
                                 };
                                 if tx.send(request).await.is_ok() {
+                                    // Consume the handoff before retrying so a memo the agent
+                                    // rejected cannot be rebuilt and rejected on every later turn.
+                                    handoff_claim_guard.commit();
                                     tracing::error!(
                                         %error,
                                         "ACP prompt with handoff context rejected, retrying without it"
@@ -2479,7 +2480,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn streamed_error_on_first_prompt_resends_handoff_context() {
+    async fn streamed_error_after_bare_retry_consumes_handoff_context() {
         use futures::StreamExt;
 
         let (tx, mut rx) = mpsc::channel(1);
@@ -2488,10 +2489,10 @@ mod tests {
             Message::assistant().with_text("prior answer"),
             Message::user().with_text("current request"),
         ];
-        let (resend_content_tx, resend_content_rx) = oneshot::channel();
+        let (next_content_tx, next_content_rx) = oneshot::channel();
 
-        // Serve the first prompt and its memo-free retry like a harness that accepts
-        // the request but fails while processing it, then capture the next turn.
+        // Serve the first prompt and its memo-free retry like a harness that accepts the
+        // request but fails while processing it, then capture the following turn.
         let server = tokio::spawn(async move {
             for _ in 0..2 {
                 if let Some(ClientRequest::Prompt { response_tx, .. }) = rx.recv().await {
@@ -2508,7 +2509,7 @@ mod tests {
                 ..
             }) = rx.recv().await
             {
-                let _ = resend_content_tx.send(content);
+                let _ = next_content_tx.send(content);
                 let _ = response_tx
                     .send(AcpUpdate::Complete(StopReason::EndTurn, None))
                     .await;
@@ -2522,12 +2523,15 @@ mod tests {
             "expected streamed error, got {first:?}"
         );
 
-        let mut resend_stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
-        let resend_content = resend_content_rx.await.unwrap();
-        assert_eq!(resend_content.len(), 2);
-        assert!(prompt_text(&resend_content[0]).contains("prior answer"));
-        assert_eq!(prompt_text(&resend_content[1]), "current request");
-        assert!(resend_stream.next().await.is_none());
+        let mut next_stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        let next_content = next_content_rx.await.unwrap();
+        assert_eq!(
+            next_content.len(),
+            1,
+            "a rejected memo must not be rebuilt on the next turn"
+        );
+        assert_eq!(prompt_text(&next_content[0]), "current request");
+        assert!(next_stream.next().await.is_none());
         server.await.unwrap();
     }
 
@@ -2642,7 +2646,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn failed_first_prompt_send_rolls_back_handoff_context_claim() {
+    async fn failed_handoff_send_consumes_the_claim() {
         let (tx, rx) = mpsc::channel(1);
         drop(rx);
         let (provider, model) = test_provider_with_tx(Some(tx));
@@ -2655,8 +2659,10 @@ mod tests {
 
         assert!(matches!(result, Err(ProviderError::RequestFailed(_))));
         let next_claim = provider.claim_handoff_context(&messages);
-        assert!(next_claim.first_prompt);
-        assert!(next_claim.include_context);
+        assert!(
+            !next_claim.include_context,
+            "a memo that already failed to send must not be rebuilt"
+        );
     }
 
     fn expect_prompt(request: ClientRequest) -> (Vec<ContentBlock>, mpsc::Sender<AcpUpdate>) {

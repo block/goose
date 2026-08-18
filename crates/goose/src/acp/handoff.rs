@@ -5,7 +5,9 @@
 //! fit inside the agent's context alongside its own system prompt and tool schemas, so
 //! it is budgeted, redacted and truncated here rather than sent whole.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+
+use agent_client_protocol::schema::v1::ContentBlock;
 
 use crate::context_mgmt::format_message_for_compacting;
 use crate::conversation::message::{Message, MessageContent};
@@ -14,6 +16,10 @@ use crate::token_counter::TokenCounter;
 
 const CONTEXT_LIMIT_RATIO: f64 = 0.30;
 const MAX_MEMO_TOKENS: usize = 64_000;
+/// Per-image charge against the memo budget. Images reach the agent verbatim, and their
+/// real cost depends on dimensions we would have to decode, so assume the ceiling a
+/// full-size image reaches rather than under-counting the window they occupy.
+pub(crate) const IMAGE_TOKEN_ESTIMATE: usize = 1_600;
 /// Tool exchanges this recent keep their responses; older ones are redacted.
 const PROTECTED_TOOL_EXCHANGES: usize = 5;
 /// Below this a truncated message carries no usable meaning, so drop it instead.
@@ -30,6 +36,19 @@ const ELISION_MARKER: &str = "\n[... truncated ...]\n";
 pub(crate) fn memo_token_budget(context_limit: usize, current_prompt_tokens: usize) -> usize {
     let ceiling = ((context_limit as f64 * CONTEXT_LIMIT_RATIO) as usize).min(MAX_MEMO_TOKENS);
     ceiling.saturating_sub(current_prompt_tokens)
+}
+
+/// What the current turn already costs the agent. Images are forwarded alongside the memo,
+/// so charging them here keeps a picture-heavy turn from spending its window twice.
+pub(crate) fn prompt_token_cost(blocks: &[ContentBlock], counter: &TokenCounter) -> usize {
+    blocks
+        .iter()
+        .map(|block| match block {
+            ContentBlock::Text(text) => counter.count_tokens(&text.text),
+            ContentBlock::Image(_) => IMAGE_TOKEN_ESTIMATE,
+            _ => 0,
+        })
+        .sum()
 }
 
 pub(crate) fn build_handoff_context_memo(
@@ -49,12 +68,12 @@ pub(crate) fn build_handoff_context_memo(
     }
 
     let protected = recent_tool_call_ids(&visible);
-    let formatted: Vec<String> = visible
+    let redacted: Vec<Message> = visible
         .iter()
-        .map(|message| {
-            format_message_for_compacting(&redact_stale_tool_responses(message, &protected))
-        })
+        .map(|message| redact_tool_responses(message, |id| protected.contains(id)))
         .collect();
+    let formatted: Vec<String> = redacted.iter().map(format_message_for_compacting).collect();
+    let units = selection_units(&visible, &protected);
 
     let overhead = counter.count_tokens(MEMO_HEADER)
         + counter.count_tokens(MEMO_FOOTER)
@@ -62,20 +81,18 @@ pub(crate) fn build_handoff_context_memo(
     let mut remaining = budget.saturating_sub(overhead);
 
     let mut kept: Vec<String> = Vec::new();
-    for message in formatted.iter().rev() {
+    for unit in units.iter().rev() {
         if remaining == 0 {
             break;
         }
-        let cost = counter.count_tokens(message) + 1;
-        if cost <= remaining {
-            remaining -= cost;
-            kept.push(message.clone());
-            continue;
+        let Some(fitted) = fit_unit(unit, &formatted, &redacted, remaining, counter) else {
+            break;
+        };
+        kept.extend(fitted.messages.into_iter().rev());
+        match fitted.cost {
+            Some(cost) => remaining -= cost,
+            None => remaining = 0,
         }
-        if let Some(elided) = elide_to_budget(message, remaining - 1, counter) {
-            kept.push(elided);
-        }
-        remaining = 0;
     }
 
     if kept.is_empty() {
@@ -111,8 +128,114 @@ fn recent_tool_call_ids(messages: &[Message]) -> HashSet<String> {
         .collect()
 }
 
-fn redact_stale_tool_responses(message: &Message, protected: &HashSet<String>) -> Message {
-    let is_stale = |content: &MessageContent| matches!(content, MessageContent::ToolResponse(response) if !protected.contains(&response.id));
+/// Contiguous message groups that are kept or dropped together. A protected tool response
+/// travels with the request that produced it, so a tight budget can never leave one half of
+/// an exchange orphaned.
+fn selection_units(messages: &[Message], protected: &HashSet<String>) -> Vec<Vec<usize>> {
+    let mut earliest: Vec<usize> = (0..messages.len()).collect();
+    let mut request_at: HashMap<&str, usize> = HashMap::new();
+    for (index, message) in messages.iter().enumerate() {
+        for content in &message.content {
+            match content {
+                MessageContent::ToolRequest(request) => {
+                    request_at.insert(request.id.as_str(), index);
+                }
+                MessageContent::ToolResponse(response) if protected.contains(&response.id) => {
+                    if let Some(&request_index) = request_at.get(response.id.as_str()) {
+                        earliest[index] = earliest[index].min(request_index);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    let mut units: Vec<Vec<usize>> = Vec::new();
+    let mut end = messages.len();
+    while end > 0 {
+        let mut start = end - 1;
+        loop {
+            let extended = earliest[start..end].iter().copied().min().unwrap_or(start);
+            if extended == start {
+                break;
+            }
+            start = extended;
+        }
+        units.push((start..end).collect());
+        end = start;
+    }
+    units.reverse();
+    units
+}
+
+struct FittedUnit {
+    messages: Vec<String>,
+    /// `None` when the unit had to be degraded to fit, which ends selection.
+    cost: Option<usize>,
+}
+
+/// Fit a whole unit into `budget`, degrading it only in ways that keep every exchange
+/// it holds complete.
+fn fit_unit(
+    unit: &[usize],
+    formatted: &[String],
+    redacted: &[Message],
+    budget: usize,
+    counter: &TokenCounter,
+) -> Option<FittedUnit> {
+    let members: Vec<String> = unit.iter().map(|&index| formatted[index].clone()).collect();
+    let cost = unit_cost(&members, counter);
+    if cost <= budget {
+        return Some(FittedUnit {
+            messages: members,
+            cost: Some(cost),
+        });
+    }
+
+    // Eliding a message that carries protected responses would cut individual calls out of
+    // the middle of a batch. Degrade the exchange the way a stale one is degraded instead —
+    // requests intact, responses replaced whole — so nothing is left half-reported.
+    if unit
+        .iter()
+        .any(|&index| holds_tool_response(&redacted[index]))
+    {
+        let stripped: Vec<String> = unit
+            .iter()
+            .map(|&index| {
+                format_message_for_compacting(&redact_tool_responses(&redacted[index], |_| false))
+            })
+            .collect();
+        return (unit_cost(&stripped, counter) <= budget).then_some(FittedUnit {
+            messages: stripped,
+            cost: None,
+        });
+    }
+
+    let [message] = members.as_slice() else {
+        return None;
+    };
+    elide_to_budget(message, budget - 1, counter).map(|elided| FittedUnit {
+        messages: vec![elided],
+        cost: None,
+    })
+}
+
+fn unit_cost(members: &[String], counter: &TokenCounter) -> usize {
+    members
+        .iter()
+        .map(|message| counter.count_tokens(message) + 1)
+        .sum()
+}
+
+fn holds_tool_response(message: &Message) -> bool {
+    message
+        .content
+        .iter()
+        .any(|content| matches!(content, MessageContent::ToolResponse(_)))
+}
+
+fn redact_tool_responses(message: &Message, keep: impl Fn(&str) -> bool) -> Message {
+    let is_stale = |content: &MessageContent| matches!(content, MessageContent::ToolResponse(response) if !keep(&response.id));
     if !message.content.iter().any(is_stale) {
         return message.clone();
     }
@@ -184,6 +307,7 @@ fn ceil_char_boundary(text: &str, mut index: usize) -> usize {
 mod tests {
     use super::*;
     use crate::token_counter::create_token_counter;
+    use agent_client_protocol::schema::v1::{ImageContent, TextContent};
     use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock as RmcpContent};
 
     fn tool_exchange(id: &str, output: &str) -> Vec<Message> {
@@ -208,6 +332,25 @@ mod tests {
         assert_eq!(memo_token_budget(1_000_000, 0), MAX_MEMO_TOKENS);
         assert_eq!(memo_token_budget(100_000, 1_000), 29_000);
         assert_eq!(memo_token_budget(1_000, 100_000), 0);
+    }
+
+    #[tokio::test]
+    async fn images_in_the_current_turn_are_charged_against_the_budget() {
+        let counter = create_token_counter().await.unwrap();
+        let text_only = vec![ContentBlock::Text(TextContent::new("current request"))];
+        let with_image = vec![
+            ContentBlock::Text(TextContent::new("current request")),
+            ContentBlock::Image(ImageContent::new("base64data", "image/png")),
+        ];
+
+        let text_cost = prompt_token_cost(&text_only, &counter);
+        let image_cost = prompt_token_cost(&with_image, &counter);
+
+        assert_eq!(image_cost, text_cost + IMAGE_TOKEN_ESTIMATE);
+        assert!(
+            memo_token_budget(100_000, image_cost) < memo_token_budget(100_000, text_cost),
+            "an image has to shrink the memo's share of the window"
+        );
     }
 
     #[tokio::test]
@@ -308,6 +451,84 @@ mod tests {
         for id in ["d", "e", "f", "g", "h"] {
             assert!(memo.contains(&format!("output-{id}")), "kept {id}");
         }
+    }
+
+    #[tokio::test]
+    async fn tight_budget_redacts_a_protected_exchange_instead_of_splitting_it() {
+        let counter = create_token_counter().await.unwrap();
+        let messages = vec![
+            Message::user().with_text("start"),
+            Message::assistant().with_tool_request(
+                "call-1",
+                Ok(CallToolRequestParams::new("read_file").with_arguments(
+                    serde_json::json!({ "path": format!("src/{}.rs", "nested/".repeat(60)) })
+                        .as_object()
+                        .unwrap()
+                        .clone(),
+                )),
+            ),
+            Message::user().with_tool_response(
+                "call-1",
+                Ok(CallToolResult::success(vec![RmcpContent::text(format!(
+                    "output-1 {}",
+                    "filler ".repeat(200)
+                ))])),
+            ),
+        ];
+        let request_tokens = counter.count_tokens(&format_message_for_compacting(&messages[1]));
+        let response_tokens = counter.count_tokens(&format_message_for_compacting(&messages[2]));
+        let overhead = counter.count_tokens(MEMO_HEADER)
+            + counter.count_tokens(MEMO_FOOTER)
+            + OMISSION_MARKER_TOKENS;
+        // Room for the request and a redacted response, but not for both in full.
+        let budget = overhead + request_tokens + response_tokens / 2;
+
+        let memo = build_handoff_context_memo(&messages, budget, &counter).unwrap();
+
+        assert!(counter.count_tokens(&memo) <= budget);
+        assert!(
+            memo.contains("tool_request(read_file)"),
+            "the request survives with its response"
+        );
+        assert!(memo.contains(REDACTED_TOOL_RESPONSE));
+        assert!(
+            !memo.contains("output-1"),
+            "a protected response is replaced whole, never elided mid-call"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_protected_response_is_never_kept_without_its_request() {
+        let counter = create_token_counter().await.unwrap();
+        let messages = vec![
+            Message::user().with_text("start"),
+            Message::assistant().with_tool_request(
+                "call-1",
+                Ok(CallToolRequestParams::new("read_file").with_arguments(
+                    serde_json::json!({ "path": format!("src/{}.rs", "nested/".repeat(400)) })
+                        .as_object()
+                        .unwrap()
+                        .clone(),
+                )),
+            ),
+            Message::user().with_tool_response(
+                "call-1",
+                Ok(CallToolResult::success(vec![RmcpContent::text("output-1")])),
+            ),
+        ];
+        let response_tokens = counter.count_tokens(&format_message_for_compacting(&messages[2]));
+        let overhead = counter.count_tokens(MEMO_HEADER)
+            + counter.count_tokens(MEMO_FOOTER)
+            + OMISSION_MARKER_TOKENS;
+        // Room for the response alone, which is exactly what must not be kept by itself.
+        let budget = overhead + response_tokens + 4;
+
+        let memo = build_handoff_context_memo(&messages, budget, &counter);
+
+        assert!(
+            memo.is_none_or(|memo| !memo.contains("output-1")),
+            "an orphaned response tells the agent a call happened but not what was asked"
+        );
     }
 
     #[tokio::test]
