@@ -26,9 +26,6 @@ export function defaultClientExtensionsConfig(): ClientExtensionsConfig {
 export function loadClientExtensionsConfig(): ClientExtensionsConfig {
   const filePath = configPath();
   try {
-    if (!fs.existsSync(filePath)) {
-      return defaultClientExtensionsConfig();
-    }
     const raw = JSON.parse(fs.readFileSync(filePath, 'utf8')) as unknown;
     if (typeof raw !== 'object' || raw === null) {
       return defaultClientExtensionsConfig();

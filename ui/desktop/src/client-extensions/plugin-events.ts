@@ -1,7 +1,4 @@
-/**
- * Events the plugin host forwards to host.js plugins via ctx.session.on().
- * Sourced from ACP session notifications (renderer → main via IPC).
- */
+// ACP session events forwarded renderer → main → host.js plugins via ctx.session.on()
 export type PluginSessionEvent =
   | {
       type: 'agent_message_chunk';

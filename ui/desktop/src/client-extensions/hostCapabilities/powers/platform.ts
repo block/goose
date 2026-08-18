@@ -11,8 +11,8 @@ export const platformPower: HostCapabilityDefinition = {
     }
 
     postHostCapabilityResult(context, 'platform', method, {
-      platform: window.electron?.platform ?? 'unknown',
-      arch: window.electron?.arch ?? 'unknown',
+      platform: window.electron.platform,
+      arch: window.electron.arch,
     });
   },
 };

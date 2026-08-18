@@ -152,7 +152,7 @@ pub fn uninstall_client_extension(id: &str) -> Result<()> {
         .ok_or_else(|| anyhow!("client extension '{id}' is not installed"))?;
 
     if summary.source != ClientExtensionSource::Installed {
-        bail!("cannot uninstall dev client extension '{id}' — disable it from Add-ons instead");
+        bail!("cannot uninstall dev client extension '{id}' — disable it from Plugins instead");
     }
 
     if summary.directory.is_dir() {

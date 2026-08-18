@@ -56,6 +56,5 @@ export function evaluateWhenClause(clause: string | undefined, context: Extensio
     return messageContext.codeLanguages.includes(language);
   }
 
-  console.warn(`[client-extensions] Unknown when clause "${clause}" — defaulting to visible`);
-  return true;
+  return false;
 }

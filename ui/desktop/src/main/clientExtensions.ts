@@ -281,8 +281,8 @@ function parseManifest(raw: unknown, rootPath: string): ClientExtensionManifest 
 
   const manifestPath = path.join(rootPath, MANIFEST_FILENAME);
   if (path.basename(rootPath) !== id && manifest.id !== path.basename(rootPath)) {
-    console.warn(
-      `[client-extensions] id "${manifest.id}" does not match directory "${path.basename(rootPath)}" at ${manifestPath}`
+    throw new Error(
+      `id "${manifest.id}" does not match directory "${path.basename(rootPath)}" at ${manifestPath}`
     );
   }
 
