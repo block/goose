@@ -23,6 +23,7 @@ import {
   acpChatSessionStore,
   useAcpChatSessionSnapshot,
 } from '../acp/chatSessionStore';
+import { acpGetSessionConversation } from '../acp/sessions';
 import { acpSteerSession } from '../acp/prompt';
 import { isAcpRecovering } from '../acp/acpConnection';
 
@@ -327,6 +328,15 @@ export function useChatSession({
     },
     [getCurrentSnapshot, sessionId]
   );
+  const hasEarlierMessages = acpSnapshot?.hasEarlierMessages ?? false;
+  const loadEarlierMessages = useCallback(async () => {
+    const currentMessages = getCurrentSnapshot()?.messages ?? [];
+    const before = currentMessages[0]?.created;
+    const page = await acpGetSessionConversation(sessionId, before, 80);
+    acpChatSessionActions.prependMessages(sessionId, page.messages);
+    acpChatSessionActions.setHasEarlierMessages(sessionId, page.hasEarlier);
+  }, [getCurrentSnapshot, sessionId]);
+
   const notificationsMap = useMemo(() => {
     return (acpSnapshot?.notifications ?? []).reduce((map, notification) => {
       const key = notification.request_id;
@@ -355,5 +365,7 @@ export function useChatSession({
     pauseQueueOnStop: false,
     queueProcessingBlocked,
     onMessageUpdate,
+    hasEarlierMessages,
+    loadEarlierMessages,
   };
 }

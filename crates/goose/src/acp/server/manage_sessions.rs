@@ -207,6 +207,36 @@ impl GooseAcpAgent {
         })
     }
 
+    pub(super) async fn on_get_session_conversation(
+        &self,
+        req: GetSessionConversationRequest,
+    ) -> Result<GetSessionConversationResponse, agent_client_protocol::Error> {
+        let session_id = req.session_id.trim();
+        if session_id.is_empty() {
+            return Err(
+                agent_client_protocol::Error::invalid_params().data("sessionId cannot be empty")
+            );
+        }
+
+        let limit = req.limit.unwrap_or(80).clamp(1, 160) as usize;
+        let (messages, has_earlier) = self
+            .session_manager
+            .get_user_visible_messages_before(session_id, req.before, limit)
+            .await
+            .internal_err()?;
+        let next_before = messages.first().map(|message| message.created);
+        let messages = messages
+            .into_iter()
+            .map(|message| serde_json::to_value(message).unwrap_or(serde_json::Value::Null))
+            .collect();
+
+        Ok(GetSessionConversationResponse {
+            messages,
+            has_earlier,
+            next_before,
+        })
+    }
+
     pub(super) async fn on_truncate_session_conversation(
         &self,
         req: TruncateSessionConversationRequest,

@@ -10,6 +10,7 @@ import type { GooseExtension, SessionExportFormat, SessionImportSource } from '@
 import { getAcpClient } from './acpConnection';
 import type { ExtensionLoadResult } from '../types/extensions';
 import type { Session } from '../types/session';
+import type { Message } from '../types/message';
 import type { Recipe } from '../recipe';
 
 interface GooseSessionInfoMeta {
@@ -52,6 +53,7 @@ export interface LoadSessionMeta {
   userRecipeValues?: Record<string, string> | null;
   extensionResults?: ExtensionLoadResult[] | null;
   workingDir?: string;
+  hasEarlier?: boolean;
 }
 
 export interface AcpLoadSessionResult {
@@ -69,6 +71,7 @@ function parseSessionResponseMeta(rawMeta: unknown): LoadSessionMeta {
     userRecipeValues: meta.userRecipeValues,
     extensionResults: meta.extensionResults,
     workingDir: typeof meta.workingDir === 'string' ? meta.workingDir : undefined,
+    hasEarlier: meta.hasEarlier === true,
   };
 }
 
@@ -175,6 +178,28 @@ export async function acpGetSessionListItem(sessionId: string): Promise<SessionL
   const client = await getAcpClient();
   const response = await client.goose.sessionInfo_unstable({ sessionId });
   return sessionInfoToListItem(response.session);
+}
+
+export async function acpGetSessionConversation(
+  sessionId: string,
+  before?: number | null,
+  limit = 80
+): Promise<{ messages: Message[]; hasEarlier: boolean; nextBefore: number | null }> {
+  const client = await getAcpClient();
+  const response = await client.connection.agent.request<{
+    messages?: Message[];
+    hasEarlier?: boolean;
+    nextBefore?: number | null;
+  }>('_goose/unstable/session/conversation/get', {
+    sessionId,
+    ...(before != null ? { before } : {}),
+    limit,
+  });
+  return {
+    messages: Array.isArray(response.messages) ? response.messages : [],
+    hasEarlier: response.hasEarlier === true,
+    nextBefore: typeof response.nextBefore === 'number' ? response.nextBefore : null,
+  };
 }
 
 export async function acpLoadSession(sessionId: string): Promise<AcpLoadSessionResult> {

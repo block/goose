@@ -700,6 +700,20 @@ describe('useAcpChatSessionSnapshot', () => {
     acpChatSessionActions.deleteSnapshot(sessionId);
   });
 
+  it('prepends older messages without rewriting the live tail', () => {
+    const older = message('older', 'Earlier');
+    const newer = message('newer', 'Later');
+    acpChatSessionActions.setMessages(sessionId, [newer]);
+    const afterSet = acpChatSessionStore.getSnapshot(sessionId);
+    acpChatSessionActions.prependMessages(sessionId, [older]);
+    acpChatSessionActions.setHasEarlierMessages(sessionId, true);
+    const snapshot = acpChatSessionStore.getSnapshot(sessionId);
+
+    expect(snapshot?.messages.map((entry) => entry.id)).toEqual(['older', 'newer']);
+    expect(snapshot?.messages[1]).toBe(afterSet?.messages[0]);
+    expect(snapshot?.hasEarlierMessages).toBe(true);
+  });
+
   it('subscribes to session store snapshots', () => {
     const { result } = renderHook(() => useAcpChatSessionSnapshot(sessionId));
 

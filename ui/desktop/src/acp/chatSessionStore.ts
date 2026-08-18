@@ -17,6 +17,7 @@ import type { AcpElicitationRequest } from './elicitationRequests';
 export interface AcpChatSessionSnapshot {
   session: Session | undefined;
   messages: Message[];
+  hasEarlierMessages: boolean;
   tokenState: TokenState;
   notifications: NotificationEvent[];
   progressMessage: string | undefined;
@@ -84,6 +85,8 @@ export interface AcpChatSessionActions {
   ): AcpChatSessionSnapshot;
 
   setMessages(sessionId: string, messages: Message[]): AcpChatSessionSnapshot;
+  prependMessages(sessionId: string, messages: Message[]): AcpChatSessionSnapshot;
+  setHasEarlierMessages(sessionId: string, hasEarlierMessages: boolean): AcpChatSessionSnapshot;
   addPendingLocalSteerMessage(sessionId: string, message: Message): AcpChatSessionSnapshot;
   setChatState(sessionId: string, chatState: ChatState): AcpChatSessionSnapshot;
   resolveUserInputRequest(
@@ -169,6 +172,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     const entry: StoreEntry = {
       session: undefined,
       messages: [],
+      hasEarlierMessages: false,
       tokenState: { ...initialTokenState },
       notifications: [],
       progressMessage: undefined,
@@ -228,6 +232,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
       entry.messages = replayedMessages;
       retainPendingLocalSteerMessageIds(entry);
     }
+    entry.hasEarlierMessages = session.message_count > replayedMessages.length;
     entry.chatState = entry.activePromptAttemptId ? ChatState.Streaming : ChatState.Idle;
     return notify(sessionId, entry);
   };
@@ -248,6 +253,28 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     entry.messages = cloneMessages(messages);
     retainPendingLocalSteerMessageIds(entry);
     entry.adapter = createAdapterForEntry(entry);
+    return notify(sessionId, entry);
+  };
+
+  const prependMessages: AcpChatSessionActions['prependMessages'] = (sessionId, messages) => {
+    const entry = getOrCreateEntry(sessionId);
+    if (messages.length === 0) {
+      return notify(sessionId, entry);
+    }
+    const existingIds = new Set(entry.messages.map((message) => message.id).filter(Boolean));
+    const older = messages.filter((message) => !message.id || !existingIds.has(message.id));
+    entry.messages = [...cloneMessages(older), ...entry.messages];
+    retainPendingLocalSteerMessageIds(entry);
+    entry.adapter = createAdapterForEntry(entry);
+    return notify(sessionId, entry);
+  };
+
+  const setHasEarlierMessages: AcpChatSessionActions['setHasEarlierMessages'] = (
+    sessionId,
+    hasEarlierMessages
+  ) => {
+    const entry = getOrCreateEntry(sessionId);
+    entry.hasEarlierMessages = hasEarlierMessages;
     return notify(sessionId, entry);
   };
 
@@ -537,6 +564,8 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     failSessionLoad,
     setSessionLoadError,
     setMessages,
+    prependMessages,
+    setHasEarlierMessages,
     addPendingLocalSteerMessage,
     setChatState,
     resolveUserInputRequest,
@@ -615,6 +644,8 @@ function actionsFromStore(store: AcpChatSessionStoreInternal): AcpChatSessionAct
     failSessionLoad: store.failSessionLoad,
     setSessionLoadError: store.setSessionLoadError,
     setMessages: store.setMessages,
+    prependMessages: store.prependMessages,
+    setHasEarlierMessages: store.setHasEarlierMessages,
     addPendingLocalSteerMessage: store.addPendingLocalSteerMessage,
     setChatState: store.setChatState,
     resolveUserInputRequest: store.resolveUserInputRequest,
@@ -677,6 +708,7 @@ function shouldClearProgressMessage(notification: SessionNotification): boolean 
 
 function resetReplayState(entry: StoreEntry): void {
   entry.messages = [];
+  entry.hasEarlierMessages = false;
   entry.tokenState = { ...initialTokenState };
   entry.notifications = [];
   entry.progressMessage = undefined;
@@ -776,6 +808,7 @@ function snapshotFromEntry(entry: StoreEntry): AcpChatSessionSnapshot {
   return {
     session: entry.session,
     messages,
+    hasEarlierMessages: entry.hasEarlierMessages,
     tokenState,
     notifications,
     progressMessage: entry.progressMessage,

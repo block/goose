@@ -22,8 +22,10 @@ fn replay_audience_annotations(audience: &[Role]) -> Annotations {
     )
 }
 
+const ACP_SESSION_REPLAY_LIMIT: usize = 80;
+
 fn messages_for_acp_replay(conversation: &Conversation) -> Vec<Message> {
-    conversation
+    let messages: Vec<Message> = conversation
         .messages()
         .iter()
         .filter(|message| message.is_user_visible())
@@ -33,7 +35,11 @@ fn messages_for_acp_replay(conversation: &Conversation) -> Vec<Message> {
             message
         })
         .filter(|message| !message.content.is_empty())
-        .collect()
+        .collect();
+    if messages.len() <= ACP_SESSION_REPLAY_LIMIT {
+        return messages;
+    }
+    messages[messages.len() - ACP_SESSION_REPLAY_LIMIT..].to_vec()
 }
 
 fn active_turn_messages(conversation: &Conversation) -> &[Message] {
@@ -278,7 +284,7 @@ impl GooseAcpAgent {
 
         let mut session = self
             .session_manager
-            .get_session(&session_id_str, true)
+            .get_session(&session_id_str, false)
             .await
             .map_err(|_| {
                 agent_client_protocol::Error::resource_not_found(Some(session_id_str.clone()))
@@ -286,8 +292,15 @@ impl GooseAcpAgent {
             })?;
 
         session = self
-            .prepare_session_for_activation(session, args.cwd.clone(), args.mcp_servers, true)
+            .prepare_session_for_activation(session, args.cwd.clone(), args.mcp_servers, false)
             .await?;
+
+        let (replay_messages, _) = self
+            .session_manager
+            .get_user_visible_messages_before(&session_id_str, None, ACP_SESSION_REPLAY_LIMIT)
+            .await
+            .internal_err_ctx("Failed to load session messages")?;
+        session.conversation = Some(Conversation::new_unvalidated(replay_messages));
 
         replay_conversation_to_client(
             cx,
@@ -447,6 +460,23 @@ mod tests {
                 },
             }),
         );
+    }
+
+    #[test]
+    fn replay_window_keeps_the_latest_visible_messages() {
+        let mut messages = Vec::new();
+        for index in 0..90 {
+            if index % 2 == 0 {
+                messages.push(Message::user().with_text(format!("user-{index}")));
+            } else {
+                messages.push(Message::assistant().with_text(format!("assistant-{index}")));
+            }
+        }
+        let conversation = Conversation::new_unvalidated(messages);
+        let replayed = messages_for_acp_replay(&conversation);
+        assert_eq!(replayed.len(), 80);
+        assert_eq!(replayed[0].as_concat_text(), "user-10");
+        assert_eq!(replayed.last().unwrap().as_concat_text(), "assistant-89");
     }
 
     #[test]

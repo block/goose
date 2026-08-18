@@ -118,6 +118,8 @@ export default function BaseChat({
     pauseQueueOnStop,
     queueProcessingBlocked,
     onMessageUpdate,
+    hasEarlierMessages,
+    loadEarlierMessages,
   } = useChatSession({
     sessionId,
     onStreamFinish,
@@ -487,6 +489,8 @@ export default function BaseChat({
                     onRenderingComplete={handleRenderingComplete}
                     onMessageUpdate={onMessageUpdate}
                     submitElicitationResponse={submitElicitationResponse}
+                    hasEarlierMessages={hasEarlierMessages}
+                    onLoadEarlierMessages={loadEarlierMessages}
                   />
                 </SearchView>
 

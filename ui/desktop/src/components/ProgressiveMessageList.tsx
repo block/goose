@@ -79,6 +79,8 @@ interface ProgressiveMessageListProps {
     elicitationId: string,
     userData: Record<string, unknown>
   ) => Promise<boolean>;
+  hasEarlierMessages?: boolean;
+  onLoadEarlierMessages?: () => Promise<void> | void;
 }
 
 const EMPTY_TOOL_CALL_NOTIFICATIONS = new Map<string, NotificationEvent[]>();
@@ -237,6 +239,8 @@ function ProgressiveMessageList({
   onMessageUpdate,
   onRenderingComplete,
   submitElicitationResponse,
+  hasEarlierMessages = false,
+  onLoadEarlierMessages,
 }: ProgressiveMessageListProps) {
   const intl = useIntl();
   const [showAllMessages, setShowAllMessages] = useState(false);
@@ -292,11 +296,11 @@ function ProgressiveMessageList({
     if (anchor instanceof HTMLElement && typeof anchor.scrollIntoView === 'function') {
       anchor.scrollIntoView({ block: 'start' });
     }
-  }, [hiddenCount]);
+  }, [hiddenCount, messages.length]);
 
   return (
     <>
-      {hiddenCount > 0 && (
+      {(hiddenCount > 0 || hasEarlierMessages) && (
         <div className="flex flex-col items-center justify-center py-3">
           <button
             type="button"
@@ -306,11 +310,19 @@ function ProgressiveMessageList({
               pendingScrollRestoreKeyRef.current = firstVisible
                 ? transcriptMessageKey(firstVisible)
                 : null;
+              if (hiddenCount === 0 && hasEarlierMessages) {
+                setPinnedToLiveEdge(false);
+                setWindowStart(0);
+                void onLoadEarlierMessages?.();
+                return;
+              }
               setPinnedToLiveEdge(false);
               setWindowStart(earlierTranscriptWindowStart(effectiveWindowStart, visibleWindow));
             }}
           >
-            {intl.formatMessage(i18n.showEarlier, { hiddenCount })}
+            {intl.formatMessage(i18n.showEarlier, {
+              hiddenCount: hiddenCount > 0 ? hiddenCount : 'more',
+            })}
           </button>
           <div className="text-xs text-text-muted mt-1">{intl.formatMessage(i18n.searchHint)}</div>
         </div>

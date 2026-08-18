@@ -34,4 +34,6 @@ export interface UseChatSessionResult {
     editType: 'fork' | 'edit',
     retainedImages: ImageData[]
   ) => Promise<void>;
+  hasEarlierMessages: boolean;
+  loadEarlierMessages: () => Promise<void>;
 }

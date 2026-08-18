@@ -99,6 +99,7 @@ function snapshotWithActivePrompt(activePromptAttemptId: string | null): AcpChat
   return {
     session: undefined,
     messages: [],
+    hasEarlierMessages: false,
     tokenState: {
       inputTokens: 0,
       outputTokens: 0,

@@ -96,6 +96,10 @@ pub(super) fn session_response_meta(
         "workingDir".to_string(),
         serde_json::Value::String(session.working_dir.to_string_lossy().to_string()),
     );
+    meta.insert(
+        "hasEarlier".to_string(),
+        serde_json::Value::Bool(session.message_count > 80),
+    );
     meta
 }
 
