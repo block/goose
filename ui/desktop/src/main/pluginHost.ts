@@ -137,6 +137,10 @@ export function loadPlugin(extension: DiscoveredClientExtension): void {
     });
   } catch (err) {
     console.error(`[plugin-host] Failed to load "${extension.id}":`, err);
+    for (const fn of [...disposables].reverse()) {
+      try { fn(); } catch {}
+    }
+    delete require.cache[hostPath];
   }
 }
 

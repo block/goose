@@ -23,7 +23,7 @@ export function defaultClientExtensionsConfig(): ClientExtensionsConfig {
   return { disabled: [], enabledDev: [] };
 }
 
-export function loadClientExtensionsConfig(): ClientExtensionsConfig {
+export function loadClientExtensionsConfig(): ClientExtensionsConfig | null {
   const filePath = configPath();
   try {
     const raw = JSON.parse(fs.readFileSync(filePath, 'utf8')) as unknown;
@@ -40,8 +40,14 @@ export function loadClientExtensionsConfig(): ClientExtensionsConfig {
         : [],
     };
   } catch (error) {
-    console.warn('[client-extensions] Failed to read config, using defaults:', error);
-    return defaultClientExtensionsConfig();
+    // ENOENT means no config yet (fresh install) — use defaults.
+    // Any other error (corrupt JSON, permission denied) means we cannot trust
+    // what was previously disabled, so return null to fail closed.
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return defaultClientExtensionsConfig();
+    }
+    console.error('[client-extensions] Failed to read config — disabling all extensions:', error);
+    return null;
   }
 }
 
@@ -54,8 +60,9 @@ export function saveClientExtensionsConfig(config: ClientExtensionsConfig): void
 export function isClientExtensionEnabled(
   id: string,
   source: ClientExtensionSource,
-  config: ClientExtensionsConfig
+  config: ClientExtensionsConfig | null
 ): boolean {
+  if (!config) return false;
   if (config.disabled.includes(id)) {
     return false;
   }
@@ -70,7 +77,7 @@ export function setClientExtensionEnabled(
   source: ClientExtensionSource,
   enabled: boolean
 ): ClientExtensionsConfig {
-  const config = loadClientExtensionsConfig();
+  const config = loadClientExtensionsConfig() ?? defaultClientExtensionsConfig();
   const disabled = new Set(config.disabled);
   const enabledDev = new Set(config.enabledDev);
 
@@ -95,7 +102,7 @@ export function setClientExtensionEnabled(
 }
 
 export function removeClientExtensionFromConfig(id: string): ClientExtensionsConfig {
-  const config = loadClientExtensionsConfig();
+  const config = loadClientExtensionsConfig() ?? defaultClientExtensionsConfig();
   const next = {
     disabled: config.disabled.filter((entry) => entry !== id),
     enabledDev: config.enabledDev.filter((entry) => entry !== id),

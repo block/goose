@@ -178,7 +178,16 @@ pub fn install_client_extension(source: &Path) -> Result<ClientExtensionInstall>
     let manifest = read_manifest(&source)?;
     validate_manifest_files(&source, &manifest)?;
 
-    let destination = client_extensions_dir().join(&manifest.id);
+    let install_root = client_extensions_dir()
+        .canonicalize()
+        .unwrap_or_else(|_| client_extensions_dir());
+    let destination = install_root.join(&manifest.id);
+    if !destination.starts_with(&install_root) {
+        bail!(
+            "extension id '{}' would escape the install directory",
+            manifest.id
+        );
+    }
     if destination.exists() {
         bail!(
             "client extension '{}' is already installed at {}",
@@ -280,9 +289,16 @@ fn read_manifest(root: &Path) -> Result<ClientExtensionManifest> {
         .with_context(|| format!("invalid manifest at {}", manifest_path.display()))
 }
 
+fn is_safe_extension_id(id: &str) -> bool {
+    !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
 fn validate_manifest_files(root: &Path, manifest: &ClientExtensionManifest) -> Result<()> {
     if manifest.id.trim().is_empty() {
         bail!("manifest id must not be empty");
+    }
+    if !is_safe_extension_id(&manifest.id) {
+        bail!("manifest id '{}' contains invalid characters", manifest.id);
     }
     if manifest.version.trim().is_empty() {
         bail!("manifest version must not be empty");

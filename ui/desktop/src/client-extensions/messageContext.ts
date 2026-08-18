@@ -37,6 +37,14 @@ export function stripCodeBlocksForLanguage(text: string, language: string): stri
   return text.replace(pattern, '').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+export function stripFirstCodeBlockForLanguage(text: string, language: string): string {
+  const pattern = new RegExp(
+    `\`\`\`${language.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^\\n]*\\n[\\s\\S]*?\`\`\``,
+    'i'
+  );
+  return text.replace(pattern, '').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export function buildMessageExtensionContext(
   sessionId: string | null,
   route: string,

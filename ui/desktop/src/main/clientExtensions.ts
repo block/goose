@@ -220,6 +220,10 @@ function parseSidecars(raw: unknown): SidecarContribution[] | undefined {
   return sidecars.length > 0 ? sidecars : undefined;
 }
 
+function isSafeExtensionId(id: string): boolean {
+  return /^[a-zA-Z0-9_-]+$/.test(id);
+}
+
 function parseManifest(raw: unknown, rootPath: string): ClientExtensionManifest | null {
   if (!isRecord(raw)) {
     return null;
@@ -229,6 +233,9 @@ function parseManifest(raw: unknown, rootPath: string): ClientExtensionManifest 
   const version = raw.version;
   const main = raw.main;
   if (typeof id !== 'string' || !id.trim()) {
+    return null;
+  }
+  if (!isSafeExtensionId(id.trim())) {
     return null;
   }
   if (typeof version !== 'string' || !version.trim()) {
@@ -450,7 +457,11 @@ export function installClientExtension(sourcePath: string): DiscoveredClientExte
     }
   }
 
-  const destination = path.join(userClientExtensionsDir(), manifest.id);
+  const installRoot = path.resolve(userClientExtensionsDir());
+  const destination = path.resolve(installRoot, manifest.id);
+  if (!destination.startsWith(installRoot + path.sep)) {
+    throw new Error(`Extension id "${manifest.id}" would escape the install directory`);
+  }
   if (fs.existsSync(destination)) {
     throw new Error(`Client extension "${manifest.id}" is already installed`);
   }

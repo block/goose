@@ -5,7 +5,7 @@ import { useClientExtensions } from './ClientExtensionsContext';
 import {
   buildMessageExtensionContext,
   extractCodeBlocks,
-  stripCodeBlocksForLanguage,
+  stripFirstCodeBlockForLanguage,
 } from './messageContext';
 
 export function useMessageDisplayText(
@@ -41,7 +41,7 @@ export function useMessageDisplayText(
       return displayText;
     }
 
-    return stripCodeBlocksForLanguage(displayText, matchedLanguage);
+    return stripFirstCodeBlockForLanguage(displayText, matchedLanguage);
   }, [
     displayText,
     getCustomRender,

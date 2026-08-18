@@ -64,7 +64,7 @@ import {
   readSelectedRecipe,
 } from './desktopFileAccess';
 import { discoverClientExtensions, getClientExtensionsInstallDir, installClientExtension, readClientExtensionMain, setClientExtensionEnabledState, uninstallClientExtension } from './main/clientExtensions';
-import { syncPlugins, unloadAllPlugins } from './main/pluginHost';
+import { syncPlugins, unloadAllPlugins, unloadPlugin } from './main/pluginHost';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -2068,10 +2068,15 @@ ipcMain.handle('set-client-extension-enabled', (_event, extensionId: string, ena
 });
 
 ipcMain.handle('uninstall-client-extension', (_event, extensionId: string) => {
-  unloadAllPlugins();
-  const extensions = uninstallClientExtension(extensionId);
-  syncPlugins(extensions);
-  return extensions;
+  unloadPlugin(extensionId);
+  try {
+    const extensions = uninstallClientExtension(extensionId);
+    syncPlugins(extensions);
+    return extensions;
+  } catch (err) {
+    syncPlugins(discoverClientExtensions());
+    throw err;
+  }
 });
 
 ipcMain.handle('install-client-extension', (_event, sourcePath: string) => {
