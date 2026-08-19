@@ -4,13 +4,13 @@ use super::{
 };
 use agent_client_protocol::schema::v1::{
     ClientCapabilities, CloseSessionRequest, ContentBlock, CreateTerminalRequest,
-    FileSystemCapabilities, ImageContent, InitializeRequest, KillTerminalRequest,
-    ListSessionsRequest, ListSessionsResponse, LoadSessionRequest, McpServer, NewSessionRequest,
-    PromptRequest, ReadTextFileRequest, ReleaseTerminalRequest, RequestPermissionRequest,
-    SessionConfigKind, SessionConfigOptionCategory, SessionConfigOptionValue, SessionId,
-    SessionModeId, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
-    SetSessionModeRequest, StopReason, TerminalOutputRequest, TextContent, ToolCallStatus,
-    WaitForTerminalExitRequest, WriteTextFileRequest,
+    DeleteSessionRequest, FileSystemCapabilities, ImageContent, InitializeRequest,
+    KillTerminalRequest, ListSessionsRequest, ListSessionsResponse, LoadSessionRequest, McpServer,
+    NewSessionRequest, PromptRequest, ReadTextFileRequest, ReleaseTerminalRequest,
+    RequestPermissionRequest, SessionConfigKind, SessionConfigOptionCategory,
+    SessionConfigOptionValue, SessionId, SessionModeId, SessionNotification, SessionUpdate,
+    SetSessionConfigOptionRequest, SetSessionModeRequest, StopReason, TerminalOutputRequest,
+    TextContent, ToolCallStatus, WaitForTerminalExitRequest, WriteTextFileRequest,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
@@ -346,7 +346,7 @@ impl Connection for AcpServerConnection {
                         async move |cx: ConnectionTo<Agent>| {
                             let resp = cx
                                 .send_request(
-                                    InitializeRequest::new(ProtocolVersion::LATEST)
+                                    InitializeRequest::new(ProtocolVersion::V1)
                                         .client_capabilities(
                                             ClientCapabilities::new()
                                                 .fs(fs_cap)
@@ -357,9 +357,22 @@ impl Connection for AcpServerConnection {
                                 .await
                                 .unwrap();
                             assert_eq!(
+                                resp.protocol_version,
+                                ProtocolVersion::V1,
+                                "initialize response must negotiate ACP V1"
+                            );
+                            assert_eq!(
                                 resp.agent_info.as_ref().map(|info| info.name.as_str()),
                                 Some("goose"),
                                 "initialize response must identify the agent"
+                            );
+                            assert!(
+                                resp.agent_capabilities
+                                    .session_capabilities
+                                    .delete
+                                    .as_ref()
+                                    .is_some(),
+                                "initialize response must advertise session/delete"
                             );
 
                             *cx_holder.lock().unwrap() = Some(cx.clone());
@@ -486,14 +499,12 @@ impl Connection for AcpServerConnection {
     }
 
     async fn delete_session(&self, session_id: &str) -> anyhow::Result<()> {
-        super::send_custom(
-            &self.cx,
-            "session/delete",
-            serde_json::json!({ "sessionId": session_id }),
-        )
-        .await
-        .map(|_| ())
-        .map_err(|e| e.into())
+        self.cx
+            .send_request(DeleteSessionRequest::new(SessionId::new(session_id)))
+            .block_task()
+            .await
+            .map(|_| ())
+            .map_err(|e| e.into())
     }
 
     async fn set_mode(&self, session_id: &str, mode_id: &str) -> anyhow::Result<()> {
