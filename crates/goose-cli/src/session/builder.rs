@@ -86,7 +86,7 @@ fn disambiguate_stdio_extension_names(
     Ok(())
 }
 
-fn is_registered_extension(config: &ExtensionConfig) -> bool {
+fn is_builtin_or_platform_extension(config: &ExtensionConfig) -> bool {
     matches!(
         config,
         ExtensionConfig::Builtin { .. } | ExtensionConfig::Platform { .. }
@@ -97,14 +97,14 @@ fn deduplicate_cli_builtins(
     existing: &[(String, ExtensionConfig)],
     cli_extensions: &mut Vec<(String, ExtensionConfig, bool)>,
 ) {
-    let mut registered_names: HashSet<String> = existing
+    let mut seen_builtin_names = existing
         .iter()
-        .filter(|(_, config)| is_registered_extension(config))
+        .filter(|(_, config)| is_builtin_or_platform_extension(config))
         .map(|(_, config)| config.key())
-        .collect();
+        .collect::<HashSet<_>>();
 
     cli_extensions.retain(|(_, config, _)| {
-        !is_registered_extension(config) || registered_names.insert(config.key())
+        !is_builtin_or_platform_extension(config) || seen_builtin_names.insert(config.key())
     });
 }
 
