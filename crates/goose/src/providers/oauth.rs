@@ -558,11 +558,10 @@ mod tests {
 
     #[test]
     fn test_token_cache() -> Result<()> {
-        let cache = TokenCache::new(
-            "https://example.com",
-            "test-client",
-            &["scope1".to_string()],
-        );
+        let directory = tempfile::tempdir()?;
+        let cache = TokenCache {
+            cache_path: directory.path().join("token.json"),
+        };
 
         // Test with expiration time
         let token_data = TokenData {
