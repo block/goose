@@ -86,6 +86,28 @@ fn disambiguate_stdio_extension_names(
     Ok(())
 }
 
+fn is_registered_extension(config: &ExtensionConfig) -> bool {
+    matches!(
+        config,
+        ExtensionConfig::Builtin { .. } | ExtensionConfig::Platform { .. }
+    )
+}
+
+fn deduplicate_cli_builtins(
+    existing: &[(String, ExtensionConfig)],
+    cli_extensions: &mut Vec<(String, ExtensionConfig, bool)>,
+) {
+    let mut registered_names: HashSet<String> = existing
+        .iter()
+        .filter(|(_, config)| is_registered_extension(config))
+        .map(|(_, config)| config.key())
+        .collect();
+
+    cli_extensions.retain(|(_, config, _)| {
+        !is_registered_extension(config) || registered_names.insert(config.key())
+    });
+}
+
 fn parse_cli_flag_extensions(
     extensions: &[String],
     streamable_http_extensions: &[StreamableHttpOptions],
@@ -602,7 +624,7 @@ async fn collect_extension_configs(
         resolve_extensions_for_new_session(recipe_extensions, None)
     };
 
-    let cli_flag_extensions = parse_cli_flag_extensions(
+    let mut cli_flag_extensions = parse_cli_flag_extensions(
         &session_config.extensions,
         &session_config.streamable_http_extensions,
         &session_config.builtins,
@@ -620,6 +642,8 @@ async fn collect_extension_configs(
                 .map(|config| (config.name(), config)),
         );
     }
+
+    deduplicate_cli_builtins(&all, &mut cli_flag_extensions);
 
     let cli_start = all.len();
     let renameable = cli_flag_extensions
@@ -1033,6 +1057,33 @@ mod tests {
         assert!(error
             .to_string()
             .contains("extension name 'memory' is already in use"));
+    }
+
+    #[test]
+    fn test_cli_builtin_reuses_configured_registered_extension() {
+        let configured = CliSession::parse_builtin_extensions("developer")
+            .into_iter()
+            .next()
+            .unwrap();
+        let extensions = vec![("configured".to_string(), configured)];
+        let mut cli = parse_cli_flag_extensions(&[], &[], &["developer".to_string()]);
+
+        deduplicate_cli_builtins(&extensions, &mut cli);
+
+        assert!(cli.is_empty());
+    }
+
+    #[test]
+    fn test_cli_builtin_does_not_reuse_different_extension_with_same_name() {
+        let extensions = vec![(
+            "configured".to_string(),
+            CliSession::parse_stdio_extension("developer:npx custom-developer").unwrap(),
+        )];
+        let mut cli = parse_cli_flag_extensions(&[], &[], &["developer".to_string()]);
+
+        deduplicate_cli_builtins(&extensions, &mut cli);
+
+        assert_eq!(cli.len(), 1);
     }
 
     #[test]
