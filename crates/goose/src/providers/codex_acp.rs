@@ -75,7 +75,7 @@ impl ProviderDef for CodexAcpProvider {
             let resolved_command = SearchPaths::builder()
                 .with_npm()
                 .resolve(CODEX_ACP_PROVIDER_NAME)?;
-            let goose_mode = resolve_goose_mode(config.get_goose_mode())?;
+            let goose_mode = resolve_goose_mode(config.get_goose_mode_strict())?;
             let mcp_servers = extension_configs_to_mcp_servers(&extensions);
 
             let mode_mapping = HashMap::from([
@@ -117,6 +117,8 @@ mod tests {
 
     #[cfg(unix)]
     const CHILD_ENV: &str = "GOOSE_CODEX_ACP_MODE_TEST_CHILD";
+    #[cfg(unix)]
+    const EXPECT_CONFIG_ERROR_ENV: &str = "GOOSE_CODEX_ACP_EXPECT_CONFIG_ERROR";
 
     #[test]
     fn missing_goose_mode_defaults_to_auto() {
@@ -161,11 +163,11 @@ mod tests {
                 .expect_err("marker executable should fail ACP initialization");
             let is_config_error = matches!(
                 error.downcast_ref::<ConfigError>(),
-                Some(ConfigError::DeserializeError(_))
+                Some(ConfigError::DeserializeError(_) | ConfigError::FileError(_))
             );
             assert_eq!(
                 is_config_error,
-                std::env::var("GOOSE_MODE").as_deref() == Ok("invalid"),
+                std::env::var_os(EXPECT_CONFIG_ERROR_ENV).is_some(),
                 "unexpected provider error: {error:#}"
             );
             return;
@@ -181,15 +183,33 @@ mod tests {
         fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
 
         let search_paths = serde_json::to_string(&vec![fixture.path()]).unwrap();
-        for (name, mode, should_launch) in [
-            ("unset", None, true),
-            ("auto", Some("auto"), true),
-            ("smart_approve", Some("smart_approve"), true),
-            ("approve", Some("approve"), true),
-            ("chat", Some("chat"), true),
-            ("invalid", Some("invalid"), false),
+        for (name, mode, config_content, config_is_directory, should_launch) in [
+            ("unset", None, None, false, true),
+            ("auto", Some("auto"), None, false, true),
+            ("smart_approve", Some("smart_approve"), None, false, true),
+            ("approve", Some("approve"), None, false, true),
+            ("chat", Some("chat"), None, false, true),
+            ("invalid", Some("invalid"), None, false, false),
+            (
+                "configured_file",
+                None,
+                Some("GOOSE_MODE: approve\n"),
+                false,
+                true,
+            ),
+            ("malformed_file", None, Some("GOOSE_MODE: ["), false, false),
+            ("unreadable_file", None, None, true, false),
         ] {
             let marker = fixture.path().join(format!("launched-{name}"));
+            let path_root = fixture.path().join(format!("config-{name}"));
+            let config_dir = path_root.join("config");
+            fs::create_dir_all(&config_dir).unwrap();
+            let config_path = config_dir.join("config.yaml");
+            if let Some(content) = config_content {
+                fs::write(&config_path, content).unwrap();
+            } else if config_is_directory {
+                fs::create_dir(&config_path).unwrap();
+            }
             let mut command = Command::new(std::env::current_exe().unwrap());
             command
                 .arg("--exact")
@@ -198,11 +218,13 @@ mod tests {
                 .env(CHILD_ENV, "1")
                 .env("GOOSE_SEARCH_PATHS", &search_paths)
                 .env("GOOSE_CODEX_ACP_MARKER", &marker)
-                .env(
-                    "GOOSE_PATH_ROOT",
-                    fixture.path().join(format!("config-{name}")),
-                )
+                .env("GOOSE_PATH_ROOT", &path_root)
                 .env("GOOSE_DISABLE_KEYRING", "1");
+            if should_launch {
+                command.env_remove(EXPECT_CONFIG_ERROR_ENV);
+            } else {
+                command.env(EXPECT_CONFIG_ERROR_ENV, "1");
+            }
             match mode {
                 Some(mode) => {
                     command.env("GOOSE_MODE", mode);

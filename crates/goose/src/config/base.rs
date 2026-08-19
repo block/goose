@@ -519,6 +519,23 @@ impl Config {
         Ok(merged)
     }
 
+    fn load_strict(&self) -> Result<Mapping, ConfigError> {
+        let mut merged = Mapping::new();
+
+        for path in &self.config_paths {
+            if !path.exists() {
+                continue;
+            }
+            let content = std::fs::read_to_string(path)?;
+            let layer = parse_yaml_content(&content)?;
+            merge_config_values(&mut merged, layer);
+        }
+
+        crate::config::migrations::run_read_migrations(&mut merged);
+
+        Ok(merged)
+    }
+
     pub fn all_values(&self) -> Result<HashMap<String, Value>, ConfigError> {
         let config_values = self.load()?;
         let mut map = HashMap::from_iter(config_values.into_iter().filter_map(|(k, v)| {
@@ -1107,6 +1124,26 @@ config_value!(CHATGPT_CODEX_REASONING_EFFORT, String, "medium");
 
 config_value!(GOOSE_SEARCH_PATHS, Vec<String>);
 config_value!(GOOSE_MODE, GooseMode);
+impl Config {
+    pub(crate) fn get_goose_mode_strict(&self) -> Result<GooseMode, ConfigError> {
+        match env::var("GOOSE_MODE") {
+            Ok(value) => {
+                let value = Self::parse_env_value(&value)?;
+                Ok(serde_json::from_value(value)?)
+            }
+            Err(env::VarError::NotPresent) => {
+                let values = self.load_strict()?;
+                let value = values
+                    .get("GOOSE_MODE")
+                    .ok_or_else(|| ConfigError::NotFound("GOOSE_MODE".to_string()))?;
+                Ok(serde_yaml::from_value(value.clone())?)
+            }
+            Err(env::VarError::NotUnicode(_)) => Err(ConfigError::DeserializeError(
+                "GOOSE_MODE contains non-Unicode data".to_string(),
+            )),
+        }
+    }
+}
 // GOOSE_PROVIDER and GOOSE_MODEL are handled by crate::config::providers
 // which checks the structured `providers:` block first and falls back to
 // the legacy flat keys. The accessors below delegate to that module.
