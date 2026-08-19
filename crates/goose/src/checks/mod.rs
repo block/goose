@@ -272,6 +272,21 @@ fn synthesize_review_md_check(scope_dir: &str, path: &Path, body: &str) -> Check
     }
 }
 
+fn read_review_md(path: &Path, canonical_repo_root: &Path) -> Result<Option<String>> {
+    let canonical_path = match path.canonicalize() {
+        Ok(path) => path,
+        Err(_) => return Ok(None),
+    };
+
+    if !canonical_path.starts_with(canonical_repo_root) || !canonical_path.is_file() {
+        return Ok(None);
+    }
+
+    fs::read_to_string(&canonical_path)
+        .map(Some)
+        .with_context(|| format!("read REVIEW.md {}", path.display()))
+}
+
 /// Locations searched for global checks, in priority order.
 ///
 /// The first existing directory wins for a given check name; closer scopes
@@ -309,6 +324,9 @@ pub fn discover_with_globals(
     global_dirs: &[PathBuf],
 ) -> Result<DiscoveredReview> {
     let scope_dirs = candidate_scope_dirs(touched_files);
+    let canonical_repo_root = repo_root
+        .canonicalize()
+        .with_context(|| format!("canonicalize repo root {}", repo_root.display()))?;
 
     // Collect raw checks keyed by name with explicit per-source priority so
     // closer/more-specific sources shadow broader ones. Globals get priority
@@ -346,17 +364,13 @@ pub fn discover_with_globals(
     }
 
     let root_review = repo_root.join(".agents").join("REVIEW.md");
-    if root_review.is_file() {
-        let body = fs::read_to_string(&root_review)
-            .with_context(|| format!("read REVIEW.md {}", root_review.display()))?;
+    if let Some(body) = read_review_md(&root_review, &canonical_repo_root)? {
         let check = synthesize_review_md_check("", &root_review, &body);
         record(check, scope_priority(""));
     }
     for scope in &scope_dirs {
         let path = repo_root.join(scope).join(".agents").join("REVIEW.md");
-        if path.is_file() {
-            let body = fs::read_to_string(&path)
-                .with_context(|| format!("read REVIEW.md {}", path.display()))?;
+        if let Some(body) = read_review_md(&path, &canonical_repo_root)? {
             let check = synthesize_review_md_check(scope, &path, &body);
             let p = scope_priority(scope);
             record(check, p);
@@ -738,5 +752,43 @@ tools: [Bash, Read, Grep]
         );
         let result = discover_with_globals(root, &[], &[]).unwrap();
         assert_eq!(result.checks.len(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn skips_review_md_symlinks_outside_repo() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().unwrap();
+        let root = dir.path().join("repo");
+        fs::create_dir_all(root.join(".agents")).unwrap();
+        fs::create_dir_all(root.join("api/.agents")).unwrap();
+        let root_secret = dir.path().join("root-secret.txt");
+        let scoped_secret = dir.path().join("scoped-secret.txt");
+        fs::write(&root_secret, "root secret").unwrap();
+        fs::write(&scoped_secret, "scoped secret").unwrap();
+        symlink(&root_secret, root.join(".agents/REVIEW.md")).unwrap();
+        symlink(&scoped_secret, root.join("api/.agents/REVIEW.md")).unwrap();
+
+        let result = discover_with_globals(&root, &["api/users.rs".to_string()], &[]).unwrap();
+
+        assert!(result.checks.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn allows_review_md_symlinks_within_repo() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join(".agents")).unwrap();
+        fs::write(root.join("review-rules.md"), "review rules").unwrap();
+        symlink(root.join("review-rules.md"), root.join(".agents/REVIEW.md")).unwrap();
+
+        let result = discover_with_globals(root, &[], &[]).unwrap();
+
+        assert_eq!(result.checks.len(), 1);
+        assert!(result.checks[0].body.ends_with("review rules"));
     }
 }
