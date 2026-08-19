@@ -43,6 +43,9 @@ const TRANSCRIBE_TOKEN: u32 = 50359;
 const EOT_TOKEN: u32 = 50257;
 const TIMESTAMP_BEGIN: u32 = 50364;
 const SAMPLE_BEGIN: usize = 3;
+const MIN_SUPPORTED_AUDIO_SAMPLE_RATE: u32 = 8_000;
+const MAX_SUPPORTED_AUDIO_SAMPLE_RATE: u32 = 96_000;
+const MAX_RESAMPLED_AUDIO_SAMPLES: usize = 50 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WhisperModel {
@@ -1070,6 +1073,8 @@ fn resample_audio(data: &[f32], from_rate: u32, to_rate: u32) -> Result<Vec<f32>
         SincInterpolationParameters, SincInterpolationType, WindowFunction,
     };
 
+    let output_samples = checked_resampled_sample_count(data.len(), from_rate, to_rate)?;
+
     if from_rate == to_rate {
         return Ok(data.to_vec());
     }
@@ -1078,6 +1083,7 @@ fn resample_audio(data: &[f32], from_rate: u32, to_rate: u32) -> Result<Vec<f32>
         from_rate,
         to_rate,
         input_samples = data.len(),
+        output_samples,
         "resampling audio"
     );
 
@@ -1105,6 +1111,37 @@ fn resample_audio(data: &[f32], from_rate: u32, to_rate: u32) -> Result<Vec<f32>
 
     tracing::debug!(output_samples = output.len(), "resampling complete");
     Ok(output)
+}
+
+fn checked_resampled_sample_count(
+    input_samples: usize,
+    from_rate: u32,
+    to_rate: u32,
+) -> Result<usize> {
+    anyhow::ensure!(
+        (MIN_SUPPORTED_AUDIO_SAMPLE_RATE..=MAX_SUPPORTED_AUDIO_SAMPLE_RATE).contains(&from_rate),
+        "Unsupported audio sample rate {from_rate} Hz; supported range is {MIN_SUPPORTED_AUDIO_SAMPLE_RATE}-{MAX_SUPPORTED_AUDIO_SAMPLE_RATE} Hz"
+    );
+
+    let from_rate = from_rate as usize;
+    let to_rate = to_rate as usize;
+    let whole_seconds = input_samples / from_rate;
+    let partial_second_samples = input_samples % from_rate;
+    let output_samples = whole_seconds
+        .checked_mul(to_rate)
+        .and_then(|whole| {
+            partial_second_samples
+                .checked_mul(to_rate)
+                .and_then(|partial| whole.checked_add(partial.div_ceil(from_rate)))
+        })
+        .ok_or_else(|| anyhow::anyhow!("Resampled audio size overflow"))?;
+
+    anyhow::ensure!(
+        output_samples <= MAX_RESAMPLED_AUDIO_SAMPLES,
+        "Resampled audio would contain {output_samples} samples; maximum is {MAX_RESAMPLED_AUDIO_SAMPLES}"
+    );
+
+    Ok(output_samples)
 }
 
 #[cfg(test)]
@@ -1254,5 +1291,52 @@ mod tests {
     #[test_case("Really? Yes! Ok.", vec!["Really? ", "Yes! ", "Ok."] ; "mixed punctuation")]
     fn test_split_into_sentences(input: &str, expected: Vec<&str>) {
         assert_eq!(split_into_sentences(input), expected);
+    }
+
+    #[test_case(8_000, 48_000, 96_000 ; "minimum supported rate")]
+    #[test_case(16_000, 48_000, 48_000 ; "whisper rate no-op")]
+    #[test_case(96_000, 96_000, 16_000 ; "maximum supported rate")]
+    fn supported_resample_rates_preserve_expected_size(
+        from_rate: u32,
+        input_samples: usize,
+        expected_output_samples: usize,
+    ) {
+        assert_eq!(
+            checked_resampled_sample_count(input_samples, from_rate, 16_000).unwrap(),
+            expected_output_samples
+        );
+    }
+
+    #[test]
+    fn resampling_rejects_attacker_controlled_extreme_rate() {
+        let error = resample_audio(&[0.0; 16], 1, 16_000).unwrap_err();
+
+        assert!(error.to_string().contains("Unsupported audio sample rate"));
+    }
+
+    #[test]
+    fn resampled_sample_budget_accepts_boundary_and_rejects_excess() {
+        let boundary_input = MAX_RESAMPLED_AUDIO_SAMPLES / 2;
+        assert_eq!(
+            checked_resampled_sample_count(boundary_input, 8_000, 16_000).unwrap(),
+            MAX_RESAMPLED_AUDIO_SAMPLES
+        );
+
+        let error = checked_resampled_sample_count(boundary_input + 1, 8_000, 16_000).unwrap_err();
+        assert!(error.to_string().contains("maximum"));
+    }
+
+    #[test]
+    fn resampled_sample_count_rejects_overflow() {
+        let error = checked_resampled_sample_count(usize::MAX, 8_000, 16_000).unwrap_err();
+
+        assert!(error.to_string().contains("overflow"));
+    }
+
+    #[test]
+    fn same_rate_resampling_preserves_samples() {
+        let samples = vec![0.25, -0.5, 0.75];
+
+        assert_eq!(resample_audio(&samples, 16_000, 16_000).unwrap(), samples);
     }
 }
