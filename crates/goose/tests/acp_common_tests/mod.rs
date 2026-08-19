@@ -16,6 +16,7 @@ use fs_err as fs;
 use goose::acp::server::AcpProviderFactory;
 use goose::config::base::CONFIG_YAML_NAME;
 use goose::config::GooseMode;
+use goose::session::{EnabledExtensionsState, SessionManager};
 use goose_test_support::{McpFixture, FAKE_CODE, TEST_IMAGE_B64, TEST_MODEL};
 use sqlx::sqlite::SqlitePoolOptions;
 use std::sync::Arc;
@@ -560,6 +561,15 @@ pub async fn run_load_model<C: Connection>() {
 }
 
 pub async fn run_load_session_mcp<C: Connection>() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    fs::write(
+        temp_dir.path().join(CONFIG_YAML_NAME),
+        format!(
+            "GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\nextensions:\n  developer:\n    enabled: true\n    type: platform\n    name: developer\n    description: Developer\n    display_name: Developer\n    bundled: true\n    available_tools: []\n"
+        ),
+    )
+    .unwrap();
+
     let expected_session_id = C::expected_session_id();
     let prompt = "Use the get_code tool and output only its result.";
     let mcp = McpFixture::new().await;
@@ -592,12 +602,19 @@ pub async fn run_load_session_mcp<C: Connection>() {
     let mcp_servers = vec![McpServer::Http(McpServerHttp::new("mcp-fixture", &mcp_url))];
 
     let config = TestConnectionConfig {
+        data_root: temp_dir.path().to_path_buf(),
         mcp_servers: mcp_servers.clone(),
         ..Default::default()
     };
     let mut conn = C::new(config, openai).await;
     let SessionData { mut session, .. } = conn.new_session().await.unwrap();
     expected_session_id.set(&session.session_id().0);
+    assert_stored_extensions(
+        &conn,
+        &session.session_id().0,
+        &["developer", "mcp-fixture"],
+    )
+    .await;
 
     // First prompt: tool should work in the new session.
     let output = session
@@ -612,6 +629,7 @@ pub async fn run_load_session_mcp<C: Connection>() {
         session: mut loaded_session,
         ..
     } = conn.load_session(&session_id, mcp_servers).await.unwrap();
+    assert_stored_extensions(&conn, &session_id, &["developer", "mcp-fixture"]).await;
 
     // Second prompt: tool should work in the loaded session.
     let output = loaded_session
@@ -619,6 +637,27 @@ pub async fn run_load_session_mcp<C: Connection>() {
         .await
         .unwrap();
     assert_eq!(output.text, FAKE_CODE, "tool call failed in loaded session");
+}
+
+async fn assert_stored_extensions<C: Connection>(conn: &C, session_id: &str, expected: &[&str]) {
+    let session = SessionManager::new(conn.data_root())
+        .get_session(session_id, false)
+        .await
+        .unwrap();
+    let stored_extensions =
+        EnabledExtensionsState::from_extension_data(&session.extension_data).unwrap();
+    let names = stored_extensions
+        .extensions
+        .iter()
+        .map(|extension| extension.name())
+        .collect::<Vec<_>>();
+
+    for expected_name in expected {
+        assert!(
+            names.iter().any(|name| name == expected_name),
+            "expected stored extension {expected_name} in {names:?}"
+        );
+    }
 }
 
 pub async fn run_load_session_replays_image_attachment<C: Connection>() {

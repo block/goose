@@ -197,6 +197,22 @@ pub struct AcpBuiltinSelection {
     pub explicit: Vec<String>,
 }
 
+impl AcpBuiltinSelection {
+    pub fn from_requested(builtins: Vec<String>) -> Self {
+        if builtins.is_empty() {
+            Self {
+                defaults: vec!["developer".to_string()],
+                explicit: Vec::new(),
+            }
+        } else {
+            Self {
+                defaults: Vec::new(),
+                explicit: builtins,
+            }
+        }
+    }
+}
+
 pub struct GooseAcpAgentOptions {
     pub provider_factory: AcpProviderFactory,
     pub builtin_selection: AcpBuiltinSelection,
@@ -410,6 +426,29 @@ fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConf
     }
 }
 
+fn add_mcp_servers(
+    extensions: &mut Vec<ExtensionConfig>,
+    mcp_servers: Vec<McpServer>,
+) -> Result<(), agent_client_protocol::Error> {
+    for mcp_server in mcp_servers {
+        let extension = mcp_server_to_extension_config(mcp_server)
+            .map_err(|message| agent_client_protocol::Error::invalid_params().data(message))?;
+        push_or_replace_extension(extensions, extension);
+    }
+    Ok(())
+}
+
+fn enabled_extensions_data(
+    session: &Session,
+    extensions: Vec<ExtensionConfig>,
+) -> Result<ExtensionData, agent_client_protocol::Error> {
+    let mut extension_data = session.extension_data.clone();
+    EnabledExtensionsState::new(extensions)
+        .to_extension_data(&mut extension_data)
+        .internal_err_ctx("Failed to initialize session extensions")?;
+    Ok(extension_data)
+}
+
 fn selected_builtin_extensions(
     config: &Config,
     builtin_selection: &AcpBuiltinSelection,
@@ -427,6 +466,38 @@ fn selected_builtin_extensions(
     }
 
     extensions
+}
+
+fn initial_session_extensions(
+    config: &Config,
+    builtin_selection: &AcpBuiltinSelection,
+    project_root: &Path,
+    mcp_servers: Vec<McpServer>,
+    goose_extensions: Option<Vec<GooseExtension>>,
+    recipe_extensions: Option<&[ExtensionConfig]>,
+) -> Result<Vec<ExtensionConfig>, agent_client_protocol::Error> {
+    let mut extensions = selected_builtin_extensions(config, builtin_selection);
+
+    if let Some(recipe_extensions) = recipe_extensions {
+        for extension in recipe_extensions {
+            push_or_replace_extension(&mut extensions, extension.clone());
+        }
+    } else if let Some(goose_extensions) = goose_extensions {
+        for extension in extensions::goose_extensions_to_configs(goose_extensions)? {
+            push_or_replace_extension(&mut extensions, extension);
+        }
+    } else {
+        for extension in get_enabled_extensions_with_config(config) {
+            push_or_replace_extension(&mut extensions, extension);
+        }
+        for extension in crate::plugins::mcp_servers::enabled_plugin_mcp_servers(Some(project_root))
+        {
+            push_or_replace_extension(&mut extensions, extension);
+        }
+        add_mcp_servers(&mut extensions, mcp_servers)?;
+    }
+
+    Ok(extensions)
 }
 
 fn push_or_replace_extension(extensions: &mut Vec<ExtensionConfig>, extension: ExtensionConfig) {
@@ -783,45 +854,6 @@ impl GooseAcpAgent {
             .map_err(|error| agent_creation_error(error, "Failed to create agent"))
     }
 
-    fn initial_session_extensions(
-        &self,
-        config: &Config,
-        project_root: &Path,
-        mcp_servers: Vec<McpServer>,
-        goose_extensions: Option<Vec<GooseExtension>>,
-        recipe_extensions: Option<&[ExtensionConfig]>,
-    ) -> Result<Vec<ExtensionConfig>, agent_client_protocol::Error> {
-        let mut extensions = selected_builtin_extensions(config, &self.builtin_selection);
-
-        if let Some(recipe_extensions) = recipe_extensions {
-            for extension in recipe_extensions {
-                push_or_replace_extension(&mut extensions, extension.clone());
-            }
-        } else if let Some(goose_extensions) = goose_extensions {
-            for extension in extensions::goose_extensions_to_configs(goose_extensions)? {
-                push_or_replace_extension(&mut extensions, extension);
-            }
-        } else if mcp_servers.is_empty() {
-            for extension in get_enabled_extensions_with_config(config) {
-                push_or_replace_extension(&mut extensions, extension);
-            }
-            for extension in
-                crate::plugins::mcp_servers::enabled_plugin_mcp_servers(Some(project_root))
-            {
-                push_or_replace_extension(&mut extensions, extension);
-            }
-        } else {
-            for mcp_server in mcp_servers {
-                let extension = mcp_server_to_extension_config(mcp_server).map_err(|message| {
-                    agent_client_protocol::Error::invalid_params().data(message)
-                })?;
-                push_or_replace_extension(&mut extensions, extension);
-            }
-        }
-
-        Ok(extensions)
-    }
-
     async fn apply_acp_extension_overrides(
         &self,
         cx: &ConnectionTo<Client>,
@@ -926,12 +958,19 @@ impl GooseAcpAgent {
             session_needs_update = true;
         }
 
-        if !mcp_servers.is_empty()
-            || EnabledExtensionsState::from_extension_data(&session.extension_data).is_none()
-        {
-            let extension_data =
-                self.build_enabled_extensions_data(config, &session, mcp_servers, None, None)?;
-            builder = builder.extension_data(extension_data);
+        if !mcp_servers.is_empty() {
+            let mut stored_extensions = EnabledExtensionsState::from_extension_data(
+                &session.extension_data,
+            )
+            .ok_or_else(|| {
+                agent_client_protocol::Error::internal_error()
+                    .data("Session is missing stored extension state")
+            })?;
+            add_mcp_servers(&mut stored_extensions.extensions, mcp_servers)?;
+            builder = builder.extension_data(enabled_extensions_data(
+                &session,
+                stored_extensions.extensions,
+            )?);
             session_needs_update = true;
         }
 
@@ -965,18 +1004,15 @@ impl GooseAcpAgent {
         goose_extensions: Option<Vec<GooseExtension>>,
         recipe_extensions: Option<&[ExtensionConfig]>,
     ) -> Result<ExtensionData, agent_client_protocol::Error> {
-        let extensions = self.initial_session_extensions(
+        let extensions = initial_session_extensions(
             config,
+            &self.builtin_selection,
             &session.working_dir,
             mcp_servers,
             goose_extensions,
             recipe_extensions,
         )?;
-        let mut extension_data = session.extension_data.clone();
-        EnabledExtensionsState::new(extensions)
-            .to_extension_data(&mut extension_data)
-            .internal_err_ctx("Failed to initialize session extensions")?;
-        Ok(extension_data)
+        enabled_extensions_data(session, extensions)
     }
 
     async fn register_acp_session(&self, session_id: String, agent: Arc<Agent>) {
@@ -2355,10 +2391,7 @@ pub async fn run(builtins: Vec<String>, enable_scheduler: bool) -> Result<()> {
 
     let server = crate::acp::server_factory::AcpServer::new(
         crate::acp::server_factory::AcpServerFactoryConfig {
-            builtins: AcpBuiltinSelection {
-                explicit: builtins,
-                ..Default::default()
-            },
+            builtins: AcpBuiltinSelection::from_requested(builtins),
             data_dir: Paths::data_dir(),
             config_dir: Paths::config_dir(),
             goose_platform: GoosePlatform::GooseCli,
@@ -2432,6 +2465,131 @@ mod tests {
         AcpBuiltinSelection {
             explicit: vec![name.to_string()],
             ..Default::default()
+        }
+    }
+
+    #[test]
+    fn requested_builtins_default_to_developer() {
+        let selected = AcpBuiltinSelection::from_requested(Vec::new());
+        assert_eq!(selected.defaults, vec!["developer"]);
+        assert!(selected.explicit.is_empty());
+    }
+
+    #[test]
+    fn requested_builtins_replace_default_selection() {
+        let selected = AcpBuiltinSelection::from_requested(vec!["github".to_string()]);
+        assert!(selected.defaults.is_empty());
+        assert_eq!(selected.explicit, vec!["github"]);
+    }
+
+    #[test]
+    fn new_session_mcp_is_additive_to_enabled_config_extensions() {
+        let (config, _c, _s) = config_with_yaml(
+            r#"
+extensions:
+  developer:
+    enabled: true
+    type: builtin
+    name: developer
+"#,
+        );
+        let project_root = tempfile::tempdir().unwrap();
+        let extensions = initial_session_extensions(
+            &config,
+            &AcpBuiltinSelection::default(),
+            project_root.path(),
+            vec![McpServer::Http(McpServerHttp::new(
+                "zed-mcp",
+                "http://localhost/mcp",
+            ))],
+            None,
+            None,
+        )
+        .unwrap();
+
+        assert!(extensions
+            .iter()
+            .any(|extension| extension.name() == "developer"));
+        assert!(extensions
+            .iter()
+            .any(|extension| extension.name() == "zed-mcp"));
+    }
+
+    #[test]
+    fn new_session_mcp_does_not_enable_disabled_default_builtin() {
+        let (config, _c, _s) = config_with_yaml(
+            r#"
+extensions:
+  developer:
+    enabled: false
+    type: builtin
+    name: developer
+"#,
+        );
+        let project_root = tempfile::tempdir().unwrap();
+        let extensions = initial_session_extensions(
+            &config,
+            &AcpBuiltinSelection::from_requested(Vec::new()),
+            project_root.path(),
+            vec![McpServer::Http(McpServerHttp::new(
+                "zed-mcp",
+                "http://localhost/mcp",
+            ))],
+            None,
+            None,
+        )
+        .unwrap();
+
+        assert!(!has_developer(&extensions));
+        assert!(extensions
+            .iter()
+            .any(|extension| extension.name() == "zed-mcp"));
+    }
+
+    #[test]
+    fn acp_mcp_is_additive_to_stored_extensions() {
+        let mut stored_extensions = vec![builtin_to_extension_config("developer")];
+        add_mcp_servers(
+            &mut stored_extensions,
+            vec![McpServer::Http(McpServerHttp::new(
+                "zed-mcp",
+                "http://localhost/mcp",
+            ))],
+        )
+        .unwrap();
+
+        assert!(has_developer(&stored_extensions));
+        assert!(stored_extensions
+            .iter()
+            .any(|extension| extension.name() == "zed-mcp"));
+    }
+
+    #[test]
+    fn acp_mcp_replaces_same_named_extension() {
+        let mut extensions =
+            vec![
+                mcp_server_to_extension_config(McpServer::Http(McpServerHttp::new(
+                    "zed-mcp",
+                    "http://localhost/old",
+                )))
+                .unwrap(),
+            ];
+        add_mcp_servers(
+            &mut extensions,
+            vec![McpServer::Http(McpServerHttp::new(
+                "zed-mcp",
+                "http://localhost/new",
+            ))],
+        )
+        .unwrap();
+
+        assert_eq!(extensions.len(), 1);
+        match &extensions[0] {
+            ExtensionConfig::StreamableHttp { name, uri, .. } => {
+                assert_eq!(name, "zed-mcp");
+                assert_eq!(uri, "http://localhost/new");
+            }
+            extension => panic!("expected streamable HTTP extension, got {extension:?}"),
         }
     }
 
