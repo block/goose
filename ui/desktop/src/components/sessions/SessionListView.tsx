@@ -1020,6 +1020,8 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
             <div className="space-y-4">
             <button
               onClick={() => setIsScheduledExpanded((v) => !v)}
+              aria-expanded={isScheduledExpanded}
+              aria-controls="scheduled-job-sessions"
               className="sticky top-0 z-10 w-full flex items-center justify-between bg-background-primary/95 backdrop-blur-sm py-2 px-1 rounded-lg hover:bg-background-secondary transition-colors cursor-pointer"
             >
               <div className="flex items-center gap-2">
@@ -1039,7 +1041,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
             </button>
 
             {isScheduledExpanded && (
-              <div className="space-y-8">
+              <div id="scheduled-job-sessions" className="space-y-8">
                 {memoizedScheduledDateGroups.map((group) => (
                   <div key={group.label} className="space-y-4">
                     <div className="sticky top-0 z-10 bg-background-primary/95 backdrop-blur-sm">
