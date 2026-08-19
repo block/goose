@@ -150,7 +150,15 @@ enum SecretStorage {
 // Global instance
 static GLOBAL_CONFIG: OnceCell<Config> = OnceCell::new();
 
+#[cfg(test)]
+pub(crate) const TEST_SYSTEM_CONFIG_PATH_ENV: &str = "GOOSE_TEST_SYSTEM_CONFIG_PATH";
+
 fn system_config_path() -> PathBuf {
+    #[cfg(test)]
+    if let Some(path) = env::var_os(TEST_SYSTEM_CONFIG_PATH_ENV) {
+        return path.into();
+    }
+
     #[cfg(unix)]
     {
         PathBuf::from("/etc/goose/config.yaml")

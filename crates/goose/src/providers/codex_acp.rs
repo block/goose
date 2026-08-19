@@ -257,6 +257,11 @@ mod tests {
                 .env("GOOSE_SEARCH_PATHS", &search_paths)
                 .env("GOOSE_CODEX_ACP_MARKER", &marker)
                 .env("GOOSE_PATH_ROOT", &path_root)
+                .env(
+                    crate::config::base::TEST_SYSTEM_CONFIG_PATH_ENV,
+                    path_root.join("system-config.yaml"),
+                )
+                .env_remove("GOOSE_ADDITIONAL_CONFIG_FILES")
                 .env("GOOSE_DISABLE_KEYRING", "1");
             if should_launch {
                 command.env_remove(EXPECT_CONFIG_ERROR_ENV);
