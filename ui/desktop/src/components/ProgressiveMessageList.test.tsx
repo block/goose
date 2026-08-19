@@ -83,9 +83,11 @@ describe('ProgressiveMessageList', () => {
 
     expect(screen.queryByTestId('user-m1')).not.toBeInTheDocument();
     expect(screen.getByTestId('assistant-m2')).toBeInTheDocument();
-    expect(screen.getByTestId('user-m5')).toBeInTheDocument();
+    expect(screen.getByTestId('user-m3')).toBeInTheDocument();
+    expect(screen.queryByTestId('user-m5')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /1 hidden/i })).toBeInTheDocument();
-    expect(document.querySelector('[data-transcript-anchor="m4"]')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /later/i })).toBeInTheDocument();
+    expect(document.querySelector('[data-transcript-anchor="m2"]')).toBeInTheDocument();
   });
 
   it('keeps following the live edge until the user expands history', () => {
@@ -142,8 +144,10 @@ describe('ProgressiveMessageList', () => {
     );
 
     expect(screen.getByTestId('assistant-m2')).toBeInTheDocument();
-    expect(screen.getByTestId('assistant-m6')).toBeInTheDocument();
+    expect(screen.getByTestId('user-m3')).toBeInTheDocument();
+    expect(screen.queryByTestId('assistant-m6')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /1 hidden/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /later/i })).toBeInTheDocument();
   });
 
   it('does not remount earlier assistant rows when only the last message streams', () => {
@@ -215,22 +219,65 @@ describe('ProgressiveMessageList', () => {
     expect(gooseMessageRenderCounts.get('m80')).toBe(2);
   });
 
-  it('expands the full transcript when search is triggered', async () => {
-    const user = userEvent.setup();
-    renderList(
-      [
-        visibleMessage('m1'),
-        visibleMessage('m2', 'assistant'),
-        visibleMessage('m3'),
-        visibleMessage('m4', 'assistant'),
-      ],
-      2
+  it('notifies the parent when a streaming turn finishes so the live edge can re-pin', () => {
+    vi.useFakeTimers();
+    const onRenderingComplete = vi.fn();
+    const messages = [
+      visibleMessage('m1'),
+      visibleMessage('m2', 'assistant'),
+    ];
+
+    const { rerender } = render(
+      <ProgressiveMessageList
+        messages={messages}
+        chat={{ sessionId: 'session-1' }}
+        isUserMessage={(message) => message.role === 'user'}
+        isStreamingMessage
+        onRenderingComplete={onRenderingComplete}
+      />,
+      { wrapper: IntlTestWrapper }
     );
 
-    await user.keyboard('{Meta>}f{/Meta}');
+    vi.advanceTimersByTime(50);
+    expect(onRenderingComplete).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <ProgressiveMessageList
+        messages={messages}
+        chat={{ sessionId: 'session-1' }}
+        isUserMessage={(message) => message.role === 'user'}
+        isStreamingMessage={false}
+        onRenderingComplete={onRenderingComplete}
+      />
+    );
+
+    vi.advanceTimersByTime(50);
+    expect(onRenderingComplete).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it('jumps to a search match without mounting the full transcript', () => {
+    const messages = Array.from({ length: 8 }, (_, index) =>
+      visibleMessage(`m${index + 1}`, index % 2 === 0 ? 'user' : 'assistant')
+    );
+
+    const { rerender } = renderList(messages, 2);
+    expect(screen.queryByTestId('assistant-m2')).not.toBeInTheDocument();
+
+    rerender(
+      <ProgressiveMessageList
+        messages={messages}
+        chat={{ sessionId: 'session-1' }}
+        isUserMessage={(message) => message.role === 'user'}
+        visibleWindow={2}
+        searchMatchKey="m2"
+      />
+    );
 
     expect(screen.getByTestId('user-m1')).toBeInTheDocument();
-    expect(screen.getByTestId('assistant-m4')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /hidden/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId('assistant-m2')).toBeInTheDocument();
+    expect(screen.queryByTestId('user-m3')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('assistant-m8')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /later/i })).toBeInTheDocument();
   });
 });

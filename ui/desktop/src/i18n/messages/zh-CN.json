@@ -2633,6 +2633,9 @@
   "progressiveMessageList.showEarlier": {
     "defaultMessage": "显示更早的消息（已隐藏 {hiddenCount} 条）"
   },
+  "progressiveMessageList.showLater": {
+    "defaultMessage": "Show later messages"
+  },
   "progressiveMessageList.modelChanged": {
     "defaultMessage": "模型已更改：{previousModel} → {currentModel}"
   },

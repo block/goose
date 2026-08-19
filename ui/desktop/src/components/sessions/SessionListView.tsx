@@ -299,6 +299,8 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
+const MAX_LOADED_SESSIONS = 200;
+
 interface SessionListViewProps {
   onSelectSession: (sessionId: string) => void;
 }
@@ -354,7 +356,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
     previousSearchTermRef.current = debouncedSearchTerm;
 
     if (isSearching) {
-      setVisibleGroupsCount(dateGroups.length);
+      setVisibleGroupsCount(Math.min(dateGroups.length, 15));
     } else if (wasSearching) {
       setVisibleGroupsCount(15);
     }
@@ -377,7 +379,10 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
       startTransition(() => {
         setSessions((prev) => {
           const seen = new Set(prev.map((s) => s.id));
-          return [...prev, ...resp.sessions.filter((s) => !seen.has(s.id))];
+          const next = [...prev, ...resp.sessions.filter((s) => !seen.has(s.id))];
+          return next.length > MAX_LOADED_SESSIONS
+            ? next.slice(next.length - MAX_LOADED_SESSIONS)
+            : next;
         });
       });
     } catch (err) {

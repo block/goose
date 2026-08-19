@@ -219,11 +219,17 @@ impl GooseAcpAgent {
         }
 
         let limit = req.limit.unwrap_or(80).clamp(1, 160) as usize;
-        let (messages, has_earlier) = self
-            .session_manager
-            .get_user_visible_messages_before(session_id, req.before, limit)
-            .await
-            .internal_err()?;
+        let (messages, has_more) = if req.after.is_some() {
+            self.session_manager
+                .get_user_visible_messages_after(session_id, req.after, limit)
+                .await
+                .internal_err()?
+        } else {
+            self.session_manager
+                .get_user_visible_messages_before(session_id, req.before, limit)
+                .await
+                .internal_err()?
+        };
         let next_before = messages.first().map(|message| message.created);
         let messages = messages
             .into_iter()
@@ -232,8 +238,44 @@ impl GooseAcpAgent {
 
         Ok(GetSessionConversationResponse {
             messages,
-            has_earlier,
+            has_earlier: req.after.is_none() && has_more,
+            has_later: req.after.is_some() && has_more,
             next_before,
+        })
+    }
+
+    pub(super) async fn on_search_session_conversation(
+        &self,
+        req: SearchSessionConversationRequest,
+    ) -> Result<SearchSessionConversationResponse, agent_client_protocol::Error> {
+        let session_id = req.session_id.trim();
+        if session_id.is_empty() {
+            return Err(
+                agent_client_protocol::Error::invalid_params().data("sessionId cannot be empty")
+            );
+        }
+        let query = req.query.trim();
+        if query.is_empty() {
+            return Ok(SearchSessionConversationResponse::default());
+        }
+
+        let limit = req.limit.unwrap_or(80).clamp(1, 160) as usize;
+        let page = self
+            .session_manager
+            .search_user_visible_messages(session_id, query, limit)
+            .await
+            .internal_err()?;
+
+        Ok(SearchSessionConversationResponse {
+            messages: page
+                .messages
+                .into_iter()
+                .map(|message| serde_json::to_value(message).unwrap_or(serde_json::Value::Null))
+                .collect(),
+            has_earlier: page.has_earlier,
+            has_later: page.has_later,
+            match_id: page.match_id,
+            match_created: page.match_created,
         })
     }
 

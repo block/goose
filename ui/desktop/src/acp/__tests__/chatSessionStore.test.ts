@@ -9,6 +9,7 @@ import {
   acpChatSessionActions,
   acpPermissionUserInputRequestId,
   acpChatSessionStore,
+  flushAcpChatSessionNotifications,
   useAcpChatSessionSnapshot,
 } from '../chatSessionStore';
 import type { AcpElicitationRequest } from '../elicitationRequests';
@@ -182,6 +183,7 @@ describe('acpChatSessionStore', () => {
   };
 
   afterEach(() => {
+    flushAcpChatSessionNotifications();
     for (const id of sessionIds) {
       acpChatSessionActions.deleteSnapshot(id);
     }
@@ -574,6 +576,28 @@ describe('acpChatSessionStore', () => {
     expect(firstSnapshot.messages[1].content).toEqual([{ type: 'text', text: 'Hel' }]);
   });
 
+  it('coalesces subscriber notifications until the flush', () => {
+    const currentSessionId = sessionId('session-flush');
+    const { result } = renderHook(() => useAcpChatSessionSnapshot(currentSessionId));
+    expect(result.current).toBeUndefined();
+
+    act(() => {
+      acpChatSessionActions.setMessages(currentSessionId, [message('user-1', 'Hello')]);
+      acpChatSessionActions.applyAcpSessionNotification(
+        agentMessageChunkNotification(currentSessionId, 'assistant-1', 'Hel')
+      );
+      acpChatSessionActions.applyAcpSessionNotification(
+        agentMessageChunkNotification(currentSessionId, 'assistant-1', 'lo')
+      );
+    });
+
+    expect(result.current).toBeUndefined();
+    act(() => {
+      flushAcpChatSessionNotifications(currentSessionId);
+    });
+    expect(result.current?.messages).toHaveLength(2);
+  });
+
   it('applies permission requests as waiting action-required messages', () => {
     const currentSessionId = sessionId('session-1');
 
@@ -697,6 +721,7 @@ describe('useAcpChatSessionSnapshot', () => {
   const sessionId = 'hook-session-1';
 
   afterEach(() => {
+    flushAcpChatSessionNotifications();
     acpChatSessionActions.deleteSnapshot(sessionId);
   });
 
@@ -712,6 +737,7 @@ describe('useAcpChatSessionSnapshot', () => {
     expect(snapshot?.messages.map((entry) => entry.id)).toEqual(['older', 'newer']);
     expect(snapshot?.messages[1]).toBe(afterSet?.messages[0]);
     expect(snapshot?.hasEarlierMessages).toBe(true);
+    expect(snapshot?.hasLaterMessages).toBe(false);
   });
 
   it('subscribes to session store snapshots', () => {
@@ -722,6 +748,7 @@ describe('useAcpChatSessionSnapshot', () => {
     const nextMessage = message('message-1', 'Hello from hook');
     act(() => {
       acpChatSessionActions.setMessages(sessionId, [nextMessage]);
+      flushAcpChatSessionNotifications(sessionId);
     });
 
     expect(result.current?.messages).toHaveLength(1);

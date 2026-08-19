@@ -2633,6 +2633,9 @@
   "progressiveMessageList.showEarlier": {
     "defaultMessage": "以前のメッセージを表示（{hiddenCount} 件非表示）"
   },
+  "progressiveMessageList.showLater": {
+    "defaultMessage": "Show later messages"
+  },
   "progressiveMessageList.modelChanged": {
     "defaultMessage": "モデルを変更しました: {previousModel} → {currentModel}"
   },

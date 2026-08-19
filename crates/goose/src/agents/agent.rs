@@ -1913,19 +1913,9 @@ impl Agent {
 
         let message_text = message_text_for_trace;
 
-        let session = session_manager
-            .get_session(&session_config.id, true)
+        let is_first_agent_turn = !session_manager
+            .session_has_agent_visible_messages(&session_config.id)
             .await?;
-        let is_first_agent_turn = session
-            .conversation
-            .as_ref()
-            .map(|conversation| {
-                conversation.messages().iter().all(|message| {
-                    !message.is_agent_visible()
-                        || message.agent_visible_content().content.is_empty()
-                })
-            })
-            .unwrap_or(true);
 
         if !user_message.is_agent_visible()
             || user_message.agent_visible_content().content.is_empty()

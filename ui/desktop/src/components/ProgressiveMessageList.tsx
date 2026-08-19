@@ -39,9 +39,11 @@ import { getModelDisplayName } from './settings/models/predefinedModelsUtils';
 import {
   DEFAULT_VISIBLE_MESSAGE_WINDOW,
   earlierTranscriptWindowStart,
+  laterTranscriptWindowStart,
   initialTranscriptWindowStart,
   transcriptMessageKey,
-  visibleTranscriptWindowStart,
+  transcriptWindowForIndex,
+  visibleTranscriptRange,
 } from '../utils/transcriptWindow';
 
 const i18n = defineMessages({
@@ -51,7 +53,11 @@ const i18n = defineMessages({
   },
   searchHint: {
     id: 'progressiveMessageList.searchHint',
-    defaultMessage: 'Press Cmd/Ctrl+F to load all messages immediately for search',
+    defaultMessage: 'Press Cmd/Ctrl+F to search the full conversation',
+  },
+  showLater: {
+    id: 'progressiveMessageList.showLater',
+    defaultMessage: 'Show later messages',
   },
   modelChanged: {
     id: 'progressiveMessageList.modelChanged',
@@ -80,7 +86,10 @@ interface ProgressiveMessageListProps {
     userData: Record<string, unknown>
   ) => Promise<boolean>;
   hasEarlierMessages?: boolean;
+  hasLaterMessages?: boolean;
   onLoadEarlierMessages?: () => Promise<void> | void;
+  onLoadLaterMessages?: () => Promise<void> | void;
+  searchMatchKey?: string | null;
 }
 
 const EMPTY_TOOL_CALL_NOTIFICATIONS = new Map<string, NotificationEvent[]>();
@@ -240,19 +249,21 @@ function ProgressiveMessageList({
   onRenderingComplete,
   submitElicitationResponse,
   hasEarlierMessages = false,
+  hasLaterMessages = false,
   onLoadEarlierMessages,
+  onLoadLaterMessages,
+  searchMatchKey,
 }: ProgressiveMessageListProps) {
   const intl = useIntl();
-  const [showAllMessages, setShowAllMessages] = useState(false);
   const [pinnedToLiveEdge, setPinnedToLiveEdge] = useState(true);
   const [windowStart, setWindowStart] = useState(() =>
     initialTranscriptWindowStart(messages.length, visibleWindow)
   );
   const pendingScrollRestoreKeyRef = useRef<string | null>(null);
 
-  const effectiveWindowStart = visibleTranscriptWindowStart({
+  const { start: effectiveWindowStart, end: effectiveWindowEnd } = visibleTranscriptRange({
     messageCount: messages.length,
-    showAll: showAllMessages,
+    showAll: false,
     pinnedToLiveEdge,
     windowStart,
     visibleWindow,
@@ -264,26 +275,29 @@ function ProgressiveMessageList({
     }
     const timeoutId = window.setTimeout(() => onRenderingComplete(), 50);
     return () => window.clearTimeout(timeoutId);
-  }, [messages.length, onRenderingComplete, windowStart]);
+  }, [isStreamingMessage, messages.length, onRenderingComplete, windowStart]);
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const isMac = window.electron.platform === 'darwin';
-      const isSearchShortcut = (isMac ? event.metaKey : event.ctrlKey) && event.key === 'f';
-      if (isSearchShortcut) {
-        setShowAllMessages(true);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+    if (!searchMatchKey) {
+      return;
+    }
+    const matchIndex = messages.findIndex(
+      (message) => transcriptMessageKey(message) === searchMatchKey
+    );
+    if (matchIndex < 0) {
+      return;
+    }
+    setPinnedToLiveEdge(false);
+    setWindowStart(transcriptWindowForIndex(matchIndex, messages.length, visibleWindow));
+    pendingScrollRestoreKeyRef.current = searchMatchKey;
+  }, [messages, searchMatchKey, visibleWindow]);
 
   const toolCallChains = useMemo(() => identifyConsecutiveToolCalls(messages), [messages]);
   const previousResolvedModels = useMemo(() => getPreviousResolvedModels(messages), [messages]);
   const toolCallLookups = useMemo(() => buildToolCallLookups(messages), [messages]);
   const hiddenCount = effectiveWindowStart;
-  const messagesToRender = messages.slice(effectiveWindowStart);
+  const laterCount = messages.length - effectiveWindowEnd;
+  const messagesToRender = messages.slice(effectiveWindowStart, effectiveWindowEnd);
   useLayoutEffect(() => {
     const restoreKey = pendingScrollRestoreKeyRef.current;
     if (!restoreKey) {
@@ -370,6 +384,37 @@ function ProgressiveMessageList({
           />
         );
       })}
+
+      {(laterCount > 0 || hasLaterMessages) && (
+        <div className="flex flex-col items-center justify-center py-3">
+          <button
+            type="button"
+            className="text-xs text-text-secondary hover:text-text-primary underline-offset-2 hover:underline"
+            onClick={() => {
+              const lastVisible = messages[effectiveWindowEnd - 1];
+              pendingScrollRestoreKeyRef.current = lastVisible
+                ? transcriptMessageKey(lastVisible)
+                : null;
+              if (laterCount === 0 && hasLaterMessages) {
+                setPinnedToLiveEdge(false);
+                void onLoadLaterMessages?.();
+                return;
+              }
+              setPinnedToLiveEdge(false);
+              setWindowStart(
+                laterTranscriptWindowStart(
+                  effectiveWindowStart,
+                  messages.length,
+                  visibleWindow,
+                  visibleWindow
+                )
+              );
+            }}
+          >
+            {intl.formatMessage(i18n.showLater)}
+          </button>
+        </div>
+      )}
     </>
   );
 }

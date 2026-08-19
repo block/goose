@@ -180,24 +180,65 @@ export async function acpGetSessionListItem(sessionId: string): Promise<SessionL
   return sessionInfoToListItem(response.session);
 }
 
-export async function acpGetSessionConversation(
+export async function acpSearchSessionConversation(
   sessionId: string,
-  before?: number | null,
+  query: string,
   limit = 80
-): Promise<{ messages: Message[]; hasEarlier: boolean; nextBefore: number | null }> {
+): Promise<{
+  messages: Message[];
+  hasEarlier: boolean;
+  hasLater: boolean;
+  matchId: string | null;
+  matchCreated: number | null;
+}> {
   const client = await getAcpClient();
   const response = await client.connection.agent.request<{
     messages?: Message[];
     hasEarlier?: boolean;
-    nextBefore?: number | null;
-  }>('_goose/unstable/session/conversation/get', {
+    hasLater?: boolean;
+    matchId?: string | null;
+    matchCreated?: number | null;
+  }>('_goose/unstable/session/conversation/search', {
     sessionId,
-    ...(before != null ? { before } : {}),
+    query,
     limit,
   });
   return {
     messages: Array.isArray(response.messages) ? response.messages : [],
     hasEarlier: response.hasEarlier === true,
+    hasLater: response.hasLater === true,
+    matchId: typeof response.matchId === 'string' ? response.matchId : null,
+    matchCreated: typeof response.matchCreated === 'number' ? response.matchCreated : null,
+  };
+}
+
+export async function acpGetSessionConversation(
+  sessionId: string,
+  before?: number | null,
+  limit = 80,
+  after?: number | null
+): Promise<{
+  messages: Message[];
+  hasEarlier: boolean;
+  hasLater: boolean;
+  nextBefore: number | null;
+}> {
+  const client = await getAcpClient();
+  const response = await client.connection.agent.request<{
+    messages?: Message[];
+    hasEarlier?: boolean;
+    hasLater?: boolean;
+    nextBefore?: number | null;
+  }>('_goose/unstable/session/conversation/get', {
+    sessionId,
+    ...(before != null ? { before } : {}),
+    ...(after != null ? { after } : {}),
+    limit,
+  });
+  return {
+    messages: Array.isArray(response.messages) ? response.messages : [],
+    hasEarlier: response.hasEarlier === true,
+    hasLater: response.hasLater === true,
     nextBefore: typeof response.nextBefore === 'number' ? response.nextBefore : null,
   };
 }

@@ -46,3 +46,43 @@ export function visibleTranscriptWindowStart(input: {
 
   return Math.max(0, Math.min(input.windowStart, latestStart));
 }
+
+export function laterTranscriptWindowStart(
+  windowStart: number,
+  messageCount: number,
+  pageSize: number = EARLIER_MESSAGE_PAGE_SIZE,
+  visibleWindow: number = DEFAULT_VISIBLE_MESSAGE_WINDOW
+): number {
+  const latestStart = initialTranscriptWindowStart(messageCount, visibleWindow);
+  return Math.min(latestStart, windowStart + pageSize);
+}
+
+export function transcriptWindowForIndex(
+  messageIndex: number,
+  messageCount: number,
+  visibleWindow: number = DEFAULT_VISIBLE_MESSAGE_WINDOW
+): number {
+  if (messageCount <= visibleWindow) {
+    return 0;
+  }
+  const centered = messageIndex - Math.floor(visibleWindow / 2);
+  return Math.max(0, Math.min(centered, messageCount - visibleWindow));
+}
+
+export function visibleTranscriptRange(input: {
+  messageCount: number;
+  showAll: boolean;
+  pinnedToLiveEdge: boolean;
+  windowStart: number;
+  visibleWindow?: number;
+}): { start: number; end: number } {
+  const visibleWindow = input.visibleWindow ?? DEFAULT_VISIBLE_MESSAGE_WINDOW;
+  if (input.showAll) {
+    return { start: 0, end: input.messageCount };
+  }
+  const start = visibleTranscriptWindowStart({ ...input, visibleWindow });
+  return {
+    start,
+    end: Math.min(input.messageCount, start + visibleWindow),
+  };
+}

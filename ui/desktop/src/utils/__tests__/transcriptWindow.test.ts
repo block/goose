@@ -3,8 +3,11 @@ import {
   DEFAULT_VISIBLE_MESSAGE_WINDOW,
   EARLIER_MESSAGE_PAGE_SIZE,
   earlierTranscriptWindowStart,
+  laterTranscriptWindowStart,
   initialTranscriptWindowStart,
   transcriptMessageKey,
+  transcriptWindowForIndex,
+  visibleTranscriptRange,
   visibleTranscriptWindowStart,
 } from '../transcriptWindow';
 
@@ -62,5 +65,22 @@ describe('transcriptWindow', () => {
         windowStart: 161,
       })
     ).toBe(0);
+  });
+
+  it('keeps a search jump inside an 80-message mounted window', () => {
+    expect(transcriptWindowForIndex(10, 241)).toBe(0);
+    expect(transcriptWindowForIndex(120, 241)).toBe(80);
+    expect(transcriptWindowForIndex(240, 241)).toBe(161);
+    expect(visibleTranscriptRange({
+      messageCount: 241,
+      showAll: false,
+      pinnedToLiveEdge: false,
+      windowStart: 80,
+    })).toEqual({ start: 80, end: 160 });
+  });
+
+  it('pages later history without jumping to the live edge', () => {
+    expect(laterTranscriptWindowStart(81, 242)).toBe(161);
+    expect(laterTranscriptWindowStart(161, 242)).toBe(162);
   });
 });

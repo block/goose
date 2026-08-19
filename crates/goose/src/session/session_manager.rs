@@ -1,14 +1,14 @@
-use crate::config::GooseMode;
 use crate::config::paths::Paths;
-use crate::conversation::Conversation;
+use crate::config::GooseMode;
 use crate::conversation::message::{Message, MessageUsage, TokenState};
+use crate::conversation::Conversation;
 use crate::providers::base::CostSource;
 use crate::providers::base::Provider;
 use crate::recipe::Recipe;
 use crate::session::export_markdown::export_session_to_markdown;
 use crate::session::extension_data::ExtensionData;
 use crate::session::session_naming::{
-    MSG_COUNT_FOR_SESSION_NAME_GENERATION, generate_session_name,
+    generate_session_name, MSG_COUNT_FOR_SESSION_NAME_GENERATION,
 };
 use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
@@ -443,6 +443,32 @@ impl SessionManager {
             .await
     }
 
+    pub async fn search_user_visible_messages(
+        &self,
+        id: &str,
+        query: &str,
+        limit: usize,
+    ) -> Result<SessionConversationSearchPage> {
+        self.storage
+            .search_user_visible_messages(id, query, limit)
+            .await
+    }
+
+    pub async fn get_user_visible_messages_after(
+        &self,
+        id: &str,
+        after: Option<i64>,
+        limit: usize,
+    ) -> Result<(Vec<Message>, bool)> {
+        self.storage
+            .get_user_visible_messages_after(id, after, limit)
+            .await
+    }
+
+    pub async fn session_has_agent_visible_messages(&self, id: &str) -> Result<bool> {
+        self.storage.session_has_agent_visible_messages(id).await
+    }
+
     pub fn update(&self, id: &str) -> SessionUpdateBuilder<'_> {
         SessionUpdateBuilder::new(self, id.to_string())
     }
@@ -711,6 +737,45 @@ fn normalized_message_timestamp_sql(column: &str) -> String {
 
 fn user_visible_message_sql(column: &str) -> String {
     format!("COALESCE(json_extract({column}, '$.userVisible'), 1) != 0")
+}
+
+fn agent_visible_message_sql(column: &str) -> String {
+    format!("COALESCE(json_extract({column}, '$.agentVisible'), 1) != 0")
+}
+
+#[derive(Debug, Default)]
+pub struct SessionConversationSearchPage {
+    pub messages: Vec<Message>,
+    pub has_earlier: bool,
+    pub has_later: bool,
+    pub match_id: Option<String>,
+    pub match_created: Option<i64>,
+}
+
+type MessageRow = (String, String, i64, Option<String>, Option<String>);
+
+fn rows_to_messages(rows: Vec<MessageRow>) -> Vec<Message> {
+    let mut messages = Vec::with_capacity(rows.len());
+    for (role_str, content_json, created_timestamp, metadata_json, message_id) in rows {
+        let role = match role_str.as_str() {
+            "user" => Role::User,
+            "assistant" => Role::Assistant,
+            _ => continue,
+        };
+        let Ok(content) = serde_json::from_str(&content_json) else {
+            continue;
+        };
+        let metadata = metadata_json
+            .and_then(|json| serde_json::from_str(&json).ok())
+            .unwrap_or_default();
+        let mut message = Message::new(role, created_timestamp, content);
+        message.metadata = metadata;
+        if let Some(id) = message_id {
+            message = message.with_id(id);
+        }
+        messages.push(message);
+    }
+    messages
 }
 
 fn session_sort_at(session: &Session) -> DateTime<Utc> {
@@ -1822,30 +1887,26 @@ impl SessionStorage {
         let pool = self.pool().await?;
         let visible = user_visible_message_sql("metadata_json");
         let rows = if let Some(before) = before {
-            sqlx::query_as::<_, (String, String, i64, Option<String>, Option<String>)>(
-                AssertSqlSafe(format!(
-                    "SELECT role, content_json, created_timestamp, metadata_json, message_id
+            sqlx::query_as::<_, MessageRow>(AssertSqlSafe(format!(
+                "SELECT role, content_json, created_timestamp, metadata_json, message_id
                      FROM messages
                      WHERE session_id = ? AND {visible} AND created_timestamp < ?
                      ORDER BY created_timestamp DESC, id DESC
                      LIMIT ?"
-                )),
-            )
+            )))
             .bind(session_id)
             .bind(before)
             .bind((limit + 1) as i64)
             .fetch_all(pool)
             .await?
         } else {
-            sqlx::query_as::<_, (String, String, i64, Option<String>, Option<String>)>(
-                AssertSqlSafe(format!(
-                    "SELECT role, content_json, created_timestamp, metadata_json, message_id
+            sqlx::query_as::<_, MessageRow>(AssertSqlSafe(format!(
+                "SELECT role, content_json, created_timestamp, metadata_json, message_id
                      FROM messages
                      WHERE session_id = ? AND {visible}
                      ORDER BY created_timestamp DESC, id DESC
                      LIMIT ?"
-                )),
-            )
+            )))
             .bind(session_id)
             .bind((limit + 1) as i64)
             .fetch_all(pool)
@@ -1853,33 +1914,166 @@ impl SessionStorage {
         };
 
         let has_earlier = rows.len() > limit;
-        let mut messages = Vec::new();
-        for (role_str, content_json, created_timestamp, metadata_json, message_id) in
-            rows.into_iter().take(limit)
-        {
-            let role = match role_str.as_str() {
-                "user" => Role::User,
-                "assistant" => Role::Assistant,
-                _ => continue,
-            };
-            let content = serde_json::from_str(&content_json)?;
-            let metadata = metadata_json
-                .and_then(|json| serde_json::from_str(&json).ok())
-                .unwrap_or_default();
-            let mut message = Message::new(role, created_timestamp, content);
-            message.metadata = metadata;
-            if let Some(id) = message_id {
-                message = message.with_id(id);
-            }
-            messages.push(message);
-        }
+        let mut messages = rows_to_messages(rows.into_iter().take(limit).collect());
         messages.reverse();
         Ok((messages, has_earlier))
     }
 
+    async fn get_user_visible_messages_after(
+        &self,
+        session_id: &str,
+        after: Option<i64>,
+        limit: usize,
+    ) -> Result<(Vec<Message>, bool)> {
+        if limit == 0 {
+            return Ok((Vec::new(), false));
+        }
+
+        let pool = self.pool().await?;
+        let visible = user_visible_message_sql("metadata_json");
+        let rows = if let Some(after) = after {
+            sqlx::query_as::<_, MessageRow>(AssertSqlSafe(format!(
+                "SELECT role, content_json, created_timestamp, metadata_json, message_id
+                     FROM messages
+                     WHERE session_id = ? AND {visible} AND created_timestamp > ?
+                     ORDER BY created_timestamp ASC, id ASC
+                     LIMIT ?"
+            )))
+            .bind(session_id)
+            .bind(after)
+            .bind((limit + 1) as i64)
+            .fetch_all(pool)
+            .await?
+        } else {
+            return self
+                .get_user_visible_messages_before(session_id, None, limit)
+                .await;
+        };
+
+        let has_later = rows.len() > limit;
+        Ok((
+            rows_to_messages(rows.into_iter().take(limit).collect()),
+            has_later,
+        ))
+    }
+
+    async fn search_user_visible_messages(
+        &self,
+        session_id: &str,
+        query: &str,
+        limit: usize,
+    ) -> Result<SessionConversationSearchPage> {
+        let query = query.trim();
+        if query.is_empty() || limit == 0 {
+            return Ok(SessionConversationSearchPage::default());
+        }
+
+        let pool = self.pool().await?;
+        let visible = user_visible_message_sql("metadata_json");
+        let needle = query.to_lowercase();
+        let row: Option<(Option<String>, i64)> = sqlx::query_as(AssertSqlSafe(format!(
+            "SELECT message_id, created_timestamp
+             FROM messages
+             WHERE session_id = ? AND {visible} AND instr(LOWER(content_json), ?) > 0
+             ORDER BY created_timestamp DESC, id DESC
+             LIMIT 1"
+        )))
+        .bind(session_id)
+        .bind(&needle)
+        .fetch_optional(pool)
+        .await?;
+
+        let Some((match_id, match_created)) = row else {
+            return Ok(SessionConversationSearchPage::default());
+        };
+
+        let half = limit / 2;
+        let before_limit = half;
+        let after_limit = limit.saturating_sub(before_limit).saturating_sub(1);
+
+        let older_rows = if before_limit == 0 {
+            Vec::new()
+        } else {
+            sqlx::query_as::<_, MessageRow>(AssertSqlSafe(format!(
+                "SELECT role, content_json, created_timestamp, metadata_json, message_id
+                     FROM messages
+                     WHERE session_id = ? AND {visible} AND created_timestamp < ?
+                     ORDER BY created_timestamp DESC, id DESC
+                     LIMIT ?"
+            )))
+            .bind(session_id)
+            .bind(match_created)
+            .bind((before_limit + 1) as i64)
+            .fetch_all(pool)
+            .await?
+        };
+        let has_earlier = older_rows.len() > before_limit;
+        let mut older = rows_to_messages(older_rows.into_iter().take(before_limit).collect());
+        older.reverse();
+
+        let newer_rows = if after_limit == 0 {
+            Vec::new()
+        } else {
+            sqlx::query_as::<_, MessageRow>(AssertSqlSafe(format!(
+                "SELECT role, content_json, created_timestamp, metadata_json, message_id
+                     FROM messages
+                     WHERE session_id = ? AND {visible} AND created_timestamp > ?
+                     ORDER BY created_timestamp ASC, id ASC
+                     LIMIT ?"
+            )))
+            .bind(session_id)
+            .bind(match_created)
+            .bind((after_limit + 1) as i64)
+            .fetch_all(pool)
+            .await?
+        };
+        let has_later = newer_rows.len() > after_limit;
+        let newer = rows_to_messages(newer_rows.into_iter().take(after_limit).collect());
+
+        let match_rows = sqlx::query_as::<_, MessageRow>(AssertSqlSafe(format!(
+            "SELECT role, content_json, created_timestamp, metadata_json, message_id
+                 FROM messages
+                 WHERE session_id = ? AND {visible} AND created_timestamp = ?
+                 ORDER BY id ASC"
+        )))
+        .bind(session_id)
+        .bind(match_created)
+        .fetch_all(pool)
+        .await?;
+        let matched = rows_to_messages(match_rows);
+
+        let mut messages = older;
+        messages.extend(matched);
+        messages.extend(newer);
+
+        Ok(SessionConversationSearchPage {
+            messages,
+            has_earlier,
+            has_later,
+            match_id,
+            match_created: Some(match_created),
+        })
+    }
+
+    async fn session_has_agent_visible_messages(&self, session_id: &str) -> Result<bool> {
+        let pool = self.pool().await?;
+        let exists: bool = sqlx::query_scalar(AssertSqlSafe(format!(
+            "SELECT EXISTS(
+                SELECT 1 FROM messages
+                WHERE session_id = ? AND {}
+                LIMIT 1
+            )",
+            agent_visible_message_sql("metadata_json")
+        )))
+        .bind(session_id)
+        .fetch_one(pool)
+        .await?;
+        Ok(exists)
+    }
+
     async fn get_conversation(&self, session_id: &str) -> Result<Conversation> {
         let pool = self.pool().await?;
-        let rows = sqlx::query_as::<_, (String, String, i64, Option<String>, Option<String>)>(
+        let rows = sqlx::query_as::<_, MessageRow>(
             // Order by created_timestamp, then by id to break ties. created_timestamp is in seconds,
             // so messages created in the same second (e.g., tool request and response) need to
             // maintain their insertion order via the auto-increment id.
@@ -4464,6 +4658,44 @@ mod tests {
             first_page[0].created - 1
         );
         assert!(older_page.iter().all(|message| message.is_user_visible()));
+    }
+
+    #[tokio::test]
+    async fn test_search_user_visible_messages_returns_window_around_match() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let id = new_session(&sm).await;
+
+        for index in 0..241 {
+            let role = if index % 2 == 0 {
+                Role::User
+            } else {
+                Role::Assistant
+            };
+            let text = if index == 10 {
+                "unique-search-hit".to_string()
+            } else {
+                format!("m{index}")
+            };
+            let mut message = Message::new(role, 1_700_000_000 + index, vec![]).with_text(text);
+            if index == 3 {
+                message.metadata.user_visible = false;
+            }
+            sm.add_message(&id, &message).await.unwrap();
+        }
+
+        let page = sm
+            .search_user_visible_messages(&id, "unique-search-hit", 80)
+            .await
+            .unwrap();
+        assert!(page
+            .messages
+            .iter()
+            .any(|message| message.as_concat_text() == "unique-search-hit"));
+        assert!(page.messages.len() <= 80);
+        assert!(page.has_later);
+        assert!(!page.has_earlier);
+        assert_eq!(page.messages.first().unwrap().as_concat_text(), "m0");
     }
 
     async fn new_session(sm: &SessionManager) -> String {

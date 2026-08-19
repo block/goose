@@ -91,6 +91,8 @@ export default function BaseChat({
   const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>();
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
   const [acpRecovering, setAcpRecovering] = useState(isAcpRecovering);
+  const [searchMatchKey, setSearchMatchKey] = useState<string | null>(null);
+  const searchRequestIdRef = useRef(0);
   const isMobile = useIsMobile();
   const navContext = useNavigationContextSafe();
   const setView = useNavigation();
@@ -119,11 +121,42 @@ export default function BaseChat({
     queueProcessingBlocked,
     onMessageUpdate,
     hasEarlierMessages,
+    hasLaterMessages,
     loadEarlierMessages,
+    loadLaterMessages,
+    searchMessages,
   } = useChatSession({
     sessionId,
     onStreamFinish,
   });
+
+  useEffect(() => {
+    setSearchMatchKey(null);
+    searchRequestIdRef.current += 1;
+  }, [sessionId]);
+
+  const handleTranscriptSearch = useCallback(
+    (term: string) => {
+      const requestId = ++searchRequestIdRef.current;
+      window.setTimeout(() => {
+        void (async () => {
+          if (searchRequestIdRef.current !== requestId) {
+            return;
+          }
+          if (!term.trim()) {
+            setSearchMatchKey(null);
+            await searchMessages('');
+            return;
+          }
+          const matchKey = await searchMessages(term);
+          if (searchRequestIdRef.current === requestId) {
+            setSearchMatchKey(matchKey);
+          }
+        })();
+      }, 200);
+    },
+    [searchMessages]
+  );
 
   const handleWorkingDirChange = useCallback(
     async (newDir: string) => {
@@ -279,18 +312,24 @@ export default function BaseChat({
   const chat = useMemo(() => ({ sessionId }), [sessionId]);
 
   const handleRenderingComplete = React.useCallback(() => {
-    // Only force scroll on the very first render
     if (initialRenderRef.current && messages.length > 0) {
       initialRenderRef.current = false;
-      if (scrollRef.current?.scrollToBottom) {
-        scrollRef.current.scrollToBottom();
-      }
-    } else if (scrollRef.current?.isFollowing) {
-      if (scrollRef.current?.scrollToBottom) {
-        scrollRef.current.scrollToBottom();
-      }
+      scrollRef.current?.scrollToBottom();
+      return;
+    }
+    if (scrollRef.current?.isFollowing) {
+      scrollRef.current.scrollToBottom();
     }
   }, [messages.length]);
+
+  useEffect(() => {
+    if (chatState !== ChatState.Idle) {
+      return;
+    }
+    if (scrollRef.current?.isFollowing) {
+      scrollRef.current.scrollToBottom();
+    }
+  }, [chatState]);
 
   // Listen for global scroll-to-bottom requests (e.g., from MCP App message actions)
   useEffect(() => {
@@ -477,7 +516,7 @@ export default function BaseChat({
 
             {messages.length > 0 || recipe ? (
               <>
-                <SearchView>
+                <SearchView onSearch={handleTranscriptSearch}>
                   <ProgressiveMessageList
                     key={sessionId}
                     messages={messages}
@@ -490,7 +529,10 @@ export default function BaseChat({
                     onMessageUpdate={onMessageUpdate}
                     submitElicitationResponse={submitElicitationResponse}
                     hasEarlierMessages={hasEarlierMessages}
+                    hasLaterMessages={hasLaterMessages}
                     onLoadEarlierMessages={loadEarlierMessages}
+                    onLoadLaterMessages={loadLaterMessages}
+                    searchMatchKey={searchMatchKey}
                   />
                 </SearchView>
 

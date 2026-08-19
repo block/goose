@@ -2658,10 +2658,13 @@
     "defaultMessage": "Model changed: {previousModel} → {currentModel}"
   },
   "progressiveMessageList.searchHint": {
-    "defaultMessage": "Press Cmd/Ctrl+F to load all messages immediately for search"
+    "defaultMessage": "Press Cmd/Ctrl+F to search the full conversation"
   },
   "progressiveMessageList.showEarlier": {
     "defaultMessage": "Show earlier messages ({hiddenCount} hidden)"
+  },
+  "progressiveMessageList.showLater": {
+    "defaultMessage": "Show later messages"
   },
   "promptsSettings.allPromptsReset": {
     "defaultMessage": "All prompts reset to defaults"

@@ -100,6 +100,7 @@ function snapshotWithActivePrompt(activePromptAttemptId: string | null): AcpChat
     session: undefined,
     messages: [],
     hasEarlierMessages: false,
+    hasLaterMessages: false,
     tokenState: {
       inputTokens: 0,
       outputTokens: 0,

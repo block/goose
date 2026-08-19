@@ -23,7 +23,7 @@ import {
   acpChatSessionStore,
   useAcpChatSessionSnapshot,
 } from '../acp/chatSessionStore';
-import { acpGetSessionConversation } from '../acp/sessions';
+import { acpGetSessionConversation, acpSearchSessionConversation } from '../acp/sessions';
 import { acpSteerSession } from '../acp/prompt';
 import { isAcpRecovering } from '../acp/acpConnection';
 
@@ -329,6 +329,7 @@ export function useChatSession({
     [getCurrentSnapshot, sessionId]
   );
   const hasEarlierMessages = acpSnapshot?.hasEarlierMessages ?? false;
+  const hasLaterMessages = acpSnapshot?.hasLaterMessages ?? false;
   const loadEarlierMessages = useCallback(async () => {
     const currentMessages = getCurrentSnapshot()?.messages ?? [];
     const before = currentMessages[0]?.created;
@@ -336,6 +337,41 @@ export function useChatSession({
     acpChatSessionActions.prependMessages(sessionId, page.messages);
     acpChatSessionActions.setHasEarlierMessages(sessionId, page.hasEarlier);
   }, [getCurrentSnapshot, sessionId]);
+  const loadLaterMessages = useCallback(async () => {
+    const currentMessages = getCurrentSnapshot()?.messages ?? [];
+    const after = currentMessages[currentMessages.length - 1]?.created;
+    const page = await acpGetSessionConversation(sessionId, undefined, 80, after);
+    acpChatSessionActions.appendMessages(sessionId, page.messages);
+    acpChatSessionActions.setHasLaterMessages(sessionId, page.hasLater);
+  }, [getCurrentSnapshot, sessionId]);
+
+  const searchMessages = useCallback(
+    async (query: string): Promise<string | null> => {
+      const trimmed = query.trim();
+      if (!trimmed) {
+        const latest = await acpGetSessionConversation(sessionId, undefined, 80);
+        acpChatSessionActions.replaceWindow(sessionId, latest.messages, {
+          hasEarlier: latest.hasEarlier,
+          hasLater: false,
+        });
+        return null;
+      }
+      const page = await acpSearchSessionConversation(sessionId, trimmed, 80);
+      if (page.messages.length === 0) {
+        return null;
+      }
+      acpChatSessionActions.replaceWindow(sessionId, page.messages, {
+        hasEarlier: page.hasEarlier,
+        hasLater: page.hasLater,
+      });
+      return (
+        page.matchId ??
+        page.messages.find((message) => message.id)?.id ??
+        null
+      );
+    },
+    [sessionId]
+  );
 
   const notificationsMap = useMemo(() => {
     return (acpSnapshot?.notifications ?? []).reduce((map, notification) => {
@@ -366,6 +402,9 @@ export function useChatSession({
     queueProcessingBlocked,
     onMessageUpdate,
     hasEarlierMessages,
+    hasLaterMessages,
     loadEarlierMessages,
+    loadLaterMessages,
+    searchMessages,
   };
 }

@@ -2633,6 +2633,9 @@
   "progressiveMessageList.showEarlier": {
     "defaultMessage": "顯示更早的訊息（已隱藏 {hiddenCount} 則）"
   },
+  "progressiveMessageList.showLater": {
+    "defaultMessage": "Show later messages"
+  },
   "progressiveMessageList.modelChanged": {
     "defaultMessage": "模型已變更：{previousModel} → {currentModel}"
   },

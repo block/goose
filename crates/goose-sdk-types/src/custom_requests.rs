@@ -729,6 +729,8 @@ pub struct GetSessionConversationRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub before: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub limit: Option<u32>,
 }
 
@@ -737,8 +739,35 @@ pub struct GetSessionConversationRequest {
 pub struct GetSessionConversationResponse {
     pub messages: Vec<serde_json::Value>,
     pub has_earlier: bool,
+    #[serde(default)]
+    pub has_later: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub next_before: Option<i64>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/session/conversation/search",
+    response = SearchSessionConversationResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchSessionConversationRequest {
+    pub session_id: String,
+    pub query: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchSessionConversationResponse {
+    pub messages: Vec<serde_json::Value>,
+    pub has_earlier: bool,
+    pub has_later: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub match_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub match_created: Option<i64>,
 }
 
 /// Truncate a session conversation from the given message timestamp onward.

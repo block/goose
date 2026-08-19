@@ -2633,6 +2633,9 @@
   "progressiveMessageList.showEarlier": {
     "defaultMessage": "पहले के संदेश दिखाएँ ({hiddenCount} छिपे हुए)"
   },
+  "progressiveMessageList.showLater": {
+    "defaultMessage": "Show later messages"
+  },
   "progressiveMessageList.modelChanged": {
     "defaultMessage": "मॉडल बदला गया: {previousModel} → {currentModel}"
   },

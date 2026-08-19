@@ -2633,6 +2633,9 @@
   "progressiveMessageList.showEarlier": {
     "defaultMessage": "Tampilkan pesan sebelumnya ({hiddenCount} tersembunyi)"
   },
+  "progressiveMessageList.showLater": {
+    "defaultMessage": "Show later messages"
+  },
   "progressiveMessageList.modelChanged": {
     "defaultMessage": "Model diubah: {previousModel} → {currentModel}"
   },

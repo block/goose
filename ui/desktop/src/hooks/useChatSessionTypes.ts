@@ -35,5 +35,8 @@ export interface UseChatSessionResult {
     retainedImages: ImageData[]
   ) => Promise<void>;
   hasEarlierMessages: boolean;
+  hasLaterMessages: boolean;
   loadEarlierMessages: () => Promise<void>;
+  loadLaterMessages: () => Promise<void>;
+  searchMessages: (query: string) => Promise<string | null>;
 }

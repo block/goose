@@ -2633,6 +2633,9 @@
   "progressiveMessageList.showEarlier": {
     "defaultMessage": "Hiện tin nhắn trước đó (đã ẩn {hiddenCount})"
   },
+  "progressiveMessageList.showLater": {
+    "defaultMessage": "Show later messages"
+  },
   "progressiveMessageList.modelChanged": {
     "defaultMessage": "Mô hình đã thay đổi: {previousModel} → {currentModel}"
   },

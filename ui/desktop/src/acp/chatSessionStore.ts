@@ -18,6 +18,7 @@ export interface AcpChatSessionSnapshot {
   session: Session | undefined;
   messages: Message[];
   hasEarlierMessages: boolean;
+  hasLaterMessages: boolean;
   tokenState: TokenState;
   notifications: NotificationEvent[];
   progressMessage: string | undefined;
@@ -86,7 +87,14 @@ export interface AcpChatSessionActions {
 
   setMessages(sessionId: string, messages: Message[]): AcpChatSessionSnapshot;
   prependMessages(sessionId: string, messages: Message[]): AcpChatSessionSnapshot;
+  appendMessages(sessionId: string, messages: Message[]): AcpChatSessionSnapshot;
+  replaceWindow(
+    sessionId: string,
+    messages: Message[],
+    flags?: { hasEarlier?: boolean; hasLater?: boolean }
+  ): AcpChatSessionSnapshot;
   setHasEarlierMessages(sessionId: string, hasEarlierMessages: boolean): AcpChatSessionSnapshot;
+  setHasLaterMessages(sessionId: string, hasLaterMessages: boolean): AcpChatSessionSnapshot;
   addPendingLocalSteerMessage(sessionId: string, message: Message): AcpChatSessionSnapshot;
   setChatState(sessionId: string, chatState: ChatState): AcpChatSessionSnapshot;
   resolveUserInputRequest(
@@ -115,11 +123,15 @@ export interface AcpChatSessionActions {
 
 interface AcpChatSessionStoreInternal extends AcpChatSessionStore, AcpChatSessionActions {
   subscribe(sessionId: string, listener: (snapshot: AcpChatSessionSnapshot) => void): () => void;
+  flushPendingNotifications(sessionId?: string): void;
 }
+
+const ACP_NOTIFY_FLUSH_MS = 32;
 
 function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
   const sessionsById = new Map<string, StoreEntry>();
   const listenersBySessionId = new Map<string, Set<SnapshotListener>>();
+  const pendingFlushBySessionId = new Map<string, ReturnType<typeof setTimeout>>();
 
   const getSnapshot: AcpChatSessionStore['getSnapshot'] = (sessionId) => {
     const entry = sessionsById.get(sessionId);
@@ -160,6 +172,11 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
   };
 
   const deleteSnapshot: AcpChatSessionActions['deleteSnapshot'] = (sessionId) => {
+    const pending = pendingFlushBySessionId.get(sessionId);
+    if (pending !== undefined) {
+      clearTimeout(pending);
+      pendingFlushBySessionId.delete(sessionId);
+    }
     sessionsById.delete(sessionId);
   };
 
@@ -173,6 +190,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
       session: undefined,
       messages: [],
       hasEarlierMessages: false,
+      hasLaterMessages: false,
       tokenState: { ...initialTokenState },
       notifications: [],
       progressMessage: undefined,
@@ -192,7 +210,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     return entry;
   };
 
-  const notify = (sessionId: string, entry: StoreEntry): AcpChatSessionSnapshot => {
+  const publish = (sessionId: string, entry: StoreEntry): AcpChatSessionSnapshot => {
     const snapshot = snapshotFromEntry(entry);
     entry.lastSnapshot = snapshot;
     const listeners = listenersBySessionId.get(sessionId);
@@ -202,6 +220,47 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
       }
     }
     return snapshot;
+  };
+
+  const notify = (sessionId: string, entry: StoreEntry): AcpChatSessionSnapshot => {
+    const snapshot = snapshotFromEntry(entry);
+    entry.lastSnapshot = snapshot;
+    if (pendingFlushBySessionId.has(sessionId)) {
+      return snapshot;
+    }
+    pendingFlushBySessionId.set(
+      sessionId,
+      setTimeout(() => {
+        pendingFlushBySessionId.delete(sessionId);
+        const current = sessionsById.get(sessionId);
+        if (current) {
+          publish(sessionId, current);
+        }
+      }, ACP_NOTIFY_FLUSH_MS)
+    );
+    return snapshot;
+  };
+
+  const flushPendingNotifications = (sessionId?: string) => {
+    const flushOne = (id: string) => {
+      const pending = pendingFlushBySessionId.get(id);
+      if (pending === undefined) {
+        return;
+      }
+      clearTimeout(pending);
+      pendingFlushBySessionId.delete(id);
+      const current = sessionsById.get(id);
+      if (current) {
+        publish(id, current);
+      }
+    };
+    if (sessionId) {
+      flushOne(sessionId);
+      return;
+    }
+    for (const id of [...pendingFlushBySessionId.keys()]) {
+      flushOne(id);
+    }
   };
 
   const setSessionMetadata: AcpChatSessionActions['setSessionMetadata'] = (sessionId, session) => {
@@ -233,6 +292,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
       retainPendingLocalSteerMessageIds(entry);
     }
     entry.hasEarlierMessages = session.message_count > replayedMessages.length;
+    entry.hasLaterMessages = false;
     entry.chatState = entry.activePromptAttemptId ? ChatState.Streaming : ChatState.Idle;
     return notify(sessionId, entry);
   };
@@ -269,12 +329,52 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     return notify(sessionId, entry);
   };
 
+  const appendMessages: AcpChatSessionActions['appendMessages'] = (sessionId, messages) => {
+    const entry = getOrCreateEntry(sessionId);
+    if (messages.length === 0) {
+      return notify(sessionId, entry);
+    }
+    const existingIds = new Set(entry.messages.map((message) => message.id).filter(Boolean));
+    const newer = messages.filter((message) => !message.id || !existingIds.has(message.id));
+    entry.messages = [...entry.messages, ...cloneMessages(newer)];
+    retainPendingLocalSteerMessageIds(entry);
+    entry.adapter = createAdapterForEntry(entry);
+    return notify(sessionId, entry);
+  };
+
+  const replaceWindow: AcpChatSessionActions['replaceWindow'] = (
+    sessionId,
+    messages,
+    flags
+  ) => {
+    const entry = getOrCreateEntry(sessionId);
+    entry.messages = cloneMessages(messages);
+    retainPendingLocalSteerMessageIds(entry);
+    entry.adapter = createAdapterForEntry(entry);
+    if (flags?.hasEarlier !== undefined) {
+      entry.hasEarlierMessages = flags.hasEarlier;
+    }
+    if (flags?.hasLater !== undefined) {
+      entry.hasLaterMessages = flags.hasLater;
+    }
+    return notify(sessionId, entry);
+  };
+
   const setHasEarlierMessages: AcpChatSessionActions['setHasEarlierMessages'] = (
     sessionId,
     hasEarlierMessages
   ) => {
     const entry = getOrCreateEntry(sessionId);
     entry.hasEarlierMessages = hasEarlierMessages;
+    return notify(sessionId, entry);
+  };
+
+  const setHasLaterMessages: AcpChatSessionActions['setHasLaterMessages'] = (
+    sessionId,
+    hasLaterMessages
+  ) => {
+    const entry = getOrCreateEntry(sessionId);
+    entry.hasLaterMessages = hasLaterMessages;
     return notify(sessionId, entry);
   };
 
@@ -523,7 +623,9 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
       acpPermissionUserInputRequestId(request.toolCall.toolCallId)
     );
     entry.chatState = ChatState.WaitingForUserInput;
-    return notify(request.sessionId, entry);
+    const snapshot = notify(request.sessionId, entry);
+    flushPendingNotifications(request.sessionId);
+    return snapshot;
   };
 
   const applyElicitationRequest: AcpChatSessionActions['applyElicitationRequest'] = (request) => {
@@ -532,7 +634,9 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     applyChatStateChanges(entry, changes);
     entry.pendingUserInputRequestIds.add(acpElicitationUserInputRequestId(request.id));
     entry.chatState = ChatState.WaitingForUserInput;
-    return notify(request.sessionId, entry);
+    const snapshot = notify(request.sessionId, entry);
+    flushPendingNotifications(request.sessionId);
+    return snapshot;
   };
 
   const setElicitationStatus: AcpChatSessionActions['setElicitationStatus'] = (
@@ -565,7 +669,10 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     setSessionLoadError,
     setMessages,
     prependMessages,
+    appendMessages,
+    replaceWindow,
     setHasEarlierMessages,
+    setHasLaterMessages,
     addPendingLocalSteerMessage,
     setChatState,
     resolveUserInputRequest,
@@ -582,6 +689,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     applyPermissionRequest,
     applyElicitationRequest,
     setElicitationStatus,
+    flushPendingNotifications,
   };
 }
 
@@ -594,6 +702,10 @@ export const acpChatSessionStore: AcpChatSessionStore = storeFromInternal(
 export const acpChatSessionActions: AcpChatSessionActions = actionsFromStore(
   acpChatSessionStoreInternal
 );
+
+export function flushAcpChatSessionNotifications(sessionId?: string): void {
+  acpChatSessionStoreInternal.flushPendingNotifications(sessionId);
+}
 
 interface AcpChatSessionSnapshotState {
   sessionId: string;
@@ -645,7 +757,10 @@ function actionsFromStore(store: AcpChatSessionStoreInternal): AcpChatSessionAct
     setSessionLoadError: store.setSessionLoadError,
     setMessages: store.setMessages,
     prependMessages: store.prependMessages,
+    appendMessages: store.appendMessages,
+    replaceWindow: store.replaceWindow,
     setHasEarlierMessages: store.setHasEarlierMessages,
+    setHasLaterMessages: store.setHasLaterMessages,
     addPendingLocalSteerMessage: store.addPendingLocalSteerMessage,
     setChatState: store.setChatState,
     resolveUserInputRequest: store.resolveUserInputRequest,
@@ -709,6 +824,7 @@ function shouldClearProgressMessage(notification: SessionNotification): boolean 
 function resetReplayState(entry: StoreEntry): void {
   entry.messages = [];
   entry.hasEarlierMessages = false;
+  entry.hasLaterMessages = false;
   entry.tokenState = { ...initialTokenState };
   entry.notifications = [];
   entry.progressMessage = undefined;
@@ -809,6 +925,7 @@ function snapshotFromEntry(entry: StoreEntry): AcpChatSessionSnapshot {
     session: entry.session,
     messages,
     hasEarlierMessages: entry.hasEarlierMessages,
+    hasLaterMessages: entry.hasLaterMessages,
     tokenState,
     notifications,
     progressMessage: entry.progressMessage,
