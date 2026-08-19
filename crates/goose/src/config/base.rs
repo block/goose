@@ -523,7 +523,7 @@ impl Config {
         let mut merged = Mapping::new();
 
         for path in &self.config_paths {
-            if !path.exists() {
+            if !path.try_exists()? {
                 continue;
             }
             let content = std::fs::read_to_string(path)?;

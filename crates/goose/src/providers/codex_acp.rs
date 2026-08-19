@@ -120,6 +120,15 @@ mod tests {
     #[cfg(unix)]
     const EXPECT_CONFIG_ERROR_ENV: &str = "GOOSE_CODEX_ACP_EXPECT_CONFIG_ERROR";
 
+    #[cfg(unix)]
+    #[derive(Clone, Copy)]
+    enum ConfigFixture {
+        Absent,
+        File(&'static str),
+        Directory,
+        InaccessibleParent,
+    }
+
     #[test]
     fn missing_goose_mode_defaults_to_auto() {
         assert_eq!(
@@ -183,32 +192,51 @@ mod tests {
         fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
 
         let search_paths = serde_json::to_string(&vec![fixture.path()]).unwrap();
-        for (name, mode, config_content, config_is_directory, should_launch) in [
-            ("unset", None, None, false, true),
-            ("auto", Some("auto"), None, false, true),
-            ("smart_approve", Some("smart_approve"), None, false, true),
-            ("approve", Some("approve"), None, false, true),
-            ("chat", Some("chat"), None, false, true),
-            ("invalid", Some("invalid"), None, false, false),
+        for (name, mode, config_fixture, should_launch) in [
+            ("unset", None, ConfigFixture::Absent, true),
+            ("auto", Some("auto"), ConfigFixture::Absent, true),
+            (
+                "smart_approve",
+                Some("smart_approve"),
+                ConfigFixture::Absent,
+                true,
+            ),
+            ("approve", Some("approve"), ConfigFixture::Absent, true),
+            ("chat", Some("chat"), ConfigFixture::Absent, true),
+            ("invalid", Some("invalid"), ConfigFixture::Absent, false),
             (
                 "configured_file",
                 None,
-                Some("GOOSE_MODE: approve\n"),
-                false,
+                ConfigFixture::File("GOOSE_MODE: approve\n"),
                 true,
             ),
-            ("malformed_file", None, Some("GOOSE_MODE: ["), false, false),
-            ("unreadable_file", None, None, true, false),
+            (
+                "malformed_file",
+                None,
+                ConfigFixture::File("GOOSE_MODE: ["),
+                false,
+            ),
+            ("unreadable_file", None, ConfigFixture::Directory, false),
+            (
+                "inaccessible_parent",
+                None,
+                ConfigFixture::InaccessibleParent,
+                false,
+            ),
         ] {
             let marker = fixture.path().join(format!("launched-{name}"));
             let path_root = fixture.path().join(format!("config-{name}"));
             let config_dir = path_root.join("config");
             fs::create_dir_all(&config_dir).unwrap();
             let config_path = config_dir.join("config.yaml");
-            if let Some(content) = config_content {
-                fs::write(&config_path, content).unwrap();
-            } else if config_is_directory {
-                fs::create_dir(&config_path).unwrap();
+            match config_fixture {
+                ConfigFixture::Absent => {}
+                ConfigFixture::File(content) => fs::write(&config_path, content).unwrap(),
+                ConfigFixture::Directory => fs::create_dir(&config_path).unwrap(),
+                ConfigFixture::InaccessibleParent => {
+                    fs::write(&config_path, "GOOSE_MODE: approve\n").unwrap();
+                    fs::set_permissions(&config_dir, fs::Permissions::from_mode(0o000)).unwrap();
+                }
             }
             let mut command = Command::new(std::env::current_exe().unwrap());
             command
@@ -234,6 +262,9 @@ mod tests {
                 }
             }
             let output = command.output().unwrap();
+            if matches!(config_fixture, ConfigFixture::InaccessibleParent) {
+                fs::set_permissions(&config_dir, fs::Permissions::from_mode(0o700)).unwrap();
+            }
 
             assert!(
                 output.status.success(),
