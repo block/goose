@@ -657,9 +657,18 @@ impl CodeModeState {
     fn new(cfgs: Vec<CallbackConfig>) -> Result<Self, String> {
         let hash = Self::hash(&cfgs);
 
-        let code_mode = CodeMode::default()
-            .with_callbacks(&cfgs)
-            .map_err(|e| format!("failed adding callback configs to CodeMode: {e}"))?;
+        let (code_mode, report) = CodeMode::default().with_callbacks(&cfgs);
+        if !report.failed.is_empty() {
+            let failures = report
+                .failed
+                .iter()
+                .map(|failure| format!("{}: {}", failure.id, failure.reason))
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(format!(
+                "failed adding callback configs to CodeMode: {failures}"
+            ));
+        }
 
         Ok(Self { code_mode, hash })
     }
