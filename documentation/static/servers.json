@@ -807,6 +807,23 @@
     "environmentVariables": []
   },
   {
+    "id": "scavio",
+    "name": "Scavio",
+    "description": "Real-time structured web data from Google, YouTube, Amazon, TikTok, LinkedIn and 25+ other platforms",
+    "command": "npx -y @scavio/mcp-server",
+    "link": "https://github.com/scavio-ai/scavio-mcp",
+    "installation_notes": "Install using npx. Requires a Scavio API key.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "SCAVIO_API_KEY",
+        "description": "Required environment variable",
+        "required": true
+      }
+    ]
+  },
+  {
   "id": "scholar-sidekick",
   "name": "Scholar Sidekick",
   "description": "Resolve, format, export, and verify academic citations (DOI, PMID, ISBN, arXiv) plus retraction and open-access checks",
