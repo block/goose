@@ -1146,7 +1146,7 @@ fn print_table(table_lines: &[&str], theme: Theme) {
     let mut table = Table::new();
     table.set_content_arrangement(ContentArrangement::Dynamic);
 
-    table.load_preset(presets::ASCII_MARKDOWN);
+    table.load_style(presets::ASCII_MARKDOWN);
 
     let mut rows: Vec<Vec<String>> = Vec::new();
     let mut alignments: Vec<CellAlignment> = Vec::new();

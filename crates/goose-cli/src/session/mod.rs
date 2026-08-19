@@ -1311,7 +1311,7 @@ impl CliSession {
 
         let mut table = Table::new();
         table.set_content_arrangement(ContentArrangement::Dynamic);
-        table.load_preset(presets::ASCII_FULL);
+        table.load_style(presets::ASCII_FULL);
         table.set_header(vec!["Skill", "Location", "Description"]);
 
         let mut sorted_skills = skills;
