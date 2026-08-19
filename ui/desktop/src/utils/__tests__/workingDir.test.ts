@@ -15,10 +15,11 @@ describe('getEffectiveWorkingDir', () => {
   const getSettingMock = vi.fn();
   const appConfigGetMock = vi.fn();
 
-  const mockWindow = (externalBackend: boolean, boundUrl: string) => {
+  const mockWindow = (externalBackend: boolean, boundUrl: string, source = 'settings') => {
     appConfigGetMock.mockImplementation((key: string) => {
       if (key === 'GOOSE_EXTERNAL_BACKEND') return externalBackend;
       if (key === 'GOOSE_EXTERNAL_BACKEND_URL') return boundUrl;
+      if (key === 'GOOSE_EXTERNAL_BACKEND_SOURCE') return source;
       if (key === 'GOOSE_WORKING_DIR') return '/Users/johannes/home/workspace';
       return undefined;
     });
@@ -41,6 +42,22 @@ describe('getEffectiveWorkingDir', () => {
       workingDir: ' /home/goose/workspace ',
     });
     await expect(getEffectiveWorkingDir()).resolves.toBe('/home/goose/workspace');
+  });
+
+  it('honors the configured remote directory for env-mode backends regardless of enabled/url', async () => {
+    mockWindow(true, 'http://env-backend:3000', 'env');
+    getSettingMock.mockResolvedValue({
+      enabled: false,
+      url: 'http://unrelated:4000',
+      workingDir: '/home/goose/workspace',
+    });
+    await expect(getEffectiveWorkingDir()).resolves.toBe('/home/goose/workspace');
+  });
+
+  it('falls back to the remembered directory for env-mode backends without a configured dir', async () => {
+    mockWindow(true, 'http://env-backend:3000', 'env');
+    getSettingMock.mockResolvedValue({ enabled: false, workingDir: '   ' });
+    await expect(getEffectiveWorkingDir()).resolves.toBe('/Users/johannes/home/workspace');
   });
 
   it('ignores the remote directory when the window is bound to the local backend', async () => {

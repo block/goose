@@ -57,6 +57,7 @@ export default function Hub({
   const intl = useIntl();
   const { extensionsList } = useConfig();
   const [workingDir, setWorkingDir] = useState(getInitialWorkingDir());
+  const userSelectedWorkingDirRef = useRef(false);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [nextChatExtensionDraft, setNextChatExtensionDraft] =
     useState<NextChatExtensionDraft | null>(null);
@@ -68,7 +69,7 @@ export default function Hub({
   useEffect(() => {
     let active = true;
     void getEffectiveWorkingDir().then((dir) => {
-      if (active) setWorkingDir(dir);
+      if (active && !userSelectedWorkingDirRef.current) setWorkingDir(dir);
     });
     return () => {
       active = false;
@@ -98,6 +99,11 @@ export default function Hub({
     setNextChatExtensionDraft(draft);
   }, []);
 
+  const handleWorkingDirChange = useCallback((dir: string) => {
+    userSelectedWorkingDirRef.current = true;
+    setWorkingDir(dir);
+  }, []);
+
   const handleSubmit = async (input: UserInput) => {
     const { msg: userMessage, images } = input;
     if (!(images.length > 0 || userMessage.trim()) || isCreatingSession) return;
@@ -113,7 +119,10 @@ export default function Hub({
           ? { extensionConfigs: selectedExtensions }
           : { allExtensions: extensionsList };
 
-      const session = await createSession(workingDir, sessionOptions);
+      // Resolve the effective directory at submit time: the IPC lookup may still
+      // be pending when the user submits, and an explicit pick must win.
+      const dir = userSelectedWorkingDirRef.current ? workingDir : await getEffectiveWorkingDir();
+      const session = await createSession(dir, sessionOptions);
       setNextChatExtensionDraft(null);
 
       window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
@@ -161,7 +170,7 @@ export default function Hub({
             onFilesProcessed={() => {}}
             messages={[]}
             disableAnimation={false}
-            onWorkingDirChange={setWorkingDir}
+            onWorkingDirChange={handleWorkingDirChange}
             inputRef={inputRef}
             nextChatExtensionDraft={draftForMenu}
             onNextChatExtensionDraftChange={handleNextChatExtensionDraftChange}

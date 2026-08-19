@@ -13,17 +13,35 @@ export const getInitialWorkingDir = (): string => {
  * via the gooseServeLeases) and that backend still matches the current
  * settings; otherwise the remote path would be sent to the local (or a
  * different remote) server, where it fails the cwd existence validation.
+ * Editing the remote working directory in settings still takes effect for new
+ * chats in the same window. Env-mode backends (GOOSE_EXTERNAL_BACKEND) always
+ * use the configured directory (matching getActiveExternalBackend), while
+ * settings-mode backends require the window-bound backend to still match.
  */
 export const getEffectiveWorkingDir = async (): Promise<string> => {
   const initial = getInitialWorkingDir();
   const boundUrl = window.appConfig?.get('GOOSE_EXTERNAL_BACKEND_URL') as string | undefined;
+  const source = window.appConfig?.get('GOOSE_EXTERNAL_BACKEND_SOURCE') as string | undefined;
   if (window.appConfig?.get('GOOSE_EXTERNAL_BACKEND') !== true || !boundUrl) {
     return initial;
   }
   try {
     const external = await window.electron.getSetting('externalGoosed');
     const remote = external?.workingDir?.trim();
-    if (external?.enabled && remote && normalizeUrl(boundUrl) === normalizeUrl(external.url)) {
+    if (!remote) {
+      return initial;
+    }
+    // Env-mode backends use settings.externalGoosed.workingDir regardless of the
+    // enabled flag or URL (see getActiveExternalBackend); settings-mode requires
+    // the backend to still match the window-bound URL.
+    if (source === 'env') {
+      return remote;
+    }
+    if (
+      external?.enabled &&
+      external?.url &&
+      normalizeUrl(boundUrl) === normalizeUrl(external.url)
+    ) {
       return remote;
     }
   } catch {
