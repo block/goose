@@ -1,8 +1,8 @@
 use crate::cache_semantics::{apply_chat_payload_breakpoints, CacheSemantics};
 use crate::conversation::message::{Message, MessageContentBlock};
 use crate::formats::anthropic::{
-    adaptive_output_effort, model_supports_temperature, thinking_block_is_stale,
-    thinking_budget_tokens, thinking_type_for_provider, ThinkingType,
+    adaptive_output_effort, model_supports_temperature, requires_explicit_thinking_disable,
+    thinking_block_is_stale, thinking_budget_tokens, thinking_type_for_provider, ThinkingType,
 };
 use crate::model::{is_goose_internal_request_param, ModelConfig};
 
@@ -292,6 +292,9 @@ fn apply_claude_thinking_config(
             obj.insert("temperature".to_string(), json!(2));
         }
         ThinkingType::Disabled => {
+            if requires_explicit_thinking_disable(provider_name, &model_config.model_name) {
+                obj.insert("thinking".to_string(), json!({ "type": "disabled" }));
+            }
             if model_supports_temperature(provider_name, model_config) {
                 if let Some(temp) = model_config.temperature {
                     obj.insert("temperature".to_string(), json!(temp));

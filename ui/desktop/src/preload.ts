@@ -180,6 +180,9 @@ type ElectronAPI = {
   addRecentDir: (dir: string) => Promise<boolean>;
   listRecentDirs: () => Promise<string[]>;
   listGitWorktreeDirs: (dir: string) => Promise<string[]>;
+  getGitBranchInfo: (dir: string) => Promise<{ branch: string } | null>;
+  listGitBranches: (dir: string) => Promise<string[]>;
+  switchGitBranch: (dir: string, branch: string) => Promise<{ success: boolean; error?: string }>;
 };
 
 type AppConfigAPI = {
@@ -339,6 +342,10 @@ const electronAPI: ElectronAPI = {
   addRecentDir: (dir: string) => ipcRenderer.invoke('add-recent-dir', dir),
   listRecentDirs: () => ipcRenderer.invoke('list-recent-dirs'),
   listGitWorktreeDirs: (dir: string) => ipcRenderer.invoke('list-git-worktree-dirs', dir),
+  getGitBranchInfo: (dir: string) => ipcRenderer.invoke('get-git-branch-info', dir),
+  listGitBranches: (dir: string) => ipcRenderer.invoke('list-git-branches', dir),
+  switchGitBranch: (dir: string, branch: string) =>
+    ipcRenderer.invoke('switch-git-branch', dir, branch),
 };
 
 function getAppLocale(): unknown {
