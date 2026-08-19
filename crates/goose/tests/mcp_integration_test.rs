@@ -167,22 +167,23 @@ async fn test_replayed_session(
     tool_calls: Vec<CallToolRequestParams>,
     required_envs: Vec<&str>,
 ) {
-    let working_dir = env::current_dir().expect("current directory should be available");
-    let working_dir = working_dir
-        .to_str()
-        .expect("current directory should be valid UTF-8");
+    // The working directory is sent to the server verbatim in our `roots/list`
+    // response, so it is part of the recorded protocol traffic. It must be an
+    // absolute path (relative paths are not convertible to a `file://` URL) and
+    // it must be stable across machines, otherwise playback compares a recorded
+    // path against whatever cwd the test happens to run in.
+    const TEST_WORKING_DIR: &str = "/tmp/goose_test";
+    fs::create_dir_all(TEST_WORKING_DIR).ok();
+
     let _env = env_lock::lock_env([
         ("GOOSE_MCP_CLIENT_VERSION", Some("0.0.0")),
         ("GOOSE_PROVIDER", Some("openai")),
         ("GOOSE_MODEL", Some("gpt-4o")),
-        ("GOOSE_WORKING_DIR", Some(working_dir)),
+        ("GOOSE_WORKING_DIR", Some(TEST_WORKING_DIR)),
     ]);
 
     // Setup test file for developer extension tests
     let test_file_path = "/tmp/goose_test/goose.txt";
-    if let Some(parent) = std::path::Path::new(test_file_path).parent() {
-        fs::create_dir_all(parent).ok();
-    }
     fs::write(test_file_path, "# goose\n").ok();
     let replay_file_name = command
         .iter()
