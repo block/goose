@@ -22,7 +22,7 @@ importers:
         specifier: workspace:*
         version: link:../sdk
       '@agentclientprotocol/sdk':
-        specifier: ^1.3.0
+        specifier: 1.3.0
         version: 1.3.0(zod@3.25.76)
       '@mcp-ui/client':
         specifier: 6.1.0
@@ -358,7 +358,7 @@ importers:
         version: 3.25.76
     devDependencies:
       '@agentclientprotocol/sdk':
-        specifier: ^1.3.0
+        specifier: 1.3.0
         version: 1.3.0(zod@3.25.76)
       '@hey-api/openapi-ts':
         specifier: ^0.92.3

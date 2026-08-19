@@ -26,6 +26,7 @@ type AcpRecoveryListener = (recovering: boolean) => void;
 const ACP_INITIALIZE_TIMEOUT_MS = 10_000;
 const ACP_RECONNECT_BASE_DELAY_MS = 500;
 const ACP_RECONNECT_MAX_DELAY_MS = 30_000;
+const ACP_V1_PROTOCOL_VERSION: 1 = PROTOCOL_VERSION;
 
 let currentConnection: AcpConnection | null = null;
 let pendingConnection: Promise<AcpConnection> | null = null;
@@ -139,7 +140,7 @@ async function openConnection(generation: number): Promise<AcpConnection> {
   try {
     const initializeResponse = await withTimeout(
       client.connection.agent.request(methods.agent.initialize, {
-        protocolVersion: PROTOCOL_VERSION,
+        protocolVersion: ACP_V1_PROTOCOL_VERSION,
         _meta: {
           'goose/useLoginShellPath': true,
         },

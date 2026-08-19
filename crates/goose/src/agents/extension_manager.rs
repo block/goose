@@ -45,7 +45,7 @@ use crate::builtin_extension::get_builtin_extension;
 use crate::config::extensions::name_to_key;
 use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
-use crate::oauth::{oauth_flow, GooseCredentialStore};
+use crate::oauth::{oauth_flow, GooseCredentialStore, StaticOAuthClientConfig};
 use crate::prompt_template;
 use crate::subprocess::configure_subprocess;
 use rmcp::model::{
@@ -589,6 +589,67 @@ pub(crate) async fn merge_environments(
     Ok(Envs::new(all_envs).get_env())
 }
 
+/// Build the pre-registered OAuth client config for a streamable_http
+/// extension. The secret is referenced by key and resolved from the merged
+/// environment or the config secret store, so it is never stored inline in
+/// the extension config.
+fn resolve_static_oauth_client(
+    client_id: Option<&str>,
+    client_secret_key: Option<&str>,
+    scopes: &[String],
+    envs: &HashMap<String, String>,
+    config: &Config,
+) -> Result<Option<StaticOAuthClientConfig>, Box<ExtensionError>> {
+    let Some(client_id) = client_id else {
+        if client_secret_key.is_some() {
+            return Err(Box::new(ExtensionError::ConfigError(
+                "client_secret_key requires client_id".to_string(),
+            )));
+        }
+        if !scopes.is_empty() {
+            return Err(Box::new(ExtensionError::ConfigError(
+                "scopes requires client_id".to_string(),
+            )));
+        }
+        return Ok(None);
+    };
+
+    let client_secret = match client_secret_key {
+        Some(key) => Some(resolve_secret_value(key, envs, config)?),
+        None => None,
+    };
+
+    Ok(Some(StaticOAuthClientConfig {
+        client_id: substitute_env_vars(client_id, envs),
+        client_secret,
+        scopes: scopes.to_vec(),
+    }))
+}
+
+fn resolve_secret_value(
+    key: &str,
+    envs: &HashMap<String, String>,
+    config: &Config,
+) -> Result<String, Box<ExtensionError>> {
+    if let Some(value) = envs.get(key) {
+        return Ok(value.clone());
+    }
+
+    let value = config.get(key, true).map_err(|error| {
+        Box::new(ExtensionError::ConfigError(format!(
+            "Failed to fetch secret '{}' from config: {}",
+            key, error
+        )))
+    })?;
+
+    value.as_str().map(str::to_string).ok_or_else(|| {
+        Box::new(ExtensionError::ConfigError(format!(
+            "Secret '{}' is not a string",
+            key
+        )))
+    })
+}
+
 /// Substitute environment variables in a string. Supports both ${VAR} and $VAR syntax.
 pub(crate) fn substitute_env_vars(value: &str, env_map: &HashMap<String, String>) -> String {
     let mut result = value.to_string();
@@ -679,6 +740,7 @@ async fn create_streamable_http_client(
     headers: &HashMap<String, String>,
     name: &str,
     socket: Option<&str>,
+    static_oauth_client: Option<StaticOAuthClientConfig>,
     credential_store: Box<dyn CredentialStore>,
     provider: SharedProvider,
     client_name: String,
@@ -745,7 +807,13 @@ async fn create_streamable_http_client(
     // If we have stored OAuth credentials, try refreshing and connecting directly.
     // This avoids the unnecessary 401 → browser re-auth cycle on every new session.
     if credential_store.load().await.is_ok_and(|c| c.is_some()) {
-        match oauth_flow(&uri.to_string(), &name.to_string()).await {
+        match oauth_flow(
+            &uri.to_string(),
+            &name.to_string(),
+            static_oauth_client.as_ref(),
+        )
+        .await
+        {
             Ok(auth_manager) => {
                 let auth_result = connect_with_auth(
                     auth_manager,
@@ -802,7 +870,13 @@ async fn create_streamable_http_client(
     .await;
 
     if should_attempt_oauth_fallback(&client_res) {
-        match oauth_flow(&uri.to_string(), &name.to_string()).await {
+        match oauth_flow(
+            &uri.to_string(),
+            &name.to_string(),
+            static_oauth_client.as_ref(),
+        )
+        .await
+        {
             Ok(auth_manager) => {
                 connect_with_auth(
                     auth_manager,
@@ -1010,6 +1084,9 @@ impl ExtensionManager {
                 envs,
                 env_keys,
                 socket,
+                client_id,
+                client_secret_key,
+                scopes,
                 ..
             } => {
                 let config = Config::global();
@@ -1020,12 +1097,21 @@ impl ExtensionManager {
                     .map(|(k, v)| (k.clone(), substitute_env_vars(v, &all_envs)))
                     .collect();
                 let resolved_socket = socket.as_ref().map(|s| substitute_env_vars(s, &all_envs));
+                let static_oauth_client = resolve_static_oauth_client(
+                    client_id.as_deref(),
+                    client_secret_key.as_deref(),
+                    scopes,
+                    &all_envs,
+                    config,
+                )
+                .map_err(|error| *error)?;
                 create_streamable_http_client(
                     &resolved_uri,
                     *timeout,
                     &resolved_headers,
                     name,
                     resolved_socket.as_deref(),
+                    static_oauth_client,
                     Box::new(GooseCredentialStore::new(name.to_string())),
                     self.provider.clone(),
                     self.client_name.clone(),
@@ -2185,6 +2271,160 @@ impl ExtensionManager {
 mod tests {
     use super::*;
     use rmcp::model::CallToolResult;
+
+    mod static_oauth_client {
+        use super::*;
+
+        fn test_config(dir: &tempfile::TempDir) -> Config {
+            Config::new_with_file_secrets(
+                dir.path().join("config.yaml"),
+                dir.path().join("secrets.yaml"),
+            )
+            .unwrap()
+        }
+
+        #[test]
+        fn absent_client_id_yields_no_static_client() {
+            let dir = tempfile::tempdir().unwrap();
+            let config = test_config(&dir);
+
+            let resolved =
+                resolve_static_oauth_client(None, None, &[], &HashMap::new(), &config).unwrap();
+
+            assert_eq!(resolved, None);
+        }
+
+        #[test]
+        fn client_id_without_secret_resolves_public_client() {
+            let dir = tempfile::tempdir().unwrap();
+            let config = test_config(&dir);
+
+            let resolved = resolve_static_oauth_client(
+                Some("registered-client"),
+                None,
+                &["scope.read".to_string()],
+                &HashMap::new(),
+                &config,
+            )
+            .unwrap()
+            .unwrap();
+
+            assert_eq!(resolved.client_id, "registered-client");
+            assert_eq!(resolved.client_secret, None);
+            assert_eq!(resolved.scopes, vec!["scope.read"]);
+        }
+
+        #[test]
+        fn client_id_supports_env_substitution() {
+            let dir = tempfile::tempdir().unwrap();
+            let config = test_config(&dir);
+            let envs = HashMap::from([(
+                "OAUTH_CLIENT_ID".to_string(),
+                "registered-client".to_string(),
+            )]);
+
+            let resolved =
+                resolve_static_oauth_client(Some("${OAUTH_CLIENT_ID}"), None, &[], &envs, &config)
+                    .unwrap()
+                    .unwrap();
+
+            assert_eq!(resolved.client_id, "registered-client");
+        }
+
+        #[test]
+        fn client_secret_resolves_from_envs() {
+            let dir = tempfile::tempdir().unwrap();
+            let config = test_config(&dir);
+            let envs = HashMap::from([(
+                "OAUTH_CLIENT_SECRET".to_string(),
+                "secret-value".to_string(),
+            )]);
+
+            let resolved = resolve_static_oauth_client(
+                Some("registered-client"),
+                Some("OAUTH_CLIENT_SECRET"),
+                &[],
+                &envs,
+                &config,
+            )
+            .unwrap()
+            .unwrap();
+
+            assert_eq!(resolved.client_secret.as_deref(), Some("secret-value"));
+        }
+
+        #[test]
+        fn client_secret_falls_back_to_config_secret_store() {
+            let dir = tempfile::tempdir().unwrap();
+            let config = test_config(&dir);
+            config
+                .set("OAUTH_CLIENT_SECRET", &"stored-secret", true)
+                .unwrap();
+
+            let resolved = resolve_static_oauth_client(
+                Some("registered-client"),
+                Some("OAUTH_CLIENT_SECRET"),
+                &[],
+                &HashMap::new(),
+                &config,
+            )
+            .unwrap()
+            .unwrap();
+
+            assert_eq!(resolved.client_secret.as_deref(), Some("stored-secret"));
+        }
+
+        #[test]
+        fn client_secret_key_without_client_id_is_rejected() {
+            let dir = tempfile::tempdir().unwrap();
+            let config = test_config(&dir);
+
+            let error = resolve_static_oauth_client(
+                None,
+                Some("OAUTH_CLIENT_SECRET"),
+                &[],
+                &HashMap::new(),
+                &config,
+            )
+            .unwrap_err();
+
+            assert!(matches!(*error, ExtensionError::ConfigError(_)));
+        }
+
+        #[test]
+        fn scopes_without_client_id_are_rejected() {
+            let dir = tempfile::tempdir().unwrap();
+            let config = test_config(&dir);
+
+            let error = resolve_static_oauth_client(
+                None,
+                None,
+                &["scope.read".to_string()],
+                &HashMap::new(),
+                &config,
+            )
+            .unwrap_err();
+
+            assert!(matches!(*error, ExtensionError::ConfigError(_)));
+        }
+
+        #[test]
+        fn missing_client_secret_key_is_an_error() {
+            let dir = tempfile::tempdir().unwrap();
+            let config = test_config(&dir);
+
+            let error = resolve_static_oauth_client(
+                Some("registered-client"),
+                Some("MISSING_KEY"),
+                &[],
+                &HashMap::new(),
+                &config,
+            )
+            .unwrap_err();
+
+            assert!(matches!(*error, ExtensionError::ConfigError(_)));
+        }
+    }
     use rmcp::model::{CustomNotification, InitializeResult, JsonObject};
     use rmcp::{object, ServiceError as Error};
 
@@ -3367,6 +3607,7 @@ mod tests {
             &headers,
             "test-ext",
             None,
+            None,
             Box::new(rmcp::transport::auth::InMemoryCredentialStore::new()),
             provider,
             "goose-test".to_string(),
@@ -3403,6 +3644,7 @@ mod tests {
             None,
             &headers,
             "test-ext",
+            None,
             None,
             Box::new(rmcp::transport::auth::InMemoryCredentialStore::new()),
             provider,
@@ -3451,6 +3693,7 @@ mod tests {
             None,
             &headers,
             "test-ext",
+            None,
             None,
             Box::new(rmcp::transport::auth::InMemoryCredentialStore::new()),
             provider,

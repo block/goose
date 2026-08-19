@@ -932,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "最近的目录"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "无法切换到 {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "未找到分支"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "搜索分支…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "你可能有尚未提交的更改。"
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "接受"
   },

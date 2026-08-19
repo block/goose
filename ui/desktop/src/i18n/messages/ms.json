@@ -932,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Direktori terkini"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "Gagal beralih ke {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "Tiada cabang ditemui"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "Cari cabang…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "Anda mungkin mempunyai perubahan yang belum dikomit."
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Terima"
   },

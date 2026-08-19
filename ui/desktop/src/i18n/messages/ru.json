@@ -932,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Недавние каталоги"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "Не удалось переключиться на {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "Ветки не найдены"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "Поиск веток…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "Возможно, у вас есть незакоммиченные изменения."
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Принять"
   },

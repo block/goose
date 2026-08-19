@@ -1243,8 +1243,7 @@ async fn handle_requests(
     let client_capabilities = ClientCapabilities::new();
     let init_response: InitializeResponse = cx
         .send_request(
-            InitializeRequest::new(ProtocolVersion::LATEST)
-                .client_capabilities(client_capabilities),
+            InitializeRequest::new(ProtocolVersion::V1).client_capabilities(client_capabilities),
         )
         .block_task()
         .await
@@ -2915,6 +2914,9 @@ mod tests {
             headers: HashMap::from([("Authorization".into(), "Bearer ghp_xxxxxxxxxxxx".into())]),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
+            scopes: vec![],
             bundled: Some(false),
             available_tools: vec![],
         },
@@ -2969,6 +2971,9 @@ mod tests {
             headers: HashMap::from([("Authorization".into(), "Bearer ghp_xxxxxxxxxxxx".into())]),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
+            scopes: vec![],
             bundled: Some(false),
             available_tools: vec![],
         };
