@@ -41,7 +41,7 @@ fun main() = runBlocking {
                 is StreamChunk.ThinkingChunk -> Unit
                 is StreamChunk.RedactedThinkingChunk -> Unit
                 is StreamChunk.ToolChunk -> println(
-                    "\ntool[${chunk.index}]: ${chunk.name ?: "<pending>"} ${chunk.argumentsJsonDelta}",
+                    "\ntool[${chunk.index}]: ${chunk.name ?: "<pending>"} ${chunk.argumentsJson}",
                 )
 
                 is StreamChunk.EndChunk -> chunk.usage?.let { usage ->

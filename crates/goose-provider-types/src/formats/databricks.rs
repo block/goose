@@ -221,12 +221,21 @@ fn format_messages(
                     content_array.push(convert_image(image, image_format));
                 }
                 MessageContentBlock::Document(document) => {
-                    has_multiple_content = true;
-                    content_array.push(json!({
-                        "type": "input_file",
-                        "filename": document.filename,
-                        "file_data": format!("data:{};base64,{}", document.mime_type, document.data)
-                    }));
+                    if message.role == Role::User {
+                        has_multiple_content = true;
+                        content_array.push(json!({
+                            "type": "file",
+                            "file": {
+                                "filename": document.filename,
+                                "file_data": format!("data:{};base64,{}", document.mime_type, document.data)
+                            }
+                        }));
+                    } else {
+                        content_array.push(json!({
+                            "type": "text",
+                            "text": "[Document content removed - not supported in assistant messages]"
+                        }));
+                    }
                 }
                 MessageContentBlock::FrontendToolRequest(req) => {
                     let text = match &req.tool_call {

@@ -549,6 +549,20 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                         }
                     }
                 }
+                MessageContentBlock::Document(document) => {
+                    if role == "user" {
+                        text_items.push(json!({
+                            "type": "input_file",
+                            "filename": document.filename,
+                            "file_data": format!("data:{};base64,{}", document.mime_type, document.data)
+                        }));
+                    } else {
+                        text_items.push(json!({
+                            "type": "input_text",
+                            "text": "[Document content removed - not supported in assistant messages]"
+                        }));
+                    }
+                }
                 MessageContentBlock::FrontendToolRequest(request) => {
                     if !text_items.is_empty() {
                         input_items.push(json!({
@@ -2326,6 +2340,25 @@ mod tests {
         assert_eq!(content[1]["image_url"], "data:image/png;base64,img1");
         assert_eq!(content[2]["type"], "input_image");
         assert_eq!(content[2]["image_url"], "data:image/jpeg;base64,img2");
+    }
+
+    #[test]
+    fn test_user_document_uses_responses_input_file_shape() {
+        let model = ModelConfig::new("gpt-5");
+        let messages = vec![Message::new(
+            Role::User,
+            0,
+            vec![MessageContentBlock::document(
+                "application/pdf",
+                "cGRm",
+                Some("spec.pdf".to_string()),
+            )],
+        )];
+        let request = create_responses_request(&model, "", &messages, &[]).unwrap();
+        let block = &request["input"][0]["content"][0];
+        assert_eq!(block["type"], "input_file");
+        assert_eq!(block["filename"], "spec.pdf");
+        assert_eq!(block["file_data"], "data:application/pdf;base64,cGRm");
     }
 
     #[test]

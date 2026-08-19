@@ -220,10 +220,18 @@ fn format_messages_with_options(
             match msg_content {
                 MessageContentBlock::Text(text) => {
                     if !text.text.trim().is_empty() {
-                        content.push(json!({
+                        let mut block = json!({
                             TYPE_FIELD: TEXT_TYPE,
                             TEXT_TYPE: text.text
-                        }));
+                        });
+                        if text
+                            .meta
+                            .as_ref()
+                            .is_some_and(|meta| meta.contains_key("goose.cache_control"))
+                        {
+                            block[CACHE_CONTROL_FIELD] = json!({ TYPE_FIELD: "ephemeral" });
+                        }
+                        content.push(block);
                     }
                 }
                 MessageContentBlock::ToolRequest(tool_request) => {
@@ -398,15 +406,21 @@ fn format_messages_with_options(
                     content.push(convert_image(image, &ImageFormat::Anthropic));
                 }
                 MessageContentBlock::Document(document) => {
-                    content.push(json!({
+                    let mut block = json!({
                         TYPE_FIELD: DOCUMENT_TYPE,
                         SOURCE_FIELD: {
                             TYPE_FIELD: BASE64_TYPE,
                             MEDIA_TYPE_FIELD: document.mime_type,
                             DATA_FIELD: document.data,
                         },
-                        "title": document.filename,
-                    }));
+                    });
+                    if let Some(filename) = &document.filename {
+                        block["title"] = json!(filename);
+                    }
+                    if document.cache_control {
+                        block[CACHE_CONTROL_FIELD] = json!({ TYPE_FIELD: "ephemeral" });
+                    }
+                    content.push(block);
                 }
                 MessageContentBlock::FrontendToolRequest(tool_request) => {
                     if let Ok(tool_call) = &tool_request.tool_call {

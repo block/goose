@@ -262,8 +262,16 @@ impl MessageContent {
         match self {
             MessageContent::Text {
                 text,
-                cache_control: _,
-            } => Ok(GooseMessageContent::text(sanitize_unicode_tags(text))),
+                cache_control,
+            } => {
+                let mut text = rmcp::model::TextContent::new(sanitize_unicode_tags(text));
+                if cache_control.is_some() {
+                    text.meta
+                        .get_or_insert_with(Default::default)
+                        .insert("goose.cache_control".to_string(), Value::Bool(true));
+                }
+                Ok(GooseMessageContent::Text(text))
+            }
             MessageContent::Image { mime_type, data } => Ok(GooseMessageContent::image(
                 base64::engine::general_purpose::STANDARD.encode(data),
                 mime_type.clone(),
@@ -310,12 +318,19 @@ impl MessageContent {
                 mime_type,
                 data,
                 filename,
-                cache_control: _,
-            } => Ok(GooseMessageContent::document(
-                mime_type.clone(),
-                base64::engine::general_purpose::STANDARD.encode(data),
-                filename.clone(),
-            )),
+                cache_control,
+            } => {
+                let mut document = match GooseMessageContent::document(
+                    mime_type.clone(),
+                    base64::engine::general_purpose::STANDARD.encode(data),
+                    filename.clone(),
+                ) {
+                    GooseMessageContent::Document(document) => document,
+                    _ => unreachable!(),
+                };
+                document.cache_control = cache_control.is_some();
+                Ok(GooseMessageContent::Document(document))
+            }
         }
     }
 }
@@ -517,7 +532,7 @@ pub enum StreamChunk {
         index: u32,
         id: Option<String>,
         name: Option<String>,
-        arguments_json_delta: String,
+        arguments_json: String,
     },
     ThinkingChunk {
         thinking: String,
@@ -705,6 +720,7 @@ impl ProviderHandle {
                 pending: Vec::new(),
                 final_usage: None,
                 ended: false,
+                next_tool_index: 0,
             })),
             timeout_ms,
         }))
@@ -1108,6 +1124,7 @@ struct ProviderStreamState {
     pending: Vec<StreamChunk>,
     final_usage: Option<Usage>,
     ended: bool,
+    next_tool_index: u32,
 }
 
 #[uniffi::export]
@@ -1144,7 +1161,7 @@ impl ProviderStream {
                         let Some(message) = message else {
                             continue;
                         };
-                        let mut chunks = message_to_chunks(message);
+                        let mut chunks = message_to_chunks(message, &mut state.next_tool_index);
                         if chunks.is_empty() {
                             continue;
                         }
@@ -1172,8 +1189,7 @@ impl ProviderStream {
     }
 }
 
-fn message_to_chunks(message: Message) -> Vec<StreamChunk> {
-    let mut tool_index = 0_u32;
+fn message_to_chunks(message: Message, next_tool_index: &mut u32) -> Vec<StreamChunk> {
     message
         .content
         .into_iter()
@@ -1185,13 +1201,13 @@ fn message_to_chunks(message: Message) -> Vec<StreamChunk> {
             }
             GooseMessageContent::ToolRequest(request) => match request.tool_call {
                 Ok(tool_call) => {
-                    let index = tool_index;
-                    tool_index += 1;
+                    let index = *next_tool_index;
+                    *next_tool_index += 1;
                     Some(StreamChunk::ToolChunk {
                         index,
                         id: Some(request.id),
                         name: Some(tool_call.name.to_string()),
-                        arguments_json_delta: serde_json::to_string(
+                        arguments_json: serde_json::to_string(
                             &tool_call.arguments.unwrap_or_default(),
                         )
                         .unwrap_or_else(|_| "{}".to_string()),
@@ -1280,6 +1296,26 @@ mod tests {
 
         assert_eq!(tool.name.as_ref(), "lookup");
         assert_eq!(tool.input_schema["type"], "object");
+    }
+
+    #[test]
+    fn stream_tool_indices_continue_across_messages() {
+        let tool_message = |id: &str, name: &str| {
+            Message::new(
+                Role::Assistant,
+                chrono_now(),
+                vec![GooseMessageContent::tool_request(
+                    id,
+                    Ok(CallToolRequestParams::new(name.to_string())),
+                )],
+            )
+        };
+        let mut next_tool_index = 0;
+        let first = message_to_chunks(tool_message("call_1", "first"), &mut next_tool_index);
+        let second = message_to_chunks(tool_message("call_2", "second"), &mut next_tool_index);
+
+        assert!(matches!(first[0], StreamChunk::ToolChunk { index: 0, .. }));
+        assert!(matches!(second[0], StreamChunk::ToolChunk { index: 1, .. }));
     }
 
     #[test]

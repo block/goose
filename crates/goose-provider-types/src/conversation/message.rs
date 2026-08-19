@@ -240,6 +240,8 @@ pub struct DocumentContentBlock {
     pub data: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filename: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub cache_control: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -584,6 +586,7 @@ impl MessageContentBlock {
             mime_type: mime_type.into(),
             data: data.into(),
             filename,
+            cache_control: false,
         })
     }
 
