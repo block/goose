@@ -55,7 +55,8 @@ import './utils/gitBranchIpc';
 import './utils/recipeHash';
 import type { GooseApp } from './types/apps';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
-import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
+import { WEB_PROTOCOLS } from './utils/urlSecurity';
+import { openExternalUrl } from './utils/openExternalUrl';
 import { buildCSP } from './utils/csp';
 import { resolveWorkingDir } from './utils/workingDir';
 import {
@@ -1415,16 +1416,9 @@ const createChat = async (
 
   // Handle new window creation for links (fallback for any links not handled by onClick)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    try {
-      const protocol = new URL(url).protocol;
-      if (BLOCKED_PROTOCOLS.includes(protocol)) {
-        return { action: 'deny' };
-      }
-    } catch {
-      return { action: 'deny' };
-    }
-
-    shell.openExternal(url);
+    void openExternalUrl(url, mainWindow, getConfiguredGooseLocale()).catch((error) => {
+      log.error('Failed to open external URL:', error);
+    });
     return { action: 'deny' };
   });
 
@@ -1433,15 +1427,9 @@ const createChat = async (
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mainWindow.webContents.on('new-window' as any, function (event: any, url: string) {
     event.preventDefault();
-    try {
-      const protocol = new URL(url).protocol;
-      if (BLOCKED_PROTOCOLS.includes(protocol)) {
-        return;
-      }
-    } catch {
-      return;
-    }
-    shell.openExternal(url);
+    void openExternalUrl(url, mainWindow, getConfiguredGooseLocale()).catch((error) => {
+      log.error('Failed to open external URL:', error);
+    });
   });
 
   const windowId = mainWindow.id;
@@ -1943,15 +1931,9 @@ ipcMain.on('react-ready', (event) => {
   }
 });
 
-ipcMain.handle('open-external', async (_event, url: string) => {
-  const parsedUrl = new URL(url);
-
-  if (BLOCKED_PROTOCOLS.includes(parsedUrl.protocol)) {
-    console.warn(`[Main] Blocked dangerous protocol: ${parsedUrl.protocol}`);
-    return;
-  }
-
-  await shell.openExternal(url);
+ipcMain.handle('open-external', async (event, url: string) => {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+  return openExternalUrl(url, senderWindow, getConfiguredGooseLocale());
 });
 
 ipcMain.handle('directory-chooser', async () => {

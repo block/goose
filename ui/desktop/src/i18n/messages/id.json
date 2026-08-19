@@ -1901,9 +1901,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "Gunakan {modelId}"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "Batal"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "Salin kode"
   },
@@ -1913,23 +1910,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "Tidak ada aplikasi yang ditemukan untuk membuka tautan ini."
   },
-  "markdownContent.open": {
-    "defaultMessage": "Buka"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "Buka Tautan Eksternal"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "Buka tautan {protocol}?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "Ini akan membuka: {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "Aplikasi"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "Batal"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "Tutup"
@@ -1954,18 +1936,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "Pindahkan jendela Picture-in-Picture (gunakan tombol panah)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "Buka"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Buka Tautan Eksternal"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "Ini akan membuka: {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "Buka tautan {protocol}?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Picture-in-Picture"
