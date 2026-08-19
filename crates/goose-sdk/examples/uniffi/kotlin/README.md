@@ -13,19 +13,32 @@ just --justfile crates/goose-sdk/justfile maven-package
 Then run the smoke test:
 
 ```bash
+export ANTHROPIC_API_KEY=...
 cd crates/goose-sdk/examples/uniffi/kotlin
 gradle --no-daemon run
 ```
 
-Set `DATABRICKS_HOST` and `DATABRICKS_TOKEN` before running the example.
-`DATABRICKS_HOST` should be the Databricks workspace URL, for example
-`https://dbc-xxxxxxxx-xxxx.cloud.databricks.com`. The example uses the native
-GDK `DatabricksProvider`, not the declarative JSON provider. The expected output
-is a streamed completion from Databricks followed by optional usage metadata.
-The important failure to watch for is `UnsatisfiedLinkError` or a missing native
-library resource, which would mean the bundled native library was not loaded
-correctly.
+The example exercises the hand-authored Kotlin conveniences in addition to the
+generated UniFFI API. It uses structured system content with an explicit cache
+breakpoint, consumes thinking and redacted-thinking chunks, prints stable tool
+indices, and reports cached-token accounting.
 
-The example sets `--enable-native-access=ALL-UNNAMED` because JNA loads the
-bundled Goose native library. Newer JDKs warn when native access is not enabled
-explicitly, and future JDKs may require it.
+Documents can be supplied without a JSON shim:
+
+```kotlin
+val pdf = document(
+    mimeType = "application/pdf",
+    data = java.io.File("report.pdf").readBytes(),
+    filename = "report.pdf",
+)
+```
+
+Assistant thinking blocks returned by a provider can be replayed as
+`MessageContent.Thinking(thinking, signature)` or
+`MessageContent.RedactedThinking(data)` on the next request.
+
+The important native-loading failure to watch for is `UnsatisfiedLinkError` or
+a missing native-library resource. The example sets
+`--enable-native-access=ALL-UNNAMED` because JNA loads the bundled Goose native
+library. Newer JDKs warn when native access is not enabled explicitly, and
+future JDKs may require it.

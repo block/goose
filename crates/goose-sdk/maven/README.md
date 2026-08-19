@@ -22,6 +22,29 @@ Publish to Maven Central from the repository root:
 just --justfile crates/goose-sdk/justfile maven-publish
 ```
 
+## Kotlin conveniences
+
+The artifact includes hand-authored Kotlin extensions over the generated
+UniFFI API:
+
+- `Provider.streamFlow(...)` overloads for plain and structured system content.
+- `Provider.complete(...)` overloads with default empty tool lists.
+- `ephemeralCacheControl()`, `cachedText(...)`, and `cachedSystemText(...)`.
+- `document(...)` for typed binary document content.
+
+Use structured system content when cache breakpoint placement matters:
+
+```kotlin
+provider.streamFlow(
+    model = model,
+    system = listOf(cachedSystemText("You are a helpful assistant.")),
+    messages = messages,
+)
+```
+
+The generated types also expose thinking and redacted-thinking blocks, cached
+token accounting, capability reporting, and indexed streaming tool chunks.
+
 Publishing requires the standard Gradle properties used by
 `com.vanniktech.maven.publish` for Maven Central credentials and in-memory PGP
 signing, for example via environment variables:

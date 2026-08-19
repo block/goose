@@ -15,8 +15,27 @@ public fun Provider.streamFlow(
     }
 }
 
+public fun Provider.streamFlow(
+    model: ProviderModelConfig,
+    system: List<SystemContent>,
+    messages: List<ProviderMessage>,
+    tools: List<ProviderTool> = emptyList(),
+): Flow<StreamChunk> = flow {
+    val stream = streamStructured(model, system, messages, tools)
+    while (true) {
+        emit(stream.nextChunk() ?: break)
+    }
+}
+
 public suspend fun Provider.complete(
     model: ProviderModelConfig,
     system: String,
     messages: List<ProviderMessage>,
 ): ProviderCompletion = complete(model, system, messages, emptyList())
+
+public suspend fun Provider.complete(
+    model: ProviderModelConfig,
+    system: List<SystemContent>,
+    messages: List<ProviderMessage>,
+    tools: List<ProviderTool> = emptyList(),
+): ProviderCompletion = completeStructured(model, system, messages, tools)
