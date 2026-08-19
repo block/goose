@@ -36,6 +36,21 @@
       ]
     },
     {
+      "name": "filip",
+      "github": "filipkujawa",
+      "pubkey": "437558e2399076861d5b8d935dc5e25363f3ab5599fdc67db7819617f334b4f3",
+      "interest": [
+        "Context management and compaction",
+        "Prompt caching and cache-safe request assembly",
+        "Provider streaming, reasoning, and model configuration",
+        "Token accounting, usage, and cost tracking",
+        "Session persistence, lifecycle, export, and performance",
+        "Subagents and persistent workers",
+        "Tool schemas, tool output, and extension overhead",
+        "Desktop diagnostics and conversation controls"
+      ]
+    },
+    {
       "name": "jasper",
       "github": "jbg",
       "pubkey": "bcd4774b7988c41585bd7d888431cfeb66d4d48cf67cb42493019d828fd8f50f",
