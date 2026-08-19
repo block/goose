@@ -29,6 +29,7 @@ vi.mock('../../../ConfigContext', () => ({
 
 vi.mock('../modelInterface', () => ({
   getProviderMetadata: vi.fn().mockResolvedValue({ display_name: 'Config Provider' }),
+  fetchModelReasoning: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock('../predefinedModelsUtils', () => ({

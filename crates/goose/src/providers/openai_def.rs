@@ -22,7 +22,20 @@ impl ProviderDescriptor for OpenAiProviderDef {
         // init time, but the OpenAI base URL can change at runtime (e.g.
         // switching to an OpenAI-compatible endpoint), which would otherwise
         // leave the cached fast model stale.
-        OpenAiProvider::metadata()
+        OpenAiProvider::metadata().with_setup(
+            crate::providers::catalog::ProviderSetupMetadata::new(
+                crate::providers::catalog::ProviderSetupCategory::Model,
+                crate::providers::catalog::ProviderSetupMethod::ConfigFields,
+                crate::providers::catalog::ProviderSetupGroup::Default,
+            )
+            .with_docs_url("https://platform.openai.com/api-keys")
+            .with_field(
+                "OPENAI_API_KEY",
+                "API Key",
+                Some("Paste your API key"),
+                None,
+            ),
+        )
     }
 }
 

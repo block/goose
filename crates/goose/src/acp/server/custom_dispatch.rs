@@ -173,14 +173,6 @@ impl GooseAcpAgent {
         self.on_reset_prompt(req).await
     }
 
-    #[custom_method(DeleteSessionRequest)]
-    async fn dispatch_delete_session(
-        &self,
-        req: DeleteSessionRequest,
-    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        self.on_delete_session(req).await
-    }
-
     #[custom_method(GetConfigExtensionsRequest)]
     async fn dispatch_get_config_extensions(
         &self,
@@ -305,6 +297,14 @@ impl GooseAcpAgent {
         req: RefreshProviderInventoryRequest,
     ) -> Result<RefreshProviderInventoryResponse, agent_client_protocol::Error> {
         self.on_refresh_provider_inventory(req).await
+    }
+
+    #[custom_method(ProviderReadinessCheckRequest)]
+    async fn dispatch_check_provider_readiness(
+        &self,
+        req: ProviderReadinessCheckRequest,
+    ) -> Result<ProviderReadinessCheckResponse, agent_client_protocol::Error> {
+        self.on_check_provider_readiness(req).await
     }
 
     #[custom_method(ProviderConfigReadRequest)]

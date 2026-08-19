@@ -54,6 +54,7 @@ pub fn map_provider_name(provider: &str) -> &str {
         "novita" => "novita-ai",
         "opencode_go" => "opencode-go",
         "ollama_cloud" => "ollama-cloud",
+        "kimi_code" => "kimi-for-coding",
         _ => provider,
     }
 }
@@ -530,6 +531,16 @@ mod tests {
         assert_eq!(
             map_to_canonical_model("zhipu", "glm-5", r),
             Some("zhipuai/glm-5".to_string())
+        );
+
+        // === Kimi Code ===
+        assert_eq!(
+            map_to_canonical_model("kimi_code", "kimi-for-coding", r),
+            Some("kimi-for-coding/kimi-for-coding".to_string())
+        );
+        assert_eq!(
+            map_to_canonical_model("kimi_code", "kimi-for-coding-highspeed", r),
+            Some("kimi-for-coding/kimi-for-coding-highspeed".to_string())
         );
 
         // === GCP Vertex AI ===

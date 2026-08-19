@@ -101,9 +101,32 @@ type ClientLoopFn = Box<
             AcpClientLoop,
             mpsc::Receiver<ClientRequest>,
             oneshot::Sender<Result<InitializeResponse>>,
+            oneshot::Receiver<()>,
         ) -> BoxFuture<'static, ()>
         + Send,
 >;
+
+struct ClientLoopGuard {
+    tx: Option<mpsc::Sender<ClientRequest>>,
+    cancel_tx: Option<oneshot::Sender<()>>,
+    thread: Option<JoinHandle<()>>,
+}
+
+impl Drop for ClientLoopGuard {
+    fn drop(&mut self) {
+        if let Some(cancel_tx) = self.cancel_tx.take() {
+            let _ = cancel_tx.send(());
+        }
+        self.tx.take();
+        if let Some(thread) = self.thread.take() {
+            std::thread::spawn(move || {
+                if let Err(error) = thread.join() {
+                    tracing::debug!("AcpClientLoop thread panicked: {error:?}");
+                }
+            });
+        }
+    }
+}
 
 #[derive(Debug)]
 enum AcpUpdate {
@@ -126,7 +149,15 @@ enum AcpUpdate {
         response_tx: oneshot::Sender<RequestPermissionResponse>,
     },
     Complete(StopReason, Option<AcpUsage>),
-    Error(String),
+    Error(agent_client_protocol::Error),
+}
+
+fn provider_error_from_acp(error: agent_client_protocol::Error) -> ProviderError {
+    if error.code == agent_client_protocol::schema::v1::ErrorCode::AuthRequired {
+        ProviderError::Authentication(error.to_string())
+    } else {
+        ProviderError::RequestFailed(error.to_string())
+    }
 }
 
 /// Per-tool-call buffer for accumulating ACP ToolCallUpdate fields across
@@ -149,26 +180,35 @@ struct HandoffContextClaim {
     include_context: bool,
 }
 
-type SessionTitleCallback = Arc<dyn Fn(String) + Send + Sync>;
-
-#[derive(Clone, Default)]
-struct SessionTitlePublisher {
-    callback: Arc<Mutex<Option<SessionTitleCallback>>>,
+struct HandoffContextClaimGuard {
+    handoff_context_sent: Arc<AtomicBool>,
+    pending: bool,
 }
 
-impl SessionTitlePublisher {
-    fn set_callback(&self, callback: SessionTitleCallback) {
-        *self.callback.lock().unwrap() = Some(callback);
+impl HandoffContextClaimGuard {
+    fn new(handoff_context_sent: Arc<AtomicBool>, first_prompt: bool) -> Self {
+        Self {
+            handoff_context_sent,
+            pending: first_prompt,
+        }
     }
 
-    fn publish(&self, title: &str) {
-        let title = title.trim();
-        if title.is_empty() {
-            return;
-        }
+    fn commit(&mut self) {
+        self.pending = false;
+    }
 
-        if let Some(callback) = self.callback.lock().unwrap().clone() {
-            callback(title.to_string());
+    fn rollback(&mut self) {
+        if self.pending {
+            self.handoff_context_sent.store(false, Ordering::Release);
+            self.pending = false;
+        }
+    }
+}
+
+impl Drop for HandoffContextClaimGuard {
+    fn drop(&mut self) {
+        if self.pending {
+            self.handoff_context_sent.store(false, Ordering::Release);
         }
     }
 }
@@ -183,13 +223,14 @@ pub struct AcpProvider {
     pending_confirmations:
         Arc<TokioMutex<HashMap<String, oneshot::Sender<PermissionConfirmation>>>>,
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
-    handoff_context_sent: AtomicBool,
+    /// True after the first ACP prompt completes with the handoff context committed.
+    /// Failed or abandoned first prompts reset this so the next prompt can retry it.
+    handoff_context_sent: Arc<AtomicBool>,
     /// Latest `size` reported by the ACP server in a `session/update` →
     /// `usage_update` notification. 0 means no real update has arrived yet,
     /// in which case `get_context_limit()` falls back to the supplied model
     /// configuration's context limit.
     context_size: Arc<AtomicU64>,
-    session_title_publisher: SessionTitlePublisher,
 
     /// Config option id used to select the model, if this agent supports it.
     model_config_option_id: Option<String>,
@@ -198,6 +239,7 @@ pub struct AcpProvider {
     applied_model: Arc<Mutex<Option<String>>>,
 
     tx: Option<mpsc::Sender<ClientRequest>>,
+    cancel_tx: Option<oneshot::Sender<()>>,
     loop_thread: Option<JoinHandle<()>>,
 }
 
@@ -229,7 +271,15 @@ impl AcpProvider {
             name,
             goose_mode,
             config,
-            Box::new(|cl, rx, init_tx| Box::pin(cl.spawn(rx, init_tx))),
+            Box::new(|cl, rx, init_tx, mut cancel_rx| {
+                Box::pin(async move {
+                    tokio::select! {
+                        biased;
+                        _ = &mut cancel_rx => {}
+                        _ = cl.spawn(rx, init_tx) => {}
+                    }
+                })
+            }),
         )
         .await
     }
@@ -245,10 +295,16 @@ impl AcpProvider {
             name,
             goose_mode,
             config,
-            Box::new(move |cl, mut rx, init_tx| {
+            Box::new(move |cl, mut rx, init_tx, mut cancel_rx| {
                 Box::pin(async move {
-                    if let Err(e) = cl.run(transport, &mut rx, init_tx).await {
-                        tracing::error!("ACP protocol error: {e}");
+                    tokio::select! {
+                        biased;
+                        _ = &mut cancel_rx => {}
+                        result = cl.run(transport, &mut rx, init_tx) => {
+                            if let Err(e) = result {
+                                tracing::error!("ACP protocol error: {e}");
+                            }
+                        }
                     }
                 })
             }),
@@ -277,15 +333,19 @@ impl AcpProvider {
         let pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>> =
             Arc::new(Mutex::new(HashMap::new()));
         let context_size = Arc::new(AtomicU64::new(0));
-        let session_title_publisher = SessionTitlePublisher::default();
         let client_loop = AcpClientLoop::new(
             config,
             goose_mode_shared.clone(),
             pending_tool_updates.clone(),
             context_size.clone(),
-            session_title_publisher.clone(),
         );
-        let loop_thread = spawn_client_loop(run(client_loop, rx, init_tx));
+        let (cancel_tx, cancel_rx) = oneshot::channel();
+        let loop_thread = spawn_client_loop(run(client_loop, rx, init_tx, cancel_rx));
+        let mut client_loop_guard = ClientLoopGuard {
+            tx: Some(tx),
+            cancel_tx: Some(cancel_tx),
+            thread: Some(loop_thread),
+        };
 
         let _init_response = init_rx
             .await
@@ -293,11 +353,15 @@ impl AcpProvider {
 
         // Create the ACP session eagerly during connect.
         let (session_tx, session_rx) = oneshot::channel();
-        tx.send(ClientRequest::NewSession {
-            response_tx: session_tx,
-        })
-        .await
-        .context("ACP client is unavailable")?;
+        client_loop_guard
+            .tx
+            .as_ref()
+            .unwrap()
+            .send(ClientRequest::NewSession {
+                response_tx: session_tx,
+            })
+            .await
+            .context("ACP client is unavailable")?;
         let response = session_rx
             .await
             .context("ACP session creation cancelled")??;
@@ -314,13 +378,13 @@ impl AcpProvider {
             session: Mutex::new(session),
             pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
             pending_tool_updates,
-            handoff_context_sent: AtomicBool::new(false),
+            handoff_context_sent: Arc::new(AtomicBool::new(false)),
             context_size,
-            session_title_publisher,
             model_config_option_id,
             applied_model: Arc::new(Mutex::new(applied_model)),
-            tx: Some(tx),
-            loop_thread: Some(loop_thread),
+            tx: client_loop_guard.tx.take(),
+            cancel_tx: client_loop_guard.cancel_tx.take(),
+            loop_thread: client_loop_guard.thread.take(),
         })
     }
 
@@ -542,10 +606,6 @@ impl Provider for AcpProvider {
         true
     }
 
-    fn set_session_title_callback(&self, callback: Arc<dyn Fn(String) + Send + Sync>) {
-        self.session_title_publisher.set_callback(callback);
-    }
-
     async fn handle_permission_confirmation(
         &self,
         request_id: &str,
@@ -580,6 +640,8 @@ impl Provider for AcpProvider {
         }
 
         let claim = self.claim_handoff_context(messages);
+        let mut handoff_claim_guard =
+            HandoffContextClaimGuard::new(self.handoff_context_sent.clone(), claim.first_prompt);
         let prompt_blocks = if claim.include_context {
             messages_to_prompt(messages, true)
         } else {
@@ -593,9 +655,6 @@ impl Provider for AcpProvider {
         let mut rx = match self.prompt(session_id, prompt_blocks).await {
             Ok(rx) => rx,
             Err(e) => {
-                if claim.first_prompt {
-                    self.handoff_context_sent.store(false, Ordering::Release);
-                }
                 return Err(ProviderError::RequestFailed(format!(
                     "Failed to send ACP prompt: {e}"
                 )));
@@ -740,7 +799,15 @@ impl Provider for AcpProvider {
                         }
                         let _ = response_tx.send(map_permission_response(&request, decision));
                     }
-                    AcpUpdate::Complete(_reason, usage) => {
+                    AcpUpdate::Complete(reason, usage) => {
+                        // Prefer retrying context over silently losing it. A harness may have
+                        // ingested the memo before cancelling or refusing, so a retry can duplicate
+                        // it, but treating an unprocessed handoff as delivered is unrecoverable.
+                        if matches!(reason, StopReason::Cancelled | StopReason::Refusal) {
+                            handoff_claim_guard.rollback();
+                        } else {
+                            handoff_claim_guard.commit();
+                        }
                         if let Some(usage) = usage {
                             let provider_usage = ProviderUsage::new(
                                 model_name.clone(),
@@ -755,7 +822,10 @@ impl Provider for AcpProvider {
                         break;
                     }
                     AcpUpdate::Error(e) => {
-                        Err(ProviderError::RequestFailed(e))?;
+                        // Reset before yielding so an immediate retry can include the handoff even
+                        // while the failed stream value is still alive.
+                        handoff_claim_guard.rollback();
+                        Err(provider_error_from_acp(e))?;
                     }
                 }
             }
@@ -772,6 +842,7 @@ impl Provider for AcpProvider {
 impl Drop for AcpProvider {
     fn drop(&mut self) {
         self.tx.take();
+        let _cancel_tx = self.cancel_tx.take();
         if let Some(h) = self.loop_thread.take() {
             if let Err(e) = h.join() {
                 tracing::debug!("AcpClientLoop thread panicked: {e:?}");
@@ -786,7 +857,6 @@ struct AcpClientLoop {
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
     context_size: Arc<AtomicU64>,
-    session_title_publisher: SessionTitlePublisher,
 }
 
 impl AcpClientLoop {
@@ -795,7 +865,6 @@ impl AcpClientLoop {
         goose_mode: Arc<Mutex<GooseMode>>,
         pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
         context_size: Arc<AtomicU64>,
-        session_title_publisher: SessionTitlePublisher,
     ) -> Self {
         Self {
             config,
@@ -803,7 +872,6 @@ impl AcpClientLoop {
             prompt_response_tx: Arc::new(Mutex::new(None)),
             pending_tool_updates,
             context_size,
-            session_title_publisher,
         }
     }
 
@@ -858,7 +926,6 @@ impl AcpClientLoop {
             prompt_response_tx,
             pending_tool_updates,
             context_size,
-            session_title_publisher,
         } = self;
         let notification_callback = config.notification_callback.clone();
         let reverse_modes = reverse_mode_mapping(&config.mode_mapping);
@@ -872,7 +939,6 @@ impl AcpClientLoop {
                     let goose_mode = goose_mode.clone();
                     let pending_tool_updates = pending_tool_updates.clone();
                     let context_size = context_size.clone();
-                    let session_title_publisher = session_title_publisher.clone();
                     async move |notification: SessionNotification, _cx| {
                         if let Some(ref cb) = notification_callback {
                             cb(notification.clone());
@@ -908,11 +974,6 @@ impl AcpClientLoop {
                             }
                             SessionUpdate::UsageUpdate(usage) => {
                                 context_size.store(usage.size, Ordering::Relaxed);
-                            }
-                            SessionUpdate::SessionInfoUpdate(update) => {
-                                if let Some(title) = update.title.value() {
-                                    session_title_publisher.publish(title);
-                                }
                             }
                             _ => {}
                         }
@@ -1132,6 +1193,20 @@ async fn spawn_acp_process(config: &AcpProviderConfig) -> Result<Child> {
         .stderr(Stdio::piped())
         .kill_on_drop(true);
 
+    if let Some(command_dir) = config.command.parent() {
+        // npm adapters commonly use `/usr/bin/env node`, while desktop PATH may omit their bin dir.
+        let path = std::env::join_paths(
+            std::iter::once(command_dir.to_path_buf()).chain(
+                std::env::var_os("PATH")
+                    .as_ref()
+                    .map(std::env::split_paths)
+                    .into_iter()
+                    .flatten(),
+            ),
+        )?;
+        cmd.env("PATH", path);
+    }
+
     for key in &config.env_remove {
         cmd.env_remove(key);
     }
@@ -1150,6 +1225,11 @@ fn log_undelivered<E: std::fmt::Debug>(result: Result<(), E>, method: &str) {
     }
 }
 
+fn acp_method_error(method: &str, error: agent_client_protocol::Error) -> anyhow::Error {
+    let message = format!("ACP {method} failed: {error}");
+    anyhow::Error::new(error).context(message)
+}
+
 async fn handle_requests(
     config: AcpProviderConfig,
     goose_mode: Arc<Mutex<GooseMode>>,
@@ -1163,8 +1243,7 @@ async fn handle_requests(
     let client_capabilities = ClientCapabilities::new();
     let init_response: InitializeResponse = cx
         .send_request(
-            InitializeRequest::new(ProtocolVersion::LATEST)
-                .client_capabilities(client_capabilities),
+            InitializeRequest::new(ProtocolVersion::V1).client_capabilities(client_capabilities),
         )
         .block_task()
         .await
@@ -1206,10 +1285,7 @@ async fn handle_requests(
                             .await?;
                         apply_session_mode(&config, &goose_mode, &cx, session).await
                     }
-                    Err(err) => Err(anyhow::anyhow!(
-                        "ACP {} failed: {err}",
-                        AGENT_METHOD_NAMES.session_new
-                    )),
+                    Err(error) => Err(acp_method_error(AGENT_METHOD_NAMES.session_new, error)),
                 };
                 log_undelivered(response_tx.send(result), AGENT_METHOD_NAMES.session_new);
             }
@@ -1315,7 +1391,7 @@ async fn handle_requests(
                     }
                     Err(e) => {
                         log_undelivered(
-                            response_tx.try_send(AcpUpdate::Error(e.to_string())),
+                            response_tx.try_send(AcpUpdate::Error(e)),
                             AGENT_METHOD_NAMES.session_prompt,
                         );
                     }
@@ -1816,7 +1892,7 @@ mod tests {
     use super::*;
     use crate::agents::extension::Envs;
     use agent_client_protocol::schema::v1::{
-        SessionConfigSelectOption, SessionMode, SessionModeId,
+        ErrorCode, SessionConfigSelectOption, SessionMode, SessionModeId,
     };
 
     use test_case::test_case;
@@ -1828,23 +1904,117 @@ mod tests {
         }
     }
 
-    fn test_provider() -> (AcpProvider, ModelConfig) {
-        test_provider_with_tx(None)
+    fn acp_error_code(error: &anyhow::Error) -> Option<ErrorCode> {
+        error.chain().find_map(|source| {
+            source
+                .downcast_ref::<agent_client_protocol::Error>()
+                .map(|error| error.code)
+        })
     }
 
     #[test]
-    fn session_title_publisher_forwards_non_empty_titles() {
-        let publisher = SessionTitlePublisher::default();
-        let titles = Arc::new(Mutex::new(Vec::new()));
-        let received = titles.clone();
-        publisher.set_callback(Arc::new(move |title| {
-            received.lock().unwrap().push(title);
-        }));
+    fn startup_cleanup_does_not_block_while_the_client_loop_stops() {
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let client_thread = std::thread::spawn(move || release_rx.recv().unwrap());
+        let guard = ClientLoopGuard {
+            tx: None,
+            cancel_tx: None,
+            thread: Some(client_thread),
+        };
+        let (dropped_tx, dropped_rx) = std::sync::mpsc::channel();
+        let drop_thread = std::thread::spawn(move || {
+            drop(guard);
+            dropped_tx.send(()).unwrap();
+        });
 
-        publisher.publish("  Generated title  ");
-        publisher.publish("  ");
+        let returned_without_joining = dropped_rx
+            .recv_timeout(std::time::Duration::from_millis(100))
+            .is_ok();
+        release_tx.send(()).unwrap();
+        drop_thread.join().unwrap();
 
-        assert_eq!(*titles.lock().unwrap(), vec!["Generated title"]);
+        assert!(returned_without_joining);
+    }
+
+    #[test]
+    fn provider_drop_closes_requests_without_forcing_cancellation() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let (cancel_tx, mut cancel_rx) = oneshot::channel();
+        let (graceful_tx, graceful_rx) = std::sync::mpsc::channel();
+        let client_thread = std::thread::spawn(move || {
+            while rx.blocking_recv().is_some() {}
+            graceful_tx
+                .send(matches!(
+                    cancel_rx.try_recv(),
+                    Err(oneshot::error::TryRecvError::Empty)
+                ))
+                .unwrap();
+        });
+        let (mut provider, _) = test_provider_with_tx(Some(tx));
+        provider.cancel_tx = Some(cancel_tx);
+        provider.loop_thread = Some(client_thread);
+
+        drop(provider);
+
+        assert!(graceful_rx.recv().unwrap());
+    }
+
+    #[test]
+    fn session_new_error_preserves_auth_required_code() {
+        let error = acp_method_error(
+            AGENT_METHOD_NAMES.session_new,
+            agent_client_protocol::Error::auth_required(),
+        );
+
+        assert_eq!(
+            error.to_string(),
+            "ACP session/new failed: Authentication required"
+        );
+        assert_eq!(acp_error_code(&error), Some(ErrorCode::AuthRequired));
+    }
+
+    #[test]
+    fn session_new_error_preserves_non_authentication_code() {
+        let error = acp_method_error(
+            AGENT_METHOD_NAMES.session_new,
+            agent_client_protocol::Error::internal_error(),
+        );
+
+        assert_eq!(acp_error_code(&error), Some(ErrorCode::InternalError));
+    }
+
+    #[tokio::test]
+    async fn prompt_error_update_preserves_auth_required_code() {
+        let (tx, mut rx) = mpsc::channel(1);
+        tx.send(AcpUpdate::Error(
+            agent_client_protocol::Error::auth_required().data("sign in"),
+        ))
+        .await
+        .unwrap();
+
+        let AcpUpdate::Error(error) = rx.recv().await.unwrap() else {
+            panic!("expected ACP error update");
+        };
+        assert_eq!(error.code, ErrorCode::AuthRequired);
+        assert_eq!(error.data, Some(serde_json::json!("sign in")));
+    }
+
+    #[test]
+    fn prompt_auth_error_maps_to_provider_authentication() {
+        let error = provider_error_from_acp(agent_client_protocol::Error::auth_required());
+
+        assert!(matches!(error, ProviderError::Authentication(_)));
+    }
+
+    #[test]
+    fn prompt_internal_error_remains_request_failed() {
+        let error = provider_error_from_acp(agent_client_protocol::Error::internal_error());
+
+        assert!(matches!(error, ProviderError::RequestFailed(_)));
+    }
+
+    fn test_provider() -> (AcpProvider, ModelConfig) {
+        test_provider_with_tx(None)
     }
 
     fn test_provider_with_tx(
@@ -1861,12 +2031,12 @@ mod tests {
                 }),
                 pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
                 pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
-                handoff_context_sent: AtomicBool::new(false),
+                handoff_context_sent: Arc::new(AtomicBool::new(false)),
                 context_size: Arc::new(AtomicU64::new(0)),
-                session_title_publisher: SessionTitlePublisher::default(),
                 model_config_option_id: None,
                 applied_model: Arc::new(Mutex::new(None)),
                 tx,
+                cancel_tx: None,
                 loop_thread: None,
             },
             ModelConfig::new("test-model"),
@@ -2241,6 +2411,154 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn streamed_error_on_first_prompt_resends_handoff_context() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        let (retry_content_tx, retry_content_rx) = oneshot::channel();
+
+        // Serve the first prompt like a harness that accepts the request but
+        // fails while processing it (e.g. because the prompt is too large),
+        // then capture the retry.
+        let server = tokio::spawn(async move {
+            if let Some(ClientRequest::Prompt { response_tx, .. }) = rx.recv().await {
+                let _ = response_tx
+                    .send(AcpUpdate::Error(
+                        agent_client_protocol::Error::internal_error().data("prompt too large"),
+                    ))
+                    .await;
+            }
+            if let Some(ClientRequest::Prompt {
+                content,
+                response_tx,
+                ..
+            }) = rx.recv().await
+            {
+                let _ = retry_content_tx.send(content);
+                let _ = response_tx
+                    .send(AcpUpdate::Complete(StopReason::EndTurn, None))
+                    .await;
+            }
+        });
+
+        let mut first_stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        let first = first_stream.next().await;
+        assert!(
+            matches!(first, Some(Err(ProviderError::RequestFailed(_)))),
+            "expected streamed error, got {first:?}"
+        );
+
+        let mut retry_stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        let retry_content = retry_content_rx.await.unwrap();
+        assert_eq!(retry_content.len(), 2);
+        assert!(prompt_text(&retry_content[0]).contains("[assistant]: prior answer"));
+        assert_eq!(prompt_text(&retry_content[1]), "current request");
+        assert!(retry_stream.next().await.is_none());
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn cancelled_first_prompt_rolls_back_handoff_context_claim() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        let server = tokio::spawn(async move {
+            if let Some(ClientRequest::Prompt { response_tx, .. }) = rx.recv().await {
+                let _ = response_tx
+                    .send(AcpUpdate::Complete(StopReason::Cancelled, None))
+                    .await;
+            }
+        });
+
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        assert!(stream.next().await.is_none());
+        server.await.unwrap();
+
+        let next_claim = provider.claim_handoff_context(&messages);
+        assert!(next_claim.include_context);
+    }
+
+    #[tokio::test]
+    async fn refused_first_prompt_rolls_back_handoff_context_claim() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        let server = tokio::spawn(async move {
+            if let Some(ClientRequest::Prompt { response_tx, .. }) = rx.recv().await {
+                let _ = response_tx
+                    .send(AcpUpdate::Complete(StopReason::Refusal, None))
+                    .await;
+            }
+        });
+
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        assert!(stream.next().await.is_none());
+        server.await.unwrap();
+
+        let next_claim = provider.claim_handoff_context(&messages);
+        assert!(next_claim.include_context);
+    }
+
+    #[tokio::test]
+    async fn completed_first_prompt_commits_handoff_context_claim() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        let server = tokio::spawn(async move {
+            if let Some(ClientRequest::Prompt { response_tx, .. }) = rx.recv().await {
+                let _ = response_tx
+                    .send(AcpUpdate::Complete(StopReason::EndTurn, None))
+                    .await;
+            }
+        });
+
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        assert!(stream.next().await.is_none());
+        server.await.unwrap();
+
+        let next_claim = provider.claim_handoff_context(&messages);
+        assert!(!next_claim.include_context);
+    }
+
+    #[tokio::test]
+    async fn dropped_first_prompt_stream_rolls_back_handoff_context_claim() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+
+        let stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        let request = rx.recv().await;
+        assert!(matches!(request, Some(ClientRequest::Prompt { .. })));
+        drop(stream);
+
+        let next_claim = provider.claim_handoff_context(&messages);
+        assert!(next_claim.include_context);
+    }
+
+    #[tokio::test]
     async fn failed_first_prompt_send_rolls_back_handoff_context_claim() {
         let (tx, rx) = mpsc::channel(1);
         drop(rx);
@@ -2343,6 +2661,37 @@ mod tests {
             mode_mapping,
             notification_callback: None,
         }
+    }
+
+    #[tokio::test]
+    async fn cancelling_start_stops_client_loop() {
+        let stopped = Arc::new(AtomicBool::new(false));
+        let stopped_in_loop = stopped.clone();
+        let start = AcpProvider::start(
+            "acp-test".to_string(),
+            GooseMode::Auto,
+            test_acp_config(HashMap::new(), None),
+            Box::new(move |_, _, init_tx, cancel_rx| {
+                Box::pin(async move {
+                    let _init_tx = init_tx;
+                    let _ = cancel_rx.await;
+                    stopped_in_loop.store(true, Ordering::SeqCst);
+                })
+            }),
+        );
+
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(10), start)
+                .await
+                .is_err()
+        );
+        tokio::time::timeout(std::time::Duration::from_secs(1), async {
+            while !stopped.load(Ordering::SeqCst) {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
     }
 
     #[test_case(GooseMode::Auto)]
@@ -2565,6 +2914,9 @@ mod tests {
             headers: HashMap::from([("Authorization".into(), "Bearer ghp_xxxxxxxxxxxx".into())]),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
+            scopes: vec![],
             bundled: Some(false),
             available_tools: vec![],
         },
@@ -2619,6 +2971,9 @@ mod tests {
             headers: HashMap::from([("Authorization".into(), "Bearer ghp_xxxxxxxxxxxx".into())]),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
+            scopes: vec![],
             bundled: Some(false),
             available_tools: vec![],
         };

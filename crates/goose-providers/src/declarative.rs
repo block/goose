@@ -147,6 +147,8 @@ pub struct DeclarativeProviderConfig {
     pub fast_model: Option<String>,
     #[serde(default)]
     pub preserves_thinking: bool,
+    #[serde(default)]
+    pub setup: Option<goose_provider_types::canonical::catalog::ProviderSetupMetadata>,
 }
 
 fn default_requires_auth() -> bool {
@@ -366,6 +368,16 @@ mod tests {
             deserialize_provider_config(crate::groq::JSON).expect("groq.json should parse");
 
         assert!(!config.preserves_thinking);
+    }
+
+    #[test]
+    fn setup_metadata_rejects_unknown_fields() {
+        let mut definition: serde_json::Value = serde_json::from_str(crate::groq::JSON).unwrap();
+        definition["setup"]["description"] = json!("This field would be ignored");
+
+        let error = deserialize_provider_config(&definition.to_string()).unwrap_err();
+
+        assert!(error.to_string().contains("unknown field `description`"));
     }
 
     fn placeholder_var_names(template: &str) -> Vec<String> {

@@ -604,6 +604,7 @@ impl goose_providers::base::ProviderDescriptor for ClaudeCodeProvider {
                 true,
             )],
         )
+        .deprecated(Some("claude-acp"))
     }
 }
 
@@ -1251,6 +1252,9 @@ mod tests {
             headers: HashMap::from([("Authorization".into(), "Bearer token".into())]),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
+            scopes: vec![],
             bundled: Some(false),
             available_tools: vec![],
         }],
@@ -1273,6 +1277,9 @@ mod tests {
             headers: HashMap::new(),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
+            scopes: vec![],
             bundled: None,
             available_tools: vec![],
         }],

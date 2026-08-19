@@ -11,7 +11,12 @@ pub struct GoogleProviderDef;
 
 impl ProviderDescriptor for GoogleProviderDef {
     fn metadata() -> ProviderMetadata {
-        GoogleProvider::metadata()
+        GoogleProvider::metadata().with_setup(
+            crate::providers::catalog::ProviderSetupMetadata::api_key(
+                crate::providers::catalog::ProviderSetupGroup::Default,
+            )
+            .with_docs_url("https://aistudio.google.com/apikey"),
+        )
     }
 }
 
