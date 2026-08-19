@@ -4,6 +4,8 @@ use crate::providers::inventory::ensure_refresh_identity_current;
 use crate::providers::provider_secrets;
 use std::str::FromStr;
 
+const ACP_READINESS_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 fn provider_secret_to_dto(secret: provider_secrets::ProviderSecret) -> ProviderSecretDto {
     let storage = match secret.storage {
         provider_secrets::ProviderSecretStorage::SecretStore => {
@@ -42,8 +44,13 @@ fn inventory_entry_to_dto(entry: ProviderInventoryEntry) -> ProviderInventoryEnt
         description: entry.description,
         default_model: entry.default_model,
         configured: entry.configured,
+        available: entry.available,
         provider_type: format!("{:?}", entry.provider_type),
         category: provider_setup_category_to_dto(entry.category),
+        acp: entry.acp,
+        visible_in_setup: entry.visible_in_setup,
+        deprecated: entry.deprecated,
+        replacement: entry.replacement,
         config_keys: entry
             .config_keys
             .into_iter()
@@ -214,6 +221,7 @@ fn provider_setup_entry_to_dto(
         provider_id: entry.provider_id,
         name: entry.display_name,
         category: provider_setup_category_to_dto(entry.category),
+        acp: entry.acp,
         description: entry.description,
         setup_method: provider_setup_method_to_dto(entry.setup_method),
         native_connect_query: entry.native_connect_query,
@@ -475,17 +483,68 @@ impl GooseAcpAgent {
         req: ProviderSupportedModelsListRequest,
     ) -> Result<ProviderSupportedModelsListResponse, agent_client_protocol::Error> {
         let provider = self
-            .create_provider(&req.provider_id, Vec::new(), None)
+            .create_provider(&req.provider_id, Vec::new(), None, true)
             .await
             .internal_err_ctx("Failed to initialize provider")?;
-        let models = provider
-            .fetch_supported_models()
-            .await
-            .internal_err_ctx("Failed to fetch provider supported models")?;
+        let models = match provider.fetch_supported_models().await {
+            Ok(models) => models,
+            Err(goose_providers::errors::ProviderError::Authentication(error)) => {
+                return Err(agent_client_protocol::Error::auth_required().data(error));
+            }
+            Err(goose_providers::errors::ProviderError::NotConfigured) => {
+                return Err(agent_client_protocol::Error::invalid_params()
+                    .data(format!("Provider is not configured: {}", req.provider_id)));
+            }
+            Err(error) => {
+                return Err(agent_client_protocol::Error::internal_error().data(format!(
+                    "Failed to fetch provider supported models: {error}"
+                )));
+            }
+        };
 
         Ok(ProviderSupportedModelsListResponse {
             provider_id: req.provider_id,
             models,
+        })
+    }
+
+    pub(super) async fn on_check_provider_readiness(
+        &self,
+        req: ProviderReadinessCheckRequest,
+    ) -> Result<ProviderReadinessCheckResponse, agent_client_protocol::Error> {
+        let provider = self
+            .provider_inventory
+            .find_entry_for_provider(&req.provider_id)
+            .await;
+        if !provider.is_some_and(|entry| entry.acp) {
+            return Err(agent_client_protocol::Error::invalid_params().data(format!(
+                "Provider is not an ACP provider: {}",
+                req.provider_id
+            )));
+        }
+
+        let result = tokio::time::timeout(
+            ACP_READINESS_TIMEOUT,
+            self.create_provider(&req.provider_id, Vec::new(), None, true),
+        )
+        .await;
+        let (ready, error) = match result {
+            Ok(Ok(provider)) => {
+                tokio::task::spawn_blocking(move || drop(provider))
+                    .await
+                    .internal_err_ctx("Failed to stop provider readiness check")?;
+                (true, None)
+            }
+            Ok(Err(error)) => (false, Some(error.to_string())),
+            Err(_) => (
+                false,
+                Some(format!("Timed out while checking {}", req.provider_id)),
+            ),
+        };
+        Ok(ProviderReadinessCheckResponse {
+            provider_id: req.provider_id,
+            ready,
+            error,
         })
     }
 
@@ -691,6 +750,21 @@ impl GooseAcpAgent {
     pub(super) async fn provider_config_status(provider_id: String) -> ProviderConfigStatusDto {
         let is_configured = match crate::providers::get_from_registry(&provider_id).await {
             Ok(entry) => {
+                if entry
+                    .metadata()
+                    .setup
+                    .as_ref()
+                    .is_some_and(|setup| setup.acp)
+                {
+                    return ProviderConfigStatusDto {
+                        provider_id: provider_id.clone(),
+                        is_configured: crate::config::get_provider_entry(
+                            Config::global(),
+                            &provider_id,
+                        )
+                        .is_some_and(|entry| entry.enabled && entry.configured),
+                    };
+                }
                 match tokio::task::spawn_blocking(move || entry.inventory_configured()).await {
                     Ok(is_configured) => is_configured,
                     Err(error) => {
@@ -745,7 +819,7 @@ impl GooseAcpAgent {
             tokio::spawn(async move {
                 let mut refresh_guard = provider_inventory.refresh_guard(&identity);
                 let provider_result = AssertUnwindSafe(async {
-                    provider_factory(provider_id.clone(), Vec::new(), None).await
+                    provider_factory(provider_id.clone(), Vec::new(), None, true).await
                 })
                 .catch_unwind()
                 .await;
@@ -911,6 +985,22 @@ impl GooseAcpAgent {
             .set_secret_values(&secret_updates)
             .internal_err_ctx("Failed to save provider secret fields")?;
 
+        if metadata.setup.as_ref().is_some_and(|setup| setup.acp) {
+            let model = crate::config::get_provider_entry(config, &req.provider_id)
+                .map(|entry| entry.model)
+                .unwrap_or_else(|| metadata.default_model.clone());
+            crate::config::set_provider_entry(
+                config,
+                &req.provider_id,
+                &crate::config::ProviderEntry {
+                    enabled: true,
+                    model,
+                    configured: true,
+                },
+            )
+            .internal_err_ctx("Failed to enable ACP provider")?;
+        }
+
         let provider_ids = [req.provider_id.clone()];
         let status = Self::provider_config_status(req.provider_id.clone()).await;
         let refresh = self.start_provider_inventory_refresh(&provider_ids).await?;
@@ -941,6 +1031,15 @@ impl GooseAcpAgent {
         config
             .delete_secret_values(&secret_keys)
             .internal_err_ctx("Failed to delete provider secret fields")?;
+        if metadata.setup.as_ref().is_some_and(|setup| setup.acp) {
+            if let Some(mut provider) = crate::config::get_provider_entry(config, &req.provider_id)
+            {
+                provider.enabled = false;
+                provider.configured = false;
+                crate::config::set_provider_entry(config, &req.provider_id, &provider)
+                    .internal_err_ctx("Failed to disable ACP provider")?;
+            }
+        }
         crate::providers::cleanup_provider(&req.provider_id)
             .await
             .internal_err_ctx("Failed to clean up provider state")?;

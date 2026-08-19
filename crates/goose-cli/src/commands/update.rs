@@ -170,10 +170,6 @@ fn verify_bundle(
     let result = sigstore_verify::verify(artifact_digest, &bundle, policy, trusted_root)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-    if !result.success {
-        bail!("Verification unsuccessful");
-    }
-
     let identity = result
         .identity
         .as_deref()

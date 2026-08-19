@@ -178,7 +178,7 @@ impl AnthropicProvider {
             system,
             messages,
             tools,
-            self.format_options,
+            self.format_options.clone(),
         )?;
         payload["stream"] = Value::Bool(true);
         let mut log = start_log(model_config, &payload)?;
@@ -378,8 +378,8 @@ fn format_options_for_provider(
     AnthropicFormatOptions {
         preserve_unsigned_thinking: preserves_thinking,
         preserve_thinking_context: preserves_thinking,
-        thinking_disabled: false,
         emit_clear_thinking,
+        ..Default::default()
     }
 }
 
@@ -481,6 +481,7 @@ pub fn from_declarative_config(
 mod tests {
     use super::*;
     use crate::api_client::AuthMethod;
+    use crate::conversation::message::MessageContent;
     use serde_json::json;
 
     struct StubKeyResolver;
@@ -494,11 +495,30 @@ mod tests {
     }
 
     #[test]
-    fn zai_provider_config_opts_into_clear_thinking() {
+    fn zai_provider_config_emits_clear_thinking() {
         let configs = crate::declarative::fixed_provider_configs().unwrap();
         let zai = configs.iter().find(|c| c.name == "zai").cloned().unwrap();
         let builder = from_declarative_config(zai, None, StubKeyResolver).unwrap();
-        assert!(builder.format_options.emit_clear_thinking);
+
+        let mut model = ModelConfig::new("glm-4.7");
+        model.max_tokens = Some(64_000);
+        let messages = vec![
+            Message::assistant().with_content(MessageContent::thinking("internal", "")),
+            Message::user().with_text("Continue"),
+        ];
+
+        let payload = create_request_for_model(
+            "zai",
+            &model,
+            "glm-4.7",
+            "system",
+            &messages,
+            &[],
+            builder.format_options,
+        )
+        .unwrap();
+
+        assert_eq!(payload["thinking"]["clear_thinking"], false);
     }
 
     fn make_provider_with_custom_models(

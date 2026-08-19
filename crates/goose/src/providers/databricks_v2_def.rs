@@ -15,7 +15,28 @@ pub struct DatabricksV2ProviderDef;
 
 impl ProviderDescriptor for DatabricksV2ProviderDef {
     fn metadata() -> goose_providers::base::ProviderMetadata {
-        DatabricksV2Provider::metadata()
+        DatabricksV2Provider::metadata().with_setup(
+            crate::providers::catalog::ProviderSetupMetadata::new(
+                crate::providers::catalog::ProviderSetupCategory::Model,
+                crate::providers::catalog::ProviderSetupMethod::HostWithOauthFallback,
+                crate::providers::catalog::ProviderSetupGroup::Additional,
+            )
+            .with_docs_url("https://docs.databricks.com/en/generative-ai/ai-gateway/")
+            .with_aliases(&["databricks_ai_gateway"])
+            .with_capabilities(false, true, false)
+            .with_field(
+                "DATABRICKS_HOST",
+                "Host URL",
+                Some("https://dbc-...cloud.databricks.com"),
+                None,
+            )
+            .with_field(
+                "DATABRICKS_TOKEN",
+                "Access Token",
+                Some("Paste your access token"),
+                None,
+            ),
+        )
     }
 }
 

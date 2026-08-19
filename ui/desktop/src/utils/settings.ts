@@ -1,8 +1,14 @@
+export type RecentModel = {
+  provider: string;
+  model: string;
+};
+
 export interface ExternalBackendConfig {
   enabled: boolean;
   url: string;
   secret: string;
   certFingerprint?: string;
+  workingDir?: string;
 }
 
 export interface KeyboardShortcuts {
@@ -48,6 +54,7 @@ export interface Settings {
   responseStyle: string;
   showPricing: boolean;
   seenAnnouncementIds: string[];
+  recentModels: RecentModel[];
 }
 
 export type SettingKey = keyof Settings;
@@ -88,6 +95,7 @@ export const defaultSettings: Settings = {
   responseStyle: 'concise',
   showPricing: true,
   seenAnnouncementIds: [],
+  recentModels: [],
 };
 
 export function getKeyboardShortcuts(settings: Settings): KeyboardShortcuts {

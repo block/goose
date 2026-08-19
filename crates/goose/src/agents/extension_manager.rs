@@ -45,7 +45,7 @@ use crate::builtin_extension::get_builtin_extension;
 use crate::config::extensions::name_to_key;
 use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
-use crate::oauth::{oauth_flow, GooseCredentialStore};
+use crate::oauth::{oauth_flow, GooseCredentialStore, StaticOAuthClientConfig};
 use crate::prompt_template;
 use crate::subprocess::configure_subprocess;
 use rmcp::model::{
@@ -62,6 +62,7 @@ const TOOL_CALL_NOTIFICATION_CHANNEL_CAPACITY: usize = 32;
 
 struct ActionRequiredStream {
     inner: ReceiverStream<crate::conversation::message::Message>,
+    manager: Arc<ActionRequiredManager>,
     session_id: String,
     tool_call_request_id: String,
 }
@@ -69,11 +70,13 @@ struct ActionRequiredStream {
 impl ActionRequiredStream {
     fn new(
         receiver: tokio::sync::mpsc::Receiver<crate::conversation::message::Message>,
+        manager: Arc<ActionRequiredManager>,
         session_id: String,
         tool_call_request_id: String,
     ) -> Self {
         Self {
             inner: ReceiverStream::new(receiver),
+            manager,
             session_id,
             tool_call_request_id,
         }
@@ -90,13 +93,14 @@ impl Stream for ActionRequiredStream {
 
 impl Drop for ActionRequiredStream {
     fn drop(&mut self) {
+        let manager = self.manager.clone();
         let session_id = self.session_id.clone();
         let tool_call_request_id = self.tool_call_request_id.clone();
         let Ok(handle) = tokio::runtime::Handle::try_current() else {
             return;
         };
         handle.spawn(async move {
-            ActionRequiredManager::global()
+            manager
                 .unregister_action_required_stream(&session_id, &tool_call_request_id)
                 .await;
         });
@@ -413,6 +417,7 @@ async fn child_process_client(
     docker_container: Option<String>,
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
+    action_required: Arc<ActionRequiredManager>,
     extension_manager: Weak<ExtensionManager>,
 ) -> ExtensionResult<McpClient> {
     configure_subprocess(&mut command);
@@ -452,6 +457,7 @@ async fn child_process_client(
         client_name,
         capabilities,
         working_dir.clone(),
+        action_required,
         extension_manager,
     )
     .await;
@@ -583,6 +589,67 @@ pub(crate) async fn merge_environments(
     Ok(Envs::new(all_envs).get_env())
 }
 
+/// Build the pre-registered OAuth client config for a streamable_http
+/// extension. The secret is referenced by key and resolved from the merged
+/// environment or the config secret store, so it is never stored inline in
+/// the extension config.
+fn resolve_static_oauth_client(
+    client_id: Option<&str>,
+    client_secret_key: Option<&str>,
+    scopes: &[String],
+    envs: &HashMap<String, String>,
+    config: &Config,
+) -> Result<Option<StaticOAuthClientConfig>, Box<ExtensionError>> {
+    let Some(client_id) = client_id else {
+        if client_secret_key.is_some() {
+            return Err(Box::new(ExtensionError::ConfigError(
+                "client_secret_key requires client_id".to_string(),
+            )));
+        }
+        if !scopes.is_empty() {
+            return Err(Box::new(ExtensionError::ConfigError(
+                "scopes requires client_id".to_string(),
+            )));
+        }
+        return Ok(None);
+    };
+
+    let client_secret = match client_secret_key {
+        Some(key) => Some(resolve_secret_value(key, envs, config)?),
+        None => None,
+    };
+
+    Ok(Some(StaticOAuthClientConfig {
+        client_id: substitute_env_vars(client_id, envs),
+        client_secret,
+        scopes: scopes.to_vec(),
+    }))
+}
+
+fn resolve_secret_value(
+    key: &str,
+    envs: &HashMap<String, String>,
+    config: &Config,
+) -> Result<String, Box<ExtensionError>> {
+    if let Some(value) = envs.get(key) {
+        return Ok(value.clone());
+    }
+
+    let value = config.get(key, true).map_err(|error| {
+        Box::new(ExtensionError::ConfigError(format!(
+            "Failed to fetch secret '{}' from config: {}",
+            key, error
+        )))
+    })?;
+
+    value.as_str().map(str::to_string).ok_or_else(|| {
+        Box::new(ExtensionError::ConfigError(format!(
+            "Secret '{}' is not a string",
+            key
+        )))
+    })
+}
+
 /// Substitute environment variables in a string. Supports both ${VAR} and $VAR syntax.
 pub(crate) fn substitute_env_vars(value: &str, env_map: &HashMap<String, String>) -> String {
     let mut result = value.to_string();
@@ -616,6 +683,7 @@ const GOOSE_USER_AGENT: reqwest::header::HeaderValue =
 #[allow(clippy::too_many_arguments)]
 async fn connect_with_auth(
     auth_manager: rmcp::transport::AuthorizationManager,
+    action_required: Arc<ActionRequiredManager>,
     uri: &str,
     timeout: Duration,
     headers: &HashMap<String, String>,
@@ -658,6 +726,7 @@ async fn connect_with_auth(
             client_name,
             capabilities,
             roots_dir.to_path_buf(),
+            action_required,
             extension_manager,
         )
         .await?,
@@ -671,11 +740,13 @@ async fn create_streamable_http_client(
     headers: &HashMap<String, String>,
     name: &str,
     socket: Option<&str>,
+    static_oauth_client: Option<StaticOAuthClientConfig>,
     credential_store: Box<dyn CredentialStore>,
     provider: SharedProvider,
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    action_required: Arc<ActionRequiredManager>,
     extension_manager: Weak<ExtensionManager>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     #[cfg(unix)]
@@ -690,6 +761,7 @@ async fn create_streamable_http_client(
             client_name,
             capabilities,
             roots_dir,
+            action_required,
             extension_manager,
         )
         .await;
@@ -735,10 +807,17 @@ async fn create_streamable_http_client(
     // If we have stored OAuth credentials, try refreshing and connecting directly.
     // This avoids the unnecessary 401 → browser re-auth cycle on every new session.
     if credential_store.load().await.is_ok_and(|c| c.is_some()) {
-        match oauth_flow(&uri.to_string(), &name.to_string()).await {
+        match oauth_flow(
+            &uri.to_string(),
+            &name.to_string(),
+            static_oauth_client.as_ref(),
+        )
+        .await
+        {
             Ok(auth_manager) => {
                 let auth_result = connect_with_auth(
                     auth_manager,
+                    action_required.clone(),
                     uri,
                     timeout_duration,
                     headers,
@@ -785,15 +864,23 @@ async fn create_streamable_http_client(
         client_name.clone(),
         capabilities.clone(),
         roots_dir.to_path_buf(),
+        action_required.clone(),
         extension_manager.clone(),
     )
     .await;
 
     if should_attempt_oauth_fallback(&client_res) {
-        match oauth_flow(&uri.to_string(), &name.to_string()).await {
+        match oauth_flow(
+            &uri.to_string(),
+            &name.to_string(),
+            static_oauth_client.as_ref(),
+        )
+        .await
+        {
             Ok(auth_manager) => {
                 connect_with_auth(
                     auth_manager,
+                    action_required,
                     uri,
                     timeout_duration,
                     headers,
@@ -830,6 +917,7 @@ async fn create_unix_socket_http_client(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    action_required: Arc<ActionRequiredManager>,
     extension_manager: Weak<ExtensionManager>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     use rmcp::transport::UnixSocketHttpClient;
@@ -868,6 +956,7 @@ async fn create_unix_socket_http_client(
         client_name.clone(),
         capabilities.clone(),
         roots_dir.to_path_buf(),
+        action_required,
         extension_manager,
     )
     .await;
@@ -893,6 +982,7 @@ impl ExtensionManager {
     pub fn new(
         provider: SharedProvider,
         session_manager: Arc<crate::session::SessionManager>,
+        scheduler: Option<Arc<dyn crate::scheduler_trait::SchedulerTrait>>,
         client_name: String,
         capabilities: ExtensionManagerCapabilities,
         use_login_shell_path: bool,
@@ -902,6 +992,7 @@ impl ExtensionManager {
             context: PlatformExtensionContext {
                 extension_manager: None,
                 session_manager,
+                scheduler,
                 session: None,
                 use_login_shell_path,
             },
@@ -918,6 +1009,7 @@ impl ExtensionManager {
         Self::new(
             Arc::new(Mutex::new(None)),
             session_manager,
+            None,
             "goose-cli".to_string(),
             ExtensionManagerCapabilities {
                 mcpui: false,
@@ -992,6 +1084,9 @@ impl ExtensionManager {
                 envs,
                 env_keys,
                 socket,
+                client_id,
+                client_secret_key,
+                scopes,
                 ..
             } => {
                 let config = Config::global();
@@ -1002,17 +1097,27 @@ impl ExtensionManager {
                     .map(|(k, v)| (k.clone(), substitute_env_vars(v, &all_envs)))
                     .collect();
                 let resolved_socket = socket.as_ref().map(|s| substitute_env_vars(s, &all_envs));
+                let static_oauth_client = resolve_static_oauth_client(
+                    client_id.as_deref(),
+                    client_secret_key.as_deref(),
+                    scopes,
+                    &all_envs,
+                    config,
+                )
+                .map_err(|error| *error)?;
                 create_streamable_http_client(
                     &resolved_uri,
                     *timeout,
                     &resolved_headers,
                     name,
                     resolved_socket.as_deref(),
+                    static_oauth_client,
                     Box::new(GooseCredentialStore::new(name.to_string())),
                     self.provider.clone(),
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
                     &effective_working_dir,
+                    self.context.session_manager.action_required(),
                     Arc::downgrade(self),
                 )
                 .await?
@@ -1037,7 +1142,12 @@ impl ExtensionManager {
                             context.session = Some(Arc::new(session));
                         }
                     }
-                    (def.client_factory)(context)
+                    // A platform extension the host cannot provide (no scheduler
+                    // service, say) declines rather than registering with no tools.
+                    let Some(client) = (def.client_factory)(context) else {
+                        return Ok(());
+                    };
+                    client
                 } else {
                     // Builtin MCP server extension
                     let timeout_secs = resolve_timeout(timeout);
@@ -1071,6 +1181,7 @@ impl ExtensionManager {
                             Some(container_id.to_string()),
                             self.client_name.clone(),
                             self.mcp_client_capabilities(),
+                            self.context.session_manager.action_required(),
                             Arc::downgrade(self),
                         )
                         .await?;
@@ -1088,6 +1199,7 @@ impl ExtensionManager {
                                 self.client_name.clone(),
                                 self.mcp_client_capabilities(),
                                 effective_working_dir.clone(),
+                                self.context.session_manager.action_required(),
                                 Arc::downgrade(self),
                             )
                             .await?,
@@ -1150,6 +1262,7 @@ impl ExtensionManager {
                     container.map(|c| c.id().to_string()),
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
+                    self.context.session_manager.action_required(),
                     Arc::downgrade(self),
                 )
                 .await?;
@@ -1183,6 +1296,7 @@ impl ExtensionManager {
                     container.map(|c| c.id().to_string()),
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
+                    self.context.session_manager.action_required(),
                     Arc::downgrade(self),
                 )
                 .await?;
@@ -1261,18 +1375,6 @@ impl ExtensionManager {
                 tracing::warn!(extension = %name, error = %e, "failed to update roots");
             }
         }
-    }
-
-    pub async fn get_extension_and_tool_counts(&self, session_id: &str) -> (usize, usize) {
-        let enabled_extensions_count = self.extensions.lock().await.len();
-
-        let total_tools = self
-            .get_prefixed_tools(session_id, None)
-            .await
-            .map(|tools| tools.len())
-            .unwrap_or(0);
-
-        (enabled_extensions_count, total_tools)
     }
 
     pub async fn list_extensions(&self) -> ExtensionResult<Vec<String>> {
@@ -1819,7 +1921,7 @@ impl ExtensionManager {
         ctx: &super::tool_execution::ToolCallContext,
         tool_call: CallToolRequestParams,
         cancellation_token: CancellationToken,
-    ) -> Result<ToolCallResult> {
+    ) -> std::result::Result<ToolCallResult, ErrorData> {
         let tool_name_str = tool_call.name.to_string();
         let resolved = self.resolve_tool(&ctx.session_id, &tool_name_str).await?;
 
@@ -1835,8 +1937,7 @@ impl ExtensionManager {
                         resolved.actual_tool_name, resolved.extension_name
                     ),
                     None,
-                )
-                .into());
+                ));
             }
         }
 
@@ -1846,16 +1947,17 @@ impl ExtensionManager {
         let client_notifications_receiver = client.subscribe().await;
         let session_id = ctx.session_id.clone();
         let action_required_tool_call_request_id = ctx.tool_call_request_id.clone();
+        let action_required_manager = self.context.session_manager.action_required();
         let action_required_receiver =
             if let Some(tool_call_request_id) = action_required_tool_call_request_id.clone() {
-                if ActionRequiredManager::global()
+                if action_required_manager
                     .has_action_required_stream(&session_id, &tool_call_request_id)
                     .await
                 {
                     None
                 } else {
                     let registered_tool_call_request_id = tool_call_request_id.clone();
-                    let receiver = ActionRequiredManager::global()
+                    let receiver = action_required_manager
                         .register_action_required_stream(session_id.clone(), tool_call_request_id)
                         .await;
                     Some((
@@ -1947,6 +2049,7 @@ impl ExtensionManager {
                 |(rx, session_id, tool_call_request_id)| {
                     Box::new(ActionRequiredStream::new(
                         rx,
+                        action_required_manager,
                         session_id,
                         tool_call_request_id,
                     )) as _
@@ -2129,7 +2232,7 @@ impl ExtensionManager {
     }
 
     pub async fn collect_moim_parts(&self, session_id: &str) -> Vec<String> {
-        let platform_clients: Vec<(String, McpClientBox)> = {
+        let mut platform_clients: Vec<(String, McpClientBox)> = {
             let extensions = self.extensions.lock().await;
             extensions
                 .iter()
@@ -2149,6 +2252,9 @@ impl ExtensionManager {
                 })
                 .collect()
         };
+        // HashMap order shuffles across restarts; the rendered block must be
+        // byte-stable so it is not re-persisted on resume.
+        platform_clients.sort_by(|a, b| a.0.cmp(&b.0));
 
         let mut parts = Vec::new();
         for (name, client) in platform_clients {
@@ -2165,6 +2271,160 @@ impl ExtensionManager {
 mod tests {
     use super::*;
     use rmcp::model::CallToolResult;
+
+    mod static_oauth_client {
+        use super::*;
+
+        fn test_config(dir: &tempfile::TempDir) -> Config {
+            Config::new_with_file_secrets(
+                dir.path().join("config.yaml"),
+                dir.path().join("secrets.yaml"),
+            )
+            .unwrap()
+        }
+
+        #[test]
+        fn absent_client_id_yields_no_static_client() {
+            let dir = tempfile::tempdir().unwrap();
+            let config = test_config(&dir);
+
+            let resolved =
+                resolve_static_oauth_client(None, None, &[], &HashMap::new(), &config).unwrap();
+
+            assert_eq!(resolved, None);
+        }
+
+        #[test]
+        fn client_id_without_secret_resolves_public_client() {
+            let dir = tempfile::tempdir().unwrap();
+            let config = test_config(&dir);
+
+            let resolved = resolve_static_oauth_client(
+                Some("registered-client"),
+                None,
+                &["scope.read".to_string()],
+                &HashMap::new(),
+                &config,
+            )
+            .unwrap()
+            .unwrap();
+
+            assert_eq!(resolved.client_id, "registered-client");
+            assert_eq!(resolved.client_secret, None);
+            assert_eq!(resolved.scopes, vec!["scope.read"]);
+        }
+
+        #[test]
+        fn client_id_supports_env_substitution() {
+            let dir = tempfile::tempdir().unwrap();
+            let config = test_config(&dir);
+            let envs = HashMap::from([(
+                "OAUTH_CLIENT_ID".to_string(),
+                "registered-client".to_string(),
+            )]);
+
+            let resolved =
+                resolve_static_oauth_client(Some("${OAUTH_CLIENT_ID}"), None, &[], &envs, &config)
+                    .unwrap()
+                    .unwrap();
+
+            assert_eq!(resolved.client_id, "registered-client");
+        }
+
+        #[test]
+        fn client_secret_resolves_from_envs() {
+            let dir = tempfile::tempdir().unwrap();
+            let config = test_config(&dir);
+            let envs = HashMap::from([(
+                "OAUTH_CLIENT_SECRET".to_string(),
+                "secret-value".to_string(),
+            )]);
+
+            let resolved = resolve_static_oauth_client(
+                Some("registered-client"),
+                Some("OAUTH_CLIENT_SECRET"),
+                &[],
+                &envs,
+                &config,
+            )
+            .unwrap()
+            .unwrap();
+
+            assert_eq!(resolved.client_secret.as_deref(), Some("secret-value"));
+        }
+
+        #[test]
+        fn client_secret_falls_back_to_config_secret_store() {
+            let dir = tempfile::tempdir().unwrap();
+            let config = test_config(&dir);
+            config
+                .set("OAUTH_CLIENT_SECRET", &"stored-secret", true)
+                .unwrap();
+
+            let resolved = resolve_static_oauth_client(
+                Some("registered-client"),
+                Some("OAUTH_CLIENT_SECRET"),
+                &[],
+                &HashMap::new(),
+                &config,
+            )
+            .unwrap()
+            .unwrap();
+
+            assert_eq!(resolved.client_secret.as_deref(), Some("stored-secret"));
+        }
+
+        #[test]
+        fn client_secret_key_without_client_id_is_rejected() {
+            let dir = tempfile::tempdir().unwrap();
+            let config = test_config(&dir);
+
+            let error = resolve_static_oauth_client(
+                None,
+                Some("OAUTH_CLIENT_SECRET"),
+                &[],
+                &HashMap::new(),
+                &config,
+            )
+            .unwrap_err();
+
+            assert!(matches!(*error, ExtensionError::ConfigError(_)));
+        }
+
+        #[test]
+        fn scopes_without_client_id_are_rejected() {
+            let dir = tempfile::tempdir().unwrap();
+            let config = test_config(&dir);
+
+            let error = resolve_static_oauth_client(
+                None,
+                None,
+                &["scope.read".to_string()],
+                &HashMap::new(),
+                &config,
+            )
+            .unwrap_err();
+
+            assert!(matches!(*error, ExtensionError::ConfigError(_)));
+        }
+
+        #[test]
+        fn missing_client_secret_key_is_an_error() {
+            let dir = tempfile::tempdir().unwrap();
+            let config = test_config(&dir);
+
+            let error = resolve_static_oauth_client(
+                Some("registered-client"),
+                Some("MISSING_KEY"),
+                &[],
+                &HashMap::new(),
+                &config,
+            )
+            .unwrap_err();
+
+            assert!(matches!(*error, ExtensionError::ConfigError(_)));
+        }
+    }
     use rmcp::model::{CustomNotification, InitializeResult, JsonObject};
     use rmcp::{object, ServiceError as Error};
 
@@ -2541,8 +2801,7 @@ mod tests {
             .dispatch_tool_call(&ctx, invalid_tool_call, CancellationToken::default())
             .await;
         if let Err(err) = result {
-            let tool_err = err.downcast_ref::<ErrorData>().expect("Expected ErrorData");
-            assert_eq!(tool_err.code, ErrorCode::RESOURCE_NOT_FOUND);
+            assert_eq!(err.code, ErrorCode::RESOURCE_NOT_FOUND);
         } else {
             panic!("Expected ErrorData with ErrorCode::RESOURCE_NOT_FOUND");
         }
@@ -2554,8 +2813,7 @@ mod tests {
             .dispatch_tool_call(&ctx, invalid_tool_call, CancellationToken::default())
             .await;
         if let Err(err) = result {
-            let tool_err = err.downcast_ref::<ErrorData>().expect("Expected ErrorData");
-            assert_eq!(tool_err.code, ErrorCode::RESOURCE_NOT_FOUND);
+            assert_eq!(err.code, ErrorCode::RESOURCE_NOT_FOUND);
         } else {
             panic!("Expected ErrorData with ErrorCode::RESOURCE_NOT_FOUND");
         }
@@ -2659,8 +2917,7 @@ mod tests {
             .await;
 
         if let Err(err) = result {
-            let tool_err = err.downcast_ref::<ErrorData>().expect("Expected ErrorData");
-            assert_eq!(tool_err.code, ErrorCode::RESOURCE_NOT_FOUND);
+            assert_eq!(err.code, ErrorCode::RESOURCE_NOT_FOUND);
         } else {
             panic!("Expected ErrorData with ErrorCode::RESOURCE_NOT_FOUND");
         }
@@ -3350,11 +3607,13 @@ mod tests {
             &headers,
             "test-ext",
             None,
+            None,
             Box::new(rmcp::transport::auth::InMemoryCredentialStore::new()),
             provider,
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            Arc::new(ActionRequiredManager::new()),
             Weak::new(),
         )
         .await;
@@ -3386,11 +3645,13 @@ mod tests {
             &headers,
             "test-ext",
             None,
+            None,
             Box::new(rmcp::transport::auth::InMemoryCredentialStore::new()),
             provider,
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            Arc::new(ActionRequiredManager::new()),
             Weak::new(),
         )
         .await;
@@ -3433,11 +3694,13 @@ mod tests {
             &headers,
             "test-ext",
             None,
+            None,
             Box::new(rmcp::transport::auth::InMemoryCredentialStore::new()),
             provider,
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            Arc::new(ActionRequiredManager::new()),
             Weak::new(),
         )
         .await;
@@ -3513,6 +3776,7 @@ mod tests {
         // only care that the outgoing request carried the custom header.
         let _ = connect_with_auth(
             auth_manager,
+            Arc::new(ActionRequiredManager::new()),
             &mock_server.uri(),
             Duration::from_secs(5),
             &headers,

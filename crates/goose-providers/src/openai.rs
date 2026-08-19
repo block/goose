@@ -1353,6 +1353,7 @@ mod tests {
             fast_model: None,
             preserves_thinking: false,
             emit_clear_thinking: false,
+            setup: None,
         }
     }
 

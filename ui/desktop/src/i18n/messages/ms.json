@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "Sambungan terputus. Menyambung semula…"
   },
+  "baseChat.retry": {
+    "defaultMessage": "Cuba semula"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Sambungan Dikemas Kini"
   },
@@ -929,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Direktori terkini"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "Gagal beralih ke {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "Tiada cabang ditemui"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "Cari cabang…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "Anda mungkin mempunyai perubahan yang belum dikomit."
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Terima"
   },
@@ -1225,6 +1240,15 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Sambung ke pelayan goose yang berjalan di tempat lain (memerlukan memulakan semula aplikasi)"
+  },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "Direktori kerja jauh (pilihan)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "Laluan mutlak pada backend luaran. Biarkan kosong untuk menghantar direktori kerja setempat."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
   },
   "goosehintsModal.close": {
     "defaultMessage": "Tutup"
@@ -4612,5 +4636,35 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "Alih keluar imej daripada mesej"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "Terkini"
+  },
+  "providerConfigurationModal.chooseModel": {
+    "defaultMessage": "Pilih Model"
+  },
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Tidak digunakan lagi — gunakan {replacement} sebagai gantinya."
+  },
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "Penyesuai ACP ditemui"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "Penyesuai ACP tidak ditemui"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Log masuk melalui CLI penyedia, kemudian semak semula."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Semak semula"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "Menyemak..."
+  },
+  "acpReadinessPanel.connected": {
+    "defaultMessage": "Berjaya disambungkan"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Semak sambungan akaun anda sebelum meneruskan."
   }
 }

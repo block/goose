@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "Conexión perdida. Reconectando…"
   },
+  "baseChat.retry": {
+    "defaultMessage": "Reintentar"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extensión actualizada"
   },
@@ -929,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Directorios recientes"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "No se pudo cambiar a {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "No se encontraron ramas"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "Buscar ramas…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "Puede que tengas cambios sin confirmar."
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Aceptar"
   },
@@ -1225,6 +1240,15 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Conéctate a un servidor goose que se ejecuta en otro lugar (requiere reiniciar la app)"
+  },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "Directorio de trabajo remoto (opcional)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "Ruta absoluta en el backend externo. Déjelo vacío para enviar el directorio de trabajo local."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
   },
   "goosehintsModal.close": {
     "defaultMessage": "Cerrar"
@@ -4612,5 +4636,35 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "Eliminar imagen del mensaje"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "Recientes"
+  },
+  "providerConfigurationModal.chooseModel": {
+    "defaultMessage": "Elegir modelo"
+  },
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Obsoleto: usa {replacement} en su lugar."
+  },
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "Adaptador ACP encontrado"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "Adaptador ACP no encontrado"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Inicia sesión mediante la CLI del proveedor y vuelve a comprobarlo."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Comprobar de nuevo"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "Comprobando..."
+  },
+  "acpReadinessPanel.connected": {
+    "defaultMessage": "Conectado correctamente"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Comprueba la conexión de tu cuenta antes de continuar."
   }
 }

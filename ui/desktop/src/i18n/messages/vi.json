@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "Mất kết nối. Đang kết nối lại…"
   },
+  "baseChat.retry": {
+    "defaultMessage": "Thử lại"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Đã cập nhật tiện ích mở rộng"
   },
@@ -929,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Thư mục gần đây"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "Không thể chuyển sang {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "Không tìm thấy nhánh"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "Tìm kiếm nhánh…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "Bạn có thể có các thay đổi chưa commit."
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Chấp nhận"
   },
@@ -1225,6 +1240,15 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Kết nối tới một máy chủ goose đang chạy ở nơi khác (cần khởi động lại ứng dụng)"
+  },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "Thư mục làm việc từ xa (tùy chọn)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "Đường dẫn tuyệt đối trên backend bên ngoài. Để trống để gửi thư mục làm việc cục bộ."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
   },
   "goosehintsModal.close": {
     "defaultMessage": "Đóng"
@@ -4612,5 +4636,35 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "Xóa hình ảnh khỏi tin nhắn"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "Gần đây"
+  },
+  "providerConfigurationModal.chooseModel": {
+    "defaultMessage": "Chọn mô hình"
+  },
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Không còn được dùng — hãy sử dụng {replacement}."
+  },
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "Đã tìm thấy bộ điều hợp ACP"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "Không tìm thấy bộ điều hợp ACP"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Đăng nhập qua CLI của nhà cung cấp, sau đó kiểm tra lại."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Kiểm tra lại"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "Đang kiểm tra..."
+  },
+  "acpReadinessPanel.connected": {
+    "defaultMessage": "Kết nối thành công"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Hãy kiểm tra kết nối tài khoản trước khi tiếp tục."
   }
 }

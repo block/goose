@@ -422,10 +422,25 @@ impl GatewayHandler {
                 .await?;
         }
 
-        let agent = self
+        let agent = match self
             .agent_manager
             .get_or_create_agent(session_id.to_string())
-            .await?;
+            .await
+        {
+            Ok(agent) => agent,
+            Err(error) if crate::acp::is_auth_required(&error) => {
+                self.gateway
+                    .send_message(
+                        &message.user,
+                        OutgoingMessage::Text {
+                            body: format!("⚠️ Failed to configure provider: {error}"),
+                        },
+                    )
+                    .await?;
+                return Ok(());
+            }
+            Err(error) => return Err(error),
+        };
 
         // Re-read the session after sync so restore picks up the new values.
         let session = self

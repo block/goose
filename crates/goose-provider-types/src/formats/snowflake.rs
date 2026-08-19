@@ -64,7 +64,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 }
                 MessageContentBlock::ToolConfirmationRequest(_) => {}
                 MessageContentBlock::ActionRequired(_) => {}
-                MessageContentBlock::SystemNotification(_) => {
+                MessageContentBlock::SystemNotification(_) | MessageContentBlock::Error(_) => {
                     // Skip
                 }
                 MessageContentBlock::Thinking(_thinking) => {

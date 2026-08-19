@@ -1,10 +1,11 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
+use goose_providers::cache_semantics::apply_chat_payload_breakpoints;
 use goose_providers::conversation::token_usage::ProviderUsage;
 use goose_providers::errors::ProviderError;
 use goose_providers::images::ImageFormat;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::collections::HashMap;
 
 use super::api_client::{ApiClient, AuthMethod};
@@ -21,6 +22,7 @@ use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
 
 const LITELLM_PROVIDER_NAME: &str = "litellm";
+const LITELLM_DEFAULT_HOST: &str = "http://localhost:4000";
 pub const LITELLM_DEFAULT_MODEL: &str = "gpt-4o-mini";
 pub const LITELLM_DOC_URL: &str = "https://docs.litellm.ai/docs/";
 
@@ -46,7 +48,7 @@ impl LiteLLMProvider {
         let api_key = secrets.get("LITELLM_API_KEY").cloned().unwrap_or_default();
         let host: String = config
             .get_param("LITELLM_HOST")
-            .unwrap_or_else(|_| "https://api.litellm.ai".to_string());
+            .unwrap_or_else(|_| LITELLM_DEFAULT_HOST.to_string());
         let base_path: String = config
             .get_param("LITELLM_BASE_PATH")
             .unwrap_or_else(|_| "v1/chat/completions".to_string());
@@ -176,7 +178,7 @@ impl goose_providers::base::ProviderDescriptor for LiteLLMProvider {
                     "LITELLM_HOST",
                     true,
                     false,
-                    Some("http://localhost:4000"),
+                    Some(LITELLM_DEFAULT_HOST),
                     true,
                 ),
                 ConfigKey::new(
@@ -189,6 +191,25 @@ impl goose_providers::base::ProviderDescriptor for LiteLLMProvider {
                 ConfigKey::new("LITELLM_CUSTOM_HEADERS", false, true, None, false),
                 ConfigKey::new("LITELLM_TIMEOUT", false, false, Some("600"), false),
             ],
+        )
+        .with_setup(
+            crate::providers::catalog::ProviderSetupMetadata::new(
+                crate::providers::catalog::ProviderSetupCategory::Model,
+                crate::providers::catalog::ProviderSetupMethod::ConfigFields,
+                crate::providers::catalog::ProviderSetupGroup::Additional,
+            )
+            .with_field(
+                "LITELLM_HOST",
+                "Host URL",
+                Some("https://your-proxy.example.com"),
+                None,
+            )
+            .with_field(
+                "LITELLM_API_KEY",
+                "API Key",
+                Some("Paste your API key"),
+                None,
+            ),
         )
     }
 }
@@ -247,8 +268,9 @@ impl Provider for LiteLLMProvider {
             false,
         )?;
 
-        if self.supports_cache_control(model_config).await {
-            payload = update_request_for_cache_control(&payload);
+        if !model_config.prompt_cache_disabled() && self.supports_cache_control(model_config).await
+        {
+            apply_chat_payload_breakpoints(&mut payload);
         }
 
         let response = self
@@ -278,71 +300,6 @@ impl Provider for LiteLLMProvider {
         let models = self.get_or_fetch_models().await?;
         Ok(models.iter().map(|m| m.name.clone()).collect())
     }
-}
-
-/// Updates the request payload to include cache control headers for automatic prompt caching
-/// Adds ephemeral cache control to the last 2 user messages, system message, and last tool
-pub fn update_request_for_cache_control(original_payload: &Value) -> Value {
-    let mut payload = original_payload.clone();
-
-    if let Some(messages_spec) = payload
-        .as_object_mut()
-        .and_then(|obj| obj.get_mut("messages"))
-        .and_then(|messages| messages.as_array_mut())
-    {
-        let mut user_count = 0;
-        for message in messages_spec.iter_mut().rev() {
-            if message.get("role") == Some(&json!("user")) {
-                if let Some(content) = message.get_mut("content") {
-                    if let Some(content_str) = content.as_str() {
-                        *content = json!([{
-                            "type": "text",
-                            "text": content_str,
-                            "cache_control": { "type": "ephemeral" }
-                        }]);
-                    }
-                }
-                user_count += 1;
-                if user_count >= 2 {
-                    break;
-                }
-            }
-        }
-
-        if let Some(system_message) = messages_spec
-            .iter_mut()
-            .find(|msg| msg.get("role") == Some(&json!("system")))
-        {
-            if let Some(content) = system_message.get_mut("content") {
-                if let Some(content_str) = content.as_str() {
-                    *system_message = json!({
-                        "role": "system",
-                        "content": [{
-                            "type": "text",
-                            "text": content_str,
-                            "cache_control": { "type": "ephemeral" }
-                        }]
-                    });
-                }
-            }
-        }
-    }
-
-    if let Some(tools_spec) = payload
-        .as_object_mut()
-        .and_then(|obj| obj.get_mut("tools"))
-        .and_then(|tools| tools.as_array_mut())
-    {
-        if let Some(last_tool) = tools_spec.last_mut() {
-            if let Some(function) = last_tool.get_mut("function") {
-                function
-                    .as_object_mut()
-                    .unwrap()
-                    .insert("cache_control".to_string(), json!({ "type": "ephemeral" }));
-            }
-        }
-    }
-    payload
 }
 
 fn parse_custom_headers(headers_str: String) -> HashMap<String, String> {

@@ -400,6 +400,12 @@ fn message_to_markdown_for_audience(
                             .unwrap_or_else(|_| "{}".to_string())
                     ));
                 }
+                ActionRequiredData::ToolConfirmationResponse { id, permission } => {
+                    md.push_str(&format!(
+                        "**Action Required** (tool_confirmation_response): {} {:?}\n\n",
+                        id, permission
+                    ));
+                }
             },
             MessageContent::Text(text) => {
                 md.push_str(&text.text);
@@ -432,6 +438,9 @@ fn message_to_markdown_for_audience(
             MessageContent::RedactedThinking(_) => {
                 md.push_str("**Thinking:**\n");
                 md.push_str("> *Thinking was redacted*\n\n");
+            }
+            MessageContent::Error(error) => {
+                md.push_str(&format!("**Error**: {}\n\n", error.message));
             }
             MessageContent::SystemNotification(notification) => {
                 md.push_str(&format!("*{}*\n\n", notification.msg));

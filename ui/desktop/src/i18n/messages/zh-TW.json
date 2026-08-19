@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "連線已中斷。正在重新連線…"
   },
+  "baseChat.retry": {
+    "defaultMessage": "重試"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "擴充功能已更新"
   },
@@ -929,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "最近的目錄"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "無法切換至 {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "找不到分支"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "搜尋分支…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "你可能有尚未提交的變更。"
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "接受"
   },
@@ -1225,6 +1240,15 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "連線至在其他位置執行的 goose 伺服器（需要重新啟動應用程式）"
+  },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "遠端工作目錄（選用）"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "外部後端上的絕對路徑。留空時將傳送本機工作目錄。"
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
   },
   "goosehintsModal.close": {
     "defaultMessage": "關閉"
@@ -4612,5 +4636,35 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "從訊息中移除圖片"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "最近"
+  },
+  "providerConfigurationModal.chooseModel": {
+    "defaultMessage": "選擇模型"
+  },
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "已棄用 — 請改用 {replacement}。"
+  },
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "已找到 ACP 轉接器"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "找不到 ACP 轉接器"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "請透過提供者 CLI 登入，然後再次檢查。"
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "再次檢查"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "正在檢查…"
+  },
+  "acpReadinessPanel.connected": {
+    "defaultMessage": "連線成功"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "請先檢查帳戶連線，然後再繼續。"
   }
 }

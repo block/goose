@@ -216,6 +216,7 @@ pub fn create_custom_provider(
         fast_model: None,
         preserves_thinking,
         emit_clear_thinking: false,
+        setup: None,
     };
 
     let custom_providers_dir = custom_providers_dir();
@@ -297,6 +298,7 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             fast_model: existing_config.fast_model.clone(),
             preserves_thinking,
             emit_clear_thinking: existing_config.emit_clear_thinking,
+            setup: existing_config.setup,
         };
 
         let file_path = custom_provider_file_path(&updated_config.name)?;
@@ -568,6 +570,7 @@ mod tests {
             fast_model: None,
             preserves_thinking: true,
             emit_clear_thinking: false,
+            setup: None,
         }
     }
 

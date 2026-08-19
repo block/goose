@@ -170,6 +170,14 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
         let user_message = Message::user().with_text(user_task);
         let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
 
+        agent
+            .config
+            .session_manager
+            .update(&session_id)
+            .recipe(Some(recipe.clone()))
+            .apply()
+            .await?;
+
         if let Some(activities) = recipe.activities {
             for activity in activities {
                 info!("Recipe activity: {}", activity);

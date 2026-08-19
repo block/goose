@@ -189,16 +189,18 @@ pub struct GooseClient {
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     working_dir: Arc<tokio::sync::RwLock<PathBuf>>,
+    action_required: Arc<ActionRequiredManager>,
     extension_manager: Weak<ExtensionManager>,
 }
 
 impl GooseClient {
-    pub fn new(
+    pub(crate) fn new(
         handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
         provider: SharedProvider,
         client_name: String,
         capabilities: GooseMcpClientCapabilities,
         working_dir: PathBuf,
+        action_required: Arc<ActionRequiredManager>,
         extension_manager: Weak<ExtensionManager>,
     ) -> Self {
         GooseClient {
@@ -209,6 +211,7 @@ impl GooseClient {
             client_name,
             capabilities,
             working_dir: Arc::new(tokio::sync::RwLock::new(working_dir)),
+            action_required,
             extension_manager,
         }
     }
@@ -352,6 +355,18 @@ fn working_dir_roots(dir: &std::path::Path) -> ListRootsResult {
     ListRootsResult::new(vec![Root::new(uri).with_name("working_directory")])
 }
 
+/// Fan out a notification to all subscribers, dropping senders whose receivers are gone.
+fn fan_out_notification(
+    handlers: &mut Vec<Sender<ServerNotification>>,
+    notification: ServerNotification,
+) {
+    handlers.retain(|handler| match handler.try_send(notification.clone()) {
+        Ok(()) => true,
+        Err(mpsc::error::TrySendError::Full(_)) => true,
+        Err(mpsc::error::TrySendError::Closed(_)) => false,
+    });
+}
+
 impl ClientHandler for GooseClient {
     #[expect(deprecated)]
     async fn list_roots(
@@ -366,15 +381,12 @@ impl ClientHandler for GooseClient {
         params: rmcp::model::ProgressNotificationParam,
         context: rmcp::service::NotificationContext<rmcp::RoleClient>,
     ) {
-        self.notification_handlers
-            .lock()
-            .await
-            .iter()
-            .for_each(|handler| {
-                let mut not = Notification::new(params.clone());
-                not.extensions = context.extensions.clone();
-                let _ = handler.try_send(ServerNotification::ProgressNotification(not));
-            });
+        let mut not = Notification::new(params);
+        not.extensions = context.extensions;
+        fan_out_notification(
+            &mut *self.notification_handlers.lock().await,
+            ServerNotification::ProgressNotification(not),
+        );
     }
 
     async fn on_tool_list_changed(&self, _context: rmcp::service::NotificationContext<RoleClient>) {
@@ -387,16 +399,12 @@ impl ClientHandler for GooseClient {
         params: rmcp::model::LoggingMessageNotificationParam,
         context: rmcp::service::NotificationContext<rmcp::RoleClient>,
     ) {
-        self.notification_handlers
-            .lock()
-            .await
-            .iter()
-            .for_each(|handler| {
-                let mut notification = LoggingMessageNotification::new(params.clone());
-                notification.extensions = context.extensions.clone();
-                let _ =
-                    handler.try_send(ServerNotification::LoggingMessageNotification(notification));
-            });
+        let mut notification = LoggingMessageNotification::new(params);
+        notification.extensions = context.extensions;
+        fan_out_notification(
+            &mut *self.notification_handlers.lock().await,
+            ServerNotification::LoggingMessageNotification(notification),
+        );
     }
 
     #[expect(deprecated)]
@@ -525,7 +533,7 @@ impl ClientHandler for GooseClient {
             _ => (String::new(), serde_json::json!({})),
         };
 
-        ActionRequiredManager::global()
+        self.action_required
             .request_and_wait(
                 session_id,
                 tool_call_request_id,
@@ -582,13 +590,15 @@ pub struct McpClient {
 }
 
 impl McpClient {
-    pub async fn connect<T, E, A>(
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn connect<T, E, A>(
         transport: T,
         timeout: std::time::Duration,
         provider: SharedProvider,
         client_name: String,
         capabilities: GooseMcpClientCapabilities,
         working_dir: PathBuf,
+        action_required: Arc<ActionRequiredManager>,
         extension_manager: Weak<ExtensionManager>,
     ) -> Result<Self, ClientInitializeError>
     where
@@ -603,13 +613,14 @@ impl McpClient {
             client_name,
             capabilities,
             working_dir,
+            action_required,
             extension_manager,
         )
         .await
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub async fn connect_with_container<T, E, A>(
+    pub(crate) async fn connect_with_container<T, E, A>(
         transport: T,
         timeout: std::time::Duration,
         provider: SharedProvider,
@@ -617,6 +628,7 @@ impl McpClient {
         client_name: String,
         capabilities: GooseMcpClientCapabilities,
         working_dir: PathBuf,
+        action_required: Arc<ActionRequiredManager>,
         extension_manager: Weak<ExtensionManager>,
     ) -> Result<Self, ClientInitializeError>
     where
@@ -632,6 +644,7 @@ impl McpClient {
             client_name.clone(),
             capabilities.clone(),
             working_dir,
+            action_required,
             extension_manager,
         );
         let client: rmcp::service::RunningService<rmcp::RoleClient, GooseClient> =
@@ -1103,6 +1116,7 @@ mod tests {
             platform.to_string(),
             capabilities,
             std::env::current_dir().unwrap_or_default(),
+            Arc::new(ActionRequiredManager::new()),
             Weak::new(),
         )
     }
@@ -1145,6 +1159,7 @@ mod tests {
                 host_info: None,
             },
             temp_dir.path().to_path_buf(),
+            Arc::new(ActionRequiredManager::new()),
             Arc::downgrade(&extension_manager),
         );
 
@@ -1520,6 +1535,7 @@ mod tests {
                 }),
             },
             std::env::current_dir().unwrap_or_default(),
+            Arc::new(ActionRequiredManager::new()),
             Weak::new(),
         );
 
@@ -1552,6 +1568,7 @@ mod tests {
                 }),
             },
             std::env::current_dir().unwrap_or_default(),
+            Arc::new(ActionRequiredManager::new()),
             Weak::new(),
         );
 
@@ -1581,6 +1598,7 @@ mod tests {
                 }),
             },
             std::env::current_dir().unwrap_or_default(),
+            Arc::new(ActionRequiredManager::new()),
             Weak::new(),
         );
 
@@ -1602,5 +1620,64 @@ mod tests {
         assert_eq!(result.roots.len(), 1);
         assert_eq!(result.roots[0].uri, "file:///tmp/test-project");
         assert_eq!(result.roots[0].name.as_deref(), Some("working_directory"));
+    }
+
+    #[tokio::test]
+    async fn fan_out_notification_prunes_closed_subscribers() {
+        use rmcp::model::{NumberOrString, ProgressNotificationParam, ProgressToken};
+
+        let handlers = Arc::new(Mutex::new(Vec::new()));
+        let mut receivers = Vec::new();
+        for _ in 0..5 {
+            let (tx, rx) = mpsc::channel(16);
+            handlers.lock().await.push(tx);
+            receivers.push(rx);
+        }
+        assert_eq!(handlers.lock().await.len(), 5);
+
+        // Drop all receivers, simulating tool-call completion.
+        drop(receivers);
+
+        let notification = ServerNotification::ProgressNotification(Notification::new(
+            ProgressNotificationParam::new(
+                ProgressToken(NumberOrString::String(Arc::from("token"))),
+                1.0,
+            ),
+        ));
+        fan_out_notification(&mut *handlers.lock().await, notification);
+        assert!(
+            handlers.lock().await.is_empty(),
+            "closed subscribers must be pruned on fan-out"
+        );
+
+        // A live subscriber survives fan-out; subsequent closed ones still prune.
+        let mut live_rx = {
+            let (tx, rx) = mpsc::channel(16);
+            handlers.lock().await.push(tx);
+            rx
+        };
+        for _ in 0..3 {
+            let (tx, rx) = mpsc::channel(16);
+            handlers.lock().await.push(tx);
+            drop(rx);
+        }
+        assert_eq!(handlers.lock().await.len(), 4);
+
+        let notification = ServerNotification::ProgressNotification(Notification::new(
+            ProgressNotificationParam::new(
+                ProgressToken(NumberOrString::String(Arc::from("token-2"))),
+                2.0,
+            ),
+        ));
+        fan_out_notification(&mut *handlers.lock().await, notification.clone());
+        assert_eq!(handlers.lock().await.len(), 1);
+        let received = live_rx
+            .recv()
+            .await
+            .expect("live subscriber should receive");
+        assert!(matches!(
+            received,
+            ServerNotification::ProgressNotification(_)
+        ));
     }
 }
