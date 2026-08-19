@@ -112,6 +112,15 @@ pub async fn get_fast_model(
     }
 }
 
+/// Fast tasks summarize a transcript or tool result that never recurs, so a prompt
+/// cache entry written for one can never be read back and only costs the
+/// cache-write premium.
+fn one_shot_model_config(model_config: ModelConfig) -> ModelConfig {
+    model_config
+        .with_thinking_effort(ThinkingEffort::Off)
+        .with_prompt_cache_disabled()
+}
+
 /// Run a completion for a lightweight "fast" task (session naming, compaction,
 /// summarization) using the provider's fast model.
 pub async fn complete_fast(
@@ -123,10 +132,11 @@ pub async fn complete_fast(
     tools: &[Tool],
     fallback_to_main_model: bool,
 ) -> Result<(Message, ProviderUsage), ProviderError> {
-    let fast_model_config = get_fast_model(provider.get_name(), model_config)
-        .await
-        .map_err(|e| ProviderError::ExecutionError(e.to_string()))?
-        .with_thinking_effort(ThinkingEffort::Off);
+    let fast_model_config = one_shot_model_config(
+        get_fast_model(provider.get_name(), model_config)
+            .await
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?,
+    );
 
     match crate::session_context::with_session_id(
         Some(session_id.to_string()),
@@ -145,9 +155,7 @@ pub async fn complete_fast(
                 e,
                 model_config.model_name
             );
-            let fallback_config = model_config
-                .clone()
-                .with_thinking_effort(ThinkingEffort::Off);
+            let fallback_config = one_shot_model_config(model_config.clone());
             crate::session_context::with_session_id(
                 Some(session_id.to_string()),
                 provider.complete(&fallback_config, system, messages, tools),
@@ -261,6 +269,16 @@ fn parse_yaml_bool_config(key: &str, value: serde_yaml::Value) -> Result<bool> {
             serde_yaml::to_string(&other).unwrap_or_else(|_| "<unprintable>".to_string()).trim()
         ))
         }
+    }
+}
+
+#[cfg(test)]
+mod one_shot_tests {
+    use super::*;
+
+    #[test]
+    fn prompt_cache_is_disabled() {
+        assert!(one_shot_model_config(ModelConfig::new("claude-haiku-4-5")).prompt_cache_disabled());
     }
 }
 

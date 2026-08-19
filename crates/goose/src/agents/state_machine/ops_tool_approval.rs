@@ -5,9 +5,9 @@ use std::collections::{HashMap, HashSet};
 use anyhow::Result;
 use async_trait::async_trait;
 
-use crate::agents::state_machine::operation::{
-    applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
-    StateEffect,
+use crate::agents::state_machine::{
+    applied, messages_since_kickoff, not_applicable, ConversationEffect, Emitter, GooseEffect,
+    Operation, OperationResult,
 };
 use crate::config::permission::PermissionLevel;
 use crate::config::GooseMode;
@@ -40,7 +40,7 @@ impl<'a> ToolApprovalOperation<'a> {
 }
 
 #[async_trait]
-impl Operation for ToolApprovalOperation<'_> {
+impl Operation<Session, GooseEffect> for ToolApprovalOperation<'_> {
     fn name(&self) -> &'static str {
         "tool_approval"
     }
@@ -50,7 +50,7 @@ impl Operation for ToolApprovalOperation<'_> {
         session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let goose_mode = *self.goose_mode.lock().await;
         if goose_mode == GooseMode::Chat {
             return not_applicable();
@@ -259,9 +259,10 @@ fn permission_allows(permission: &Permission) -> bool {
     matches!(permission, Permission::AllowOnce | Permission::AlwaysAllow)
 }
 
-fn mark_executable(tool_call_id: &str, executable: bool) -> StateEffect {
-    StateEffect::PatchToolRequestMeta {
+fn mark_executable(tool_call_id: &str, executable: bool) -> GooseEffect {
+    ConversationEffect::PatchToolRequestMeta {
         tool_call_id: tool_call_id.to_string(),
         patch: serde_json::json!({ TOOL_EXECUTABLE_KEY: executable }),
     }
+    .into()
 }

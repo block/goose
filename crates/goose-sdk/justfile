@@ -104,6 +104,8 @@ crates-publish dry_run="true":
         goose-download-manager \
         goose-local-inference \
         goose-providers \
+        goose-agent \
+        goose-context-management \
         goose-sdk; do \
         cargo publish -p "$crate" $dry_run_flag --allow-dirty; \
     done
@@ -130,6 +132,8 @@ bump-version rust_version:
         "goose-download-manager",
         "goose-local-inference",
         "goose-providers",
+        "goose-agent",
+        "goose-context-management",
         "goose-sdk",
     ]
     crate_paths = {name: Path("crates") / name / "Cargo.toml" for name in crate_names}
@@ -150,6 +154,8 @@ bump-version rust_version:
         "goose-download-manager",
         "goose-local-inference",
         "goose-providers",
+        "goose-agent",
+        "goose-context-management",
     ]
     for path in crate_paths.values():
         text = path.read_text()

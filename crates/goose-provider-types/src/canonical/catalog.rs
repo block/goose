@@ -2,6 +2,8 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
+use crate::base::{ConfigKey, ProviderMetadata};
+
 use super::CanonicalModelRegistry;
 
 const PROVIDER_METADATA_JSON: &str = include_str!("data/provider_metadata.json");
@@ -148,7 +150,7 @@ pub struct ProviderSetupField {
     pub default_value: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 pub struct ProviderSetupCapabilities {
     pub install: bool,
     pub auth: bool,
@@ -160,6 +162,7 @@ pub struct ProviderSetupCatalogEntry {
     pub provider_id: String,
     pub display_name: String,
     pub category: ProviderSetupCategory,
+    pub acp: bool,
     pub description: String,
     pub setup_method: ProviderSetupMethod,
     pub docs_url: Option<String>,
@@ -168,730 +171,139 @@ pub struct ProviderSetupCatalogEntry {
     pub aliases: Vec<String>,
     pub native_connect_query: Option<String>,
     pub binary_name: Option<String>,
+    #[serde(default)]
     pub setup_capabilities: ProviderSetupCapabilities,
     pub show_only_when_installed: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProviderSetupMetadata {
-    pub name: String,
-    pub display_name: String,
-    pub description: String,
-    pub model_doc_link: String,
-    pub config_keys: Vec<ProviderSetupConfigKey>,
+    pub category: ProviderSetupCategory,
+    #[serde(default)]
+    pub acp: bool,
+    pub setup_method: ProviderSetupMethod,
+    pub group: ProviderSetupGroup,
+    #[serde(default)]
+    pub docs_url: Option<String>,
+    #[serde(default)]
+    pub aliases: Vec<String>,
+    #[serde(default)]
+    pub native_connect_query: Option<String>,
+    #[serde(default)]
+    pub binary_name: Option<String>,
+    #[serde(default)]
+    pub setup_capabilities: ProviderSetupCapabilities,
+    #[serde(default)]
+    pub show_only_when_installed: bool,
+    #[serde(default)]
+    pub field_overrides: Vec<ProviderSetupFieldOverride>,
 }
 
-#[derive(Debug, Clone)]
-pub struct ProviderSetupConfigKey {
-    pub name: String,
-    pub required: bool,
-    pub secret: bool,
-    pub default: Option<String>,
-    pub primary: bool,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderSetupFieldOverride {
+    pub key: String,
+    pub label: String,
+    #[serde(default)]
+    pub placeholder: Option<String>,
+    #[serde(default)]
+    pub default_value: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy)]
-struct CuratedSetupMetadata {
-    provider_id: &'static str,
-    category: ProviderSetupCategory,
-    setup_method: ProviderSetupMethod,
-    group: ProviderSetupGroup,
-    display_name: Option<&'static str>,
-    description: Option<&'static str>,
-    docs_url: Option<&'static str>,
-    aliases: &'static [&'static str],
-    native_connect_query: Option<&'static str>,
-    binary_name: Option<&'static str>,
-    setup_capabilities: ProviderSetupCapabilities,
-    show_only_when_installed: bool,
-    synthetic: bool,
-    secret_field_default: Option<CuratedFieldMetadata>,
-    field_overrides: &'static [CuratedFieldMetadata],
-}
+impl ProviderSetupMetadata {
+    pub fn new(
+        category: ProviderSetupCategory,
+        setup_method: ProviderSetupMethod,
+        group: ProviderSetupGroup,
+    ) -> Self {
+        Self {
+            category,
+            acp: false,
+            setup_method,
+            group,
+            docs_url: None,
+            aliases: Vec::new(),
+            native_connect_query: None,
+            binary_name: None,
+            setup_capabilities: ProviderSetupCapabilities {
+                install: false,
+                auth: false,
+                auth_status: false,
+            },
+            show_only_when_installed: false,
+            field_overrides: Vec::new(),
+        }
+    }
 
-#[derive(Debug, Clone, Copy)]
-struct CuratedFieldMetadata {
-    key: &'static str,
-    label: &'static str,
-    placeholder: Option<&'static str>,
-    default_value: Option<&'static str>,
-}
+    pub fn cli_agent(binary_name: &str, aliases: &[&str]) -> Self {
+        let mut setup = Self::new(
+            ProviderSetupCategory::Agent,
+            ProviderSetupMethod::CliAuth,
+            ProviderSetupGroup::Default,
+        );
+        setup.binary_name = Some(binary_name.to_string());
+        setup.aliases = aliases.iter().map(|alias| alias.to_string()).collect();
+        setup
+    }
 
-const fn setup_capabilities(
-    install: bool,
-    auth: bool,
-    auth_status: bool,
-) -> ProviderSetupCapabilities {
-    ProviderSetupCapabilities {
-        install,
-        auth,
-        auth_status,
+    pub fn api_key(group: ProviderSetupGroup) -> Self {
+        Self::new(
+            ProviderSetupCategory::Model,
+            ProviderSetupMethod::SingleApiKey,
+            group,
+        )
+    }
+
+    pub fn with_docs_url(mut self, docs_url: &str) -> Self {
+        self.docs_url = Some(docs_url.to_string());
+        self
+    }
+
+    pub fn with_aliases(mut self, aliases: &[&str]) -> Self {
+        self.aliases = aliases.iter().map(|alias| alias.to_string()).collect();
+        self
+    }
+
+    pub fn with_native_connect_query(mut self, query: &str) -> Self {
+        self.native_connect_query = Some(query.to_string());
+        self
+    }
+
+    pub fn with_capabilities(mut self, install: bool, auth: bool, auth_status: bool) -> Self {
+        self.setup_capabilities = ProviderSetupCapabilities {
+            install,
+            auth,
+            auth_status,
+        };
+        self
+    }
+
+    pub fn with_acp(mut self) -> Self {
+        self.acp = true;
+        self
+    }
+
+    pub fn show_only_when_installed(mut self) -> Self {
+        self.show_only_when_installed = true;
+        self
+    }
+
+    pub fn with_field(
+        mut self,
+        key: &str,
+        label: &str,
+        placeholder: Option<&str>,
+        default_value: Option<&str>,
+    ) -> Self {
+        self.field_overrides.push(ProviderSetupFieldOverride {
+            key: key.to_string(),
+            label: label.to_string(),
+            placeholder: placeholder.map(str::to_string),
+            default_value: default_value.map(str::to_string),
+        });
+        self
     }
 }
-
-const API_KEY_FIELD: CuratedFieldMetadata = CuratedFieldMetadata {
-    key: "",
-    label: "API Key",
-    placeholder: Some("Paste your API key"),
-    default_value: None,
-};
-
-const SETUP_METADATA: &[CuratedSetupMetadata] = &[
-    CuratedSetupMetadata {
-        provider_id: "goose",
-        category: ProviderSetupCategory::Agent,
-        setup_method: ProviderSetupMethod::None,
-        group: ProviderSetupGroup::Default,
-        display_name: Some("Goose"),
-        description: Some("Block's open-source coding agent"),
-        docs_url: None,
-        aliases: &["goose"],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: true,
-        secret_field_default: None,
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "claude-acp",
-        category: ProviderSetupCategory::Agent,
-        setup_method: ProviderSetupMethod::CliAuth,
-        group: ProviderSetupGroup::Default,
-        display_name: Some("Claude Code"),
-        description: Some("Anthropic's agentic coding tool"),
-        docs_url: Some("https://docs.anthropic.com/en/docs/claude-code"),
-        aliases: &["claude-acp", "claude_code", "claude"],
-        native_connect_query: None,
-        binary_name: Some("claude-agent-acp"),
-        setup_capabilities: setup_capabilities(true, true, true),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: None,
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "codex-acp",
-        category: ProviderSetupCategory::Agent,
-        setup_method: ProviderSetupMethod::CliAuth,
-        group: ProviderSetupGroup::Default,
-        display_name: Some("Codex"),
-        description: Some("OpenAI's coding agent"),
-        docs_url: Some("https://github.com/openai/codex"),
-        aliases: &["codex-acp", "codex_cli", "codex"],
-        native_connect_query: None,
-        binary_name: Some("codex-acp"),
-        setup_capabilities: setup_capabilities(true, true, true),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: None,
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "copilot-acp",
-        category: ProviderSetupCategory::Agent,
-        setup_method: ProviderSetupMethod::CliAuth,
-        group: ProviderSetupGroup::Default,
-        display_name: Some("GitHub Copilot"),
-        description: Some("GitHub's AI pair programmer"),
-        docs_url: Some("https://docs.github.com/en/copilot/github-copilot-in-the-cli"),
-        aliases: &["copilot-acp", "github_copilot", "github_copilot_cli"],
-        native_connect_query: None,
-        binary_name: Some("copilot"),
-        setup_capabilities: setup_capabilities(true, true, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: None,
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "amp-acp",
-        category: ProviderSetupCategory::Agent,
-        setup_method: ProviderSetupMethod::CliAuth,
-        group: ProviderSetupGroup::Default,
-        display_name: None,
-        description: Some("Sourcegraph's coding agent"),
-        docs_url: Some("https://ampcode.com"),
-        aliases: &["amp-acp", "amp"],
-        native_connect_query: None,
-        binary_name: Some("amp-acp"),
-        setup_capabilities: setup_capabilities(true, true, true),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: None,
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "cursor-agent",
-        category: ProviderSetupCategory::Agent,
-        setup_method: ProviderSetupMethod::CliAuth,
-        group: ProviderSetupGroup::Default,
-        display_name: None,
-        description: Some("Cursor's AI agent"),
-        docs_url: Some("https://docs.cursor.com/en/cli/overview"),
-        aliases: &["cursor-agent", "cursor_agent", "cursor"],
-        native_connect_query: None,
-        binary_name: Some("cursor-agent"),
-        setup_capabilities: setup_capabilities(true, true, true),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: None,
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "pi-acp",
-        category: ProviderSetupCategory::Agent,
-        setup_method: ProviderSetupMethod::CliAuth,
-        group: ProviderSetupGroup::Default,
-        display_name: None,
-        description: Some("Open-source AI coding agent"),
-        docs_url: Some("https://github.com/badlogic/pi-mono"),
-        aliases: &["pi-acp", "pi"],
-        native_connect_query: None,
-        binary_name: Some("pi-acp"),
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: true,
-        synthetic: false,
-        secret_field_default: None,
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "anthropic",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::SingleApiKey,
-        group: ProviderSetupGroup::Default,
-        display_name: None,
-        description: Some("Claude models"),
-        docs_url: Some("https://console.anthropic.com/settings/keys"),
-        aliases: &[],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: Some(API_KEY_FIELD),
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "google",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::SingleApiKey,
-        group: ProviderSetupGroup::Default,
-        display_name: Some("Google Gemini"),
-        description: Some("Gemini models"),
-        docs_url: Some("https://aistudio.google.com/apikey"),
-        aliases: &[],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: Some(API_KEY_FIELD),
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "huggingface",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::SingleApiKey,
-        group: ProviderSetupGroup::Default,
-        display_name: Some("Hugging Face"),
-        description: Some("Hugging Face Inference Providers"),
-        docs_url: Some("https://huggingface.co/docs/inference-providers"),
-        aliases: &["huggingface", "hf"],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: Some(API_KEY_FIELD),
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "chatgpt_codex",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::OauthDeviceCode,
-        group: ProviderSetupGroup::Default,
-        display_name: Some("ChatGPT"),
-        description: Some("OpenAI via ChatGPT subscription"),
-        docs_url: Some("https://chatgpt.com"),
-        aliases: &[],
-        native_connect_query: Some("ChatGPT Codex"),
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, true, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: None,
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "openai",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::ConfigFields,
-        group: ProviderSetupGroup::Default,
-        display_name: None,
-        description: Some("GPT and o-series models"),
-        docs_url: Some("https://platform.openai.com/api-keys"),
-        aliases: &[],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: Some(API_KEY_FIELD),
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "mistral",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::SingleApiKey,
-        group: ProviderSetupGroup::Default,
-        display_name: None,
-        description: None,
-        docs_url: Some("https://console.mistral.ai/api-keys"),
-        aliases: &[],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: Some(API_KEY_FIELD),
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "ollama",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::ConfigFields,
-        group: ProviderSetupGroup::Default,
-        display_name: None,
-        description: Some("Run local or self-hosted models"),
-        docs_url: Some("https://ollama.com"),
-        aliases: &[],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: None,
-        field_overrides: &[CuratedFieldMetadata {
-            key: "OLLAMA_HOST",
-            label: "Host",
-            placeholder: Some("localhost or http://localhost:11434"),
-            default_value: Some("http://localhost:11434"),
-        }],
-    },
-    CuratedSetupMetadata {
-        provider_id: "openrouter",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::SingleApiKey,
-        group: ProviderSetupGroup::Default,
-        display_name: None,
-        description: Some("Unified API for many models"),
-        docs_url: Some("https://openrouter.ai/keys"),
-        aliases: &[],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: Some(API_KEY_FIELD),
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "databricks",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::HostWithOauthFallback,
-        group: ProviderSetupGroup::Default,
-        display_name: None,
-        description: Some("Databricks Foundation Models"),
-        docs_url: None,
-        aliases: &[],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, true, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: None,
-        field_overrides: &[
-            CuratedFieldMetadata {
-                key: "DATABRICKS_HOST",
-                label: "Host URL",
-                placeholder: Some("https://dbc-...cloud.databricks.com"),
-                default_value: None,
-            },
-            CuratedFieldMetadata {
-                key: "DATABRICKS_TOKEN",
-                label: "Access Token",
-                placeholder: Some("Paste your access token"),
-                default_value: None,
-            },
-        ],
-    },
-    CuratedSetupMetadata {
-        provider_id: "databricks_v2",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::HostWithOauthFallback,
-        group: ProviderSetupGroup::Additional,
-        display_name: Some("Databricks AI Gateway"),
-        description: Some("Models on Databricks AI Gateway v2"),
-        docs_url: Some("https://docs.databricks.com/en/generative-ai/ai-gateway/"),
-        aliases: &["databricks_ai_gateway"],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, true, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: None,
-        field_overrides: &[
-            CuratedFieldMetadata {
-                key: "DATABRICKS_HOST",
-                label: "Host URL",
-                placeholder: Some("https://dbc-...cloud.databricks.com"),
-                default_value: None,
-            },
-            CuratedFieldMetadata {
-                key: "DATABRICKS_TOKEN",
-                label: "Access Token",
-                placeholder: Some("Paste your access token"),
-                default_value: None,
-            },
-        ],
-    },
-    CuratedSetupMetadata {
-        provider_id: "github_copilot",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::OauthDeviceCode,
-        group: ProviderSetupGroup::Default,
-        display_name: Some("GitHub Copilot Models"),
-        description: Some("Models via GitHub Copilot subscription"),
-        docs_url: None,
-        aliases: &[],
-        native_connect_query: Some("GitHub Copilot"),
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, true, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: None,
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "custom_deepseek",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::SingleApiKey,
-        group: ProviderSetupGroup::Additional,
-        display_name: None,
-        description: Some("DeepSeek chat and reasoning models"),
-        docs_url: Some("https://platform.deepseek.com/api_keys"),
-        aliases: &[],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: Some(API_KEY_FIELD),
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "zai",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::SingleApiKey,
-        group: ProviderSetupGroup::Additional,
-        display_name: None,
-        description: Some("GLM models via Z.AI"),
-        docs_url: Some("https://docs.z.ai/devpack/tool/goose"),
-        aliases: &["z.ai", "zhipu"],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: Some(API_KEY_FIELD),
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "xai",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::SingleApiKey,
-        group: ProviderSetupGroup::Additional,
-        display_name: None,
-        description: Some("Grok models"),
-        docs_url: None,
-        aliases: &[],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: Some(API_KEY_FIELD),
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "xai_oauth",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::OauthBrowser,
-        group: ProviderSetupGroup::Default,
-        display_name: Some("xAI (SuperGrok)"),
-        description: Some("Grok via SuperGrok subscription"),
-        docs_url: Some("https://x.ai/grok"),
-        aliases: &[],
-        native_connect_query: Some("xAI Grok"),
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, true, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: None,
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "groq",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::SingleApiKey,
-        group: ProviderSetupGroup::Additional,
-        display_name: Some("Groq"),
-        description: None,
-        docs_url: Some("https://console.groq.com/keys"),
-        aliases: &[],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: Some(API_KEY_FIELD),
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "azure_openai",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::ConfigFields,
-        group: ProviderSetupGroup::Additional,
-        display_name: None,
-        description: None,
-        docs_url: None,
-        aliases: &[],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: None,
-        field_overrides: &[
-            CuratedFieldMetadata {
-                key: "AZURE_OPENAI_ENDPOINT",
-                label: "Endpoint",
-                placeholder: Some("https://your-resource.openai.azure.com"),
-                default_value: None,
-            },
-            CuratedFieldMetadata {
-                key: "AZURE_OPENAI_DEPLOYMENT_NAME",
-                label: "Deployment",
-                placeholder: Some("gpt-4o"),
-                default_value: None,
-            },
-            CuratedFieldMetadata {
-                key: "AZURE_OPENAI_API_KEY",
-                label: "API Key",
-                placeholder: Some("Paste your API key"),
-                default_value: None,
-            },
-            CuratedFieldMetadata {
-                key: "AZURE_OPENAI_AD_TOKEN",
-                label: "Entra ID Token",
-                placeholder: Some("Optional: short-lived Microsoft Entra access token"),
-                default_value: None,
-            },
-        ],
-    },
-    CuratedSetupMetadata {
-        provider_id: "aws_bedrock",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::CloudCredentials,
-        group: ProviderSetupGroup::Additional,
-        display_name: Some("AWS Bedrock"),
-        description: Some("Models on AWS"),
-        docs_url: None,
-        aliases: &[],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: None,
-        field_overrides: &[CuratedFieldMetadata {
-            key: "AWS_REGION",
-            label: "AWS Region",
-            placeholder: Some("us-west-2"),
-            default_value: None,
-        }],
-    },
-    CuratedSetupMetadata {
-        provider_id: "gcp_vertex_ai",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::CloudCredentials,
-        group: ProviderSetupGroup::Additional,
-        display_name: None,
-        description: Some("Models on Google Cloud"),
-        docs_url: None,
-        aliases: &[],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: None,
-        field_overrides: &[
-            CuratedFieldMetadata {
-                key: "GCP_PROJECT_ID",
-                label: "Project ID",
-                placeholder: Some("my-gcp-project"),
-                default_value: None,
-            },
-            CuratedFieldMetadata {
-                key: "GCP_LOCATION",
-                label: "Location",
-                placeholder: Some("us-central1"),
-                default_value: None,
-            },
-        ],
-    },
-    CuratedSetupMetadata {
-        provider_id: "litellm",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::ConfigFields,
-        group: ProviderSetupGroup::Additional,
-        display_name: None,
-        description: Some("LiteLLM proxy gateway"),
-        docs_url: None,
-        aliases: &[],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: None,
-        field_overrides: &[
-            CuratedFieldMetadata {
-                key: "LITELLM_HOST",
-                label: "Host URL",
-                placeholder: Some("https://your-proxy.example.com"),
-                default_value: None,
-            },
-            CuratedFieldMetadata {
-                key: "LITELLM_API_KEY",
-                label: "API Key",
-                placeholder: Some("Paste your API key"),
-                default_value: None,
-            },
-        ],
-    },
-    CuratedSetupMetadata {
-        provider_id: "lmstudio",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::ConfigFields,
-        group: ProviderSetupGroup::Additional,
-        display_name: None,
-        description: None,
-        docs_url: Some("https://lmstudio.ai/docs/app/api"),
-        aliases: &[],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: None,
-        field_overrides: &[CuratedFieldMetadata {
-            key: "LMSTUDIO_HOST",
-            label: "Host URL",
-            placeholder: Some("http://localhost:1234/v1/chat/completions"),
-            default_value: None,
-        }],
-    },
-    CuratedSetupMetadata {
-        provider_id: "atomic_chat",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::ConfigFields,
-        group: ProviderSetupGroup::Additional,
-        display_name: None,
-        description: None,
-        docs_url: Some("https://github.com/AtomicBot-ai/Atomic-Chat?tab=readme-ov-file#readme"),
-        aliases: &[],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: None,
-        field_overrides: &[CuratedFieldMetadata {
-            key: "ATOMIC_CHAT_HOST",
-            label: "Host URL",
-            placeholder: Some("http://localhost:1337"),
-            default_value: Some("http://localhost:1337"),
-        }],
-    },
-    CuratedSetupMetadata {
-        provider_id: "nvidia",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::SingleApiKey,
-        group: ProviderSetupGroup::Additional,
-        display_name: None,
-        description: None,
-        docs_url: Some("https://build.nvidia.com/models"),
-        aliases: &[],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: Some(API_KEY_FIELD),
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "cerebras",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::SingleApiKey,
-        group: ProviderSetupGroup::Additional,
-        display_name: None,
-        description: None,
-        docs_url: Some("https://cloud.cerebras.ai/platform"),
-        aliases: &[],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: Some(API_KEY_FIELD),
-        field_overrides: &[],
-    },
-    CuratedSetupMetadata {
-        provider_id: "snowflake",
-        category: ProviderSetupCategory::Model,
-        setup_method: ProviderSetupMethod::ConfigFields,
-        group: ProviderSetupGroup::Additional,
-        display_name: None,
-        description: Some("Snowflake Cortex"),
-        docs_url: None,
-        aliases: &[],
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: setup_capabilities(false, false, false),
-        show_only_when_installed: false,
-        synthetic: false,
-        secret_field_default: None,
-        field_overrides: &[
-            CuratedFieldMetadata {
-                key: "SNOWFLAKE_HOST",
-                label: "Host URL",
-                placeholder: Some("https://your-account.snowflakecomputing.com"),
-                default_value: None,
-            },
-            CuratedFieldMetadata {
-                key: "SNOWFLAKE_TOKEN",
-                label: "Access Token",
-                placeholder: Some("Paste your access token"),
-                default_value: None,
-            },
-        ],
-    },
-];
 
 fn field_label(key: &str) -> String {
     let label = key
@@ -919,103 +331,62 @@ fn field_label(key: &str) -> String {
         .join(" ")
 }
 
-fn field_override<'a>(
-    key: &str,
-    config_key: &ProviderSetupConfigKey,
-    curated: &'a CuratedSetupMetadata,
-) -> Option<&'a CuratedFieldMetadata> {
-    if let Some(field) = curated
+fn setup_field(config_key: &ConfigKey, setup: &ProviderSetupMetadata) -> ProviderSetupField {
+    let field_override = setup
         .field_overrides
         .iter()
-        .find(|field| field.key == key)
-    {
-        return Some(field);
-    }
-
-    if config_key.secret {
-        return curated.secret_field_default.as_ref();
-    }
-
-    None
-}
-
-fn setup_field(
-    config_key: &ProviderSetupConfigKey,
-    curated: &CuratedSetupMetadata,
-) -> ProviderSetupField {
-    let field_override = field_override(&config_key.name, config_key, curated);
+        .find(|field| field.key == config_key.name);
     ProviderSetupField {
         key: config_key.name.clone(),
         label: field_override
-            .map(|field| field.label.to_string())
-            .unwrap_or_else(|| field_label(&config_key.name)),
+            .map(|field| field.label.clone())
+            .unwrap_or_else(|| {
+                if config_key.secret && setup.setup_method == ProviderSetupMethod::SingleApiKey {
+                    "API Key".to_string()
+                } else {
+                    field_label(&config_key.name)
+                }
+            }),
         secret: config_key.secret,
         required: config_key.required,
-        placeholder: field_override.and_then(|field| field.placeholder.map(str::to_string)),
+        placeholder: field_override
+            .and_then(|field| field.placeholder.clone())
+            .or_else(|| {
+                (config_key.secret && setup.setup_method == ProviderSetupMethod::SingleApiKey)
+                    .then(|| "Paste your API key".to_string())
+            }),
         default_value: field_override
-            .and_then(|field| field.default_value.map(str::to_string))
+            .and_then(|field| field.default_value.clone())
             .or_else(|| config_key.default.clone()),
     }
 }
 
-fn setup_entry_from_metadata(
-    curated: &CuratedSetupMetadata,
-    metadata: &ProviderSetupMetadata,
-) -> ProviderSetupCatalogEntry {
-    ProviderSetupCatalogEntry {
-        provider_id: curated.provider_id.to_string(),
-        display_name: curated
-            .display_name
-            .unwrap_or(metadata.display_name.as_str())
-            .to_string(),
-        category: curated.category,
-        description: curated
-            .description
-            .unwrap_or(metadata.description.as_str())
-            .to_string(),
-        setup_method: curated.setup_method,
-        docs_url: curated.docs_url.map(str::to_string).or_else(|| {
-            (!metadata.model_doc_link.is_empty()).then(|| metadata.model_doc_link.clone())
-        }),
-        group: curated.group,
-        fields: metadata
-            .config_keys
-            .iter()
-            .filter(|key| key.primary)
-            .map(|key| setup_field(key, curated))
-            .collect(),
-        aliases: curated
-            .aliases
-            .iter()
-            .map(|alias| alias.to_string())
-            .collect(),
-        native_connect_query: curated.native_connect_query.map(str::to_string),
-        binary_name: curated.binary_name.map(str::to_string),
-        setup_capabilities: curated.setup_capabilities,
-        show_only_when_installed: curated.show_only_when_installed,
-    }
-}
-
-fn synthetic_goose_setup_entry(curated: &CuratedSetupMetadata) -> ProviderSetupCatalogEntry {
-    ProviderSetupCatalogEntry {
-        provider_id: curated.provider_id.to_string(),
-        display_name: curated.display_name.unwrap_or("Goose").to_string(),
-        category: ProviderSetupCategory::Agent,
-        description: curated.description.unwrap_or_default().to_string(),
-        setup_method: ProviderSetupMethod::None,
-        docs_url: curated.docs_url.map(str::to_string),
-        group: curated.group,
-        fields: Vec::new(),
-        aliases: curated
-            .aliases
-            .iter()
-            .map(|alias| alias.to_string())
-            .collect(),
-        native_connect_query: None,
-        binary_name: None,
-        setup_capabilities: curated.setup_capabilities,
-        show_only_when_installed: false,
-    }
+fn setup_entry_from_metadata(metadata: ProviderMetadata) -> Option<ProviderSetupCatalogEntry> {
+    let setup = metadata.setup?;
+    let fields = metadata
+        .config_keys
+        .iter()
+        .filter(|key| key.primary)
+        .map(|key| setup_field(key, &setup))
+        .collect();
+    Some(ProviderSetupCatalogEntry {
+        provider_id: metadata.name,
+        display_name: metadata.display_name,
+        category: setup.category,
+        acp: setup.acp,
+        description: metadata.description,
+        setup_method: setup.setup_method,
+        docs_url: setup
+            .docs_url
+            .or_else(|| (!metadata.model_doc_link.is_empty()).then_some(metadata.model_doc_link)),
+        group: setup.group,
+        fields,
+        aliases: setup.aliases,
+        native_connect_query: setup.native_connect_query,
+        binary_name: setup.binary_name,
+        setup_capabilities: setup.setup_capabilities,
+        show_only_when_installed: setup.show_only_when_installed,
+    })
 }
 
 pub fn get_providers_by_format(
@@ -1060,27 +431,55 @@ pub fn get_providers_by_format(
 }
 
 pub fn get_setup_catalog_entries(
-    registry_metadata: &HashMap<String, ProviderSetupMetadata>,
+    registry_metadata: impl IntoIterator<Item = ProviderMetadata>,
 ) -> Vec<ProviderSetupCatalogEntry> {
-    SETUP_METADATA
-        .iter()
-        .filter_map(|curated| {
-            if curated.synthetic {
-                return Some(synthetic_goose_setup_entry(curated));
-            }
-
-            registry_metadata
-                .get(curated.provider_id)
-                .map(|metadata| setup_entry_from_metadata(curated, metadata))
-        })
-        .collect()
+    let goose = ProviderSetupCatalogEntry {
+        provider_id: "goose".to_string(),
+        display_name: "Goose".to_string(),
+        category: ProviderSetupCategory::Agent,
+        acp: false,
+        description: "Block's open-source coding agent".to_string(),
+        setup_method: ProviderSetupMethod::None,
+        docs_url: None,
+        group: ProviderSetupGroup::Default,
+        fields: Vec::new(),
+        aliases: vec!["goose".to_string()],
+        native_connect_query: None,
+        binary_name: None,
+        setup_capabilities: ProviderSetupCapabilities {
+            install: false,
+            auth: false,
+            auth_status: false,
+        },
+        show_only_when_installed: false,
+    };
+    let mut entries = registry_metadata
+        .into_iter()
+        .filter_map(setup_entry_from_metadata)
+        .collect::<Vec<_>>();
+    entries.sort_by(|a, b| {
+        setup_group_rank(a.group)
+            .cmp(&setup_group_rank(b.group))
+            .then_with(|| setup_category_rank(a.category).cmp(&setup_category_rank(b.category)))
+            .then_with(|| a.display_name.cmp(&b.display_name))
+            .then_with(|| a.provider_id.cmp(&b.provider_id))
+    });
+    entries.insert(0, goose);
+    entries
 }
 
-pub fn get_provider_setup_category(provider_id: &str) -> Option<ProviderSetupCategory> {
-    SETUP_METADATA
-        .iter()
-        .find(|curated| curated.provider_id == provider_id)
-        .map(|curated| curated.category)
+fn setup_group_rank(group: ProviderSetupGroup) -> u8 {
+    match group {
+        ProviderSetupGroup::Default => 0,
+        ProviderSetupGroup::Additional => 1,
+    }
+}
+
+fn setup_category_rank(category: ProviderSetupCategory) -> u8 {
+    match category {
+        ProviderSetupCategory::Agent => 0,
+        ProviderSetupCategory::Model => 1,
+    }
 }
 
 pub fn get_provider_template(provider_id: &str) -> Option<ProviderTemplate> {
@@ -1138,4 +537,95 @@ pub fn get_provider_template(provider_id: &str) -> Option<ProviderTemplate> {
         env_var,
         doc_url: metadata.doc.clone().unwrap_or_default(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn setup_provider(
+        name: &str,
+        display_name: &str,
+        category: ProviderSetupCategory,
+        group: ProviderSetupGroup,
+    ) -> ProviderMetadata {
+        ProviderMetadata::new(name, display_name, "", "", vec![], "", vec![]).with_setup(
+            ProviderSetupMetadata::new(category, ProviderSetupMethod::ConfigFields, group),
+        )
+    }
+
+    #[test]
+    fn setup_catalog_has_stable_presentation_order() {
+        let entries = get_setup_catalog_entries(vec![
+            setup_provider(
+                "gamma",
+                "Gamma",
+                ProviderSetupCategory::Model,
+                ProviderSetupGroup::Additional,
+            ),
+            setup_provider(
+                "beta",
+                "Beta",
+                ProviderSetupCategory::Model,
+                ProviderSetupGroup::Default,
+            ),
+            setup_provider(
+                "alpha",
+                "Alpha",
+                ProviderSetupCategory::Agent,
+                ProviderSetupGroup::Default,
+            ),
+        ]);
+
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| entry.provider_id.as_str())
+                .collect::<Vec<_>>(),
+            ["goose", "alpha", "beta", "gamma"]
+        );
+    }
+
+    #[test]
+    fn single_api_key_uses_api_key_presentation() {
+        let metadata = ProviderMetadata::new(
+            "example",
+            "Example",
+            "",
+            "",
+            vec![],
+            "",
+            vec![ConfigKey::new("EXAMPLE_TOKEN", true, true, None, true)],
+        )
+        .with_setup(ProviderSetupMetadata::api_key(ProviderSetupGroup::Default));
+
+        let entry = setup_entry_from_metadata(metadata).unwrap();
+        assert_eq!(entry.fields[0].label, "API Key");
+        assert_eq!(
+            entry.fields[0].placeholder.as_deref(),
+            Some("Paste your API key")
+        );
+    }
+
+    #[test]
+    fn other_secret_fields_do_not_claim_to_be_api_keys() {
+        let metadata = ProviderMetadata::new(
+            "example",
+            "Example",
+            "",
+            "",
+            vec![],
+            "",
+            vec![ConfigKey::new("EXAMPLE_TOKEN", true, true, None, true)],
+        )
+        .with_setup(ProviderSetupMetadata::new(
+            ProviderSetupCategory::Model,
+            ProviderSetupMethod::ConfigFields,
+            ProviderSetupGroup::Default,
+        ));
+
+        let entry = setup_entry_from_metadata(metadata).unwrap();
+        assert_eq!(entry.fields[0].label, "Example Token");
+        assert_eq!(entry.fields[0].placeholder, None);
+    }
 }

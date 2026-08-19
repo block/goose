@@ -48,4 +48,14 @@ pub trait ProviderDef: ProviderDescriptor + Send + Sync {
     {
         Self::from_env(extensions, tls_config)
     }
+
+    fn from_env_with_default_model(
+        extensions: Vec<ExtensionConfig>,
+        tls_config: Option<TlsConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>>
+    where
+        Self: Sized,
+    {
+        Self::from_env(extensions, tls_config)
+    }
 }

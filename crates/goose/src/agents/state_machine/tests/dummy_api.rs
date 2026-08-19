@@ -12,6 +12,7 @@ pub(super) struct ProviderFeatures {
     pub(super) resolved_model: Option<&'static str>,
     pub(super) cache_read_tokens: Option<i32>,
     pub(super) cache_write_tokens: Option<i32>,
+    pub(super) manages_own_context: bool,
 }
 
 impl Default for ProviderFeatures {
@@ -22,6 +23,7 @@ impl Default for ProviderFeatures {
             resolved_model: None,
             cache_read_tokens: None,
             cache_write_tokens: None,
+            manages_own_context: false,
         }
     }
 }
