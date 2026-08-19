@@ -525,7 +525,19 @@ impl Config {
         for path in &self.config_paths {
             match std::fs::symlink_metadata(path) {
                 Ok(_) => {}
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    for ancestor in path.ancestors().skip(1) {
+                        match std::fs::symlink_metadata(ancestor) {
+                            Ok(metadata) if metadata.file_type().is_symlink() => {
+                                std::fs::metadata(ancestor)?;
+                            }
+                            Ok(_) => {}
+                            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                            Err(error) => return Err(error.into()),
+                        }
+                    }
+                    continue;
+                }
                 Err(error) => return Err(error.into()),
             }
             let content = std::fs::read_to_string(path)?;

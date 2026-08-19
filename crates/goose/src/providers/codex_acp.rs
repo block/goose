@@ -127,6 +127,7 @@ mod tests {
         File(&'static str),
         Directory,
         DanglingSymlink,
+        DanglingParentSymlink,
     }
 
     #[test]
@@ -223,6 +224,12 @@ mod tests {
                 ConfigFixture::DanglingSymlink,
                 false,
             ),
+            (
+                "dangling_parent_symlink",
+                None,
+                ConfigFixture::DanglingParentSymlink,
+                false,
+            ),
         ] {
             let marker = fixture.path().join(format!("launched-{name}"));
             let path_root = fixture.path().join(format!("config-{name}"));
@@ -235,6 +242,10 @@ mod tests {
                 ConfigFixture::Directory => fs::create_dir(&config_path).unwrap(),
                 ConfigFixture::DanglingSymlink => {
                     symlink(config_dir.join("missing.yaml"), &config_path).unwrap()
+                }
+                ConfigFixture::DanglingParentSymlink => {
+                    fs::remove_dir(&config_dir).unwrap();
+                    symlink(path_root.join("missing-config"), &config_dir).unwrap();
                 }
             }
             let mut command = Command::new(std::env::current_exe().unwrap());
