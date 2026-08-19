@@ -139,7 +139,7 @@ impl AzureAuth {
     /// 3. Initializing the token cache
     ///
     /// # Returns
-    /// *  - A new AzureAuth instance or an error if initialization fails
+    /// * `Result<Self, AuthError>` - A new AzureAuth instance or an error if initialization fails
     pub fn new(api_key: Option<String>, ad_token: Option<String>) -> Result<Self, AuthError> {
         Self::new_with_resource(api_key, ad_token, DEFAULT_RESOURCE.to_string())
     }
@@ -209,7 +209,7 @@ impl AzureAuth {
     ///    before starting an interactive flow.
     ///
     /// # Returns
-    /// *  - A valid authentication token or an error
+    /// * `Result<AuthToken, AuthError>` - A valid authentication token or an error
     pub async fn get_token(&self) -> Result<AuthToken, AuthError> {
         if let Some(config) = &self.device_code {
             return self.get_device_code_token(config).await;
