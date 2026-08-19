@@ -959,13 +959,9 @@ impl GooseAcpAgent {
         }
 
         if !mcp_servers.is_empty() {
-            let mut stored_extensions = EnabledExtensionsState::from_extension_data(
-                &session.extension_data,
-            )
-            .ok_or_else(|| {
-                agent_client_protocol::Error::internal_error()
-                    .data("Session is missing stored extension state")
-            })?;
+            let mut stored_extensions =
+                EnabledExtensionsState::from_extension_data(&session.extension_data)
+                    .unwrap_or_else(|| EnabledExtensionsState::new(Vec::new()));
             add_mcp_servers(&mut stored_extensions.extensions, mcp_servers)?;
             builder = builder.extension_data(enabled_extensions_data(
                 &session,
