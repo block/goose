@@ -246,6 +246,9 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
                 placeholder={intl.formatMessage(i18n.enterPathPlaceholder)}
                 onChange={(e) => setCustomDirInput(e.target.value)}
                 onKeyDown={(e) => {
+                  // Stop Radix menu typeahead from stealing focus while typing
+                  // a path (e.g. the initial "C" of a Windows drive path).
+                  e.stopPropagation();
                   if (e.key === 'Enter' && customDirInput.trim()) {
                     const newDir = customDirInput.trim();
                     if (!isAbsolutePath(newDir)) {
