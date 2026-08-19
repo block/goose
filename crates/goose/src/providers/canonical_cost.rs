@@ -31,6 +31,8 @@ use goose_providers::conversation::token_usage::Usage;
 use std::sync::OnceLock;
 use tracing::warn;
 
+const DEFAULT_CURRENCY: &str = "$";
+
 /// Estimate the USD cost of a model invocation.
 pub fn estimate_model_cost(provider: &str, model: &str, usage: &Usage) -> Option<f64> {
     resolve_pricing(provider, model).and_then(|pricing| pricing.estimate_cost(usage))
@@ -71,6 +73,27 @@ pub(crate) fn resolve_pricing(provider: &str, model: &str) -> Option<Pricing> {
 /// without silently pricing one direction at zero.
 pub(crate) fn configured_model_info(provider: &str, model: &str) -> Option<ModelInfo> {
     custom_file_model_info(provider, model).or_else(|| bundled_model_info(provider, model))
+}
+
+/// The currency clients render alongside config-declared prices. Clients print
+/// this verbatim as a symbol, so the ISO codes configs commonly use (bundled
+/// definitions declare `USD`) are mapped to their symbol; anything else is
+/// shown exactly as declared.
+pub(crate) fn display_currency(info: Option<&ModelInfo>) -> String {
+    info.and_then(|info| info.currency.as_deref())
+        .map(currency_symbol)
+        .unwrap_or_else(|| DEFAULT_CURRENCY.to_string())
+}
+
+fn currency_symbol(declared: &str) -> String {
+    let declared = declared.trim();
+    match declared.to_ascii_uppercase().as_str() {
+        "" | "USD" => DEFAULT_CURRENCY.to_string(),
+        "EUR" => "€".to_string(),
+        "GBP" => "£".to_string(),
+        "JPY" => "¥".to_string(),
+        _ => declared.to_string(),
+    }
 }
 
 /// Merge user-declared pricing with registry/bundled pricing: declared
@@ -299,6 +322,28 @@ mod tests {
         let cost = estimate_model_cost("priced_gateway", "claude-sonnet-4-5", &used).unwrap();
         let expected = (10_000.0 * 1.0 + 100.0 * 4.0) / 1_000_000.0;
         assert!((cost - expected).abs() < 1e-12);
+    }
+
+    #[test]
+    fn declared_currency_is_rendered_as_a_symbol() {
+        let mut info = ModelInfo::with_cost("m", 1_000, 0.000001, 0.000004);
+        info.currency = Some("EUR".to_string());
+        assert_eq!(display_currency(Some(&info)), "€");
+
+        info.currency = Some("¥".to_string());
+        assert_eq!(display_currency(Some(&info)), "¥");
+    }
+
+    #[test]
+    fn missing_or_usd_currency_falls_back_to_the_dollar_symbol() {
+        let mut info = ModelInfo::new("m", 1_000);
+        assert_eq!(display_currency(Some(&info)), "$");
+        assert_eq!(display_currency(None), "$");
+
+        // Bundled definitions declare the ISO code, which clients would
+        // otherwise print verbatim as "USD0.01".
+        info.currency = Some("usd".to_string());
+        assert_eq!(display_currency(Some(&info)), "$");
     }
 
     #[test]

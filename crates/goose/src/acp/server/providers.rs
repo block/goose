@@ -1035,6 +1035,9 @@ impl GooseAcpAgent {
 
         let config_info =
             crate::providers::canonical_cost::configured_model_info(&req.provider, &req.model);
+        // Config-declared prices carry the config's currency; without them the
+        // response reports registry rates, which are USD.
+        let currency = crate::providers::canonical_cost::display_currency(config_info.as_ref());
         let model_info =
             crate::providers::canonical::maybe_get_canonical_model(&req.provider, &req.model)
                 .map(|canonical_model| {
@@ -1058,7 +1061,7 @@ impl GooseAcpAgent {
                         output_token_cost: pricing.output,
                         cache_read_token_cost: pricing.cache_read,
                         cache_write_token_cost: pricing.cache_write,
-                        currency: "$".to_string(),
+                        currency: currency.clone(),
                     }
                 })
                 .or_else(|| {
@@ -1078,7 +1081,7 @@ impl GooseAcpAgent {
                                 output_token_cost: pricing.output,
                                 cache_read_token_cost: pricing.cache_read,
                                 cache_write_token_cost: pricing.cache_write,
-                                currency: "$".to_string(),
+                                currency: currency.clone(),
                             })
                         })
                 });
