@@ -219,7 +219,7 @@ resolved are reported separately instead of guessed. A new installation must
 create one Buzz channel with the configured queue name before running the
 recipe.
 
-Only the 10 most recent issue or pull-request links in the queue are considered.
+Only the 20 most recent issue or pull-request links in the queue are considered.
 Conversation without GitHub links does not consume that limit. Use
 `--queue-count` to change it.
 

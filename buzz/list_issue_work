@@ -155,7 +155,7 @@ function parseArguments(arguments_) {
     projectLimit: 1000,
     channelLimit: 500,
     queueChannel: "issues to add",
-    queueCount: 10,
+    queueCount: 20,
     messageLimit: 1000,
     help: false,
   };
@@ -323,15 +323,18 @@ function issueRecord(item, sources, queued = null) {
 }
 
 function readIssueQueue() {
-  const matches = runBuzz([
+  const channels = runBuzz([
     "channels",
-    "search",
-    "--query",
-    options.queueChannel,
-    "--include-archived",
+    "list",
     "--limit",
-    "20",
-  ]).filter(
+    String(options.channelLimit),
+  ]);
+  if (channels.length >= options.channelLimit) {
+    fail(
+      `Buzz returned ${channels.length} channels at the --channel-limit boundary. Raise the limit.`,
+    );
+  }
+  const matches = channels.filter(
     (channel) =>
       channel.name?.trim().toLowerCase() ===
       options.queueChannel.trim().toLowerCase(),
@@ -538,9 +541,9 @@ Options:
   --project-owner <owner>   GitHub project owner (default: aaif-goose)
   --project-number <number> GitHub project number (default: 1)
   --project-limit <number>  Maximum project items (default: 1000)
-  --channel-limit <number>  Maximum Buzz search results (default: 500)
+  --channel-limit <number>  Maximum Buzz channels to inspect (default: 500)
   --queue-channel <name>    Buzz issue queue (default: issues to add)
-  --queue-count <number>    Recent issue/PR links to process (default: 10)
+  --queue-count <number>    Recent issue/PR links to process (default: 20)
   --message-limit <number>  Maximum queue messages (default: 1000)
   -h, --help                Show this help
 
