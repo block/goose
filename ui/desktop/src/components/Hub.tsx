@@ -170,6 +170,7 @@ export default function Hub({
             onFilesProcessed={() => {}}
             messages={[]}
             disableAnimation={false}
+            workingDir={workingDir}
             onWorkingDirChange={handleWorkingDirChange}
             inputRef={inputRef}
             nextChatExtensionDraft={draftForMenu}
