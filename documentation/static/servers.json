@@ -671,6 +671,18 @@
     "environmentVariables": []
   },
   {
+    "id": "simplepages",
+    "name": "Simplepages",
+    "description": "Build and edit landing pages and websites, and pull how they are performing",
+    "url": "https://simplepages.ai/api/mcp",
+    "link": "https://github.com/simplepages-ai/simplepages-mcp",
+    "installation_notes": "Sign in with your Simplepages account when prompted. Auth is OAuth 2.0 with dynamic client registration, so there is no API key or environment variable to set.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [],
+    "type": "streamable-http"
+  },
+  {
     "id": "square-mcp",
     "name": "Square",
     "description": "Square API for payments and business management",
