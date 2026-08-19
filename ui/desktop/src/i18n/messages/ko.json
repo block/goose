@@ -1,25 +1,4 @@
 {
-  "acpReadinessPanel.adapterFound": {
-    "defaultMessage": "ACP 어댑터를 찾았습니다"
-  },
-  "acpReadinessPanel.adapterNotFound": {
-    "defaultMessage": "ACP 어댑터를 찾을 수 없습니다"
-  },
-  "acpReadinessPanel.authenticationHelp": {
-    "defaultMessage": "제공업체 CLI에서 로그인한 후 다시 확인하세요."
-  },
-  "acpReadinessPanel.checkAgain": {
-    "defaultMessage": "다시 확인"
-  },
-  "acpReadinessPanel.checking": {
-    "defaultMessage": "확인 중..."
-  },
-  "acpReadinessPanel.connected": {
-    "defaultMessage": "연결되었습니다"
-  },
-  "acpReadinessPanel.connectionNotChecked": {
-    "defaultMessage": "계속하기 전에 계정 연결을 확인하세요."
-  },
   "alertBox.autoCompactAt": {
     "defaultMessage": "자동 압축 기준"
   },
@@ -953,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "최근 디렉터리"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "{branch} 브랜치로 전환하지 못했습니다"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "브랜치를 찾을 수 없습니다"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "브랜치 검색…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "커밋되지 않은 변경 사항이 있을 수 있습니다."
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "수락"
   },
@@ -1258,18 +1249,6 @@
   },
   "externalBackendSection.workingDirPlaceholder": {
     "defaultMessage": "/home/goose/workspace"
-  },
-  "gitBranchIndicator.failedToSwitch": {
-    "defaultMessage": "{branch} 브랜치로 전환하지 못했습니다"
-  },
-  "gitBranchIndicator.noBranchesFound": {
-    "defaultMessage": "브랜치를 찾을 수 없습니다"
-  },
-  "gitBranchIndicator.searchBranches": {
-    "defaultMessage": "브랜치 검색…"
-  },
-  "gitBranchIndicator.uncommittedChanges": {
-    "defaultMessage": "커밋되지 않은 변경 사항이 있을 수 있습니다."
   },
   "goosehintsModal.close": {
     "defaultMessage": "닫기"
@@ -2366,9 +2345,6 @@
   "modelsBottomBar.localModelSettingsTitle": {
     "defaultMessage": "로컬 모델 설정 — {modelName}"
   },
-  "modelsBottomBar.recentModels": {
-    "defaultMessage": "최근"
-  },
   "modelsBottomBar.resolvedModel": {
     "defaultMessage": "확인된 모델"
   },
@@ -2741,9 +2717,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "저장되지 않은 변경 사항이 있습니다."
   },
-  "providerCard.deprecatedReplacement": {
-    "defaultMessage": "더 이상 사용되지 않습니다. 대신 {replacement}을(를) 사용하세요."
-  },
   "providerCard.noMetadata": {
     "defaultMessage": "ProviderCard 오류: 메타데이터가 제공되지 않았습니다."
   },
@@ -2824,9 +2797,6 @@
   },
   "providerConfigurationModal.checkConfigAgain": {
     "defaultMessage": "이 제공업체를 사용하려면 구성을 다시 확인하세요."
-  },
-  "providerConfigurationModal.chooseModel": {
-    "defaultMessage": "모델 선택"
   },
   "providerConfigurationModal.close": {
     "defaultMessage": "닫기"
@@ -4675,5 +4645,35 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "메시지에서 이미지 제거"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "최근"
+  },
+  "providerConfigurationModal.chooseModel": {
+    "defaultMessage": "모델 선택"
+  },
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "더 이상 사용되지 않습니다. 대신 {replacement}을(를) 사용하세요."
+  },
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "ACP 어댑터를 찾았습니다"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "ACP 어댑터를 찾을 수 없습니다"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "제공업체 CLI에서 로그인한 후 다시 확인하세요."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "다시 확인"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "확인 중..."
+  },
+  "acpReadinessPanel.connected": {
+    "defaultMessage": "연결되었습니다"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "계속하기 전에 계정 연결을 확인하세요."
   }
 }

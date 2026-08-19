@@ -1,25 +1,4 @@
 {
-  "acpReadinessPanel.adapterFound": {
-    "defaultMessage": "Adaptor ACP ditemukan"
-  },
-  "acpReadinessPanel.adapterNotFound": {
-    "defaultMessage": "Adaptor ACP tidak ditemukan"
-  },
-  "acpReadinessPanel.authenticationHelp": {
-    "defaultMessage": "Masuk melalui CLI penyedia, lalu periksa lagi."
-  },
-  "acpReadinessPanel.checkAgain": {
-    "defaultMessage": "Periksa lagi"
-  },
-  "acpReadinessPanel.checking": {
-    "defaultMessage": "Memeriksa..."
-  },
-  "acpReadinessPanel.connected": {
-    "defaultMessage": "Berhasil terhubung"
-  },
-  "acpReadinessPanel.connectionNotChecked": {
-    "defaultMessage": "Periksa koneksi akun Anda sebelum melanjutkan."
-  },
   "alertBox.autoCompactAt": {
     "defaultMessage": "Padatkan otomatis pada"
   },
@@ -953,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Direktori terbaru"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "Gagal beralih ke {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "Tidak ada branch yang ditemukan"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "Cari branch…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "Anda mungkin memiliki perubahan yang belum di-commit."
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Terima"
   },
@@ -1258,18 +1249,6 @@
   },
   "externalBackendSection.workingDirPlaceholder": {
     "defaultMessage": "/home/goose/workspace"
-  },
-  "gitBranchIndicator.failedToSwitch": {
-    "defaultMessage": "Gagal beralih ke {branch}"
-  },
-  "gitBranchIndicator.noBranchesFound": {
-    "defaultMessage": "Tidak ada branch yang ditemukan"
-  },
-  "gitBranchIndicator.searchBranches": {
-    "defaultMessage": "Cari branch…"
-  },
-  "gitBranchIndicator.uncommittedChanges": {
-    "defaultMessage": "Anda mungkin memiliki perubahan yang belum di-commit."
   },
   "goosehintsModal.close": {
     "defaultMessage": "Tutup"
@@ -2366,9 +2345,6 @@
   "modelsBottomBar.localModelSettingsTitle": {
     "defaultMessage": "Pengaturan Model Lokal — {modelName}"
   },
-  "modelsBottomBar.recentModels": {
-    "defaultMessage": "Terbaru"
-  },
   "modelsBottomBar.resolvedModel": {
     "defaultMessage": "Model yang diselesaikan"
   },
@@ -2741,9 +2717,6 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "Anda memiliki perubahan yang belum disimpan"
   },
-  "providerCard.deprecatedReplacement": {
-    "defaultMessage": "Tidak digunakan lagi — gunakan {replacement} sebagai gantinya."
-  },
   "providerCard.noMetadata": {
     "defaultMessage": "Kesalahan ProviderCard: Tidak ada metadata yang disediakan"
   },
@@ -2824,9 +2797,6 @@
   },
   "providerConfigurationModal.checkConfigAgain": {
     "defaultMessage": "Periksa kembali konfigurasi Anda untuk menggunakan penyedia ini."
-  },
-  "providerConfigurationModal.chooseModel": {
-    "defaultMessage": "Pilih Model"
   },
   "providerConfigurationModal.close": {
     "defaultMessage": "Tutup"
@@ -4675,5 +4645,35 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "Hapus gambar dari pesan"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "Terbaru"
+  },
+  "providerConfigurationModal.chooseModel": {
+    "defaultMessage": "Pilih Model"
+  },
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Tidak digunakan lagi — gunakan {replacement} sebagai gantinya."
+  },
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "Adaptor ACP ditemukan"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "Adaptor ACP tidak ditemukan"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Masuk melalui CLI penyedia, lalu periksa lagi."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Periksa lagi"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "Memeriksa..."
+  },
+  "acpReadinessPanel.connected": {
+    "defaultMessage": "Berhasil terhubung"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Periksa koneksi akun Anda sebelum melanjutkan."
   }
 }
