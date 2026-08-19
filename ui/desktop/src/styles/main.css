@@ -462,6 +462,7 @@
 [data-radix-scroll-area-viewport] {
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
+  overflow-anchor: none;
 }
 
 [data-radix-scroll-area-viewport]::-webkit-scrollbar {
