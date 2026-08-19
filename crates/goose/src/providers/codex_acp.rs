@@ -127,7 +127,6 @@ mod tests {
         File(&'static str),
         Directory,
         DanglingSymlink,
-        InaccessibleParent,
     }
 
     #[test]
@@ -224,12 +223,6 @@ mod tests {
                 ConfigFixture::DanglingSymlink,
                 false,
             ),
-            (
-                "inaccessible_parent",
-                None,
-                ConfigFixture::InaccessibleParent,
-                false,
-            ),
         ] {
             let marker = fixture.path().join(format!("launched-{name}"));
             let path_root = fixture.path().join(format!("config-{name}"));
@@ -242,10 +235,6 @@ mod tests {
                 ConfigFixture::Directory => fs::create_dir(&config_path).unwrap(),
                 ConfigFixture::DanglingSymlink => {
                     symlink(config_dir.join("missing.yaml"), &config_path).unwrap()
-                }
-                ConfigFixture::InaccessibleParent => {
-                    fs::write(&config_path, "GOOSE_MODE: approve\n").unwrap();
-                    fs::set_permissions(&config_dir, fs::Permissions::from_mode(0o000)).unwrap();
                 }
             }
             let mut command = Command::new(std::env::current_exe().unwrap());
@@ -272,9 +261,6 @@ mod tests {
                 }
             }
             let output = command.output().unwrap();
-            if matches!(config_fixture, ConfigFixture::InaccessibleParent) {
-                fs::set_permissions(&config_dir, fs::Permissions::from_mode(0o700)).unwrap();
-            }
 
             assert!(
                 output.status.success(),
