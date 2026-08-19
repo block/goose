@@ -448,7 +448,7 @@ if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
 
 // Apply single instance lock on Windows and Linux where it's needed for deep links
 // macOS uses the 'open-url' event instead
-let gotTheLock = true;
+let gotTheLock: boolean;
 let openUrlHandledLaunch = false;
 if (process.platform !== 'darwin') {
   gotTheLock = app.requestSingleInstanceLock();
@@ -2702,7 +2702,7 @@ async function appMain() {
       );
     }
 
-    fileMenu.submenu.insert(menuIndex++, new MenuItem({ type: 'separator' }));
+    fileMenu.submenu.insert(menuIndex, new MenuItem({ type: 'separator' }));
 
     if (shortcuts.focusWindow) {
       fileMenu.submenu.append(
