@@ -43,7 +43,7 @@ pub enum AzureCredentials {
     ApiKey(String),
     /// Pre-acquired Microsoft Entra ID access token (e.g. AZURE_OPENAI_AD_TOKEN)
     BearerToken(String),
-    /// Azure CLI based authentication
+    /// Azure credential chain based authentication
     DefaultCredential,
 }
 
@@ -133,8 +133,13 @@ pub struct AzureAuth {
 impl AzureAuth {
     /// Creates a new Azure authentication handler.
     ///
-    /// Selects a static bearer token, API key, or Azure CLI fallback and initializes
-    /// the in-memory token cache.
+    /// Initializes the authentication handler by:
+    /// 1. Loading credentials from environment
+    /// 2. Setting up an HTTP client for token requests
+    /// 3. Initializing the token cache
+    ///
+    /// # Returns
+    /// *  - A new AzureAuth instance or an error if initialization fails
     pub fn new(api_key: Option<String>, ad_token: Option<String>) -> Result<Self, AuthError> {
         Self::new_with_resource(api_key, ad_token, DEFAULT_RESOURCE.to_string())
     }
@@ -192,8 +197,19 @@ impl AzureAuth {
 
     /// Retrieves a valid authentication token.
     ///
-    /// Static credentials are returned directly. Device Code and Azure CLI tokens
-    /// are cached and refreshed when needed using double-checked locking.
+    /// This method implements an efficient token management strategy:
+    /// 1. For API key auth, returns the API key directly
+    /// 2. For bearer token auth, returns the pre-acquired token directly
+    /// 3. For Azure credential chain:
+    ///    a. Checks the cache for a valid token
+    ///    b. Returns the cached token if not expired
+    ///    c. Obtains a new token if needed or expired
+    ///    d. Uses double-checked locking for thread safety
+    /// 4. For Entra Device Code auth, restores or refreshes securely stored tokens
+    ///    before starting an interactive flow.
+    ///
+    /// # Returns
+    /// *  - A valid authentication token or an error
     pub async fn get_token(&self) -> Result<AuthToken, AuthError> {
         if let Some(config) = &self.device_code {
             return self.get_device_code_token(config).await;
