@@ -111,7 +111,7 @@ mod tests {
     #[cfg(unix)]
     use std::fs;
     #[cfg(unix)]
-    use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::fs::{symlink, PermissionsExt};
     #[cfg(unix)]
     use std::process::Command;
 
@@ -126,6 +126,7 @@ mod tests {
         Absent,
         File(&'static str),
         Directory,
+        DanglingSymlink,
         InaccessibleParent,
     }
 
@@ -218,6 +219,12 @@ mod tests {
             ),
             ("unreadable_file", None, ConfigFixture::Directory, false),
             (
+                "dangling_symlink",
+                None,
+                ConfigFixture::DanglingSymlink,
+                false,
+            ),
+            (
                 "inaccessible_parent",
                 None,
                 ConfigFixture::InaccessibleParent,
@@ -233,6 +240,9 @@ mod tests {
                 ConfigFixture::Absent => {}
                 ConfigFixture::File(content) => fs::write(&config_path, content).unwrap(),
                 ConfigFixture::Directory => fs::create_dir(&config_path).unwrap(),
+                ConfigFixture::DanglingSymlink => {
+                    symlink(config_dir.join("missing.yaml"), &config_path).unwrap()
+                }
                 ConfigFixture::InaccessibleParent => {
                     fs::write(&config_path, "GOOSE_MODE: approve\n").unwrap();
                     fs::set_permissions(&config_dir, fs::Permissions::from_mode(0o000)).unwrap();

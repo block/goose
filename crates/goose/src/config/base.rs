@@ -523,8 +523,10 @@ impl Config {
         let mut merged = Mapping::new();
 
         for path in &self.config_paths {
-            if !path.try_exists()? {
-                continue;
+            match std::fs::symlink_metadata(path) {
+                Ok(_) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(error.into()),
             }
             let content = std::fs::read_to_string(path)?;
             let layer = parse_yaml_content(&content)?;
