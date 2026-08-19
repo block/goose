@@ -2,8 +2,47 @@ use std::fs;
 use std::io::{self, Read};
 use std::path::{Component, Path};
 
-pub(crate) fn read_supporting_file(skill_dir: &Path, relative: &Path) -> io::Result<String> {
-    read_supporting_file_with_limit(skill_dir, relative, crate::agents::max_tool_response_size())
+const LOADED_FILE_PREFIX: &str = "# Loaded: ";
+const LOADED_FILE_SEPARATOR: &str = "\n\n";
+const LOADED_FILE_SUFFIX: &str = "\n\n---\nFile loaded into context.";
+
+pub(crate) fn load_supporting_file(
+    skill_dir: &Path,
+    relative: &Path,
+    skill_name: &str,
+) -> io::Result<String> {
+    load_supporting_file_with_limit(
+        skill_dir,
+        relative,
+        skill_name,
+        crate::agents::max_tool_response_size(),
+    )
+}
+
+fn load_supporting_file_with_limit(
+    skill_dir: &Path,
+    relative: &Path,
+    skill_name: &str,
+    max_characters: usize,
+) -> io::Result<String> {
+    let wrapper_characters = LOADED_FILE_PREFIX.chars().count()
+        + skill_name.chars().count()
+        + LOADED_FILE_SEPARATOR.chars().count()
+        + LOADED_FILE_SUFFIX.chars().count();
+    let content_limit = max_characters
+        .checked_sub(wrapper_characters)
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "maximum tool response size of {max_characters} characters is too small to load '{skill_name}'"
+                ),
+            )
+        })?;
+    let content = read_supporting_file_with_limit(skill_dir, relative, content_limit)?;
+    Ok(format!(
+        "{LOADED_FILE_PREFIX}{skill_name}{LOADED_FILE_SEPARATOR}{content}{LOADED_FILE_SUFFIX}"
+    ))
 }
 
 fn read_supporting_file_with_limit(
@@ -440,7 +479,12 @@ mod tests {
         fs::create_dir(&nested).unwrap();
         fs::write(nested.join("guide.md"), "nested guidance").unwrap();
 
-        let content = read_supporting_file(&skill_dir, Path::new("nested/guide.md")).unwrap();
+        let content = read_supporting_file_with_limit(
+            &skill_dir,
+            Path::new("nested/guide.md"),
+            crate::agents::max_tool_response_size(),
+        )
+        .unwrap();
 
         assert_eq!(content, "nested guidance");
     }
@@ -456,6 +500,57 @@ mod tests {
             read_supporting_file_with_limit(&skill_dir, Path::new("guide.md"), 4).unwrap();
 
         assert_eq!(content, "🙂🙂🙂🙂");
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn wrapped_file_respects_total_character_limit() {
+        let root = tempfile::tempdir().unwrap();
+        let skill_dir = fs::canonicalize(root.path()).unwrap();
+        fs::write(skill_dir.join("guide.md"), "🙂🙂🙂🙂").unwrap();
+        let skill_name = "test-skill/guide.md";
+        let wrapper_characters = LOADED_FILE_PREFIX.chars().count()
+            + skill_name.chars().count()
+            + LOADED_FILE_SEPARATOR.chars().count()
+            + LOADED_FILE_SUFFIX.chars().count();
+        let max_characters = wrapper_characters + 4;
+
+        let content = load_supporting_file_with_limit(
+            &skill_dir,
+            Path::new("guide.md"),
+            skill_name,
+            max_characters,
+        )
+        .unwrap();
+
+        assert_eq!(content.chars().count(), max_characters);
+        assert!(content.contains("🙂🙂🙂🙂"));
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn rejects_file_that_exceeds_wrapped_character_limit() {
+        let root = tempfile::tempdir().unwrap();
+        let skill_dir = fs::canonicalize(root.path()).unwrap();
+        fs::write(skill_dir.join("guide.md"), "ééééé").unwrap();
+        let skill_name = "test-skill/guide.md";
+        let wrapper_characters = LOADED_FILE_PREFIX.chars().count()
+            + skill_name.chars().count()
+            + LOADED_FILE_SEPARATOR.chars().count()
+            + LOADED_FILE_SUFFIX.chars().count();
+
+        let error = load_supporting_file_with_limit(
+            &skill_dir,
+            Path::new("guide.md"),
+            skill_name,
+            wrapper_characters + 4,
+        )
+        .expect_err("wrapped supporting-file limit was not enforced");
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert!(error
+            .to_string()
+            .contains("exceeds the maximum size of 4 characters"));
     }
 
     #[cfg(any(unix, windows))]
@@ -509,7 +604,11 @@ mod tests {
         fs::write(outside.path().join("secret.txt"), "outside secret").unwrap();
         std::os::unix::fs::symlink(outside.path(), skill_dir.join("nested")).unwrap();
 
-        let result = read_supporting_file(&skill_dir, Path::new("nested/secret.txt"));
+        let result = read_supporting_file_with_limit(
+            &skill_dir,
+            Path::new("nested/secret.txt"),
+            crate::agents::max_tool_response_size(),
+        );
 
         assert!(result.is_err());
     }

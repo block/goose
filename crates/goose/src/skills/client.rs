@@ -159,16 +159,14 @@ impl McpClientTrait for SkillsClient {
                         continue;
                     }
 
-                    return Ok(match super::read_supporting_file(&skill_dir, rel) {
-                        Ok(content) => CallToolResult::success(vec![ContentBlock::text(format!(
-                            "# Loaded: {}\n\n{}\n\n---\nFile loaded into context.",
-                            skill_name, content
-                        ))]),
+                    let result = match super::load_supporting_file(&skill_dir, rel, skill_name) {
+                        Ok(content) => CallToolResult::success(vec![ContentBlock::text(content)]),
                         Err(e) => CallToolResult::error(vec![ContentBlock::text(format!(
                             "Failed to read '{}': {}",
                             skill_name, e
                         ))]),
-                    });
+                    };
+                    return Ok(result);
                 }
 
                 let available: Vec<String> = skill

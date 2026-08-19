@@ -154,10 +154,8 @@ fn load_supporting_file(
         if relative.to_string_lossy().replace('\\', "/") != relative_path {
             continue;
         }
-        return match crate::skills::read_supporting_file(&skill_dir, relative) {
-            Ok(content) => CallToolResult::success(vec![ContentBlock::text(format!(
-                "# Loaded: {skill_name}\n\n{content}\n\n---\nFile loaded into context."
-            ))]),
+        return match crate::skills::load_supporting_file(&skill_dir, relative, skill_name) {
+            Ok(content) => CallToolResult::success(vec![ContentBlock::text(content)]),
             Err(error) => CallToolResult::error(vec![ContentBlock::text(format!(
                 "Failed to read '{skill_name}': {error}"
             ))]),

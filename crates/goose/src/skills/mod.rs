@@ -8,7 +8,7 @@ pub mod client;
 mod supporting_files;
 
 pub use client::{SkillsClient, EXTENSION_NAME};
-pub(crate) use supporting_files::read_supporting_file;
+pub(crate) use supporting_files::load_supporting_file;
 
 use crate::config::{paths::Paths, Config};
 use crate::plugins::installed_plugin_skill_dirs;
