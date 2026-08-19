@@ -51,21 +51,6 @@
       ]
     },
     {
-      "name": "Mat",
-      "github": "matbalez",
-      "pubkey": "5630c46628625e3d69756723ca537f20e3a5a035266015b079f406d21df7e44e",
-      "interest": [
-        "Bitcoin and Lightning",
-        "Wallet interoperability",
-        "BOLT12 and Nostr standards",
-        "Relay authentication",
-        "Payment UX and merchant adoption",
-        "Protocol-driven web tools",
-        "Accessibility",
-        "Lightning infrastructure testing"
-      ]
-    },
-    {
       "name": "Mic",
       "github": "michaelneale",
       "pubkey": "cb295abd2c37fef7a91c0960b19aa9894004183b0cf046da68a0ca7d2eb164c5",

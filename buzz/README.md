@@ -137,7 +137,6 @@ The current roster is:
     - Doose as their bot
 - Alex Hancock as a member
 - jasper as a member
-- Mat as a member
 - Mic as a member
 - lifei as a member
     - Lifei goose agent as their bot
