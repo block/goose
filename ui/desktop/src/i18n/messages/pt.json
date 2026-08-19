@@ -932,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Diretórios recentes"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "Falha ao mudar para {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "Nenhum ramo encontrado"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "Pesquisar ramos…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "Pode haver alterações sem commit."
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Aceitar"
   },
