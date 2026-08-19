@@ -497,7 +497,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
     return () => void 0;
   }, [isLoading, showSkeleton]);
 
-  // Split sessions into human-created and scheduled job sessions
   const { humanSessions, scheduledSessions } = useMemo(() => {
     const human: SessionListItem[] = [];
     const scheduled: SessionListItem[] = [];
@@ -511,7 +510,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
     return { humanSessions: human, scheduledSessions: scheduled };
   }, [sessions]);
 
-  // Memoize date groups calculation to prevent unnecessary recalculations
   const memoizedDateGroups = useMemo(() => {
     if (humanSessions.length > 0) {
       return groupSessionsByDate(humanSessions);
@@ -1016,8 +1014,10 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
           </div>
         ))}
 
-        {!debouncedSearchTerm && memoizedScheduledDateGroups.length > 0 && (
-          <div className="space-y-4">
+        {!debouncedSearchTerm &&
+          visibleGroupsCount >= activeDateGroups.length &&
+          memoizedScheduledDateGroups.length > 0 && (
+            <div className="space-y-4">
             <button
               onClick={() => setIsScheduledExpanded((v) => !v)}
               className="sticky top-0 z-10 w-full flex items-center justify-between bg-background-primary/95 backdrop-blur-sm py-2 px-1 rounded-lg hover:bg-background-secondary transition-colors cursor-pointer"
@@ -1064,8 +1064,8 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
                 ))}
               </div>
             )}
-          </div>
-        )}
+            </div>
+          )}
 
         {isPrefetchingSessions && (
           <div className="flex justify-center py-8">

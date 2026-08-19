@@ -3899,6 +3899,12 @@
   "sessions.saving": {
     "defaultMessage": "Saving..."
   },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count,plural,one{{count} job} other{{count} jobs}}"
+  },
   "sessions.search.noResults": {
     "defaultMessage": "No matching sessions found"
   },
@@ -4669,11 +4675,5 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "Remove image from message"
-  },
-  "sessions.scheduledJobs": {
-    "defaultMessage": "Scheduled Jobs"
-  },
-  "sessions.scheduledJobsCount": {
-    "defaultMessage": "{count} {count, plural, one {job} other {jobs}}"
   }
 }
