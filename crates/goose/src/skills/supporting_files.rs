@@ -136,15 +136,33 @@ fn directory_traversal_flags() -> libc::c_int {
     libc::O_PATH | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC
 }
 
-#[cfg(all(unix, target_vendor = "apple"))]
+#[cfg(all(
+    unix,
+    any(
+        target_vendor = "apple",
+        target_os = "aix",
+        target_os = "freebsd",
+        target_os = "illumos",
+        target_os = "netbsd",
+        target_os = "solaris"
+    )
+))]
 fn directory_traversal_flags() -> libc::c_int {
-    libc::O_SEARCH | libc::O_NOFOLLOW | libc::O_CLOEXEC
+    libc::O_SEARCH | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC
 }
 
 #[cfg(all(
     unix,
-    not(any(target_os = "linux", target_os = "android")),
-    not(target_vendor = "apple")
+    not(any(
+        target_vendor = "apple",
+        target_os = "aix",
+        target_os = "android",
+        target_os = "freebsd",
+        target_os = "illumos",
+        target_os = "linux",
+        target_os = "netbsd",
+        target_os = "solaris"
+    ))
 ))]
 fn directory_traversal_flags() -> libc::c_int {
     libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC
@@ -487,6 +505,41 @@ mod tests {
         .unwrap();
 
         assert_eq!(content, "nested guidance");
+    }
+
+    #[cfg(all(
+        unix,
+        any(
+            target_vendor = "apple",
+            target_os = "aix",
+            target_os = "android",
+            target_os = "freebsd",
+            target_os = "illumos",
+            target_os = "linux",
+            target_os = "netbsd",
+            target_os = "solaris"
+        )
+    ))]
+    #[test]
+    fn reads_through_search_only_ancestor() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = tempfile::tempdir().unwrap();
+        let skill_dir = root.path().join("skill");
+        fs::create_dir(&skill_dir).unwrap();
+        fs::write(skill_dir.join("guide.md"), "search-only guidance").unwrap();
+        let skill_dir = fs::canonicalize(skill_dir).unwrap();
+        let original_permissions = fs::metadata(root.path()).unwrap().permissions();
+        fs::set_permissions(root.path(), fs::Permissions::from_mode(0o111)).unwrap();
+
+        let result = read_supporting_file_with_limit(
+            &skill_dir,
+            Path::new("guide.md"),
+            crate::agents::max_tool_response_size(),
+        );
+
+        fs::set_permissions(root.path(), original_permissions).unwrap();
+        assert_eq!(result.unwrap(), "search-only guidance");
     }
 
     #[cfg(any(unix, windows))]
