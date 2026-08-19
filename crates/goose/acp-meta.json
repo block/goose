@@ -91,11 +91,6 @@
       "responseType": "PromptOperationResponse_unstable"
     },
     {
-      "method": "session/delete",
-      "requestType": "DeleteSessionRequest",
-      "responseType": "EmptyResponse"
-    },
-    {
       "method": "_goose/unstable/config/extensions/list",
       "requestType": "GetConfigExtensionsRequest_unstable",
       "responseType": "GetConfigExtensionsResponse_unstable"
@@ -174,6 +169,11 @@
       "method": "_goose/unstable/providers/inventory/refresh",
       "requestType": "RefreshProviderInventoryRequest_unstable",
       "responseType": "RefreshProviderInventoryResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/providers/readiness/check",
+      "requestType": "ProviderReadinessCheckRequest_unstable",
+      "responseType": "ProviderReadinessCheckResponse_unstable"
     },
     {
       "method": "_goose/unstable/providers/config/read",

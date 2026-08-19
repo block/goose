@@ -111,6 +111,32 @@ describe('Extension Utils', () => {
       });
     });
 
+    it('should preserve streamable_http OAuth client fields and socket through a form round-trip', () => {
+      const extension: FixedExtensionEntry = {
+        type: 'streamable_http',
+        name: 'oauth-extension',
+        description: 'OAuth description',
+        uri: 'http://api.example.com',
+        enabled: true,
+        headers: {},
+        socket: '@egress.sock',
+        client_id: 'registered-client',
+        client_secret_key: 'OAUTH_CLIENT_SECRET',
+        scopes: ['scope.read'],
+      };
+
+      const formData = extensionToFormData(extension);
+      const config = createExtensionConfig(formData);
+
+      expect(config).toMatchObject({
+        type: 'streamable_http',
+        socket: '@egress.sock',
+        client_id: 'registered-client',
+        client_secret_key: 'OAUTH_CLIENT_SECRET',
+        scopes: ['scope.read'],
+      });
+    });
+
     it('should handle legacy envs field', () => {
       const extension: FixedExtensionEntry = {
         type: 'stdio',

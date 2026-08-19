@@ -5,6 +5,9 @@ import type { FixedExtensionEntry } from './components/ConfigContext';
 import { AppEvents } from './constants/events';
 import { acpChatSessionController } from './acp/chatSessionController';
 import { getConfiguredGooseExtensions, gooseExtensionName } from './acp/extensions';
+import { beginConfiguredRecipeParameterScope } from './acp/recipeParamRequests';
+import { getAcpFeatureCapabilities } from './acp/capabilities';
+import { RecipeParameterScopesUnsupportedError } from './acp/errors';
 
 export function getSessionDisplayName(session: Session): string {
   if (session.user_set_name) {
@@ -42,17 +45,31 @@ async function createAcpSession(
   workingDir: string,
   options?: CreateSessionOptions
 ): Promise<Session> {
-  const selectedNames = new Set(selectedExtensionConfigs(options).map((config) => config.name));
-  const gooseExtensions =
-    selectedNames.size > 0
-      ? (await getConfiguredGooseExtensions())
-          .filter((entry) => selectedNames.has(gooseExtensionName(entry.extension)))
-          .map((entry) => entry.extension)
-      : [];
-  return acpChatSessionController.createSession(workingDir, gooseExtensions, {
-    recipeId: options?.recipeId,
-    recipeDeeplink: options?.recipeDeeplink,
-  });
+  const configuredParameterScope = options?.recipeDeeplink
+    ? beginConfiguredRecipeParameterScope()
+    : undefined;
+  try {
+    if (configuredParameterScope) {
+      const capabilities = await getAcpFeatureCapabilities();
+      if (!capabilities.recipeParameterScopes) {
+        throw new RecipeParameterScopesUnsupportedError();
+      }
+    }
+    const selectedNames = new Set(selectedExtensionConfigs(options).map((config) => config.name));
+    const gooseExtensions =
+      selectedNames.size > 0
+        ? (await getConfiguredGooseExtensions())
+            .filter((entry) => selectedNames.has(gooseExtensionName(entry.extension)))
+            .map((entry) => entry.extension)
+        : [];
+    return await acpChatSessionController.createSession(workingDir, gooseExtensions, {
+      recipeId: options?.recipeId,
+      recipeDeeplink: options?.recipeDeeplink,
+      recipeParameterScopeId: configuredParameterScope?.id,
+    });
+  } finally {
+    configuredParameterScope?.finish();
+  }
 }
 
 export async function createSession(

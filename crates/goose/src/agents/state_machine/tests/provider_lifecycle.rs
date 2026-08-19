@@ -319,3 +319,23 @@ async fn usage_and_provider_errors_survive_persistence() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn requested_model_is_recorded_without_resolved_model() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    api.on("hello").reply("hi there");
+
+    let result = pipeline.run(["hello"]).await?;
+    let requested_model = &result.session.model_config.as_ref().unwrap().model_name;
+    let inference = result
+        .conversation()
+        .messages()
+        .iter()
+        .find(|message| message.role == rmcp::model::Role::Assistant)
+        .and_then(|message| message.metadata.inference.as_ref())
+        .expect("assistant inference metadata");
+
+    assert_eq!(&inference.requested_model, requested_model);
+    assert_eq!(inference.resolved_model, None);
+    Ok(())
+}

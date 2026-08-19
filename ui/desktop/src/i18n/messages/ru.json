@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "Соединение потеряно. Повторное подключение…"
   },
+  "baseChat.retry": {
+    "defaultMessage": "Повторить"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Расширение обновлено"
   },
@@ -929,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Недавние каталоги"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "Не удалось переключиться на {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "Ветки не найдены"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "Поиск веток…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "Возможно, у вас есть незакоммиченные изменения."
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Принять"
   },
@@ -1225,6 +1240,15 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Подключиться к серверу goose, запущенному в другом месте (требуется перезапуск приложения)"
+  },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "Удалённый рабочий каталог (необязательно)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "Абсолютный путь на внешнем бэкенде. Оставьте пустым, чтобы передать локальный рабочий каталог."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
   },
   "goosehintsModal.close": {
     "defaultMessage": "Закрыть"
@@ -4612,5 +4636,35 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "Удалить изображение из сообщения"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "Недавние"
+  },
+  "providerConfigurationModal.chooseModel": {
+    "defaultMessage": "Выбрать модель"
+  },
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Устарел — используйте вместо него {replacement}."
+  },
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "Адаптер ACP найден"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "Адаптер ACP не найден"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Войдите через CLI провайдера, затем повторите проверку."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Проверить снова"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "Проверка..."
+  },
+  "acpReadinessPanel.connected": {
+    "defaultMessage": "Подключение выполнено"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Проверьте подключение учетной записи, прежде чем продолжить."
   }
 }

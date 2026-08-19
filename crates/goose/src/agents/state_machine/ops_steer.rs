@@ -7,7 +7,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use tokio::sync::Mutex;
 
-use crate::agents::state_machine::operation::{
+use crate::agents::state_machine::effects::GooseEffect;
+use crate::agents::state_machine::{
     applied, ends_turn, last_effective_role, messages_since_kickoff, not_applicable, Emitter,
     Operation, OperationResult,
 };
@@ -33,7 +34,7 @@ impl SteerOperation {
 }
 
 #[async_trait]
-impl Operation for SteerOperation {
+impl Operation<Session, GooseEffect> for SteerOperation {
     fn name(&self) -> &'static str {
         "steer"
     }
@@ -43,7 +44,7 @@ impl Operation for SteerOperation {
         session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let messages = messages_since_kickoff(conversation)?;
         let between_turns =
             ends_turn(messages) || last_effective_role(messages)? == EffectiveRole::Tool;

@@ -1,10 +1,8 @@
-pub mod structured;
+pub use goose_context_management::structured;
 
-use crate::context_mgmt::structured::StructuredSummary;
-use crate::conversation::message::{ActionRequiredData, MessageMetadata};
+use crate::conversation::message::MessageMetadata;
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{merge_consecutive_messages, Conversation};
-use crate::prompt_template::render_template;
 use crate::providers::base::Provider;
 #[cfg(test)]
 use crate::providers::base::{stream_from_single_message, MessageStream};
@@ -17,13 +15,12 @@ use indoc::indoc;
 use rmcp::model::Role;
 #[cfg(test)]
 use rmcp::model::{Annotations, ContentBlock, TextContent};
-use serde::Serialize;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tracing::info;
 use tracing::log::warn;
 
-pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
+pub use goose_context_management::DEFAULT_COMPACTION_THRESHOLD;
 
 pub(crate) const TOOLCALL_SUMMARIZATION_BATCH_SIZE: usize = 10;
 
@@ -47,11 +44,6 @@ const MANUAL_COMPACT_CONTINUATION_TEXT: &str =
     "Your context was compacted at the user's request. The previous message contains a summary of the conversation so far.
 Do not mention that you read a summary or that conversation summarization occurred.
 Just continue the conversation naturally based on the summarized context.";
-
-#[derive(Serialize)]
-struct SummarizeContext {
-    messages: String,
-}
 
 pub struct CompactionResult {
     pub conversation: Conversation,
@@ -284,54 +276,61 @@ pub async fn check_if_compaction_needed(
     Ok(needs_compaction)
 }
 
-fn filter_tool_responses(messages: &[Message], remove_percent: u32) -> Vec<&Message> {
-    fn has_tool_response(msg: &Message) -> bool {
-        msg.content
-            .iter()
-            .any(|c| matches!(c, MessageContent::ToolResponse(_)))
+struct FastCompactionModel<'a> {
+    provider: &'a dyn Provider,
+    model_config: &'a ModelConfig,
+    session_id: &'a str,
+}
+
+#[async_trait::async_trait]
+impl goose_context_management::CompactionModel for FastCompactionModel<'_> {
+    async fn complete(
+        &self,
+        system: &str,
+        messages: &[Message],
+    ) -> Result<(Message, ProviderUsage), ProviderError> {
+        crate::model_config::complete_fast(
+            self.provider,
+            self.model_config,
+            self.session_id,
+            system,
+            messages,
+            &[],
+        )
+        .await
     }
+}
 
-    if remove_percent == 0 {
-        return messages.iter().collect();
-    }
+struct GooseTokenEstimator;
 
-    let tool_indices: Vec<usize> = messages
-        .iter()
-        .enumerate()
-        .filter(|(_, msg)| has_tool_response(msg))
-        .map(|(i, _)| i)
-        .collect();
-
-    if tool_indices.is_empty() {
-        return messages.iter().collect();
-    }
-
-    let num_to_remove = ((tool_indices.len() * remove_percent as usize) / 100).max(1);
-
-    let middle = tool_indices.len() / 2;
-    let mut indices_to_remove = Vec::new();
-
-    // Middle out
-    for i in 0..num_to_remove {
-        if i % 2 == 0 {
-            let offset = i / 2;
-            if middle > offset {
-                indices_to_remove.push(tool_indices[middle - offset - 1]);
-            }
-        } else {
-            let offset = i / 2;
-            if middle + offset < tool_indices.len() {
-                indices_to_remove.push(tool_indices[middle + offset]);
+#[async_trait::async_trait]
+impl goose_context_management::TokenEstimator for GooseTokenEstimator {
+    async fn count_chat_tokens(&self, system: &str, messages: &[Message]) -> usize {
+        match create_token_counter().await {
+            Ok(counter) => counter.count_chat_tokens(system, messages, &[]),
+            Err(error) => {
+                warn!("Failed to create token counter: {error}");
+                0
             }
         }
     }
 
-    messages
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| !indices_to_remove.contains(i))
-        .map(|(_, msg)| msg)
-        .collect()
+    async fn count_text_tokens(&self, text: &str) -> usize {
+        match create_token_counter().await {
+            Ok(counter) => counter.count_tokens(text),
+            Err(error) => {
+                warn!("Failed to create token counter: {error}");
+                0
+            }
+        }
+    }
+}
+
+fn compaction_templates() -> Result<goose_context_management::Templates> {
+    Ok(goose_context_management::Templates {
+        compaction: crate::prompt_template::template_source("compaction.md")?,
+        summary: crate::prompt_template::template_source("compaction_summary.md")?,
+    })
 }
 
 async fn do_compact(
@@ -349,182 +348,23 @@ async fn do_compact(
     )
     .agent_visible_messages();
 
-    // Try progressively removing more tool response messages from the middle to reduce context length
-    let removal_percentages = [0, 10, 20, 50, 100];
-
-    for (attempt, &remove_percent) in removal_percentages.iter().enumerate() {
-        let filtered_messages = filter_tool_responses(&agent_visible_messages, remove_percent);
-
-        let messages_text = filtered_messages
-            .iter()
-            .map(|&msg| format_message_for_compacting(msg))
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        let context = SummarizeContext {
-            messages: messages_text,
-        };
-
-        let system_prompt = render_template("compaction.md", &context)?;
-
-        let user_message = Message::user()
-            .with_text("Please summarize the conversation history provided in the system prompt.");
-        let summarization_request = vec![user_message];
-
-        match crate::model_config::complete_fast(
-            provider,
-            model_config,
-            session_id,
-            &system_prompt,
-            &summarization_request,
-            &[],
-        )
-        .await
-        {
-            Ok((mut response, mut provider_usage)) => {
-                response.role = Role::User;
-
-                // Usage must reflect the raw model output (billable tokens),
-                // so estimate before the response is rewritten to the smaller
-                // rendered summary.
-                crate::providers::usage_estimator::ensure_usage_tokens(
-                    &mut provider_usage,
-                    &system_prompt,
-                    &summarization_request,
-                    &response,
-                    &[],
-                )
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to ensure usage tokens: {}", e))?;
-
-                apply_structured_summary(&mut response);
-
-                return Ok((response, provider_usage));
-            }
-            Err(e) => {
-                if matches!(e, ProviderError::ContextLengthExceeded(_)) {
-                    if attempt < removal_percentages.len() - 1 {
-                        continue;
-                    } else {
-                        return Err(anyhow::anyhow!(
-                            "Failed to compact: context limit exceeded even after removing all tool responses"
-                        ));
-                    }
-                }
-                return Err(e.into());
-            }
-        }
-    }
-
-    Err(anyhow::anyhow!(
-        "Unexpected: exhausted all attempts without returning"
-    ))
-}
-
-/// When the model didn't follow the structured output format (schema-ignoring
-/// models, user-customized prompts), the raw response text is kept unchanged
-/// as the summary.
-fn apply_structured_summary(response: &mut Message) {
-    let Some(summary) = StructuredSummary::parse(&response.as_concat_text()) else {
-        return;
+    let model = FastCompactionModel {
+        provider,
+        model_config,
+        session_id,
     };
-    match summary.render() {
-        Ok(rendered) if !rendered.trim().is_empty() => {
-            response.content = vec![MessageContent::text(rendered)];
-        }
-        Ok(_) => warn!(
-            "Structured compaction summary rendered empty (broken template override?), keeping raw output"
-        ),
-        Err(e) => warn!(
-            "Failed to render structured compaction summary, keeping raw output: {}",
-            e
-        ),
-    }
+    let summary = goose_context_management::summarize(
+        &model,
+        Some(&GooseTokenEstimator),
+        &compaction_templates()?,
+        &agent_visible_messages,
+    )
+    .await?;
+
+    Ok((summary.message, summary.usage))
 }
 
-pub fn format_message_for_compacting(msg: &Message) -> String {
-    let content_parts: Vec<String> = msg
-        .content
-        .iter()
-        .filter_map(|content| match content {
-            MessageContent::Text(text) => Some(text.text.clone()),
-            MessageContent::Image(img) => Some(format!("[image: {}]", img.mime_type)),
-            MessageContent::ToolRequest(req) => {
-                if let Ok(call) = &req.tool_call {
-                    Some(format!(
-                        "tool_request({}): {}",
-                        call.name,
-                        serde_json::to_string(&call.arguments)
-                            .unwrap_or_else(|_| "<<invalid json>>".to_string())
-                    ))
-                } else {
-                    Some("tool_request: [error]".to_string())
-                }
-            }
-            MessageContent::ToolResponse(res) => {
-                if let Ok(result) = &res.tool_result {
-                    let text_items: Vec<String> = result
-                        .content
-                        .iter()
-                        .filter_map(|content| {
-                            content.as_text().map(|text_str| text_str.text.clone())
-                        })
-                        .collect();
-
-                    if !text_items.is_empty() {
-                        Some(format!("tool_response: {}", text_items.join("\n")))
-                    } else {
-                        Some("tool_response: [non-text content]".to_string())
-                    }
-                } else {
-                    Some("tool_response: [error]".to_string())
-                }
-            }
-            MessageContent::ToolConfirmationRequest(req) => {
-                Some(format!("tool_confirmation_request: {}", req.tool_name))
-            }
-            MessageContent::ActionRequired(action) => match &action.data {
-                ActionRequiredData::ToolConfirmation { tool_name, .. } => {
-                    Some(format!("action_required(tool_confirmation): {}", tool_name))
-                }
-                ActionRequiredData::Elicitation { message, .. } => {
-                    Some(format!("action_required(elicitation): {}", message))
-                }
-                ActionRequiredData::ElicitationResponse { id, .. } => {
-                    Some(format!("action_required(elicitation_response): {}", id))
-                }
-                ActionRequiredData::ToolConfirmationResponse { id, .. } => Some(format!(
-                    "action_required(tool_confirmation_response): {}",
-                    id
-                )),
-            },
-            MessageContent::FrontendToolRequest(req) => {
-                if let Ok(call) = &req.tool_call {
-                    Some(format!("frontend_tool_request: {}", call.name))
-                } else {
-                    Some("frontend_tool_request: [error]".to_string())
-                }
-            }
-            MessageContent::Thinking(_) => None,
-            MessageContent::RedactedThinking(_) => None,
-            MessageContent::SystemNotification(notification) => {
-                Some(format!("system_notification: {}", notification.msg))
-            }
-            MessageContent::Error(error) => Some(format!("error: {}", error.message)),
-        })
-        .collect();
-
-    let role_str = match msg.role {
-        Role::User => "user",
-        Role::Assistant => "assistant",
-    };
-
-    if content_parts.is_empty() {
-        format!("[{}]: <empty message>", role_str)
-    } else {
-        format!("[{}]: {}", role_str, content_parts.join("\n"))
-    }
-}
+pub use goose_context_management::format_message_for_compacting;
 
 pub fn compute_tool_call_cutoff(context_limit: usize, compaction_threshold: f64) -> usize {
     let threshold = if compaction_threshold > 0.0 && compaction_threshold <= 1.0 {

@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "接続が失われました。再接続しています…"
   },
+  "baseChat.retry": {
+    "defaultMessage": "再試行"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "拡張機能を更新しました"
   },
@@ -929,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "最近のディレクトリ"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "{branch} への切り替えに失敗しました"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "ブランチが見つかりません"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "ブランチを検索…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "コミットされていない変更がある可能性があります。"
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "承諾"
   },
@@ -1225,6 +1240,15 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "別の場所で実行中の goose サーバーに接続します（アプリの再起動が必要）"
+  },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "リモート作業ディレクトリ（任意）"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "外部バックエンド上の絶対パスです。空欄の場合はローカルの作業ディレクトリを送信します。"
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
   },
   "goosehintsModal.close": {
     "defaultMessage": "閉じる"
@@ -4612,5 +4636,35 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "メッセージから画像を削除"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "最近"
+  },
+  "providerConfigurationModal.chooseModel": {
+    "defaultMessage": "モデルを選択"
+  },
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "非推奨です。代わりに {replacement} を使用してください。"
+  },
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "ACPアダプターが見つかりました"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "ACPアダプターが見つかりません"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "プロバイダーのCLIからサインインし、もう一度確認してください。"
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "もう一度確認"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "確認中..."
+  },
+  "acpReadinessPanel.connected": {
+    "defaultMessage": "接続しました"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "続行する前にアカウントの接続を確認してください。"
   }
 }

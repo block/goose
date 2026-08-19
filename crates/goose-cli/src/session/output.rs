@@ -1435,6 +1435,14 @@ fn set_terminal_title() {
     let _ = std::io::stdout().flush();
 }
 
+pub fn display_banner(banners: &[String]) {
+    for banner in banners {
+        for line in banner.lines() {
+            println!("{}", line);
+        }
+    }
+}
+
 pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
     use console::style;
 

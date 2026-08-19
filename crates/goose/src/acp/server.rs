@@ -41,13 +41,14 @@ use crate::utils::sanitize_unicode_tags;
 use agent_client_protocol::schema::v1::{
     AgentCapabilities, Annotations, AuthMethod, AuthMethodAgent, AuthenticateRequest,
     AuthenticateResponse, CancelNotification, CloseSessionRequest, CloseSessionResponse,
-    ConfigOptionUpdate, ContentBlock, Cost, CurrentModeUpdate, EmbeddedResourceResource,
-    FileSystemCapabilities, ForkSessionRequest, ForkSessionResponse, ImageContent, Implementation,
-    InitializeRequest, InitializeResponse, ListSessionsRequest, ListSessionsResponse,
-    LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer, Meta, NewSessionRequest,
-    NewSessionResponse, PermissionOption, PermissionOptionKind, PromptCapabilities, PromptRequest,
-    PromptResponse, RequestPermissionOutcome, RequestPermissionRequest, ResourceLink,
-    SessionCapabilities, SessionCloseCapabilities, SessionConfigOption, SessionId,
+    ConfigOptionUpdate, ContentBlock, Cost, CurrentModeUpdate, DeleteSessionRequest,
+    DeleteSessionResponse, EmbeddedResourceResource, FileSystemCapabilities, ForkSessionRequest,
+    ForkSessionResponse, ImageContent, Implementation, InitializeRequest, InitializeResponse,
+    ListSessionsRequest, ListSessionsResponse, LoadSessionRequest, LoadSessionResponse,
+    McpCapabilities, McpServer, Meta, NewSessionRequest, NewSessionResponse, PermissionOption,
+    PermissionOptionKind, PromptCapabilities, PromptRequest, PromptResponse,
+    RequestPermissionOutcome, RequestPermissionRequest, ResourceLink, SessionCapabilities,
+    SessionCloseCapabilities, SessionConfigOption, SessionDeleteCapabilities, SessionId,
     SessionInfoUpdate, SessionListCapabilities, SessionNotification, SessionUpdate,
     SetSessionConfigOptionRequest, SetSessionConfigOptionResponse, SetSessionModeRequest,
     SetSessionModeResponse, StopReason, TextContent, ToolCallId, ToolCallUpdate, Usage,
@@ -120,6 +121,7 @@ pub type AcpProviderFactory = Arc<
             String,
             Vec<ExtensionConfig>,
             Option<PathBuf>,
+            bool,
         ) -> BoxFuture<'static, Result<Arc<dyn Provider>>>
         + Send
         + Sync,
@@ -154,6 +156,14 @@ impl<T, E: std::fmt::Display> ResultExt<T> for Result<T, E> {
         self.map_err(|e| {
             agent_client_protocol::Error::invalid_params().data(format!("{context}: {e}"))
         })
+    }
+}
+
+fn agent_creation_error(error: anyhow::Error, context: &str) -> agent_client_protocol::Error {
+    if crate::acp::is_auth_required(&error) {
+        agent_client_protocol::Error::auth_required()
+    } else {
+        agent_client_protocol::Error::internal_error().data(format!("{context}: {error}"))
     }
 }
 
@@ -243,12 +253,9 @@ fn meta_string(
 
 fn agent_capabilities_meta() -> Option<Meta> {
     let mut goose = serde_json::Map::new();
+    goose.insert("recipeParameterScopes".to_string(), serde_json::json!({}));
     if cfg!(feature = "local-inference") {
         goose.insert("localInference".to_string(), serde_json::json!({}));
-    }
-
-    if goose.is_empty() {
-        return None;
     }
 
     let mut meta = serde_json::Map::new();
@@ -391,6 +398,9 @@ fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConf
                     .collect(),
                 timeout,
                 socket: None,
+                client_id: None,
+                client_secret_key: None,
+                scopes: vec![],
                 bundled: Some(false),
                 available_tools: vec![],
             })
@@ -708,8 +718,15 @@ impl GooseAcpAgent {
         provider_name: &str,
         extensions: Vec<ExtensionConfig>,
         working_dir: Option<PathBuf>,
+        use_default_model: bool,
     ) -> Result<Arc<dyn Provider>> {
-        (self.provider_factory)(provider_name.to_string(), extensions, working_dir).await
+        (self.provider_factory)(
+            provider_name.to_string(),
+            extensions,
+            working_dir,
+            use_default_model,
+        )
+        .await
     }
 
     async fn maybe_refresh_provider_inventory_with_agent(
@@ -763,7 +780,7 @@ impl GooseAcpAgent {
                 },
             )
             .await
-            .internal_err_ctx("Failed to create agent")
+            .map_err(|error| agent_creation_error(error, "Failed to create agent"))
     }
 
     fn initial_session_extensions(
@@ -1340,6 +1357,11 @@ fn prompt_error_from_message_content(
     content_item: &MessageContent,
 ) -> Option<agent_client_protocol::Error> {
     match content_item {
+        MessageContent::Error(error)
+            if error.kind == crate::conversation::message::MessageErrorKind::Authentication =>
+        {
+            Some(agent_client_protocol::Error::auth_required())
+        }
         MessageContent::SystemNotification(notification)
             if notification.notification_type == SystemNotificationType::CreditsExhausted =>
         {
@@ -1506,6 +1528,7 @@ impl GooseAcpAgent {
             .session_capabilities(
                 SessionCapabilities::new()
                     .list(SessionListCapabilities::new())
+                    .delete(SessionDeleteCapabilities::new())
                     .close(SessionCloseCapabilities::new()),
             )
             .prompt_capabilities(
@@ -2361,6 +2384,30 @@ mod tests {
     use tempfile::NamedTempFile;
     use test_case::test_case;
 
+    #[test]
+    fn agent_creation_auth_error_maps_to_auth_required() {
+        let error = anyhow::Error::new(agent_client_protocol::Error::auth_required());
+
+        let error = agent_creation_error(error, "Failed to create agent");
+
+        assert_eq!(
+            error.code,
+            agent_client_protocol::schema::v1::ErrorCode::AuthRequired
+        );
+    }
+
+    #[test]
+    fn agent_creation_non_auth_error_remains_internal() {
+        let error = anyhow::Error::new(agent_client_protocol::Error::internal_error());
+
+        let error = agent_creation_error(error, "Failed to create agent");
+
+        assert_eq!(
+            error.code,
+            agent_client_protocol::schema::v1::ErrorCode::InternalError
+        );
+    }
+
     fn config_with_yaml(yaml: &str) -> (Config, NamedTempFile, NamedTempFile) {
         let config_file = NamedTempFile::new().unwrap();
         let secrets_file = NamedTempFile::new().unwrap();
@@ -2498,6 +2545,9 @@ extensions:
             )]),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
+            scopes: vec![],
             bundled: Some(false),
             available_tools: vec![],
         })
@@ -2607,6 +2657,21 @@ print(\"hello, world\")
                     "url": "https://router.tetrate.ai/billing"
                 }
             })
+        );
+    }
+
+    #[test]
+    fn test_authentication_message_maps_to_auth_required() {
+        let content = MessageContent::error(
+            crate::conversation::message::MessageErrorKind::Authentication,
+            "Authentication required",
+        );
+
+        let error = prompt_error_from_message_content(&content).expect("expected prompt error");
+
+        assert_eq!(
+            error.code,
+            agent_client_protocol::schema::v1::ErrorCode::AuthRequired
         );
     }
 
@@ -2745,14 +2810,23 @@ print(\"hello, world\")
 
     #[test]
     fn test_goose_custom_notifications_capability_defaults_to_false() {
-        let request =
-            InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST);
+        let request = InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::V1);
         let goose_client_capabilities =
             extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
 
         assert!(!extract_client_supports_goose_custom_notifications(
             goose_client_capabilities.as_ref()
         ));
+    }
+
+    #[test]
+    fn test_agent_capabilities_advertise_recipe_parameter_scopes() {
+        assert_eq!(
+            agent_capabilities_meta()
+                .and_then(|meta| meta.get("goose").cloned())
+                .and_then(|goose| goose.get("recipeParameterScopes").cloned()),
+            Some(serde_json::json!({}))
+        );
     }
 
     #[test]
@@ -2765,11 +2839,10 @@ print(\"hello, world\")
         let mut meta = serde_json::Map::new();
         meta.insert("goose".to_string(), serde_json::Value::Object(goose_meta));
 
-        let request =
-            InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST)
-                .client_capabilities(
-                    agent_client_protocol::schema::v1::ClientCapabilities::new().meta(meta),
-                );
+        let request = InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::V1)
+            .client_capabilities(
+                agent_client_protocol::schema::v1::ClientCapabilities::new().meta(meta),
+            );
         let goose_client_capabilities =
             extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
 
@@ -2780,8 +2853,7 @@ print(\"hello, world\")
 
     #[test]
     fn test_tool_call_label_enrichment_capability() {
-        let request =
-            InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST);
+        let request = InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::V1);
         let goose_client_capabilities =
             extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
         assert!(!goose_client_capabilities
@@ -2795,11 +2867,10 @@ print(\"hello, world\")
         );
         let mut meta = serde_json::Map::new();
         meta.insert("goose".to_string(), serde_json::Value::Object(goose_meta));
-        let request =
-            InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST)
-                .client_capabilities(
-                    agent_client_protocol::schema::v1::ClientCapabilities::new().meta(meta),
-                );
+        let request = InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::V1)
+            .client_capabilities(
+                agent_client_protocol::schema::v1::ClientCapabilities::new().meta(meta),
+            );
         let goose_client_capabilities =
             extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
         assert!(goose_client_capabilities

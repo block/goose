@@ -11,7 +11,25 @@ pub struct SnowflakeProviderDef;
 
 impl ProviderDescriptor for SnowflakeProviderDef {
     fn metadata() -> ProviderMetadata {
-        SnowflakeProvider::metadata()
+        SnowflakeProvider::metadata().with_setup(
+            crate::providers::catalog::ProviderSetupMetadata::new(
+                crate::providers::catalog::ProviderSetupCategory::Model,
+                crate::providers::catalog::ProviderSetupMethod::ConfigFields,
+                crate::providers::catalog::ProviderSetupGroup::Additional,
+            )
+            .with_field(
+                "SNOWFLAKE_HOST",
+                "Host URL",
+                Some("https://your-account.snowflakecomputing.com"),
+                None,
+            )
+            .with_field(
+                "SNOWFLAKE_TOKEN",
+                "Access Token",
+                Some("Paste your access token"),
+                None,
+            ),
+        )
     }
 }
 
