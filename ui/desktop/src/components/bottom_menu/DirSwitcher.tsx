@@ -128,9 +128,6 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
   }, [isMenuOpen, refreshMenuData]);
 
   const applyDirectoryChange = async (newDir: string) => {
-    window.electron.addRecentDir(newDir);
-    setRecentDirs((previous) => [newDir, ...previous.filter((dir) => dir !== newDir)].slice(0, 10));
-
     if (sessionId) {
       onRestartStart?.();
 
@@ -139,12 +136,18 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
       } catch (error) {
         console.error('[DirSwitcher] Failed to update working directory:', error);
         toast.error(intl.formatMessage(i18n.failedToUpdateWorkingDir));
+        return;
       } finally {
         onRestartEnd?.();
       }
     } else {
       await onWorkingDirChange?.(newDir);
     }
+
+    // Only record the directory after the backend confirmed the change, so a
+    // rejected path does not pollute the recent-directories list.
+    window.electron.addRecentDir(newDir);
+    setRecentDirs((previous) => [newDir, ...previous.filter((dir) => dir !== newDir)].slice(0, 10));
   };
 
   const handleDirectoryChange = async () => {
