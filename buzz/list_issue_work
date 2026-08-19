@@ -1,0 +1,550 @@
+#!/usr/bin/env node
+
+import { accessSync, chmodSync, constants, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+const scriptDirectory = dirname(fileURLToPath(import.meta.url));
+const options = parseArguments(process.argv.slice(2));
+if (options.help) {
+  printHelp();
+  process.exit(0);
+}
+
+const relayUrl = process.env.BUZZ_RELAY_URL || "https://buzz.gdk.so";
+const configHome = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
+const buzzHome =
+  process.env.GOOSE_BUZZ_HOME || join(configHome, "goose", "buzz");
+const privateKey = readRequiredFile(
+  join(buzzHome, "github-manager", "private-key.nsec"),
+);
+const coreTeamPath =
+  process.env.BUZZ_CORE_TEAM_FILE || join(scriptDirectory, "core-team.json");
+const coreTeam = readCoreTeam();
+const gh = process.env.GH_BIN || "gh";
+const buzz = findBuzz();
+const buzzEnvironment = {
+  ...process.env,
+  BUZZ_PRIVATE_KEY: privateKey,
+  BUZZ_RELAY_URL: relayUrl,
+};
+
+const project = runJson(gh, [
+  "project",
+  "item-list",
+  String(options.projectNumber),
+  "--owner",
+  options.projectOwner,
+  "--limit",
+  String(options.projectLimit),
+  "--format",
+  "json",
+]);
+if (!Number.isSafeInteger(project.totalCount) || !Array.isArray(project.items)) {
+  fail("GitHub returned an invalid project item list.");
+}
+if (project.items.length !== project.totalCount) {
+  fail(
+    `Expected ${project.totalCount} project items but received ${project.items.length}. Raise --project-limit.`,
+  );
+}
+
+const channels = getAllIssueChannels();
+const channelByIssueNumber = new Map();
+for (const channel of channels) {
+  const issueNumber = issueNumberFromChannel(channel, options.repository);
+  if (!issueNumber) {
+    continue;
+  }
+  if (channelByIssueNumber.has(issueNumber)) {
+    fail(`More than one Buzz channel matches GitHub issue #${issueNumber}.`);
+  }
+  channelByIssueNumber.set(issueNumber, channel);
+}
+
+const projectItemsByIssueNumber = new Map(
+  project.items
+    .filter(
+      (item) =>
+        item.content?.type === "Issue" &&
+        item.content.repository === options.repository,
+    )
+    .map((item) => [item.content.number, item]),
+);
+const issueWork = new Map();
+
+const inboxIssues = project.items
+  .filter(
+    (item) =>
+      item.content?.type === "Issue" &&
+      item.content.repository === options.repository &&
+      item.status === "Inbox",
+  )
+  .filter((item) => !item.assignees || item.assignees.length === 0);
+for (const item of inboxIssues) {
+  issueWork.set(item.content.number, issueRecord(item, ["inbox"]));
+}
+
+const queue = readIssueQueue();
+for (const queued of queue.issues) {
+  if (channelByIssueNumber.has(queued.number)) {
+    queue.ignored.push({ ...queued, reason: "already-has-channel" });
+    continue;
+  }
+
+  const details = runJson(gh, [
+    "issue",
+    "view",
+    String(queued.number),
+    "--repo",
+    options.repository,
+    "--json",
+    "number,title,url,state,assignees",
+  ]);
+  if (details.state !== "OPEN") {
+    queue.ignored.push({ ...queued, reason: "issue-is-closed" });
+    continue;
+  }
+
+  const projectItem = projectItemsByIssueNumber.get(queued.number) || {
+    content: details,
+    assignees: details.assignees.map((assignee) => assignee.login),
+  };
+  const existing = issueWork.get(queued.number);
+  if (existing) {
+    existing.sources.push("issues-to-add");
+    existing.queue_messages = queued.message_ids;
+    existing.queue_links = queued.links;
+  } else {
+    issueWork.set(
+      queued.number,
+      issueRecord(projectItem, ["issues-to-add"], queued),
+    );
+  }
+}
+
+const issues = [...issueWork.values()].sort(
+  (left, right) => left.number - right.number,
+);
+
+console.log(
+  JSON.stringify(
+    {
+      repository: options.repository,
+      project_owner: options.projectOwner,
+      project_number: options.projectNumber,
+      queue_channel: queue.channel,
+      queue_entries_considered: queue.entriesConsidered,
+      issues,
+      ignored_queue_entries: queue.ignored,
+      unresolved_queue_entries: queue.unresolved,
+      core_team: coreTeam.people,
+    },
+    null,
+    2,
+  ),
+);
+
+function parseArguments(arguments_) {
+  const parsed = {
+    repository: "aaif-goose/goose",
+    projectOwner: "aaif-goose",
+    projectNumber: 1,
+    projectLimit: 1000,
+    channelLimit: 500,
+    queueChannel: "issues to add",
+    queueCount: 10,
+    messageLimit: 1000,
+    help: false,
+  };
+
+  for (let index = 0; index < arguments_.length; index += 1) {
+    const argument = arguments_[index];
+    if (argument === "--repo") {
+      parsed.repository = requiredValue(arguments_, ++index, argument);
+      continue;
+    }
+    if (argument === "--project-owner") {
+      parsed.projectOwner = requiredValue(arguments_, ++index, argument);
+      continue;
+    }
+    if (argument === "--project-number") {
+      parsed.projectNumber = positiveInteger(
+        requiredValue(arguments_, ++index, argument),
+        argument,
+      );
+      continue;
+    }
+    if (argument === "--project-limit") {
+      parsed.projectLimit = positiveInteger(
+        requiredValue(arguments_, ++index, argument),
+        argument,
+      );
+      continue;
+    }
+    if (argument === "--channel-limit") {
+      parsed.channelLimit = positiveInteger(
+        requiredValue(arguments_, ++index, argument),
+        argument,
+      );
+      continue;
+    }
+    if (argument === "--queue-channel") {
+      parsed.queueChannel = requiredValue(arguments_, ++index, argument);
+      continue;
+    }
+    if (argument === "--queue-count") {
+      parsed.queueCount = positiveInteger(
+        requiredValue(arguments_, ++index, argument),
+        argument,
+      );
+      continue;
+    }
+    if (argument === "--message-limit") {
+      parsed.messageLimit = positiveInteger(
+        requiredValue(arguments_, ++index, argument),
+        argument,
+      );
+      continue;
+    }
+    if (argument === "--help" || argument === "-h") {
+      parsed.help = true;
+      continue;
+    }
+    fail(`Unknown option: ${argument}`);
+  }
+
+  return parsed;
+}
+
+function requiredValue(arguments_, index, option) {
+  const value = arguments_[index];
+  if (!value || value.startsWith("--")) {
+    fail(`${option} requires a value.`);
+  }
+  return value;
+}
+
+function positiveInteger(value, option) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+    fail(`${option} must be a positive integer.`);
+  }
+  return parsed;
+}
+
+function readCoreTeam() {
+  let document;
+  try {
+    document = JSON.parse(readFileSync(coreTeamPath, "utf8"));
+  } catch (error) {
+    fail(`Could not read core team file ${coreTeamPath}: ${error.message}`);
+  }
+
+  const entries = [...(document.owners || []), ...(document.members || [])];
+  if (entries.length === 0) {
+    fail(`Core team file ${coreTeamPath} has no people.`);
+  }
+
+  const people = entries.map((entry) => {
+    if (
+      typeof entry.name !== "string" ||
+      !entry.name.trim() ||
+      typeof entry.github !== "string" ||
+      !entry.github.trim() ||
+      typeof entry.pubkey !== "string" ||
+      !/^[0-9a-f]{64}$/i.test(entry.pubkey) ||
+      !Array.isArray(entry.interest) ||
+      entry.interest.length === 0 ||
+      entry.interest.some(
+        (interest) => typeof interest !== "string" || !interest.trim(),
+      )
+    ) {
+      fail(
+        `Every person in ${coreTeamPath} must have a name, GitHub handle, hexadecimal pubkey, and non-empty interest list.`,
+      );
+    }
+    return {
+      name: entry.name.trim(),
+      github: entry.github.trim(),
+      pubkey: entry.pubkey.toLowerCase(),
+      interest: entry.interest.map((interest) => interest.trim()),
+    };
+  });
+
+  const byGithub = new Map();
+  for (const person of people) {
+    const handle = person.github.toLowerCase();
+    if (byGithub.has(handle)) {
+      fail(`More than one core team entry uses GitHub handle ${person.github}.`);
+    }
+    byGithub.set(handle, person);
+  }
+  return { people, byGithub };
+}
+
+function issueRecord(item, sources, queued = null) {
+  const assignees = Array.isArray(item.assignees)
+    ? item.assignees.map((assignee) =>
+        typeof assignee === "string" ? assignee : assignee.login,
+      )
+    : [];
+  const teamOwners = assignees
+    .map((handle) => coreTeam.byGithub.get(handle.toLowerCase()))
+    .filter(Boolean);
+  const channel = channelByIssueNumber.get(item.content.number);
+  return {
+    number: item.content.number,
+    title: item.content.title,
+    url: item.content.url,
+    status: item.status || null,
+    area: item.area || null,
+    assignees,
+    team_owners: teamOwners,
+    channel: channel
+      ? {
+          id: channel.channel_id,
+          name: channel.name,
+          archived: Boolean(channel.archived),
+        }
+      : null,
+    needs_owner: assignees.length === 0,
+    needs_channel: !channel,
+    sources,
+    ...(queued
+      ? {
+          queue_messages: queued.message_ids,
+          queue_links: queued.links,
+        }
+      : {}),
+  };
+}
+
+function readIssueQueue() {
+  const matches = runBuzz([
+    "channels",
+    "search",
+    "--query",
+    options.queueChannel,
+    "--include-archived",
+    "--limit",
+    "20",
+  ]).filter(
+    (channel) =>
+      channel.name?.trim().toLowerCase() ===
+      options.queueChannel.trim().toLowerCase(),
+  );
+  if (matches.length !== 1) {
+    fail(
+      `Expected exactly one Buzz channel named ${JSON.stringify(options.queueChannel)} but found ${matches.length}.`,
+    );
+  }
+
+  const channel = matches[0];
+  const messages = runBuzz([
+    "messages",
+    "get",
+    "--channel",
+    channel.channel_id,
+    "--limit",
+    String(options.messageLimit),
+  ]);
+  if (messages.length >= options.messageLimit) {
+    fail(
+      `Buzz returned ${messages.length} queue messages at the --message-limit boundary. Raise the limit.`,
+    );
+  }
+
+  const entries = messages
+    .sort(
+      (left, right) =>
+        left.created_at - right.created_at || left.id.localeCompare(right.id),
+    )
+    .flatMap((message) =>
+      githubLinks(message.content || "").map((link) => ({ message, link })),
+    )
+    .slice(-options.queueCount);
+  const queuedByIssue = new Map();
+  const unresolved = [];
+  for (const { message, link } of entries) {
+    const resolved = resolveIssueLink(link);
+    if (!resolved) {
+      unresolved.push({
+        message_id: message.id,
+        link,
+        reason: "pull-request-does-not-close-exactly-one-issue",
+      });
+      continue;
+    }
+    const queued = queuedByIssue.get(resolved.number) || {
+      number: resolved.number,
+      message_ids: [],
+      links: [],
+    };
+    if (!queued.message_ids.includes(message.id)) {
+      queued.message_ids.push(message.id);
+    }
+    if (!queued.links.includes(link)) {
+      queued.links.push(link);
+    }
+    queuedByIssue.set(resolved.number, queued);
+  }
+
+  return {
+    channel: { id: channel.channel_id, name: channel.name },
+    entriesConsidered: entries.length,
+    issues: [...queuedByIssue.values()],
+    ignored: [],
+    unresolved,
+  };
+}
+
+function githubLinks(content) {
+  const escapedRepository = options.repository.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&",
+  );
+  const pattern = new RegExp(
+    `https://github\\.com/${escapedRepository}/(?:issues|pull)/[1-9]\\d*`,
+    "g",
+  );
+  return [...new Set(content.match(pattern) || [])];
+}
+
+function resolveIssueLink(link) {
+  const parsed = new URL(link);
+  const parts = parsed.pathname.split("/").filter(Boolean);
+  const number = Number.parseInt(parts[3], 10);
+  if (parts[2] === "issues") {
+    return { number };
+  }
+
+  const pullRequest = runJson(gh, [
+    "pr",
+    "view",
+    link,
+    "--json",
+    "closingIssuesReferences",
+  ]);
+  const matchingIssues = pullRequest.closingIssuesReferences.filter(
+    (issue) =>
+      `${issue.repository.owner.login}/${issue.repository.name}` ===
+      options.repository,
+  );
+  return matchingIssues.length === 1
+    ? { number: matchingIssues[0].number }
+    : null;
+}
+
+function getAllIssueChannels() {
+  const channelsById = new Map();
+  for (const digit of "0123456789") {
+    const matches = runBuzz([
+      "channels",
+      "search",
+      "--query",
+      digit,
+      "--include-archived",
+      "--limit",
+      String(options.channelLimit),
+    ]);
+    if (matches.length >= options.channelLimit) {
+      fail(
+        `Buzz returned ${matches.length} channels at the --channel-limit boundary. Raise the limit.`,
+      );
+    }
+    for (const channel of matches) {
+      channelsById.set(channel.channel_id, channel);
+    }
+  }
+  return [...channelsById.values()];
+}
+
+function issueNumberFromChannel(channel, repository) {
+  const issueUrlPrefix = `https://github.com/${repository}/issues/`;
+  const description = channel.about || channel.description || "";
+  const issueUrlIndex = description.indexOf(issueUrlPrefix);
+  if (issueUrlIndex !== -1) {
+    const value = description.slice(issueUrlIndex + issueUrlPrefix.length);
+    const match = value.match(/^([1-9]\d*)/);
+    if (match) {
+      return Number.parseInt(match[1], 10);
+    }
+  }
+
+  const canonical = channel.name?.match(/^#?([1-9]\d*)(?:\s|$)/);
+  return canonical ? Number.parseInt(canonical[1], 10) : null;
+}
+
+function runBuzz(arguments_) {
+  return runJson(buzz, arguments_, { env: buzzEnvironment });
+}
+
+function runJson(command, arguments_, options = {}) {
+  const result = spawnSync(command, arguments_, {
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+    ...options,
+  });
+  if (result.error) {
+    fail(`Could not run ${command}: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    const message = result.stderr.trim() || result.stdout.trim();
+    fail(`${command} failed${message ? `: ${message}` : "."}`);
+  }
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    fail(`${command} returned invalid JSON: ${result.stdout.trim()}`);
+  }
+}
+
+function findBuzz() {
+  if (process.env.BUZZ_BIN) {
+    return process.env.BUZZ_BIN;
+  }
+  const bundledBuzz = "/Applications/Buzz.app/Contents/MacOS/buzz";
+  try {
+    accessSync(bundledBuzz, constants.X_OK);
+    return bundledBuzz;
+  } catch {
+    return "buzz";
+  }
+}
+
+function readRequiredFile(path) {
+  try {
+    chmodSync(path, 0o600);
+    return readFileSync(path, "utf8").trim();
+  } catch (error) {
+    fail(`Could not read ${path}: ${error.message}`);
+  }
+}
+
+function fail(message) {
+  console.error(message);
+  process.exit(1);
+}
+
+function printHelp() {
+  console.log(`Usage:
+  list_issue_work [options]
+
+Options:
+  --repo <owner/repo>       GitHub repository (default: aaif-goose/goose)
+  --project-owner <owner>   GitHub project owner (default: aaif-goose)
+  --project-number <number> GitHub project number (default: 1)
+  --project-limit <number>  Maximum project items (default: 1000)
+  --channel-limit <number>  Maximum Buzz search results (default: 500)
+  --queue-channel <name>    Buzz issue queue (default: issues to add)
+  --queue-count <number>    Recent issue/PR links to process (default: 10)
+  --message-limit <number>  Maximum queue messages (default: 1000)
+  -h, --help                Show this help
+
+Prints unassigned Inbox issues plus open issues linked from the Buzz queue that
+do not have channels. Pull request links resolve through GitHub's closing issue
+relationship. Existing issue channels mark queue entries as processed.`);
+}
