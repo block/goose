@@ -407,6 +407,14 @@ pub fn format_messages_with_options(
                         }));
                     }
                 }
+                MessageContentBlock::Document(document) => {
+                    has_non_text_content = true;
+                    content_array.push(json!({
+                        "type": "input_file",
+                        "filename": document.filename,
+                        "file_data": format!("data:{};base64,{}", document.mime_type, document.data)
+                    }));
+                }
                 MessageContentBlock::FrontendToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
                         let sanitized_name = sanitize_function_name(&tool_call.name);

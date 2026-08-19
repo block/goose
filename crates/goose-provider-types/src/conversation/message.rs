@@ -235,6 +235,15 @@ pub struct RedactedThinkingContentBlock {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DocumentContentBlock {
+    pub mime_type: String,
+    pub data: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filename: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FrontendToolRequest {
     pub id: String,
     #[serde(with = "tool_result_serde")]
@@ -303,6 +312,7 @@ pub enum MessageContentBlock {
     FrontendToolRequest(FrontendToolRequest),
     Thinking(ThinkingContentBlock),
     RedactedThinking(RedactedThinkingContentBlock),
+    Document(DocumentContentBlock),
     SystemNotification(SystemNotificationContent),
     Error(ErrorContent),
 }
@@ -346,6 +356,11 @@ impl fmt::Display for MessageContentBlock {
             },
             MessageContentBlock::Thinking(t) => write!(f, "[Thinking: {}]", t.thinking),
             MessageContentBlock::RedactedThinking(_r) => write!(f, "[RedactedThinking]"),
+            MessageContentBlock::Document(document) => write!(
+                f,
+                "[Document: {}]",
+                document.filename.as_deref().unwrap_or(&document.mime_type)
+            ),
             MessageContentBlock::SystemNotification(r) => {
                 write!(f, "[SystemNotification: {}]", r.msg)
             }
@@ -558,6 +573,18 @@ impl MessageContentBlock {
 
     pub fn redacted_thinking<S: Into<String>>(data: S) -> Self {
         MessageContentBlock::RedactedThinking(RedactedThinkingContentBlock { data: data.into() })
+    }
+
+    pub fn document<S1: Into<String>, S2: Into<String>>(
+        mime_type: S1,
+        data: S2,
+        filename: Option<String>,
+    ) -> Self {
+        MessageContentBlock::Document(DocumentContentBlock {
+            mime_type: mime_type.into(),
+            data: data.into(),
+            filename,
+        })
     }
 
     pub fn frontend_tool_request<S: Into<String>>(

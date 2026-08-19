@@ -191,10 +191,28 @@ pub enum MessageRole {
     Tool,
 }
 
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct SystemContent {
+    pub text: String,
+    #[uniffi(default = None)]
+    pub cache_control: Option<CacheControl>,
+}
+
+#[derive(Debug, Clone, uniffi::Enum)]
+pub enum CacheControlType {
+    Ephemeral,
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct CacheControl {
+    pub control_type: CacheControlType,
+}
+
 #[derive(Debug, Clone, uniffi::Enum)]
 pub enum MessageContent {
     Text {
         text: String,
+        cache_control: Option<CacheControl>,
     },
     Image {
         mime_type: String,
@@ -217,6 +235,12 @@ pub enum MessageContent {
     RedactedThinking {
         data: String,
     },
+    Document {
+        mime_type: String,
+        data: Vec<u8>,
+        filename: Option<String>,
+        cache_control: Option<CacheControl>,
+    },
 }
 
 impl ProviderMessage {
@@ -236,9 +260,10 @@ impl ProviderMessage {
 impl MessageContent {
     fn to_goose_content(&self) -> Result<GooseMessageContent, GooseError> {
         match self {
-            MessageContent::Text { text } => {
-                Ok(GooseMessageContent::text(sanitize_unicode_tags(text)))
-            }
+            MessageContent::Text {
+                text,
+                cache_control: _,
+            } => Ok(GooseMessageContent::text(sanitize_unicode_tags(text))),
             MessageContent::Image { mime_type, data } => Ok(GooseMessageContent::image(
                 base64::engine::general_purpose::STANDARD.encode(data),
                 mime_type.clone(),
@@ -281,6 +306,16 @@ impl MessageContent {
             MessageContent::RedactedThinking { data } => {
                 Ok(GooseMessageContent::redacted_thinking(data.clone()))
             }
+            MessageContent::Document {
+                mime_type,
+                data,
+                filename,
+                cache_control: _,
+            } => Ok(GooseMessageContent::document(
+                mime_type.clone(),
+                base64::engine::general_purpose::STANDARD.encode(data),
+                filename.clone(),
+            )),
         }
     }
 }
@@ -339,6 +374,8 @@ pub struct ProviderTool {
     pub input_schema_json: String,
     #[uniffi(default = None)]
     pub annotations_json: Option<String>,
+    #[uniffi(default = None)]
+    pub cache_control: Option<CacheControl>,
 }
 
 impl ProviderTool {
@@ -347,6 +384,12 @@ impl ProviderTool {
         let mut tool = Tool::new(self.name.clone(), self.description.clone(), schema);
         if let Some(annotations_json) = &self.annotations_json {
             tool.annotations = Some(serde_json::from_str(annotations_json)?);
+        }
+        if self.cache_control.is_some() {
+            tool.meta.get_or_insert_with(Default::default).insert(
+                "goose.cache_control".to_string(),
+                Value::String("ephemeral".to_string()),
+            );
         }
         Ok(tool)
     }
@@ -420,6 +463,18 @@ fn merge_params(
     Ok(())
 }
 
+#[derive(Debug, Clone, uniffi::Enum)]
+pub enum InputTokenAccounting {
+    AdditiveCacheTokens,
+    InclusiveCacheTokens,
+}
+
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct AnthropicUsageMetadata {
+    pub speed: Option<String>,
+    pub service_tier: Option<String>,
+}
+
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct Usage {
     pub input_tokens: Option<i32>,
@@ -428,6 +483,9 @@ pub struct Usage {
     pub cache_read_input_tokens: Option<i32>,
     pub cache_creation_input_tokens: Option<i32>,
     pub reasoning_tokens: Option<i32>,
+    pub cached_tokens: Option<i32>,
+    pub input_token_accounting: InputTokenAccounting,
+    pub anthropic_metadata: Option<AnthropicUsageMetadata>,
     pub model: String,
     pub provider_metadata_json: Option<String>,
 }
@@ -441,6 +499,9 @@ impl Usage {
             cache_read_input_tokens: usage.usage.cache_read_input_tokens,
             cache_creation_input_tokens: usage.usage.cache_write_input_tokens,
             reasoning_tokens: None,
+            cached_tokens: usage.usage.cache_read_input_tokens,
+            input_token_accounting: InputTokenAccounting::InclusiveCacheTokens,
+            anthropic_metadata: None,
             model: usage.model.clone(),
             provider_metadata_json: Some(serde_json::to_string(usage)?),
         })
@@ -453,9 +514,10 @@ pub enum StreamChunk {
         text: String,
     },
     ToolChunk {
-        id: String,
-        name: String,
-        arguments_json: String,
+        index: u32,
+        id: Option<String>,
+        name: Option<String>,
+        arguments_json_delta: String,
     },
     ThinkingChunk {
         thinking: String,
@@ -548,6 +610,11 @@ pub enum Feature {
     Images,
     JsonSchema,
     Reasoning,
+    CacheControl,
+    ThinkingReplay,
+    Documents,
+    ParallelToolStreaming,
+    AnthropicMetadata,
 }
 
 static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
@@ -688,6 +755,14 @@ where
     .await?
 }
 
+fn system_text(content: Vec<SystemContent>) -> String {
+    content
+        .into_iter()
+        .map(|block| block.text)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 fn convert_messages(messages: Vec<ProviderMessage>) -> Result<Vec<Message>, GooseError> {
     messages
         .iter()
@@ -732,6 +807,13 @@ impl Provider {
             "openai" | "anthropic" | "databricks" | "databricks_v2"
         ) {
             features.push(Feature::Reasoning);
+            features.push(Feature::ParallelToolStreaming);
+        }
+        if matches!(name.as_str(), "anthropic" | "databricks" | "databricks_v2") {
+            features.push(Feature::CacheControl);
+            features.push(Feature::ThinkingReplay);
+            features.push(Feature::Documents);
+            features.push(Feature::AnthropicMetadata);
         }
         features
     }
@@ -754,6 +836,30 @@ impl Provider {
         tools: Vec<ProviderTool>,
     ) -> Result<ProviderCompletion, GooseError> {
         self.handle.complete(model, system, messages, tools).await
+    }
+
+    pub async fn stream_structured(
+        &self,
+        model: ProviderModelConfig,
+        system: Vec<SystemContent>,
+        messages: Vec<ProviderMessage>,
+        tools: Vec<ProviderTool>,
+    ) -> Result<Arc<ProviderStream>, GooseError> {
+        self.handle
+            .stream(model, system_text(system), messages, tools)
+            .await
+    }
+
+    pub async fn complete_structured(
+        &self,
+        model: ProviderModelConfig,
+        system: Vec<SystemContent>,
+        messages: Vec<ProviderMessage>,
+        tools: Vec<ProviderTool>,
+    ) -> Result<ProviderCompletion, GooseError> {
+        self.handle
+            .complete(model, system_text(system), messages, tools)
+            .await
     }
 
     /// Summarizes a conversation down to a single message so it can continue
@@ -1067,6 +1173,7 @@ impl ProviderStream {
 }
 
 fn message_to_chunks(message: Message) -> Vec<StreamChunk> {
+    let mut tool_index = 0_u32;
     message
         .content
         .into_iter()
@@ -1077,12 +1184,19 @@ fn message_to_chunks(message: Message) -> Vec<StreamChunk> {
                 })
             }
             GooseMessageContent::ToolRequest(request) => match request.tool_call {
-                Ok(tool_call) => Some(StreamChunk::ToolChunk {
-                    id: request.id,
-                    name: tool_call.name.to_string(),
-                    arguments_json: serde_json::to_string(&tool_call.arguments.unwrap_or_default())
+                Ok(tool_call) => {
+                    let index = tool_index;
+                    tool_index += 1;
+                    Some(StreamChunk::ToolChunk {
+                        index,
+                        id: Some(request.id),
+                        name: Some(tool_call.name.to_string()),
+                        arguments_json_delta: serde_json::to_string(
+                            &tool_call.arguments.unwrap_or_default(),
+                        )
                         .unwrap_or_else(|_| "{}".to_string()),
-                }),
+                    })
+                }
                 Err(error) => Some(StreamChunk::ErrorChunk {
                     error: GooseStreamError {
                         kind: GooseStreamErrorKind::Generic,
@@ -1141,6 +1255,7 @@ mod tests {
             role: MessageRole::User,
             content: vec![MessageContent::Text {
                 text: "what is the capital of France?".to_string(),
+                cache_control: None,
             }],
         }
         .to_goose_message()
@@ -1158,6 +1273,7 @@ mod tests {
             input_schema_json: r#"{"type":"object","properties":{"key":{"type":"string"}}}"#
                 .to_string(),
             annotations_json: None,
+            cache_control: None,
         }
         .to_goose_tool()
         .unwrap();

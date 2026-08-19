@@ -8,6 +8,10 @@ pub fn format_message_for_compacting(msg: &Message) -> String {
         .filter_map(|content| match content {
             MessageContent::Text(text) => Some(text.text.clone()),
             MessageContent::Image(img) => Some(format!("[image: {}]", img.mime_type)),
+            MessageContent::Document(document) => Some(format!(
+                "[document: {}]",
+                document.filename.as_deref().unwrap_or(&document.mime_type)
+            )),
             MessageContent::ToolRequest(req) => {
                 if let Ok(call) = &req.tool_call {
                     Some(format!(

@@ -397,6 +397,17 @@ fn format_messages_with_options(
                 MessageContentBlock::Image(image) => {
                     content.push(convert_image(image, &ImageFormat::Anthropic));
                 }
+                MessageContentBlock::Document(document) => {
+                    content.push(json!({
+                        TYPE_FIELD: DOCUMENT_TYPE,
+                        SOURCE_FIELD: {
+                            TYPE_FIELD: BASE64_TYPE,
+                            MEDIA_TYPE_FIELD: document.mime_type,
+                            DATA_FIELD: document.data,
+                        },
+                        "title": document.filename,
+                    }));
+                }
                 MessageContentBlock::FrontendToolRequest(tool_request) => {
                     if let Ok(tool_call) = &tool_request.tool_call {
                         content.push(json!({
