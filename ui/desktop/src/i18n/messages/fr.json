@@ -932,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Répertoires récents"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "Impossible de basculer vers {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "Aucune branche trouvée"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "Rechercher des branches…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "Vous avez peut-être des modifications non validées."
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Accepter"
   },

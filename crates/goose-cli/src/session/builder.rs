@@ -1,9 +1,10 @@
 use crate::cli::StreamableHttpOptions;
 
 use super::output;
-use super::CliSession;
+use super::{derive_extension_name_from_command, split_extension_name_prefix, CliSession};
 use console::style;
 use goose::agents::{Agent, Container, ExtensionError};
+use goose::config::extensions::name_to_key;
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{Config, ExtensionConfig, GooseMode};
 use goose::model_config::model_config_from_user_config;
@@ -12,7 +13,7 @@ use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
 use goose::session::EnabledExtensionsState;
 use rustyline::EditMode;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::process;
 use std::sync::Arc;
 use tokio::task::JoinSet;
@@ -28,11 +29,90 @@ fn truncate_with_ellipsis(s: &str, max_len: usize) -> String {
     }
 }
 
+// Plain String rather than `ExtensionError`: the only variant this function
+// ever constructs is `ConfigError(String)`, but clippy's `result_large_err`
+// sizes an error type by its largest variant, and `ExtensionError` carries a
+// `ClientError`/`ClientInitializeError` far past the 128-byte default
+// threshold. Callers wrap this back into `ExtensionError::ConfigError`.
+fn disambiguate_stdio_extension_names(
+    extensions: &mut [(String, ExtensionConfig)],
+    renameable: &HashSet<usize>,
+) -> Result<(), String> {
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    // Only entries the caller marked fixed (explicitly named, or not a CLI
+    // stdio extension at all) can make this an error — a fixed name colliding
+    // with a renameable one is exactly the case the loop below resolves by
+    // renaming the renameable side, not a real conflict.
+    let mut fixed_counts: HashMap<String, usize> = HashMap::new();
+    for (idx, (_, config)) in extensions.iter().enumerate() {
+        let key = config.key();
+        *counts.entry(key.clone()).or_default() += 1;
+        if !renameable.contains(&idx) {
+            *fixed_counts.entry(key).or_default() += 1;
+        }
+    }
+
+    let duplicate_fixed_names = extensions.iter().enumerate().find(|(index, (_, config))| {
+        !renameable.contains(index) && fixed_counts.get(&config.key()).copied().unwrap_or(0) > 1
+    });
+    if let Some((_, (_, config))) = duplicate_fixed_names {
+        return Err(format!(
+            "extension name '{}' is already in use",
+            config.name()
+        ));
+    }
+
+    let mut taken: HashSet<String> = counts.keys().cloned().collect();
+    for (idx, (_, config)) in extensions.iter_mut().enumerate() {
+        if !renameable.contains(&idx) || counts.get(&config.key()).copied().unwrap_or(0) < 2 {
+            continue;
+        }
+        let ExtensionConfig::Stdio {
+            name, cmd, args, ..
+        } = config
+        else {
+            continue;
+        };
+        let derived = derive_extension_name_from_command(cmd, args);
+        let mut candidate = derived.clone();
+        let mut suffix = 2;
+        while candidate.is_empty() || taken.contains(&name_to_key(&candidate)) {
+            candidate = format!("{}_{}", derived, suffix);
+            suffix += 1;
+        }
+        taken.insert(name_to_key(&candidate));
+        *name = candidate;
+    }
+    Ok(())
+}
+
+fn is_builtin_or_platform_extension(config: &ExtensionConfig) -> bool {
+    matches!(
+        config,
+        ExtensionConfig::Builtin { .. } | ExtensionConfig::Platform { .. }
+    )
+}
+
+fn deduplicate_cli_builtins(
+    existing: &[(String, ExtensionConfig)],
+    cli_extensions: &mut Vec<(String, ExtensionConfig, bool)>,
+) {
+    let mut seen_builtin_names = existing
+        .iter()
+        .filter(|(_, config)| is_builtin_or_platform_extension(config))
+        .map(|(_, config)| config.key())
+        .collect::<HashSet<_>>();
+
+    cli_extensions.retain(|(_, config, _)| {
+        !is_builtin_or_platform_extension(config) || seen_builtin_names.insert(config.key())
+    });
+}
+
 fn parse_cli_flag_extensions(
     extensions: &[String],
     streamable_http_extensions: &[StreamableHttpOptions],
     builtins: &[String],
-) -> Vec<(String, ExtensionConfig)> {
+) -> Vec<(String, ExtensionConfig, bool)> {
     let mut extensions_to_load = Vec::new();
 
     for (idx, ext_str) in extensions.iter().enumerate() {
@@ -40,7 +120,8 @@ fn parse_cli_flag_extensions(
             Ok(config) => {
                 let hint = truncate_with_ellipsis(ext_str, EXTENSION_HINT_MAX_LEN);
                 let label = format!("stdio #{}({})", idx + 1, hint);
-                extensions_to_load.push((label, config));
+                let explicitly_named = split_extension_name_prefix(ext_str).0.is_some();
+                extensions_to_load.push((label, config, !explicitly_named));
             }
             Err(e) => {
                 eprintln!(
@@ -59,13 +140,13 @@ fn parse_cli_flag_extensions(
         let config = CliSession::parse_streamable_http_extension(&opts.url, opts.timeout);
         let hint = truncate_with_ellipsis(&opts.url, EXTENSION_HINT_MAX_LEN);
         let label = format!("http #{}({})", idx + 1, hint);
-        extensions_to_load.push((label, config));
+        extensions_to_load.push((label, config, false));
     }
 
     for builtin_str in builtins {
         let configs = CliSession::parse_builtin_extensions(builtin_str);
         for config in configs {
-            extensions_to_load.push((config.name(), config));
+            extensions_to_load.push((config.name(), config, false));
         }
     }
 
@@ -543,22 +624,42 @@ async fn collect_extension_configs(
         resolve_extensions_for_new_session(recipe_extensions, None)
     };
 
-    let cli_flag_extensions = parse_cli_flag_extensions(
+    let mut cli_flag_extensions = parse_cli_flag_extensions(
         &session_config.extensions,
         &session_config.streamable_http_extensions,
         &session_config.builtins,
     );
 
-    let mut all: Vec<ExtensionConfig> = configured_extensions;
+    let mut all: Vec<(String, ExtensionConfig)> = configured_extensions
+        .into_iter()
+        .map(|config| (config.name(), config))
+        .collect();
     if !session_config.no_profile && !session_config.resume && recipe_extensions.is_none() {
         let project_root = std::env::current_dir().ok();
-        all.extend(goose::plugins::mcp_servers::enabled_plugin_mcp_servers(
-            project_root.as_deref(),
-        ));
+        all.extend(
+            goose::plugins::mcp_servers::enabled_plugin_mcp_servers(project_root.as_deref())
+                .into_iter()
+                .map(|config| (config.name(), config)),
+        );
     }
-    all.extend(cli_flag_extensions.into_iter().map(|(_, cfg)| cfg));
 
-    Ok(all)
+    deduplicate_cli_builtins(&all, &mut cli_flag_extensions);
+
+    let cli_start = all.len();
+    let renameable = cli_flag_extensions
+        .iter()
+        .enumerate()
+        .filter_map(|(index, (_, _, renameable))| renameable.then_some(cli_start + index))
+        .collect();
+    all.extend(
+        cli_flag_extensions
+            .into_iter()
+            .map(|(label, config, _)| (label, config)),
+    );
+    disambiguate_stdio_extension_names(&mut all, &renameable)
+        .map_err(ExtensionError::ConfigError)?;
+
+    Ok(all.into_iter().map(|(_, config)| config).collect())
 }
 
 async fn resolve_and_load_extensions(
@@ -831,6 +932,170 @@ mod tests {
     use goose::config::{set_provider_entry, ProviderEntry};
     use goose::session::SessionManager;
     use tempfile::TempDir;
+
+    fn stdio_names(extensions: &[&str]) -> Vec<String> {
+        let parsed = parse_cli_flag_extensions(
+            &extensions.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+            &[],
+            &[],
+        );
+        let renameable = parsed
+            .iter()
+            .enumerate()
+            .filter_map(|(index, (_, _, renameable))| renameable.then_some(index))
+            .collect();
+        let mut configs: Vec<_> = parsed
+            .into_iter()
+            .map(|(label, config, _)| (label, config))
+            .collect();
+        disambiguate_stdio_extension_names(&mut configs, &renameable).unwrap();
+        configs
+            .into_iter()
+            .map(|(_, config)| config.name())
+            .collect()
+    }
+
+    #[test]
+    fn test_colliding_launcher_names_fall_back_to_the_command_line() {
+        assert_eq!(
+            stdio_names(&[
+                "npx -y @modelcontextprotocol/server-memory",
+                "npx -y @modelcontextprotocol/server-filesystem",
+            ]),
+            vec!["server-memory".to_string(), "server-filesystem".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_explicit_names_survive_a_collision() {
+        assert_eq!(
+            stdio_names(&["python -m word_mcp", "memory:python -m memory_mcp"]),
+            vec!["python".to_string(), "memory".to_string()]
+        );
+        assert_eq!(
+            stdio_names(&[
+                "word:python -m word_mcp",
+                "python -m a_mcp",
+                "python -m b_mcp",
+            ]),
+            vec![
+                "word".to_string(),
+                "python_m_a_mcp".to_string(),
+                "python_m_b_mcp".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_normalized_names_are_disambiguated() {
+        assert_eq!(
+            stdio_names(&["MyTool --server a", "mytool --server b"]),
+            vec!["mytool_server_a".to_string(), "mytool_server_b".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_cli_name_is_disambiguated_against_configured_extension() {
+        let mut extensions = vec![
+            (
+                "configured".to_string(),
+                CliSession::parse_stdio_extension("npx configured-server").unwrap(),
+            ),
+            (
+                "cli".to_string(),
+                CliSession::parse_stdio_extension("npx cli-server").unwrap(),
+            ),
+        ];
+        disambiguate_stdio_extension_names(&mut extensions, &HashSet::from([1])).unwrap();
+        assert_eq!(extensions[0].1.name(), "npx");
+        assert_eq!(extensions[1].1.name(), "npx_cli-server");
+    }
+
+    #[test]
+    fn test_fixed_counted_per_key_not_globally() {
+        // `duplicate_fixed_names` must count *fixed entries sharing a key*,
+        // not "is there more than one fixed entry at all" -- otherwise a
+        // fixed entry with a unique name, sitting alongside a fixed+renameable
+        // collision on a different key, would wrongly trip the same error.
+        let mut extensions = vec![
+            (
+                "configured a".to_string(),
+                // Fixed, name "word" -- unique, no collision with anything.
+                CliSession::parse_stdio_extension("word:npx server-a").unwrap(),
+            ),
+            (
+                "configured b".to_string(),
+                // Fixed, name "npx" -- collides with the renameable entry below.
+                CliSession::parse_stdio_extension("npx server-b").unwrap(),
+            ),
+            (
+                "cli".to_string(),
+                // Renameable, also defaults to "npx".
+                CliSession::parse_stdio_extension("npx cli-server").unwrap(),
+            ),
+        ];
+        disambiguate_stdio_extension_names(&mut extensions, &HashSet::from([2])).unwrap();
+        assert_eq!(extensions[0].1.name(), "word");
+        assert_eq!(extensions[1].1.name(), "npx");
+        assert_eq!(extensions[2].1.name(), "npx_cli-server");
+    }
+
+    #[test]
+    fn test_duplicate_explicit_names_are_rejected() {
+        let mut extensions = vec![
+            (
+                "first".to_string(),
+                CliSession::parse_stdio_extension("memory:npx first").unwrap(),
+            ),
+            (
+                "second".to_string(),
+                CliSession::parse_stdio_extension("Memory:npx second").unwrap(),
+            ),
+        ];
+        let error =
+            disambiguate_stdio_extension_names(&mut extensions, &HashSet::new()).unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("extension name 'memory' is already in use"));
+    }
+
+    #[test]
+    fn test_cli_builtin_reuses_configured_registered_extension() {
+        let configured = CliSession::parse_builtin_extensions("developer")
+            .into_iter()
+            .next()
+            .unwrap();
+        let extensions = vec![("configured".to_string(), configured)];
+        let mut cli = parse_cli_flag_extensions(&[], &[], &["developer".to_string()]);
+
+        deduplicate_cli_builtins(&extensions, &mut cli);
+
+        assert!(cli.is_empty());
+    }
+
+    #[test]
+    fn test_cli_builtin_does_not_reuse_different_extension_with_same_name() {
+        let extensions = vec![(
+            "configured".to_string(),
+            CliSession::parse_stdio_extension("developer:npx custom-developer").unwrap(),
+        )];
+        let mut cli = parse_cli_flag_extensions(&[], &[], &["developer".to_string()]);
+
+        deduplicate_cli_builtins(&extensions, &mut cli);
+
+        assert_eq!(cli.len(), 1);
+    }
+
+    #[test]
+    fn test_identical_commands_still_get_distinct_names() {
+        assert_eq!(
+            stdio_names(&["python -m word_mcp", "python -m word_mcp"]),
+            vec![
+                "python_m_word_mcp".to_string(),
+                "python_m_word_mcp_2".to_string()
+            ]
+        );
+    }
 
     fn test_config(temp_dir: &TempDir) -> Config {
         Config::new_with_file_secrets(

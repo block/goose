@@ -76,6 +76,10 @@ describe('ACP connection ownership', () => {
     expect(first).toBe(second);
     expect(mockClientFactory.instances).toHaveLength(1);
     expect(mockClientFactory.initialize).toHaveBeenCalledTimes(1);
+    expect(mockClientFactory.initialize).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ protocolVersion: 1 })
+    );
     expect(transport.createWebSocketStream).toHaveBeenCalledWith('ws://localhost/acp', {
       protocols: [],
     });
