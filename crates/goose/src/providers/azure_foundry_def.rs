@@ -8,7 +8,7 @@ use goose_providers::azure_foundry::{endpoint_kind, AzureFoundryProvider, Endpoi
 use goose_providers::base::{ProviderDescriptor, ProviderMetadata};
 
 use crate::config::{Config, ExtensionConfig};
-use crate::providers::azureauth::{AzureAuth, AzureCredentials};
+use crate::providers::azureauth::{AzureAuth, AzureCredentials, EntraDeviceCodeConfig};
 use crate::providers::base::ProviderDef;
 
 const AZURE_PROJECT_ENTRA_RESOURCE: &str = "https://ai.azure.com";
@@ -78,16 +78,22 @@ pub async fn from_env(tls_config: Option<TlsConfig>) -> Result<AzureFoundryProvi
         .get_secret::<String>("AZURE_FOUNDRY_AD_TOKEN")
         .ok()
         .filter(|token| !token.is_empty());
+    let tenant_id = config
+        .get_param::<String>("AZURE_FOUNDRY_ENTRA_TENANT_ID")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    let client_id = config
+        .get_param::<String>("AZURE_FOUNDRY_ENTRA_CLIENT_ID")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
     let endpoint_kind = endpoint_kind(&endpoint);
     let resource = if endpoint_kind == EndpointKind::Maas {
         AZURE_MAAS_ENTRA_RESOURCE
     } else {
         AZURE_PROJECT_ENTRA_RESOURCE
     };
-    let auth = Arc::new(AzureAuth::new_with_resource(
-        api_key,
-        ad_token,
-        resource.to_string(),
+    let auth = Arc::new(build_auth(
+        api_key, ad_token, tenant_id, client_id, resource,
     )?);
     let auth_method = |header| {
         AuthMethod::Custom(Box::new(AzureFoundryAuthProvider {
@@ -122,6 +128,41 @@ pub async fn from_env(tls_config: Option<TlsConfig>) -> Result<AzureFoundryProvi
         tls_config,
         Some(crate::session_context::session_id_request_builder()),
     )
+}
+
+fn build_auth(
+    api_key: Option<String>,
+    ad_token: Option<String>,
+    tenant_id: Option<String>,
+    client_id: Option<String>,
+    resource: &str,
+) -> Result<AzureAuth> {
+    let device_code = match (tenant_id, client_id) {
+        (Some(tenant_id), Some(client_id)) => Some(EntraDeviceCodeConfig::new(
+            tenant_id,
+            client_id,
+            resource.to_string(),
+        )),
+        (None, None) => None,
+        _ => anyhow::bail!(
+            "AZURE_FOUNDRY_ENTRA_TENANT_ID and AZURE_FOUNDRY_ENTRA_CLIENT_ID must be configured together"
+        ),
+    };
+    if ad_token.is_some() || api_key.is_some() {
+        return Ok(AzureAuth::new_with_resource(
+            api_key,
+            ad_token,
+            resource.to_string(),
+        )?);
+    }
+    if let Some(device_code) = device_code {
+        return Ok(AzureAuth::new_with_device_code(device_code)?);
+    }
+    Ok(AzureAuth::new_with_resource(
+        None,
+        None,
+        resource.to_string(),
+    )?)
 }
 
 #[cfg(test)]
@@ -169,5 +210,49 @@ mod tests {
             header(None, Some("token"), AuthHeader::Bearer).await,
             ("Authorization".to_string(), "Bearer token".to_string())
         );
+    }
+    #[test]
+    fn partial_device_configuration_is_rejected() {
+        let error = build_auth(
+            None,
+            None,
+            Some("tenant".to_string()),
+            None,
+            AZURE_PROJECT_ENTRA_RESOURCE,
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("must be configured together"));
+    }
+
+    #[test]
+    fn static_credentials_take_precedence_over_device_configuration() {
+        let auth = build_auth(
+            Some("key".to_string()),
+            Some("token".to_string()),
+            Some("tenant".to_string()),
+            Some("client".to_string()),
+            AZURE_PROJECT_ENTRA_RESOURCE,
+        )
+        .unwrap();
+        assert!(matches!(
+            auth.credential_type(),
+            AzureCredentials::BearerToken(_)
+        ));
+    }
+
+    #[test]
+    fn complete_device_configuration_selects_interactive_auth() {
+        let auth = build_auth(
+            None,
+            None,
+            Some("tenant".to_string()),
+            Some("client".to_string()),
+            AZURE_PROJECT_ENTRA_RESOURCE,
+        )
+        .unwrap();
+        assert!(matches!(
+            auth.credential_type(),
+            AzureCredentials::DefaultCredential
+        ));
     }
 }

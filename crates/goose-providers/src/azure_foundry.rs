@@ -150,6 +150,8 @@ impl ProviderDescriptor for AzureFoundryProvider {
                 ConfigKey::new("AZURE_FOUNDRY_ENDPOINT", true, false, None, true),
                 ConfigKey::new("AZURE_FOUNDRY_API_KEY", false, true, Some(""), true),
                 ConfigKey::new("AZURE_FOUNDRY_AD_TOKEN", false, true, Some(""), false),
+                ConfigKey::new("AZURE_FOUNDRY_ENTRA_TENANT_ID", false, false, None, false),
+                ConfigKey::new("AZURE_FOUNDRY_ENTRA_CLIENT_ID", false, false, None, false),
                 ConfigKey::new("AZURE_FOUNDRY_MODEL", false, false, None, true),
                 ConfigKey::new("AZURE_FOUNDRY_API_VERSION", false, false, None, false),
             ],

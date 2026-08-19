@@ -99,3 +99,38 @@ Azure pricing depends on region, SKU, offer, deployment type, and contract. The 
 ### Wrong protocol for a custom deployment name
 
 Refresh the provider model list so goose can retrieve `modelPublisher`. Without deployment metadata, routing can only use recognizable model-name prefixes.
+
+## Authenticate with Microsoft Entra ID
+
+For end-user authentication without installing or signing in through the Azure CLI, configure Device Code authentication. This flow opens a browser-based sign-in and does not require storing a client secret.
+
+Set the following optional provider variables:
+
+- `AZURE_FOUNDRY_ENTRA_TENANT_ID`: the Microsoft Entra tenant ID for the app registration.
+- `AZURE_FOUNDRY_ENTRA_CLIENT_ID`: the application (client) ID of the app registration.
+
+The app registration must be configured as a **public client** and must allow the Device Code flow. Do not create or configure a client secret for this end-user flow.
+
+The token scope depends on the endpoint type:
+
+- Foundry project resource endpoints use `https://ai.azure.com/.default`.
+- Models-as-a-Service (MaaS) endpoints use `https://ml.azure.com/.default`.
+
+Add the corresponding API as a **delegated API permission** on the Entra app registration, and grant any consent required by your tenant. The requested token scope and delegated permission must refer to the same resource.
+
+### Credential precedence
+
+Goose resolves Azure Foundry credentials in this order:
+
+1. A configured static Entra token.
+2. A configured API key.
+3. Device Code authentication when the Entra tenant and client settings are configured.
+4. An Azure CLI credential from an existing `az login` session.
+
+Device Code authentication is the recommended interactive option for end users. Static tokens and Azure CLI credentials remain supported as advanced alternatives, for example in automation or an existing developer environment.
+
+### Troubleshooting authentication and authorization
+
+**`AADSTS650057: Invalid resource`** is an Entra app-registration or consent problem. It means the app is requesting a resource such as `https://ai.azure.com` or `https://ml.azure.com` that is not represented by an allowed delegated API permission for that client. Add the delegated permission corresponding to the endpoint scope, grant consent if required, and authenticate again.
+
+**Azure RBAC errors are separate.** A successfully issued token does not grant access to a Foundry project or model deployment by itself. If authentication succeeds but the service returns an authorization, forbidden, or insufficient-permissions response, assign the signed-in user an appropriate Azure role on the relevant Foundry project or parent resource. Changing delegated API permissions does not replace the required Azure RBAC assignment.

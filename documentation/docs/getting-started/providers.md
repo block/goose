@@ -1576,3 +1576,16 @@ If you have any questions or need help with a specific provider, feel free to re
 
 [providers]: /docs/getting-started/providers
 [function-calling-leaderboard]: https://gorilla.cs.berkeley.edu/leaderboard.html
+
+### Azure Foundry Device Code authentication
+
+Azure Foundry supports end-user Microsoft Entra Device Code authentication without Azure CLI. Configure the optional `AZURE_FOUNDRY_ENTRA_TENANT_ID` and `AZURE_FOUNDRY_ENTRA_CLIENT_ID` settings with the tenant ID and application (client) ID of your Entra app registration.
+
+The app registration must be a **public client** with Device Code flow enabled; this flow must not use a client secret. Give the registration the delegated API permission matching the endpoint:
+
+- Foundry project resources: `https://ai.azure.com/.default`
+- Models-as-a-Service (MaaS): `https://ml.azure.com/.default`
+
+Credential precedence is a static Entra token first, an API key second, configured Entra Device Code credentials third, and an existing Azure CLI login last. Device Code is the recommended interactive end-user flow; static tokens and Azure CLI remain available as advanced alternatives.
+
+`AADSTS650057` indicates that the requested resource is not configured as an allowed delegated API permission for the app registration (or consent has not been granted). This is distinct from Azure RBAC: after Entra issues a token, the signed-in user still needs an appropriate role assignment on the Foundry project or parent resource. See the [Azure Foundry provider guide](../guides/azure-foundry-provider.md) for setup and troubleshooting details.
