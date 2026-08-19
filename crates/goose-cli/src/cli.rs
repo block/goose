@@ -2852,4 +2852,67 @@ mod tests {
             _ => panic!("expected tui command"),
         }
     }
+
+    #[cfg(feature = "local-inference")]
+    mod local_search {
+        use super::super::{
+            format_size, gb_to_bytes, search_query_from_filters, search_term_from_repo_filter,
+        };
+
+        #[test]
+        fn gb_to_bytes_converts_and_rejects_nonpositive() {
+            assert_eq!(gb_to_bytes(1.0).unwrap(), 1024 * 1024 * 1024);
+            assert_eq!(gb_to_bytes(0.5).unwrap(), 512 * 1024 * 1024);
+            assert!(gb_to_bytes(0.0).is_err());
+            assert!(gb_to_bytes(-4.0).is_err());
+            assert!(gb_to_bytes(f64::NAN).is_err());
+            assert!(gb_to_bytes(f64::INFINITY).is_err());
+        }
+
+        #[test]
+        fn explicit_query_wins_over_repo_filters() {
+            let query = search_query_from_filters(
+                Some("qwen".to_string()),
+                Some("unsloth/Llama-3.2"),
+                Some("-GGUF"),
+            );
+            assert_eq!(query, "qwen");
+        }
+
+        #[test]
+        fn repo_prefix_is_used_when_query_is_absent() {
+            let query = search_query_from_filters(None, Some("unsloth/Llama-3.2"), None);
+            assert_eq!(query, "Llama-3.2");
+        }
+
+        #[test]
+        fn repo_suffix_is_used_when_prefix_yields_nothing() {
+            let query = search_query_from_filters(None, Some("///"), Some("-Qwen3-GGUF"));
+            assert_eq!(query, "Qwen3-GGUF");
+        }
+
+        #[test]
+        fn empty_when_nothing_is_provided() {
+            assert_eq!(search_query_from_filters(None, None, None), "");
+        }
+
+        #[test]
+        fn repo_filter_takes_last_path_segment_and_trims_separators() {
+            assert_eq!(
+                search_term_from_repo_filter("unsloth/Llama-3.2"),
+                "Llama-3.2"
+            );
+            assert_eq!(search_term_from_repo_filter("-GGUF"), "GGUF");
+            assert_eq!(search_term_from_repo_filter("/bartowski/"), "bartowski");
+            assert_eq!(search_term_from_repo_filter("_model_."), "model");
+            assert_eq!(search_term_from_repo_filter(""), "");
+        }
+
+        #[test]
+        fn format_size_reports_unknown_for_zero() {
+            assert_eq!(format_size(0), "unknown");
+            assert_eq!(format_size(1024 * 1024 * 1024), "1.0GB");
+            assert_eq!(format_size(3 * 1024 * 1024 * 1024 / 2), "1.5GB");
+        }
+    }
 }

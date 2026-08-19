@@ -250,7 +250,7 @@ run_model() {
   if [[ "$RUN_TIMEOUT" -eq 0 ]]; then
     GOOSE_MODE=auto GOOSE_PROVIDER=local GOOSE_MODEL="$model_id" \
       "$GOOSE_BIN" run --no-profile --text "$INSTRUCTION" 2>&1 | tee "$log_file"
-    return ${PIPESTATUS[0]}
+    return "${PIPESTATUS[0]}"
   fi
 
   perl -e '
@@ -276,7 +276,7 @@ run_model() {
     "$RUN_TIMEOUT" \
     env GOOSE_MODE=auto GOOSE_PROVIDER=local GOOSE_MODEL="$model_id" \
     "$GOOSE_BIN" run --no-profile --text "$INSTRUCTION" 2>&1 | tee "$log_file"
-  return ${PIPESTATUS[0]}
+  return "${PIPESTATUS[0]}"
 }
 
 echo "Testing ${#MODELS[@]} model(s)"
