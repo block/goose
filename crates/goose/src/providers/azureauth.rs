@@ -15,25 +15,35 @@ use tokio::sync::RwLock;
 const DEFAULT_RESOURCE: &str = "https://cognitiveservices.azure.com";
 const TOKEN_EXPIRY_SKEW_SECS: i64 = 30;
 
+/// Represents errors that can occur during Azure authentication.
 #[derive(Debug, thiserror::Error)]
 pub enum AuthError {
+    /// Error when loading credentials from the filesystem or environment
     #[error("Failed to load credentials: {0}")]
     Credentials(String),
 
+    /// Error during token exchange
     #[error("Token exchange failed: {0}")]
     TokenExchange(String),
 }
 
+/// Represents an authentication token with its type and value.
 #[derive(Debug, Clone)]
 pub struct AuthToken {
+    /// The type of the token (e.g., "Bearer")
     pub token_type: String,
+    /// The actual token value
     pub token_value: String,
 }
 
+/// Represents the types of Azure credentials supported.
 #[derive(Debug, Clone)]
 pub enum AzureCredentials {
+    /// API key based authentication
     ApiKey(String),
+    /// Pre-acquired Microsoft Entra ID access token (e.g. AZURE_OPENAI_AD_TOKEN)
     BearerToken(String),
+    /// Azure CLI based authentication
     DefaultCredential,
 }
 
@@ -84,12 +94,14 @@ impl EntraDeviceCodeConfig {
     }
 }
 
+/// Holds a cached token and its expiration time.
 #[derive(Debug, Clone)]
 struct CachedToken {
     token: AuthToken,
     expires_at: Instant,
 }
 
+/// Response from Azure token endpoint
 #[derive(Debug, Clone, Deserialize)]
 struct TokenResponse {
     #[serde(rename = "accessToken")]
@@ -107,6 +119,7 @@ struct PersistedDeviceCodeTokens {
     expires_at: Option<DateTime<Utc>>,
 }
 
+/// Azure authentication handler that manages credentials and token caching.
 #[derive(Debug)]
 pub struct AzureAuth {
     credentials: AzureCredentials,
@@ -118,6 +131,10 @@ pub struct AzureAuth {
 }
 
 impl AzureAuth {
+    /// Creates a new Azure authentication handler.
+    ///
+    /// Selects a static bearer token, API key, or Azure CLI fallback and initializes
+    /// the in-memory token cache.
     pub fn new(api_key: Option<String>, ad_token: Option<String>) -> Result<Self, AuthError> {
         Self::new_with_resource(api_key, ad_token, DEFAULT_RESOURCE.to_string())
     }
@@ -163,6 +180,7 @@ impl AzureAuth {
         })
     }
 
+    /// Returns the type of credentials being used.
     pub fn credential_type(&self) -> &AzureCredentials {
         &self.credentials
     }
@@ -172,6 +190,10 @@ impl AzureAuth {
         *self.cached_token.write().await = None;
     }
 
+    /// Retrieves a valid authentication token.
+    ///
+    /// Static credentials are returned directly. Device Code and Azure CLI tokens
+    /// are cached and refreshed when needed using double-checked locking.
     pub async fn get_token(&self) -> Result<AuthToken, AuthError> {
         if let Some(config) = &self.device_code {
             return self.get_device_code_token(config).await;
@@ -263,13 +285,17 @@ impl AzureAuth {
     }
 
     async fn get_default_credential_token(&self) -> Result<AuthToken, AuthError> {
+        // Try read lock first for better concurrency
         if let Some(cached) = self.cached_token.read().await.as_ref() {
             if cached.expires_at > Instant::now() {
                 return Ok(cached.token.clone());
             }
         }
 
+        // Take write lock only if needed
         let mut token_guard = self.cached_token.write().await;
+
+        // Double-check expiration after acquiring write lock
         if let Some(cached) = token_guard.as_ref() {
             if cached.expires_at > Instant::now() {
                 return Ok(cached.token.clone());
