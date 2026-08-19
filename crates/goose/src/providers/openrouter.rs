@@ -296,8 +296,11 @@ impl Provider for OpenRouterProvider {
         let sent_reasoning_disable =
             openrouter_format::apply_reasoning_config(&mut payload, model_config);
 
+        // `transforms` is intentionally not set: OpenRouter defaults to applying
+        // `middle-out` for endpoints with <=8k context, and large-context models
+        // don't benefit from it. Users who want to force a transform can opt in
+        // via `OPENROUTER_PARAMETERS`.
         if let Some(obj) = payload.as_object_mut() {
-            obj.insert("transforms".to_string(), json!(["middle-out"]));
             obj.insert("usage".to_string(), json!({ "include": true }));
         }
 
@@ -455,5 +458,55 @@ mod tests {
             .stream(&config, "system", &[Message::user().with_text("hi")], &[])
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn stream_does_not_set_transforms_field() {
+        // The `transforms` field is intentionally not set: OpenRouter defaults to
+        // applying `middle-out` only on <=8k context endpoints, and large-context
+        // models don't benefit from it. Setting it unconditionally forces the
+        // transform on models where OpenRouter would not apply it by default.
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/chat/completions"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-type", "text/event-stream")
+                    .set_body_string("data: [DONE]\n\n"),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let provider = OpenRouterProvider {
+            api_client: ApiClient::new_with_tls(
+                server.uri(),
+                AuthMethod::BearerToken("test-key".to_string()),
+                None,
+            )
+            .unwrap(),
+            supports_streaming: true,
+            name: OPENROUTER_PROVIDER_NAME.to_string(),
+            configured_parameters: None,
+        };
+
+        let config = model_config("z-ai/glm-5.2");
+
+        let _stream = provider
+            .stream(&config, "system", &[Message::user().with_text("hi")], &[])
+            .await
+            .unwrap();
+
+        let received = server.received_requests().await.unwrap();
+        assert_eq!(received.len(), 1);
+        let body: serde_json::Value = serde_json::from_slice(&received[0].body).unwrap();
+        assert!(
+            body.get("transforms").is_none(),
+            "transforms must not be set unconditionally, got body: {}",
+            body
+        );
     }
 }
