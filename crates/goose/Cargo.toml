@@ -217,7 +217,7 @@ nostr = { version = "0.44.7", default-features = false, features = ["nip44", "st
 nostr-sdk = { version = "0.44", default-features = false, features = ["nip44"], optional = true }
 rustls = { workspace = true, optional = true }
 rcgen = { version = "0.14", default-features = false, features = ["crypto", "pem"], optional = true }
-axum-server = { version = "0.8", default-features = false, optional = true }
+axum-server = { workspace = true, optional = true }
 aws-lc-rs = { version = "1.17", default-features = false, optional = true }
 openssl = { version = "0.10.66", default-features = false, optional = true }
 pem = { version = "4.0.0", default-features = false, features = ["std"], optional = true }

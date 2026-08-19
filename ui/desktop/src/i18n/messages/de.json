@@ -1901,9 +1901,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "{modelId} verwenden"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "Abbrechen"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "Code kopieren"
   },
@@ -1913,23 +1910,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "Keine Anwendung zum Öffnen dieses Links gefunden."
   },
-  "markdownContent.open": {
-    "defaultMessage": "Öffnen"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "Externen Link öffnen"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "{protocol}-Link öffnen?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "Dies öffnet: {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "App"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "Abbrechen"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "Schließen"
@@ -1954,18 +1936,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "Bild-in-Bild-Fenster verschieben (Pfeiltasten verwenden)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "Öffnen"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Externen Link öffnen"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "Dies öffnet: {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "{protocol}-Link öffnen?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Bild-in-Bild"
@@ -4438,6 +4408,9 @@
   },
   "telemetrySettings.updateError": {
     "defaultMessage": "Telemetrie-Einstellungen konnten nicht aktualisiert werden."
+  },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
   },
   "themeSelector.dark": {
     "defaultMessage": "Dunkel"

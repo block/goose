@@ -1901,9 +1901,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "{modelId} 사용"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "취소"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "코드 복사"
   },
@@ -1913,23 +1910,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "이 링크를 열 수 있는 애플리케이션을 찾을 수 없습니다."
   },
-  "markdownContent.open": {
-    "defaultMessage": "열기"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "외부 링크 열기"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "{protocol} 링크를 열까요?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "열립니다: {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "앱"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "취소"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "닫기"
@@ -1954,18 +1936,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "Picture-in-Picture 창 이동(화살표 키 사용)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "열기"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "외부 링크 열기"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "열립니다: {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "{protocol} 링크를 열까요?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "PIP(Picture-in-Picture)"
@@ -4438,6 +4408,9 @@
   },
   "telemetrySettings.updateError": {
     "defaultMessage": "원격 분석 설정을 업데이트하지 못했습니다."
+  },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
   },
   "themeSelector.dark": {
     "defaultMessage": "다크"

@@ -795,7 +795,7 @@ pub fn is_tool_visible_to_app(tool: &Tool) -> bool {
         return true;
     };
     let Some(arr) = visibility.as_array() else {
-        return true;
+        return false;
     };
     arr.iter().any(|v| v.as_str() == Some("app"))
 }
@@ -1754,6 +1754,12 @@ mod tests {
     #[test]
     fn test_app_hidden_when_visibility_is_empty() {
         let tool = make_tool_with_meta(Some(serde_json::json!({"ui": {"visibility": []}})));
+        assert!(!is_tool_visible_to_app(&tool));
+    }
+
+    #[test]
+    fn test_app_hidden_when_visibility_is_not_array() {
+        let tool = make_tool_with_meta(Some(serde_json::json!({"ui": {"visibility": "model"}})));
         assert!(!is_tool_visible_to_app(&tool));
     }
 
