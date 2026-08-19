@@ -23,7 +23,6 @@
     {"name": "glm-4.7", "context_limit": 204800},
     {"name": "glm-4.7-flash", "context_limit": 200000},
     {"name": "glm-5", "context_limit": 204800},
-    {"name": "glm-5.2", "context_limit": 1000000, "reasoning": true},
     {"name": "glm-5.3", "context_limit": 1000000, "reasoning": true}
   ],
   "preserves_thinking": true,
