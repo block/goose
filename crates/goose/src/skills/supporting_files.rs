@@ -9,13 +9,23 @@ pub(crate) fn read_supporting_file(skill_dir: &Path, relative: &Path) -> io::Res
 fn read_supporting_file_with_limit(
     skill_dir: &Path,
     relative: &Path,
-    max_size: usize,
+    max_characters: usize,
 ) -> io::Result<String> {
-    read_supporting_file_with_hook(skill_dir, relative, max_size, |_| {})
+    read_supporting_file_with_hook(skill_dir, relative, max_characters, |_| {})
 }
 
-fn read_utf8_with_limit(mut reader: impl io::Read, max_size: usize) -> io::Result<String> {
-    let read_size = max_size.checked_add(1).ok_or_else(|| {
+fn max_utf8_bytes(max_characters: usize) -> io::Result<usize> {
+    max_characters.checked_mul(4).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "configured supporting file size limit is too large",
+        )
+    })
+}
+
+fn read_utf8_with_limit(mut reader: impl io::Read, max_characters: usize) -> io::Result<String> {
+    let max_bytes = max_utf8_bytes(max_characters)?;
+    let read_size = max_bytes.checked_add(1).ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
             "configured supporting file size limit is too large",
@@ -26,24 +36,37 @@ fn read_utf8_with_limit(mut reader: impl io::Read, max_size: usize) -> io::Resul
         .by_ref()
         .take(read_size as u64)
         .read_to_end(&mut bytes)?;
-    if bytes.len() > max_size {
-        return Err(file_too_large(max_size));
+    if bytes.len() > max_bytes {
+        return Err(file_encoding_too_large(max_bytes));
     }
-    String::from_utf8(bytes).map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+    let content = String::from_utf8(bytes)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+    if content.chars().count() > max_characters {
+        return Err(file_too_large(max_characters));
+    }
+    Ok(content)
 }
 
-fn file_too_large(max_size: usize) -> io::Error {
+fn file_too_large(max_characters: usize) -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidData,
-        format!("supporting file exceeds the maximum size of {max_size} bytes"),
+        format!("supporting file exceeds the maximum size of {max_characters} characters"),
     )
 }
 
-fn read_opened_file(file: fs::File, max_size: usize) -> io::Result<String> {
-    if file.metadata()?.len() > max_size as u64 {
-        return Err(file_too_large(max_size));
+fn file_encoding_too_large(max_bytes: usize) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!("supporting file exceeds the maximum encoded size of {max_bytes} bytes"),
+    )
+}
+
+fn read_opened_file(file: fs::File, max_characters: usize) -> io::Result<String> {
+    let max_bytes = max_utf8_bytes(max_characters)?;
+    if file.metadata()?.len() > max_bytes as u64 {
+        return Err(file_encoding_too_large(max_bytes));
     }
-    read_utf8_with_limit(file, max_size)
+    read_utf8_with_limit(file, max_characters)
 }
 
 fn validated_relative_components(path: &Path) -> io::Result<Vec<&std::ffi::OsStr>> {
@@ -136,7 +159,7 @@ fn open_skill_root(
 fn read_supporting_file_with_hook(
     skill_dir: &Path,
     relative: &Path,
-    max_size: usize,
+    max_characters: usize,
     mut after_opened_component: impl FnMut(&Path),
 ) -> io::Result<String> {
     let components = validated_relative_components(relative)?;
@@ -162,7 +185,7 @@ fn read_supporting_file_with_hook(
         ));
     }
 
-    read_opened_file(file, max_size)
+    read_opened_file(file, max_characters)
 }
 
 #[cfg(unix)]
@@ -263,7 +286,7 @@ fn open_skill_root(
 fn read_supporting_file_with_hook(
     skill_dir: &Path,
     relative: &Path,
-    max_size: usize,
+    max_characters: usize,
     mut after_opened_component: impl FnMut(&Path),
 ) -> io::Result<String> {
     let components = validated_relative_components(relative)?;
@@ -293,7 +316,7 @@ fn read_supporting_file_with_hook(
         ));
     }
 
-    read_opened_file(file, max_size)
+    read_opened_file(file, max_characters)
 }
 
 #[cfg(windows)]
@@ -394,7 +417,7 @@ fn windows_nt_status_error(status: winapi::shared::ntdef::NTSTATUS) -> io::Error
 fn read_supporting_file_with_hook(
     _skill_dir: &Path,
     relative: &Path,
-    _max_size: usize,
+    _max_characters: usize,
     _after_opened_component: impl FnMut(&Path),
 ) -> io::Result<String> {
     validated_relative_components(relative)?;
@@ -424,23 +447,23 @@ mod tests {
 
     #[cfg(any(unix, windows))]
     #[test]
-    fn reads_utf8_file_at_exact_size_limit() {
+    fn reads_utf8_file_at_exact_character_limit() {
         let root = tempfile::tempdir().unwrap();
         let skill_dir = fs::canonicalize(root.path()).unwrap();
-        fs::write(skill_dir.join("guide.md"), "éé").unwrap();
+        fs::write(skill_dir.join("guide.md"), "🙂🙂🙂🙂").unwrap();
 
         let content =
             read_supporting_file_with_limit(&skill_dir, Path::new("guide.md"), 4).unwrap();
 
-        assert_eq!(content, "éé");
+        assert_eq!(content, "🙂🙂🙂🙂");
     }
 
     #[cfg(any(unix, windows))]
     #[test]
-    fn rejects_file_one_byte_over_size_limit() {
+    fn rejects_file_one_character_over_size_limit() {
         let root = tempfile::tempdir().unwrap();
         let skill_dir = fs::canonicalize(root.path()).unwrap();
-        fs::write(skill_dir.join("guide.md"), "12345").unwrap();
+        fs::write(skill_dir.join("guide.md"), "ééééé").unwrap();
 
         let error = read_supporting_file_with_limit(&skill_dir, Path::new("guide.md"), 4)
             .expect_err("oversized supporting file was accepted");
@@ -448,7 +471,7 @@ mod tests {
         assert_eq!(error.kind(), io::ErrorKind::InvalidData);
         assert!(error
             .to_string()
-            .contains("exceeds the maximum size of 4 bytes"));
+            .contains("exceeds the maximum size of 4 characters"));
     }
 
     #[test]
@@ -473,8 +496,8 @@ mod tests {
         assert_eq!(error.kind(), io::ErrorKind::InvalidData);
         assert!(error
             .to_string()
-            .contains("exceeds the maximum size of 4 bytes"));
-        assert_eq!(bytes_read.get(), 5);
+            .contains("exceeds the maximum encoded size of 16 bytes"));
+        assert_eq!(bytes_read.get(), 17);
     }
 
     #[cfg(unix)]
