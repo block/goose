@@ -1,6 +1,7 @@
 use agent_client_protocol::schema::v1::{
-    InitializeRequest, InitializeResponse, NewSessionRequest, NewSessionResponse,
-    SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOption, SessionId,
+    AgentCapabilities, InitializeRequest, InitializeResponse, LoadSessionRequest,
+    LoadSessionResponse, NewSessionRequest, NewSessionResponse, SessionConfigOption,
+    SessionConfigOptionCategory, SessionConfigSelectOption, SessionId,
     SetSessionConfigOptionRequest, SetSessionConfigOptionResponse,
 };
 use agent_client_protocol::schema::ProtocolVersion;
@@ -124,6 +125,99 @@ async fn bootstrap_config_option_response_refreshes_the_effort_mirror() {
             );
         }
         other => panic!("expected the agent's rebuilt effort options, got {other:?}"),
+    }
+
+    drop(provider);
+    agent.abort();
+}
+
+#[tokio::test]
+async fn loaded_session_refreshes_the_effort_mirror() {
+    let (client_read, agent_write) = tokio::io::duplex(64 * 1024);
+    let (agent_read, client_write) = tokio::io::duplex(64 * 1024);
+
+    let agent = tokio::spawn(async move {
+        SacpAgent
+            .builder()
+            .name("scripted-agent")
+            .on_receive_request(
+                async |_req: InitializeRequest, responder, _cx| {
+                    responder.respond(
+                        InitializeResponse::new(ProtocolVersion::LATEST)
+                            .agent_capabilities(AgentCapabilities::new().load_session(true)),
+                    )
+                },
+                on_receive_request!(),
+            )
+            .on_receive_request(
+                async |_req: NewSessionRequest, responder, _cx| {
+                    responder.respond(
+                        NewSessionResponse::new(SessionId::new("temporary-session"))
+                            .config_options(vec![effort_option(
+                                "medium",
+                                &["low", "medium", "high"],
+                            )]),
+                    )
+                },
+                on_receive_request!(),
+            )
+            .on_receive_request(
+                async |req: LoadSessionRequest, responder, _cx| {
+                    assert_eq!(req.session_id.0.as_ref(), "saved-session");
+                    responder.respond(LoadSessionResponse::new().config_options(vec![
+                        effort_option("xhigh", &["default", "high", "xhigh"]),
+                    ]))
+                },
+                on_receive_request!(),
+            )
+            .connect_to(ByteStreams::new(
+                agent_write.compat_write(),
+                agent_read.compat(),
+            ))
+            .await
+    });
+
+    let config = AcpProviderConfig {
+        command: "unused".into(),
+        args: vec![],
+        env: vec![],
+        env_remove: vec![],
+        work_dir: std::env::temp_dir(),
+        mcp_servers: vec![],
+        session_mode_id: None,
+        session_config_options: vec![],
+        model_config_option_id: None,
+        mode_mapping: HashMap::new(),
+        notification_callback: None,
+    };
+
+    let provider = AcpProvider::connect_with_transport(
+        "scripted-acp".to_string(),
+        GooseMode::default(),
+        config,
+        ByteStreams::new(client_write.compat_write(), client_read.compat()),
+    )
+    .await
+    .expect("provider should connect to the scripted agent");
+
+    provider
+        .resume("saved-session")
+        .await
+        .expect("provider should load the saved session");
+
+    match provider.thinking_effort_support() {
+        ThinkingEffortSupport::Options(capability) => {
+            assert_eq!(capability.current.as_deref(), Some("xhigh"));
+            assert_eq!(
+                capability
+                    .values
+                    .iter()
+                    .map(|option| option.value.as_str())
+                    .collect::<Vec<_>>(),
+                vec!["default", "high", "xhigh"]
+            );
+        }
+        other => panic!("expected the loaded session's effort options, got {other:?}"),
     }
 
     drop(provider);

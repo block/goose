@@ -1569,8 +1569,17 @@ async fn handle_requests(
                 let result = match result {
                     Ok(session) => {
                         session_ids.push(session.session_id.clone());
-                        apply_session_config_options(&config, &cx, session.session_id.clone())
-                            .await?;
+                        refresh_effort_state(
+                            &effort_state,
+                            session.config_options.as_deref().unwrap_or_default(),
+                        );
+                        apply_session_config_options(
+                            &config,
+                            &cx,
+                            session.session_id.clone(),
+                            &effort_state,
+                        )
+                        .await?;
                         apply_session_mode(&config, &goose_mode, &cx, session).await
                     }
                     Err(error) => Err(error),
