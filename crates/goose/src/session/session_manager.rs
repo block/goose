@@ -471,7 +471,12 @@ impl SessionManager {
         self.storage.delete_session(id).await
     }
 
-    /// Deletes all sessions whose last update is older than the cutoff.
+    /// Counts sessions whose last activity is older than the cutoff.
+    pub async fn count_sessions_older_than(&self, cutoff: DateTime<Utc>) -> Result<u64> {
+        self.storage.count_sessions_older_than(cutoff).await
+    }
+
+    /// Deletes all sessions whose last activity is older than the cutoff.
     /// Returns the number of sessions deleted.
     pub async fn delete_sessions_older_than(&self, cutoff: DateTime<Utc>) -> Result<u64> {
         self.storage.delete_sessions_older_than(cutoff).await
@@ -706,6 +711,28 @@ fn normalized_message_timestamp_sql(column: &str) -> String {
 
 fn user_visible_message_sql(column: &str) -> String {
     format!("COALESCE(json_extract({column}, '$.userVisible'), 1) != 0")
+}
+
+/// Session ids whose last activity predates a bound cutoff (unix seconds).
+///
+/// Activity is the later of the newest message timestamp and `updated_at`.
+/// Listing uses `COALESCE(MAX(message), updated_at)`, which lets a stale message
+/// timestamp win; that is harmless for sort order but would delete a session the
+/// user just touched, so deletion takes the newer of the two signals instead.
+/// `unixepoch` normalizes both stored `updated_at` formats (space-separated and
+/// RFC 3339).
+fn sessions_older_than_ids_sql() -> String {
+    let normalized = normalized_message_timestamp_sql("m.created_timestamp");
+    format!(
+        "SELECT s.id FROM sessions s \
+         WHERE MAX( \
+             COALESCE( \
+                 (SELECT MAX({normalized}) FROM messages m WHERE m.session_id = s.id), \
+                 0 \
+             ), \
+             COALESCE(unixepoch(s.updated_at), 0) \
+         ) < ?"
+    )
 }
 
 fn session_sort_at(session: &Session) -> DateTime<Utc> {
@@ -2133,34 +2160,48 @@ impl SessionStorage {
         Ok(())
     }
 
+    async fn count_sessions_older_than(&self, cutoff: DateTime<Utc>) -> Result<u64> {
+        let pool = self.pool().await?;
+        let sql = format!("SELECT COUNT(*) FROM ({})", sessions_older_than_ids_sql());
+        let count: i64 = sqlx::query_scalar(AssertSqlSafe(sql))
+            .bind(cutoff.timestamp())
+            .fetch_one(pool)
+            .await?;
+        Ok(count as u64)
+    }
+
     async fn delete_sessions_older_than(&self, cutoff: DateTime<Utc>) -> Result<u64> {
         let pool = self.pool().await?;
         let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
 
-        let cutoff_str = cutoff.format("%Y-%m-%d %H:%M:%S").to_string();
+        // Resolve the id set before deleting: the activity expression reads
+        // `messages`, so re-evaluating it after those rows are gone would narrow
+        // the set and leave emptied-out sessions behind.
+        let stale_ids: Vec<String> =
+            sqlx::query_scalar(AssertSqlSafe(sessions_older_than_ids_sql()))
+                .bind(cutoff.timestamp())
+                .fetch_all(&mut *tx)
+                .await?;
 
-        sqlx::query(
-            "DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)",
-        )
-        .bind(&cutoff_str)
-        .execute(&mut *tx)
-        .await?;
+        for id in &stale_ids {
+            sqlx::query("DELETE FROM messages WHERE session_id = ?")
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
 
-        sqlx::query(
-            "DELETE FROM usage_ledger WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)",
-        )
-        .bind(&cutoff_str)
-        .execute(&mut *tx)
-        .await?;
+            sqlx::query("DELETE FROM usage_ledger WHERE session_id = ?")
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
 
-        let deleted = sqlx::query("DELETE FROM sessions WHERE updated_at < ?")
-            .bind(&cutoff_str)
-            .execute(&mut *tx)
-            .await?
-            .rows_affected();
+            sqlx::query("DELETE FROM sessions WHERE id = ?")
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
+        }
 
         tx.commit().await?;
-        Ok(deleted)
+        Ok(stale_ids.len() as u64)
     }
 
     async fn get_insights(&self, types: &[SessionType]) -> Result<SessionInsights> {
@@ -4665,6 +4706,131 @@ mod tests {
 
         assert!(sm.get_session(&a, false).await.is_ok());
         assert!(sm.get_session(&b, false).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_delete_sessions_older_than_retains_sessions_with_recent_messages() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+
+        let stale_updated_at = new_session(&sm).await;
+        add_message_at(
+            &sm,
+            &stale_updated_at,
+            "recent activity",
+            &(Utc::now() - chrono::Duration::days(1)).to_rfc3339(),
+        )
+        .await;
+        set_sessions_updated_at(
+            &sm,
+            std::slice::from_ref(&stale_updated_at),
+            "2020-01-01T00:00:00Z",
+        )
+        .await;
+
+        let cutoff = Utc::now() - chrono::Duration::days(30);
+        assert_eq!(sm.count_sessions_older_than(cutoff).await.unwrap(), 0);
+        assert_eq!(sm.delete_sessions_older_than(cutoff).await.unwrap(), 0);
+        assert!(sm.get_session(&stale_updated_at, false).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_delete_sessions_older_than_retains_recently_touched_with_old_messages() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+
+        let recently_touched = new_session(&sm).await;
+        add_message_at(
+            &sm,
+            &recently_touched,
+            "ancient message",
+            "2020-01-01T00:00:00Z",
+        )
+        .await;
+
+        let cutoff = Utc::now() - chrono::Duration::days(30);
+        assert_eq!(sm.count_sessions_older_than(cutoff).await.unwrap(), 0);
+        assert_eq!(sm.delete_sessions_older_than(cutoff).await.unwrap(), 0);
+        assert!(sm.get_session(&recently_touched, false).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_delete_sessions_older_than_leaves_no_orphaned_rows() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+
+        let stale = new_session(&sm).await;
+        add_message_at(&sm, &stale, "ancient message", "2020-01-01T00:00:00Z").await;
+        seed_ledger(&sm, &stale, &message_usage(100, 20, 0.10, false))
+            .await
+            .unwrap();
+        set_sessions_updated_at(&sm, std::slice::from_ref(&stale), "2020-01-01T00:00:00Z").await;
+
+        let cutoff = Utc::now() - chrono::Duration::days(30);
+        assert_eq!(sm.delete_sessions_older_than(cutoff).await.unwrap(), 1);
+        assert!(sm.get_session(&stale, false).await.is_err());
+
+        let pool = sm.storage().pool().await.unwrap();
+        for table in ["messages", "usage_ledger"] {
+            let orphaned: i64 = sqlx::query_scalar(AssertSqlSafe(format!(
+                "SELECT COUNT(*) FROM {table} WHERE session_id NOT IN (SELECT id FROM sessions)"
+            )))
+            .fetch_one(pool)
+            .await
+            .unwrap();
+            assert_eq!(orphaned, 0, "{table} left orphaned rows");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_delete_sessions_older_than_normalizes_millisecond_message_timestamps() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+
+        let stale = new_session(&sm).await;
+        add_message_at_millis(&sm, &stale, "ancient", "2020-01-01T00:00:00Z").await;
+        set_sessions_updated_at(&sm, std::slice::from_ref(&stale), "2020-01-01T00:00:00Z").await;
+
+        let recent = new_session(&sm).await;
+        add_message_at_millis(
+            &sm,
+            &recent,
+            "fresh",
+            &(Utc::now() - chrono::Duration::days(1)).to_rfc3339(),
+        )
+        .await;
+        set_sessions_updated_at(&sm, std::slice::from_ref(&recent), "2020-01-01T00:00:00Z").await;
+
+        let cutoff = Utc::now() - chrono::Duration::days(30);
+        assert_eq!(sm.count_sessions_older_than(cutoff).await.unwrap(), 1);
+        assert_eq!(sm.delete_sessions_older_than(cutoff).await.unwrap(), 1);
+        assert!(sm.get_session(&stale, false).await.is_err());
+        assert!(sm.get_session(&recent, false).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_delete_sessions_older_than_handles_rfc3339_updated_at() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+
+        // Same calendar date as the cutoff, so a lexicographic string compare is
+        // decided by 'T' (0x54) vs the space (0x20) in the cutoff's format and
+        // wrongly retains this session.
+        let legacy = new_session(&sm).await;
+        let pool = sm.storage().pool().await.unwrap();
+        sqlx::query("UPDATE sessions SET updated_at = ? WHERE id = ?")
+            .bind("2026-07-21T01:00:00Z")
+            .bind(&legacy)
+            .execute(pool)
+            .await
+            .unwrap();
+
+        let cutoff = chrono::DateTime::parse_from_rfc3339("2026-07-21T12:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        assert_eq!(sm.count_sessions_older_than(cutoff).await.unwrap(), 1);
+        assert_eq!(sm.delete_sessions_older_than(cutoff).await.unwrap(), 1);
+        assert!(sm.get_session(&legacy, false).await.is_err());
     }
 
     #[tokio::test]

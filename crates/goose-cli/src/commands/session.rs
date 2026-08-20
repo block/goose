@@ -96,11 +96,20 @@ pub async fn handle_session_clear(older_than_days: u32, yes: bool) -> Result<()>
     }
 
     let session_manager = SessionManager::instance();
-    let cutoff = chrono::Utc::now() - chrono::Duration::days(older_than_days as i64);
+    let cutoff = chrono::Utc::now()
+        .checked_sub_signed(chrono::Duration::days(older_than_days as i64))
+        .ok_or_else(|| anyhow::anyhow!("--older-than {} is too large", older_than_days))?;
 
     if !yes {
+        let matching = session_manager.count_sessions_older_than(cutoff).await?;
+        if matching == 0 {
+            println!("No sessions older than {} day(s) found.", older_than_days);
+            return Ok(());
+        }
+
         let should_delete = confirm(format!(
-            "Delete all sessions older than {} day(s) (last activity before {})?",
+            "Delete {} session(s) older than {} day(s) (last activity before {})?",
+            matching,
             older_than_days,
             cutoff.format("%Y-%m-%d %H:%M UTC")
         ))
