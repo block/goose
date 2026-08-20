@@ -25,7 +25,7 @@ use crate::providers::toolshim::{
 };
 use goose_providers::conversation::token_usage::{CostSource, ProviderStats, ProviderUsage, Usage};
 use goose_providers::model::ModelConfig;
-use rmcp::model::Tool;
+use rmcp::model::{ErrorData, Tool};
 use tracing::warn;
 
 async fn enhance_model_error(
@@ -582,15 +582,21 @@ impl Agent {
         &self,
         response: &Message,
         tools: &[Tool],
+        toolshim_tools: &[Tool],
         suppress_replayed_thinking: bool,
     ) -> (Vec<ToolRequest>, Vec<ToolRequest>, Message) {
+        let model_visible_tools = tools
+            .iter()
+            .chain(toolshim_tools.iter())
+            .collect::<Vec<_>>();
+
         // Precomputed once per response so a model-mangled tool name (GLM,
         // Minimax — see #9486) is canonicalized to the real advertised name
         // HERE, before permission inspection or PreToolUse hooks run on it
         // downstream. Canonicalizing later (e.g. only at dispatch time) would
         // let a mangled name dodge policy checks keyed to the canonical tool
         // name while still executing the real tool underneath.
-        let tool_owners: Vec<(&str, Option<String>)> = tools
+        let tool_owners: Vec<(&str, Option<String>)> = model_visible_tools
             .iter()
             .map(|t| (t.name.as_ref(), get_tool_owner(t)))
             .collect();
@@ -602,9 +608,11 @@ impl Agent {
             .filter_map(|content| {
                 if let MessageContent::ToolRequest(req) = content {
                     let mut coerced_req = req.clone();
+                    let externally_dispatched = coerced_req.was_executed_externally();
+                    let mut unadvertised_name = None;
 
                     if let Ok(ref mut tool_call) = coerced_req.tool_call {
-                        if !tools.iter().any(|t| t.name == tool_call.name) {
+                        if !model_visible_tools.iter().any(|t| t.name == tool_call.name) {
                             if let Some(recovered) = recover_mangled_tool_name(
                                 &tool_call.name,
                                 tool_owners.iter().map(|(n, o)| (*n, o.as_deref())),
@@ -613,7 +621,10 @@ impl Agent {
                             }
                         }
 
-                        if let Some(tool) = tools.iter().find(|t| t.name == tool_call.name) {
+                        if let Some(tool) = model_visible_tools
+                            .iter()
+                            .find(|t| t.name == tool_call.name)
+                        {
                             let schema_value = Value::Object(tool.input_schema.as_ref().clone());
                             tool_call.arguments =
                                 coerce_tool_arguments(tool_call.arguments.clone(), &schema_value);
@@ -638,7 +649,16 @@ impl Agent {
                                         (existing, _) => existing,
                                     };
                             }
+                        } else if !externally_dispatched {
+                            unadvertised_name = Some(tool_call.name.to_string());
                         }
+                    }
+
+                    if let Some(name) = unadvertised_name {
+                        coerced_req.tool_call = Err(ErrorData::invalid_request(
+                            format!("Tool '{name}' was not advertised for this model turn"),
+                            None,
+                        ));
                     }
 
                     Some(coerced_req)
@@ -689,7 +709,10 @@ impl Agent {
                     let should_include = if coerced_req.was_executed_externally() {
                         true
                     } else if let Ok(tool_call) = &coerced_req.tool_call {
-                        !self.is_frontend_tool(&tool_call.name).await
+                        !model_visible_tools
+                            .iter()
+                            .any(|tool| tool.name == tool_call.name)
+                            || !self.is_frontend_tool(&tool_call.name).await
                     } else {
                         true
                     };
@@ -1525,6 +1548,7 @@ mod tests {
     #[tokio::test]
     async fn categorize_tool_requests_keeps_thinking_when_not_previously_streamed() {
         let agent = crate::agents::Agent::new();
+        let tool = Tool::new("test_tool", "a test tool", object!({ "type": "object" }));
         let mut response = Message::assistant()
             .with_thinking("final-only reasoning", "")
             .with_tool_request(
@@ -1533,8 +1557,9 @@ mod tests {
             );
         response.metadata.output_token_limit_reached = true;
 
-        let (_frontend_requests, other_requests, filtered_message) =
-            agent.categorize_tool_requests(&response, &[], false).await;
+        let (_frontend_requests, other_requests, filtered_message) = agent
+            .categorize_tool_requests(&response, &[tool], &[], false)
+            .await;
 
         assert_eq!(other_requests.len(), 1);
         assert!(filtered_message.metadata.output_token_limit_reached);
@@ -1552,6 +1577,7 @@ mod tests {
     #[tokio::test]
     async fn categorize_tool_requests_drops_replayed_thinking_after_streaming() {
         let agent = crate::agents::Agent::new();
+        let tool = Tool::new("test_tool", "a test tool", object!({ "type": "object" }));
         let response = Message::assistant()
             .with_thinking("replayed reasoning", "")
             .with_tool_request(
@@ -1559,8 +1585,9 @@ mod tests {
                 Ok(rmcp::model::CallToolRequestParams::new("test_tool")),
             );
 
-        let (_frontend_requests, other_requests, filtered_message) =
-            agent.categorize_tool_requests(&response, &[], true).await;
+        let (_frontend_requests, other_requests, filtered_message) = agent
+            .categorize_tool_requests(&response, &[tool], &[], true)
+            .await;
 
         assert_eq!(other_requests.len(), 1);
         assert_eq!(filtered_message.content.len(), 1);
@@ -1580,8 +1607,9 @@ mod tests {
             .with_text("user-visible")
             .with_thinking("visible reasoning", "");
 
-        let (_frontend_requests, _other_requests, filtered_message) =
-            agent.categorize_tool_requests(&response, &[], false).await;
+        let (_frontend_requests, _other_requests, filtered_message) = agent
+            .categorize_tool_requests(&response, &[], &[], false)
+            .await;
 
         assert_eq!(response.as_concat_text(), "assistant-only\nuser-visible");
         assert_eq!(filtered_message.as_concat_text(), "user-visible");
@@ -1608,15 +1636,22 @@ mod tests {
                     .clone(),
             ));
 
-        let response = Message::assistant().with_tool_request_with_metadata(
-            "tool-1",
-            Ok(rmcp::model::CallToolRequestParams::new("test_tool")),
-            None,
-            Some(serde_json::json!({ TOOL_META_EXTERNAL_DISPATCH_KEY: true })),
-        );
+        let response = Message::assistant()
+            .with_tool_request_with_metadata(
+                "tool-1",
+                Ok(rmcp::model::CallToolRequestParams::new("test_tool")),
+                None,
+                Some(serde_json::json!({ TOOL_META_EXTERNAL_DISPATCH_KEY: true })),
+            )
+            .with_tool_request_with_metadata(
+                "tool-2",
+                Ok(rmcp::model::CallToolRequestParams::new("external_only")),
+                None,
+                Some(serde_json::json!({ TOOL_META_EXTERNAL_DISPATCH_KEY: true })),
+            );
 
         let (frontend_requests, other_requests, filtered_message) = agent
-            .categorize_tool_requests(&response, &[registry_tool], false)
+            .categorize_tool_requests(&response, &[registry_tool], &[], false)
             .await;
 
         assert!(
@@ -1627,7 +1662,7 @@ mod tests {
             other_requests.is_empty(),
             "external request leaked into other_requests: {other_requests:?}"
         );
-        assert_eq!(filtered_message.content.len(), 1);
+        assert_eq!(filtered_message.content.len(), 2);
         let tool_req = match &filtered_message.content[0] {
             MessageContent::ToolRequest(req) => req,
             other => panic!("expected ToolRequest, got {other:?}"),
@@ -1646,6 +1681,121 @@ mod tests {
             merged.contains_key("ui"),
             "registry tool meta keys were dropped; merged tool_meta = {merged:?}"
         );
+        assert!(filtered_message.content[1]
+            .as_tool_request()
+            .is_some_and(ToolRequest::was_executed_externally));
+        assert!(filtered_message.content[1]
+            .as_tool_request()
+            .is_some_and(|request| request.tool_call.is_ok()));
+    }
+
+    #[tokio::test]
+    async fn categorize_tool_requests_rejects_unadvertised_executable_tools() {
+        use crate::agents::types::FrontendTool;
+
+        let agent = crate::agents::Agent::new();
+        let app_only_tool = Tool::new(
+            "frontend__app_only",
+            "an app-only frontend tool",
+            object!({ "type": "object" }),
+        )
+        .with_meta(rmcp::model::MetaObject(
+            serde_json::json!({ "ui": { "visibility": ["app"] } })
+                .as_object()
+                .unwrap()
+                .clone(),
+        ));
+        agent.frontend_tools.lock().await.insert(
+            app_only_tool.name.to_string(),
+            FrontendTool {
+                name: app_only_tool.name.to_string(),
+                tool: app_only_tool,
+            },
+        );
+
+        let response = Message::assistant()
+            .with_tool_request(
+                "app-only",
+                Ok(rmcp::model::CallToolRequestParams::new(
+                    "frontend__app_only",
+                )),
+            )
+            .with_tool_request(
+                "off-list",
+                Ok(rmcp::model::CallToolRequestParams::new("unadvertised")),
+            );
+
+        let (frontend_requests, other_requests, filtered_message) = agent
+            .categorize_tool_requests(&response, &[], &[], false)
+            .await;
+
+        assert!(frontend_requests.is_empty());
+        assert_eq!(other_requests.len(), 2);
+        assert!(other_requests
+            .iter()
+            .all(|request| request.tool_call.is_err()));
+        assert_eq!(
+            filtered_message
+                .content
+                .iter()
+                .filter_map(MessageContent::as_tool_request)
+                .count(),
+            2
+        );
+    }
+
+    #[tokio::test]
+    async fn categorize_tool_requests_dispatches_advertised_tools() {
+        use crate::agents::types::FrontendTool;
+
+        let agent = crate::agents::Agent::new();
+        let regular_tool = Tool::new(
+            "regular_tool",
+            "a regular tool",
+            object!({ "type": "object" }),
+        );
+        let frontend_tool = Tool::new(
+            "frontend_tool",
+            "a frontend tool",
+            object!({ "type": "object" }),
+        );
+        agent.frontend_tools.lock().await.insert(
+            frontend_tool.name.to_string(),
+            FrontendTool {
+                name: frontend_tool.name.to_string(),
+                tool: frontend_tool.clone(),
+            },
+        );
+        let toolshim_tool = Tool::new(
+            "toolshim_tool",
+            "a toolshim tool",
+            object!({ "type": "object" }),
+        );
+        let response = Message::assistant()
+            .with_tool_request(
+                "regular",
+                Ok(rmcp::model::CallToolRequestParams::new("regular_tool")),
+            )
+            .with_tool_request(
+                "toolshim",
+                Ok(rmcp::model::CallToolRequestParams::new("toolshim_tool")),
+            )
+            .with_tool_request(
+                "frontend",
+                Ok(rmcp::model::CallToolRequestParams::new("frontend_tool")),
+            );
+
+        let (frontend_requests, other_requests, _) = agent
+            .categorize_tool_requests(
+                &response,
+                &[regular_tool, frontend_tool],
+                &[toolshim_tool],
+                false,
+            )
+            .await;
+
+        assert_eq!(frontend_requests.len(), 1);
+        assert_eq!(other_requests.len(), 2);
     }
 
     #[tokio::test]
@@ -1677,7 +1827,7 @@ mod tests {
         );
 
         let (_frontend_requests, other_requests, _filtered_message) = agent
-            .categorize_tool_requests(&response, &[shell_tool], false)
+            .categorize_tool_requests(&response, &[shell_tool], &[], false)
             .await;
 
         assert_eq!(other_requests.len(), 1);
@@ -1711,7 +1861,7 @@ mod tests {
         );
 
         let (_frontend_requests, other_requests, _filtered_message) = agent
-            .categorize_tool_requests(&response, &[final_output_tool], false)
+            .categorize_tool_requests(&response, &[final_output_tool], &[], false)
             .await;
 
         assert_eq!(other_requests.len(), 1);
@@ -1723,10 +1873,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn categorize_tool_requests_leaves_unrecoverable_name_untouched() {
-        // No matching tool at all: the request must pass through unchanged
-        // (still Ok, still the original name) so existing not-found handling
-        // downstream is unaffected.
+    async fn categorize_tool_requests_rejects_unrecoverable_unadvertised_name() {
         let agent = crate::agents::Agent::new();
         let tool = Tool::new(
             "shell",
@@ -1741,13 +1888,19 @@ mod tests {
             )),
         );
 
-        let (_frontend_requests, other_requests, _filtered_message) = agent
-            .categorize_tool_requests(&response, &[tool], false)
+        let (_frontend_requests, other_requests, filtered_message) = agent
+            .categorize_tool_requests(&response, &[tool], &[], false)
             .await;
 
         assert_eq!(other_requests.len(), 1);
-        let tool_call = other_requests[0].tool_call.as_ref().unwrap();
-        assert_eq!(tool_call.name, "totally_unknown_tool");
+        assert!(other_requests[0].tool_call.is_err());
+        let tool_call = filtered_message.content[0]
+            .as_tool_request()
+            .unwrap()
+            .tool_call
+            .as_ref()
+            .unwrap_err();
+        assert!(tool_call.message.contains("totally_unknown_tool"));
     }
 
     #[tokio::test]
@@ -1770,9 +1923,15 @@ mod tests {
                 "unique",
                 Ok(rmcp::model::CallToolRequestParams::new("third_tool")),
             );
+        let tools = [
+            Tool::new("first_tool", "first", object!({ "type": "object" })),
+            Tool::new("second_tool", "second", object!({ "type": "object" })),
+            Tool::new("third_tool", "third", object!({ "type": "object" })),
+        ];
 
-        let (_frontend_requests, other_requests, filtered_message) =
-            agent.categorize_tool_requests(&response, &[], false).await;
+        let (_frontend_requests, other_requests, filtered_message) = agent
+            .categorize_tool_requests(&response, &tools, &[], false)
+            .await;
 
         let kept: Vec<(&str, &str)> = other_requests
             .iter()

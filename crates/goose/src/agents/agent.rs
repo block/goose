@@ -921,11 +921,12 @@ impl Agent {
         &self,
         response: &Message,
         tools: &[rmcp::model::Tool],
+        toolshim_tools: &[rmcp::model::Tool],
         suppress_replayed_thinking: bool,
     ) -> ToolCategorizeResult {
         // Categorize tool requests
         let (frontend_requests, remaining_requests, filtered_response) = self
-            .categorize_tool_requests(response, tools, suppress_replayed_thinking)
+            .categorize_tool_requests(response, tools, toolshim_tools, suppress_replayed_thinking)
             .await;
 
         ToolCategorizeResult {
@@ -2713,6 +2714,7 @@ impl Agent {
                                     .categorize_tools(
                                         &response,
                                         &tools,
+                                        &toolshim_tools,
                                         surfaced_thinking_in_turn,
                                     )
                                     .await;

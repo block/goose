@@ -236,6 +236,7 @@ impl ApprovalState {
                 if self.answered.contains(&request.id)
                     || self.approval_requests.contains(&request.id)
                     || self.approval_responses.contains_key(&request.id)
+                    || request.was_executed_externally()
                     || request_executable(request) == Some(false)
                     || request.tool_call.is_err()
                 {

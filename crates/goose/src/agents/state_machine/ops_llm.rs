@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures::StreamExt;
 use goose_agent::inference::InferenceEffect;
 pub use goose_agent::inference::InferenceRunner;
 use goose_providers::base::{MessageStream, ModelInfo, Provider};
@@ -14,6 +15,9 @@ use goose_providers::model::ModelConfig;
 use crate::agents::state_machine::GooseEffect;
 
 pub(super) use goose_agent::inference::{chat_span, record_chat_usage};
+
+pub(super) const ADVERTISED_TOOLS_NOTE: &str = "advertised_tools";
+pub(super) const LLM_OPERATION_NAME: &str = "llm";
 
 pub struct GooseInferenceProvider {
     inner: Arc<dyn Provider>,
@@ -95,8 +99,21 @@ impl Provider for GooseInferenceProvider {
                 system.to_string(),
                 model_config,
             );
+        let mut advertised_tools = tools
+            .iter()
+            .chain(toolshim_tools.iter())
+            .map(|tool| tool.name.to_string())
+            .collect::<Vec<_>>();
+        advertised_tools.sort_unstable();
+        advertised_tools.dedup();
+        let advertised_tools_note = serde_json::Value::Array(
+            advertised_tools
+                .into_iter()
+                .map(serde_json::Value::String)
+                .collect(),
+        );
         let session_id = crate::session_context::current_session_id().unwrap_or_default();
-        crate::agents::reply_parts::stream_response_from_provider(
+        let stream = crate::agents::reply_parts::stream_response_from_provider(
             self.inner.clone(),
             model_config.clone(),
             &session_id,
@@ -105,7 +122,27 @@ impl Provider for GooseInferenceProvider {
             &tools,
             &toolshim_tools,
         )
-        .await
+        .await?;
+        Ok(Box::pin(stream.map(move |result| {
+            result.map(|(message, usage)| {
+                let message = message.map(|mut message| {
+                    if message.content.iter().any(|content| {
+                        matches!(
+                            content,
+                            goose_providers::conversation::message::MessageContent::ToolRequest(_)
+                        )
+                    }) {
+                        message.metadata.set_operation_note(
+                            LLM_OPERATION_NAME,
+                            ADVERTISED_TOOLS_NOTE,
+                            advertised_tools_note.clone(),
+                        );
+                    }
+                    message
+                });
+                (message, usage)
+            })
+        })))
     }
 
     async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
