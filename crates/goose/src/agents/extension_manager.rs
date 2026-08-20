@@ -1761,9 +1761,16 @@ impl ExtensionManager {
     /// Get aggregated usage statistics
     pub async fn remove_extension(&self, name: &str) -> ExtensionResult<()> {
         let sanitized_name = name_to_key(name);
-        self.extensions.lock().await.remove(&sanitized_name);
-        self.invalidate_tools_cache_and_bump_version().await;
+        self.remove_extension_by_key(&sanitized_name).await?;
         Ok(())
+    }
+
+    pub async fn remove_extension_by_key(&self, key: &str) -> ExtensionResult<bool> {
+        let removed = self.extensions.lock().await.remove(key).is_some();
+        if removed {
+            self.invalidate_tools_cache_and_bump_version().await;
+        }
+        Ok(removed)
     }
 
     pub async fn update_working_dir(&self, new_dir: &std::path::Path) {

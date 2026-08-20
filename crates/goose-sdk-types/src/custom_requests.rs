@@ -42,7 +42,7 @@ pub struct AddSessionExtensionRequest {
 #[serde(rename_all = "camelCase")]
 pub struct RemoveSessionExtensionRequest {
     pub session_id: String,
-    pub name: String,
+    pub extension_key: String,
 }
 
 /// List all tools available in a session.
@@ -405,6 +405,13 @@ pub struct GooseExtensionEntry {
     pub config_key: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionExtensionEntry {
+    pub extension: GooseExtension,
+    pub extension_key: String,
+}
+
 /// List Goose-owned extension definitions available to configure or enable.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
@@ -477,7 +484,7 @@ pub struct GetSessionExtensionsRequest {
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
 pub struct GetSessionExtensionsResponse {
-    pub extensions: Vec<GooseExtension>,
+    pub extensions: Vec<SessionExtensionEntry>,
 }
 
 /// Read allowlisted user preferences. Empty `keys` means all supported preferences.

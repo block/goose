@@ -422,13 +422,13 @@
         "sessionId": {
           "type": "string"
         },
-        "name": {
+        "extensionKey": {
           "type": "string"
         }
       },
       "required": [
         "sessionId",
-        "name"
+        "extensionKey"
       ],
       "description": "Remove an extension from an active session.",
       "x-side": "agent",
@@ -1603,7 +1603,7 @@
         "extensions": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/GooseExtension"
+            "$ref": "#/$defs/SessionExtensionEntry"
           }
         }
       },
@@ -1612,6 +1612,21 @@
       ],
       "x-side": "agent",
       "x-method": "_goose/unstable/session/extensions/list"
+    },
+    "SessionExtensionEntry": {
+      "type": "object",
+      "properties": {
+        "extension": {
+          "$ref": "#/$defs/GooseExtension"
+        },
+        "extensionKey": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "extension",
+        "extensionKey"
+      ]
     },
     "ListProvidersRequest_unstable": {
       "type": "object",

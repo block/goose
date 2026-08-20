@@ -1128,10 +1128,13 @@ impl Agent {
         self.rebuild_frontend_derived_state(&extensions).await;
     }
 
-    async fn remove_frontend_extension(&self, name: &str) {
+    async fn remove_frontend_extension_by_key(&self, key: &str) -> bool {
         let mut extensions = self.frontend_extensions.lock().await;
-        extensions.remove(&name_to_key(name));
-        self.rebuild_frontend_derived_state(&extensions).await;
+        let removed = extensions.remove(key).is_some();
+        if removed {
+            self.rebuild_frontend_derived_state(&extensions).await;
+        }
+        removed
     }
 
     async fn extension_configs_for_persistence(&self) -> Vec<ExtensionConfig> {
@@ -1593,8 +1596,30 @@ impl Agent {
     }
 
     pub async fn remove_extension(&self, name: &str, session_id: &str) -> Result<()> {
-        self.extension_manager.remove_extension(name).await?;
-        self.remove_frontend_extension(name).await;
+        self.remove_extension_by_key(&name_to_key(name), session_id)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn remove_extension_by_key(&self, key: &str, session_id: &str) -> Result<bool> {
+        let session = self
+            .config
+            .session_manager
+            .get_session(session_id, false)
+            .await?;
+        let key_is_persisted = EnabledExtensionsState::extensions_or_default(
+            Some(&session.extension_data),
+            Config::global(),
+        )
+        .iter()
+        .any(|config| config.key() == key);
+
+        let removed = self.extension_manager.remove_extension_by_key(key).await?;
+        let frontend_removed = self.remove_frontend_extension_by_key(key).await;
+
+        if !removed && !frontend_removed && !key_is_persisted {
+            return Ok(false);
+        }
 
         // Persist extension state after successful removal
         self.persist_extension_state(session_id)
@@ -1604,7 +1629,7 @@ impl Agent {
                 anyhow!("Failed to persist extension state: {}", e)
             })?;
 
-        Ok(())
+        Ok(true)
     }
 
     pub async fn list_extensions(&self) -> Vec<String> {
