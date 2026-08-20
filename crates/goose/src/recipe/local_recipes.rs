@@ -4,7 +4,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::config::paths::Paths;
-use crate::recipe::read_recipe_file_content::{read_recipe_file, RecipeFile};
+use crate::recipe::read_recipe_file_content::{
+    read_recipe_file, read_recipe_file_with_byte_limit, RecipeFile,
+};
 use crate::recipe::Recipe;
 use crate::recipe::RECIPE_FILE_EXTENSIONS;
 
@@ -46,12 +48,28 @@ fn local_recipe_dirs() -> Vec<PathBuf> {
 }
 
 pub fn load_local_recipe_file(recipe_name: &str) -> Result<RecipeFile> {
+    load_local_recipe_file_with_reader(recipe_name, |path| read_recipe_file(path))
+}
+
+pub fn load_local_recipe_file_with_byte_limit(
+    recipe_name: &str,
+    max_bytes: usize,
+) -> Result<RecipeFile> {
+    load_local_recipe_file_with_reader(recipe_name, |path| {
+        read_recipe_file_with_byte_limit(path, max_bytes)
+    })
+}
+
+fn load_local_recipe_file_with_reader(
+    recipe_name: &str,
+    read_file: impl Fn(&Path) -> Result<RecipeFile>,
+) -> Result<RecipeFile> {
     if RECIPE_FILE_EXTENSIONS
         .iter()
         .any(|ext| recipe_name.ends_with(&format!(".{}", ext)))
     {
         let path = PathBuf::from(recipe_name);
-        return read_recipe_file(path);
+        return read_file(&path);
     }
 
     if is_file_path(recipe_name) || is_file_name(recipe_name) {
@@ -63,7 +81,7 @@ pub fn load_local_recipe_file(recipe_name: &str) -> Result<RecipeFile> {
 
     let search_dirs = local_recipe_dirs();
     for dir in &search_dirs {
-        if let Ok(result) = load_recipe_file_from_dir(dir, recipe_name) {
+        if let Ok(result) = load_recipe_file_from_dir(dir, recipe_name, &read_file) {
             return Ok(result);
         }
     }
@@ -103,10 +121,14 @@ fn is_file_name(recipe_name: &str) -> bool {
     Path::new(recipe_name).extension().is_some()
 }
 
-fn load_recipe_file_from_dir(dir: &Path, recipe_name: &str) -> Result<RecipeFile> {
+fn load_recipe_file_from_dir(
+    dir: &Path,
+    recipe_name: &str,
+    read_file: &impl Fn(&Path) -> Result<RecipeFile>,
+) -> Result<RecipeFile> {
     for ext in RECIPE_FILE_EXTENSIONS {
         let recipe_path = dir.join(format!("{}.{}", recipe_name, ext));
-        if let Ok(result) = read_recipe_file(recipe_path) {
+        if let Ok(result) = read_file(&recipe_path) {
             return Ok(result);
         }
     }

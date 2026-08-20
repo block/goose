@@ -8,6 +8,7 @@ use goose::recipe::read_recipe_file_content::RecipeFile;
 use goose::subprocess::{git_command, SubprocessExt};
 use std::env;
 use std::fs;
+use std::io::Read;
 
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
@@ -34,6 +35,26 @@ pub fn retrieve_recipe_from_github(
     recipe_name: &str,
     recipe_repo_full_name: &str,
 ) -> Result<RecipeFile> {
+    retrieve_recipe_from_github_with_optional_limit(recipe_name, recipe_repo_full_name, None)
+}
+
+pub fn retrieve_recipe_from_github_with_byte_limit(
+    recipe_name: &str,
+    recipe_repo_full_name: &str,
+    max_bytes: usize,
+) -> Result<RecipeFile> {
+    retrieve_recipe_from_github_with_optional_limit(
+        recipe_name,
+        recipe_repo_full_name,
+        Some(max_bytes),
+    )
+}
+
+fn retrieve_recipe_from_github_with_optional_limit(
+    recipe_name: &str,
+    recipe_repo_full_name: &str,
+    max_bytes: Option<usize>,
+) -> Result<RecipeFile> {
     println!(
         "📦 Looking for recipe \"{}\" in github repo: {}",
         recipe_name, recipe_repo_full_name
@@ -43,8 +64,16 @@ pub fn retrieve_recipe_from_github(
     let mut last_err = None;
 
     for attempt in 1..=max_attempts {
-        match clone_and_download_recipe(recipe_name, recipe_repo_full_name) {
-            Ok(download_dir) => match read_recipe_file(&download_dir) {
+        let download = match max_bytes {
+            Some(max_bytes) => clone_and_download_recipe_with_byte_limit(
+                recipe_name,
+                recipe_repo_full_name,
+                max_bytes,
+            ),
+            None => clone_and_download_recipe(recipe_name, recipe_repo_full_name),
+        };
+        match download {
+            Ok(download_dir) => match read_recipe_file(&download_dir, max_bytes) {
                 Ok((content, recipe_file_local_path)) => {
                     return Ok(RecipeFile {
                         content,
@@ -72,11 +101,14 @@ fn clean_cloned_dirs(recipe_repo_full_name: &str) -> anyhow::Result<()> {
     }
     Ok(())
 }
-fn read_recipe_file(download_dir: &Path) -> Result<(String, PathBuf)> {
+fn read_recipe_file(download_dir: &Path, max_bytes: Option<usize>) -> Result<(String, PathBuf)> {
     for ext in RECIPE_FILE_EXTENSIONS {
         let candidate_file_path = download_dir.join(format!("recipe.{}", ext));
         if candidate_file_path.exists() {
-            let content = fs::read_to_string(&candidate_file_path)?;
+            let content = match max_bytes {
+                Some(max_bytes) => read_utf8_with_byte_limit(&candidate_file_path, max_bytes)?,
+                None => fs::read_to_string(&candidate_file_path)?,
+            };
             println!(
                 "⬇️  Retrieved recipe file: {}",
                 candidate_file_path
@@ -95,10 +127,36 @@ fn read_recipe_file(download_dir: &Path) -> Result<(String, PathBuf)> {
     ))
 }
 
+fn read_utf8_with_byte_limit(path: &Path, max_bytes: usize) -> Result<String> {
+    let file = fs::File::open(path)?;
+    if file.metadata()?.len() > max_bytes as u64 {
+        return Err(anyhow!("Recipe file exceeds the {max_bytes}-byte limit"));
+    }
+    let read_size = max_bytes
+        .checked_add(1)
+        .ok_or_else(|| anyhow!("Recipe byte limit is too large"))?;
+    let mut bytes = Vec::new();
+    file.take(read_size as u64).read_to_end(&mut bytes)?;
+    if bytes.len() > max_bytes {
+        return Err(anyhow!("Recipe file exceeds the {max_bytes}-byte limit"));
+    }
+    Ok(String::from_utf8(bytes)?)
+}
+
 fn clone_and_download_recipe(recipe_name: &str, recipe_repo_full_name: &str) -> Result<PathBuf> {
     let local_repo_path = ensure_repo_cloned(recipe_repo_full_name)?;
     fetch_origin(&local_repo_path)?;
     get_folder_from_github(&local_repo_path, recipe_name)
+}
+
+fn clone_and_download_recipe_with_byte_limit(
+    recipe_name: &str,
+    recipe_repo_full_name: &str,
+    max_bytes: usize,
+) -> Result<PathBuf> {
+    let local_repo_path = ensure_repo_cloned(recipe_repo_full_name)?;
+    fetch_origin(&local_repo_path)?;
+    get_recipe_file_from_github(&local_repo_path, recipe_name, max_bytes)
 }
 
 pub fn ensure_gh_authenticated() -> Result<()> {
@@ -254,6 +312,94 @@ fn get_folder_from_github(local_repo_path: &Path, recipe_name: &str) -> Result<P
     Ok(output_dir)
 }
 
+fn get_recipe_file_from_github(
+    local_repo_path: &Path,
+    recipe_name: &str,
+    max_bytes: usize,
+) -> Result<PathBuf> {
+    let output_dir = clean_temp_child_path(&env::temp_dir(), recipe_name)?;
+    fs::create_dir_all(&output_dir)?;
+
+    for ext in RECIPE_FILE_EXTENSIONS {
+        let repository_path = format!("{recipe_name}/recipe.{ext}");
+        let Some(blob_size) = git_object_size(local_repo_path, &repository_path)? else {
+            continue;
+        };
+        if blob_size > max_bytes as u64 {
+            return Err(anyhow!("Recipe file exceeds the {max_bytes}-byte limit"));
+        }
+
+        let output_file = output_dir.join(format!("recipe.{ext}"));
+        extract_recipe_file_archive(local_repo_path, &repository_path, &output_file, max_bytes)?;
+        list_files(&output_dir)?;
+        return Ok(output_dir);
+    }
+
+    Err(anyhow!(
+        "No recipe file found for {recipe_name} (looked for extensions: {:?})",
+        RECIPE_FILE_EXTENSIONS
+    ))
+}
+
+fn git_object_size(local_repo_path: &Path, repository_path: &str) -> Result<Option<u64>> {
+    let object = format!("origin/main:{repository_path}");
+    let output = git_command()
+        .args(["cat-file", "-s", &object])
+        .current_dir(local_repo_path)
+        .set_no_window()
+        .output()?;
+    if !output.status.success() {
+        return Ok(None);
+    }
+    let size = String::from_utf8(output.stdout)?.trim().parse()?;
+    Ok(Some(size))
+}
+
+fn extract_recipe_file_archive(
+    local_repo_path: &Path,
+    repository_path: &str,
+    output_file: &Path,
+    max_bytes: usize,
+) -> Result<()> {
+    let mut child = git_command()
+        .args(["archive", "origin/main", "--", repository_path])
+        .current_dir(local_repo_path)
+        .stdout(Stdio::piped())
+        .set_no_window()
+        .spawn()?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| anyhow!("Failed to capture stdout from git archive"))?;
+    let extraction = extract_bounded_archive_entry(stdout, output_file, max_bytes);
+    if extraction.is_err() {
+        let _ = child.kill();
+    }
+    let status = child.wait()?;
+    extraction?;
+    if !status.success() {
+        return Err(anyhow!("Failed to archive recipe file {repository_path}"));
+    }
+    Ok(())
+}
+
+fn extract_bounded_archive_entry(
+    reader: impl Read,
+    output_file: &Path,
+    max_bytes: usize,
+) -> Result<()> {
+    let mut archive = Archive::new(reader);
+    let mut entries = archive.entries()?;
+    let mut entry = entries
+        .next()
+        .ok_or_else(|| anyhow!("Recipe archive was empty"))??;
+    if entry.header().size()? > max_bytes as u64 {
+        return Err(anyhow!("Recipe file exceeds the {max_bytes}-byte limit"));
+    }
+    entry.unpack(output_file)?;
+    Ok(())
+}
+
 fn list_files(dir: &Path) -> Result<()> {
     println!("{}", style("Files downloaded from github:").bold());
     for entry in fs::read_dir(dir)? {
@@ -402,7 +548,70 @@ fn get_github_recipe_info(repo: &str, dir_name: &str, recipe_filename: &str) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::Cell;
+    use std::io::{Cursor, Read};
     use std::path::Path;
+    use std::rc::Rc;
+
+    struct CountingReader {
+        inner: Cursor<Vec<u8>>,
+        bytes_read: Rc<Cell<usize>>,
+    }
+
+    impl Read for CountingReader {
+        fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+            let count = self.inner.read(buffer)?;
+            self.bytes_read.set(self.bytes_read.get() + count);
+            Ok(count)
+        }
+    }
+
+    fn archive_with_recipe(content: &[u8]) -> Vec<u8> {
+        let mut archive = tar::Builder::new(Vec::new());
+        let mut header = tar::Header::new_gnu();
+        header.set_size(content.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        archive
+            .append_data(&mut header, "recipes/example/recipe.yaml", content)
+            .unwrap();
+        archive.into_inner().unwrap()
+    }
+
+    #[test]
+    fn bounded_archive_rejects_from_header_before_reading_recipe_body() {
+        let content = vec![b'x'; 16 * 1024];
+        let bytes_read = Rc::new(Cell::new(0));
+        let reader = CountingReader {
+            inner: Cursor::new(archive_with_recipe(&content)),
+            bytes_read: Rc::clone(&bytes_read),
+        };
+        let output = tempfile::tempdir().unwrap().path().join("recipe.yaml");
+
+        let error = extract_bounded_archive_entry(reader, &output, content.len() - 1)
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains("byte limit"));
+        assert!(bytes_read.get() < content.len());
+        assert!(!output.exists());
+    }
+
+    #[test]
+    fn bounded_archive_accepts_a_recipe_at_the_exact_boundary() {
+        let content = b"title: exact boundary";
+        let output_dir = tempfile::tempdir().unwrap();
+        let output = output_dir.path().join("recipe.yaml");
+
+        extract_bounded_archive_entry(
+            Cursor::new(archive_with_recipe(content)),
+            &output,
+            content.len(),
+        )
+        .unwrap();
+
+        assert_eq!(fs::read(output).unwrap(), content);
+    }
 
     #[test]
     fn local_repo_path_includes_owner_to_avoid_collisions() {

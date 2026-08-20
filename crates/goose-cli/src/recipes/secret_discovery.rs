@@ -1,4 +1,4 @@
-use crate::recipes::search_recipe::load_recipe_file;
+use crate::recipes::search_recipe::load_recipe_file_with_byte_limit;
 use goose::agents::extension::ExtensionConfig;
 use goose::recipe::Recipe;
 use regex::{NoExpand, Regex};
@@ -136,7 +136,8 @@ fn discover_recipe_secrets_with_limits(
         }
         loaded_recipes += 1;
 
-        let Ok(recipe_file) = load_recipe_file(&next.path) else {
+        let remaining_bytes = limits.max_loaded_bytes - loaded_bytes;
+        let Ok(recipe_file) = load_recipe_file_with_byte_limit(&next.path, remaining_bytes) else {
             continue;
         };
         let Some(next_loaded_bytes) = loaded_bytes.checked_add(recipe_file.content.len()) else {
@@ -649,6 +650,44 @@ mod tests {
             },
         );
         assert_eq!(below_boundary.len(), 2);
+    }
+
+    #[test]
+    fn discovery_rejects_an_oversized_child_before_loading_its_content() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let oversized_path = temp_dir.path().join("oversized.yaml");
+        let small_path = temp_dir.path().join("small.yaml");
+        let small_size = write_recipe(
+            &small_path,
+            &recipe_with_secret(Some("SMALL_TOKEN"), vec![]),
+        );
+        let mut oversized = recipe_with_secret(Some("OVERSIZED_TOKEN"), vec![]);
+        oversized.instructions = Some("x".repeat(small_size));
+        assert!(write_recipe(&oversized_path, &oversized) > small_size);
+        let root = recipe_with_secret(
+            None,
+            vec![
+                sub_recipe(oversized_path.to_string_lossy()),
+                sub_recipe(small_path.to_string_lossy()),
+            ],
+        );
+
+        let secrets = discover_recipe_secrets_with_limits(
+            &root,
+            DiscoveryLimits {
+                max_depth: 1,
+                max_recipes: 2,
+                max_loaded_bytes: small_size,
+            },
+        );
+
+        assert_eq!(
+            secrets
+                .iter()
+                .map(|secret| secret.key.as_str())
+                .collect::<Vec<_>>(),
+            ["SMALL_TOKEN"]
+        );
     }
 
     #[test]

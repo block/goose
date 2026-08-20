@@ -10,6 +10,22 @@ pub struct RecipeFile {
 }
 
 pub fn read_recipe_file<P: AsRef<Path>>(recipe_path: P) -> Result<RecipeFile> {
+    read_recipe_file_with(recipe_path, crate::skills::read_source_file)
+}
+
+pub fn read_recipe_file_with_byte_limit<P: AsRef<Path>>(
+    recipe_path: P,
+    max_bytes: usize,
+) -> Result<RecipeFile> {
+    read_recipe_file_with(recipe_path, |parent_dir, file_name| {
+        crate::skills::read_source_file_with_byte_limit(parent_dir, file_name, max_bytes)
+    })
+}
+
+fn read_recipe_file_with<P: AsRef<Path>>(
+    recipe_path: P,
+    read_content: impl FnOnce(&Path, &Path) -> std::io::Result<String>,
+) -> Result<RecipeFile> {
     let raw_path = recipe_path.as_ref();
     let path = convert_path_with_tilde_expansion(raw_path);
     let parent = path
@@ -26,7 +42,7 @@ pub fn read_recipe_file<P: AsRef<Path>>(recipe_path: P) -> Result<RecipeFile> {
     let file_name = path
         .file_name()
         .ok_or_else(|| anyhow!("Recipe path has no file name: {}", path.display()))?;
-    let content = crate::skills::read_source_file(&parent_dir, Path::new(file_name))
+    let content = read_content(&parent_dir, Path::new(file_name))
         .map_err(|e| anyhow!("Failed to read recipe file {}: {}", path.display(), e))?;
     let file_path = parent_dir.join(file_name);
 
@@ -99,6 +115,22 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("Failed to read parameter file"));
+    }
+
+    #[test]
+    fn byte_limited_recipe_read_enforces_the_exact_encoded_boundary() {
+        let temp_dir = TempDir::new().unwrap();
+        let recipe = temp_dir.path().join("recipe.yaml");
+        let content = "title: café";
+        std::fs::write(&recipe, content).unwrap();
+
+        assert_eq!(
+            read_recipe_file_with_byte_limit(&recipe, content.len())
+                .unwrap()
+                .content,
+            content
+        );
+        assert!(read_recipe_file_with_byte_limit(&recipe, content.len() - 1).is_err());
     }
 
     #[cfg(unix)]

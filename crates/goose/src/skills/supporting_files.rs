@@ -69,6 +69,14 @@ pub(crate) fn read_source_file(source_dir: &Path, relative: &Path) -> io::Result
     )
 }
 
+pub(crate) fn read_source_file_with_byte_limit(
+    source_dir: &Path,
+    relative: &Path,
+    max_bytes: usize,
+) -> io::Result<String> {
+    read_confined_file_with_hook(source_dir, relative, ReadLimit::Bytes(max_bytes), |_| {})
+}
+
 fn read_supporting_file_with_hook(
     skill_dir: &Path,
     relative: &Path,
