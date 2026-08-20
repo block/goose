@@ -182,10 +182,12 @@ impl ScheduleTool {
             .map(|path| path.to_string_lossy().into_owned());
         // Distinguish deserialization failures (which may echo file contents)
         // from post-parse validation failures structurally. Any error from
-        // `parse_recipe_content` is treated as a generic parse error, except
-        // for `missing field` which is safe and actionable (it names the
-        // expected field, not file contents). Validation errors after a
-        // successful parse are safe to surface with details.
+        // `parse_recipe_content` is treated as a generic parse error. Only
+        // allowlisted `missing field` errors for known required fields are
+        // surfaced; all other deserialization errors are sanitized to avoid
+        // reflecting arbitrary file contents (e.g. `unknown variant`,
+        // `invalid type: string "yaml-secret-242"...`, or a scalar containing
+        // the substring `missing field`).
         match parse_recipe_content(&content, recipe_dir.clone()) {
             Ok(_) => {
                 // Parse succeeded — any subsequent validation error is safe to report.
@@ -194,7 +196,12 @@ impl ScheduleTool {
             }
             Err(error) => {
                 let message = error.to_string();
-                if message.contains("missing field") {
+                // Only surface missing-field errors for known required fields.
+                // This prevents an attacker-controlled scalar like
+                // `missing field yaml-secret-242` (which produces
+                // `invalid type: string "missing field yaml-secret-242"...`)
+                // from bypassing the sanitizer via substring matching.
+                if message == "missing field `title`" || message == "missing field `description`" {
                     return Err(recipe_file_error(&format!("Invalid recipe: {message}")));
                 }
                 if recipe_path.ends_with(".json") {

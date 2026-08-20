@@ -151,6 +151,15 @@ async fn parse_errors_do_not_reflect_recipe_contents() {
     assert_eq!(message, "Invalid YAML recipe");
     assert!(!message.contains(enum_secret));
 
+    // Substring bypass: scalar containing "missing field" must not be reflected.
+    let bypass_secret = "yaml-secret-242";
+    let bypass_content = format!("missing field {bypass_secret}");
+    let path = temp_dir.path().join("bypass_missing_field.yaml");
+    std::fs::write(&path, bypass_content).unwrap();
+    let message = create_schedule(&tool, &path).await.unwrap_err();
+    assert_eq!(message, "Invalid YAML recipe");
+    assert!(!message.contains(bypass_secret));
+
     assert!(scheduler.jobs.lock().await.is_empty());
 }
 
