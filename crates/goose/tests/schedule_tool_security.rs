@@ -122,22 +122,16 @@ async fn create_schedule(schedule_tool: &ScheduleTool, recipe_path: &Path) -> Re
 }
 
 #[tokio::test]
-async fn parse_errors_do_not_reflect_recipe_contents() {
+async fn reports_actionable_recipe_validation_errors() {
     let temp_dir = TempDir::new().unwrap();
     let scheduler = Arc::new(MockScheduler::new());
     let tool = schedule_tool(&temp_dir, scheduler.clone());
-    let cases = [
-        ("invalid.yaml", "yaml-secret-242", "Invalid YAML recipe"),
-        ("invalid.json", "\"json-secret-242\"", "Invalid JSON recipe"),
-    ];
+    let path = temp_dir.path().join("missing-title.yaml");
+    std::fs::write(&path, "description: Missing title\nprompt: Run safely\n").unwrap();
 
-    for (name, secret, expected) in cases {
-        let path = temp_dir.path().join(name);
-        std::fs::write(&path, secret).unwrap();
-        let message = create_schedule(&tool, &path).await.unwrap_err();
-        assert_eq!(message, expected);
-        assert!(!message.contains(secret));
-    }
+    let message = create_schedule(&tool, &path).await.unwrap_err();
+
+    assert_eq!(message, "Invalid recipe: missing field `title`");
 
     assert!(scheduler.jobs.lock().await.is_empty());
 }

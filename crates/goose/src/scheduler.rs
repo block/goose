@@ -22,6 +22,7 @@ use crate::conversation::Conversation;
 use crate::posthog;
 use crate::providers::create;
 use crate::recipe::build_recipe::build_recipe_from_template;
+use crate::recipe::validate_recipe::validate_recipe_template_from_content;
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::session_manager::SessionType;
@@ -74,10 +75,10 @@ pub(crate) fn open_regular_schedule_recipe(path: &Path) -> io::Result<File> {
 }
 
 fn copy_bounded_schedule_recipe(source: &Path, destination: &Path) -> Result<(), SchedulerError> {
-    let source = open_regular_schedule_recipe(source).map_err(|error| {
+    let mut source_file = open_regular_schedule_recipe(source).map_err(|error| {
         SchedulerError::RecipeLoadError(format!("Cannot read recipe file: {error}"))
     })?;
-    let metadata = source.metadata().map_err(|error| {
+    let metadata = source_file.metadata().map_err(|error| {
         SchedulerError::RecipeLoadError(format!("Cannot inspect recipe file: {error}"))
     })?;
     if !metadata.is_file() {
@@ -92,7 +93,7 @@ fn copy_bounded_schedule_recipe(source: &Path, destination: &Path) -> Result<(),
     }
 
     let mut bytes = Vec::new();
-    source
+    Read::by_ref(&mut source_file)
         .take(MAX_SCHEDULE_RECIPE_BYTES + 1)
         .read_to_end(&mut bytes)
         .map_err(|error| {
@@ -103,6 +104,15 @@ fn copy_bounded_schedule_recipe(source: &Path, destination: &Path) -> Result<(),
             "Recipe file exceeds the {MAX_SCHEDULE_RECIPE_BYTES} byte limit"
         )));
     }
+
+    let content = std::str::from_utf8(&bytes).map_err(|error| {
+        SchedulerError::RecipeLoadError(format!("Recipe file must be valid UTF-8: {error}"))
+    })?;
+    let recipe_dir = source
+        .parent()
+        .map(|path| path.to_string_lossy().into_owned());
+    validate_recipe_template_from_content(content, recipe_dir)
+        .map_err(|error| SchedulerError::RecipeLoadError(format!("Invalid recipe: {error}")))?;
 
     write_schedule_recipe_bytes(destination, &bytes)
 }
@@ -1356,6 +1366,25 @@ mod tests {
         let error = copy_bounded_schedule_recipe(&source, &destination).unwrap_err();
 
         assert!(error.to_string().contains("exceeds the 1048576 byte limit"));
+        assert!(!destination.exists());
+    }
+
+    #[test]
+    fn bounded_recipe_copy_rejects_invalid_recipe_before_writing() {
+        let temp_dir = tempdir().unwrap();
+        let source = temp_dir.path().join("invalid.yaml");
+        let destination = temp_dir.path().join("destination.yaml");
+        fs::write(
+            &source,
+            "description: Missing required title\nprompt: Run safely\n",
+        )
+        .unwrap();
+
+        let error = copy_bounded_schedule_recipe(&source, &destination).unwrap_err();
+
+        assert!(error
+            .to_string()
+            .contains("Invalid recipe: missing field `title`"));
         assert!(!destination.exists());
     }
 
