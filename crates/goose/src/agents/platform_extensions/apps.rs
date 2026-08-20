@@ -197,6 +197,7 @@ impl AppsManagerClient {
     }
 
     fn delete_app(&self, name: &str) -> Result<(), String> {
+        self.load_editable_app(name)?;
         let path = self.app_path(name)?;
 
         fs::remove_file(&path).map_err(|e| format!("Failed to delete app file: {}", e))?;
@@ -837,7 +838,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn bundled_default_apps_are_not_editable() {
+    async fn bundled_default_apps_cannot_be_modified_or_deleted() {
         let temp = tempfile::tempdir().unwrap();
         let apps_dir = temp.path().join("apps");
         fs::create_dir_all(&apps_dir).unwrap();
@@ -846,9 +847,14 @@ mod tests {
         client.save_app(&test_app("clock")).unwrap();
         let error = client.load_editable_app("clock").unwrap_err();
         assert_eq!(error, "Cannot modify bundled default app 'clock'");
+        let error = client.delete_app("clock").unwrap_err();
+        assert_eq!(error, "Cannot modify bundled default app 'clock'");
+        assert!(client.apps_dir.join("clock.html").exists());
 
         client.save_app(&test_app("legitimate-app")).unwrap();
         assert!(client.load_editable_app("legitimate-app").is_ok());
+        client.delete_app("legitimate-app").unwrap();
+        assert!(!client.apps_dir.join("legitimate-app.html").exists());
     }
 
     #[tokio::test]

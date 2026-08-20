@@ -99,35 +99,46 @@ impl McpAppCache {
     pub fn list_apps(&self) -> Result<Vec<GooseApp>, std::io::Error> {
         let mut apps = Vec::new();
 
-        if !self.cache_dir.exists() {
-            return Ok(apps);
-        }
+        if self.cache_dir.exists() {
+            for entry in fs::read_dir(&self.cache_dir)? {
+                let entry = entry?;
+                let path = entry.path();
 
-        for entry in fs::read_dir(&self.cache_dir)? {
-            let entry = entry?;
-            let path = entry.path();
+                if let Some(app) = DEFAULT_APPS.iter().find_map(|(uri, _)| {
+                    (path == self.app_path(APPS_EXTENSION_NAME, uri))
+                        .then(|| Self::bundled_default_app(uri))
+                        .flatten()
+                }) {
+                    apps.push(app);
+                    continue;
+                }
 
-            if let Some(app) = DEFAULT_APPS.iter().find_map(|(uri, _)| {
-                (path == self.app_path(APPS_EXTENSION_NAME, uri))
-                    .then(|| Self::bundled_default_app(uri))
-                    .flatten()
-            }) {
-                apps.push(app);
-                continue;
-            }
-
-            if path.extension().and_then(|s| s.to_str()) == Some("json") {
-                match fs::read_to_string(&path) {
-                    Ok(content) => match serde_json::from_str::<GooseApp>(&content) {
-                        Ok(app) => apps.push(app),
-                        Err(e) => warn!("Failed to parse cached app from {:?}: {}", path, e),
-                    },
-                    Err(e) => warn!("Failed to read cached app from {:?}: {}", path, e),
+                if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                    match fs::read_to_string(&path) {
+                        Ok(content) => match serde_json::from_str::<GooseApp>(&content) {
+                            Ok(app) => apps.push(app),
+                            Err(e) => warn!("Failed to parse cached app from {:?}: {}", path, e),
+                        },
+                        Err(e) => warn!("Failed to read cached app from {:?}: {}", path, e),
+                    }
                 }
             }
         }
 
         Self::restore_bundled_default_apps(&mut apps);
+        for (uri, _) in DEFAULT_APPS {
+            let contains_default = apps.iter().any(|app| {
+                app.mcp_servers.iter().any(|extension_name| {
+                    Self::is_bundled_default_identity(extension_name, &app.resource.uri)
+                        && app.resource.uri == *uri
+                })
+            });
+            if !contains_default {
+                if let Some(app) = Self::bundled_default_app(uri) {
+                    apps.push(app);
+                }
+            }
+        }
         Ok(apps)
     }
 
@@ -389,6 +400,31 @@ mod tests {
             fs::set_permissions(&cache.cache_dir, fs::Permissions::from_mode(0o755)).unwrap();
             fs::set_permissions(&app_path, fs::Permissions::from_mode(0o644)).unwrap();
             assert_eq!(cached.resource.text, expected.resource.text);
+            assert!(listed
+                .iter()
+                .any(|app| app.resource.uri == "ui://apps/clock"
+                    && app.resource.text == expected.resource.text));
+        });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    #[serial]
+    fn missing_read_only_cache_entry_still_lists_compiled_default() {
+        use std::os::unix::fs::PermissionsExt;
+
+        with_temp_config(|| {
+            let cache = McpAppCache::new().unwrap();
+            let expected = GooseApp::from_html(CLOCK_HTML).unwrap();
+            let app_path = cache.app_path(APPS_EXTENSION_NAME, "ui://apps/clock");
+            fs::remove_file(&app_path).unwrap();
+            fs::set_permissions(&cache.cache_dir, fs::Permissions::from_mode(0o555)).unwrap();
+
+            let reopened = McpAppCache::new().unwrap();
+            let listed = reopened.list_apps().unwrap();
+
+            fs::set_permissions(&cache.cache_dir, fs::Permissions::from_mode(0o755)).unwrap();
+            assert!(!app_path.exists());
             assert!(listed
                 .iter()
                 .any(|app| app.resource.uri == "ui://apps/clock"
