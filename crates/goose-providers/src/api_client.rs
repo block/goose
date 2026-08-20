@@ -158,8 +158,14 @@ impl Default for TlsConfig {
 /// Note: the rustls code path (`Identity::from_pem`) accepts all formats natively,
 /// so this conversion is only needed for native-tls.
 #[cfg(feature = "native-tls")]
+const RSA_ALGORITHM_ID: pkcs8::AlgorithmIdentifierRef<'static> = pkcs8::AlgorithmIdentifierRef {
+    oid: pkcs8::ObjectIdentifier::new_unwrap("1.2.840.113549.1.1.1"),
+    parameters: Some(pkcs8::der::asn1::AnyRef::NULL),
+};
+
+#[cfg(feature = "native-tls")]
 fn convert_key_to_pkcs8_pem(key_pem_str: &str) -> Result<String> {
-    use pkcs8::der::{Decode, Encode};
+    use pkcs8::der::{asn1::OctetStringRef, Decode, Encode};
 
     let parsed =
         pem::parse(key_pem_str).map_err(|e| anyhow::anyhow!("Failed to parse PEM key: {}", e))?;
@@ -167,7 +173,8 @@ fn convert_key_to_pkcs8_pem(key_pem_str: &str) -> Result<String> {
     match parsed.tag() {
         "PRIVATE KEY" => Ok(key_pem_str.to_string()),
         "RSA PRIVATE KEY" => {
-            let info = pkcs8::PrivateKeyInfo::new(pkcs1::ALGORITHM_ID, parsed.contents());
+            let private_key = OctetStringRef::new(parsed.contents())?;
+            let info = pkcs8::PrivateKeyInfoRef::new(RSA_ALGORITHM_ID, private_key);
             let der_bytes = info
                 .to_der()
                 .map_err(|e| anyhow::anyhow!("Failed to encode PKCS#8: {}", e))?;
@@ -189,7 +196,8 @@ fn convert_key_to_pkcs8_pem(key_pem_str: &str) -> Result<String> {
                 oid: sec1::ALGORITHM_OID,
                 parameters: Some((&curve_oid).into()),
             };
-            let info = pkcs8::PrivateKeyInfo::new(algorithm, parsed.contents());
+            let private_key = OctetStringRef::new(parsed.contents())?;
+            let info = pkcs8::PrivateKeyInfoRef::new(algorithm, private_key);
             let der_bytes = info
                 .to_der()
                 .map_err(|e| anyhow::anyhow!("Failed to encode PKCS#8: {}", e))?;
@@ -666,7 +674,7 @@ ShGoCNbfNS+COlPMRAujyDlATZcLs9p4tA==
         let re_parsed = pem::parse(&result).unwrap();
         assert_eq!(re_parsed.tag(), "PRIVATE KEY");
         use pkcs8::der::Decode;
-        pkcs8::PrivateKeyInfo::from_der(re_parsed.contents()).unwrap();
+        pkcs8::PrivateKeyInfoRef::from_der(re_parsed.contents()).unwrap();
     }
 
     #[test]
@@ -679,7 +687,7 @@ ShGoCNbfNS+COlPMRAujyDlATZcLs9p4tA==
         let re_parsed = pem::parse(&result).unwrap();
         assert_eq!(re_parsed.tag(), "PRIVATE KEY");
         use pkcs8::der::Decode;
-        pkcs8::PrivateKeyInfo::from_der(re_parsed.contents()).unwrap();
+        pkcs8::PrivateKeyInfoRef::from_der(re_parsed.contents()).unwrap();
     }
 
     #[test]

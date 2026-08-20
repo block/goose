@@ -276,20 +276,20 @@ pub async fn check_if_compaction_needed(
     Ok(needs_compaction)
 }
 
-struct FastCompactionModel<'a> {
+struct GooseCompactionModel<'a> {
     provider: &'a dyn Provider,
     model_config: &'a ModelConfig,
     session_id: &'a str,
 }
 
 #[async_trait::async_trait]
-impl goose_context_management::CompactionModel for FastCompactionModel<'_> {
+impl goose_context_management::CompactionModel for GooseCompactionModel<'_> {
     async fn complete(
         &self,
         system: &str,
         messages: &[Message],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        crate::model_config::complete_fast(
+        crate::model_config::complete_compaction(
             self.provider,
             self.model_config,
             self.session_id,
@@ -348,7 +348,7 @@ async fn do_compact(
     )
     .agent_visible_messages();
 
-    let model = FastCompactionModel {
+    let model = GooseCompactionModel {
         provider,
         model_config,
         session_id,
@@ -475,7 +475,7 @@ pub async fn summarize_tool_call(
                 if that is what it was.
             "#};
 
-    let (mut response, _) = crate::model_config::complete_fast(
+    let (mut response, _) = crate::model_config::complete_compaction(
         provider,
         model_config,
         session_id,

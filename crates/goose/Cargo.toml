@@ -108,7 +108,7 @@ uuid = { workspace = true, features = ["v7"] }
 regex = { workspace = true }
 async-trait = { workspace = true }
 async-stream = { workspace = true }
-minijinja = { version = "2.18", default-features = false, features = ["loader", "multi_template", "serde"] }
+minijinja = { version = "2.18", default-features = false, features = ["loader", "multi_template", "serde", "builtins"] }
 include_dir = { workspace = true }
 tiktoken-rs = { version = "0.12", default-features = false }
 chrono = { workspace = true }
@@ -186,7 +186,7 @@ candle-transformers = { version = "0.11", default-features = false, optional = t
 byteorder = { version = "1.5", default-features = false, features = ["std"], optional = true }
 tokenizers = { version = "0.23", default-features = false, features = ["onig"], optional = true }
 symphonia = { version = "0.5", default-features = false, features = ["aac", "adpcm", "alac", "isomp4", "mkv", "mp3", "pcm", "vorbis", "wav"], optional = true }
-rubato = { version = "0.16", default-features = false, optional = true }
+rubato = { version = "5.0", default-features = false, optional = true }
 sys-info = { version = "0.9", default-features = false }
 
 schemars = { workspace = true, features = [
@@ -213,11 +213,11 @@ goose-acp-macros = { path = "../goose-acp-macros", default-features = false }
 tower-http = { workspace = true, features = ["cors"] }
 tracing-appender = { workspace = true }
 process-wrap = { version = "9", default-features = false, features = ["std"] }
-nostr = { version = "0.44.7", default-features = false, features = ["nip44", "std"], optional = true }
-nostr-sdk = { version = "0.44", default-features = false, features = ["nip44"], optional = true }
+nostr = { version = "0.45.1", default-features = false, features = ["nip44", "os-rng", "std"], optional = true }
+nostr-sdk = { version = "0.45.1", default-features = false, optional = true }
 rustls = { workspace = true, optional = true }
 rcgen = { version = "0.14", default-features = false, features = ["crypto", "pem"], optional = true }
-axum-server = { version = "0.8", default-features = false, optional = true }
+axum-server = { workspace = true, optional = true }
 aws-lc-rs = { version = "1.17", default-features = false, optional = true }
 openssl = { version = "0.10.66", default-features = false, optional = true }
 pem = { version = "4.0.0", default-features = false, features = ["std"], optional = true }

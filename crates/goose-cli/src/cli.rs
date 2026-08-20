@@ -178,7 +178,7 @@ pub struct ExtensionOptions {
         long = "with-extension",
         value_name = "COMMAND",
         help = "Add stdio extensions (can be specified multiple times)",
-        long_help = "Add stdio extensions from full commands with environment variables. Can be specified multiple times. Format: 'ENV1=val1 ENV2=val2 command args...'",
+        long_help = "Add stdio extensions from full commands with environment variables. Can be specified multiple times. Format: '[name:]ENV1=val1 ENV2=val2 command args...'. Without the optional name, the extension is named after the command, which is the launcher for anything started through one ('npx', 'python', 'uvx', ...); extensions that would end up sharing a name are instead named after their full command line.",
         action = clap::ArgAction::Append
     )]
     pub extensions: Vec<String>,
@@ -1567,17 +1567,7 @@ async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
         roam,
     } = args;
 
-    let builtins = if builtins.is_empty() {
-        AcpBuiltinSelection {
-            defaults: vec!["developer".to_string()],
-            explicit: Vec::new(),
-        }
-    } else {
-        AcpBuiltinSelection {
-            defaults: Vec::new(),
-            explicit: builtins,
-        }
-    };
+    let builtins = AcpBuiltinSelection::from_requested(builtins);
 
     let additional_source_roots = Config::global()
         .get_param::<String>("ADDITIONAL_AGENT_SOURCE_ROOTS")

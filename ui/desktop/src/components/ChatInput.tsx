@@ -10,6 +10,7 @@ import { ChatState } from '../types/chatState';
 import debounce from 'lodash/debounce';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
+import { GitBranchIndicator } from './GitBranchIndicator';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuExtensionSelection } from './bottom_menu/BottomMenuExtensionSelection';
 import { cn } from '../utils';
@@ -1681,6 +1682,10 @@ export default function ChatInput({
               setWorkingDirOverride(newDir);
             }}
           />
+        )}
+
+        {!isBottomBarNarrow && currentWorkingDir && (
+          <GitBranchIndicator dir={currentWorkingDir} className="ml-1" />
         )}
 
         {/* Spacer */}

@@ -147,6 +147,9 @@ pub struct DeclarativeProviderConfig {
     pub fast_model: Option<String>,
     #[serde(default)]
     pub preserves_thinking: bool,
+    /// Enables Z.AI's `clear_thinking` field, which Anthropic does not support.
+    #[serde(default)]
+    pub emit_clear_thinking: bool,
     #[serde(default)]
     pub setup: Option<goose_provider_types::canonical::catalog::ProviderSetupMetadata>,
 }
