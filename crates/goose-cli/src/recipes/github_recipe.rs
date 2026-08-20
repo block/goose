@@ -156,7 +156,7 @@ fn clone_and_download_recipe_with_byte_limit(
 ) -> Result<PathBuf> {
     let local_repo_path = ensure_repo_cloned(recipe_repo_full_name)?;
     fetch_origin(&local_repo_path)?;
-    get_recipe_file_from_github(&local_repo_path, recipe_name, max_bytes)
+    get_folder_from_github_with_byte_limit(&local_repo_path, recipe_name, max_bytes)
 }
 
 pub fn ensure_gh_authenticated() -> Result<()> {
@@ -312,57 +312,17 @@ fn get_folder_from_github(local_repo_path: &Path, recipe_name: &str) -> Result<P
     Ok(output_dir)
 }
 
-fn get_recipe_file_from_github(
+fn get_folder_from_github_with_byte_limit(
     local_repo_path: &Path,
     recipe_name: &str,
     max_bytes: usize,
 ) -> Result<PathBuf> {
+    let ref_and_path = format!("origin/main:{recipe_name}");
     let output_dir = clean_temp_child_path(&env::temp_dir(), recipe_name)?;
     fs::create_dir_all(&output_dir)?;
 
-    for ext in RECIPE_FILE_EXTENSIONS {
-        let repository_path = format!("{recipe_name}/recipe.{ext}");
-        let Some(blob_size) = git_object_size(local_repo_path, &repository_path)? else {
-            continue;
-        };
-        if blob_size > max_bytes as u64 {
-            return Err(anyhow!("Recipe file exceeds the {max_bytes}-byte limit"));
-        }
-
-        let output_file = output_dir.join(format!("recipe.{ext}"));
-        extract_recipe_file_archive(local_repo_path, &repository_path, &output_file, max_bytes)?;
-        list_files(&output_dir)?;
-        return Ok(output_dir);
-    }
-
-    Err(anyhow!(
-        "No recipe file found for {recipe_name} (looked for extensions: {:?})",
-        RECIPE_FILE_EXTENSIONS
-    ))
-}
-
-fn git_object_size(local_repo_path: &Path, repository_path: &str) -> Result<Option<u64>> {
-    let object = format!("origin/main:{repository_path}");
-    let output = git_command()
-        .args(["cat-file", "-s", &object])
-        .current_dir(local_repo_path)
-        .set_no_window()
-        .output()?;
-    if !output.status.success() {
-        return Ok(None);
-    }
-    let size = String::from_utf8(output.stdout)?.trim().parse()?;
-    Ok(Some(size))
-}
-
-fn extract_recipe_file_archive(
-    local_repo_path: &Path,
-    repository_path: &str,
-    output_file: &Path,
-    max_bytes: usize,
-) -> Result<()> {
     let mut child = git_command()
-        .args(["archive", "origin/main", "--", repository_path])
+        .args(["archive", &ref_and_path])
         .current_dir(local_repo_path)
         .stdout(Stdio::piped())
         .set_no_window()
@@ -371,32 +331,34 @@ fn extract_recipe_file_archive(
         .stdout
         .take()
         .ok_or_else(|| anyhow!("Failed to capture stdout from git archive"))?;
-    let extraction = extract_bounded_archive_entry(stdout, output_file, max_bytes);
+    let extraction = extract_bounded_archive(stdout, &output_dir, max_bytes);
     if extraction.is_err() {
         let _ = child.kill();
     }
     let status = child.wait()?;
     extraction?;
     if !status.success() {
-        return Err(anyhow!("Failed to archive recipe file {repository_path}"));
+        return Err(anyhow!("Failed to archive recipe bundle {recipe_name}"));
     }
-    Ok(())
+    list_files(&output_dir)?;
+    Ok(output_dir)
 }
 
-fn extract_bounded_archive_entry(
-    reader: impl Read,
-    output_file: &Path,
-    max_bytes: usize,
-) -> Result<()> {
+fn extract_bounded_archive(reader: impl Read, output_dir: &Path, max_bytes: usize) -> Result<()> {
     let mut archive = Archive::new(reader);
-    let mut entries = archive.entries()?;
-    let mut entry = entries
-        .next()
-        .ok_or_else(|| anyhow!("Recipe archive was empty"))??;
-    if entry.header().size()? > max_bytes as u64 {
-        return Err(anyhow!("Recipe file exceeds the {max_bytes}-byte limit"));
+    let mut extracted_bytes = 0_u64;
+    for entry in archive.entries()? {
+        let mut entry = entry?;
+        extracted_bytes = extracted_bytes
+            .checked_add(entry.header().size()?)
+            .ok_or_else(|| anyhow!("Recipe bundle size overflowed"))?;
+        if extracted_bytes > max_bytes as u64 {
+            return Err(anyhow!("Recipe bundle exceeds the {max_bytes}-byte limit"));
+        }
+        if !entry.unpack_in(output_dir)? {
+            return Err(anyhow!("Recipe bundle contains an unsafe path"));
+        }
     }
-    entry.unpack(output_file)?;
     Ok(())
 }
 
@@ -566,15 +528,15 @@ mod tests {
         }
     }
 
-    fn archive_with_recipe(content: &[u8]) -> Vec<u8> {
+    fn archive_with_files(files: &[(&str, &[u8])]) -> Vec<u8> {
         let mut archive = tar::Builder::new(Vec::new());
-        let mut header = tar::Header::new_gnu();
-        header.set_size(content.len() as u64);
-        header.set_mode(0o644);
-        header.set_cksum();
-        archive
-            .append_data(&mut header, "recipes/example/recipe.yaml", content)
-            .unwrap();
+        for (path, content) in files {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(content.len() as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            archive.append_data(&mut header, path, *content).unwrap();
+        }
         archive.into_inner().unwrap()
     }
 
@@ -583,12 +545,13 @@ mod tests {
         let content = vec![b'x'; 16 * 1024];
         let bytes_read = Rc::new(Cell::new(0));
         let reader = CountingReader {
-            inner: Cursor::new(archive_with_recipe(&content)),
+            inner: Cursor::new(archive_with_files(&[("recipe.yaml", &content)])),
             bytes_read: Rc::clone(&bytes_read),
         };
-        let output = tempfile::tempdir().unwrap().path().join("recipe.yaml");
+        let output_dir = tempfile::tempdir().unwrap();
+        let output = output_dir.path().join("recipe.yaml");
 
-        let error = extract_bounded_archive_entry(reader, &output, content.len() - 1)
+        let error = extract_bounded_archive(reader, output_dir.path(), content.len() - 1)
             .unwrap_err()
             .to_string();
 
@@ -601,16 +564,44 @@ mod tests {
     fn bounded_archive_accepts_a_recipe_at_the_exact_boundary() {
         let content = b"title: exact boundary";
         let output_dir = tempfile::tempdir().unwrap();
-        let output = output_dir.path().join("recipe.yaml");
 
-        extract_bounded_archive_entry(
-            Cursor::new(archive_with_recipe(content)),
-            &output,
+        extract_bounded_archive(
+            Cursor::new(archive_with_files(&[("recipe.yaml", content)])),
+            output_dir.path(),
             content.len(),
         )
         .unwrap();
 
-        assert_eq!(fs::read(output).unwrap(), content);
+        assert_eq!(
+            fs::read(output_dir.path().join("recipe.yaml")).unwrap(),
+            content
+        );
+    }
+
+    #[test]
+    fn bounded_archive_preserves_sibling_recipe_files() {
+        let recipe = b"sub_recipes:\n  - path: '{{ recipe_dir }}/nested/grandchild.yaml'";
+        let grandchild = b"title: grandchild";
+        let output_dir = tempfile::tempdir().unwrap();
+
+        extract_bounded_archive(
+            Cursor::new(archive_with_files(&[
+                ("recipe.yaml", recipe),
+                ("nested/grandchild.yaml", grandchild),
+            ])),
+            output_dir.path(),
+            recipe.len() + grandchild.len(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            fs::read(output_dir.path().join("recipe.yaml")).unwrap(),
+            recipe
+        );
+        assert_eq!(
+            fs::read(output_dir.path().join("nested/grandchild.yaml")).unwrap(),
+            grandchild
+        );
     }
 
     #[test]
