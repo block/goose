@@ -497,6 +497,31 @@ impl ProtocolHandler for RoamingAcpHandler {
                     return Ok(());
                 }
                 self.node.register_live(client, connection.clone()).await;
+
+                // Close the accept/register TOCTOU: a revocation that lands
+                // after `authorize` read the allowlist but before the line
+                // above can be processed by the revocation watcher while this
+                // connection is still absent from `live`, so it would never be
+                // force-closed. Re-read trust now that we are registered; if
+                // the key is no longer allowed, drop the connection here. A
+                // failed reload fails closed, matching `authorize`.
+                let still_allowed = match &self.node.trust_path {
+                    Some(path) => match TrustBook::load(path) {
+                        Ok(book) => book.is_allowed(&client),
+                        Err(e) => {
+                            tracing::warn!(%client, "roaming: trust recheck failed, closing: {e}");
+                            false
+                        }
+                    },
+                    None => self.node.trust.lock().await.is_allowed(&client),
+                };
+                if !still_allowed {
+                    self.node.unregister_live(client, &connection).await;
+                    connection.close(0u32.into(), b"revoked");
+                    tracing::info!(%client, "roaming: revoked during accept; closed connection");
+                    return Ok(());
+                }
+
                 self.node
                     .directory
                     .record_connect(client, label, Direction::Inbound, Some(agent_id), now_ms())

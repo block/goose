@@ -84,6 +84,44 @@ impl TrustBook {
         std::fs::write(&tmp, json)?;
         std::fs::rename(&tmp, path)
     }
+
+    /// Read-modify-write the trust book under a cross-process advisory lock.
+    ///
+    /// Atomic replacement in [`save`] protects readers from partial JSON but
+    /// not writers from lost updates: the desktop Settings process and a
+    /// `goose roam peers` command each load the whole book, mutate, and save,
+    /// so the last writer clobbers the other's change with a stale snapshot —
+    /// e.g. a concurrent accept resurrects a peer that was just revoked. This
+    /// serializes the whole load+mutate+save so those edits can't race. The
+    /// lock is held on a sidecar `.lock` file (never the book itself) and
+    /// auto-releases if the holder dies.
+    pub fn update(
+        path: &std::path::Path,
+        mutate: impl FnOnce(&mut Self),
+    ) -> Result<Self, std::io::Error> {
+        use fs2::FileExt as _;
+
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let lock_path = path.with_extension("json.lock");
+        let lock = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&lock_path)?;
+        lock.lock_exclusive()?;
+
+        let result = (|| {
+            let mut book = Self::load(path)?;
+            mutate(&mut book);
+            book.save(path)?;
+            Ok(book)
+        })();
+
+        let _ = fs2::FileExt::unlock(&lock);
+        result
+    }
 }
 
 fn key_str(key: &EndpointId) -> String {
@@ -152,5 +190,43 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let book = TrustBook::load(&dir.path().join("nope.json")).unwrap();
         assert!(book.allowed_keys().is_empty());
+    }
+
+    #[test]
+    fn update_persists_the_mutation() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("trust.json");
+        let key = SecretKey::generate().public();
+        TrustBook::update(&path, |book| book.accept(&key)).unwrap();
+        assert!(TrustBook::load(&path).unwrap().is_allowed(&key));
+    }
+
+    #[test]
+    fn concurrent_updates_do_not_lose_writes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = std::sync::Arc::new(dir.path().join("trust.json"));
+        let keys: Vec<_> = (0..8).map(|_| SecretKey::generate().public()).collect();
+
+        // Each thread does its own lock-guarded load+mutate+save. Without the
+        // cross-process lock these interleave and clobber each other; with it,
+        // every accepted key must survive.
+        let handles: Vec<_> = keys
+            .iter()
+            .map(|key| {
+                let path = std::sync::Arc::clone(&path);
+                let key = *key;
+                std::thread::spawn(move || {
+                    TrustBook::update(&path, |book| book.accept(&key)).unwrap();
+                })
+            })
+            .collect();
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        let book = TrustBook::load(&path).unwrap();
+        for key in &keys {
+            assert!(book.is_allowed(key), "lost an accepted key");
+        }
     }
 }

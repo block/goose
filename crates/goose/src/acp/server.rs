@@ -189,10 +189,18 @@ struct GooseAcpSession {
     agent: Arc<Agent>,
 }
 
-struct ActivePromptRun {
+pub struct ActivePromptRun {
     run_id: String,
     cancel_token: CancellationToken,
 }
+
+/// Per-session active-run registry, shared by every `GooseAcpAgent` created
+/// from one `AcpServer`. Roaming spawns a fresh agent per connection, so two
+/// paired clients loading the same session get distinct agents; sharing this
+/// map across them is what makes the "session already has an active run" guard
+/// fire between connections instead of letting two loops interleave writes on
+/// one session.
+pub type ActiveRunRegistry = Arc<Mutex<HashMap<String, ActivePromptRun>>>;
 
 #[derive(Clone, Debug, Default)]
 pub struct AcpBuiltinSelection {
@@ -228,6 +236,10 @@ pub struct GooseAcpAgentOptions {
     /// When set, new sessions use this host-controlled working directory instead
     /// of the `cwd` the connecting client sends (see `AcpServerFactoryConfig`).
     pub session_cwd: Option<std::path::PathBuf>,
+    /// Active-run registry shared across all agents from one `AcpServer`, so the
+    /// active-run guard holds across roaming connections that each get a fresh
+    /// agent for the same session.
+    pub active_prompt_runs: ActiveRunRegistry,
 }
 
 pub struct GooseAcpAgent {
@@ -695,6 +707,11 @@ pub(super) fn validate_absolute_cwd(cwd: &Path) -> Result<(), agent_client_proto
 }
 
 impl GooseAcpAgent {
+    #[cfg(test)]
+    pub(crate) fn active_run_registry(&self) -> &ActiveRunRegistry {
+        &self.active_prompt_runs
+    }
+
     pub fn permission_manager(&self) -> Arc<PermissionManager> {
         Arc::clone(&self.permission_manager)
     }
@@ -786,7 +803,7 @@ impl GooseAcpAgent {
 
         Ok(Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
-            active_prompt_runs: Arc::new(Mutex::new(HashMap::new())),
+            active_prompt_runs: options.active_prompt_runs,
             closed_session_ids: Arc::new(Mutex::new(HashSet::new())),
             agent_manager,
             provider_factory: options.provider_factory,

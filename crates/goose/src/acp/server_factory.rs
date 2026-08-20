@@ -1,5 +1,5 @@
 use crate::acp::server::{
-    AcpBuiltinSelection, AcpProviderFactory, GooseAcpAgent, GooseAcpAgentOptions,
+    AcpBuiltinSelection, AcpProviderFactory, ActiveRunRegistry, GooseAcpAgent, GooseAcpAgentOptions,
 };
 use crate::agents::GoosePlatform;
 use crate::scheduler_trait::SchedulerTrait;
@@ -26,6 +26,7 @@ pub struct AcpServerFactoryConfig {
 pub struct AcpServer {
     config: AcpServerFactoryConfig,
     scheduler: OnceCell<Arc<dyn SchedulerTrait>>,
+    active_prompt_runs: ActiveRunRegistry,
 }
 
 impl AcpServer {
@@ -33,6 +34,7 @@ impl AcpServer {
         Self {
             config,
             scheduler: OnceCell::new(),
+            active_prompt_runs: ActiveRunRegistry::default(),
         }
     }
 
@@ -106,6 +108,7 @@ impl AcpServer {
             additional_source_roots: self.config.additional_source_roots.clone(),
             session_cwd: self.config.session_cwd.clone(),
             scheduler,
+            active_prompt_runs: self.active_prompt_runs.clone(),
         })
         .await?;
         info!("Created new ACP agent");
@@ -145,6 +148,21 @@ mod tests {
         let server = server(root.path().to_path_buf(), true);
 
         assert!(server.scheduler().await.unwrap().is_some());
+    }
+
+    #[tokio::test]
+    async fn agents_from_one_server_share_the_active_run_registry() {
+        let root = tempfile::tempdir().unwrap();
+        let server = server(root.path().to_path_buf(), false);
+
+        let a = server.create_agent().await.unwrap();
+        let b = server.create_agent().await.unwrap();
+
+        assert!(
+            Arc::ptr_eq(a.active_run_registry(), b.active_run_registry()),
+            "each connection's agent must share one per-session run registry so \
+             the active-run guard holds across roaming connections"
+        );
     }
 
     #[tokio::test]

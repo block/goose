@@ -388,14 +388,12 @@ async fn handle_pair(name: Option<String>) -> Result<()> {
     let mut book = goose_roaming::PeerBook::load(peerbook_path())?;
     book.save(&name, device_card, now_ms())?;
     let path = trust_path();
-    let mut trust = TrustBook::load(&path).with_context(|| {
+    TrustBook::update(&path, |trust| trust.accept(&decoded.endpoint_id)).with_context(|| {
         format!(
             "trust file {} is unreadable or corrupt; refusing to modify it",
             path.display()
         )
     })?;
-    trust.accept(&decoded.endpoint_id);
-    trust.save(&path)?;
 
     eprintln!("saved and accepted `{name}` ({})", decoded.endpoint_id);
     eprintln!("done — the device can now connect to any share/serve on this machine");
@@ -447,14 +445,14 @@ async fn handle_peers(command: PeersCommand) -> Result<()> {
                 }
             };
             let path = trust_path();
-            let mut trust = TrustBook::load(&path).with_context(|| {
-                format!(
-                    "trust file {} is unreadable or corrupt; refusing to modify it",
-                    path.display()
-                )
-            })?;
-            trust.accept(&card.endpoint_id);
-            trust.save(&path)?;
+            TrustBook::update(&path, |trust| trust.accept(&card.endpoint_id)).with_context(
+                || {
+                    format!(
+                        "trust file {} is unreadable or corrupt; refusing to modify it",
+                        path.display()
+                    )
+                },
+            )?;
             eprintln!("accepting connections from {}", card.endpoint_id);
             eprintln!("verify the fingerprint out of band: {}", card.fingerprint());
             eprintln!("a running `goose roam share` picks this up on the next connection");
@@ -463,14 +461,12 @@ async fn handle_peers(command: PeersCommand) -> Result<()> {
         PeersCommand::Revoke { target } => {
             let key = resolve_key(&book, &target)?;
             let path = trust_path();
-            let mut trust = TrustBook::load(&path).with_context(|| {
+            TrustBook::update(&path, |trust| trust.revoke_key(&key)).with_context(|| {
                 format!(
                     "trust file {} is unreadable or corrupt; refusing to modify it",
                     path.display()
                 )
             })?;
-            trust.revoke_key(&key);
-            trust.save(&path)?;
             eprintln!("revoked {key}; it can no longer connect");
             eprintln!("a running share also force-closes its live connections within seconds");
             Ok(())
