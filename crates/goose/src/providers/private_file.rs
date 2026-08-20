@@ -1,5 +1,5 @@
 use std::io::{self, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[cfg(windows)]
 fn to_windows_api_path(path: &Path) -> io::Result<Vec<u16>> {
@@ -187,7 +187,20 @@ fn persist_private_temporary_file(
 }
 
 pub(crate) fn write_private_file(path: &Path, contents: &str) -> io::Result<()> {
-    let parent = path.parent().ok_or_else(|| {
+    let write_path = match std::fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            let target = std::fs::read_link(path)?;
+            if target.is_absolute() {
+                target
+            } else {
+                path.parent().unwrap_or_else(|| Path::new(".")).join(target)
+            }
+        }
+        Ok(_) => PathBuf::from(path),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => PathBuf::from(path),
+        Err(error) => return Err(error),
+    };
+    let parent = write_path.parent().ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
             "private file path must have a parent directory",
@@ -205,7 +218,7 @@ pub(crate) fn write_private_file(path: &Path, contents: &str) -> io::Result<()> 
     }
     temporary.write_all(contents.as_bytes())?;
     temporary.as_file().sync_all()?;
-    persist_private_temporary_file(temporary, path)?;
+    persist_private_temporary_file(temporary, &write_path)?;
     Ok(())
 }
 
@@ -230,6 +243,30 @@ mod tests {
         assert_ne!(metadata.ino(), old_inode);
         assert_eq!(metadata.permissions().mode() & 0o777, 0o600);
         assert_eq!(std::fs::read_to_string(path).unwrap(), "new-secret");
+    }
+
+    #[test]
+    fn preserves_symlink_and_replaces_target() {
+        use std::os::unix::fs::symlink;
+
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("token.json");
+        let target = directory.path().join("managed-token.json");
+        std::fs::write(&target, "old").unwrap();
+        std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let old_inode = std::fs::metadata(&target).unwrap().ino();
+        symlink("managed-token.json", &path).unwrap();
+
+        write_private_file(&path, "new-secret").unwrap();
+
+        assert!(std::fs::symlink_metadata(&path)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        let metadata = std::fs::metadata(&target).unwrap();
+        assert_ne!(metadata.ino(), old_inode);
+        assert_eq!(metadata.permissions().mode() & 0o777, 0o600);
+        assert_eq!(std::fs::read_to_string(target).unwrap(), "new-secret");
     }
 }
 
