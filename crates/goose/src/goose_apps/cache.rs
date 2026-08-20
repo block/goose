@@ -35,19 +35,21 @@ impl McpAppCache {
         let config_dir = Paths::config_dir();
         let cache_dir = config_dir.join("mcp-apps-cache");
         let cache = Self { cache_dir };
-        cache.ensure_default_apps();
+        cache.ensure_default_apps()?;
         Ok(cache)
     }
 
-    fn ensure_default_apps(&self) {
+    fn ensure_default_apps(&self) -> Result<(), std::io::Error> {
+        fs::create_dir_all(&self.cache_dir)?;
+
         for (uri, html) in DEFAULT_APPS {
-            if self.get_app(APPS_EXTENSION_NAME, uri).is_none() {
-                if let Ok(mut app) = GooseApp::from_html(html) {
-                    app.mcp_servers = vec![APPS_EXTENSION_NAME.to_string()];
-                    let _ = self.store_app(&app);
-                }
-            }
+            let mut app = GooseApp::from_html(html).map_err(std::io::Error::other)?;
+            app.mcp_servers = vec![APPS_EXTENSION_NAME.to_string()];
+            let json = serde_json::to_string_pretty(&app).map_err(std::io::Error::other)?;
+            fs::write(self.app_path(APPS_EXTENSION_NAME, uri), json)?;
         }
+
+        Ok(())
     }
 
     pub fn is_bundled_default_uri(uri: &str) -> bool {
@@ -58,6 +60,37 @@ impl McpAppCache {
         let input = format!("{}::{}", extension_name, resource_uri);
         let hash = bytes_to_hex(Sha256::digest(input.as_bytes()));
         format!("{}_{}", extension_name, hash)
+    }
+
+    fn app_path(&self, extension_name: &str, resource_uri: &str) -> PathBuf {
+        self.cache_dir.join(format!(
+            "{}.json",
+            Self::cache_key(extension_name, resource_uri)
+        ))
+    }
+
+    fn is_bundled_default_identity(extension_name: &str, resource_uri: &str) -> bool {
+        extension_name == APPS_EXTENSION_NAME && Self::is_bundled_default_uri(resource_uri)
+    }
+
+    fn bundled_default_app(resource_uri: &str) -> Option<GooseApp> {
+        let (_, html) = DEFAULT_APPS.iter().find(|(uri, _)| *uri == resource_uri)?;
+        let mut app = GooseApp::from_html(html).ok()?;
+        app.mcp_servers = vec![APPS_EXTENSION_NAME.to_string()];
+        Some(app)
+    }
+
+    pub fn restore_bundled_default_apps(apps: &mut [GooseApp]) {
+        for app in apps {
+            let is_bundled_identity = app.mcp_servers.iter().any(|extension_name| {
+                Self::is_bundled_default_identity(extension_name, &app.resource.uri)
+            });
+            if is_bundled_identity {
+                if let Some(default_app) = Self::bundled_default_app(&app.resource.uri) {
+                    *app = default_app;
+                }
+            }
+        }
     }
 
     pub fn list_apps(&self) -> Result<Vec<GooseApp>, std::io::Error> {
@@ -90,6 +123,9 @@ impl McpAppCache {
 
         // Store the app once for each MCP server it's associated with
         for extension_name in &app.mcp_servers {
+            if Self::is_bundled_default_identity(extension_name, &app.resource.uri) {
+                continue;
+            }
             let cache_key = Self::cache_key(extension_name, &app.resource.uri);
             let app_path = self.cache_dir.join(format!("{}.json", cache_key));
             let json = serde_json::to_string_pretty(app).map_err(std::io::Error::other)?;
@@ -117,6 +153,13 @@ impl McpAppCache {
         extension_name: &str,
         resource_uri: &str,
     ) -> Result<(), std::io::Error> {
+        if Self::is_bundled_default_identity(extension_name, resource_uri) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "Cannot delete bundled default app",
+            ));
+        }
+
         let cache_key = Self::cache_key(extension_name, resource_uri);
         let app_path = self.cache_dir.join(format!("{}.json", cache_key));
 
@@ -148,6 +191,7 @@ impl McpAppCache {
                 if let Ok(content) = fs::read_to_string(&path) {
                     if let Ok(app) = serde_json::from_str::<GooseApp>(&content) {
                         if app.mcp_servers.contains(&extension_name.to_string())
+                            && !Self::is_bundled_default_identity(extension_name, &app.resource.uri)
                             && fs::remove_file(&path).is_ok()
                         {
                             deleted_count += 1;
@@ -254,6 +298,48 @@ mod tests {
                 .delete_app(APPS_EXTENSION_NAME, "apps://missing")
                 .unwrap_err();
             assert_eq!(error.kind(), std::io::ErrorKind::NotFound);
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn bundled_default_identity_cannot_be_replaced_or_deleted() {
+        with_temp_config(|| {
+            let cache = McpAppCache::new().unwrap();
+            let expected = GooseApp::from_html(CLOCK_HTML).unwrap();
+            let mut attacker_app = GooseApp::from_html(CUSTOM_APP_HTML).unwrap();
+            attacker_app.resource.uri = "ui://apps/clock".to_string();
+            attacker_app.resource.text = Some("<script>malicious()</script>".to_string());
+            attacker_app.mcp_servers = vec![APPS_EXTENSION_NAME.to_string()];
+
+            let mut exposed_apps = vec![attacker_app.clone()];
+            McpAppCache::restore_bundled_default_apps(&mut exposed_apps);
+            assert_eq!(exposed_apps[0].resource.text, expected.resource.text);
+
+            cache.store_app(&attacker_app).unwrap();
+            cache.delete_extension_apps(APPS_EXTENSION_NAME).unwrap();
+            assert_eq!(
+                cache
+                    .delete_app(APPS_EXTENSION_NAME, "ui://apps/clock")
+                    .unwrap_err()
+                    .kind(),
+                std::io::ErrorKind::PermissionDenied
+            );
+
+            let forged_json = serde_json::to_string_pretty(&attacker_app).unwrap();
+            fs::write(
+                cache.app_path(APPS_EXTENSION_NAME, "ui://apps/clock"),
+                forged_json,
+            )
+            .unwrap();
+
+            let reopened = McpAppCache::new().unwrap();
+            let cached = reopened
+                .get_app(APPS_EXTENSION_NAME, "ui://apps/clock")
+                .unwrap();
+            assert_eq!(cached.resource.text, expected.resource.text);
+            assert_eq!(cached.resource.name, expected.resource.name);
+            assert_eq!(cached.mcp_servers, vec![APPS_EXTENSION_NAME.to_string()]);
         });
     }
 }
