@@ -242,21 +242,27 @@ fn prompt_permission(request: &RequestPermissionRequest) -> RequestPermissionOut
     for (i, opt) in request.options.iter().enumerate() {
         eprintln!("   {}) {}", i + 1, opt.name);
     }
-    eprint!("choose [1]: ");
+    eprint!("choose a number (anything else cancels): ");
     let _ = std::io::stderr().flush();
 
-    let choice = read_line()
-        .and_then(|l| l.trim().parse::<usize>().ok())
-        .unwrap_or(1);
-    let idx = choice
-        .saturating_sub(1)
-        .min(request.options.len().saturating_sub(1));
+    // Fail closed: option 1 is allow-always for goose hosts, so EOF, an empty
+    // line, or a typo must cancel rather than silently granting permission.
+    let Some(choice) = read_line().and_then(|l| l.trim().parse::<usize>().ok()) else {
+        eprintln!("   cancelled");
+        return RequestPermissionOutcome::Cancelled;
+    };
 
-    match request.options.get(idx) {
+    match choice
+        .checked_sub(1)
+        .and_then(|idx| request.options.get(idx))
+    {
         Some(opt) => RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(
             opt.option_id.clone(),
         )),
-        None => RequestPermissionOutcome::Cancelled,
+        None => {
+            eprintln!("   cancelled");
+            RequestPermissionOutcome::Cancelled
+        }
     }
 }
 

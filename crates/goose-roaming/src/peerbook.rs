@@ -42,7 +42,11 @@ impl PeerBook {
     /// Mutations are flushed back to `path`.
     pub fn load(path: PathBuf) -> Result<Self, RoamingError> {
         let mut book = match std::fs::read(&path) {
-            Ok(bytes) => serde_json::from_slice::<PeerBook>(&bytes).unwrap_or_default(),
+            // Surface corrupt JSON instead of starting empty: the next mutating
+            // command would flush that empty book back and permanently lose
+            // every saved peer card and nickname.
+            Ok(bytes) => serde_json::from_slice::<PeerBook>(&bytes)
+                .map_err(|e| RoamingError::Io(std::io::Error::other(e)))?,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => PeerBook::default(),
             Err(e) => return Err(RoamingError::Io(e)),
         };
@@ -130,6 +134,23 @@ mod tests {
         ConnectionCard::new(host.public_key(), vec!["https://relay.example./".into()])
             .encode()
             .unwrap()
+    }
+
+    #[test]
+    fn corrupt_book_is_an_error_not_an_empty_book() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("peers.json");
+
+        let mut book = PeerBook::load(path.clone()).unwrap();
+        book.save("work", &make_card(), 1_000).unwrap();
+
+        std::fs::write(&path, b"{ truncated").unwrap();
+
+        assert!(
+            PeerBook::load(path).is_err(),
+            "a corrupt peer book must fail to load; starting empty would let the \
+             next mutating command flush the empty book back and lose every peer"
+        );
     }
 
     #[test]
