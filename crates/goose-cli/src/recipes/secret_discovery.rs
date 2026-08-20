@@ -1,4 +1,4 @@
-use crate::recipes::search_recipe::load_recipe_file_with_byte_limit;
+use crate::recipes::search_recipe::{load_recipe_file_with_byte_limit, BoundedRecipeFile};
 use goose::agents::extension::ExtensionConfig;
 use goose::recipe::Recipe;
 use regex::{NoExpand, Regex};
@@ -106,6 +106,17 @@ fn discover_recipe_secrets_with_limits(
     recipe: &Recipe,
     limits: DiscoveryLimits,
 ) -> Vec<SecretRequirement> {
+    discover_recipe_secrets_with_limits_and_loader(recipe, limits, load_recipe_file_with_byte_limit)
+}
+
+fn discover_recipe_secrets_with_limits_and_loader<F>(
+    recipe: &Recipe,
+    limits: DiscoveryLimits,
+    mut load_recipe: F,
+) -> Vec<SecretRequirement>
+where
+    F: FnMut(&str, usize) -> anyhow::Result<BoundedRecipeFile>,
+{
     let mut secrets: Vec<SecretRequirement> = Vec::new();
     let mut seen_keys = HashSet::new();
     let mut seen_requests = HashSet::new();
@@ -137,16 +148,21 @@ fn discover_recipe_secrets_with_limits(
         loaded_recipes += 1;
 
         let remaining_bytes = limits.max_loaded_bytes - loaded_bytes;
-        let Ok(recipe_file) = load_recipe_file_with_byte_limit(&next.path, remaining_bytes) else {
+        let Ok(bounded_recipe_file) = load_recipe(&next.path, remaining_bytes) else {
             continue;
         };
-        let Some(next_loaded_bytes) = loaded_bytes.checked_add(recipe_file.content.len()) else {
+        if bounded_recipe_file.consumed_bytes < bounded_recipe_file.recipe_file.content.len() {
+            break;
+        }
+        let Some(next_loaded_bytes) = loaded_bytes.checked_add(bounded_recipe_file.consumed_bytes)
+        else {
             break;
         };
         if next_loaded_bytes > limits.max_loaded_bytes {
             break;
         }
         loaded_bytes = next_loaded_bytes;
+        let recipe_file = bounded_recipe_file.recipe_file;
 
         let file_identity = recipe_file
             .file_path
@@ -687,6 +703,54 @@ mod tests {
                 .map(|secret| secret.key.as_str())
                 .collect::<Vec<_>>(),
             ["SMALL_TOKEN"]
+        );
+    }
+
+    #[test]
+    fn github_bundle_payloads_share_the_aggregate_discovery_budget() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let first_content =
+            serde_yaml::to_string(&recipe_with_secret(Some("FIRST_TOKEN"), vec![])).unwrap();
+        let second_content =
+            serde_yaml::to_string(&recipe_with_secret(Some("SECOND_TOKEN"), vec![])).unwrap();
+        let sibling_payload_bytes = 256;
+        let aggregate_budget = first_content.len() + second_content.len() + sibling_payload_bytes;
+        let contents = HashMap::from([
+            ("first".to_string(), first_content),
+            ("second".to_string(), second_content),
+        ]);
+        let root = recipe_with_secret(None, vec![sub_recipe("first"), sub_recipe("second")]);
+
+        let secrets = discover_recipe_secrets_with_limits_and_loader(
+            &root,
+            DiscoveryLimits {
+                max_depth: 1,
+                max_recipes: 2,
+                max_loaded_bytes: aggregate_budget,
+            },
+            |path, max_bytes| {
+                let content = contents.get(path).unwrap().clone();
+                let consumed_bytes = content.len() + sibling_payload_bytes;
+                if consumed_bytes > max_bytes {
+                    return Err(anyhow::anyhow!("bundle exceeds remaining budget"));
+                }
+                Ok(BoundedRecipeFile {
+                    recipe_file: goose::recipe::read_recipe_file_content::RecipeFile {
+                        content,
+                        parent_dir: temp_dir.path().join(path),
+                        file_path: temp_dir.path().join(format!("{path}.yaml")),
+                    },
+                    consumed_bytes,
+                })
+            },
+        );
+
+        assert_eq!(
+            secrets
+                .iter()
+                .map(|secret| secret.key.as_str())
+                .collect::<Vec<_>>(),
+            ["FIRST_TOKEN"]
         );
     }
 

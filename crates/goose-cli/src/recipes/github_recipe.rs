@@ -54,26 +54,38 @@ pub fn retrieve_recipe_from_github(
     recipe_name: &str,
     recipe_repo_full_name: &str,
 ) -> Result<RecipeFile> {
-    retrieve_recipe_from_github_with_optional_limit(recipe_name, recipe_repo_full_name, None)
+    Ok(
+        retrieve_recipe_from_github_with_optional_limit(recipe_name, recipe_repo_full_name, None)?
+            .recipe_file,
+    )
 }
 
-pub fn retrieve_recipe_from_github_with_byte_limit(
+pub(crate) fn retrieve_recipe_from_github_with_byte_limit(
     recipe_name: &str,
     recipe_repo_full_name: &str,
     max_bytes: usize,
-) -> Result<RecipeFile> {
-    retrieve_recipe_from_github_with_optional_limit(
+) -> Result<(RecipeFile, usize)> {
+    let retrieved = retrieve_recipe_from_github_with_optional_limit(
         recipe_name,
         recipe_repo_full_name,
         Some(max_bytes),
-    )
+    )?;
+    let payload_bytes = retrieved
+        .payload_bytes
+        .ok_or_else(|| anyhow!("Bounded recipe download did not report its payload size"))?;
+    Ok((retrieved.recipe_file, payload_bytes))
+}
+
+struct RetrievedRecipe {
+    recipe_file: RecipeFile,
+    payload_bytes: Option<usize>,
 }
 
 fn retrieve_recipe_from_github_with_optional_limit(
     recipe_name: &str,
     recipe_repo_full_name: &str,
     max_bytes: Option<usize>,
-) -> Result<RecipeFile> {
+) -> Result<RetrievedRecipe> {
     println!(
         "📦 Looking for recipe \"{}\" in github repo: {}",
         recipe_name, recipe_repo_full_name
@@ -88,19 +100,27 @@ fn retrieve_recipe_from_github_with_optional_limit(
                 recipe_name,
                 recipe_repo_full_name,
                 max_bytes,
-            ),
-            None => clone_and_download_recipe(recipe_name, recipe_repo_full_name),
+            )
+            .map(|(download_dir, payload_bytes)| (download_dir, Some(payload_bytes))),
+            None => clone_and_download_recipe(recipe_name, recipe_repo_full_name)
+                .map(|download_dir| (download_dir, None)),
         };
         match download {
-            Ok(download_dir) => match read_recipe_file(&download_dir, max_bytes) {
+            Ok((download_dir, payload_bytes)) => match read_recipe_file(&download_dir, max_bytes) {
                 Ok((content, recipe_file_local_path)) => {
-                    return Ok(RecipeFile {
-                        content,
-                        parent_dir: download_dir.clone(),
-                        file_path: recipe_file_local_path,
+                    return Ok(RetrievedRecipe {
+                        recipe_file: RecipeFile {
+                            content,
+                            parent_dir: download_dir.clone(),
+                            file_path: recipe_file_local_path,
+                        },
+                        payload_bytes,
                     });
                 }
-                Err(err) => return Err(err),
+                Err(err) => {
+                    let _ = fs::remove_dir_all(download_dir);
+                    return Err(err);
+                }
             },
             Err(err) => {
                 last_err = Some(err);
@@ -172,7 +192,7 @@ fn clone_and_download_recipe_with_byte_limit(
     recipe_name: &str,
     recipe_repo_full_name: &str,
     max_bytes: usize,
-) -> Result<PathBuf> {
+) -> Result<(PathBuf, usize)> {
     let local_repo_path = ensure_repo_cloned(recipe_repo_full_name)?;
     fetch_origin(&local_repo_path)?;
     get_folder_from_github_with_byte_limit(
@@ -379,7 +399,7 @@ fn get_folder_from_github_with_byte_limit(
     recipe_name: &str,
     recipe_repo_full_name: &str,
     max_bytes: usize,
-) -> Result<PathBuf> {
+) -> Result<(PathBuf, usize)> {
     let ref_and_path = format!("origin/main:{recipe_name}");
     let output_dir =
         clean_unique_temp_child_path(&env::temp_dir(), recipe_name, recipe_repo_full_name)?;
@@ -399,13 +419,22 @@ fn get_folder_from_github_with_byte_limit(
     if extraction.is_err() {
         let _ = child.kill();
     }
-    let status = child.wait()?;
-    extraction?;
-    if !status.success() {
-        return Err(anyhow!("Failed to archive recipe bundle {recipe_name}"));
+    let status = child.wait();
+    let extraction = match (extraction, status) {
+        (Ok(payload_bytes), Ok(status)) if status.success() => Ok(payload_bytes),
+        (Ok(_), Ok(_)) => Err(anyhow!("Failed to archive recipe bundle {recipe_name}")),
+        (Err(err), _) => Err(err),
+        (_, Err(err)) => Err(err.into()),
+    };
+    if extraction.is_err() {
+        let _ = fs::remove_dir_all(&output_dir);
     }
-    list_files(&output_dir)?;
-    Ok(output_dir)
+    let payload_bytes = extraction?;
+    if let Err(err) = list_files(&output_dir) {
+        let _ = fs::remove_dir_all(&output_dir);
+        return Err(err);
+    }
+    Ok((output_dir, payload_bytes))
 }
 
 struct BoundedArchiveReader<R> {
@@ -431,7 +460,11 @@ impl<R: Read> Read for BoundedArchiveReader<R> {
     }
 }
 
-fn extract_bounded_archive(reader: impl Read, output_dir: &Path, max_bytes: usize) -> Result<()> {
+fn extract_bounded_archive(
+    reader: impl Read,
+    output_dir: &Path,
+    max_bytes: usize,
+) -> Result<usize> {
     extract_bounded_archive_with_limits(reader, output_dir, max_bytes, ARCHIVE_LIMITS)
 }
 
@@ -440,7 +473,7 @@ fn extract_bounded_archive_with_limits(
     output_dir: &Path,
     max_bytes: usize,
     limits: ArchiveLimits,
-) -> Result<()> {
+) -> Result<usize> {
     let archive_bytes = max_bytes
         .checked_add(limits.overhead_bytes)
         .ok_or_else(|| anyhow!("Recipe archive byte limit is too large"))?;
@@ -448,7 +481,7 @@ fn extract_bounded_archive_with_limits(
         inner: reader,
         remaining: archive_bytes,
     });
-    let mut extracted_bytes = 0_u64;
+    let mut extracted_bytes = 0_usize;
     let mut entry_count = 0;
     let mut path_bytes = 0_usize;
     let mut extracted_paths = HashSet::new();
@@ -461,10 +494,12 @@ fn extract_bounded_archive_with_limits(
                 limits.entries
             ));
         }
+        let entry_bytes = usize::try_from(entry.size())
+            .map_err(|_| anyhow!("Recipe bundle entry size overflowed"))?;
         extracted_bytes = extracted_bytes
-            .checked_add(entry.size())
+            .checked_add(entry_bytes)
             .ok_or_else(|| anyhow!("Recipe bundle size overflowed"))?;
-        if extracted_bytes > max_bytes as u64 {
+        if extracted_bytes > max_bytes {
             return Err(anyhow!("Recipe bundle exceeds the {max_bytes}-byte limit"));
         }
 
@@ -502,7 +537,7 @@ fn extract_bounded_archive_with_limits(
             return Err(anyhow!("Recipe bundle contains an unsafe path"));
         }
     }
-    Ok(())
+    Ok(extracted_bytes)
 }
 
 fn list_files(dir: &Path) -> Result<()> {
@@ -747,7 +782,7 @@ mod tests {
         let grandchild = b"title: grandchild";
         let output_dir = tempfile::tempdir().unwrap();
 
-        extract_bounded_archive(
+        let payload_bytes = extract_bounded_archive(
             Cursor::new(archive_with_files(&[
                 ("recipe.yaml", recipe),
                 ("nested/grandchild.yaml", grandchild),
@@ -757,6 +792,7 @@ mod tests {
         )
         .unwrap();
 
+        assert_eq!(payload_bytes, recipe.len() + grandchild.len());
         assert_eq!(
             fs::read(output_dir.path().join("recipe.yaml")).unwrap(),
             recipe

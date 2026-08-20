@@ -11,6 +11,11 @@ use goose::recipe::local_recipes::{
     list_local_recipes, load_local_recipe_file, load_local_recipe_file_with_byte_limit,
 };
 
+pub(crate) struct BoundedRecipeFile {
+    pub recipe_file: RecipeFile,
+    pub consumed_bytes: usize,
+}
+
 pub fn load_recipe_file(recipe_name: &str) -> Result<RecipeFile> {
     load_local_recipe_file(recipe_name).or_else(|e| {
         if let Some(recipe_repo_full_name) = configured_github_recipe_repo() {
@@ -21,8 +26,17 @@ pub fn load_recipe_file(recipe_name: &str) -> Result<RecipeFile> {
     })
 }
 
-pub fn load_recipe_file_with_byte_limit(recipe_name: &str, max_bytes: usize) -> Result<RecipeFile> {
-    let local_result = load_local_recipe_file_with_byte_limit(recipe_name, max_bytes);
+pub(crate) fn load_recipe_file_with_byte_limit(
+    recipe_name: &str,
+    max_bytes: usize,
+) -> Result<BoundedRecipeFile> {
+    let local_result =
+        load_local_recipe_file_with_byte_limit(recipe_name, max_bytes).map(|recipe_file| {
+            BoundedRecipeFile {
+                consumed_bytes: recipe_file.content.len(),
+                recipe_file,
+            }
+        });
     if RECIPE_FILE_EXTENSIONS
         .iter()
         .any(|extension| recipe_name.ends_with(&format!(".{extension}")))
@@ -36,6 +50,10 @@ pub fn load_recipe_file_with_byte_limit(recipe_name: &str, max_bytes: usize) -> 
                 &recipe_repo_full_name,
                 max_bytes,
             )
+            .map(|(recipe_file, consumed_bytes)| BoundedRecipeFile {
+                recipe_file,
+                consumed_bytes,
+            })
         } else {
             Err(error)
         }
