@@ -114,8 +114,6 @@ icu_locale = { version = "=2.1.1", default-features = false }
 [patch.crates-io]
 agent-client-protocol = { git = "https://github.com/agentclientprotocol/rust-sdk", rev = "c97a5203d3392f7f231514d84eea014f9f43e6fb" }
 agent-client-protocol-http = { git = "https://github.com/agentclientprotocol/rust-sdk", rev = "c97a5203d3392f7f231514d84eea014f9f43e6fb" }
-# Pin the last known-good source while the registry releases are yanked.
-arrayref = { git = "https://github.com/droundy/arrayref", rev = "f8d0299d863922db6c409d08098941e833b70d69" }
 v8 = { path = "vendor/v8" }
 cudaforge = { git = "https://github.com/jbg/cudaforge", rev = "e7c1967340e40673db98dc9e17da0f04834a456f" }
 
