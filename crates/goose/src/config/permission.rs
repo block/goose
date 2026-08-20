@@ -198,7 +198,8 @@ impl PermissionManager {
         F: FnOnce(&mut HashMap<String, PermissionConfig>),
     {
         let mut in_memory_map = self.permission_map.write().unwrap();
-        let lock_path = self.config_path.with_extension("yaml.lock");
+        let storage_path = Self::permission_storage_path(&self.config_path);
+        let lock_path = storage_path.with_extension("yaml.lock");
         let lock_file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -210,13 +211,13 @@ impl PermissionManager {
             .lock_exclusive()
             .expect("Failed to lock permission.yaml");
 
-        let mut latest_map = if self.config_path.exists() {
-            Self::load_permission_map(&self.config_path)
+        let mut latest_map = if storage_path.exists() {
+            Self::load_permission_map(&storage_path)
         } else {
             HashMap::new()
         };
         mutation(&mut latest_map);
-        self.write_permission_map(&latest_map);
+        Self::write_permission_map(&storage_path, &latest_map);
         *in_memory_map = latest_map;
     }
 
@@ -236,27 +237,30 @@ impl PermissionManager {
         })
     }
 
-    fn write_permission_map(&self, map: &HashMap<String, PermissionConfig>) {
-        let yaml_content =
-            serde_yaml::to_string(map).expect("Failed to serialize permission config");
-        let write_path = match fs::symlink_metadata(&self.config_path) {
+    fn permission_storage_path(config_path: &Path) -> PathBuf {
+        match fs::symlink_metadata(config_path) {
             Ok(metadata) if metadata.file_type().is_symlink() => {
-                let target = fs::read_link(&self.config_path)
-                    .expect("Failed to resolve permission.yaml symlink");
+                let target =
+                    fs::read_link(config_path).expect("Failed to resolve permission.yaml symlink");
                 if target.is_absolute() {
                     target
                 } else {
-                    self.config_path
+                    config_path
                         .parent()
                         .expect("permission.yaml must have a parent directory")
                         .join(target)
                 }
             }
-            Ok(_) => self.config_path.clone(),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => self.config_path.clone(),
+            Ok(_) => config_path.to_path_buf(),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => config_path.to_path_buf(),
             Err(error) => panic!("Failed to inspect permission.yaml: {error}"),
-        };
-        let config_dir = write_path
+        }
+    }
+
+    fn write_permission_map(storage_path: &Path, map: &HashMap<String, PermissionConfig>) {
+        let yaml_content =
+            serde_yaml::to_string(map).expect("Failed to serialize permission config");
+        let config_dir = storage_path
             .parent()
             .expect("permission.yaml must have a parent directory");
         let mut temporary_file =
@@ -269,7 +273,7 @@ impl PermissionManager {
             .sync_all()
             .expect("Failed to write to permission.yaml");
         temporary_file
-            .persist(write_path)
+            .persist(storage_path)
             .expect("Failed to write to permission.yaml");
     }
 
@@ -442,6 +446,76 @@ mod tests {
         let permission_path = temp_dir.path().join(PERMISSION_FILE);
         fs::write(&permission_path, "{{invalid yaml: [broken").unwrap();
         PermissionManager::new(temp_dir.path().to_path_buf());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlink_and_target_managers_share_storage_lock() {
+        use std::os::unix::fs::symlink;
+        use std::sync::mpsc;
+        use std::thread;
+
+        let root = TempDir::new().unwrap();
+        let symlink_config_dir = root.path().join("symlink-config");
+        let target_config_dir = root.path().join("target-config");
+        fs::create_dir_all(&symlink_config_dir).unwrap();
+        fs::create_dir_all(&target_config_dir).unwrap();
+
+        let symlink_path = symlink_config_dir.join(PERMISSION_FILE);
+        let target_path = target_config_dir.join(PERMISSION_FILE);
+        fs::write(&target_path, "{}\n").unwrap();
+        symlink("../target-config/permission.yaml", &symlink_path).unwrap();
+
+        let symlink_manager = PermissionManager::new(symlink_config_dir);
+        let target_manager = PermissionManager::new(target_config_dir.clone());
+        let (symlink_locked_tx, symlink_locked_rx) = mpsc::channel();
+        let (release_symlink_tx, release_symlink_rx) = mpsc::channel();
+
+        let symlink_thread = thread::spawn(move || {
+            symlink_manager.mutate_permission_map(|map| {
+                map.entry(USER_PERMISSION.to_string())
+                    .or_default()
+                    .always_allow
+                    .push("symlink_tool".to_string());
+                symlink_locked_tx.send(()).unwrap();
+                release_symlink_rx.recv().unwrap();
+            });
+        });
+        symlink_locked_rx.recv().unwrap();
+
+        let (target_started_tx, target_started_rx) = mpsc::channel();
+        let target_thread = thread::spawn(move || {
+            target_started_tx.send(()).unwrap();
+            target_manager.update_user_permission("target_tool", PermissionLevel::AskBefore);
+        });
+        target_started_rx.recv().unwrap();
+
+        let target_lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(target_path.with_extension("yaml.lock"))
+            .unwrap();
+        let target_lock_is_held = target_lock.try_lock_exclusive().is_err();
+        drop(target_lock);
+
+        release_symlink_tx.send(()).unwrap();
+        symlink_thread.join().unwrap();
+        target_thread.join().unwrap();
+
+        assert!(target_lock_is_held);
+        assert!(fs::symlink_metadata(&symlink_path)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        let reloaded_manager = PermissionManager::new(target_config_dir);
+        assert_eq!(
+            reloaded_manager.get_user_permission("symlink_tool"),
+            Some(PermissionLevel::AlwaysAllow)
+        );
+        assert_eq!(
+            reloaded_manager.get_user_permission("target_tool"),
+            Some(PermissionLevel::AskBefore)
+        );
     }
 
     use test_case::test_case;
