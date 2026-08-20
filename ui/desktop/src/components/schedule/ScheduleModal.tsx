@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, FormEvent, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, FormEvent, useCallback, useRef } from 'react';
 import type { ScheduledJobDto } from '@aaif/goose-sdk';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -13,45 +13,87 @@ import { defineMessages, useIntl } from '../../i18n';
 
 const i18n = defineMessages({
   editSchedule: { id: 'scheduleModal.editSchedule', defaultMessage: 'Edit Schedule' },
-  createNewSchedule: { id: 'scheduleModal.createNewSchedule', defaultMessage: 'Create New Schedule' },
+  createNewSchedule: {
+    id: 'scheduleModal.createNewSchedule',
+    defaultMessage: 'Create New Schedule',
+  },
   nameLabel: { id: 'scheduleModal.nameLabel', defaultMessage: 'Name:' },
-  namePlaceholder: { id: 'scheduleModal.namePlaceholder', defaultMessage: 'e.g., daily-summary-job' },
+  namePlaceholder: {
+    id: 'scheduleModal.namePlaceholder',
+    defaultMessage: 'e.g., daily-summary-job',
+  },
   sourceLabel: { id: 'scheduleModal.sourceLabel', defaultMessage: 'Source:' },
   yaml: { id: 'scheduleModal.yaml', defaultMessage: 'YAML' },
   deepLink: { id: 'scheduleModal.deepLink', defaultMessage: 'Deep link' },
   savedRecipes: { id: 'scheduleModal.savedRecipes', defaultMessage: 'Saved recipes' },
   browseYaml: { id: 'scheduleModal.browseYaml', defaultMessage: 'Browse for YAML file...' },
   selected: { id: 'scheduleModal.selected', defaultMessage: 'Selected: {path}' },
-  deepLinkPlaceholder: { id: 'scheduleModal.deepLinkPlaceholder', defaultMessage: 'Paste goose://recipe link here...' },
-  selectRecipePlaceholder: { id: 'scheduleModal.selectRecipePlaceholder', defaultMessage: 'Select a saved recipe' },
+  deepLinkPlaceholder: {
+    id: 'scheduleModal.deepLinkPlaceholder',
+    defaultMessage: 'Paste goose://recipe link here...',
+  },
+  selectRecipePlaceholder: {
+    id: 'scheduleModal.selectRecipePlaceholder',
+    defaultMessage: 'Select a saved recipe',
+  },
   loadingRecipes: { id: 'scheduleModal.loadingRecipes', defaultMessage: 'Loading recipes...' },
   noSavedRecipes: { id: 'scheduleModal.noSavedRecipes', defaultMessage: 'No saved recipes found.' },
-  failedLoadRecipes: { id: 'scheduleModal.failedLoadRecipes', defaultMessage: 'Failed to load recipes.' },
+  failedLoadRecipes: {
+    id: 'scheduleModal.failedLoadRecipes',
+    defaultMessage: 'Failed to load recipes.',
+  },
   recipeParsed: { id: 'scheduleModal.recipeParsed', defaultMessage: 'Recipe parsed successfully' },
   recipeTitle: { id: 'scheduleModal.recipeTitle', defaultMessage: 'Title: {title}' },
-  recipeDescription: { id: 'scheduleModal.recipeDescription', defaultMessage: 'Description: {description}' },
+  recipeDescription: {
+    id: 'scheduleModal.recipeDescription',
+    defaultMessage: 'Description: {description}',
+  },
   scheduleLabel: { id: 'scheduleModal.scheduleLabel', defaultMessage: 'Schedule:' },
   cancel: { id: 'scheduleModal.cancel', defaultMessage: 'Cancel' },
   updating: { id: 'scheduleModal.updating', defaultMessage: 'Updating...' },
   creating: { id: 'scheduleModal.creating', defaultMessage: 'Creating...' },
   updateSchedule: { id: 'scheduleModal.updateSchedule', defaultMessage: 'Update Schedule' },
   createSchedule: { id: 'scheduleModal.createSchedule', defaultMessage: 'Create Schedule' },
-  invalidDeepLink: { id: 'scheduleModal.invalidDeepLink', defaultMessage: 'Invalid deep link. Please use a goose://recipe link.' },
-  failedReadFile: { id: 'scheduleModal.failedReadFile', defaultMessage: 'Failed to read the selected file.' },
-  failedParseRecipe: { id: 'scheduleModal.failedParseRecipe', defaultMessage: 'Failed to parse recipe from file.' },
-  invalidFileType: { id: 'scheduleModal.invalidFileType', defaultMessage: 'Invalid file type: Please select a YAML file (.yaml or .yml)' },
-  scheduleIdRequired: { id: 'scheduleModal.scheduleIdRequired', defaultMessage: 'Schedule ID is required.' },
-  provideValidRecipe: { id: 'scheduleModal.provideValidRecipe', defaultMessage: 'Please provide a valid recipe source.' },
+  invalidDeepLink: {
+    id: 'scheduleModal.invalidDeepLink',
+    defaultMessage: 'Invalid deep link. Please use a goose://recipe link.',
+  },
+  failedReadFile: {
+    id: 'scheduleModal.failedReadFile',
+    defaultMessage: 'Failed to read the selected file.',
+  },
+  failedParseRecipe: {
+    id: 'scheduleModal.failedParseRecipe',
+    defaultMessage: 'Failed to parse recipe from file.',
+  },
+  invalidFileType: {
+    id: 'scheduleModal.invalidFileType',
+    defaultMessage: 'Invalid file type: Please select a YAML file (.yaml or .yml)',
+  },
+  scheduleIdRequired: {
+    id: 'scheduleModal.scheduleIdRequired',
+    defaultMessage: 'Schedule ID is required.',
+  },
+  provideValidRecipe: {
+    id: 'scheduleModal.provideValidRecipe',
+    defaultMessage: 'Please provide a valid recipe source.',
+  },
 });
 
-type SourceType = 'file' | 'deeplink' | 'saved';
+export type SourceType = 'file' | 'deeplink' | 'saved';
 
-export interface NewSchedulePayload {
-  id: string;
-  recipe: Recipe;
-  cron: string;
-  sourceType: SourceType;
-}
+export type NewSchedulePayload =
+  | {
+      sourceType: 'file' | 'deeplink';
+      id: string;
+      recipe: Recipe;
+      cron: string;
+    }
+  | {
+      sourceType: 'saved';
+      recipeId: string;
+      cron: string;
+    };
 
 interface ScheduleModalProps {
   isOpen: boolean;
@@ -89,6 +131,12 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   const [savedRecipesLoading, setSavedRecipesLoading] = useState(false);
   const [savedRecipesError, setSavedRecipesError] = useState<string | null>(null);
   const [selectedSavedRecipeId, setSelectedSavedRecipeId] = useState<string | null>(null);
+  const sourceRequestIdRef = useRef(0);
+
+  const bumpSourceRequest = () => {
+    sourceRequestIdRef.current += 1;
+    return sourceRequestIdRef.current;
+  };
 
   const setScheduleIdFromTitle = (title: string) => {
     const cleanId = title
@@ -111,6 +159,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       if (next === sourceType) {
         return;
       }
+      bumpSourceRequest();
       clearRecipeSourceState();
       setSourceType(next);
     },
@@ -118,38 +167,46 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   );
 
   const handleSelectSavedRecipe = useCallback((manifest: RecipeManifest | null) => {
+    bumpSourceRequest();
     setSelectedSavedRecipeId(manifest?.id ?? null);
     setInternalValidationError(null);
     if (manifest) {
       setParsedRecipe(manifest.recipe);
-      if (manifest.recipe.title) {
-        setScheduleIdFromTitle(manifest.recipe.title);
-      }
     } else {
       setParsedRecipe(null);
     }
   }, []);
 
-  const handleDeepLinkChange = useCallback(async (value: string) => {
-    setDeepLinkInput(value);
-    setInternalValidationError(null);
+  const handleDeepLinkChange = useCallback(
+    async (value: string) => {
+      const requestId = bumpSourceRequest();
+      setDeepLinkInput(value);
+      setInternalValidationError(null);
 
-    if (value.trim()) {
-      try {
-        const recipe = await parseDeeplink(value.trim());
-        if (!recipe) throw new Error();
-        setParsedRecipe(recipe);
-        if (recipe.title) {
-          setScheduleIdFromTitle(recipe.title);
+      if (value.trim()) {
+        try {
+          const recipe = await parseDeeplink(value.trim());
+          if (requestId !== sourceRequestIdRef.current) {
+            return;
+          }
+          if (!recipe) throw new Error();
+          setParsedRecipe(recipe);
+          if (recipe.title) {
+            setScheduleIdFromTitle(recipe.title);
+          }
+        } catch {
+          if (requestId !== sourceRequestIdRef.current) {
+            return;
+          }
+          setParsedRecipe(null);
+          setInternalValidationError(intl.formatMessage(i18n.invalidDeepLink));
         }
-      } catch {
+      } else {
         setParsedRecipe(null);
-        setInternalValidationError(intl.formatMessage(i18n.invalidDeepLink));
       }
-    } else {
-      setParsedRecipe(null);
-    }
-  }, [intl]);
+    },
+    [intl]
+  );
 
   useEffect(() => {
     if (isOpen) {
@@ -158,6 +215,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         setScheduleId(schedule.id);
         setCronExpression(schedule.cron);
       } else {
+        bumpSourceRequest();
         setScheduleId('');
         setSourceType('file');
         setRecipeSourcePath('');
@@ -210,14 +268,21 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
     const fileResponse = await window.electron.selectRecipeFile();
     if (fileResponse) {
       if (fileResponse.filePath.endsWith('.yaml') || fileResponse.filePath.endsWith('.yml')) {
+        const requestId = bumpSourceRequest();
         setRecipeSourcePath(fileResponse.filePath);
         setInternalValidationError(null);
 
         try {
+          if (requestId !== sourceRequestIdRef.current) {
+            return;
+          }
           if (!fileResponse.found || fileResponse.error) {
             throw new Error(intl.formatMessage(i18n.failedReadFile));
           }
           const recipe = await parseRecipeFromFile(fileResponse.file);
+          if (requestId !== sourceRequestIdRef.current) {
+            return;
+          }
           if (!recipe) {
             throw new Error(intl.formatMessage(i18n.failedParseRecipe));
           }
@@ -226,6 +291,9 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
             setScheduleIdFromTitle(recipe.title);
           }
         } catch (e) {
+          if (requestId !== sourceRequestIdRef.current) {
+            return;
+          }
           setParsedRecipe(null);
           setInternalValidationError(
             e instanceof Error ? e.message : intl.formatMessage(i18n.failedParseRecipe)
@@ -246,17 +314,25 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       return;
     }
 
+    if (sourceType === 'saved') {
+      if (!selectedSavedRecipeId) {
+        setInternalValidationError(intl.formatMessage(i18n.provideValidRecipe));
+        return;
+      }
+      await onSubmit({
+        sourceType: 'saved',
+        recipeId: selectedSavedRecipeId,
+        cron: cronExpression,
+      });
+      return;
+    }
+
     if (!scheduleId.trim()) {
       setInternalValidationError(intl.formatMessage(i18n.scheduleIdRequired));
       return;
     }
 
     if (!parsedRecipe) {
-      setInternalValidationError(intl.formatMessage(i18n.provideValidRecipe));
-      return;
-    }
-
-    if (sourceType === 'saved' && !selectedSavedRecipeId) {
       setInternalValidationError(intl.formatMessage(i18n.provideValidRecipe));
       return;
     }
@@ -271,14 +347,12 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       return;
     }
 
-    const newSchedulePayload: NewSchedulePayload = {
+    await onSubmit({
+      sourceType,
       id: scheduleId.trim(),
       recipe: parsedRecipe,
       cron: cronExpression,
-      sourceType,
-    };
-
-    await onSubmit(newSchedulePayload);
+    });
   };
 
   if (!isOpen) return null;
@@ -305,7 +379,9 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
             <img src={ClockIcon} alt="Clock" className="w-8 h-8" />
             <div className="flex-1">
               <h2 className="text-base font-semibold text-text-primary">
-                {isEditMode ? intl.formatMessage(i18n.editSchedule) : intl.formatMessage(i18n.createNewSchedule)}
+                {isEditMode
+                  ? intl.formatMessage(i18n.editSchedule)
+                  : intl.formatMessage(i18n.createNewSchedule)}
               </h2>
               {isEditMode && <p className="text-sm text-text-secondary">{schedule.id}</p>}
             </div>
@@ -330,23 +406,25 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
           {!isEditMode && (
             <>
-              <div>
-                <label htmlFor="scheduleId-modal" className={modalLabelClassName}>
-                  {intl.formatMessage(i18n.nameLabel)} <span className="text-red-500">*</span>
-                </label>
-                <Input
-                  type="text"
-                  id="scheduleId-modal"
-                  value={scheduleId}
-                  onChange={(e) => setScheduleId(e.target.value)}
-                  placeholder={intl.formatMessage(i18n.namePlaceholder)}
-                  required
-                />
-              </div>
+              {sourceType !== 'saved' && (
+                <div>
+                  <label htmlFor="scheduleId-modal" className={modalLabelClassName}>
+                    {intl.formatMessage(i18n.nameLabel)} <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    type="text"
+                    id="scheduleId-modal"
+                    value={scheduleId}
+                    onChange={(e) => setScheduleId(e.target.value)}
+                    placeholder={intl.formatMessage(i18n.namePlaceholder)}
+                    required
+                  />
+                </div>
+              )}
 
               <div>
                 <label className={modalLabelClassName}>
-                    {intl.formatMessage(i18n.sourceLabel)} <span className="text-red-500">*</span>
+                  {intl.formatMessage(i18n.sourceLabel)} <span className="text-red-500">*</span>
                 </label>
                 <div className="space-y-2">
                   <div className="flex bg-gray-100 dark:bg-gray-700 rounded-full p-1">
@@ -429,11 +507,16 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                       ) : (
                         <Select
                           options={savedRecipeOptions}
-                          value={savedRecipeOptions.find((o) => o.value === selectedSavedRecipeId) ?? null}
+                          value={
+                            savedRecipeOptions.find((o) => o.value === selectedSavedRecipeId) ??
+                            null
+                          }
                           onChange={(option) => {
                             const selectedId = (option as { value?: string } | null)?.value ?? null;
                             handleSelectSavedRecipe(
-                              selectedId ? savedRecipes.find((m) => m.id === selectedId) ?? null : null
+                              selectedId
+                                ? (savedRecipes.find((m) => m.id === selectedId) ?? null)
+                                : null
                             );
                           }}
                           placeholder={intl.formatMessage(i18n.selectRecipePlaceholder)}

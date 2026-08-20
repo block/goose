@@ -93,15 +93,14 @@ describe('ScheduleModal', () => {
     expect(createButton).not.toBeDisabled();
     await user.click(createButton);
 
+    expect(screen.queryByLabelText(/name/i)).not.toBeInTheDocument();
+
     await waitFor(() => {
-      expect(baseProps.onSubmit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: 'my-recipe',
-          cron: expect.any(String),
-          sourceType: 'saved',
-          recipe: expect.objectContaining({ title: 'My Recipe' }),
-        })
-      );
+      expect(baseProps.onSubmit).toHaveBeenCalledWith({
+        sourceType: 'saved',
+        recipeId: 'my-recipe',
+        cron: expect.any(String),
+      });
     });
   });
 
