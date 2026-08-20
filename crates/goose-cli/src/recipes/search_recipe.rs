@@ -2,19 +2,15 @@ use anyhow::Result;
 use goose::config::Config;
 use goose::recipe::read_recipe_file_content::RecipeFile;
 use goose::recipe::RECIPE_FILE_EXTENSIONS;
+use std::fs;
 
 use super::github_recipe::{
     list_github_recipes, retrieve_recipe_from_github, retrieve_recipe_from_github_with_byte_limit,
-    RecipeInfo, RecipeSource, GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY,
+    BoundedRecipeLoad, RecipeInfo, RecipeSource, GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY,
 };
 use goose::recipe::local_recipes::{
     list_local_recipes, load_local_recipe_file, load_local_recipe_file_with_byte_limit,
 };
-
-pub(crate) struct BoundedRecipeFile {
-    pub recipe_file: RecipeFile,
-    pub consumed_bytes: usize,
-}
 
 pub fn load_recipe_file(recipe_name: &str) -> Result<RecipeFile> {
     load_local_recipe_file(recipe_name).or_else(|e| {
@@ -29,35 +25,42 @@ pub fn load_recipe_file(recipe_name: &str) -> Result<RecipeFile> {
 pub(crate) fn load_recipe_file_with_byte_limit(
     recipe_name: &str,
     max_bytes: usize,
-) -> Result<BoundedRecipeFile> {
-    let local_result =
-        load_local_recipe_file_with_byte_limit(recipe_name, max_bytes).map(|recipe_file| {
-            BoundedRecipeFile {
-                consumed_bytes: recipe_file.content.len(),
-                recipe_file,
-            }
-        });
-    if RECIPE_FILE_EXTENSIONS
+) -> BoundedRecipeLoad {
+    let has_recipe_extension = RECIPE_FILE_EXTENSIONS
         .iter()
-        .any(|extension| recipe_name.ends_with(&format!(".{extension}")))
+        .any(|extension| recipe_name.ends_with(&format!(".{extension}")));
+    if has_recipe_extension
+        && fs::metadata(recipe_name).is_ok_and(|metadata| metadata.len() > max_bytes as u64)
     {
-        return local_result;
+        return BoundedRecipeLoad {
+            recipe_file: Err(anyhow::anyhow!(
+                "Recipe file exceeds the {max_bytes}-byte limit"
+            )),
+            consumed_bytes: Some(0),
+        };
     }
-    local_result.or_else(|error| {
-        if let Some(recipe_repo_full_name) = configured_github_recipe_repo() {
-            retrieve_recipe_from_github_with_byte_limit(
+    let local_result = load_local_recipe_file_with_byte_limit(recipe_name, max_bytes);
+    match local_result {
+        Ok(recipe_file) => BoundedRecipeLoad {
+            consumed_bytes: Some(recipe_file.content.len()),
+            recipe_file: Ok(recipe_file),
+        },
+        Err(error) if has_recipe_extension => BoundedRecipeLoad {
+            recipe_file: Err(error),
+            consumed_bytes: None,
+        },
+        Err(error) => match configured_github_recipe_repo() {
+            Some(recipe_repo_full_name) => retrieve_recipe_from_github_with_byte_limit(
                 recipe_name,
                 &recipe_repo_full_name,
                 max_bytes,
-            )
-            .map(|(recipe_file, consumed_bytes)| BoundedRecipeFile {
-                recipe_file,
-                consumed_bytes,
-            })
-        } else {
-            Err(error)
-        }
-    })
+            ),
+            None => BoundedRecipeLoad {
+                recipe_file: Err(error),
+                consumed_bytes: None,
+            },
+        },
+    }
 }
 
 fn configured_github_recipe_repo() -> Option<String> {

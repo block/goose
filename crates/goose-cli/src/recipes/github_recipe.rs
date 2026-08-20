@@ -54,44 +54,56 @@ pub fn retrieve_recipe_from_github(
     recipe_name: &str,
     recipe_repo_full_name: &str,
 ) -> Result<RecipeFile> {
-    Ok(
-        retrieve_recipe_from_github_with_optional_limit(recipe_name, recipe_repo_full_name, None)?
-            .recipe_file,
-    )
+    let mut payload_bytes = None;
+    Ok(retrieve_recipe_from_github_with_optional_limit(
+        recipe_name,
+        recipe_repo_full_name,
+        None,
+        &mut payload_bytes,
+    )?
+    .recipe_file)
+}
+
+pub(crate) struct BoundedRecipeLoad {
+    pub recipe_file: Result<RecipeFile>,
+    pub consumed_bytes: Option<usize>,
 }
 
 pub(crate) fn retrieve_recipe_from_github_with_byte_limit(
     recipe_name: &str,
     recipe_repo_full_name: &str,
     max_bytes: usize,
-) -> Result<(RecipeFile, usize)> {
-    let retrieved = retrieve_recipe_from_github_with_optional_limit(
+) -> BoundedRecipeLoad {
+    let mut consumed_bytes = None;
+    let recipe_file = retrieve_recipe_from_github_with_optional_limit(
         recipe_name,
         recipe_repo_full_name,
         Some(max_bytes),
-    )?;
-    let payload_bytes = retrieved
-        .payload_bytes
-        .ok_or_else(|| anyhow!("Bounded recipe download did not report its payload size"))?;
-    Ok((retrieved.recipe_file, payload_bytes))
+        &mut consumed_bytes,
+    )
+    .map(|retrieved| retrieved.recipe_file);
+    BoundedRecipeLoad {
+        recipe_file,
+        consumed_bytes,
+    }
 }
 
 struct RetrievedRecipe {
     recipe_file: RecipeFile,
-    payload_bytes: Option<usize>,
 }
 
 fn retrieve_recipe_from_github_with_optional_limit(
     recipe_name: &str,
     recipe_repo_full_name: &str,
     max_bytes: Option<usize>,
+    consumed_bytes: &mut Option<usize>,
 ) -> Result<RetrievedRecipe> {
     println!(
         "📦 Looking for recipe \"{}\" in github repo: {}",
         recipe_name, recipe_repo_full_name
     );
     ensure_gh_authenticated()?;
-    let max_attempts = 2;
+    let max_attempts = if max_bytes.is_some() { 1 } else { 2 };
     let mut last_err = None;
 
     for attempt in 1..=max_attempts {
@@ -108,16 +120,17 @@ fn retrieve_recipe_from_github_with_optional_limit(
         match download {
             Ok((download_dir, payload_bytes)) => match read_recipe_file(&download_dir, max_bytes) {
                 Ok((content, recipe_file_local_path)) => {
+                    *consumed_bytes = payload_bytes;
                     return Ok(RetrievedRecipe {
                         recipe_file: RecipeFile {
                             content,
                             parent_dir: download_dir.clone(),
                             file_path: recipe_file_local_path,
                         },
-                        payload_bytes,
                     });
                 }
                 Err(err) => {
+                    *consumed_bytes = payload_bytes;
                     let _ = fs::remove_dir_all(download_dir);
                     return Err(err);
                 }

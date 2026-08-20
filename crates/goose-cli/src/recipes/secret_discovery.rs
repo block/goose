@@ -1,4 +1,5 @@
-use crate::recipes::search_recipe::{load_recipe_file_with_byte_limit, BoundedRecipeFile};
+use crate::recipes::github_recipe::BoundedRecipeLoad;
+use crate::recipes::search_recipe::load_recipe_file_with_byte_limit;
 use goose::agents::extension::ExtensionConfig;
 use goose::recipe::Recipe;
 use regex::{NoExpand, Regex};
@@ -115,7 +116,7 @@ fn discover_recipe_secrets_with_limits_and_loader<F>(
     mut load_recipe: F,
 ) -> Vec<SecretRequirement>
 where
-    F: FnMut(&str, usize) -> anyhow::Result<BoundedRecipeFile>,
+    F: FnMut(&str, usize) -> BoundedRecipeLoad,
 {
     let mut secrets: Vec<SecretRequirement> = Vec::new();
     let mut seen_keys = HashSet::new();
@@ -148,21 +149,23 @@ where
         loaded_recipes += 1;
 
         let remaining_bytes = limits.max_loaded_bytes - loaded_bytes;
-        let Ok(bounded_recipe_file) = load_recipe(&next.path, remaining_bytes) else {
-            continue;
-        };
-        if bounded_recipe_file.consumed_bytes < bounded_recipe_file.recipe_file.content.len() {
+        let bounded_load = load_recipe(&next.path, remaining_bytes);
+        let Some(consumed_bytes) = bounded_load.consumed_bytes else {
             break;
-        }
-        let Some(next_loaded_bytes) = loaded_bytes.checked_add(bounded_recipe_file.consumed_bytes)
-        else {
+        };
+        let Some(next_loaded_bytes) = loaded_bytes.checked_add(consumed_bytes) else {
             break;
         };
         if next_loaded_bytes > limits.max_loaded_bytes {
             break;
         }
         loaded_bytes = next_loaded_bytes;
-        let recipe_file = bounded_recipe_file.recipe_file;
+        let Ok(recipe_file) = bounded_load.recipe_file else {
+            continue;
+        };
+        if consumed_bytes < recipe_file.content.len() {
+            break;
+        }
 
         let file_identity = recipe_file
             .file_path
@@ -732,16 +735,19 @@ mod tests {
                 let content = contents.get(path).unwrap().clone();
                 let consumed_bytes = content.len() + sibling_payload_bytes;
                 if consumed_bytes > max_bytes {
-                    return Err(anyhow::anyhow!("bundle exceeds remaining budget"));
+                    return BoundedRecipeLoad {
+                        recipe_file: Err(anyhow::anyhow!("bundle exceeds remaining budget")),
+                        consumed_bytes: None,
+                    };
                 }
-                Ok(BoundedRecipeFile {
-                    recipe_file: goose::recipe::read_recipe_file_content::RecipeFile {
+                BoundedRecipeLoad {
+                    recipe_file: Ok(goose::recipe::read_recipe_file_content::RecipeFile {
                         content,
                         parent_dir: temp_dir.path().join(path),
                         file_path: temp_dir.path().join(format!("{path}.yaml")),
-                    },
-                    consumed_bytes,
-                })
+                    }),
+                    consumed_bytes: Some(consumed_bytes),
+                }
             },
         );
 
@@ -752,6 +758,77 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["FIRST_TOKEN"]
         );
+    }
+
+    #[test]
+    fn failed_github_bundles_are_charged_before_continuing() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let first_content =
+            serde_yaml::to_string(&recipe_with_secret(Some("FIRST_TOKEN"), vec![])).unwrap();
+        let second_content =
+            serde_yaml::to_string(&recipe_with_secret(Some("SECOND_TOKEN"), vec![])).unwrap();
+        let beyond_content =
+            serde_yaml::to_string(&recipe_with_secret(Some("BEYOND_TOKEN"), vec![])).unwrap();
+        let failed_bundle_bytes = 256;
+        let aggregate_budget = failed_bundle_bytes * 2 + first_content.len() + second_content.len();
+        let contents = HashMap::from([
+            ("first".to_string(), first_content),
+            ("second".to_string(), second_content),
+            ("beyond".to_string(), beyond_content),
+        ]);
+        let root = recipe_with_secret(
+            None,
+            vec![
+                sub_recipe("malformed-one"),
+                sub_recipe("first"),
+                sub_recipe("malformed-two"),
+                sub_recipe("second"),
+                sub_recipe("beyond"),
+            ],
+        );
+        let mut requested_limits = Vec::new();
+
+        let secrets = discover_recipe_secrets_with_limits_and_loader(
+            &root,
+            DiscoveryLimits {
+                max_depth: 1,
+                max_recipes: 5,
+                max_loaded_bytes: aggregate_budget,
+            },
+            |path, max_bytes| {
+                requested_limits.push((path.to_string(), max_bytes));
+                if path.starts_with("malformed-") {
+                    return BoundedRecipeLoad {
+                        recipe_file: Err(anyhow::anyhow!("recipe file missing")),
+                        consumed_bytes: Some(failed_bundle_bytes),
+                    };
+                }
+                let content = contents.get(path).unwrap().clone();
+                if content.len() > max_bytes {
+                    return BoundedRecipeLoad {
+                        recipe_file: Err(anyhow::anyhow!("bundle exceeds remaining budget")),
+                        consumed_bytes: None,
+                    };
+                }
+                BoundedRecipeLoad {
+                    consumed_bytes: Some(content.len()),
+                    recipe_file: Ok(goose::recipe::read_recipe_file_content::RecipeFile {
+                        content,
+                        parent_dir: temp_dir.path().join(path),
+                        file_path: temp_dir.path().join(format!("{path}.yaml")),
+                    }),
+                }
+            },
+        );
+
+        assert_eq!(
+            secrets
+                .iter()
+                .map(|secret| secret.key.as_str())
+                .collect::<Vec<_>>(),
+            ["FIRST_TOKEN", "SECOND_TOKEN"]
+        );
+        assert_eq!(requested_limits.last().unwrap(), &("beyond".to_string(), 0));
     }
 
     #[test]
