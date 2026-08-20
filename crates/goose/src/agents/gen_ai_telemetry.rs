@@ -109,13 +109,10 @@ pub(super) fn record_tool_result(span: &Span, result: &ToolResult<CallToolResult
 }
 
 pub(super) fn agent_name(session: &Session) -> &str {
-    if let Some(name) = session.agent_name.as_deref() {
-        return name;
-    }
-    if let Some(recipe) = &session.recipe {
-        return recipe.title.as_str();
-    }
-    "goose"
+    session
+        .recipe
+        .as_ref()
+        .map_or("goose", |recipe| recipe.title.as_str())
 }
 
 pub(super) fn tool_result_json(result: &ToolResult<CallToolResult>) -> String {
@@ -579,15 +576,5 @@ mod tests {
     fn agent_name_returns_goose_default() {
         let session = Session::default();
         assert_eq!(agent_name(&session), "goose");
-    }
-
-    #[test]
-    fn agent_name_prefers_explicit_agent_name() {
-        let session = Session {
-            agent_name: Some("custom-agent".to_string()),
-            recipe: Some(test_recipe("My Recipe")),
-            ..Default::default()
-        };
-        assert_eq!(agent_name(&session), "custom-agent");
     }
 }
