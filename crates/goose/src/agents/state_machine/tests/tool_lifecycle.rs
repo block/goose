@@ -58,6 +58,33 @@ async fn provider_turn_executes_only_advertised_registered_tools() -> Result<()>
 }
 
 #[tokio::test]
+async fn provider_turn_canonicalizes_only_advertised_mangled_tool_names() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    api.on("use a mangled advertised tool")
+        .unadvertised_call("calculator.add", value(1));
+    api.on("result: 1").reply("mangled tool ran");
+
+    let result = pipeline.run(["use a mangled advertised tool"]).await?;
+
+    result.assert_message(-3, ToolCall, ADD);
+    result.assert_message(-2, ToolResponse, "result: 1");
+    result.assert_message(-1, Agent, "mangled tool ran");
+    assert_eq!(pipeline.calculator_total(), 1);
+
+    api.on("try a mangled app-only tool")
+        .unadvertised_call("calculator.app_only", value(10));
+    api.on("not available").reply("mangled app-only blocked");
+
+    let result = pipeline.run(["try a mangled app-only tool"]).await?;
+
+    result.assert_message(-2, ToolResponse, "not available");
+    result.assert_message(-1, Agent, "mangled app-only blocked");
+    assert_eq!(pipeline.calculator_total(), 1);
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn toolshim_provider_turn_executes_advertised_tools() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
     let model_config =
