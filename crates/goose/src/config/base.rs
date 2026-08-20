@@ -1,6 +1,6 @@
 use crate::config::paths::Paths;
 use crate::config::GooseMode;
-use crate::providers::private_file::write_private_file;
+use crate::providers::private_file::{private_file_target_path, write_private_file};
 use fs2::FileExt;
 use goose_providers::thinking::ThinkingEffort;
 #[cfg(feature = "system-keyring")]
@@ -931,16 +931,17 @@ impl Config {
         }
     }
 
-    fn secrets_mutation_lock_path(&self) -> PathBuf {
-        match &self.secrets {
+    fn secrets_mutation_lock_path(&self) -> Result<PathBuf, ConfigError> {
+        let storage_path = match &self.secrets {
             #[cfg(feature = "system-keyring")]
-            SecretStorage::Keyring { .. } => secrets_lock_path(&Self::secrets_file_path()),
-            SecretStorage::File { path } => secrets_lock_path(path),
-        }
+            SecretStorage::Keyring { .. } => Self::secrets_file_path(),
+            SecretStorage::File { path } => path.clone(),
+        };
+        Ok(secrets_lock_path(&private_file_target_path(&storage_path)?))
     }
 
     fn lock_secrets_for_mutation(&self) -> Result<std::fs::File, ConfigError> {
-        let lock_path = self.secrets_mutation_lock_path();
+        let lock_path = self.secrets_mutation_lock_path()?;
         if let Some(parent) = lock_path
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
@@ -1617,6 +1618,29 @@ mod tests {
             Some(&Value::String("old-value".into()))
         );
         assert_eq!(config.get_secret::<String>("key")?, "new-value");
+
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_secret_mutation_lock_uses_resolved_storage_target() -> Result<(), ConfigError> {
+        use std::os::unix::fs::symlink;
+
+        let directory = TempDir::new().unwrap();
+        let config_path = directory.path().join("config.yaml");
+        let secrets_path = directory.path().join("secrets.yaml");
+        let secrets_alias = directory.path().join("secrets-alias.yaml");
+        std::fs::write(&secrets_path, "{}\n")?;
+        symlink("secrets.yaml", &secrets_alias)?;
+
+        let direct = Config::new_with_file_secrets(&config_path, &secrets_path)?;
+        let aliased = Config::new_with_file_secrets(&config_path, &secrets_alias)?;
+
+        assert_eq!(
+            direct.secrets_mutation_lock_path()?,
+            aliased.secrets_mutation_lock_path()?
+        );
 
         Ok(())
     }

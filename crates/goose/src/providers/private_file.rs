@@ -186,26 +186,50 @@ fn persist_private_temporary_file(
         .map_err(|error| error.error)
 }
 
-pub(crate) fn write_private_file(path: &Path, contents: &str) -> io::Result<()> {
-    let write_path = match std::fs::symlink_metadata(path) {
-        Ok(metadata) if metadata.file_type().is_symlink() => {
-            let target = std::fs::read_link(path)?;
-            if target.is_absolute() {
-                target
-            } else {
-                path.parent().unwrap_or_else(|| Path::new(".")).join(target)
+pub(crate) fn private_file_target_path(path: &Path) -> io::Result<PathBuf> {
+    const MAX_SYMLINK_HOPS: usize = 1;
+
+    let mut resolved = PathBuf::from(path);
+    let mut hops = 0;
+    loop {
+        match std::fs::symlink_metadata(&resolved) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                if hops >= MAX_SYMLINK_HOPS {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!(
+                            "Too many symlink levels (or a cycle) while resolving private file path: {path:?}"
+                        ),
+                    ));
+                }
+                hops += 1;
+
+                let target = std::fs::read_link(&resolved)?;
+                resolved = if target.is_absolute() {
+                    target
+                } else {
+                    resolved
+                        .parent()
+                        .unwrap_or_else(|| Path::new("."))
+                        .join(target)
+                };
             }
+            Ok(_) => return Ok(resolved),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(resolved),
+            Err(error) => return Err(error),
         }
-        Ok(_) => PathBuf::from(path),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => PathBuf::from(path),
-        Err(error) => return Err(error),
-    };
-    let parent = write_path.parent().ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "private file path must have a parent directory",
-        )
-    })?;
+    }
+}
+
+fn private_file_parent(path: &Path) -> &Path {
+    path.parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."))
+}
+
+pub(crate) fn write_private_file(path: &Path, contents: &str) -> io::Result<()> {
+    let write_path = private_file_target_path(path)?;
+    let parent = private_file_parent(&write_path);
     std::fs::create_dir_all(parent)?;
 
     let mut temporary = create_private_temporary_file(parent)?;
@@ -267,6 +291,40 @@ mod tests {
         assert_ne!(metadata.ino(), old_inode);
         assert_eq!(metadata.permissions().mode() & 0o777, 0o600);
         assert_eq!(std::fs::read_to_string(target).unwrap(), "new-secret");
+    }
+
+    #[test]
+    fn parentless_relative_path_uses_current_directory() {
+        let path = Path::new("token.json");
+        let resolved = private_file_target_path(path).unwrap();
+
+        assert_eq!(private_file_parent(&resolved), Path::new("."));
+    }
+
+    #[test]
+    fn rejects_chained_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("token.json");
+        let intermediate = directory.path().join("managed-token.json");
+        let target = directory.path().join("actual-token.json");
+        std::fs::write(&target, "old").unwrap();
+        symlink("actual-token.json", &intermediate).unwrap();
+        symlink("managed-token.json", &path).unwrap();
+
+        let error = write_private_file(&path, "new-secret").unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(std::fs::read_to_string(target).unwrap(), "old");
+        assert!(std::fs::symlink_metadata(path)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert!(std::fs::symlink_metadata(intermediate)
+            .unwrap()
+            .file_type()
+            .is_symlink());
     }
 }
 
