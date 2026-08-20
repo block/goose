@@ -20,10 +20,10 @@ use super::{
     copilot_acp::CopilotAcpProvider,
     cursor_agent::CursorAgentProvider,
     gcpvertexai::GcpVertexAIProvider,
-    gondola::GondolaProvider,
     gemini_cli::GeminiCliProvider,
     gemini_oauth::GeminiOAuthProvider,
     githubcopilot::GithubCopilotProvider,
+    gondola::GondolaProvider,
     huggingface::HuggingFaceProvider,
     kimicode::KimiCodeProvider,
     litellm::LiteLLMProvider,
@@ -114,7 +114,6 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             Some(registrations::refresh_only()),
         );
         registry.register::<GeminiCliProvider>(false);
-        registry.register::<GondolaProvider>(false);
         registry.register_with_inventory::<GeminiOAuthProvider>(
             false,
             Some(registrations::gemini_oauth_inventory()),
@@ -123,6 +122,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             false,
             Some(registrations::refresh_only()),
         );
+        registry.register::<GondolaProvider>(false);
         registry.register_with_inventory::<GoogleProviderDef>(
             true,
             Some(registrations::google_inventory()),
@@ -329,6 +329,21 @@ mod tests {
             .config_keys
             .iter()
             .any(|key| key.name == "HF_TOKEN" && key.secret));
+    }
+
+    #[tokio::test]
+    async fn test_gondola_provider_registry_wiring() {
+        let gondola = get_from_registry("gondola")
+            .await
+            .expect("gondola provider should be registered");
+        let meta = gondola.metadata();
+
+        assert_eq!(meta.name, "gondola");
+        assert_eq!(meta.default_model, "deepseek-v4-flash");
+        assert!(meta
+            .config_keys
+            .iter()
+            .any(|key| key.name == "GONDOLA_API_KEY" && key.secret));
     }
 
     #[tokio::test]
