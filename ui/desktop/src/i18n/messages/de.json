@@ -3425,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Zeitplan-ID wird angezeigt: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (bereits geplant)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "Nach YAML-Datei suchen..."
   },
@@ -3478,6 +3481,9 @@
   },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Bitte geben Sie eine gültige Rezeptquelle an."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "Dieses Rezept hat bereits einen Zeitplan. Bearbeiten Sie ihn in der Rezeptliste."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Beschreibung: {description}"

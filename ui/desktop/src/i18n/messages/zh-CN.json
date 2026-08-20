@@ -3425,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "正在查看计划 ID：{id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title}（已安排）"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "浏览 YAML 文件…"
   },
@@ -3478,6 +3481,9 @@
   },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "请提供有效的配方来源。"
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "此配方已有计划。请从配方列表中编辑。"
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "描述：{description}"

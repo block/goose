@@ -3455,6 +3455,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Viewing Schedule ID: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (already scheduled)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "Browse for YAML file..."
   },
@@ -3508,6 +3511,9 @@
   },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Please provide a valid recipe source."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "This recipe already has a schedule. Edit it from the Recipes list."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Description: {description}"

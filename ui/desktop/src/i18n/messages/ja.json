@@ -3425,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "表示中のスケジュールID: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title}（スケジュール済み）"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "YAMLファイルを選択..."
   },
@@ -3478,6 +3481,9 @@
   },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "有効なレシピソースを指定してください。"
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "このレシピには既にスケジュールがあります。レシピ一覧から編集してください。"
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "説明: {description}"

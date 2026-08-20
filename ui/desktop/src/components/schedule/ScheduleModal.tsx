@@ -36,6 +36,14 @@ const i18n = defineMessages({
     id: 'scheduleModal.selectRecipePlaceholder',
     defaultMessage: 'Select a saved recipe',
   },
+  alreadyScheduledOption: {
+    id: 'scheduleModal.alreadyScheduledOption',
+    defaultMessage: '{title} (already scheduled)',
+  },
+  recipeAlreadyScheduled: {
+    id: 'scheduleModal.recipeAlreadyScheduled',
+    defaultMessage: 'This recipe already has a schedule. Edit it from the Recipes list.',
+  },
   loadingRecipes: { id: 'scheduleModal.loadingRecipes', defaultMessage: 'Loading recipes...' },
   noSavedRecipes: { id: 'scheduleModal.noSavedRecipes', defaultMessage: 'No saved recipes found.' },
   failedLoadRecipes: {
@@ -166,16 +174,25 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
     [clearRecipeSourceState, sourceType]
   );
 
-  const handleSelectSavedRecipe = useCallback((manifest: RecipeManifest | null) => {
-    bumpSourceRequest();
-    setSelectedSavedRecipeId(manifest?.id ?? null);
-    setInternalValidationError(null);
-    if (manifest) {
-      setParsedRecipe(manifest.recipe);
-    } else {
-      setParsedRecipe(null);
-    }
-  }, []);
+  const handleSelectSavedRecipe = useCallback(
+    (manifest: RecipeManifest | null) => {
+      bumpSourceRequest();
+      if (manifest?.schedule_cron) {
+        setSelectedSavedRecipeId(null);
+        setParsedRecipe(null);
+        setInternalValidationError(intl.formatMessage(i18n.recipeAlreadyScheduled));
+        return;
+      }
+      setSelectedSavedRecipeId(manifest?.id ?? null);
+      setInternalValidationError(null);
+      if (manifest) {
+        setParsedRecipe(manifest.recipe);
+      } else {
+        setParsedRecipe(null);
+      }
+    },
+    [intl]
+  );
 
   const handleDeepLinkChange = useCallback(
     async (value: string) => {
@@ -260,8 +277,14 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   }, [sourceType, intl]);
 
   const savedRecipeOptions = useMemo(
-    () => savedRecipes.map((m) => ({ value: m.id, label: m.recipe.title || m.id })),
-    [savedRecipes]
+    () =>
+      savedRecipes.map((m) => ({
+        value: m.id,
+        label: m.schedule_cron
+          ? intl.formatMessage(i18n.alreadyScheduledOption, { title: m.recipe.title || m.id })
+          : m.recipe.title || m.id,
+      })),
+    [savedRecipes, intl]
   );
 
   const handleBrowseFile = async () => {
@@ -315,13 +338,18 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
     }
 
     if (sourceType === 'saved') {
-      if (!selectedSavedRecipeId) {
+      const selected = savedRecipes.find((m) => m.id === selectedSavedRecipeId);
+      if (!selected) {
         setInternalValidationError(intl.formatMessage(i18n.provideValidRecipe));
+        return;
+      }
+      if (selected.schedule_cron) {
+        setInternalValidationError(intl.formatMessage(i18n.recipeAlreadyScheduled));
         return;
       }
       await onSubmit({
         sourceType: 'saved',
-        recipeId: selectedSavedRecipeId,
+        recipeId: selected.id,
         cron: cronExpression,
       });
       return;

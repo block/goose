@@ -3425,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Просмотр ID расписания: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (уже запланирован)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "Выбрать YAML-файл..."
   },
@@ -3478,6 +3481,9 @@
   },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Укажите корректный источник рецепта."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "У этого рецепта уже есть расписание. Измените его в списке рецептов."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Описание: {description}"

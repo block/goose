@@ -3425,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "शेड्यूल आईडी देखना: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (पहले से शेड्यूल)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "YAML फ़ाइल ब्राउज़ करें..."
   },
@@ -3478,6 +3481,9 @@
   },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "कृपया एक मान्य रेसिपी स्रोत दें।"
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "इस रेसिपी का पहले से शेड्यूल है। रेसिपी सूची से इसे संपादित करें।"
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "विवरण: {description}"

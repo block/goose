@@ -35,6 +35,14 @@ const savedRecipeManifest = {
   last_modified: '',
 } as unknown as RecipeManifest;
 
+const alreadyScheduledManifest = {
+  id: 'already-scheduled',
+  recipe: { title: 'Already Scheduled', description: 'Has a cron' },
+  file_path: '/recipes/already-scheduled.yaml',
+  last_modified: '',
+  schedule_cron: '0 0 9 * * *',
+} as unknown as RecipeManifest;
+
 describe('ScheduleModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -127,6 +135,33 @@ describe('ScheduleModal', () => {
       expect(screen.getByText('Failed to load recipes.')).toBeInTheDocument();
     });
     expect(screen.queryByText('No saved recipes found.')).not.toBeInTheDocument();
+  });
+
+  it('blocks creating a schedule from an already-scheduled recipe', async () => {
+    vi.mocked(listSavedRecipes).mockResolvedValue([alreadyScheduledManifest]);
+    const user = userEvent.setup();
+    renderWithIntl(<ScheduleModal {...baseProps} isOpen schedule={null} />);
+
+    await user.click(screen.getByRole('button', { name: 'Saved recipes' }));
+    await waitFor(() => {
+      expect(listSavedRecipes).toHaveBeenCalled();
+    });
+
+    const picker = within(screen.getByTestId('saved-recipe-picker'));
+    await user.click(await picker.findByRole('combobox'));
+    await user.click(
+      await picker.findByRole('option', { name: /Already Scheduled \(already scheduled\)/i })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('This recipe already has a schedule. Edit it from the Recipes list.')
+      ).toBeInTheDocument();
+    });
+    expect(baseProps.onSubmit).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Create Schedule' }));
+    expect(baseProps.onSubmit).not.toHaveBeenCalled();
   });
 
   it('clears a previously parsed recipe when switching source tabs', async () => {

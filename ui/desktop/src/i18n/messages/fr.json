@@ -3425,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Affichage de l'ID de planification : {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (déjà planifiée)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "Parcourir pour un fichier YAML..."
   },
@@ -3478,6 +3481,9 @@
   },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Veuillez fournir une source de recette valide."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "Cette recette a déjà une planification. Modifiez-la depuis la liste des Recettes."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Description : {description}"

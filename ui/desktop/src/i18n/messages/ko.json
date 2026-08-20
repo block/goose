@@ -3425,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "일정 ID 보기: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (이미 예약됨)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "YAML 파일 찾아보기..."
   },
@@ -3478,6 +3481,9 @@
   },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "유효한 레시피 소스를 입력하세요."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "이 레시피에는 이미 일정이 있습니다. 레시피 목록에서 편집하세요."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "설명: {description}"

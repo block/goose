@@ -3425,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Viendo el ID de programación: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (ya programada)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "Buscar archivo YAML..."
   },
@@ -3478,6 +3481,9 @@
   },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Proporciona un origen de receta válido."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "Esta receta ya tiene una programación. Edítala desde la lista de Recetas."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Descripción: {description}"
