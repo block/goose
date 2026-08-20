@@ -612,6 +612,7 @@ impl GooseAcpAgent {
         &self,
         req: CustomProviderCreateRequest,
     ) -> Result<CustomProviderCreateResponse, agent_client_protocol::Error> {
+        let toolshim = req.toolshim;
         let provider = normalize_custom_provider_upsert(req.provider, true)?;
         let config = declarative_providers::create_custom_provider(
             declarative_providers::CreateCustomProviderParams {
@@ -625,7 +626,7 @@ impl GooseAcpAgent {
                 requires_auth: provider.requires_auth,
                 catalog_provider_id: provider.catalog_provider_id,
                 base_path: provider.base_path,
-                toolshim: provider.toolshim,
+                toolshim,
                 preserves_thinking: provider.preserves_thinking,
             },
         )
@@ -670,6 +671,10 @@ impl GooseAcpAgent {
                 .data(format!("Provider is not editable: {}", req.provider_id)));
         }
 
+        let toolshim = match req.toolshim {
+            ToolshimUpdate::Keep => loaded.config.toolshim,
+            ToolshimUpdate::Set(value) => value,
+        };
         let provider = normalize_custom_provider_upsert(req.provider, false)?;
         if provider.requires_auth && provider.api_key.is_none() {
             let api_key_env = if loaded.config.api_key_env.is_empty() {
@@ -695,7 +700,7 @@ impl GooseAcpAgent {
                 requires_auth: provider.requires_auth,
                 catalog_provider_id: provider.catalog_provider_id,
                 base_path: provider.base_path,
-                toolshim: provider.toolshim,
+                toolshim,
                 preserves_thinking: provider.preserves_thinking,
             },
         )

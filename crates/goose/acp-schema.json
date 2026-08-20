@@ -2308,17 +2308,15 @@
             "null"
           ]
         },
-        "toolshim": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
         "preservesThinking": {
           "type": [
             "boolean",
             "null"
           ]
+        },
+        "toolshim": {
+          "type": "boolean",
+          "default": false
         }
       },
       "required": [
@@ -2503,10 +2501,7 @@
           ]
         },
         "toolshim": {
-          "type": [
-            "boolean",
-            "null"
-          ]
+          "type": "boolean"
         },
         "apiKeyEnv": {
           "type": [
@@ -2527,6 +2522,7 @@
         "displayName",
         "apiUrl",
         "requiresAuth",
+        "toolshim",
         "apiKeySet",
         "preservesThinking"
       ]
@@ -2587,17 +2583,14 @@
             "null"
           ]
         },
-        "toolshim": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
         "preservesThinking": {
           "type": [
             "boolean",
             "null"
           ]
+        },
+        "toolshim": {
+          "type": "boolean"
         }
       },
       "required": [

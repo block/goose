@@ -32,7 +32,7 @@ pub struct ProviderEntry {
     provider_type: ProviderType,
     supports_inventory_refresh: bool,
     tls_config: Option<TlsConfig>,
-    toolshim: Option<bool>,
+    toolshim: bool,
 }
 
 impl ProviderEntry {
@@ -62,8 +62,8 @@ impl ProviderEntry {
     /// the agent/session layer to resolve effective limits (e.g. for custom
     /// providers that declare explicit context limits in their config).
     pub fn normalize_model_config(&self, mut model: ModelConfig) -> Result<ModelConfig> {
-        if let Some(toolshim) = self.toolshim {
-            model = model.with_toolshim(toolshim);
+        if self.toolshim {
+            model = model.with_toolshim(true);
         }
         model = crate::model_config::materialize_model_config(&self.metadata.name, model)?;
 
@@ -167,7 +167,7 @@ impl ProviderRegistry {
                 },
                 supports_inventory_refresh: inventory.supports_refresh,
                 tls_config: self.tls_config.clone(),
-                toolshim: None,
+                toolshim: false,
             },
         );
     }
@@ -405,7 +405,7 @@ mod tests {
             model_doc_link: None,
             setup_steps: vec![],
             fast_model: None,
-            toolshim: None,
+            toolshim: false,
             preserves_thinking: false,
             emit_clear_thinking: false,
             setup: None,
@@ -432,13 +432,9 @@ mod tests {
     }
 
     #[test]
-    fn custom_provider_toolshim_overrides_are_isolated() {
+    fn custom_provider_toolshim_uses_global_setting_as_fallback() {
         let mut registry = ProviderRegistry::new(None);
-        for (name, toolshim) in [
-            ("custom_toolshim", Some(true)),
-            ("custom_native", Some(false)),
-            ("custom_default", None),
-        ] {
+        for (name, toolshim) in [("custom_toolshim", true), ("custom_default", false)] {
             let mut config = test_config();
             config.name = name.to_string();
             config.toolshim = toolshim;
@@ -454,15 +450,15 @@ mod tests {
         let toolshim = registry.entries["custom_toolshim"]
             .normalize_model_config(ModelConfig::new("test-model"))
             .unwrap();
-        let native = registry.entries["custom_native"]
+        let fallback_enabled = registry.entries["custom_default"]
             .normalize_model_config(ModelConfig::new("test-model").with_toolshim(true))
             .unwrap();
-        let fallback = registry.entries["custom_default"]
-            .normalize_model_config(ModelConfig::new("test-model").with_toolshim(true))
+        let fallback_disabled = registry.entries["custom_default"]
+            .normalize_model_config(ModelConfig::new("test-model"))
             .unwrap();
 
         assert!(toolshim.toolshim);
-        assert!(!native.toolshim);
-        assert!(fallback.toolshim);
+        assert!(fallback_enabled.toolshim);
+        assert!(!fallback_disabled.toolshim);
     }
 }

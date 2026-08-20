@@ -2249,7 +2249,7 @@ fn add_provider() -> anyhow::Result<()> {
         requires_auth,
         catalog_provider_id: None,
         base_path,
-        toolshim: None,
+        toolshim: false,
         preserves_thinking: None,
     })?;
 

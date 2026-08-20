@@ -309,7 +309,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
         assert_eq!(saved_provider.name, provider_id);
         assert_eq!(saved_provider.display_name, "Stark ACP Provider");
         assert_eq!(saved_provider.base_url, "https://stark.example/v1");
-        assert_eq!(saved_provider.toolshim, Some(true));
+        assert!(saved_provider.toolshim);
         assert!(saved_provider.preserves_thinking);
         assert_eq!(
             saved_provider
@@ -392,7 +392,6 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "headers": {},
                 "requiresAuth": true,
                 "catalogProviderId": "zai",
-                "toolshim": false,
                 "preservesThinking": false
             }),
         )
@@ -424,7 +423,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
         );
         assert_eq!(updated_provider.base_path, None);
         assert_eq!(updated_provider.headers, None);
-        assert_eq!(updated_provider.toolshim, Some(false));
+        assert!(updated_provider.toolshim);
         assert!(!updated_provider.preserves_thinking);
         assert_eq!(
             updated_provider
@@ -448,7 +447,8 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "supportsStreaming": false,
                 "headers": {},
                 "requiresAuth": false,
-                "catalogProviderId": "zai"
+                "catalogProviderId": "zai",
+                "toolshim": false
             }),
         )
         .await
@@ -466,6 +466,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 .expect("no-auth provider should remain core-compatible");
         assert!(!no_auth_provider.requires_auth);
         assert_eq!(no_auth_provider.api_key_env, "");
+        assert!(!no_auth_provider.toolshim);
         assert!(!no_auth_provider.preserves_thinking);
         assert!(
             matches!(
