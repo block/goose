@@ -179,8 +179,23 @@ impl ScheduleTool {
         let recipe_dir = canonical_recipe_path
             .parent()
             .map(|path| path.to_string_lossy().into_owned());
-        validate_recipe_template_from_content(&content, recipe_dir)
-            .map_err(|error| recipe_file_error(&format!("Invalid recipe: {error}")))?;
+        validate_recipe_template_from_content(&content, recipe_dir.clone()).map_err(|error| {
+            let message = error.to_string();
+            // Initial parse/type errors echo the file contents in the serde
+            // error (e.g. `invalid type: string "yaml-secret-242", expected
+            // struct Recipe`). Those must stay generic; the checks that
+            // follow describe the recipe's own shape and are safe to
+            // report with the specific message.
+            if message.contains("invalid type:") {
+                if recipe_path.ends_with(".json") {
+                    recipe_file_error("Invalid JSON recipe")
+                } else {
+                    recipe_file_error("Invalid YAML recipe")
+                }
+            } else {
+                recipe_file_error(&format!("Invalid recipe: {message}"))
+            }
+        })?;
 
         // Generate unique job ID
         let job_id = format!("agent_created_{}", uuid::Uuid::new_v4());
