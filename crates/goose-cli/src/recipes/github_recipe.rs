@@ -1,20 +1,38 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use console::style;
-use goose::recipe::template_recipe::parse_recipe_content;
 use goose::recipe::RECIPE_FILE_EXTENSIONS;
+use goose::recipe::template_recipe::parse_recipe_content;
 use serde::{Deserialize, Serialize};
 
 use goose::recipe::read_recipe_file_content::RecipeFile;
-use goose::subprocess::{git_command, SubprocessExt};
+use goose::subprocess::{SubprocessExt, git_command};
 use sha2::{Digest, Sha256};
+use std::collections::HashSet;
 use std::env;
 use std::fs;
-use std::io::Read;
+use std::io::{self, Read};
 
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 use std::process::Stdio;
 use tar::Archive;
+
+#[derive(Clone, Copy)]
+struct ArchiveLimits {
+    entries: usize,
+    path_bytes: usize,
+    total_path_bytes: usize,
+    inodes: usize,
+    overhead_bytes: usize,
+}
+
+const ARCHIVE_LIMITS: ArchiveLimits = ArchiveLimits {
+    entries: 1024,
+    path_bytes: 4096,
+    total_path_bytes: 1024 * 1024,
+    inodes: 4096,
+    overhead_bytes: 4 * 1024 * 1024,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecipeInfo {
@@ -80,7 +98,7 @@ fn retrieve_recipe_from_github_with_optional_limit(
                         content,
                         parent_dir: download_dir.clone(),
                         file_path: recipe_file_local_path,
-                    })
+                    });
                 }
                 Err(err) => return Err(err),
             },
@@ -390,16 +408,95 @@ fn get_folder_from_github_with_byte_limit(
     Ok(output_dir)
 }
 
+struct BoundedArchiveReader<R> {
+    inner: R,
+    remaining: usize,
+}
+
+impl<R: Read> Read for BoundedArchiveReader<R> {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        if buffer.is_empty() {
+            return Ok(0);
+        }
+        if self.remaining == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Recipe archive exceeds its metadata limit",
+            ));
+        }
+        let read_limit = buffer.len().min(self.remaining);
+        let read = self.inner.read(&mut buffer[..read_limit])?;
+        self.remaining -= read;
+        Ok(read)
+    }
+}
+
 fn extract_bounded_archive(reader: impl Read, output_dir: &Path, max_bytes: usize) -> Result<()> {
-    let mut archive = Archive::new(reader);
+    extract_bounded_archive_with_limits(reader, output_dir, max_bytes, ARCHIVE_LIMITS)
+}
+
+fn extract_bounded_archive_with_limits(
+    reader: impl Read,
+    output_dir: &Path,
+    max_bytes: usize,
+    limits: ArchiveLimits,
+) -> Result<()> {
+    let archive_bytes = max_bytes
+        .checked_add(limits.overhead_bytes)
+        .ok_or_else(|| anyhow!("Recipe archive byte limit is too large"))?;
+    let mut archive = Archive::new(BoundedArchiveReader {
+        inner: reader,
+        remaining: archive_bytes,
+    });
     let mut extracted_bytes = 0_u64;
+    let mut entry_count = 0;
+    let mut path_bytes = 0_usize;
+    let mut extracted_paths = HashSet::new();
     for entry in archive.entries()? {
         let mut entry = entry?;
+        entry_count += 1;
+        if entry_count > limits.entries {
+            return Err(anyhow!(
+                "Recipe bundle exceeds the {}-entry limit",
+                limits.entries
+            ));
+        }
         extracted_bytes = extracted_bytes
-            .checked_add(entry.header().size()?)
+            .checked_add(entry.size())
             .ok_or_else(|| anyhow!("Recipe bundle size overflowed"))?;
         if extracted_bytes > max_bytes as u64 {
             return Err(anyhow!("Recipe bundle exceeds the {max_bytes}-byte limit"));
+        }
+
+        let entry_path_bytes = entry.path_bytes().len();
+        let link_path_bytes = entry.link_name_bytes().map_or(0, |path| path.len());
+        if entry_path_bytes > limits.path_bytes || link_path_bytes > limits.path_bytes {
+            return Err(anyhow!(
+                "Recipe bundle contains a path exceeding the {}-byte limit",
+                limits.path_bytes
+            ));
+        }
+        path_bytes = path_bytes
+            .checked_add(entry_path_bytes)
+            .and_then(|total| total.checked_add(link_path_bytes))
+            .ok_or_else(|| anyhow!("Recipe bundle path size overflowed"))?;
+        if path_bytes > limits.total_path_bytes {
+            return Err(anyhow!(
+                "Recipe bundle exceeds the {}-byte path limit",
+                limits.total_path_bytes
+            ));
+        }
+
+        let mut extracted_path = PathBuf::new();
+        for component in entry.path()?.components() {
+            extracted_path.push(component);
+            extracted_paths.insert(extracted_path.clone());
+            if extracted_paths.len() > limits.inodes {
+                return Err(anyhow!(
+                    "Recipe bundle exceeds the {}-inode limit",
+                    limits.inodes
+                ));
+            }
         }
         if !entry.unpack_in(output_dir)? {
             return Err(anyhow!("Recipe bundle contains an unsafe path"));
@@ -530,7 +627,7 @@ fn get_github_recipe_info(repo: &str, dir_name: &str, recipe_filename: &str) -> 
 
     if let Some(content_b64) = file_info.get("content").and_then(|c| c.as_str()) {
         // Decode base64 content
-        use base64::{engine::general_purpose, Engine as _};
+        use base64::{Engine as _, engine::general_purpose};
         let content_bytes = general_purpose::STANDARD
             .decode(content_b64.replace('\n', ""))
             .map_err(|e| anyhow!("Failed to decode base64 content: {}", e))?;
@@ -583,6 +680,26 @@ mod tests {
             header.set_cksum();
             archive.append_data(&mut header, path, *content).unwrap();
         }
+        archive.into_inner().unwrap()
+    }
+
+    fn archive_with_extended_metadata(metadata: &[u8]) -> Vec<u8> {
+        let mut archive = tar::Builder::new(Vec::new());
+        let mut metadata_header = tar::Header::new_gnu();
+        metadata_header.set_entry_type(tar::EntryType::XHeader);
+        metadata_header.set_size(metadata.len() as u64);
+        metadata_header.set_mode(0o644);
+        metadata_header.set_cksum();
+        archive
+            .append_data(&mut metadata_header, "metadata", metadata)
+            .unwrap();
+        let mut recipe_header = tar::Header::new_gnu();
+        recipe_header.set_size(0);
+        recipe_header.set_mode(0o644);
+        recipe_header.set_cksum();
+        archive
+            .append_data(&mut recipe_header, "recipe.yaml", &[][..])
+            .unwrap();
         archive.into_inner().unwrap()
     }
 
@@ -648,6 +765,103 @@ mod tests {
             fs::read(output_dir.path().join("nested/grandchild.yaml")).unwrap(),
             grandchild
         );
+    }
+
+    #[test]
+    fn bounded_archive_limits_extended_metadata_reads() {
+        let bytes_read = Rc::new(Cell::new(0));
+        let reader = CountingReader {
+            inner: Cursor::new(archive_with_extended_metadata(&vec![b'x'; 2048])),
+            bytes_read: Rc::clone(&bytes_read),
+        };
+        let output_dir = tempfile::tempdir().unwrap();
+        let limits = ArchiveLimits {
+            overhead_bytes: 1024,
+            ..ARCHIVE_LIMITS
+        };
+
+        assert!(extract_bounded_archive_with_limits(reader, output_dir.path(), 0, limits).is_err());
+        assert_eq!(bytes_read.get(), limits.overhead_bytes);
+        assert!(!output_dir.path().join("recipe.yaml").exists());
+    }
+
+    #[test]
+    fn bounded_archive_limits_entries_before_creating_another_inode() {
+        let output_dir = tempfile::tempdir().unwrap();
+        let limits = ArchiveLimits {
+            entries: 1,
+            ..ARCHIVE_LIMITS
+        };
+
+        let error = extract_bounded_archive_with_limits(
+            Cursor::new(archive_with_files(&[("first", b""), ("second", b"")])),
+            output_dir.path(),
+            0,
+            limits,
+        )
+        .unwrap_err()
+        .to_string();
+
+        assert!(error.contains("entry limit"));
+        assert!(output_dir.path().join("first").exists());
+        assert!(!output_dir.path().join("second").exists());
+    }
+
+    #[test]
+    fn bounded_archive_limits_individual_and_total_path_bytes() {
+        let output_dir = tempfile::tempdir().unwrap();
+        let individual_path_limits = ArchiveLimits {
+            path_bytes: 3,
+            ..ARCHIVE_LIMITS
+        };
+        let total_path_limits = ArchiveLimits {
+            total_path_bytes: 5,
+            ..ARCHIVE_LIMITS
+        };
+
+        let individual_error = extract_bounded_archive_with_limits(
+            Cursor::new(archive_with_files(&[("long", b"")])),
+            output_dir.path(),
+            0,
+            individual_path_limits,
+        )
+        .unwrap_err()
+        .to_string();
+        let total_error = extract_bounded_archive_with_limits(
+            Cursor::new(archive_with_files(&[("one", b""), ("two", b"")])),
+            output_dir.path(),
+            0,
+            total_path_limits,
+        )
+        .unwrap_err()
+        .to_string();
+
+        assert!(individual_error.contains("path exceeding"));
+        assert!(total_error.contains("path limit"));
+        assert!(!output_dir.path().join("long").exists());
+        assert!(output_dir.path().join("one").exists());
+        assert!(!output_dir.path().join("two").exists());
+    }
+
+    #[test]
+    fn bounded_archive_limits_paths_that_would_create_too_many_inodes() {
+        let output_dir = tempfile::tempdir().unwrap();
+        let limits = ArchiveLimits {
+            inodes: 2,
+            ..ARCHIVE_LIMITS
+        };
+
+        let error = extract_bounded_archive_with_limits(
+            Cursor::new(archive_with_files(&[("one/two/recipe.yaml", b"")])),
+            output_dir.path(),
+            0,
+            limits,
+        )
+        .unwrap_err()
+        .to_string();
+
+        assert!(error.contains("inode limit"));
+        assert!(!output_dir.path().join("one").exists());
     }
 
     #[test]
