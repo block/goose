@@ -653,8 +653,11 @@ impl CliSession {
             output::show_loading_extensions_background();
         }
 
-        self.update_completion_cache().await?;
-
+        // The completion cache starts empty: populating it here would issue
+        // prompts/list to every connected extension, so a slow responder would
+        // block the prompt right after we announced loading continues in the
+        // background. The REPL loop's loading gate refreshes the cache once
+        // loading has finished, before the first input is read.
         let mut editor = self.create_editor()?;
         let history_manager = HistoryManager::new();
         history_manager.load(&mut editor);
