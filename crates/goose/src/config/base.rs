@@ -797,6 +797,38 @@ impl Config {
         Ok(serde_yaml::from_value(value.clone())?)
     }
 
+    pub(crate) fn get_param_source_values<T: for<'de> Deserialize<'de>>(
+        &self,
+        key: &str,
+    ) -> Result<Vec<T>, ConfigError> {
+        let mut source_values = Vec::new();
+        let env_key = key.to_uppercase();
+        if let Some(value) = env::var_os(&env_key) {
+            let value = value.into_string().map_err(|_| {
+                ConfigError::DeserializeError(format!(
+                    "environment variable {env_key} is not valid UTF-8"
+                ))
+            })?;
+            source_values.push(serde_json::from_value(Self::parse_env_value(&value)?)?);
+        }
+
+        for path in &self.config_paths {
+            let content = match std::fs::read_to_string(path) {
+                Ok(content) => content,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(error.into()),
+            };
+            let mut values = parse_yaml_content(&content)?;
+            crate::config::migrations::run_read_migrations(&mut values);
+            let Some(value) = values.get(key) else {
+                continue;
+            };
+            source_values.push(serde_yaml::from_value(value.clone())?);
+        }
+
+        Ok(source_values)
+    }
+
     /// Read-modify-write a configuration value atomically through the write path.
     pub fn update_param<T, V, F>(&self, key: &str, f: F) -> Result<(), ConfigError>
     where

@@ -128,16 +128,17 @@ impl PairingStore {
     }
 
     fn verify_legacy_pending_codes_removed(config: &Config) -> anyhow::Result<()> {
-        match config.get_param::<Vec<StoredPendingCode>>(PENDING_CODES_CONFIG_KEY) {
-            Err(ConfigError::NotFound(_)) => Ok(()),
-            Ok(codes) if codes.is_empty() => Ok(()),
-            Ok(_) => Err(anyhow::anyhow!(
+        let source_values = config
+            .get_param_source_values::<Vec<StoredPendingCode>>(PENDING_CODES_CONFIG_KEY)
+            .map_err(|error| {
+                anyhow::anyhow!("failed to verify removal of legacy pending codes: {error}")
+            })?;
+        if source_values.iter().all(Vec::is_empty) {
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
                 "legacy pending codes remain in GATEWAY_PENDING_CODES, the system config, or GOOSE_ADDITIONAL_CONFIG_FILES"
-            )),
-            Err(error) => Err(anyhow::anyhow!(
-                "failed to verify removal of legacy pending codes: {}",
-                error
-            )),
+            ))
         }
     }
 
@@ -454,6 +455,44 @@ mod tests {
         assert_eq!(
             PairingStore::consume_pending_code_in(&config, "NEW-CODE", 100).unwrap(),
             Some("telegram".to_string())
+        );
+    }
+
+    #[test]
+    fn empty_overlay_cannot_hide_nonempty_legacy_source() {
+        let directory = TempDir::new().unwrap();
+        let system_config_path = directory.path().join("system.yaml");
+        let additional_config_path = directory.path().join("additional.yaml");
+        let user_config_path = directory.path().join("user.yaml");
+        let secrets_path = directory.path().join("secrets.yaml");
+        let system_config =
+            Config::new_with_file_secrets(&system_config_path, &secrets_path).unwrap();
+        system_config
+            .set_param(
+                PENDING_CODES_CONFIG_KEY,
+                [StoredPendingCode {
+                    code: "SYSTEM-CODE".to_string(),
+                    gateway_type: "slack".to_string(),
+                    expires_at: 101,
+                }],
+            )
+            .unwrap();
+        let additional_config =
+            Config::new_with_file_secrets(&additional_config_path, &secrets_path).unwrap();
+        additional_config
+            .set_param(PENDING_CODES_CONFIG_KEY, Vec::<StoredPendingCode>::new())
+            .unwrap();
+        let config = Config::new_with_config_paths(
+            vec![system_config_path, additional_config_path, user_config_path],
+            &secrets_path,
+        )
+        .unwrap();
+
+        assert!(
+            PairingStore::store_pending_code_in(&config, "NEW-CODE", "telegram", 101)
+                .unwrap_err()
+                .to_string()
+                .contains("legacy pending codes remain")
         );
     }
 
