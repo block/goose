@@ -38,6 +38,12 @@ impl goose_providers::base::ProviderDescriptor for GondolaProvider {
                 ConfigKey::new("GONDOLA_HOST", false, false, Some(GONDOLA_API_HOST), false),
             ],
         )
+        .with_setup(
+            crate::providers::catalog::ProviderSetupMetadata::api_key(
+                crate::providers::catalog::ProviderSetupGroup::Default,
+            )
+            .with_docs_url(GONDOLA_DOC_URL),
+        )
     }
 }
 
