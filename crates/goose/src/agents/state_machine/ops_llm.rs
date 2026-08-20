@@ -575,10 +575,16 @@ impl Inference<Session, GooseEffect> for InferenceRunner<'_> {
                 return yielded_with(usage_effects);
             }
 
-            let has_recorded_usage = usage_effects
-                .iter()
-                .any(|effect| matches!(effect, GooseEffect::RecordUsage(_)));
-            if !has_recorded_usage {
+            let has_recorded_tokens = usage_effects.iter().any(|effect| {
+                matches!(
+                    effect,
+                    GooseEffect::RecordUsage(usage)
+                        if usage.usage.input_tokens.is_some()
+                            || usage.usage.output_tokens.is_some()
+                            || usage.usage.total_tokens.is_some()
+                )
+            });
+            if !has_recorded_tokens {
                 let mut usage = ProviderUsage::new(
                     self.model_config.model_name.clone(),
                     goose_providers::conversation::token_usage::Usage::default(),
