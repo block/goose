@@ -51,6 +51,10 @@ When you lack the tools needed to complete a task, use search_available_extensio
 to discover what extensions can help.
 
 Use manage_extensions to enable or disable specific extensions by name.
+Extension changes apply immediately in this session and are saved as defaults.
+Never tell the user to restart or reload Goose for extension configuration changes.
+If you added or edited an extension in config.yaml, call manage_extensions
+with action=enable so this session picks it up.
 Use list_resources and read_resource to work with extension data and resources.
 
 ## analyze

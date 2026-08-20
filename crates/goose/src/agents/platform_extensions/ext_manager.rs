@@ -1,7 +1,8 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::agents::tool_execution::ToolCallContext;
-use crate::config::get_extension_by_name;
+use crate::config::extensions::name_to_key;
+use crate::config::{get_extension_by_name, set_extension, set_extension_enabled, ExtensionEntry};
 use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
@@ -62,6 +63,18 @@ pub struct ListResourcesParams {
     pub extension_name: Option<String>,
 }
 
+fn persist_extension_enabled(extension_name: &str, enabled: bool) {
+    let key = name_to_key(extension_name);
+    if set_extension_enabled(&key, enabled) {
+        return;
+    }
+
+    let Some(config) = get_extension_by_name(extension_name) else {
+        return;
+    };
+    set_extension(ExtensionEntry { enabled, config });
+}
+
 pub const READ_RESOURCE_TOOL_NAME: &str = "read_resource";
 pub const LIST_RESOURCES_TOOL_NAME: &str = "list_resources";
 pub const SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME: &str = "search_available_extensions";
@@ -95,6 +108,10 @@ impl ExtensionManagerClient {
             to discover what extensions can help.
 
             Use manage_extensions to enable or disable specific extensions by name.
+            Extension changes apply immediately in this session and are saved as defaults.
+            Never tell the user to restart or reload Goose for extension configuration changes.
+            If you added or edited an extension in config.yaml, call manage_extensions
+            with action=enable so this session picks it up.
             Use list_resources and read_resource to work with extension data and resources.
         "#});
 
@@ -122,6 +139,7 @@ impl ExtensionManagerClient {
 
     async fn handle_manage_extensions(
         &self,
+        session_id: &str,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<ContentBlock>, ExtensionManagerToolError> {
         let arguments = arguments.ok_or(ExtensionManagerToolError::MissingParameter {
@@ -132,7 +150,7 @@ impl ExtensionManagerClient {
             serde_json::from_value(serde_json::Value::Object(arguments))?;
 
         match self
-            .manage_extensions_impl(params.action, params.extension_name)
+            .manage_extensions_impl(params.action, params.extension_name, session_id)
             .await
         {
             Ok(content) => Ok(content),
@@ -146,6 +164,7 @@ impl ExtensionManagerClient {
         &self,
         action: ManageExtensionAction,
         extension_name: String,
+        session_id: &str,
     ) -> Result<Vec<ContentBlock>, ErrorData> {
         let extension_manager = self
             .context
@@ -161,16 +180,15 @@ impl ExtensionManagerClient {
             })?;
 
         if action == ManageExtensionAction::Disable {
-            return extension_manager
+            extension_manager
                 .remove_extension(&extension_name)
                 .await
-                .map(|_| {
-                    vec![ContentBlock::text(format!(
-                        "The extension '{}' has been disabled successfully",
-                        extension_name
-                    ))]
-                })
-                .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None));
+                .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+            persist_extension_enabled(&extension_name, false);
+            return Ok(vec![ContentBlock::text(format!(
+                "The extension '{}' has been disabled in this session and saved as a default. The change is available immediately; do not restart Goose.",
+                extension_name
+            ))]);
         }
 
         let config = match get_extension_by_name(&extension_name) {
@@ -187,16 +205,23 @@ impl ExtensionManagerClient {
             }
         };
 
-        extension_manager
-            .add_extension(config, None, None, None)
+        let working_dir = self
+            .context
+            .session_manager
+            .get_session(session_id, false)
             .await
-            .map(|_| {
-                vec![ContentBlock::text(format!(
-                    "The extension '{}' has been installed successfully",
-                    extension_name
-                ))]
-            })
-            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))
+            .ok()
+            .map(|session| session.working_dir);
+
+        extension_manager
+            .add_extension(config, working_dir, None, Some(session_id))
+            .await
+            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+        persist_extension_enabled(&extension_name, true);
+        Ok(vec![ContentBlock::text(format!(
+            "The extension '{}' has been enabled in this session and saved as a default. Its tools are available immediately; do not restart Goose.",
+            extension_name
+        ))])
     }
 
     async fn handle_list_resources(
@@ -291,9 +316,10 @@ impl ExtensionManagerClient {
             )),
             Tool::new(
                 MANAGE_EXTENSIONS_TOOL_NAME.to_string(),
-                "Tool to manage extensions and tools in goose context.
-            Enable or disable extensions to help complete tasks.
-            Enable or disable an extension by providing the extension name.
+                "Enable or disable an extension in this Goose session and save it as a default.
+            Changes apply immediately; do not tell the user to restart or reload Goose.
+            Use this after adding or editing an extension in config.yaml so the current session picks it up.
+            Provide the extension name and action (enable or disable).
             ".to_string(),
                 Arc::new(
                     serde_json::to_value(schema_for!(ManageExtensionsParams))
@@ -424,7 +450,9 @@ impl McpClientTrait for ExtensionManagerClient {
             SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME => {
                 self.handle_search_available_extensions().await
             }
-            MANAGE_EXTENSIONS_TOOL_NAME => self.handle_manage_extensions(arguments).await,
+            MANAGE_EXTENSIONS_TOOL_NAME => {
+                self.handle_manage_extensions(session_id, arguments).await
+            }
             LIST_RESOURCES_TOOL_NAME => self.handle_list_resources(session_id, arguments).await,
             READ_RESOURCE_TOOL_NAME => self.handle_read_resource(session_id, arguments).await,
             _ => Err(ExtensionManagerToolError::UnknownTool {
@@ -465,5 +493,123 @@ impl McpClientTrait for ExtensionManagerClient {
 
     fn get_info(&self) -> Option<&InitializeResult> {
         Some(&self.info)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agents::extension::ExtensionConfig;
+    use crate::agents::extension_manager::ExtensionManager;
+    use crate::config::{get_all_extensions, set_extension, ExtensionEntry, GooseMode};
+    use crate::session::SessionType;
+    use rmcp::object;
+    use serial_test::serial;
+
+    fn todo_entry(enabled: bool) -> ExtensionEntry {
+        ExtensionEntry {
+            enabled,
+            config: ExtensionConfig::Platform {
+                name: "todo".to_string(),
+                description: "todo list".to_string(),
+                display_name: Some("Todo".to_string()),
+                bundled: Some(true),
+                available_tools: vec![],
+            },
+        }
+    }
+
+    fn result_text(result: &CallToolResult) -> String {
+        format!("{:?}", result.content)
+    }
+
+    async fn setup_client() -> (
+        tempfile::TempDir,
+        ExtensionManagerClient,
+        String,
+        Arc<ExtensionManager>,
+    ) {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let em = Arc::new(ExtensionManager::new_without_provider(
+            temp_dir.path().to_path_buf(),
+        ));
+        let session = em
+            .get_context()
+            .session_manager
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "test".to_string(),
+                SessionType::Hidden,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        let mut context = em.get_context().clone();
+        context.extension_manager = Some(Arc::downgrade(&em));
+        let client = ExtensionManagerClient::new(context).unwrap();
+        (temp_dir, client, session.id, em)
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn manage_extensions_enables_in_session_without_restart() {
+        set_extension(todo_entry(false));
+        let (_temp_dir, client, session_id, em) = setup_client().await;
+        let ctx = ToolCallContext::new(session_id.clone(), None, None);
+        let result = client
+            .call_tool(
+                &ctx,
+                MANAGE_EXTENSIONS_TOOL_NAME,
+                Some(object!({
+                    "action": "enable",
+                    "extension_name": "todo"
+                })),
+                CancellationToken::default(),
+            )
+            .await
+            .unwrap();
+
+        assert_ne!(result.is_error, Some(true));
+        let text = result_text(&result);
+        assert!(text.contains("enabled in this session"));
+        assert!(text.to_lowercase().contains("do not restart"));
+        assert!(em.is_extension_enabled("todo").await);
+        assert!(get_all_extensions()
+            .into_iter()
+            .any(|entry| entry.config.name() == "todo" && entry.enabled));
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn manage_extensions_disables_in_session_without_restart() {
+        set_extension(todo_entry(true));
+        let (_temp_dir, client, session_id, em) = setup_client().await;
+        em.add_extension(todo_entry(true).config, None, None, Some(&session_id))
+            .await
+            .unwrap();
+        assert!(em.is_extension_enabled("todo").await);
+
+        let ctx = ToolCallContext::new(session_id.clone(), None, None);
+        let result = client
+            .call_tool(
+                &ctx,
+                MANAGE_EXTENSIONS_TOOL_NAME,
+                Some(object!({
+                    "action": "disable",
+                    "extension_name": "todo"
+                })),
+                CancellationToken::default(),
+            )
+            .await
+            .unwrap();
+
+        assert_ne!(result.is_error, Some(true));
+        let text = result_text(&result);
+        assert!(text.contains("disabled in this session"));
+        assert!(text.to_lowercase().contains("do not restart"));
+        assert!(!em.is_extension_enabled("todo").await);
+        assert!(get_all_extensions()
+            .into_iter()
+            .any(|entry| entry.config.name() == "todo" && !entry.enabled));
     }
 }
