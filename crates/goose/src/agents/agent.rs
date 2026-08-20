@@ -69,7 +69,7 @@ use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
-use goose_providers::thinking::ThinkingEffort;
+use goose_providers::thinking::{ThinkingEffort, ThinkingEffortSupport};
 use regex::Regex;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, ContentBlock, ElicitationAction, ErrorCode, ErrorData,
@@ -91,6 +91,27 @@ const DEFAULT_FRONTEND_INSTRUCTIONS: &str = "The following tools are provided di
 fn provider_creation_error(error: anyhow::Error, context: impl fmt::Display) -> anyhow::Error {
     let message = format!("{context}: {error}");
     error.context(message)
+}
+
+fn normalize_legacy_provider_thinking_effort(
+    mut model_config: goose_providers::model::ModelConfig,
+    effort_support: &ThinkingEffortSupport,
+) -> goose_providers::model::ModelConfig {
+    let has_raw_effort = model_config
+        .request_params
+        .as_ref()
+        .is_some_and(|params| params.contains_key("thinking_effort"));
+    if !matches!(effort_support, ThinkingEffortSupport::Unspecified)
+        || !has_raw_effort
+        || model_config.thinking_effort().is_some()
+    {
+        return model_config;
+    }
+
+    if let Some(params) = model_config.request_params.as_mut() {
+        params.remove("thinking_effort");
+    }
+    model_config.with_default_thinking_effort(Config::global().get_goose_thinking_effort())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3454,6 +3475,8 @@ impl Agent {
                 .unwrap_or(model_config),
             Err(_) => model_config,
         };
+        let effort_support = provider.thinking_effort_support();
+        let model_config = normalize_legacy_provider_thinking_effort(model_config, &effort_support);
 
         {
             let mut current_provider = self.provider.lock().await;
@@ -4438,6 +4461,22 @@ mod tests {
         fn get_name(&self) -> &str {
             "test-effort"
         }
+        fn thinking_effort_support(&self) -> ThinkingEffortSupport {
+            if self.applies_effort {
+                ThinkingEffortSupport::Options(
+                    goose_providers::thinking::ThinkingEffortCapability {
+                        option_id: "effort".to_string(),
+                        values: vec![goose_providers::thinking::ThinkingEffortOption {
+                            value: "default".to_string(),
+                            label: "Default".to_string(),
+                        }],
+                        current: Some("default".to_string()),
+                    },
+                )
+            } else {
+                ThinkingEffortSupport::Unspecified
+            }
+        }
         async fn stream(
             &self,
             _: &goose_providers::model::ModelConfig,
@@ -4500,6 +4539,52 @@ mod tests {
             effort_test_agent(EffortOutcome::Applied).await;
 
         assert_eq!(provider.model_selections(), ["mock-model"]);
+    }
+
+    #[tokio::test]
+    async fn update_provider_replaces_harness_only_effort_for_legacy_provider() {
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("high"))]);
+        let (agent, session, _data_dir) = tracing_test_agent_and_session().await;
+        let provider = Arc::new(EffortProvider::new(EffortOutcome::Unhandled));
+        let model_config =
+            goose_providers::model::ModelConfig::new("mock-model").with_merged_request_params(
+                HashMap::from([("thinking_effort".to_string(), serde_json::json!("default"))]),
+            );
+
+        agent
+            .update_provider(provider, model_config, &session.id)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            persisted_thinking_effort(&agent, &session.id)
+                .await
+                .as_deref(),
+            Some("high")
+        );
+    }
+
+    #[tokio::test]
+    async fn update_provider_preserves_harness_only_effort_for_managed_provider() {
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("high"))]);
+        let (agent, session, _data_dir) = tracing_test_agent_and_session().await;
+        let provider = Arc::new(EffortProvider::new(EffortOutcome::Applied));
+        let model_config =
+            goose_providers::model::ModelConfig::new("mock-model").with_merged_request_params(
+                HashMap::from([("thinking_effort".to_string(), serde_json::json!("default"))]),
+            );
+
+        agent
+            .update_provider(provider, model_config, &session.id)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            persisted_thinking_effort(&agent, &session.id)
+                .await
+                .as_deref(),
+            Some("default")
+        );
     }
 
     #[tokio::test]
