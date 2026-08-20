@@ -265,6 +265,9 @@ pub struct CliSession {
     retry_config: Option<RetryConfig>,
     output_format: String,
     stats: bool,
+    /// Background extension loader; drained exclusively by
+    /// [`CliSession::ensure_extensions_loaded`], the session's single loading
+    /// gate.
     extension_loading: Option<AbortOnDropHandle<Vec<ExtensionFailure>>>,
     loading_announced: bool,
 }
@@ -509,6 +512,8 @@ impl CliSession {
     }
 
     async fn add_and_persist_extensions(&mut self, configs: Vec<ExtensionConfig>) -> Result<()> {
+        // Extension-set mutations must not race the background loader.
+        self.ensure_extensions_loaded(true).await?;
         for config in configs {
             self.agent
                 .add_extension(config, &self.session_id)
@@ -543,6 +548,7 @@ impl CliSession {
         &mut self,
         extension: Option<String>,
     ) -> Result<HashMap<String, Vec<String>>> {
+        self.ensure_extensions_loaded(true).await?;
         let prompts = self.agent.list_extension_prompts(&self.session_id).await;
 
         // Early validation if filtering by extension
@@ -564,6 +570,7 @@ impl CliSession {
     }
 
     pub async fn get_prompt_info(&mut self, name: &str) -> Result<Option<output::PromptInfo>> {
+        self.ensure_extensions_loaded(true).await?;
         let prompts = self.agent.list_extension_prompts(&self.session_id).await;
 
         // Find which extension has this prompt
@@ -582,6 +589,7 @@ impl CliSession {
     }
 
     pub async fn get_prompt(&mut self, name: &str, arguments: Value) -> Result<Vec<PromptMessage>> {
+        self.ensure_extensions_loaded(true).await?;
         Ok(self
             .agent
             .get_prompt(&self.session_id, name, arguments)
@@ -596,6 +604,7 @@ impl CliSession {
         cancel_token: CancellationToken,
         interactive: bool,
     ) -> Result<()> {
+        self.ensure_extensions_loaded(interactive).await?;
         let cancel_token = cancel_token.clone();
         self.push_message(message);
         self.process_agent_response(interactive, cancel_token)
@@ -632,7 +641,6 @@ impl CliSession {
 
     async fn run_interactive(&mut self, prompt: Option<String>) -> Result<()> {
         if let Some(prompt) = prompt {
-            self.ensure_extensions_loaded(true).await?;
             let msg = Message::user().with_text(&prompt);
             self.process_message(msg, CancellationToken::default(), true)
                 .await?;
@@ -713,6 +721,10 @@ impl CliSession {
         editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>,
         conversation_messages: &[String],
     ) -> Result<()> {
+        // The single gate for interactive commands: every InputResult variant,
+        // including future ones, waits here until background extension loading
+        // has finished before its handler may touch the agent or extensions.
+        self.ensure_extensions_loaded(true).await?;
         match input {
             InputResult::Message(content) => {
                 self.handle_message_input(&content, history, editor).await?;
@@ -836,7 +848,6 @@ impl CliSession {
         history: &HistoryManager,
         editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>,
     ) -> Result<()> {
-        self.ensure_extensions_loaded(true).await?;
         match self.run_mode {
             RunMode::Normal => {
                 history.save(editor);
@@ -1190,9 +1201,10 @@ impl CliSession {
             return Ok(());
         }
 
-        // The background loader pins the session id it was spawned with, so it
-        // must finish before extensions are torn down and re-added under a new id.
-        self.ensure_extensions_loaded(true).await?;
+        // The background loader pins the session id it was spawned with, and the
+        // handle_input gate has already drained it, so extensions can be torn
+        // down and re-added under a new session id without racing an in-flight
+        // load.
 
         let new_session_id = match self.prepare_successor_session().await {
             Ok(id) => id,
@@ -1385,7 +1397,6 @@ impl CliSession {
         };
 
         if should_summarize {
-            self.ensure_extensions_loaded(true).await?;
             self.push_message(Message::user().with_text(COMPACT_TRIGGERS[0]));
             output::show_thinking();
             self.process_agent_response(true, CancellationToken::default())
@@ -1496,7 +1507,6 @@ impl CliSession {
 
     /// Process a single message and exit
     pub async fn headless(&mut self, prompt: String) -> Result<()> {
-        self.ensure_extensions_loaded(false).await?;
         let message = Message::user().with_text(&prompt);
         let result = self
             .process_message(message, CancellationToken::default(), false)
@@ -1892,8 +1902,22 @@ impl CliSession {
         Ok(())
     }
 
-    /// Await background extension loading and surface any failures. Called at
-    /// terminal-safe checkpoints so messages are never processed mid-load.
+    /// Await background extension loading and surface any failures.
+    ///
+    /// This is the single loading gate for the session. Waiting is centralised
+    /// at the entry points that can interact with the agent or the extension
+    /// set, so individual command handlers never gate themselves and future
+    /// commands inherit the gate automatically:
+    /// - `handle_input` — every interactive command dispatched from the REPL
+    /// - `process_message` — programmatic message processing (initial prompt,
+    ///   headless mode, scenario runner); `interactive` controls whether the
+    ///   waiting/ready indicators are shown
+    /// - `add_and_persist_extensions` — extension-set mutations
+    /// - `list_prompts`/`get_prompt_info`/`get_prompt` — extension prompt reads
+    ///
+    /// Only `update_completion_cache` deliberately skips the gate: it builds
+    /// completions from whatever has loaded so far and is refreshed by the gate
+    /// once loading finishes.
     async fn ensure_extensions_loaded(&mut self, show_status: bool) -> Result<()> {
         if let Some(handle) = self.extension_loading.take() {
             let was_in_progress = !handle.is_finished();
@@ -2095,8 +2119,6 @@ impl CliSession {
             output::render_error("Prompt name argument is required");
             return Ok(());
         }
-
-        self.ensure_extensions_loaded(true).await?;
 
         if opts.info {
             match self.get_prompt_info(&opts.name).await? {
@@ -3358,5 +3380,135 @@ mod tests {
                 .get_extension_state("test", "v0"),
             Some(&serde_json::json!("marker"))
         );
+    }
+
+    struct StubProvider;
+
+    #[async_trait::async_trait]
+    impl Provider for StubProvider {
+        fn get_name(&self) -> &str {
+            "stub"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[rmcp::model::Tool],
+        ) -> std::result::Result<
+            goose::providers::base::MessageStream,
+            goose_providers::errors::ProviderError,
+        > {
+            Ok(goose::providers::base::stream_from_single_message(
+                Message::assistant().with_text("stub reply"),
+                ProviderUsage::new(
+                    "stub".to_string(),
+                    goose_providers::conversation::token_usage::Usage::default(),
+                ),
+            ))
+        }
+    }
+
+    async fn session_with_loader(
+        extension_loading: Option<AbortOnDropHandle<Vec<ExtensionFailure>>>,
+    ) -> CliSession {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let session_manager = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "Loading gate test".to_string(),
+                goose::session::SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let agent = goose::agents::Agent::with_config(goose::agents::AgentConfig::new(
+            Arc::new(session_manager),
+            Arc::new(goose::config::PermissionManager::new(
+                temp_dir.path().to_path_buf(),
+            )),
+            None,
+            GooseMode::default(),
+            // Disable background session naming so the test agent starts no
+            // provider-dependent tasks.
+            true,
+            goose::agents::GoosePlatform::GooseCli,
+        ));
+        agent
+            .update_provider(
+                Arc::new(StubProvider),
+                goose_providers::model::ModelConfig::new("stub-model"),
+                &session.id,
+            )
+            .await
+            .unwrap();
+
+        CliSession::new(
+            Arc::new(agent),
+            session.id,
+            false,
+            None,
+            None,
+            None,
+            None,
+            "text".to_string(),
+            false,
+            extension_loading,
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn commands_wait_for_background_extension_loading() {
+        let (release, released) = tokio::sync::oneshot::channel::<()>();
+        let loader = AbortOnDropHandle::new(tokio::spawn(async move {
+            let _ = released.await;
+            Vec::<ExtensionFailure>::new()
+        }));
+
+        let mut session = session_with_loader(Some(loader)).await;
+        let mut editor = session.create_editor().unwrap();
+
+        let handled = tokio::spawn(async move {
+            let history = HistoryManager::new();
+            session
+                .handle_input(
+                    InputResult::Plan(input::PlanCommandOptions {
+                        message_text: String::new(),
+                    }),
+                    &history,
+                    &mut editor,
+                    &[],
+                )
+                .await
+                .expect("handle_input failed");
+            session.run_mode
+        });
+
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        assert!(
+            !handled.is_finished(),
+            "a command was handled before background extension loading finished"
+        );
+
+        release.send(()).unwrap();
+        let run_mode = handled.await.unwrap();
+        assert!(matches!(run_mode, RunMode::Plan));
+    }
+
+    #[tokio::test]
+    async fn ensure_extensions_loaded_drains_the_loader_once() {
+        let loader = AbortOnDropHandle::new(tokio::spawn(async { Vec::<ExtensionFailure>::new() }));
+        let mut session = session_with_loader(Some(loader)).await;
+
+        session.ensure_extensions_loaded(false).await.unwrap();
+        assert!(session.extension_loading.is_none());
+
+        // A second pass is a no-op, not an error.
+        session.ensure_extensions_loaded(false).await.unwrap();
+        assert!(session.extension_loading.is_none());
     }
 }
