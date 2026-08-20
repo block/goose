@@ -428,13 +428,19 @@ fn get_folder_from_github_with_byte_limit(
         .stdout
         .take()
         .ok_or_else(|| anyhow!("Failed to capture stdout from git archive"))?;
-    let extraction = extract_bounded_archive(stdout, &output_dir, max_bytes);
+    let extraction = extract_bounded_archive_with_limits(
+        stdout,
+        &output_dir,
+        max_bytes,
+        max_bytes,
+        ARCHIVE_LIMITS,
+    );
     if extraction.is_err() {
         let _ = child.kill();
     }
     let status = child.wait();
     let extraction = match (extraction, status) {
-        (Ok(payload_bytes), Ok(status)) if status.success() => Ok(payload_bytes),
+        (Ok(consumed_bytes), Ok(status)) if status.success() => Ok(consumed_bytes),
         (Ok(_), Ok(_)) => Err(anyhow!("Failed to archive recipe bundle {recipe_name}")),
         (Err(err), _) => Err(err),
         (_, Err(err)) => Err(err.into()),
@@ -442,12 +448,12 @@ fn get_folder_from_github_with_byte_limit(
     if extraction.is_err() {
         let _ = fs::remove_dir_all(&output_dir);
     }
-    let payload_bytes = extraction?;
+    let consumed_bytes = extraction?;
     if let Err(err) = list_files(&output_dir) {
         let _ = fs::remove_dir_all(&output_dir);
         return Err(err);
     }
-    Ok((output_dir, payload_bytes))
+    Ok((output_dir, consumed_bytes))
 }
 
 struct BoundedArchiveReader<R> {
@@ -463,7 +469,7 @@ impl<R: Read> Read for BoundedArchiveReader<R> {
         if self.remaining == 0 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                "Recipe archive exceeds its metadata limit",
+                "Recipe archive exceeds its byte limit",
             ));
         }
         let read_limit = buffer.len().min(self.remaining);
@@ -473,23 +479,17 @@ impl<R: Read> Read for BoundedArchiveReader<R> {
     }
 }
 
-fn extract_bounded_archive(
-    reader: impl Read,
-    output_dir: &Path,
-    max_bytes: usize,
-) -> Result<usize> {
-    extract_bounded_archive_with_limits(reader, output_dir, max_bytes, ARCHIVE_LIMITS)
-}
-
 fn extract_bounded_archive_with_limits(
     reader: impl Read,
     output_dir: &Path,
-    max_bytes: usize,
+    max_payload_bytes: usize,
+    max_archive_bytes: usize,
     limits: ArchiveLimits,
 ) -> Result<usize> {
-    let archive_bytes = max_bytes
+    let archive_bytes = max_payload_bytes
         .checked_add(limits.overhead_bytes)
-        .ok_or_else(|| anyhow!("Recipe archive byte limit is too large"))?;
+        .ok_or_else(|| anyhow!("Recipe archive byte limit is too large"))?
+        .min(max_archive_bytes);
     let mut archive = Archive::new(BoundedArchiveReader {
         inner: reader,
         remaining: archive_bytes,
@@ -512,8 +512,10 @@ fn extract_bounded_archive_with_limits(
         extracted_bytes = extracted_bytes
             .checked_add(entry_bytes)
             .ok_or_else(|| anyhow!("Recipe bundle size overflowed"))?;
-        if extracted_bytes > max_bytes {
-            return Err(anyhow!("Recipe bundle exceeds the {max_bytes}-byte limit"));
+        if extracted_bytes > max_payload_bytes {
+            return Err(anyhow!(
+                "Recipe bundle exceeds the {max_payload_bytes}-byte limit"
+            ));
         }
 
         let entry_path_bytes = entry.path_bytes().len();
@@ -550,7 +552,7 @@ fn extract_bounded_archive_with_limits(
             return Err(anyhow!("Recipe bundle contains an unsafe path"));
         }
     }
-    Ok(extracted_bytes)
+    Ok(archive_bytes - archive.into_inner().remaining)
 }
 
 fn list_files(dir: &Path) -> Result<()> {
@@ -751,6 +753,20 @@ mod tests {
         archive.into_inner().unwrap()
     }
 
+    fn archive_with_empty_files(count: usize) -> Vec<u8> {
+        let mut archive = tar::Builder::new(Vec::new());
+        for index in 0..count {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(0);
+            header.set_mode(0o644);
+            header.set_cksum();
+            archive
+                .append_data(&mut header, format!("empty-{index}"), &[][..])
+                .unwrap();
+        }
+        archive.into_inner().unwrap()
+    }
+
     #[test]
     fn bounded_archive_rejects_from_header_before_reading_recipe_body() {
         let content = vec![b'x'; 16 * 1024];
@@ -762,9 +778,15 @@ mod tests {
         let output_dir = tempfile::tempdir().unwrap();
         let output = output_dir.path().join("recipe.yaml");
 
-        let error = extract_bounded_archive(reader, output_dir.path(), content.len() - 1)
-            .unwrap_err()
-            .to_string();
+        let error = extract_bounded_archive_with_limits(
+            reader,
+            output_dir.path(),
+            content.len() - 1,
+            usize::MAX,
+            ARCHIVE_LIMITS,
+        )
+        .unwrap_err()
+        .to_string();
 
         assert!(error.contains("byte limit"));
         assert!(bytes_read.get() < content.len());
@@ -776,10 +798,12 @@ mod tests {
         let content = b"title: exact boundary";
         let output_dir = tempfile::tempdir().unwrap();
 
-        extract_bounded_archive(
+        extract_bounded_archive_with_limits(
             Cursor::new(archive_with_files(&[("recipe.yaml", content)])),
             output_dir.path(),
             content.len(),
+            usize::MAX,
+            ARCHIVE_LIMITS,
         )
         .unwrap();
 
@@ -795,17 +819,19 @@ mod tests {
         let grandchild = b"title: grandchild";
         let output_dir = tempfile::tempdir().unwrap();
 
-        let payload_bytes = extract_bounded_archive(
+        let consumed_bytes = extract_bounded_archive_with_limits(
             Cursor::new(archive_with_files(&[
                 ("recipe.yaml", recipe),
                 ("nested/grandchild.yaml", grandchild),
             ])),
             output_dir.path(),
             recipe.len() + grandchild.len(),
+            usize::MAX,
+            ARCHIVE_LIMITS,
         )
         .unwrap();
 
-        assert_eq!(payload_bytes, recipe.len() + grandchild.len());
+        assert!(consumed_bytes > recipe.len() + grandchild.len());
         assert_eq!(
             fs::read(output_dir.path().join("recipe.yaml")).unwrap(),
             recipe
@@ -814,6 +840,33 @@ mod tests {
             fs::read(output_dir.path().join("nested/grandchild.yaml")).unwrap(),
             grandchild
         );
+    }
+
+    #[test]
+    fn zero_byte_archives_share_the_aggregate_stream_budget() {
+        let archive = archive_with_empty_files(128);
+        let root = tempfile::tempdir().unwrap();
+        let mut remaining_bytes = archive.len();
+        let mut extracted_archives = 0;
+
+        for index in 0..3 {
+            let output_dir = root.path().join(index.to_string());
+            fs::create_dir(&output_dir).unwrap();
+            let Ok(consumed_bytes) = extract_bounded_archive_with_limits(
+                Cursor::new(archive.clone()),
+                &output_dir,
+                remaining_bytes,
+                remaining_bytes,
+                ARCHIVE_LIMITS,
+            ) else {
+                break;
+            };
+            remaining_bytes -= consumed_bytes;
+            extracted_archives += 1;
+        }
+
+        assert_eq!(extracted_archives, 1);
+        assert!(remaining_bytes < archive.len());
     }
 
     #[test]
@@ -829,7 +882,14 @@ mod tests {
             ..ARCHIVE_LIMITS
         };
 
-        assert!(extract_bounded_archive_with_limits(reader, output_dir.path(), 0, limits).is_err());
+        assert!(extract_bounded_archive_with_limits(
+            reader,
+            output_dir.path(),
+            0,
+            usize::MAX,
+            limits
+        )
+        .is_err());
         assert_eq!(bytes_read.get(), limits.overhead_bytes);
         assert!(!output_dir.path().join("recipe.yaml").exists());
     }
@@ -846,6 +906,7 @@ mod tests {
             Cursor::new(archive_with_files(&[("first", b""), ("second", b"")])),
             output_dir.path(),
             0,
+            usize::MAX,
             limits,
         )
         .unwrap_err()
@@ -872,6 +933,7 @@ mod tests {
             Cursor::new(archive_with_files(&[("long", b"")])),
             output_dir.path(),
             0,
+            usize::MAX,
             individual_path_limits,
         )
         .unwrap_err()
@@ -880,6 +942,7 @@ mod tests {
             Cursor::new(archive_with_files(&[("one", b""), ("two", b"")])),
             output_dir.path(),
             0,
+            usize::MAX,
             total_path_limits,
         )
         .unwrap_err()
@@ -904,6 +967,7 @@ mod tests {
             Cursor::new(archive_with_files(&[("one/two/recipe.yaml", b"")])),
             output_dir.path(),
             0,
+            usize::MAX,
             limits,
         )
         .unwrap_err()
