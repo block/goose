@@ -35,21 +35,24 @@ impl McpAppCache {
         let config_dir = Paths::config_dir();
         let cache_dir = config_dir.join("mcp-apps-cache");
         let cache = Self { cache_dir };
-        cache.ensure_default_apps()?;
+        cache.ensure_default_apps();
         Ok(cache)
     }
 
-    fn ensure_default_apps(&self) -> Result<(), std::io::Error> {
-        fs::create_dir_all(&self.cache_dir)?;
-
-        for (uri, html) in DEFAULT_APPS {
-            let mut app = GooseApp::from_html(html).map_err(std::io::Error::other)?;
-            app.mcp_servers = vec![APPS_EXTENSION_NAME.to_string()];
-            let json = serde_json::to_string_pretty(&app).map_err(std::io::Error::other)?;
-            fs::write(self.app_path(APPS_EXTENSION_NAME, uri), json)?;
+    fn ensure_default_apps(&self) {
+        if fs::create_dir_all(&self.cache_dir).is_err() {
+            return;
         }
 
-        Ok(())
+        for (uri, _) in DEFAULT_APPS {
+            let Some(app) = Self::bundled_default_app(uri) else {
+                continue;
+            };
+            let Ok(json) = serde_json::to_string_pretty(&app) else {
+                continue;
+            };
+            let _ = fs::write(self.app_path(APPS_EXTENSION_NAME, uri), json);
+        }
     }
 
     pub fn is_bundled_default_uri(uri: &str) -> bool {
@@ -115,6 +118,7 @@ impl McpAppCache {
             }
         }
 
+        Self::restore_bundled_default_apps(&mut apps);
         Ok(apps)
     }
 
@@ -136,6 +140,10 @@ impl McpAppCache {
     }
 
     pub fn get_app(&self, extension_name: &str, resource_uri: &str) -> Option<GooseApp> {
+        if Self::is_bundled_default_identity(extension_name, resource_uri) {
+            return Self::bundled_default_app(resource_uri);
+        }
+
         let cache_key = Self::cache_key(extension_name, resource_uri);
         let app_path = self.cache_dir.join(format!("{}.json", cache_key));
 
@@ -340,6 +348,44 @@ mod tests {
             assert_eq!(cached.resource.text, expected.resource.text);
             assert_eq!(cached.resource.name, expected.resource.name);
             assert_eq!(cached.mcp_servers, vec![APPS_EXTENSION_NAME.to_string()]);
+        });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    #[serial]
+    fn read_only_cache_still_exposes_compiled_default() {
+        use std::os::unix::fs::PermissionsExt;
+
+        with_temp_config(|| {
+            let cache = McpAppCache::new().unwrap();
+            let expected = GooseApp::from_html(CLOCK_HTML).unwrap();
+            let mut attacker_app = GooseApp::from_html(CUSTOM_APP_HTML).unwrap();
+            attacker_app.resource.uri = "ui://apps/clock".to_string();
+            attacker_app.resource.text = Some("<script>malicious()</script>".to_string());
+            attacker_app.mcp_servers = vec![APPS_EXTENSION_NAME.to_string()];
+            let app_path = cache.app_path(APPS_EXTENSION_NAME, "ui://apps/clock");
+            fs::write(
+                &app_path,
+                serde_json::to_string_pretty(&attacker_app).unwrap(),
+            )
+            .unwrap();
+            fs::set_permissions(&app_path, fs::Permissions::from_mode(0o444)).unwrap();
+            fs::set_permissions(&cache.cache_dir, fs::Permissions::from_mode(0o555)).unwrap();
+
+            let reopened = McpAppCache::new().unwrap();
+            let cached = reopened
+                .get_app(APPS_EXTENSION_NAME, "ui://apps/clock")
+                .unwrap();
+            let listed = reopened.list_apps().unwrap();
+
+            fs::set_permissions(&cache.cache_dir, fs::Permissions::from_mode(0o755)).unwrap();
+            fs::set_permissions(&app_path, fs::Permissions::from_mode(0o644)).unwrap();
+            assert_eq!(cached.resource.text, expected.resource.text);
+            assert!(listed
+                .iter()
+                .any(|app| app.resource.uri == "ui://apps/clock"
+                    && app.resource.text == expected.resource.text));
         });
     }
 }
