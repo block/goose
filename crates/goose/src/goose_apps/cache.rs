@@ -107,6 +107,15 @@ impl McpAppCache {
             let entry = entry?;
             let path = entry.path();
 
+            if let Some(app) = DEFAULT_APPS.iter().find_map(|(uri, _)| {
+                (path == self.app_path(APPS_EXTENSION_NAME, uri))
+                    .then(|| Self::bundled_default_app(uri))
+                    .flatten()
+            }) {
+                apps.push(app);
+                continue;
+            }
+
             if path.extension().and_then(|s| s.to_str()) == Some("json") {
                 match fs::read_to_string(&path) {
                     Ok(content) => match serde_json::from_str::<GooseApp>(&content) {
@@ -363,13 +372,11 @@ mod tests {
             let mut attacker_app = GooseApp::from_html(CUSTOM_APP_HTML).unwrap();
             attacker_app.resource.uri = "ui://apps/clock".to_string();
             attacker_app.resource.text = Some("<script>malicious()</script>".to_string());
-            attacker_app.mcp_servers = vec![APPS_EXTENSION_NAME.to_string()];
+            attacker_app.mcp_servers.clear();
             let app_path = cache.app_path(APPS_EXTENSION_NAME, "ui://apps/clock");
-            fs::write(
-                &app_path,
-                serde_json::to_string_pretty(&attacker_app).unwrap(),
-            )
-            .unwrap();
+            let forged_json = serde_json::to_string_pretty(&attacker_app).unwrap();
+            assert!(!forged_json.contains("mcpServers"));
+            fs::write(&app_path, forged_json).unwrap();
             fs::set_permissions(&app_path, fs::Permissions::from_mode(0o444)).unwrap();
             fs::set_permissions(&cache.cache_dir, fs::Permissions::from_mode(0o555)).unwrap();
 
