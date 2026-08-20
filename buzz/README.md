@@ -127,9 +127,10 @@ without waking the remote agent. The successful command returns the bot key in
 `core-team.json` defines the people added to every new issue channel. Each
 person has a display name, GitHub handle, stable Buzz public key, and an
 `interest` list of topics they know about, based on their typical public issue
-and pull-request work. A person can also have a `bots` mapping from bot display
-name to bot public key. Adding that person adds those identities with the Buzz
-`bot` role.
+and pull-request work. `capacity` sets that person's target share of new
+assignments; most people are `1` and Filip is `0.5`. A person can also have a
+`bots` mapping from bot display name to bot public key. Adding that person adds
+those identities with the Buzz `bot` role.
 
 The current roster is:
 
@@ -204,8 +205,10 @@ Lists unassigned issues in the project's Inbox and open issues linked from the
 Buzz `issues to add` channel. Queue entries with an existing issue channel are
 treated as processed. Pull request links resolve to their issue when GitHub
 reports exactly one closing issue. The JSON also includes the core team, GitHub
-handles, Buzz public keys, and interests so a Goose recipe can select an owner.
-It does not change GitHub or Buzz.
+handles, Buzz public keys, interests, and assignment capacity so a Goose recipe
+can select an owner. `recent_assignment_load` counts core-team assignees across
+the 100 most recently created issues, including closed issues. Phase and issue
+age do not affect the count. It does not change GitHub or Buzz.
 
 ```sh
 ./buzz/list_issue_work
@@ -227,7 +230,9 @@ Conversation without GitHub links does not consume that limit. Use
 
 Fetches all open GitHub issues and all Buzz channels, matches issue channels by
 the GitHub URL in their description, and synchronizes the project phase and
-assignees to the channel topic:
+assignees to the channel topic. Legacy channels matched only by a leading
+number must also correspond to an Issue on the configured GitHub project, so a
+channel for a pull request is not mistaken for a closed issue:
 
 | GitHub phase | Buzz topic marker |
 | --- | --- |
@@ -291,11 +296,14 @@ target another repository or project.
 This Goose recipe manages the full Inbox loop:
 
 1. List unassigned Inbox issues and unresolved work from `issues to add`.
-2. Read each issue and choose one core-team owner based on `interest`.
-3. Assign the issue to that person's GitHub handle.
-4. Create its Buzz channel, or promote the owner when the channel already
-   exists. The entire core team and their bots are added to new channels.
-5. Run `syncissues`.
+2. Read each issue and rank the three strongest matches based on `interest`.
+3. Choose the least loaded of those three using assignments on the 100 newest
+   issues, adjusting only for the person's configured capacity.
+4. Assign the issue to that person's GitHub handle.
+5. Create a focused Buzz channel, or promote the owner when the channel already
+   exists. Permanent owners, the issue owner, queue requesters, existing
+   core-team assignees, and at most one complementary specialist are added.
+6. Run `syncissues`.
 
 Issue bodies and comments are treated as untrusted data. The recipe is allowed
 to assign issues but is instructed not to edit bodies, post GitHub comments,
@@ -307,6 +315,16 @@ Run it once with:
 goose run \
   --recipe "$PWD/buzz/github_issue_manager.yaml" \
   --params "automation_dir=$PWD/buzz" \
+  --no-session
+```
+
+Preview assignments without changing GitHub or Buzz:
+
+```sh
+goose run \
+  --recipe "$PWD/buzz/github_issue_manager.yaml" \
+  --params "automation_dir=$PWD/buzz" \
+  --params "dry_run=true" \
   --no-session
 ```
 

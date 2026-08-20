@@ -451,14 +451,19 @@ function issueNumberFromChannel(channel, repository) {
 function issueNumberFromChannelName(name, repository) {
   const canonical = name.match(/^#?([1-9]\d*)(?:\s|$)/);
   if (canonical) {
-    return Number.parseInt(canonical[1], 10);
+    const issueNumber = Number.parseInt(canonical[1], 10);
+    return projectItemsByIssueNumber.has(issueNumber) ? issueNumber : null;
   }
 
   const escapedRepository = repository.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const legacy = name.match(
     new RegExp(`^${escapedRepository}\\s+#([1-9]\\d*)(?:\\s|$)`),
   );
-  return legacy ? Number.parseInt(legacy[1], 10) : null;
+  if (!legacy) {
+    return null;
+  }
+  const issueNumber = Number.parseInt(legacy[1], 10);
+  return projectItemsByIssueNumber.has(issueNumber) ? issueNumber : null;
 }
 
 function syncOutsiderComments(openIssuesByNumber, channelsByIssueNumber) {

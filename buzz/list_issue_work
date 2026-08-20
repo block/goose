@@ -24,6 +24,7 @@ const coreTeamPath =
   process.env.BUZZ_CORE_TEAM_FILE || join(scriptDirectory, "core-team.json");
 const coreTeam = readCoreTeam();
 const gh = process.env.GH_BIN || "gh";
+const recentAssignmentLoad = getRecentAssignmentLoad();
 const buzz = findBuzz();
 const buzzEnvironment = {
   ...process.env,
@@ -117,6 +118,7 @@ for (const queued of queue.issues) {
     existing.sources.push("issues-to-add");
     existing.queue_messages = queued.message_ids;
     existing.queue_links = queued.links;
+    existing.queue_requesters = queued.requester_pubkeys;
   } else {
     issueWork.set(
       queued.number,
@@ -141,6 +143,7 @@ console.log(
       ignored_queue_entries: queue.ignored,
       unresolved_queue_entries: queue.unresolved,
       core_team: coreTeam.people,
+      recent_assignment_load: recentAssignmentLoad,
     },
     null,
     2,
@@ -243,7 +246,10 @@ function readCoreTeam() {
     fail(`Could not read core team file ${coreTeamPath}: ${error.message}`);
   }
 
-  const entries = [...(document.owners || []), ...(document.members || [])];
+  const entries = [
+    ...(document.owners || []).map((entry) => ({ ...entry, role: "owner" })),
+    ...(document.members || []).map((entry) => ({ ...entry, role: "member" })),
+  ];
   if (entries.length === 0) {
     fail(`Core team file ${coreTeamPath} has no people.`);
   }
@@ -256,6 +262,9 @@ function readCoreTeam() {
       !entry.github.trim() ||
       typeof entry.pubkey !== "string" ||
       !/^[0-9a-f]{64}$/i.test(entry.pubkey) ||
+      typeof entry.capacity !== "number" ||
+      !Number.isFinite(entry.capacity) ||
+      entry.capacity <= 0 ||
       !Array.isArray(entry.interest) ||
       entry.interest.length === 0 ||
       entry.interest.some(
@@ -263,13 +272,15 @@ function readCoreTeam() {
       )
     ) {
       fail(
-        `Every person in ${coreTeamPath} must have a name, GitHub handle, hexadecimal pubkey, and non-empty interest list.`,
+        `Every person in ${coreTeamPath} must have a name, GitHub handle, hexadecimal pubkey, positive capacity, and non-empty interest list.`,
       );
     }
     return {
       name: entry.name.trim(),
       github: entry.github.trim(),
       pubkey: entry.pubkey.toLowerCase(),
+      role: entry.role,
+      capacity: entry.capacity,
       interest: entry.interest.map((interest) => interest.trim()),
     };
   });
@@ -283,6 +294,62 @@ function readCoreTeam() {
     byGithub.set(handle, person);
   }
   return { people, byGithub };
+}
+
+function getRecentAssignmentLoad() {
+  const repositoryParts = options.repository.split("/");
+  if (repositoryParts.length !== 2 || repositoryParts.some((part) => !part)) {
+    fail(`Invalid GitHub repository: ${options.repository}`);
+  }
+  const [owner, name] = repositoryParts;
+
+  const result = runJson(gh, [
+    "api",
+    "graphql",
+    "-f",
+    "query=query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issues(first:100,states:[OPEN,CLOSED],orderBy:{field:CREATED_AT,direction:DESC}){nodes{number createdAt assignees(first:100){nodes{login}}}}}}",
+    "-F",
+    `owner=${owner}`,
+    "-F",
+    `name=${name}`,
+  ]);
+  const issues = result.data?.repository?.issues?.nodes;
+  if (!Array.isArray(issues)) {
+    fail(`Could not read the 100 newest issues from ${options.repository}.`);
+  }
+
+  const counts = new Map(
+    coreTeam.people.map((person) => [person.github.toLowerCase(), 0]),
+  );
+  for (const issue of issues) {
+    for (const assignee of issue.assignees?.nodes || []) {
+      const handle = assignee.login?.toLowerCase();
+      if (counts.has(handle)) {
+        counts.set(handle, counts.get(handle) + 1);
+      }
+    }
+  }
+
+  return {
+    window: 100,
+    issues_considered: issues.length,
+    newest_issue: issues[0]
+      ? { number: issues[0].number, created_at: issues[0].createdAt }
+      : null,
+    oldest_issue: issues.at(-1)
+      ? { number: issues.at(-1).number, created_at: issues.at(-1).createdAt }
+      : null,
+    people: coreTeam.people.map((person) => {
+      const assignments = counts.get(person.github.toLowerCase());
+      return {
+        name: person.name,
+        github: person.github,
+        assignments,
+        capacity: person.capacity,
+        normalized_load: Number((assignments / person.capacity).toFixed(2)),
+      };
+    }),
+  };
 }
 
 function issueRecord(item, sources, queued = null) {
@@ -317,6 +384,7 @@ function issueRecord(item, sources, queued = null) {
       ? {
           queue_messages: queued.message_ids,
           queue_links: queued.links,
+          queue_requesters: queued.requester_pubkeys,
         }
       : {}),
   };
@@ -385,12 +453,19 @@ function readIssueQueue() {
       number: resolved.number,
       message_ids: [],
       links: [],
+      requester_pubkeys: [],
     };
     if (!queued.message_ids.includes(message.id)) {
       queued.message_ids.push(message.id);
     }
     if (!queued.links.includes(link)) {
       queued.links.push(link);
+    }
+    if (
+      /^[0-9a-f]{64}$/i.test(message.pubkey || "") &&
+      !queued.requester_pubkeys.includes(message.pubkey.toLowerCase())
+    ) {
+      queued.requester_pubkeys.push(message.pubkey.toLowerCase());
     }
     queuedByIssue.set(resolved.number, queued);
   }
