@@ -60,6 +60,89 @@ pub fn load_local_recipe_file_with_byte_limit(
     })
 }
 
+pub struct BoundedLocalRecipeLoad {
+    pub recipe_file: Result<RecipeFile>,
+    pub consumed_bytes: usize,
+}
+
+pub fn load_local_recipe_file_with_byte_limit_and_consumption(
+    recipe_name: &str,
+    max_bytes: usize,
+) -> BoundedLocalRecipeLoad {
+    load_local_recipe_file_with_byte_limit_from_dirs(recipe_name, max_bytes, &local_recipe_dirs())
+}
+
+fn load_local_recipe_file_with_byte_limit_from_dirs(
+    recipe_name: &str,
+    max_bytes: usize,
+    search_dirs: &[PathBuf],
+) -> BoundedLocalRecipeLoad {
+    if RECIPE_FILE_EXTENSIONS
+        .iter()
+        .any(|ext| recipe_name.ends_with(&format!(".{ext}")))
+    {
+        return read_bounded_local_candidate(Path::new(recipe_name), max_bytes);
+    }
+
+    if is_file_path(recipe_name) || is_file_name(recipe_name) {
+        return BoundedLocalRecipeLoad {
+            recipe_file: Err(anyhow!(
+                "Recipe file {} is not a json or yaml file",
+                recipe_name
+            )),
+            consumed_bytes: 0,
+        };
+    }
+
+    let mut consumed_bytes = 0;
+    for dir in search_dirs {
+        for ext in RECIPE_FILE_EXTENSIONS {
+            let remaining_bytes = max_bytes - consumed_bytes;
+            let recipe_path = dir.join(format!("{recipe_name}.{ext}"));
+            let candidate = read_bounded_local_candidate(&recipe_path, remaining_bytes);
+            consumed_bytes += candidate.consumed_bytes;
+            if candidate.recipe_file.is_ok() {
+                return BoundedLocalRecipeLoad {
+                    recipe_file: candidate.recipe_file,
+                    consumed_bytes,
+                };
+            }
+        }
+    }
+
+    let search_dirs_str = search_dirs
+        .iter()
+        .map(|path| path.display().to_string())
+        .collect::<Vec<_>>()
+        .join(":");
+    BoundedLocalRecipeLoad {
+        recipe_file: Err(anyhow!(
+            "ℹ️  Failed to retrieve {}.yaml or {}.json in {}",
+            recipe_name,
+            recipe_name,
+            search_dirs_str
+        )),
+        consumed_bytes,
+    }
+}
+
+fn read_bounded_local_candidate(path: &Path, max_bytes: usize) -> BoundedLocalRecipeLoad {
+    let known_bytes = fs::symlink_metadata(path)
+        .ok()
+        .filter(|metadata| metadata.is_file())
+        .and_then(|metadata| usize::try_from(metadata.len()).ok())
+        .filter(|file_bytes| *file_bytes <= max_bytes);
+    let recipe_file = read_recipe_file_with_byte_limit(path, max_bytes);
+    let consumed_bytes = match &recipe_file {
+        Ok(recipe_file) => recipe_file.content.len(),
+        Err(_) => known_bytes.unwrap_or(0),
+    };
+    BoundedLocalRecipeLoad {
+        recipe_file,
+        consumed_bytes,
+    }
+}
+
 fn load_local_recipe_file_with_reader(
     recipe_name: &str,
     read_file: impl Fn(&Path) -> Result<RecipeFile>,
@@ -201,6 +284,38 @@ fn generate_recipe_filename(title: &str, recipe_library_dir: &Path) -> PathBuf {
             return candidate;
         }
         counter += 1;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bounded_extensionless_search_charges_failed_candidates() {
+        let directory = tempfile::tempdir().unwrap();
+        let invalid_yaml = [0xff; 8];
+        let valid_json = br#"{"title":"valid"}"#;
+        fs::write(directory.path().join("candidate.yaml"), invalid_yaml).unwrap();
+        fs::write(directory.path().join("candidate.json"), valid_json).unwrap();
+        let budget = invalid_yaml.len() + valid_json.len();
+
+        let loaded = load_local_recipe_file_with_byte_limit_from_dirs(
+            "candidate",
+            budget,
+            &[directory.path().to_path_buf()],
+        );
+
+        assert_eq!(loaded.consumed_bytes, budget);
+        assert_eq!(loaded.recipe_file.unwrap().content.as_bytes(), valid_json);
+
+        let exhausted = load_local_recipe_file_with_byte_limit_from_dirs(
+            "candidate",
+            invalid_yaml.len(),
+            &[directory.path().to_path_buf()],
+        );
+        assert_eq!(exhausted.consumed_bytes, invalid_yaml.len());
+        assert!(exhausted.recipe_file.is_err());
     }
 }
 
