@@ -32,6 +32,8 @@ struct StoredPendingCodes {
     codes: Vec<StoredPendingCode>,
     #[serde(default)]
     legacy_import_complete: bool,
+    #[serde(default)]
+    imported_legacy_codes: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -52,6 +54,7 @@ impl StoredPendingCodesValue {
         match self {
             Self::State(state) => state,
             Self::Codes(codes) => StoredPendingCodes {
+                imported_legacy_codes: codes.iter().map(|code| code.code.clone()).collect(),
                 codes,
                 legacy_import_complete: false,
             },
@@ -151,15 +154,26 @@ impl PairingStore {
                 PENDING_CODES_SECRET_KEY,
                 |stored: StoredPendingCodesValue| {
                     let mut state = stored.into_state();
-                    if state.legacy_import_complete {
-                        return SecretUpdate::Unchanged(());
-                    }
+                    let mut changed = !state.legacy_import_complete;
                     for legacy_code in legacy_codes.unwrap_or_default() {
+                        if state
+                            .imported_legacy_codes
+                            .iter()
+                            .any(|code| code == &legacy_code.code)
+                        {
+                            continue;
+                        }
+                        state.imported_legacy_codes.push(legacy_code.code.clone());
                         state.codes.retain(|code| code.code != legacy_code.code);
                         state.codes.push(legacy_code);
+                        changed = true;
                     }
                     state.legacy_import_complete = true;
-                    SecretUpdate::Write(state, ())
+                    if changed {
+                        SecretUpdate::Write(state, ())
+                    } else {
+                        SecretUpdate::Unchanged(())
+                    }
                 },
             )
             .map_err(|error| anyhow::anyhow!("failed to migrate pending codes: {}", error))
@@ -609,6 +623,39 @@ mod tests {
 
         assert_eq!(
             PairingStore::consume_pending_code_in(&config, code, 100).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn new_legacy_code_after_completed_migration_is_imported_once() {
+        let directory = TempDir::new().unwrap();
+        let config = test_config(&directory);
+        PairingStore::store_pending_code_in(&config, "CURRENT-CODE", "telegram", 101).unwrap();
+        assert!(
+            config
+                .get_secret::<StoredPendingCodes>(PENDING_CODES_SECRET_KEY)
+                .unwrap()
+                .legacy_import_complete
+        );
+
+        config
+            .set_param(
+                PENDING_CODES_CONFIG_KEY,
+                [StoredPendingCode {
+                    code: "ROLLBACK-CODE".to_string(),
+                    gateway_type: "slack".to_string(),
+                    expires_at: 101,
+                }],
+            )
+            .unwrap();
+
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, "ROLLBACK-CODE", 100).unwrap(),
+            Some("slack".to_string())
+        );
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, "ROLLBACK-CODE", 100).unwrap(),
             None
         );
     }
