@@ -239,8 +239,24 @@ impl PermissionManager {
     fn write_permission_map(&self, map: &HashMap<String, PermissionConfig>) {
         let yaml_content =
             serde_yaml::to_string(map).expect("Failed to serialize permission config");
-        let config_dir = self
-            .config_path
+        let write_path = match fs::symlink_metadata(&self.config_path) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                let target = fs::read_link(&self.config_path)
+                    .expect("Failed to resolve permission.yaml symlink");
+                if target.is_absolute() {
+                    target
+                } else {
+                    self.config_path
+                        .parent()
+                        .expect("permission.yaml must have a parent directory")
+                        .join(target)
+                }
+            }
+            Ok(_) => self.config_path.clone(),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => self.config_path.clone(),
+            Err(error) => panic!("Failed to inspect permission.yaml: {error}"),
+        };
+        let config_dir = write_path
             .parent()
             .expect("permission.yaml must have a parent directory");
         let mut temporary_file =
@@ -253,7 +269,7 @@ impl PermissionManager {
             .sync_all()
             .expect("Failed to write to permission.yaml");
         temporary_file
-            .persist(&self.config_path)
+            .persist(write_path)
             .expect("Failed to write to permission.yaml");
     }
 

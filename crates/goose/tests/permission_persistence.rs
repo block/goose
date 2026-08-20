@@ -82,6 +82,31 @@ fn permission_updates_atomically_replace_storage_file() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn permission_updates_preserve_storage_symlink() {
+    use std::os::unix::fs::symlink;
+
+    let config_dir = tempfile::tempdir().unwrap();
+    let permission_path = config_dir.path().join("permission.yaml");
+    let target_path = config_dir.path().join("managed-permissions.yaml");
+    std::fs::write(&target_path, "{}\n").unwrap();
+    symlink("managed-permissions.yaml", &permission_path).unwrap();
+
+    let manager = PermissionManager::new(config_dir.path().to_path_buf());
+    manager.update_user_permission("user_tool", PermissionLevel::AlwaysAllow);
+
+    assert!(std::fs::symlink_metadata(&permission_path)
+        .unwrap()
+        .file_type()
+        .is_symlink());
+    let persisted = PermissionManager::new(config_dir.path().to_path_buf());
+    assert_eq!(
+        persisted.get_user_permission("user_tool"),
+        Some(PermissionLevel::AlwaysAllow)
+    );
+}
+
 #[test]
 fn permission_removal_and_clear_persist() {
     let config_dir = tempfile::tempdir().unwrap();
