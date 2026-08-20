@@ -51,6 +51,7 @@ pub(crate) mod declarative_providers {
         tanzu,
         tensorix,
         together,
+        trustedrouter,
         venice,
         vercel_ai_gateway,
         zai,
