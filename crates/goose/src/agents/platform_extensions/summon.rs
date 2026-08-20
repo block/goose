@@ -249,11 +249,7 @@ fn scan_recipes_from_dir(
             continue;
         }
 
-        let content = match crate::skills::read_source_file_with_limit(
-            &source_dir,
-            Path::new(&file_name),
-            crate::agents::max_tool_response_size(),
-        ) {
+        let content = match crate::skills::read_source_file(&source_dir, Path::new(&file_name)) {
             Ok(content) => content,
             Err(error) => {
                 warn!("Failed to read recipe {}: {}", path.display(), error);
@@ -312,11 +308,7 @@ fn scan_agents_from_dir(
             continue;
         }
 
-        let content = match crate::skills::read_source_file_with_limit(
-            &source_dir,
-            Path::new(&file_name),
-            crate::agents::max_tool_response_size(),
-        ) {
+        let content = match crate::skills::read_source_file(&source_dir, Path::new(&file_name)) {
             Ok(c) => c,
             Err(e) => {
                 warn!("Failed to read agent file {}: {}", path.display(), e);

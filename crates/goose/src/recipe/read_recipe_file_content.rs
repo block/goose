@@ -26,12 +26,8 @@ pub fn read_recipe_file<P: AsRef<Path>>(recipe_path: P) -> Result<RecipeFile> {
     let file_name = path
         .file_name()
         .ok_or_else(|| anyhow!("Recipe path has no file name: {}", path.display()))?;
-    let content = crate::skills::read_source_file_with_limit(
-        &parent_dir,
-        Path::new(file_name),
-        crate::agents::max_tool_response_size(),
-    )
-    .map_err(|e| anyhow!("Failed to read recipe file {}: {}", path.display(), e))?;
+    let content = crate::skills::read_source_file(&parent_dir, Path::new(file_name))
+        .map_err(|e| anyhow!("Failed to read recipe file {}: {}", path.display(), e))?;
     let file_path = parent_dir.join(file_name);
 
     Ok(RecipeFile {
@@ -120,5 +116,15 @@ mod tests {
         std::os::unix::fs::symlink(outside_recipe, &linked_recipe).unwrap();
 
         assert!(read_recipe_file(linked_recipe).is_err());
+    }
+
+    #[test]
+    fn recipe_above_default_tool_response_threshold_is_allowed() {
+        let temp_dir = TempDir::new().unwrap();
+        let recipe_path = temp_dir.path().join("large.yaml");
+        let content = "x".repeat(200_001);
+        std::fs::write(&recipe_path, &content).unwrap();
+
+        assert_eq!(read_recipe_file(recipe_path).unwrap().content, content);
     }
 }

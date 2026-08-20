@@ -86,11 +86,7 @@ fn read_source_path(path: &Path) -> std::io::Result<String> {
             "source path has no file name",
         )
     })?;
-    crate::skills::read_source_file_with_limit(
-        &parent,
-        Path::new(file_name),
-        crate::agents::max_tool_response_size(),
-    )
+    crate::skills::read_source_file(&parent, Path::new(file_name))
 }
 
 fn build_source_markdown(

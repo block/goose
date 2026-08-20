@@ -5,6 +5,13 @@ use std::path::{Component, Path};
 const LOADED_FILE_PREFIX: &str = "# Loaded: ";
 const LOADED_FILE_SEPARATOR: &str = "\n\n";
 const LOADED_FILE_SUFFIX: &str = "\n\n---\nFile loaded into context.";
+const MAX_SOURCE_FILE_BYTES: usize = crate::scheduler::MAX_SCHEDULE_RECIPE_BYTES as usize;
+
+#[derive(Clone, Copy)]
+enum ReadLimit {
+    Characters(usize),
+    Bytes(usize),
+}
 
 pub(crate) fn load_supporting_file(
     skill_dir: &Path,
@@ -53,12 +60,27 @@ fn read_supporting_file_with_limit(
     read_supporting_file_with_hook(skill_dir, relative, max_characters, |_| {})
 }
 
-pub(crate) fn read_source_file_with_limit(
-    source_dir: &Path,
+pub(crate) fn read_source_file(source_dir: &Path, relative: &Path) -> io::Result<String> {
+    read_confined_file_with_hook(
+        source_dir,
+        relative,
+        ReadLimit::Bytes(MAX_SOURCE_FILE_BYTES),
+        |_| {},
+    )
+}
+
+fn read_supporting_file_with_hook(
+    skill_dir: &Path,
     relative: &Path,
     max_characters: usize,
+    after_opened_component: impl FnMut(&Path),
 ) -> io::Result<String> {
-    read_supporting_file_with_limit(source_dir, relative, max_characters)
+    read_confined_file_with_hook(
+        skill_dir,
+        relative,
+        ReadLimit::Characters(max_characters),
+        after_opened_component,
+    )
 }
 
 fn max_utf8_bytes(max_characters: usize) -> io::Result<usize> {
@@ -94,6 +116,24 @@ fn read_utf8_with_limit(mut reader: impl io::Read, max_characters: usize) -> io:
     Ok(content)
 }
 
+fn read_utf8_with_byte_limit(mut reader: impl io::Read, max_bytes: usize) -> io::Result<String> {
+    let read_size = max_bytes.checked_add(1).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "configured source file size limit is too large",
+        )
+    })?;
+    let mut bytes = Vec::new();
+    reader
+        .by_ref()
+        .take(read_size as u64)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > max_bytes {
+        return Err(file_encoding_too_large(max_bytes));
+    }
+    String::from_utf8(bytes).map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+}
+
 fn file_too_large(max_characters: usize) -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidData,
@@ -108,12 +148,18 @@ fn file_encoding_too_large(max_bytes: usize) -> io::Error {
     )
 }
 
-fn read_opened_file(file: fs::File, max_characters: usize) -> io::Result<String> {
-    let max_bytes = max_utf8_bytes(max_characters)?;
+fn read_opened_file(file: fs::File, limit: ReadLimit) -> io::Result<String> {
+    let max_bytes = match limit {
+        ReadLimit::Characters(max_characters) => max_utf8_bytes(max_characters)?,
+        ReadLimit::Bytes(max_bytes) => max_bytes,
+    };
     if file.metadata()?.len() > max_bytes as u64 {
         return Err(file_encoding_too_large(max_bytes));
     }
-    read_utf8_with_limit(file, max_characters)
+    match limit {
+        ReadLimit::Characters(max_characters) => read_utf8_with_limit(file, max_characters),
+        ReadLimit::Bytes(max_bytes) => read_utf8_with_byte_limit(file, max_bytes),
+    }
 }
 
 fn validated_relative_components(path: &Path) -> io::Result<Vec<&std::ffi::OsStr>> {
@@ -221,10 +267,10 @@ fn open_skill_root(
 }
 
 #[cfg(unix)]
-fn read_supporting_file_with_hook(
+fn read_confined_file_with_hook(
     skill_dir: &Path,
     relative: &Path,
-    max_characters: usize,
+    limit: ReadLimit,
     mut after_opened_component: impl FnMut(&Path),
 ) -> io::Result<String> {
     let components = validated_relative_components(relative)?;
@@ -250,7 +296,7 @@ fn read_supporting_file_with_hook(
         ));
     }
 
-    read_opened_file(file, max_characters)
+    read_opened_file(file, limit)
 }
 
 #[cfg(unix)]
@@ -348,10 +394,10 @@ fn open_skill_root(
 }
 
 #[cfg(windows)]
-fn read_supporting_file_with_hook(
+fn read_confined_file_with_hook(
     skill_dir: &Path,
     relative: &Path,
-    max_characters: usize,
+    limit: ReadLimit,
     mut after_opened_component: impl FnMut(&Path),
 ) -> io::Result<String> {
     let components = validated_relative_components(relative)?;
@@ -381,7 +427,7 @@ fn read_supporting_file_with_hook(
         ));
     }
 
-    read_opened_file(file, max_characters)
+    read_opened_file(file, limit)
 }
 
 #[cfg(windows)]
@@ -479,10 +525,10 @@ fn windows_nt_status_error(status: winapi::shared::ntdef::NTSTATUS) -> io::Error
 }
 
 #[cfg(not(any(unix, windows)))]
-fn read_supporting_file_with_hook(
+fn read_confined_file_with_hook(
     _skill_dir: &Path,
     relative: &Path,
-    _max_characters: usize,
+    _limit: ReadLimit,
     _after_opened_component: impl FnMut(&Path),
 ) -> io::Result<String> {
     validated_relative_components(relative)?;
@@ -513,6 +559,20 @@ mod tests {
         .unwrap();
 
         assert_eq!(content, "nested guidance");
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn source_file_safety_limit_is_independent() {
+        let root = tempfile::tempdir().unwrap();
+        let source_dir = fs::canonicalize(root.path()).unwrap();
+        fs::write(
+            source_dir.join("source.md"),
+            "x".repeat(MAX_SOURCE_FILE_BYTES + 1),
+        )
+        .unwrap();
+
+        assert!(read_source_file(&source_dir, Path::new("source.md")).is_err());
     }
 
     #[cfg(all(
