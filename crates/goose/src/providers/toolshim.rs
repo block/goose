@@ -44,9 +44,8 @@ use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::create_request;
 use goose_providers::images::ImageFormat;
 use reqwest::Client;
-use rmcp::model::{object, CallToolRequestParams, RawContent, Tool};
+use rmcp::model::{object, CallToolRequestParams, ContentBlock, Tool};
 use serde_json::{json, Value};
-use std::ops::Deref;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -879,7 +878,7 @@ pub fn format_tool_info(tools: &[Tool]) -> String {
         tool_info.push_str(&format!(
             "Tool Name: {}\nSchema: {}\nDescription: {:?}\n\n",
             tool.name,
-            serde_json::to_string_pretty(&tool.input_schema).unwrap_or_default(),
+            serde_json::to_string(&tool.input_schema).unwrap_or_default(),
             tool.description
         ));
     }
@@ -922,8 +921,8 @@ pub fn convert_tool_messages_to_text(messages: &[Message]) -> Conversation {
                                 let text_contents: Vec<String> = result
                                     .content
                                     .iter()
-                                    .filter_map(|c| match c.deref() {
-                                        RawContent::Text(t) => Some(t.text.clone()),
+                                    .filter_map(|c| match c {
+                                        ContentBlock::Text(t) => Some(t.text.clone()),
                                         _ => None,
                                     })
                                     .collect();
@@ -1060,6 +1059,25 @@ mod tests {
                 "interpreter should not be called".to_string(),
             ))
         }
+    }
+
+    #[test]
+    fn formats_tool_schemas_as_compact_lossless_json() {
+        let schema = object(
+            json!({"type": "object", "properties": {"query": {"type": "string", "description": "café 工"}, "options": {"type": "object", "properties": {}}}}),
+        );
+        let tool = Tool::new("search".to_string(), "Search records".to_string(), schema);
+
+        let output = format_tool_info(std::slice::from_ref(&tool));
+        let description = format!("\nDescription: {:?}\n\n", tool.description);
+        let schema = output
+            .strip_prefix("Tool Name: search\nSchema: ")
+            .and_then(|value| value.strip_suffix(&description))
+            .unwrap();
+
+        assert!(!schema.contains('\n'));
+        let parsed: Value = serde_json::from_str(schema).unwrap();
+        assert_eq!(parsed, serde_json::to_value(&tool.input_schema).unwrap());
     }
 
     #[test]

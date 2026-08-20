@@ -218,7 +218,7 @@ If you want to experiment with Code Mode, here are some resources:
 - [Code Mode Doesn't Replace MCP](/blog/2025/12/21/code-mode-doesnt-replace-mcp) by me
 
 **Community:**
-- Join our [Discord](https://discord.gg/goose-oss) to share what you learn
+- Join our [Discord](https://discord.gg/n8R5VaWDAn) to share what you learn
 - File issues on [GitHub](https://github.com/aaif-goose/goose) if something does not work as expected
 
 Run your own experiments and let us know what you find.

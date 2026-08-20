@@ -1,12 +1,13 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::agents::tool_execution::ToolCallContext;
+use crate::conversation::Conversation;
 use crate::session::session_manager::SessionType;
 use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    CallToolResult, ContentBlock, Implementation, InitializeResult, JsonObject, ListToolsResult,
     ServerCapabilities, Tool, ToolAnnotations,
 };
 use schemars::{schema_for, JsonSchema};
@@ -37,6 +38,50 @@ struct ChatRecallParams {
 pub struct ChatRecallClient {
     info: InitializeResult,
     context: PlatformExtensionContext,
+}
+
+fn format_agent_visible_excerpt(conversation: &Conversation) -> Option<(usize, String)> {
+    let messages: Vec<_> = conversation
+        .agent_visible_messages()
+        .into_iter()
+        .filter(|message| !message.is_turn_context())
+        .collect();
+    let total = messages.len();
+    if total == 0 {
+        return None;
+    }
+
+    let mut output = String::new();
+    let first_count = std::cmp::min(3, total);
+    output.push_str("--- First Few Messages ---\n\n");
+    for (idx, message) in messages.iter().take(first_count).enumerate() {
+        output.push_str(&format!("{}. [{:?}] ", idx + 1, message.role));
+        for content in &message.content {
+            if let Some(text) = content.as_text() {
+                output.push_str(text);
+                output.push('\n');
+            }
+        }
+        output.push('\n');
+    }
+
+    if total > first_count {
+        output.push_str("--- Last Few Messages ---\n\n");
+        let last_count = std::cmp::min(3, total);
+        let skip_count = total.saturating_sub(last_count);
+        for (idx, message) in messages.iter().skip(skip_count).enumerate() {
+            output.push_str(&format!("{}. [{:?}] ", skip_count + idx + 1, message.role));
+            for content in &message.content {
+                if let Some(text) = content.as_text() {
+                    output.push_str(text);
+                    output.push('\n');
+                }
+            }
+            output.push('\n');
+        }
+    }
+
+    Some((total, output))
 }
 
 impl ChatRecallClient {
@@ -71,7 +116,7 @@ impl ChatRecallClient {
         &self,
         current_session_id: &str,
         arguments: Option<JsonObject>,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<Vec<ContentBlock>, String> {
         let arguments = arguments.ok_or("Missing arguments")?;
 
         let target_session_id = arguments
@@ -86,21 +131,20 @@ impl ChatRecallClient {
                     let conversation = loaded_session.conversation.as_ref();
 
                     if conversation.is_none() {
-                        return Ok(vec![Content::text(format!(
+                        return Ok(vec![ContentBlock::text(format!(
                             "Session {} has no conversation.",
                             sid
                         ))]);
                     }
 
-                    let msgs = conversation.unwrap().messages();
-                    let total = msgs.len();
-
-                    if total == 0 {
-                        return Ok(vec![Content::text(format!(
+                    let Some((total, excerpt)) =
+                        format_agent_visible_excerpt(conversation.unwrap())
+                    else {
+                        return Ok(vec![ContentBlock::text(format!(
                             "Session {} has no messages.",
                             sid
                         ))]);
-                    }
+                    };
 
                     let mut output = format!(
                         "Session: {} (ID: {})\nWorking Dir: {}\nTotal Messages: {}\n\n",
@@ -110,40 +154,9 @@ impl ChatRecallClient {
                         total
                     );
 
-                    let first_count = std::cmp::min(3, total);
-                    output.push_str("--- First Few Messages ---\n\n");
-                    for (idx, msg) in msgs.iter().take(first_count).enumerate() {
-                        output.push_str(&format!("{}. [{:?}] ", idx + 1, msg.role));
-                        for content in &msg.content {
-                            if let Some(text) = content.as_text() {
-                                output.push_str(text);
-                                output.push('\n');
-                            }
-                        }
-                        output.push('\n');
-                    }
+                    output.push_str(&excerpt);
 
-                    if total > first_count {
-                        output.push_str("--- Last Few Messages ---\n\n");
-                        let last_count = std::cmp::min(3, total);
-                        let skip_count = total.saturating_sub(last_count);
-                        for (idx, msg) in msgs.iter().skip(skip_count).enumerate() {
-                            output.push_str(&format!(
-                                "{}. [{:?}] ",
-                                skip_count + idx + 1,
-                                msg.role
-                            ));
-                            for content in &msg.content {
-                                if let Some(text) = content.as_text() {
-                                    output.push_str(text);
-                                    output.push('\n');
-                                }
-                            }
-                            output.push('\n');
-                        }
-                    }
-
-                    Ok(vec![Content::text(output)])
+                    Ok(vec![ContentBlock::text(output)])
                 }
                 Err(e) => Err(format!("Failed to load session: {}", e)),
             }
@@ -228,7 +241,7 @@ impl ChatRecallClient {
                         }
                         output
                     };
-                    Ok(vec![Content::text(formatted_results)])
+                    Ok(vec![ContentBlock::text(formatted_results)])
                 }
                 Err(e) => Err(format!("Chat recall failed: {}", e)),
             }
@@ -278,6 +291,7 @@ impl McpClientTrait for ChatRecallClient {
             tools: Self::get_tools(),
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 
@@ -296,7 +310,7 @@ impl McpClientTrait for ChatRecallClient {
 
         match content {
             Ok(content) => Ok(CallToolResult::success(content)),
-            Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+            Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Error: {}",
                 error
             ))])),
@@ -305,5 +319,55 @@ impl McpClientTrait for ChatRecallClient {
 
     fn get_info(&self) -> Option<&InitializeResult> {
         Some(&self.info)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::conversation::message::{Message, MessageContent, MessageMetadata};
+    use rmcp::model::{Annotations, Role, TextContent};
+
+    fn annotated_text(text: &str, audience: Vec<Role>) -> MessageContent {
+        MessageContent::Text(
+            TextContent::new(text).with_annotations(Annotations::default().with_audience(audience)),
+        )
+    }
+
+    #[test]
+    fn loaded_excerpt_projects_audience_before_selecting_endpoints() {
+        let conversation = Conversation::new_unvalidated([
+            Message::user()
+                .with_text("hidden first row")
+                .with_metadata(MessageMetadata::user_only()),
+            Message::user()
+                .with_text("visible first")
+                .with_content(annotated_text("user-only first secret", vec![Role::User])),
+            Message::assistant().with_text("visible middle"),
+            Message::assistant()
+                .with_text("hidden last row")
+                .with_metadata(MessageMetadata::user_only()),
+            Message::user()
+                .with_text("visible last")
+                .with_content(annotated_text("user-only last secret", vec![Role::User])),
+        ]);
+
+        let (total, excerpt) = format_agent_visible_excerpt(&conversation).unwrap();
+
+        assert_eq!(total, 3);
+        assert!(excerpt.contains("visible first"));
+        assert!(excerpt.contains("visible last"));
+        assert!(!excerpt.contains("hidden first row"));
+        assert!(!excerpt.contains("hidden last row"));
+        assert!(!excerpt.contains("user-only first secret"));
+        assert!(!excerpt.contains("user-only last secret"));
+        let canonical_user_text = conversation
+            .user_visible_messages()
+            .iter()
+            .map(Message::as_concat_text)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(canonical_user_text.contains("user-only first secret"));
+        assert!(canonical_user_text.contains("user-only last secret"));
     }
 }

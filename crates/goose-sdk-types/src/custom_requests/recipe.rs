@@ -223,6 +223,15 @@ pub enum RecipeExtensionDto {
         timeout: Option<u64>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         socket: Option<String>,
+        /// Pre-registered OAuth client ID for the server's authorization server.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        client_id: Option<String>,
+        /// Name of the env/secret key holding the OAuth client secret.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        client_secret_key: Option<String>,
+        /// OAuth scopes to request with `client_id`.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        scopes: Vec<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         bundled: Option<bool>,
         /// Tool allowlist for this extension. Omit this field to allow all tools.
@@ -261,6 +270,8 @@ pub struct RecipeListEntryDto {
 pub struct RequestRecipeParams {
     pub session_id: String,
     pub parameters: Vec<RecipeParameterDto>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parameter_scope_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, JsonSchema)]

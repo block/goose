@@ -4,13 +4,15 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::acp::{
-    extension_configs_to_mcp_servers, AcpProvider, AcpProviderConfig, ACP_CURRENT_MODEL,
+    configured_model_for_provider, extension_configs_to_mcp_servers, AcpProvider,
+    AcpProviderConfig, ACP_CURRENT_MODEL,
 };
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
 use crate::providers::base::{
     current_working_dir, ProviderDef, ProviderDescriptor, ProviderMetadata,
 };
+use crate::providers::catalog::ProviderSetupMetadata;
 
 pub(crate) const COPILOT_ACP_PROVIDER_NAME: &str = "copilot-acp";
 const COPILOT_ACP_DOC_URL: &str = "https://github.com/github/copilot-cli";
@@ -35,26 +37,24 @@ impl goose_providers::base::ProviderDescriptor for CopilotAcpProvider {
         .with_setup_steps(vec![
             "Install the Copilot CLI: `npm install -g @github/copilot`",
             "Run `copilot login` to authenticate with your GitHub account",
-            "Add to your goose config file (`~/.config/goose/config.yaml` on macOS/Linux):\n  GOOSE_PROVIDER: copilot-acp\n  GOOSE_MODEL: current\n  copilot-acp_configured: true",
-            "Restart goose for changes to take effect",
         ])
+        .with_setup(
+            ProviderSetupMetadata::cli_agent(
+                COPILOT_ACP_BINARY,
+                &["copilot-acp", "github_copilot", "github_copilot_cli"],
+            )
+            .with_acp()
+            .with_docs_url("https://docs.github.com/en/copilot/github-copilot-in-the-cli")
+            .with_capabilities(true, true, false),
+        )
     }
 }
 
-impl ProviderDef for CopilotAcpProvider {
-    type Provider = AcpProvider;
-
-    fn from_env(
-        extensions: Vec<crate::config::ExtensionConfig>,
-        tls_config: Option<crate::providers::api_client::TlsConfig>,
-    ) -> BoxFuture<'static, Result<AcpProvider>> {
-        Self::from_env_with_working_dir(extensions, current_working_dir(), tls_config)
-    }
-
-    fn from_env_with_working_dir(
+impl CopilotAcpProvider {
+    fn create(
         extensions: Vec<crate::config::ExtensionConfig>,
         working_dir: PathBuf,
-        _tls_config: Option<crate::providers::api_client::TlsConfig>,
+        use_default_model: bool,
     ) -> BoxFuture<'static, Result<AcpProvider>> {
         Box::pin(async move {
             let config = Config::global();
@@ -63,9 +63,11 @@ impl ProviderDef for CopilotAcpProvider {
                 .with_npm()
                 .resolve(COPILOT_ACP_BINARY)?;
             let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
-            let model = config
-                .get_goose_model()
-                .unwrap_or_else(|_| ACP_CURRENT_MODEL.to_string());
+            let model = if use_default_model {
+                ACP_CURRENT_MODEL.to_string()
+            } else {
+                configured_model_for_provider(config, COPILOT_ACP_PROVIDER_NAME)
+            };
 
             let args = vec!["--acp".to_string()];
             let session_config_options = if model == ACP_CURRENT_MODEL {
@@ -74,8 +76,6 @@ impl ProviderDef for CopilotAcpProvider {
                 vec![("model".to_string(), model)]
             };
 
-            // Copilot modes are full protocol URIs.
-            // No approve-specific mode; permissions are handled separately.
             let mode_mapping = HashMap::from([
                 (GooseMode::Auto, vec![MODE_AGENT.to_string()]),
                 (GooseMode::Approve, vec![MODE_AGENT.to_string()]),
@@ -100,5 +100,31 @@ impl ProviderDef for CopilotAcpProvider {
             let metadata = Self::metadata();
             AcpProvider::connect(metadata.name, goose_mode, provider_config).await
         })
+    }
+}
+
+impl ProviderDef for CopilotAcpProvider {
+    type Provider = AcpProvider;
+
+    fn from_env(
+        extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> BoxFuture<'static, Result<AcpProvider>> {
+        Self::from_env_with_working_dir(extensions, current_working_dir(), tls_config)
+    }
+
+    fn from_env_with_working_dir(
+        extensions: Vec<crate::config::ExtensionConfig>,
+        working_dir: PathBuf,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> BoxFuture<'static, Result<AcpProvider>> {
+        Self::create(extensions, working_dir, false)
+    }
+
+    fn from_env_with_default_model(
+        extensions: Vec<crate::config::ExtensionConfig>,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> BoxFuture<'static, Result<AcpProvider>> {
+        Self::create(extensions, current_working_dir(), true)
     }
 }

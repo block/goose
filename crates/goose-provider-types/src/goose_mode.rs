@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumMessage, EnumString, IntoStaticStr, VariantNames};
-use utoipa::ToSchema;
 
 #[derive(
     Copy,
@@ -17,7 +16,6 @@ use utoipa::ToSchema;
     EnumString,
     IntoStaticStr,
     VariantNames,
-    ToSchema,
 )]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]

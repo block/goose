@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::config::Config;
+use crate::config::{paths::Paths, Config};
 use crate::plugins::plugin_install_dir;
 
 const PLUGINS_CONFIG_KEY: &str = "plugins";
@@ -192,9 +192,9 @@ fn load_all_settings(project_root: Option<&Path>) -> Vec<(SettingsScope, PluginS
 }
 
 fn user_settings_path() -> Option<PathBuf> {
-    if let Ok(test_root) = std::env::var("GOOSE_PATH_ROOT") {
+    if let Some(path_root) = Paths::path_root() {
         return Some(
-            PathBuf::from(test_root)
+            path_root
                 .join(".config")
                 .join("goose")
                 .join("settings.json"),
@@ -254,9 +254,14 @@ mod tests {
         Config::new(dir.join("config.yaml"), "goose-discovery-test").unwrap()
     }
 
+    fn discover_with_config(project: &Path, config: &Config) -> Vec<DiscoveredPlugin> {
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", None::<&str>)]);
+        discover_enabled_plugins_with_config(Some(project), config)
+    }
+
     fn discover(project: &Path) -> Vec<DiscoveredPlugin> {
         let cfg_dir = tempfile::tempdir().unwrap();
-        discover_enabled_plugins_with_config(Some(project), &test_config(cfg_dir.path()))
+        discover_with_config(project, &test_config(cfg_dir.path()))
     }
 
     #[test]
@@ -345,13 +350,12 @@ mod tests {
             r#"{"enabledPlugins":["demo"]}"#,
         );
 
-        let prev = std::env::var("GOOSE_PATH_ROOT").ok();
-        unsafe { std::env::set_var("GOOSE_PATH_ROOT", fake_home.path()) };
-        let found = discover(project);
-        match prev {
-            Some(v) => unsafe { std::env::set_var("GOOSE_PATH_ROOT", v) },
-            None => unsafe { std::env::remove_var("GOOSE_PATH_ROOT") },
-        }
+        let cfg_dir = tempfile::tempdir().unwrap();
+        let found = {
+            let _guard =
+                env_lock::lock_env([("GOOSE_PATH_ROOT", Some(fake_home.path().to_str().unwrap()))]);
+            discover_enabled_plugins_with_config(Some(project), &test_config(cfg_dir.path()))
+        };
 
         assert!(
             found.iter().any(|p| p.name == "demo"),
@@ -369,7 +373,7 @@ mod tests {
         let cfg_dir = tempfile::tempdir().unwrap();
         let config = test_config(cfg_dir.path());
 
-        let found = discover_enabled_plugins_with_config(Some(project), &config);
+        let found = discover_with_config(project, &config);
         assert!(found.iter().any(|p| p.name == "demo"));
 
         let entries: HashMap<String, PluginConfigEntry> =
@@ -403,7 +407,7 @@ mod tests {
         let entries = HashMap::from([(key, PluginConfigEntry { enabled: false })]);
         config.set_param(PLUGINS_CONFIG_KEY, entries).unwrap();
 
-        let found = discover_enabled_plugins_with_config(Some(project), &config);
+        let found = discover_with_config(project, &config);
         assert!(found.iter().all(|p| p.name != "demo"));
     }
 
@@ -428,7 +432,7 @@ mod tests {
             )
             .unwrap();
 
-        let found = discover_enabled_plugins_with_config(Some(project), &config);
+        let found = discover_with_config(project, &config);
         assert!(found.iter().any(|p| p.name == "demo"));
 
         let entries: HashMap<String, PluginConfigEntry> =

@@ -18,7 +18,7 @@ use chrono::{DateTime, Duration, Utc};
 use futures::FutureExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use sqlx::{Pool, Row, Sqlite, Transaction};
+use sqlx::{Row, Sqlite, Transaction};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
@@ -34,8 +34,13 @@ pub struct ProviderInventoryEntry {
     pub description: String,
     pub default_model: String,
     pub configured: bool,
+    pub available: bool,
     pub provider_type: ProviderType,
     pub category: ProviderSetupCategory,
+    pub acp: bool,
+    pub visible_in_setup: bool,
+    pub deprecated: bool,
+    pub replacement: Option<String>,
     pub config_keys: Vec<ConfigKey>,
     pub setup_steps: Vec<String>,
     pub supports_refresh: bool,
@@ -260,8 +265,13 @@ struct ProviderDescriptor {
     default_model: String,
     identity: InventoryIdentity,
     configured: bool,
+    available: bool,
     provider_type: ProviderType,
     category: ProviderSetupCategory,
+    acp: bool,
+    visible_in_setup: bool,
+    deprecated: bool,
+    replacement: Option<String>,
     config_keys: Vec<ConfigKey>,
     setup_steps: Vec<String>,
     supports_refresh: bool,
@@ -294,6 +304,7 @@ impl ProviderInventoryService {
             snapshot.as_ref(),
             &descriptor.identity.provider_family,
             &descriptor.static_models,
+            descriptor.supports_refresh,
         );
 
         Ok(Some(ProviderInventoryEntry {
@@ -302,8 +313,13 @@ impl ProviderInventoryService {
             description: descriptor.description,
             default_model: descriptor.default_model,
             configured: descriptor.configured,
+            available: descriptor.available,
             provider_type: descriptor.provider_type,
             category: descriptor.category,
+            acp: descriptor.acp,
+            visible_in_setup: descriptor.visible_in_setup,
+            deprecated: descriptor.deprecated,
+            replacement: descriptor.replacement,
             config_keys: descriptor.config_keys,
             setup_steps: descriptor.setup_steps,
             supports_refresh: descriptor.supports_refresh,
@@ -714,10 +730,26 @@ impl ProviderInventoryService {
             description: metadata.description.clone(),
             default_model: metadata.default_model.clone(),
             identity,
-            configured: entry.inventory_configured(),
+            configured: if metadata.setup.as_ref().is_some_and(|setup| setup.acp) {
+                crate::config::get_provider_entry(Config::global(), provider_id)
+                    .is_some_and(|entry| entry.enabled && entry.configured)
+            } else {
+                entry.inventory_configured()
+            },
+            available: entry.inventory_configured(),
             provider_type: entry.provider_type(),
-            category: crate::providers::catalog::get_provider_setup_category(&metadata.name)
+            category: metadata
+                .setup
+                .as_ref()
+                .map(|setup| setup.category)
                 .unwrap_or(ProviderSetupCategory::Model),
+            acp: metadata.setup.as_ref().is_some_and(|setup| setup.acp),
+            visible_in_setup: metadata.deprecated.is_none(),
+            deprecated: metadata.deprecated.is_some(),
+            replacement: metadata
+                .deprecated
+                .as_ref()
+                .and_then(|deprecated| deprecated.replacement.clone()),
             config_keys: metadata.config_keys.clone(),
             setup_steps: metadata.setup_steps.clone(),
             supports_refresh: entry.supports_inventory_refresh(),
@@ -1013,6 +1045,20 @@ fn enrich_model_ids_with_canonical(
     provider_family: &str,
     model_ids: &[String],
 ) -> Vec<InventoryModel> {
+    if provider_family == "litellm" {
+        return model_ids
+            .iter()
+            .map(|id| InventoryModel {
+                id: id.clone(),
+                name: id.clone(),
+                family: None,
+                context_limit: None,
+                reasoning: None,
+                recommended: false,
+            })
+            .collect();
+    }
+
     let mut models: Vec<InventoryModel> = Vec::new();
     let mut seen_names: HashSet<String> = HashSet::new();
 
@@ -1091,7 +1137,12 @@ fn inventory_models_from_snapshot(
     snapshot: Option<&InventorySnapshot>,
     provider_family: &str,
     configured_models: &[ModelInfo],
+    supports_refresh: bool,
 ) -> Vec<InventoryModel> {
+    if !supports_refresh {
+        return configured_models_to_inventory(provider_family, configured_models);
+    }
+
     match snapshot {
         Some(snapshot) if !snapshot.models.is_empty() || snapshot.last_updated_at.is_some() => {
             snapshot.models.clone()
@@ -1128,52 +1179,7 @@ fn enriched_model(
     }
 }
 
-pub async fn create_tables(pool: &Pool<Sqlite>) -> Result<()> {
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS provider_inventory_entries (
-            inventory_key TEXT PRIMARY KEY,
-            provider_id TEXT NOT NULL,
-            provider_family TEXT NOT NULL,
-            last_updated_at TEXT,
-            last_refresh_attempt_at TEXT,
-            last_refresh_error TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        "#,
-    )
-    .execute(pool)
-    .await?;
-
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS provider_inventory_models (
-            inventory_key TEXT NOT NULL REFERENCES provider_inventory_entries(inventory_key) ON DELETE CASCADE,
-            ordinal INTEGER NOT NULL,
-            model_id TEXT NOT NULL,
-            name TEXT NOT NULL,
-            family TEXT,
-            context_limit INTEGER,
-            reasoning BOOLEAN,
-            recommended BOOLEAN,
-            PRIMARY KEY (inventory_key, ordinal)
-        )
-        "#,
-    )
-    .execute(pool)
-    .await?;
-
-    sqlx::query(
-        "CREATE INDEX IF NOT EXISTS idx_provider_inventory_provider_id ON provider_inventory_entries(provider_id)",
-    )
-    .execute(pool)
-    .await?;
-
-    Ok(())
-}
-
-pub async fn create_tables_in_tx(tx: &mut Transaction<'_, Sqlite>) -> Result<()> {
+pub async fn create_tables(tx: &mut Transaction<'_, Sqlite>) -> Result<()> {
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS provider_inventory_entries (
@@ -1352,7 +1358,7 @@ mod tests {
         };
 
         let models =
-            inventory_models_from_snapshot(Some(&snapshot), "anthropic", &configured_models);
+            inventory_models_from_snapshot(Some(&snapshot), "anthropic", &configured_models, true);
 
         assert_eq!(models.len(), 1);
         assert_eq!(models[0].id, "claude-sonnet-4-5");
@@ -1369,8 +1375,36 @@ mod tests {
         };
 
         let models =
-            inventory_models_from_snapshot(Some(&snapshot), "anthropic", &configured_models);
+            inventory_models_from_snapshot(Some(&snapshot), "anthropic", &configured_models, true);
 
         assert!(models.is_empty());
+    }
+
+    #[test]
+    fn inventory_ignores_stale_snapshots_for_static_providers() {
+        let configured_models = [ModelInfo::new("gpt-5.6", 0)];
+        let snapshot = InventorySnapshot {
+            models: vec![InventoryModel {
+                id: "gpt-5.5".to_string(),
+                name: "gpt-5.5".to_string(),
+                family: None,
+                context_limit: None,
+                reasoning: None,
+                recommended: false,
+            }],
+            last_updated_at: Some(Utc::now()),
+            last_refresh_attempt_at: Some(Utc::now()),
+            last_refresh_error: None,
+        };
+
+        let models = inventory_models_from_snapshot(
+            Some(&snapshot),
+            "chatgpt_codex",
+            &configured_models,
+            false,
+        );
+
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].id, "gpt-5.6");
     }
 }

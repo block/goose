@@ -1,4 +1,4 @@
-#[cfg(feature = "mlx")]
+#[cfg(all(feature = "mlx", target_os = "macos"))]
 mod imp {
     use std::any::Any;
     use std::path::{Path, PathBuf};
@@ -990,7 +990,7 @@ mod imp {
     }
 }
 
-#[cfg(not(feature = "mlx"))]
+#[cfg(not(all(feature = "mlx", target_os = "macos")))]
 mod imp {
     use crate::backend::{BackendLoadedModel, LocalGenerationRequest, LocalInferenceBackend};
     use crate::local_model_registry::ModelSettings;

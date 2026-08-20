@@ -2,6 +2,26 @@
 
 goose is an AI agent framework in Rust with CLI and Electron desktop interfaces.
 
+## Contribution Workflow
+
+The issue is the source of truth for work intended for an upstream pull request. Track issue status on the [Goose Issues board](https://github.com/orgs/aaif-goose/projects/1).
+
+- Before implementing an issue for a pull request, confirm that it is on the board with Status **Ready**.
+- Do not implement issues in **Inbox**, **Needs info**, or **Accepted / design**. Help resolve the issue discussion instead.
+- Read the agreed design, constraints, non-goals, and verification plan before changing code.
+- Keep the implementation within the issue's agreed scope.
+- If implementation reveals a material design change, return to the issue before continuing.
+- Every external pull request must link the Ready issue it implements and explain how the verification plan was performed.
+- Structure new issues on the matching template in `.github/ISSUE_TEMPLATE/` and set the issue type (e.g. Bug, Feature). `gh issue create` does not apply templates automatically.
+
+Maintainer-directed work, urgent security fixes, release automation, and local or exploratory changes do not require a Ready issue.
+
+## Agent Loop Migration
+
+We are replacing the legacy agent loop in `crates/goose/src/agents/agent.rs` with the state machine in `crates/goose/src/agents/state_machine/`. The state-machine path is enabled with `GOOSE_STATE_MACHINE=1`.
+
+Until the migration is complete, changes to agent-loop behavior must be implemented and tested in both paths. When reviewing code, check whether a change to either path also applies to the other and flag missing parity.
+
 ## Setup
 ```bash
 source bin/activate-hermit
@@ -85,23 +105,6 @@ ui/desktop/            # Electron app
 - Simplicity: Avoid overly defensive code - trust Rust's type system
 - Logging: Clean up existing logs, don't add more unless for errors or security events
 
-## Ink / Terminal UI (ui/text)
-
-- Ink renders React to a fixed character grid — not a browser. Content that exceeds a Box's dimensions is NOT clipped; it visually overflows into neighboring cells and breaks the layout.
-
-- Ink-Text: Never use `wrap="wrap"` inside a fixed-height Box — wrapped text can exceed the Box height and bleed into adjacent components. Use `wrap="truncate"` and pre-truncate the string to fit the available character budget (lines × width).
-  
-- Ink-Layout: When changing card/cell dimensions, always recalculate how much content fits. Account for borders (2 chars), padding, margins, and sibling elements when computing the
-remaining space for dynamic text.
-  
-- Ink-Overflow: Ink has no `overflow: hidden`. The only way to prevent overflow is to ensure content never exceeds the container size — truncate text, limit list items, or cap height.
-  
-- Ink-FlexGrow: Avoid `flexGrow={1}` on text containers inside fixed-height cards — the text will try to fill available space but Ink won't clip it if it exceeds the boundary.
-  
-- Ink-HeightBudget: When computing how many rows/items fit vertically, count EVERY line used by headers, footers, margins, borders, and scroll indicators. Under-reserving vertical space (e.g., `height - 8` when chrome actually uses 16 lines) causes Ink to squeeze out margins between items, making borders collapse. Always audit the actual line count.
-  
-- Ink-TrailingMargin: Don't apply `marginBottom` to the last item in a list — it wastes a line and can push content out of the container. Use conditional margins or container `gap`.
-
 ## Never
 
 - Never: Recreate `ui/desktop/src/api` or add `@hey-api/openapi-ts` to `ui/desktop`
@@ -110,6 +113,7 @@ remaining space for dynamic text.
 - Never: Skip cargo fmt
 - Never: Merge without running clippy
 - Never: Comment self-evident operations (`// Initialize`, `// Return result`), getters/setters, constructors, or standard Rust idioms
+- Never: Overwrite a live binary in place (e.g. `cp`/`fs.copyFileSync` onto an existing executable) - unlink or atomic-rename the destination first, otherwise macOS SIGKILLs running processes with "Code Signature Invalid"
 
 ## Entry Points
 - CLI: crates/goose-cli/src/main.rs

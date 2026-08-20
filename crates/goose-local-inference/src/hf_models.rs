@@ -10,8 +10,6 @@ use std::sync::{Arc, Mutex};
 
 use crate::huggingface_auth;
 
-use utoipa::ToSchema;
-
 const HF_API_BASE: &str = "https://huggingface.co/api/models";
 const HF_DOWNLOAD_BASE: &str = "https://huggingface.co";
 const LLAMACPP_BACKEND_ID: &str = "llamacpp";
@@ -20,7 +18,7 @@ const GGUF_FORMAT: &str = "gguf";
 const MLX_FORMAT: &str = "mlx-safetensors";
 const MLX_VARIANT_ID: &str = "default";
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HfModelInfo {
     pub repo_id: String,
     pub author: String,
@@ -31,7 +29,7 @@ pub struct HfModelInfo {
     pub variants: Vec<HfModelVariant>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HfModelVariant {
     pub variant_id: String,
     pub label: String,
@@ -59,7 +57,7 @@ fn default_supported() -> bool {
 }
 
 /// A single downloadable GGUF file (used internally and for downloads).
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HfGgufFile {
     pub filename: String,
     pub size_bytes: u64,
@@ -68,7 +66,7 @@ pub struct HfGgufFile {
 }
 
 /// A quantization variant — groups sharded files into one logical entry.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HfQuantVariant {
     pub quantization: String,
     pub size_bytes: u64,
@@ -1844,14 +1842,14 @@ fn mlx_config_support(config: &Option<serde_json::Value>) -> Option<String> {
     mlx_config_support_for_value(config)
 }
 
-#[cfg(feature = "mlx")]
+#[cfg(all(feature = "mlx", target_os = "macos"))]
 fn mlx_config_support_for_value(config: &serde_json::Value) -> Option<String> {
     safemlx_lm::check_model_config(config)
         .unsupported_reason()
         .map(str::to_string)
 }
 
-#[cfg(not(feature = "mlx"))]
+#[cfg(not(all(feature = "mlx", target_os = "macos")))]
 fn mlx_config_support_for_value(_config: &serde_json::Value) -> Option<String> {
     None
 }

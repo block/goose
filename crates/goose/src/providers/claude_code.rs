@@ -308,8 +308,8 @@ impl ClaudeCodeProvider {
                             let text: String = result
                                 .content
                                 .iter()
-                                .filter_map(|c| match &c.raw {
-                                    rmcp::model::RawContent::Text(t) => Some(t.text.as_str()),
+                                .filter_map(|c| match c {
+                                    rmcp::model::ContentBlock::Text(t) => Some(t.text.as_str()),
                                     _ => None,
                                 })
                                 .collect::<Vec<&str>>()
@@ -604,6 +604,7 @@ impl goose_providers::base::ProviderDescriptor for ClaudeCodeProvider {
                 true,
             )],
         )
+        .deprecated(Some("claude-acp"))
     }
 }
 
@@ -737,7 +738,7 @@ impl Provider for ClaudeCodeProvider {
         let blocks = self.last_user_content_blocks(messages);
         let ndjson_line = build_stream_json_input(&blocks, &session_id);
         let model_name = model_config.model_name.clone();
-        let message_id = uuid::Uuid::new_v4().to_string();
+        let mut current_text_message_id = uuid::Uuid::new_v4().to_string();
         let pending_confirmations = Arc::clone(&self.pending_confirmations);
 
         Ok(Box::pin(try_stream! {
@@ -820,7 +821,7 @@ impl Provider for ClaudeCodeProvider {
                                                             vec![MessageContent::text(text)],
                                                         );
                                                         partial_message.id =
-                                                            Some(message_id.clone());
+                                                            Some(current_text_message_id.clone());
                                                         yield (Some(partial_message), None);
                                                     }
                                                 }
@@ -854,6 +855,42 @@ impl Provider for ClaudeCodeProvider {
                                 }
                                 Some("result") => {
                                     process.needs_drain = false;
+                                    if parsed
+                                        .get("is_error")
+                                        .and_then(Value::as_bool)
+                                        .unwrap_or(false)
+                                    {
+                                        let subtype = parsed
+                                            .get("subtype")
+                                            .and_then(Value::as_str)
+                                            .unwrap_or("error");
+                                        let mut details = Vec::new();
+                                        if let Some(error) =
+                                            parsed.get("error").and_then(Value::as_str)
+                                        {
+                                            details.push(error);
+                                        }
+                                        if let Some(errors) =
+                                            parsed.get("errors").and_then(Value::as_array)
+                                        {
+                                            details.extend(errors.iter().filter_map(Value::as_str));
+                                        }
+                                        if let Some(result) =
+                                            parsed.get("result").and_then(Value::as_str)
+                                        {
+                                            details.push(result);
+                                        }
+                                        let details = details.join("; ");
+                                        let message = match (subtype, details.is_empty()) {
+                                            ("success", false) => details,
+                                            (_, false) => format!("{subtype}: {details}"),
+                                            _ => subtype.to_string(),
+                                        };
+                                        stream_error = Some(ProviderError::RequestFailed(format!(
+                                            "Claude CLI error: {message}"
+                                        )));
+                                        break;
+                                    }
                                     if let Some(usage_info) = parsed.get("usage") {
                                         let new = extract_usage_tokens(usage_info);
                                         let reports_own_cache = new.cache_read_input_tokens.is_some()
@@ -909,6 +946,7 @@ impl Provider for ClaudeCodeProvider {
                                             request_id.clone(), tool_name, input.clone(), None,
                                         );
                                         yield (Some(action_msg), None);
+                                        current_text_message_id = uuid::Uuid::new_v4().to_string();
 
                                         let confirmation = rx.await.unwrap_or(PermissionConfirmation {
                                             principal_type: PrincipalType::Tool,
@@ -1111,7 +1149,7 @@ mod tests {
     )]
     #[test_case(
         vec![Message::new(Role::User, 0, vec![
-            MessageContent::tool_response("call_123", Ok(rmcp::model::CallToolResult::success(vec![rmcp::model::Content::text("file1.txt\nfile2.txt")])))
+            MessageContent::tool_response("call_123", Ok(rmcp::model::CallToolResult::success(vec![rmcp::model::ContentBlock::text("file1.txt\nfile2.txt")])))
         ])],
         &[json!({"type":"text","text":"Human: [tool_result id=call_123] file1.txt\nfile2.txt"})]
         ; "tool_response"
@@ -1214,6 +1252,9 @@ mod tests {
             headers: HashMap::from([("Authorization".into(), "Bearer token".into())]),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
+            scopes: vec![],
             bundled: Some(false),
             available_tools: vec![],
         }],
@@ -1236,6 +1277,9 @@ mod tests {
             headers: HashMap::new(),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
+            scopes: vec![],
             bundled: None,
             available_tools: vec![],
         }],
@@ -1461,6 +1505,65 @@ mod tests {
         let stdin_str = capture_stdin(&provider, stdin_reader).await;
         let response_data = extract_permission_response(&stdin_str, "perm_1");
         assert_eq!(response_data, expected_response);
+    }
+
+    #[tokio::test]
+    async fn test_text_message_id_rotates_after_action_required() {
+        use futures::StreamExt;
+
+        let (provider, mut stream, _stdin_reader) = stream_with_canned_stdout(&[
+            r#"{"type":"control_response","response":{"subtype":"success","request_id":"req_0"}}"#,
+            r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"before permission"}}}"#,
+            r#"{"type":"control_request","request_id":"perm_1","request":{"subtype":"can_use_tool","tool_name":"Write","input":{"path":"foo.txt","content":"hello"},"tool_use_id":"tu_1"}}"#,
+            r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"after permission"}}}"#,
+            r#"{"type":"result","result":"Done","usage":{"input_tokens":10,"output_tokens":5}}"#,
+        ]).await;
+
+        let (before_msg, usage) = stream.next().await.unwrap().unwrap();
+        assert!(usage.is_none());
+        let before_msg = before_msg.unwrap();
+        assert_eq!(before_msg.role, Role::Assistant);
+        assert_eq!(before_msg.as_concat_text(), "before permission");
+        let before_id = before_msg
+            .id
+            .as_deref()
+            .expect("text before permission should have a provider ID")
+            .to_string();
+
+        let (action_msg, usage) = stream.next().await.unwrap().unwrap();
+        assert!(usage.is_none());
+        assert!(action_msg
+            .unwrap()
+            .content
+            .iter()
+            .any(|content| content.as_action_required().is_some()));
+
+        let handled = provider
+            .handle_permission_confirmation(
+                "perm_1",
+                &PermissionConfirmation {
+                    principal_type: PrincipalType::Tool,
+                    permission: Permission::AllowOnce,
+                },
+            )
+            .await;
+        assert!(handled);
+
+        let (after_msg, usage) = stream.next().await.unwrap().unwrap();
+        assert!(usage.is_none());
+        let after_msg = after_msg.unwrap();
+        assert_eq!(after_msg.role, Role::Assistant);
+        assert_eq!(after_msg.as_concat_text(), "after permission");
+        let after_id = after_msg
+            .id
+            .as_deref()
+            .expect("text after permission should have a provider ID");
+
+        assert_ne!(before_id, after_id);
+
+        while let Some(item) = stream.next().await {
+            item.unwrap();
+        }
     }
 
     #[tokio::test]
