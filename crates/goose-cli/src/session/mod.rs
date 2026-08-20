@@ -654,10 +654,9 @@ impl CliSession {
         }
 
         // The completion cache starts empty: populating it here would issue
-        // prompts/list to every connected extension, so a slow responder would
+        // prompts/list to every connected extension, so a slow responder could
         // block the prompt right after we announced loading continues in the
-        // background. The REPL loop's loading gate refreshes the cache once
-        // loading has finished, before the first input is read.
+        // background. The REPL loop refreshes the cache once loading finishes.
         let mut editor = self.create_editor()?;
         let history_manager = HistoryManager::new();
         history_manager.load(&mut editor);
@@ -724,9 +723,8 @@ impl CliSession {
         editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>,
         conversation_messages: &[String],
     ) -> Result<()> {
-        // The single gate for interactive commands: every InputResult variant,
-        // including future ones, waits here until background extension loading
-        // has finished before its handler may touch the agent or extensions.
+        // The REPL's loading gate: every command, including future ones, waits
+        // here until background extension loading has finished.
         self.ensure_extensions_loaded(true).await?;
         match input {
             InputResult::Message(content) => {
@@ -1905,26 +1903,18 @@ impl CliSession {
         Ok(())
     }
 
-    /// Await background extension loading and surface any failures.
+    /// The session's single extension-loading gate: wait for the background
+    /// loader, surface any failures, and refresh the completion cache.
     ///
-    /// This is the single loading gate for the session. Waiting is centralised
-    /// at the entry points that can interact with the agent or the extension
-    /// set, so individual command handlers never gate themselves and future
-    /// commands inherit the gate automatically:
-    /// - `handle_input` — every interactive command dispatched from the REPL
-    /// - `process_message` — programmatic message processing (initial prompt,
-    ///   headless mode, scenario runner); `interactive` controls whether the
-    ///   waiting/ready indicators are shown
-    /// - `add_and_persist_extensions` — extension-set mutations
-    /// - `list_prompts`/`get_prompt_info`/`get_prompt` — extension prompt reads
-    ///
-    /// Only `update_completion_cache` deliberately skips the gate: it builds
-    /// completions from whatever has loaded so far and is refreshed by the gate
-    /// once loading finishes.
-    async fn ensure_extensions_loaded(&mut self, show_status: bool) -> Result<()> {
+    /// Entry points that can touch the agent or the extension set call this
+    /// rather than gating handlers individually, so new commands inherit the
+    /// gate automatically. `interactive` controls the waiting/ready
+    /// indicators; `update_completion_cache` deliberately stays ungated so
+    /// completions build from whatever has loaded so far.
+    async fn ensure_extensions_loaded(&mut self, interactive: bool) -> Result<()> {
         if let Some(handle) = self.extension_loading.take() {
             let was_in_progress = !handle.is_finished();
-            if show_status && was_in_progress {
+            if interactive && was_in_progress {
                 output::show_waiting_for_extensions();
             }
             let failures = handle
@@ -1932,7 +1922,7 @@ impl CliSession {
                 .map_err(|e| anyhow::anyhow!("Extension loading task failed: {}", e))?;
             output::show_extension_failures(&failures);
 
-            if show_status && (was_in_progress || self.loading_announced) {
+            if interactive && (was_in_progress || self.loading_announced) {
                 output::show_extensions_ready();
             }
             self.loading_announced = false;

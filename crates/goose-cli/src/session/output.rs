@@ -217,32 +217,35 @@ pub fn show_extensions_ready() {
 
 pub fn show_extension_failures(failures: &[ExtensionFailure]) {
     for failure in failures {
-        if failure.label.is_empty() {
-            eprintln!(
-                "{}",
-                style(format!(
-                    "  ⚠ Failed to start extensions ({})",
-                    failure.error
-                ))
-                .yellow()
-            );
-        } else {
-            eprintln!(
-                "{}",
-                style(format!(
-                    "  ⚠ Failed to start extension '{}' ({}), continuing without it",
-                    failure.label, failure.error
-                ))
-                .yellow()
-            );
-            eprintln!(
-                "{}",
-                style(format!(
-                    "    Hint: ask goose to help debug the '{}' extension",
-                    failure.label
-                ))
-                .dim()
-            );
+        match failure.label.as_deref() {
+            None => {
+                eprintln!(
+                    "{}",
+                    style(format!(
+                        "  ⚠ Failed to start extensions ({})",
+                        failure.error
+                    ))
+                    .yellow()
+                );
+            }
+            Some(label) => {
+                eprintln!(
+                    "{}",
+                    style(format!(
+                        "  ⚠ Failed to start extension '{}' ({}), continuing without it",
+                        label, failure.error
+                    ))
+                    .yellow()
+                );
+                eprintln!(
+                    "{}",
+                    style(format!(
+                        "    Hint: ask goose to help debug the '{}' extension",
+                        label
+                    ))
+                    .dim()
+                );
+            }
         }
     }
 }

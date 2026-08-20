@@ -233,7 +233,7 @@ impl Default for SessionBuilderConfig {
 }
 
 pub struct ExtensionFailure {
-    pub label: String,
+    pub label: Option<String>,
     pub error: anyhow::Error,
 }
 
@@ -244,12 +244,9 @@ async fn load_extensions(
 ) -> Vec<ExtensionFailure> {
     let results = match agent.add_extensions_bulk(extensions, session_id).await {
         Ok(results) => results,
-        Err(e) => {
-            tracing::error!("failed to load extensions: {}", e);
-            return vec![ExtensionFailure {
-                label: String::new(),
-                error: e,
-            }];
+        Err(error) => {
+            tracing::error!("failed to load extensions: {}", error);
+            return vec![ExtensionFailure { label: None, error }];
         }
     };
 
@@ -257,7 +254,7 @@ async fn load_extensions(
         .into_iter()
         .filter_map(|r| {
             r.error.map(|error| ExtensionFailure {
-                label: r.name,
+                label: Some(r.name),
                 error: anyhow::anyhow!(error),
             })
         })
@@ -810,18 +807,18 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         }
     }
 
-    // Extensions are loaded after session creation because we may change directory when resuming.
     for warning in goose::config::get_warnings() {
         eprintln!("{}", style(format!("Warning: {}", warning)).yellow());
     }
 
+    // Extensions are loaded after session creation because we may change
+    // directory when resuming.
     let agent_ptr = Arc::new(agent);
-    let loading_handle = tokio::spawn({
+    let loading_handle = AbortOnDropHandle::new(tokio::spawn({
         let agent = agent_ptr.clone();
         let sid = session_id.clone();
         async move { load_extensions(agent, extensions_for_provider, &sid).await }
-    });
-    let loading_handle = AbortOnDropHandle::new(loading_handle);
+    }));
 
     let edit_mode = config
         .get_param::<String>("EDIT_MODE")

@@ -1469,31 +1469,34 @@ impl Agent {
 
                 async move {
                     let name = config.name().to_string();
-                    let result = match &config {
+                    match &config {
                         ExtensionConfig::Frontend { .. } => {
                             agent.insert_frontend_extension(config.clone()).await;
-                            Ok(())
-                        }
-                        _ => ext_manager
-                            .add_extension(config, working_dir, container.as_ref(), Some(&sid))
-                            .await
-                            .map_err(|e| e.to_string()),
-                    };
-
-                    match result {
-                        Ok(_) => ExtensionLoadResult {
-                            name,
-                            success: true,
-                            error: None,
-                        },
-                        Err(error_msg) => {
-                            warn!("Failed to load extension {}: {}", name, error_msg);
                             ExtensionLoadResult {
                                 name,
-                                success: false,
-                                error: Some(error_msg),
+                                success: true,
+                                error: None,
                             }
                         }
+                        _ => match ext_manager
+                            .add_extension(config, working_dir, container.as_ref(), Some(&sid))
+                            .await
+                        {
+                            Ok(_) => ExtensionLoadResult {
+                                name,
+                                success: true,
+                                error: None,
+                            },
+                            Err(e) => {
+                                let error = e.to_string();
+                                warn!("Failed to load extension {}: {}", name, error);
+                                ExtensionLoadResult {
+                                    name,
+                                    success: false,
+                                    error: Some(error),
+                                }
+                            }
+                        },
                     }
                 }
             })
