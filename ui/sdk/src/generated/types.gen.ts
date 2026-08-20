@@ -1079,6 +1079,7 @@ export type CustomProviderCreateRequest_unstable = {
     requiresAuth: boolean;
     catalogProviderId?: string | null;
     basePath?: string | null;
+    toolshim?: boolean | null;
     preservesThinking?: boolean | null;
 };
 
@@ -1140,6 +1141,7 @@ export type CustomProviderConfigDto = {
     requiresAuth: boolean;
     catalogProviderId?: string | null;
     basePath?: string | null;
+    toolshim?: boolean | null;
     apiKeyEnv?: string | null;
     apiKeySet: boolean;
     preservesThinking: boolean;
@@ -1162,6 +1164,7 @@ export type CustomProviderUpdateRequest_unstable = {
     requiresAuth: boolean;
     catalogProviderId?: string | null;
     basePath?: string | null;
+    toolshim?: boolean | null;
     preservesThinking?: boolean | null;
 };
 

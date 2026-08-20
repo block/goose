@@ -263,7 +263,8 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 },
                 "requiresAuth": true,
                 "catalogProviderId": "openai",
-                "basePath": "v1/chat/completions"
+                "basePath": "v1/chat/completions",
+                "toolshim": true
             }),
         )
         .await
@@ -308,6 +309,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
         assert_eq!(saved_provider.name, provider_id);
         assert_eq!(saved_provider.display_name, "Stark ACP Provider");
         assert_eq!(saved_provider.base_url, "https://stark.example/v1");
+        assert_eq!(saved_provider.toolshim, Some(true));
         assert!(saved_provider.preserves_thinking);
         assert_eq!(
             saved_provider
@@ -353,6 +355,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "requiresAuth": true,
                 "catalogProviderId": "openai",
                 "basePath": "v1/chat/completions",
+                "toolshim": true,
                 "apiKeyEnv": "CUSTOM_STARK_ACP_PROVIDER_API_KEY",
                 "apiKeySet": true,
                 "preservesThinking": true,
@@ -389,6 +392,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "headers": {},
                 "requiresAuth": true,
                 "catalogProviderId": "zai",
+                "toolshim": false,
                 "preservesThinking": false
             }),
         )
@@ -420,6 +424,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
         );
         assert_eq!(updated_provider.base_path, None);
         assert_eq!(updated_provider.headers, None);
+        assert_eq!(updated_provider.toolshim, Some(false));
         assert!(!updated_provider.preserves_thinking);
         assert_eq!(
             updated_provider

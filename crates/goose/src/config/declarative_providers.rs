@@ -144,6 +144,7 @@ pub struct CreateCustomProviderParams {
     pub requires_auth: bool,
     pub catalog_provider_id: Option<String>,
     pub base_path: Option<String>,
+    pub toolshim: Option<bool>,
     pub preserves_thinking: Option<bool>,
 }
 
@@ -160,6 +161,7 @@ pub struct UpdateCustomProviderParams {
     pub requires_auth: bool,
     pub catalog_provider_id: Option<String>,
     pub base_path: Option<String>,
+    pub toolshim: Option<bool>,
     pub preserves_thinking: Option<bool>,
 }
 
@@ -214,6 +216,7 @@ pub fn create_custom_provider(
         model_doc_link: None,
         setup_steps: vec![],
         fast_model: None,
+        toolshim: params.toolshim,
         preserves_thinking,
         emit_clear_thinking: false,
         setup: None,
@@ -303,6 +306,7 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             model_doc_link: existing_config.model_doc_link,
             setup_steps: existing_config.setup_steps,
             fast_model: existing_config.fast_model.clone(),
+            toolshim: params.toolshim,
             preserves_thinking,
             emit_clear_thinking: existing_config.emit_clear_thinking,
             setup: existing_config.setup,
@@ -575,6 +579,7 @@ mod tests {
             model_doc_link: None,
             setup_steps: Vec::new(),
             fast_model: None,
+            toolshim: None,
             preserves_thinking: true,
             emit_clear_thinking: false,
             setup: None,
@@ -787,6 +792,7 @@ mod tests {
             requires_auth: false,
             catalog_provider_id: None,
             base_path: None,
+            toolshim: None,
             preserves_thinking: None,
         })
         .unwrap();
@@ -942,6 +948,7 @@ mod tests {
             requires_auth: false,
             catalog_provider_id: None,
             base_path: None,
+            toolshim: None,
             preserves_thinking: None,
         })
         .unwrap();

@@ -148,6 +148,8 @@ pub struct DeclarativeProviderConfig {
     pub setup_steps: Vec<String>,
     #[serde(default, deserialize_with = "deserialize_non_empty_string")]
     pub fast_model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub toolshim: Option<bool>,
     #[serde(default)]
     pub preserves_thinking: bool,
     /// Enables Z.AI's `clear_thinking` field, which Anthropic does not support.

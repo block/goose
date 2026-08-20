@@ -32,6 +32,7 @@ pub struct ProviderEntry {
     provider_type: ProviderType,
     supports_inventory_refresh: bool,
     tls_config: Option<TlsConfig>,
+    toolshim: Option<bool>,
 }
 
 impl ProviderEntry {
@@ -61,6 +62,9 @@ impl ProviderEntry {
     /// the agent/session layer to resolve effective limits (e.g. for custom
     /// providers that declare explicit context limits in their config).
     pub fn normalize_model_config(&self, mut model: ModelConfig) -> Result<ModelConfig> {
+        if let Some(toolshim) = self.toolshim {
+            model = model.with_toolshim(toolshim);
+        }
         model = crate::model_config::materialize_model_config(&self.metadata.name, model)?;
 
         if model.context_limit.is_none() {
@@ -163,6 +167,7 @@ impl ProviderRegistry {
                 },
                 supports_inventory_refresh: inventory.supports_refresh,
                 tls_config: self.tls_config.clone(),
+                toolshim: None,
             },
         );
     }
@@ -329,6 +334,7 @@ impl ProviderRegistry {
                 provider_type,
                 supports_inventory_refresh,
                 tls_config: self.tls_config.clone(),
+                toolshim: config.toolshim,
             },
         );
     }
@@ -399,6 +405,7 @@ mod tests {
             model_doc_link: None,
             setup_steps: vec![],
             fast_model: None,
+            toolshim: None,
             preserves_thinking: false,
             emit_clear_thinking: false,
             setup: None,
@@ -422,5 +429,40 @@ mod tests {
         assert!(!entry.inventory_configured());
         assert!(entry.metadata().setup.is_none());
         assert!(entry.metadata().deprecated.is_none());
+    }
+
+    #[test]
+    fn custom_provider_toolshim_overrides_are_isolated() {
+        let mut registry = ProviderRegistry::new(None);
+        for (name, toolshim) in [
+            ("custom_toolshim", Some(true)),
+            ("custom_native", Some(false)),
+            ("custom_default", None),
+        ] {
+            let mut config = test_config();
+            config.name = name.to_string();
+            config.toolshim = toolshim;
+            registry.register_with_name::<OpenAiProviderDef, _, _>(
+                &config,
+                ProviderType::Custom,
+                false,
+                |_| unreachable!("constructor is not used by this test"),
+                move || Ok(InventoryIdentityInput::new(name, name)),
+            );
+        }
+
+        let toolshim = registry.entries["custom_toolshim"]
+            .normalize_model_config(ModelConfig::new("test-model"))
+            .unwrap();
+        let native = registry.entries["custom_native"]
+            .normalize_model_config(ModelConfig::new("test-model").with_toolshim(true))
+            .unwrap();
+        let fallback = registry.entries["custom_default"]
+            .normalize_model_config(ModelConfig::new("test-model").with_toolshim(true))
+            .unwrap();
+
+        assert!(toolshim.toolshim);
+        assert!(!native.toolshim);
+        assert!(fallback.toolshim);
     }
 }

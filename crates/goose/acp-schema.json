@@ -2308,6 +2308,12 @@
             "null"
           ]
         },
+        "toolshim": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "preservesThinking": {
           "type": [
             "boolean",
@@ -2496,6 +2502,12 @@
             "null"
           ]
         },
+        "toolshim": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "apiKeyEnv": {
           "type": [
             "string",
@@ -2572,6 +2584,12 @@
         "basePath": {
           "type": [
             "string",
+            "null"
+          ]
+        },
+        "toolshim": {
+          "type": [
+            "boolean",
             "null"
           ]
         },

@@ -428,6 +428,7 @@ fn custom_provider_config_to_dto(
         requires_auth: config.requires_auth,
         catalog_provider_id: config.catalog_provider_id.clone(),
         base_path: config.base_path.clone(),
+        toolshim: config.toolshim,
         api_key_env,
         api_key_set,
         preserves_thinking: config.preserves_thinking,
@@ -624,6 +625,7 @@ impl GooseAcpAgent {
                 requires_auth: provider.requires_auth,
                 catalog_provider_id: provider.catalog_provider_id,
                 base_path: provider.base_path,
+                toolshim: provider.toolshim,
                 preserves_thinking: provider.preserves_thinking,
             },
         )
@@ -693,6 +695,7 @@ impl GooseAcpAgent {
                 requires_auth: provider.requires_auth,
                 catalog_provider_id: provider.catalog_provider_id,
                 base_path: provider.base_path,
+                toolshim: provider.toolshim,
                 preserves_thinking: provider.preserves_thinking,
             },
         )
