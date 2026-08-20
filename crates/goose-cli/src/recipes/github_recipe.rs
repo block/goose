@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use goose::recipe::read_recipe_file_content::RecipeFile;
 use goose::subprocess::{git_command, SubprocessExt};
+use sha2::{Digest, Sha256};
 use std::env;
 use std::fs;
 use std::io::Read;
@@ -146,7 +147,7 @@ fn read_utf8_with_byte_limit(path: &Path, max_bytes: usize) -> Result<String> {
 fn clone_and_download_recipe(recipe_name: &str, recipe_repo_full_name: &str) -> Result<PathBuf> {
     let local_repo_path = ensure_repo_cloned(recipe_repo_full_name)?;
     fetch_origin(&local_repo_path)?;
-    get_folder_from_github(&local_repo_path, recipe_name)
+    get_folder_from_github(&local_repo_path, recipe_name, recipe_repo_full_name)
 }
 
 fn clone_and_download_recipe_with_byte_limit(
@@ -156,7 +157,12 @@ fn clone_and_download_recipe_with_byte_limit(
 ) -> Result<PathBuf> {
     let local_repo_path = ensure_repo_cloned(recipe_repo_full_name)?;
     fetch_origin(&local_repo_path)?;
-    get_folder_from_github_with_byte_limit(&local_repo_path, recipe_name, max_bytes)
+    get_folder_from_github_with_byte_limit(
+        &local_repo_path,
+        recipe_name,
+        recipe_repo_full_name,
+        max_bytes,
+    )
 }
 
 pub fn ensure_gh_authenticated() -> Result<()> {
@@ -227,8 +233,31 @@ fn temp_child_path(parent: &Path, name: &str) -> Result<PathBuf> {
     Ok(parent.join(temp_child_name(name)?))
 }
 
-fn clean_temp_child_path(parent: &Path, name: &str) -> Result<PathBuf> {
-    let output_dir = temp_child_path(parent, name)?;
+fn unique_temp_child_path(
+    parent: &Path,
+    recipe_name: &str,
+    recipe_repo_full_name: &str,
+) -> Result<PathBuf> {
+    let child = temp_child_name(recipe_name)?;
+    let visible_child = child.chars().take(160).collect::<String>();
+    let mut hasher = Sha256::new();
+    hasher.update(recipe_repo_full_name.as_bytes());
+    hasher.update([0]);
+    hasher.update(recipe_name.as_bytes());
+    let digest = hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    Ok(parent.join(format!("{visible_child}-{digest}")))
+}
+
+fn clean_unique_temp_child_path(
+    parent: &Path,
+    recipe_name: &str,
+    recipe_repo_full_name: &str,
+) -> Result<PathBuf> {
+    let output_dir = unique_temp_child_path(parent, recipe_name, recipe_repo_full_name)?;
     if output_dir.exists() {
         fs::remove_dir_all(&output_dir)?;
     }
@@ -289,9 +318,14 @@ fn fetch_origin(local_repo_path: &Path) -> Result<()> {
     }
 }
 
-fn get_folder_from_github(local_repo_path: &Path, recipe_name: &str) -> Result<PathBuf> {
+fn get_folder_from_github(
+    local_repo_path: &Path,
+    recipe_name: &str,
+    recipe_repo_full_name: &str,
+) -> Result<PathBuf> {
     let ref_and_path = format!("origin/main:{}", recipe_name);
-    let output_dir = clean_temp_child_path(&env::temp_dir(), recipe_name)?;
+    let output_dir =
+        clean_unique_temp_child_path(&env::temp_dir(), recipe_name, recipe_repo_full_name)?;
     fs::create_dir_all(&output_dir)?;
 
     let archive_output = git_command()
@@ -315,10 +349,12 @@ fn get_folder_from_github(local_repo_path: &Path, recipe_name: &str) -> Result<P
 fn get_folder_from_github_with_byte_limit(
     local_repo_path: &Path,
     recipe_name: &str,
+    recipe_repo_full_name: &str,
     max_bytes: usize,
 ) -> Result<PathBuf> {
     let ref_and_path = format!("origin/main:{recipe_name}");
-    let output_dir = clean_temp_child_path(&env::temp_dir(), recipe_name)?;
+    let output_dir =
+        clean_unique_temp_child_path(&env::temp_dir(), recipe_name, recipe_repo_full_name)?;
     fs::create_dir_all(&output_dir)?;
 
     let mut child = git_command()
@@ -661,6 +697,24 @@ mod tests {
     }
 
     #[test]
+    fn unique_temp_child_paths_include_the_complete_request_identity() {
+        let parent = Path::new("goose-recipes");
+
+        assert_ne!(
+            unique_temp_child_path(parent, "a/b", "owner/recipes").unwrap(),
+            unique_temp_child_path(parent, "a__b", "owner/recipes").unwrap()
+        );
+        assert_ne!(
+            unique_temp_child_path(parent, "daily-report", "owner-one/recipes").unwrap(),
+            unique_temp_child_path(parent, "daily-report", "owner-two/recipes").unwrap()
+        );
+        assert_eq!(
+            unique_temp_child_path(parent, "a/b", "owner/recipes").unwrap(),
+            unique_temp_child_path(parent, "a/b", "owner/recipes").unwrap()
+        );
+    }
+
+    #[test]
     fn cleanup_rejects_reserved_components_before_removing_files() {
         let root = tempfile::tempdir().unwrap();
         let parent = root.path().join("recipe-temp");
@@ -682,7 +736,7 @@ mod tests {
             "report.",
             "report...",
         ] {
-            assert!(clean_temp_child_path(&parent, name).is_err());
+            assert!(clean_unique_temp_child_path(&parent, name, "owner/recipes").is_err());
             assert!(parent_sentinel.exists());
             assert!(child_sentinel.exists());
         }
@@ -692,14 +746,14 @@ mod tests {
     fn cleanup_removes_only_the_existing_recipe_child() {
         let root = tempfile::tempdir().unwrap();
         let parent = root.path().join("recipe-temp");
-        let child = parent.join("daily-report");
+        let child = unique_temp_child_path(&parent, "daily-report", "owner/recipes").unwrap();
         fs::create_dir_all(&child).unwrap();
         let parent_sentinel = parent.join("keep");
         fs::write(&parent_sentinel, "keep").unwrap();
         fs::write(child.join("old-recipe.yaml"), "old").unwrap();
 
         assert_eq!(
-            clean_temp_child_path(&parent, "daily-report").unwrap(),
+            clean_unique_temp_child_path(&parent, "daily-report", "owner/recipes").unwrap(),
             child
         );
         assert!(!child.exists());
