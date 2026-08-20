@@ -786,10 +786,9 @@ impl Agent {
         if let Some(cost) = usage.cost {
             return (Some(cost), Some(CostSource::ProviderReported));
         }
-        match provider_name
-            .and_then(|pn| crate::providers::canonical::maybe_get_canonical_model(pn, &usage.model))
-            .and_then(|canonical| canonical.cost.estimate_cost(&usage.usage))
-        {
+        match provider_name.and_then(|pn| {
+            crate::providers::canonical_cost::estimate_model_cost(pn, &usage.model, &usage.usage)
+        }) {
             Some(cost) => (Some(cost), Some(CostSource::Estimated)),
             None => (None, None),
         }
