@@ -1,11 +1,11 @@
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use console::style;
-use goose::recipe::RECIPE_FILE_EXTENSIONS;
 use goose::recipe::template_recipe::parse_recipe_content;
+use goose::recipe::RECIPE_FILE_EXTENSIONS;
 use serde::{Deserialize, Serialize};
 
 use goose::recipe::read_recipe_file_content::RecipeFile;
-use goose::subprocess::{SubprocessExt, git_command};
+use goose::subprocess::{git_command, SubprocessExt};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::env;
@@ -627,7 +627,7 @@ fn get_github_recipe_info(repo: &str, dir_name: &str, recipe_filename: &str) -> 
 
     if let Some(content_b64) = file_info.get("content").and_then(|c| c.as_str()) {
         // Decode base64 content
-        use base64::{Engine as _, engine::general_purpose};
+        use base64::{engine::general_purpose, Engine as _};
         let content_bytes = general_purpose::STANDARD
             .decode(content_b64.replace('\n', ""))
             .map_err(|e| anyhow!("Failed to decode base64 content: {}", e))?;
@@ -871,20 +871,16 @@ mod tests {
         let second = get_local_repo_path(parent, "owner-two/shared").unwrap();
 
         assert_ne!(first, second);
-        assert!(
-            first
-                .file_name()
-                .unwrap()
-                .to_string_lossy()
-                .starts_with("owner-one__shared-")
-        );
-        assert!(
-            second
-                .file_name()
-                .unwrap()
-                .to_string_lossy()
-                .starts_with("owner-two__shared-")
-        );
+        assert!(first
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("owner-one__shared-"));
+        assert!(second
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("owner-two__shared-"));
     }
 
     #[test]
@@ -894,20 +890,16 @@ mod tests {
         let underscore = get_local_repo_path(parent, "owner/caf_").unwrap();
 
         assert_ne!(unicode, underscore);
-        assert!(
-            unicode
-                .file_name()
-                .unwrap()
-                .to_string_lossy()
-                .starts_with("owner__caf_-")
-        );
-        assert!(
-            underscore
-                .file_name()
-                .unwrap()
-                .to_string_lossy()
-                .starts_with("owner__caf_-")
-        );
+        assert!(unicode
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("owner__caf_-"));
+        assert!(underscore
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("owner__caf_-"));
     }
 
     #[test]
