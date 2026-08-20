@@ -5,7 +5,7 @@ use crate::agents::tool_execution::ToolCallContext;
 use crate::config::paths::Paths;
 use crate::conversation::message::Message;
 use crate::goose_apps::McpAppResource;
-use crate::goose_apps::{GooseApp, WindowProps};
+use crate::goose_apps::{GooseApp, McpAppCache, WindowProps};
 use crate::prompt_template::render_template;
 use crate::providers::base::Provider;
 use async_trait::async_trait;
@@ -173,6 +173,17 @@ impl AppsManagerClient {
             fs::read_to_string(&path).map_err(|e| format!("Failed to read app file: {}", e))?;
 
         GooseApp::from_html(&html)
+    }
+
+    fn load_editable_app(&self, name: &str) -> Result<GooseApp, String> {
+        let app = self.load_app(name)?;
+        if McpAppCache::is_bundled_default_uri(&app.resource.uri) {
+            return Err(format!(
+                "Cannot modify bundled default app '{}'",
+                app.resource.name
+            ));
+        }
+        Ok(app)
     }
 
     fn save_app(&self, app: &GooseApp) -> Result<(), String> {
@@ -446,7 +457,7 @@ impl AppsManagerClient {
         let name = extract_string(&args, "name")?;
         let feedback = extract_string(&args, "feedback")?;
 
-        let mut app = self.load_app(&name)?;
+        let mut app = self.load_editable_app(&name)?;
 
         let existing_html = app
             .resource
@@ -823,6 +834,21 @@ mod tests {
             client.load_app("legitimate-app").unwrap().resource.name,
             "legitimate-app"
         );
+    }
+
+    #[tokio::test]
+    async fn bundled_default_apps_are_not_editable() {
+        let temp = tempfile::tempdir().unwrap();
+        let apps_dir = temp.path().join("apps");
+        fs::create_dir_all(&apps_dir).unwrap();
+        let client = test_client(apps_dir);
+
+        client.save_app(&test_app("clock")).unwrap();
+        let error = client.load_editable_app("clock").unwrap_err();
+        assert_eq!(error, "Cannot modify bundled default app 'clock'");
+
+        client.save_app(&test_app("legitimate-app")).unwrap();
+        assert!(client.load_editable_app("legitimate-app").is_ok());
     }
 
     #[tokio::test]
