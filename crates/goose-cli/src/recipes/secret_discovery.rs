@@ -2,7 +2,29 @@ use crate::recipes::search_recipe::load_recipe_file;
 use goose::agents::extension::ExtensionConfig;
 use goose::recipe::Recipe;
 use regex::{NoExpand, Regex};
-use std::collections::HashSet;
+use std::{collections::HashSet, path::PathBuf};
+
+const MAX_SUB_RECIPE_DEPTH: usize = 64;
+const MAX_DISCOVERED_RECIPES: usize = 256;
+const MAX_DISCOVERY_LOADED_BYTES: usize = 1024 * 1024;
+
+#[derive(Clone, Copy)]
+struct DiscoveryLimits {
+    max_depth: usize,
+    max_recipes: usize,
+    max_loaded_bytes: usize,
+}
+
+const DISCOVERY_LIMITS: DiscoveryLimits = DiscoveryLimits {
+    max_depth: MAX_SUB_RECIPE_DEPTH,
+    max_recipes: MAX_DISCOVERED_RECIPES,
+    max_loaded_bytes: MAX_DISCOVERY_LOADED_BYTES,
+};
+
+struct PendingRecipe {
+    path: String,
+    depth: usize,
+}
 
 /// Represents a secret requirement discovered from a recipe extension
 #[derive(Debug, Clone, PartialEq)]
@@ -29,7 +51,7 @@ impl SecretRequirement {
 
 /// Discovers all secrets required by MCP extensions in a recipe and its sub-recipes
 ///
-/// This function recursively scans the recipe and all its sub-recipes for extensions
+/// This function scans the recipe and its bounded sub-recipe graph for extensions
 /// and collects their declared env_keys, creating SecretRequirement structs for each
 /// unique environment variable.
 ///
@@ -39,8 +61,7 @@ impl SecretRequirement {
 /// # Returns
 /// A vector of SecretRequirement objects, deduplicated by key name
 pub fn discover_recipe_secrets(recipe: &Recipe) -> Vec<SecretRequirement> {
-    let mut visited_recipes = HashSet::new();
-    discover_recipe_secrets_recursive(recipe, &mut visited_recipes)
+    discover_recipe_secrets_with_limits(recipe, DISCOVERY_LIMITS)
 }
 
 /// Extract secrets from a list of extensions
@@ -81,80 +102,152 @@ fn extract_secrets_from_extensions(
     secrets
 }
 
-/// Internal recursive function (depth-first search) to discover secrets nested in sub-recipes
-/// This is future-proofing for a time when we have more than one-level of sub-recipe nesting
-fn discover_recipe_secrets_recursive(
+fn discover_recipe_secrets_with_limits(
     recipe: &Recipe,
-    visited_recipes: &mut HashSet<String>,
+    limits: DiscoveryLimits,
 ) -> Vec<SecretRequirement> {
     let mut secrets: Vec<SecretRequirement> = Vec::new();
     let mut seen_keys = HashSet::new();
+    let mut seen_requests = HashSet::new();
+    let mut seen_files = HashSet::<PathBuf>::new();
+    let mut loaded_recipes = 0;
+    let mut loaded_bytes: usize = 0;
 
     if let Some(extensions) = &recipe.extensions {
         secrets.extend(extract_secrets_from_extensions(extensions, &mut seen_keys));
     }
 
-    if let Some(sub_recipes) = &recipe.sub_recipes {
-        for sub_recipe in sub_recipes {
-            if visited_recipes.contains(&sub_recipe.path) {
+    let mut pending = Vec::new();
+    push_sub_recipes(&mut pending, recipe, None, 1);
+
+    while let Some(next) = pending.pop() {
+        if next.depth > limits.max_depth || !seen_requests.insert(next.path.clone()) {
+            continue;
+        }
+
+        if let Ok(canonical_path) = std::fs::canonicalize(&next.path) {
+            if seen_files.contains(&canonical_path) {
                 continue;
             }
-            visited_recipes.insert(sub_recipe.path.clone());
+        }
 
-            match load_sub_recipe(&sub_recipe.path) {
-                Ok((loaded_recipe, parent_dir)) => {
-                    let sub_secrets =
-                        discover_sub_recipe_secrets(&loaded_recipe, &parent_dir, visited_recipes);
-                    for sub_secret in sub_secrets {
-                        if seen_keys.insert(sub_secret.key.clone()) {
-                            secrets.push(sub_secret);
-                        }
-                    }
-                }
-                Err(_) => {
-                    continue;
-                }
-            }
+        if loaded_recipes == limits.max_recipes {
+            break;
+        }
+        loaded_recipes += 1;
+
+        let Ok(recipe_file) = load_recipe_file(&next.path) else {
+            continue;
+        };
+        let Some(next_loaded_bytes) = loaded_bytes.checked_add(recipe_file.content.len()) else {
+            break;
+        };
+        if next_loaded_bytes > limits.max_loaded_bytes {
+            break;
+        }
+        loaded_bytes = next_loaded_bytes;
+
+        let file_identity = recipe_file
+            .file_path
+            .canonicalize()
+            .unwrap_or_else(|_| recipe_file.file_path.clone());
+        if !seen_files.insert(file_identity) {
+            continue;
+        }
+
+        let Ok(loaded_recipe) = serde_yaml::from_str::<Recipe>(&recipe_file.content) else {
+            continue;
+        };
+        if let Some(extensions) = &loaded_recipe.extensions {
+            secrets.extend(extract_secrets_from_extensions(extensions, &mut seen_keys));
+        }
+        if next.depth < limits.max_depth {
+            push_sub_recipes(
+                &mut pending,
+                &loaded_recipe,
+                Some(recipe_file.parent_dir.to_string_lossy().as_ref()),
+                next.depth + 1,
+            );
         }
     }
 
     secrets
 }
 
-/// Discovers secrets from a loaded sub-recipe, resolving `{{ recipe_dir }}` in nested
-/// sub-recipe paths so they can be loaded without triggering confusing lookup failures.
-fn discover_sub_recipe_secrets(
+fn push_sub_recipes(
+    pending: &mut Vec<PendingRecipe>,
     recipe: &Recipe,
-    parent_dir: &str,
-    visited_recipes: &mut HashSet<String>,
-) -> Vec<SecretRequirement> {
+    parent_dir: Option<&str>,
+    depth: usize,
+) {
+    let Some(sub_recipes) = &recipe.sub_recipes else {
+        return;
+    };
     let re = Regex::new(r"\{\{\s*recipe_dir\s*\}\}").expect("valid regex");
-    let mut resolved = recipe.clone();
-    if let Some(ref mut sub_recipes) = resolved.sub_recipes {
-        for sr in sub_recipes.iter_mut() {
-            sr.path = re.replace_all(&sr.path, NoExpand(parent_dir)).into_owned();
-        }
+    for sub_recipe in sub_recipes.iter().rev() {
+        let path = match parent_dir {
+            Some(parent_dir) => re
+                .replace_all(&sub_recipe.path, NoExpand(parent_dir))
+                .into_owned(),
+            None => sub_recipe.path.clone(),
+        };
+        pending.push(PendingRecipe { path, depth });
     }
-    discover_recipe_secrets_recursive(&resolved, visited_recipes)
-}
-
-/// Loads a recipe from a file path for sub-recipe secret discovery.
-///
-/// Returns the parsed recipe along with its parent directory path, which is
-/// needed to resolve `{{ recipe_dir }}` in any nested sub-recipe paths.
-fn load_sub_recipe(recipe_path: &str) -> Result<(Recipe, String), Box<dyn std::error::Error>> {
-    let recipe_file = load_recipe_file(recipe_path)?;
-    let recipe: Recipe = serde_yaml::from_str(&recipe_file.content)?;
-    let parent_dir = recipe_file.parent_dir.display().to_string();
-    Ok((recipe, parent_dir))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use goose::agents::extension::{Envs, ExtensionConfig};
-    use goose::recipe::Recipe;
+    use goose::recipe::{Recipe, SubRecipe};
     use std::collections::HashMap;
+
+    fn sub_recipe(path: impl Into<String>) -> SubRecipe {
+        SubRecipe {
+            name: "child".to_string(),
+            path: path.into(),
+            values: None,
+            sequential_when_repeated: false,
+            description: None,
+        }
+    }
+
+    fn recipe_with_secret(secret: Option<&str>, sub_recipes: Vec<SubRecipe>) -> Recipe {
+        Recipe {
+            version: "1.0.0".to_string(),
+            title: "Test Recipe".to_string(),
+            description: "Test recipe".to_string(),
+            instructions: Some("Test instructions".to_string()),
+            prompt: None,
+            extensions: secret.map(|key| {
+                vec![ExtensionConfig::Stdio {
+                    name: format!("{key}-extension"),
+                    cmd: "test".to_string(),
+                    args: vec![],
+                    envs: Envs::new(HashMap::new()),
+                    env_keys: vec![key.to_string()],
+                    timeout: None,
+                    cwd: None,
+                    description: "test".to_string(),
+                    bundled: None,
+                    available_tools: Vec::new(),
+                }]
+            }),
+            settings: None,
+            activities: None,
+            author: None,
+            parameters: None,
+            response: None,
+            sub_recipes: (!sub_recipes.is_empty()).then_some(sub_recipes),
+            retry: None,
+        }
+    }
+
+    fn write_recipe(path: &std::path::Path, recipe: &Recipe) -> usize {
+        let content = serde_yaml::to_string(recipe).unwrap();
+        std::fs::write(path, &content).unwrap();
+        content.len()
+    }
 
     fn create_test_recipe_with_extensions() -> Recipe {
         Recipe {
@@ -365,8 +458,6 @@ mod tests {
 
     #[test]
     fn test_discover_recipe_secrets_with_sub_recipes() {
-        use goose::recipe::SubRecipe;
-
         let recipe = Recipe {
             version: "1.0.0".to_string(),
             title: "Parent Recipe".to_string(),
@@ -409,5 +500,187 @@ mod tests {
 
         let parent_secret = secrets.iter().find(|s| s.key == "PARENT_TOKEN").unwrap();
         assert_eq!(parent_secret.extension_name, "parent-ext");
+    }
+
+    #[test]
+    fn nested_sub_recipe_secrets_preserve_depth_first_order() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let child_path = temp_dir.path().join("child.yaml");
+        let grandchild_path = temp_dir.path().join("grandchild.yaml");
+        write_recipe(
+            &grandchild_path,
+            &recipe_with_secret(Some("GRANDCHILD_TOKEN"), vec![]),
+        );
+        write_recipe(
+            &child_path,
+            &recipe_with_secret(
+                Some("CHILD_TOKEN"),
+                vec![sub_recipe("{{ recipe_dir }}/grandchild.yaml")],
+            ),
+        );
+        let root = recipe_with_secret(
+            Some("ROOT_TOKEN"),
+            vec![sub_recipe(child_path.to_string_lossy())],
+        );
+
+        let keys: Vec<_> = discover_recipe_secrets(&root)
+            .into_iter()
+            .map(|secret| secret.key)
+            .collect();
+
+        assert_eq!(keys, ["ROOT_TOKEN", "CHILD_TOKEN", "GRANDCHILD_TOKEN"]);
+    }
+
+    #[test]
+    fn aliases_and_cycles_do_not_consume_the_recipe_budget() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let child_path = temp_dir.path().join("child.yaml");
+        let sibling_path = temp_dir.path().join("sibling.yaml");
+        write_recipe(
+            &child_path,
+            &recipe_with_secret(
+                Some("CHILD_TOKEN"),
+                vec![sub_recipe("{{ recipe_dir }}/child.yaml")],
+            ),
+        );
+        write_recipe(
+            &sibling_path,
+            &recipe_with_secret(Some("SIBLING_TOKEN"), vec![]),
+        );
+        let alias_path = temp_dir.path().join(".").join("child.yaml");
+        let root = recipe_with_secret(
+            None,
+            vec![
+                sub_recipe(child_path.to_string_lossy()),
+                sub_recipe(alias_path.to_string_lossy()),
+                sub_recipe(sibling_path.to_string_lossy()),
+            ],
+        );
+
+        let keys: Vec<_> = discover_recipe_secrets_with_limits(
+            &root,
+            DiscoveryLimits {
+                max_depth: 8,
+                max_recipes: 2,
+                max_loaded_bytes: MAX_DISCOVERY_LOADED_BYTES,
+            },
+        )
+        .into_iter()
+        .map(|secret| secret.key)
+        .collect();
+
+        assert_eq!(keys, ["CHILD_TOKEN", "SIBLING_TOKEN"]);
+    }
+
+    #[test]
+    fn discovery_enforces_depth_count_and_aggregate_byte_boundaries() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let first_path = temp_dir.path().join("first.yaml");
+        let second_path = temp_dir.path().join("second.yaml");
+        let third_path = temp_dir.path().join("third.yaml");
+        let third_size = write_recipe(
+            &third_path,
+            &recipe_with_secret(Some("THIRD_TOKEN"), vec![]),
+        );
+        let second_size = write_recipe(
+            &second_path,
+            &recipe_with_secret(
+                Some("SECOND_TOKEN"),
+                vec![sub_recipe(third_path.to_string_lossy())],
+            ),
+        );
+        let first_size = write_recipe(
+            &first_path,
+            &recipe_with_secret(
+                Some("FIRST_TOKEN"),
+                vec![sub_recipe(second_path.to_string_lossy())],
+            ),
+        );
+        let root = recipe_with_secret(None, vec![sub_recipe(first_path.to_string_lossy())]);
+
+        let depth_limited = discover_recipe_secrets_with_limits(
+            &root,
+            DiscoveryLimits {
+                max_depth: 2,
+                max_recipes: 3,
+                max_loaded_bytes: first_size + second_size + third_size,
+            },
+        );
+        assert_eq!(
+            depth_limited
+                .iter()
+                .map(|secret| secret.key.as_str())
+                .collect::<Vec<_>>(),
+            ["FIRST_TOKEN", "SECOND_TOKEN"]
+        );
+
+        let count_limited = discover_recipe_secrets_with_limits(
+            &root,
+            DiscoveryLimits {
+                max_depth: 3,
+                max_recipes: 2,
+                max_loaded_bytes: first_size + second_size + third_size,
+            },
+        );
+        assert_eq!(
+            count_limited
+                .iter()
+                .map(|secret| secret.key.as_str())
+                .collect::<Vec<_>>(),
+            ["FIRST_TOKEN", "SECOND_TOKEN"]
+        );
+
+        let exact_bytes = discover_recipe_secrets_with_limits(
+            &root,
+            DiscoveryLimits {
+                max_depth: 3,
+                max_recipes: 3,
+                max_loaded_bytes: first_size + second_size + third_size,
+            },
+        );
+        assert_eq!(exact_bytes.len(), 3);
+
+        let below_boundary = discover_recipe_secrets_with_limits(
+            &root,
+            DiscoveryLimits {
+                max_depth: 3,
+                max_recipes: 3,
+                max_loaded_bytes: first_size + second_size + third_size - 1,
+            },
+        );
+        assert_eq!(below_boundary.len(), 2);
+    }
+
+    #[test]
+    fn very_deep_sub_recipe_chain_is_bounded_without_recursion() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let depth = 2048;
+        for index in 0..depth {
+            let next = (index + 1 < depth).then(|| {
+                sub_recipe(
+                    temp_dir
+                        .path()
+                        .join(format!("{}.yaml", index + 1))
+                        .to_string_lossy(),
+                )
+            });
+            write_recipe(
+                &temp_dir.path().join(format!("{index}.yaml")),
+                &recipe_with_secret(Some(&format!("TOKEN_{index}")), next.into_iter().collect()),
+            );
+        }
+        let root = recipe_with_secret(
+            None,
+            vec![sub_recipe(temp_dir.path().join("0.yaml").to_string_lossy())],
+        );
+
+        let secrets = discover_recipe_secrets(&root);
+
+        assert_eq!(secrets.len(), MAX_SUB_RECIPE_DEPTH);
+        assert_eq!(secrets.first().unwrap().key, "TOKEN_0");
+        assert_eq!(
+            secrets.last().unwrap().key,
+            format!("TOKEN_{}", MAX_SUB_RECIPE_DEPTH - 1)
+        );
     }
 }
