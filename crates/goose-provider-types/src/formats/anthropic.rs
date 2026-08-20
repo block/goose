@@ -1087,7 +1087,9 @@ where
                             let category = str_field("category");
                             // The refusal delta carries the request's usage;
                             // flush it so refused turns are still accounted.
-                            if let Some(usage) = final_usage.take() {
+                            if let Some(mut usage) = final_usage.take() {
+                                usage.finish_reasons = Some(vec![STOP_REASON_REFUSAL.to_string()]);
+                                usage.response_id = message_id.clone();
                                 yield (None, Some(usage));
                             }
                             Err(ProviderError::Refusal { details, category })?;
@@ -2486,6 +2488,8 @@ mod tests {
             .expect("a refused request should still yield its usage");
         assert_eq!(usage.usage.input_tokens, Some(10));
         assert_eq!(usage.usage.output_tokens, Some(5));
+        assert_eq!(usage.finish_reasons, Some(vec!["refusal".to_string()]));
+        assert_eq!(usage.response_id.as_deref(), Some("msg_1"));
 
         let (details, category) = expect_refusal(results);
         assert_eq!(details, "This request violates the usage policy.");
