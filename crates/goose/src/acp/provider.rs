@@ -1753,32 +1753,50 @@ fn acp_audience_to_rmcp(annotations: Option<&AcpAnnotations>) -> Option<Vec<Role
     }
 }
 
-fn acp_text_content_to_rmcp(text: TextContent) -> RmcpContent {
-    let mut annotations = rmcp::model::Annotations::default().with_priority(0.0);
-    if let Some(audience) = acp_audience_to_rmcp(text.annotations.as_ref()) {
-        annotations = annotations.with_audience(audience);
+fn acp_annotations_to_rmcp(annotations: Option<&AcpAnnotations>) -> rmcp::model::Annotations {
+    let mut rmcp_annotations = rmcp::model::Annotations::default().with_priority(0.0);
+    if let Some(audience) = acp_audience_to_rmcp(annotations) {
+        rmcp_annotations = rmcp_annotations.with_audience(audience);
     }
+    rmcp_annotations
+}
+
+fn acp_text_content_to_rmcp(text: TextContent) -> RmcpContent {
     RmcpContent::Text(
         rmcp::model::TextContent::new(sanitize_unicode_tags(&text.text))
-            .with_annotations(annotations),
+            .with_annotations(acp_annotations_to_rmcp(text.annotations.as_ref())),
     )
 }
 
 fn acp_image_content_to_rmcp(image: ImageContent) -> RmcpContent {
-    let mut annotations = rmcp::model::Annotations::default().with_priority(0.0);
-    if let Some(audience) = acp_audience_to_rmcp(image.annotations.as_ref()) {
-        annotations = annotations.with_audience(audience);
-    }
     RmcpContent::Image(
-        rmcp::model::ImageContent::new(image.data, image.mime_type).with_annotations(annotations),
+        rmcp::model::ImageContent::new(image.data, image.mime_type)
+            .with_annotations(acp_annotations_to_rmcp(image.annotations.as_ref())),
     )
 }
 
 fn visible_rmcp_text(text: impl Into<String>) -> RmcpContent {
+    visible_rmcp_text_with_annotations(text, None)
+}
+
+fn visible_rmcp_text_with_annotations(
+    text: impl Into<String>,
+    annotations: Option<&AcpAnnotations>,
+) -> RmcpContent {
     RmcpContent::Text(
-        rmcp::model::TextContent::new(text)
-            .with_annotations(rmcp::model::Annotations::default().with_priority(0.0)),
+        rmcp::model::TextContent::new(text).with_annotations(acp_annotations_to_rmcp(annotations)),
     )
+}
+
+fn acp_content_annotations(content: &ContentBlock) -> Option<&AcpAnnotations> {
+    match content {
+        ContentBlock::Text(content) => content.annotations.as_ref(),
+        ContentBlock::Image(content) => content.annotations.as_ref(),
+        ContentBlock::Audio(content) => content.annotations.as_ref(),
+        ContentBlock::ResourceLink(content) => content.annotations.as_ref(),
+        ContentBlock::Resource(content) => content.annotations.as_ref(),
+        _ => None,
+    }
 }
 
 fn acp_text_update_message(text: TextContent, id: String, created: i64) -> Message {
@@ -1808,7 +1826,10 @@ fn acp_tool_call_content_to_rmcp(
                     }
                     other => {
                         if let Ok(json) = serde_json::to_string(&other) {
-                            out.push(visible_rmcp_text(json));
+                            out.push(visible_rmcp_text_with_annotations(
+                                json,
+                                acp_content_annotations(&other),
+                            ));
                         }
                     }
                 },
@@ -3577,6 +3598,70 @@ mod tests {
                 .and_then(|annotations| annotations.priority),
             Some(0.0)
         );
+    }
+
+    #[test]
+    fn acp_tool_call_fallback_content_preserves_audience_annotations() {
+        use agent_client_protocol::schema::v1::{
+            AudioContent, EmbeddedResource, EmbeddedResourceResource, ResourceLink,
+            TextResourceContents,
+        };
+
+        let blocks = [
+            ContentBlock::Audio(
+                AudioContent::new("audio-user", "audio/wav")
+                    .annotations(AcpAnnotations::new().audience(vec![AcpRole::User])),
+            ),
+            ContentBlock::Audio(
+                AudioContent::new("audio-assistant", "audio/wav")
+                    .annotations(AcpAnnotations::new().audience(vec![AcpRole::Assistant])),
+            ),
+            ContentBlock::ResourceLink(
+                ResourceLink::new("user resource", "file:///user")
+                    .annotations(AcpAnnotations::new().audience(vec![AcpRole::User])),
+            ),
+            ContentBlock::ResourceLink(
+                ResourceLink::new("assistant resource", "file:///assistant")
+                    .annotations(AcpAnnotations::new().audience(vec![AcpRole::Assistant])),
+            ),
+            ContentBlock::Resource(
+                EmbeddedResource::new(EmbeddedResourceResource::TextResourceContents(
+                    TextResourceContents::new("user body", "file:///user-body"),
+                ))
+                .annotations(AcpAnnotations::new().audience(vec![AcpRole::User])),
+            ),
+            ContentBlock::Resource(
+                EmbeddedResource::new(EmbeddedResourceResource::TextResourceContents(
+                    TextResourceContents::new("assistant body", "file:///assistant-body"),
+                ))
+                .annotations(AcpAnnotations::new().audience(vec![AcpRole::Assistant])),
+            ),
+        ];
+        let content = blocks
+            .into_iter()
+            .map(|block| {
+                ToolCallContent::Content(agent_client_protocol::schema::v1::Content::new(block))
+            })
+            .collect();
+
+        let out = acp_tool_call_content_to_rmcp(Some(content), None);
+
+        assert_eq!(out.len(), 6);
+        for (content, expected_role) in out.iter().zip([
+            Role::User,
+            Role::Assistant,
+            Role::User,
+            Role::Assistant,
+            Role::User,
+            Role::Assistant,
+        ]) {
+            let annotations = content
+                .as_text()
+                .and_then(|text| text.annotations.as_ref())
+                .expect("fallback content should carry annotations");
+            assert_eq!(annotations.audience.as_deref(), Some(&[expected_role][..]));
+            assert_eq!(annotations.priority, Some(0.0));
+        }
     }
 
     #[test]

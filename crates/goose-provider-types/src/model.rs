@@ -30,6 +30,7 @@ pub fn is_goose_internal_request_param(key: &str) -> bool {
         key,
         "thinking_effort"
             | "disable_prompt_cache"
+            | "emit_clear_thinking"
             | "preserve_thinking_context"
             | "preserve_unsigned_thinking"
     )

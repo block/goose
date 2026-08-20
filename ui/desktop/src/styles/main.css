@@ -979,3 +979,13 @@ pre:has(> code.bg-inline-code) {
 .mcp-app-container.mcp-enter-inline {
   animation: mcp-enter-inline 180ms cubic-bezier(0.2, 0, 0, 1) both;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   AURA THEME — component overrides
+   User message bubbles use the inverted bg-text-primary surface,
+   which turns light in Aura. Restore Aura's dark chat bubble.
+   ═══════════════════════════════════════════════════════════ */
+[data-theme='aura'] .user-message-bubble {
+  background-color: #393647;
+  color: #edecee;
+}

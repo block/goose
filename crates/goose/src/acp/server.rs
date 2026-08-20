@@ -63,7 +63,10 @@ use anyhow::Result;
 use fs_err as fs;
 use futures::future::{BoxFuture, FutureExt};
 use futures::stream::{self, StreamExt};
-use rmcp::model::{Annotations as RmcpAnnotations, Role, TextContent as RmcpTextContent};
+use rmcp::model::{
+    Annotations as RmcpAnnotations, ImageContent as RmcpImageContent, Role,
+    TextContent as RmcpTextContent,
+};
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::panic::AssertUnwindSafe;
@@ -195,6 +198,22 @@ struct ActivePromptRun {
 pub struct AcpBuiltinSelection {
     pub defaults: Vec<String>,
     pub explicit: Vec<String>,
+}
+
+impl AcpBuiltinSelection {
+    pub fn from_requested(builtins: Vec<String>) -> Self {
+        if builtins.is_empty() {
+            Self {
+                defaults: vec!["developer".to_string()],
+                explicit: Vec::new(),
+            }
+        } else {
+            Self {
+                defaults: Vec::new(),
+                explicit: builtins,
+            }
+        }
+    }
 }
 
 pub struct GooseAcpAgentOptions {
@@ -410,6 +429,29 @@ fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConf
     }
 }
 
+fn add_mcp_servers(
+    extensions: &mut Vec<ExtensionConfig>,
+    mcp_servers: Vec<McpServer>,
+) -> Result<(), agent_client_protocol::Error> {
+    for mcp_server in mcp_servers {
+        let extension = mcp_server_to_extension_config(mcp_server)
+            .map_err(|message| agent_client_protocol::Error::invalid_params().data(message))?;
+        push_or_replace_extension(extensions, extension);
+    }
+    Ok(())
+}
+
+fn enabled_extensions_data(
+    session: &Session,
+    extensions: Vec<ExtensionConfig>,
+) -> Result<ExtensionData, agent_client_protocol::Error> {
+    let mut extension_data = session.extension_data.clone();
+    EnabledExtensionsState::new(extensions)
+        .to_extension_data(&mut extension_data)
+        .internal_err_ctx("Failed to initialize session extensions")?;
+    Ok(extension_data)
+}
+
 fn selected_builtin_extensions(
     config: &Config,
     builtin_selection: &AcpBuiltinSelection,
@@ -427,6 +469,38 @@ fn selected_builtin_extensions(
     }
 
     extensions
+}
+
+fn initial_session_extensions(
+    config: &Config,
+    builtin_selection: &AcpBuiltinSelection,
+    project_root: &Path,
+    mcp_servers: Vec<McpServer>,
+    goose_extensions: Option<Vec<GooseExtension>>,
+    recipe_extensions: Option<&[ExtensionConfig]>,
+) -> Result<Vec<ExtensionConfig>, agent_client_protocol::Error> {
+    let mut extensions = selected_builtin_extensions(config, builtin_selection);
+
+    if let Some(recipe_extensions) = recipe_extensions {
+        for extension in recipe_extensions {
+            push_or_replace_extension(&mut extensions, extension.clone());
+        }
+    } else if let Some(goose_extensions) = goose_extensions {
+        for extension in extensions::goose_extensions_to_configs(goose_extensions)? {
+            push_or_replace_extension(&mut extensions, extension);
+        }
+    } else {
+        for extension in get_enabled_extensions_with_config(config) {
+            push_or_replace_extension(&mut extensions, extension);
+        }
+        for extension in crate::plugins::mcp_servers::enabled_plugin_mcp_servers(Some(project_root))
+        {
+            push_or_replace_extension(&mut extensions, extension);
+        }
+        add_mcp_servers(&mut extensions, mcp_servers)?;
+    }
+
+    Ok(extensions)
 }
 
 fn push_or_replace_extension(extensions: &mut Vec<ExtensionConfig>, extension: ExtensionConfig) {
@@ -492,6 +566,29 @@ fn read_resource_link(link: ResourceLink) -> Option<String> {
         ))
     } else {
         None
+    }
+}
+
+fn rmcp_audience_annotations(annotations: Option<&Annotations>) -> Option<RmcpAnnotations> {
+    let audience = annotations?
+        .audience
+        .as_ref()?
+        .iter()
+        .filter_map(|role| match role {
+            agent_client_protocol::schema::v1::Role::Assistant => Some(Role::Assistant),
+            agent_client_protocol::schema::v1::Role::User => Some(Role::User),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    Some(RmcpAnnotations::default().with_audience(audience))
+}
+
+fn annotated_prompt_text(text: &str, annotations: Option<&Annotations>) -> RmcpTextContent {
+    let content = RmcpTextContent::new(sanitize_unicode_tags(text));
+    match rmcp_audience_annotations(annotations) {
+        Some(annotations) => content.with_annotations(annotations),
+        None => content,
     }
 }
 
@@ -783,45 +880,6 @@ impl GooseAcpAgent {
             .map_err(|error| agent_creation_error(error, "Failed to create agent"))
     }
 
-    fn initial_session_extensions(
-        &self,
-        config: &Config,
-        project_root: &Path,
-        mcp_servers: Vec<McpServer>,
-        goose_extensions: Option<Vec<GooseExtension>>,
-        recipe_extensions: Option<&[ExtensionConfig]>,
-    ) -> Result<Vec<ExtensionConfig>, agent_client_protocol::Error> {
-        let mut extensions = selected_builtin_extensions(config, &self.builtin_selection);
-
-        if let Some(recipe_extensions) = recipe_extensions {
-            for extension in recipe_extensions {
-                push_or_replace_extension(&mut extensions, extension.clone());
-            }
-        } else if let Some(goose_extensions) = goose_extensions {
-            for extension in extensions::goose_extensions_to_configs(goose_extensions)? {
-                push_or_replace_extension(&mut extensions, extension);
-            }
-        } else if mcp_servers.is_empty() {
-            for extension in get_enabled_extensions_with_config(config) {
-                push_or_replace_extension(&mut extensions, extension);
-            }
-            for extension in
-                crate::plugins::mcp_servers::enabled_plugin_mcp_servers(Some(project_root))
-            {
-                push_or_replace_extension(&mut extensions, extension);
-            }
-        } else {
-            for mcp_server in mcp_servers {
-                let extension = mcp_server_to_extension_config(mcp_server).map_err(|message| {
-                    agent_client_protocol::Error::invalid_params().data(message)
-                })?;
-                push_or_replace_extension(&mut extensions, extension);
-            }
-        }
-
-        Ok(extensions)
-    }
-
     async fn apply_acp_extension_overrides(
         &self,
         cx: &ConnectionTo<Client>,
@@ -926,12 +984,15 @@ impl GooseAcpAgent {
             session_needs_update = true;
         }
 
-        if !mcp_servers.is_empty()
-            || EnabledExtensionsState::from_extension_data(&session.extension_data).is_none()
-        {
-            let extension_data =
-                self.build_enabled_extensions_data(config, &session, mcp_servers, None, None)?;
-            builder = builder.extension_data(extension_data);
+        if !mcp_servers.is_empty() {
+            let mut stored_extensions =
+                EnabledExtensionsState::from_extension_data(&session.extension_data)
+                    .unwrap_or_else(|| EnabledExtensionsState::new(Vec::new()));
+            add_mcp_servers(&mut stored_extensions.extensions, mcp_servers)?;
+            builder = builder.extension_data(enabled_extensions_data(
+                &session,
+                stored_extensions.extensions,
+            )?);
             session_needs_update = true;
         }
 
@@ -965,18 +1026,15 @@ impl GooseAcpAgent {
         goose_extensions: Option<Vec<GooseExtension>>,
         recipe_extensions: Option<&[ExtensionConfig]>,
     ) -> Result<ExtensionData, agent_client_protocol::Error> {
-        let extensions = self.initial_session_extensions(
+        let extensions = initial_session_extensions(
             config,
+            &self.builtin_selection,
             &session.working_dir,
             mcp_servers,
             goose_extensions,
             recipe_extensions,
         )?;
-        let mut extension_data = session.extension_data.clone();
-        EnabledExtensionsState::new(extensions)
-            .to_extension_data(&mut extension_data)
-            .internal_err_ctx("Failed to initialize session extensions")?;
-        Ok(extension_data)
+        enabled_extensions_data(session, extensions)
     }
 
     async fn register_acp_session(&self, session_id: String, agent: Arc<Agent>) {
@@ -1001,45 +1059,21 @@ impl GooseAcpAgent {
     }
 
     /// Convert ACP prompt content blocks into a user message.
-    fn convert_acp_prompt_to_message(prompt: &[ContentBlock]) -> Message {
+    pub(crate) fn convert_acp_prompt_to_message(prompt: &[ContentBlock]) -> Message {
         let mut message = Message::user();
         for block in prompt {
             match block {
                 ContentBlock::Text(text) => {
-                    let annotated = if let Some(ref ann) = text.annotations {
-                        let audience: Vec<Role> = ann
-                            .audience
-                            .as_ref()
-                            .map(|roles| {
-                                roles
-                                    .iter()
-                                    .filter_map(|r| match r {
-                                        agent_client_protocol::schema::v1::Role::Assistant => {
-                                            Some(Role::Assistant)
-                                        }
-                                        agent_client_protocol::schema::v1::Role::User => {
-                                            Some(Role::User)
-                                        }
-                                        _ => None,
-                                    })
-                                    .collect()
-                            })
-                            .unwrap_or_default();
-                        let raw = RmcpTextContent::new(sanitize_unicode_tags(&text.text));
-                        if audience.is_empty() {
-                            raw
-                        } else {
-                            raw.with_annotations(RmcpAnnotations::default().with_audience(audience))
-                        }
-                    } else {
-                        // No annotations — regular user text.
-                        let sanitized = sanitize_unicode_tags(&text.text);
-                        RmcpTextContent::new(sanitized)
-                    };
+                    let annotated = annotated_prompt_text(&text.text, text.annotations.as_ref());
                     message = message.with_content(MessageContent::Text(annotated));
                 }
                 ContentBlock::Image(image) => {
-                    message = message.with_image(&image.data, &image.mime_type);
+                    let content = RmcpImageContent::new(&image.data, &image.mime_type);
+                    let content = match rmcp_audience_annotations(image.annotations.as_ref()) {
+                        Some(annotations) => content.with_annotations(annotations),
+                        None => content,
+                    };
+                    message = message.with_content(MessageContent::Image(content));
                 }
                 ContentBlock::Resource(resource) => {
                     if let EmbeddedResourceResource::TextResourceContents(text_resource) =
@@ -1047,12 +1081,16 @@ impl GooseAcpAgent {
                     {
                         let header = format!("--- Resource: {} ---\n", text_resource.uri);
                         let content = format!("{}{}\n---\n", header, text_resource.text);
-                        message = message.with_text(&content);
+                        message = message.with_content(MessageContent::Text(
+                            annotated_prompt_text(&content, resource.annotations.as_ref()),
+                        ));
                     }
                 }
                 ContentBlock::ResourceLink(link) => {
                     if let Some(text) = read_resource_link(link.clone()) {
-                        message = message.with_text(text);
+                        message = message.with_content(MessageContent::Text(
+                            annotated_prompt_text(&text, link.annotations.as_ref()),
+                        ));
                     }
                 }
                 ContentBlock::Audio(..) | _ => (),
@@ -2355,10 +2393,7 @@ pub async fn run(builtins: Vec<String>, enable_scheduler: bool) -> Result<()> {
 
     let server = crate::acp::server_factory::AcpServer::new(
         crate::acp::server_factory::AcpServerFactoryConfig {
-            builtins: AcpBuiltinSelection {
-                explicit: builtins,
-                ..Default::default()
-            },
+            builtins: AcpBuiltinSelection::from_requested(builtins),
             data_dir: Paths::data_dir(),
             config_dir: Paths::config_dir(),
             goose_platform: GoosePlatform::GooseCli,
@@ -2375,8 +2410,9 @@ mod tests {
     use super::*;
     use crate::session::session_manager::SessionType;
     use agent_client_protocol::schema::v1::{
-        EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse, McpServerStdio,
-        PermissionOptionId, ResourceLink, SelectedPermissionOutcome,
+        EmbeddedResource, EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse,
+        McpServerStdio, PermissionOptionId, ResourceLink, Role as AcpRole,
+        SelectedPermissionOutcome, TextResourceContents,
     };
     use goose_providers::conversation::token_usage::Usage as TokenUsage;
     use std::io::Write;
@@ -2432,6 +2468,131 @@ mod tests {
         AcpBuiltinSelection {
             explicit: vec![name.to_string()],
             ..Default::default()
+        }
+    }
+
+    #[test]
+    fn requested_builtins_default_to_developer() {
+        let selected = AcpBuiltinSelection::from_requested(Vec::new());
+        assert_eq!(selected.defaults, vec!["developer"]);
+        assert!(selected.explicit.is_empty());
+    }
+
+    #[test]
+    fn requested_builtins_replace_default_selection() {
+        let selected = AcpBuiltinSelection::from_requested(vec!["github".to_string()]);
+        assert!(selected.defaults.is_empty());
+        assert_eq!(selected.explicit, vec!["github"]);
+    }
+
+    #[test]
+    fn new_session_mcp_is_additive_to_enabled_config_extensions() {
+        let (config, _c, _s) = config_with_yaml(
+            r#"
+extensions:
+  developer:
+    enabled: true
+    type: builtin
+    name: developer
+"#,
+        );
+        let project_root = tempfile::tempdir().unwrap();
+        let extensions = initial_session_extensions(
+            &config,
+            &AcpBuiltinSelection::default(),
+            project_root.path(),
+            vec![McpServer::Http(McpServerHttp::new(
+                "zed-mcp",
+                "http://localhost/mcp",
+            ))],
+            None,
+            None,
+        )
+        .unwrap();
+
+        assert!(extensions
+            .iter()
+            .any(|extension| extension.name() == "developer"));
+        assert!(extensions
+            .iter()
+            .any(|extension| extension.name() == "zed-mcp"));
+    }
+
+    #[test]
+    fn new_session_mcp_does_not_enable_disabled_default_builtin() {
+        let (config, _c, _s) = config_with_yaml(
+            r#"
+extensions:
+  developer:
+    enabled: false
+    type: builtin
+    name: developer
+"#,
+        );
+        let project_root = tempfile::tempdir().unwrap();
+        let extensions = initial_session_extensions(
+            &config,
+            &AcpBuiltinSelection::from_requested(Vec::new()),
+            project_root.path(),
+            vec![McpServer::Http(McpServerHttp::new(
+                "zed-mcp",
+                "http://localhost/mcp",
+            ))],
+            None,
+            None,
+        )
+        .unwrap();
+
+        assert!(!has_developer(&extensions));
+        assert!(extensions
+            .iter()
+            .any(|extension| extension.name() == "zed-mcp"));
+    }
+
+    #[test]
+    fn acp_mcp_is_additive_to_stored_extensions() {
+        let mut stored_extensions = vec![builtin_to_extension_config("developer")];
+        add_mcp_servers(
+            &mut stored_extensions,
+            vec![McpServer::Http(McpServerHttp::new(
+                "zed-mcp",
+                "http://localhost/mcp",
+            ))],
+        )
+        .unwrap();
+
+        assert!(has_developer(&stored_extensions));
+        assert!(stored_extensions
+            .iter()
+            .any(|extension| extension.name() == "zed-mcp"));
+    }
+
+    #[test]
+    fn acp_mcp_replaces_same_named_extension() {
+        let mut extensions =
+            vec![
+                mcp_server_to_extension_config(McpServer::Http(McpServerHttp::new(
+                    "zed-mcp",
+                    "http://localhost/old",
+                )))
+                .unwrap(),
+            ];
+        add_mcp_servers(
+            &mut extensions,
+            vec![McpServer::Http(McpServerHttp::new(
+                "zed-mcp",
+                "http://localhost/new",
+            ))],
+        )
+        .unwrap();
+
+        assert_eq!(extensions.len(), 1);
+        match &extensions[0] {
+            ExtensionConfig::StreamableHttp { name, uri, .. } => {
+                assert_eq!(name, "zed-mcp");
+                assert_eq!(uri, "http://localhost/new");
+            }
+            extension => panic!("expected streamable HTTP extension, got {extension:?}"),
         }
     }
 
@@ -2594,6 +2755,111 @@ print(\"hello, world\")
         );
 
         assert_eq!(result, expected,)
+    }
+
+    #[test]
+    fn convert_acp_prompt_preserves_audience_for_converted_blocks() {
+        let assistant_only = || Annotations::new().audience(vec![AcpRole::Assistant]);
+        let user_only = || Annotations::new().audience(vec![AcpRole::User]);
+        let empty_audience = || Annotations::new().audience(Vec::new());
+        let (link, _file) = new_resource_link("assistant-only linked resource").unwrap();
+        let prompt = vec![
+            ContentBlock::Text(TextContent::new("visible text")),
+            ContentBlock::Text(
+                TextContent::new("visible text with audience omitted")
+                    .annotations(Annotations::new()),
+            ),
+            ContentBlock::Text(
+                TextContent::new("empty-audience text").annotations(empty_audience()),
+            ),
+            ContentBlock::Image(
+                ImageContent::new("image-data", "image/png").annotations(assistant_only()),
+            ),
+            ContentBlock::Resource(
+                EmbeddedResource::new(EmbeddedResourceResource::TextResourceContents(
+                    TextResourceContents::new(
+                        "assistant-only embedded resource",
+                        "file:///assistant-only.txt",
+                    ),
+                ))
+                .annotations(assistant_only()),
+            ),
+            ContentBlock::Resource(
+                EmbeddedResource::new(EmbeddedResourceResource::TextResourceContents(
+                    TextResourceContents::new(
+                        "user-visible embedded resource",
+                        "file:///user-visible.txt",
+                    ),
+                ))
+                .annotations(user_only()),
+            ),
+            ContentBlock::Resource(
+                EmbeddedResource::new(EmbeddedResourceResource::TextResourceContents(
+                    TextResourceContents::new(
+                        "empty-audience embedded resource",
+                        "file:///empty-audience.txt",
+                    ),
+                ))
+                .annotations(empty_audience()),
+            ),
+            ContentBlock::ResourceLink(link.annotations(assistant_only())),
+        ];
+
+        let message = GooseAcpAgent::convert_acp_prompt_to_message(&prompt);
+        let user_content = message.user_visible_content();
+        let agent_content = message.agent_visible_content();
+        let empty_audience_content = message
+            .content
+            .iter()
+            .filter_map(|content| match content {
+                MessageContent::Text(text) if text.text.contains("empty-audience") => Some(text),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let audience_omitted_content = message
+            .content
+            .iter()
+            .find_map(|content| match content {
+                MessageContent::Text(text)
+                    if text.text.contains("visible text with audience omitted") =>
+                {
+                    Some(text)
+                }
+                _ => None,
+            })
+            .unwrap();
+
+        assert_eq!(empty_audience_content.len(), 2);
+        assert!(empty_audience_content.iter().all(|text| text
+            .annotations
+            .as_ref()
+            .and_then(|annotations| annotations.audience.as_ref())
+            .is_some_and(Vec::is_empty)));
+        assert!(audience_omitted_content.annotations.is_none());
+        assert!(user_content.as_concat_text().contains("visible text"));
+        assert!(user_content
+            .as_concat_text()
+            .contains("visible text with audience omitted"));
+        assert!(user_content
+            .as_concat_text()
+            .contains("user-visible embedded resource"));
+        assert!(!user_content.as_concat_text().contains("assistant-only"));
+        assert!(!user_content.as_concat_text().contains("empty-audience"));
+        assert!(!user_content
+            .content
+            .iter()
+            .any(|content| matches!(content, MessageContent::Image(_))));
+        assert!(agent_content
+            .as_concat_text()
+            .contains("assistant-only embedded resource"));
+        assert!(agent_content
+            .as_concat_text()
+            .contains("assistant-only linked resource"));
+        assert!(!agent_content.as_concat_text().contains("empty-audience"));
+        assert!(agent_content
+            .content
+            .iter()
+            .any(|content| matches!(content, MessageContent::Image(_))));
     }
 
     #[test_case(

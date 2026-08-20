@@ -1411,17 +1411,7 @@ async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
         enable_scheduler,
     } = args;
 
-    let builtins = if builtins.is_empty() {
-        AcpBuiltinSelection {
-            defaults: vec!["developer".to_string()],
-            explicit: Vec::new(),
-        }
-    } else {
-        AcpBuiltinSelection {
-            defaults: Vec::new(),
-            explicit: builtins,
-        }
-    };
+    let builtins = AcpBuiltinSelection::from_requested(builtins);
 
     let additional_source_roots = Config::global()
         .get_param::<String>("ADDITIONAL_AGENT_SOURCE_ROOTS")

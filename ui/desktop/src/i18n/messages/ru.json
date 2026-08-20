@@ -1901,9 +1901,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "Использовать {modelId}"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "Отмена"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "Копировать код"
   },
@@ -1913,23 +1910,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "Не найдено приложение для открытия этой ссылки."
   },
-  "markdownContent.open": {
-    "defaultMessage": "Открыть"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "Открыть внешнюю ссылку"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "Открыть ссылку {protocol}?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "Будет открыто: {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "Приложение"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "Отмена"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "Закрыть"
@@ -1954,18 +1936,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "Переместить окно «картинка в картинке» (используйте стрелки)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "Открыть"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Открыть внешнюю ссылку"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "Будет открыто: {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "Открыть ссылку {protocol}?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Картинка в картинке"
@@ -3869,6 +3839,12 @@
   "sessions.saving": {
     "defaultMessage": "Сохранение..."
   },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count,plural,one{{count} job} other{{count} jobs}}"
+  },
   "sessions.search.noResults": {
     "defaultMessage": "Подходящие сеансы не найдены"
   },
@@ -4438,6 +4414,9 @@
   },
   "telemetrySettings.updateError": {
     "defaultMessage": "Не удалось обновить настройки телеметрии."
+  },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
   },
   "themeSelector.dark": {
     "defaultMessage": "Темная"
