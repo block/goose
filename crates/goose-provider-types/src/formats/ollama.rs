@@ -170,9 +170,13 @@ where
 
         let mut accumulated_text = String::new();
         let mut xml_detected = false;
+        let mut buffered_usage: Option<ProviderUsage> = None;
 
         while let Some(result) = base_stream.next().await {
             let (message_opt, usage) = result?;
+            if usage.is_some() {
+                buffered_usage = usage.clone();
+            }
 
             if let Some(message) = message_opt {
                 if is_text_only_message(&message) {
@@ -210,7 +214,7 @@ where
                     contents,
                 );
 
-                yield (Some(msg), None);
+                yield (Some(msg), buffered_usage);
             } else {
                 let msg = Message::new(
                     Role::Assistant,
@@ -219,7 +223,7 @@ where
                 )
                 .with_generated_id();
 
-                yield (Some(msg), None);
+                yield (Some(msg), buffered_usage);
             }
         }
     }
@@ -384,7 +388,9 @@ data: [DONE]"#;
             .next()
             .await
             .expect("expected invalid XML fallback message")?;
-        assert!(usage.is_none());
+        let usage = usage.expect("expected buffered response metadata");
+        assert_eq!(usage.response_id.as_deref(), Some("ollama-source-id"));
+        assert_eq!(usage.finish_reasons, Some(vec!["stop".to_string()]));
         let message = message.expect("expected invalid XML fallback message");
         assert_eq!(message.role, Role::Assistant);
         assert_eq!(message.content.len(), 1);

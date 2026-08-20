@@ -339,7 +339,11 @@ impl OpenAiProvider {
             let usage_json = json.get("usage").unwrap_or(&serde_json::Value::Null);
             let mut usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
             usage.response_id = Some(parsed.id.clone());
-            usage.finish_reasons = Some(vec![parsed.status.clone()]);
+            let finish_reason = json
+                .pointer("/incomplete_details/reason")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or(&parsed.status);
+            usage.finish_reasons = Some(vec![finish_reason.to_string()]);
             if let Some(cost) = get_cost(usage_json) {
                 usage = usage.with_cost(cost, CostSource::ProviderReported);
             }

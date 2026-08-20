@@ -1824,13 +1824,18 @@ impl Agent {
         session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        let reply_span = tracing::Span::current();
         let events = self
             .reply_impl(user_message, session_config, cancel_token)
             .await?;
 
         // This is the single live-event identity boundary. Callers that intentionally stream
         // multiple events for one logical message must assign their shared ID before this point.
-        Ok(Box::pin(events.map_ok(ensure_message_event_id)))
+        Ok(Box::pin(
+            events
+                .map_ok(ensure_message_event_id)
+                .instrument(reply_span),
+        ))
     }
 
     async fn reply_impl(
@@ -1903,6 +1908,8 @@ impl Agent {
         let session = session_manager
             .get_session(&session_config.id, true)
             .await?;
+        tracing::Span::current()
+            .record("gen_ai.agent.name", gen_ai_telemetry::agent_name(&session));
         let is_first_agent_turn = session
             .conversation
             .as_ref()
@@ -2151,7 +2158,7 @@ impl Agent {
             while let Some(event) = reply_stream.next().await {
                 yield event?;
             }
-        }.instrument(reply_span)))
+        }))
     }
 
     async fn reply_internal(
