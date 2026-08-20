@@ -1429,10 +1429,10 @@ mod tests {
     async fn test_streaming_response_metadata() {
         use futures::StreamExt;
 
-        let lines = vec![Ok(concat!(
+        let lines = vec![Ok(
             r#"data: {"candidates":[{"content":{"role":"model","parts":[{"text":"done"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":2,"candidatesTokenCount":1,"totalTokenCount":3},"modelVersion":"gemini-test","responseId":"response-123"}"#
-        )
-        .to_string())];
+                .to_string(),
+        )];
         let stream = Box::pin(futures::stream::iter(lines));
         let mut message_stream = std::pin::pin!(response_to_streaming_message(stream));
         let mut final_usage = None;

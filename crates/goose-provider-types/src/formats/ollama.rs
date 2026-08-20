@@ -170,14 +170,9 @@ where
 
         let mut accumulated_text = String::new();
         let mut xml_detected = false;
-        let mut last_usage: Option<ProviderUsage> = None;
 
         while let Some(result) = base_stream.next().await {
             let (message_opt, usage) = result?;
-
-            if usage.is_some() {
-                last_usage = usage.clone();
-            }
 
             if let Some(message) = message_opt {
                 if is_text_only_message(&message) {
@@ -194,7 +189,7 @@ where
                 }
 
                 yield (Some(message), usage);
-            } else {
+            } else if usage.is_some() && !xml_detected {
                 yield (None, usage);
             }
         }
@@ -215,7 +210,7 @@ where
                     contents,
                 );
 
-                yield (Some(msg), last_usage);
+                yield (Some(msg), None);
             } else {
                 let msg = Message::new(
                     Role::Assistant,
@@ -224,7 +219,7 @@ where
                 )
                 .with_generated_id();
 
-                yield (Some(msg), last_usage);
+                yield (Some(msg), None);
             }
         }
     }
