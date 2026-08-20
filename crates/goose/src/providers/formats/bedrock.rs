@@ -17,9 +17,9 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::providers::bedrock::BEDROCK_PROVIDER_NAME;
 use crate::providers::canonical::maybe_get_canonical_model;
 use crate::providers::formats::anthropic::{
-    adaptive_output_effort, model_supports_temperature, thinking_block_is_stale,
-    thinking_budget_tokens, thinking_type_for_provider, ThinkingType, ANTHROPIC_PROVIDER_NAME,
-    MIN_ANSWER_TOKENS,
+    adaptive_output_effort, model_supports_temperature, requires_explicit_thinking_disable,
+    thinking_block_is_stale, thinking_budget_tokens, thinking_type_for_provider, ThinkingType,
+    ANTHROPIC_PROVIDER_NAME, MIN_ANSWER_TOKENS,
 };
 use crate::utils::sanitize_unicode_tags;
 use goose_providers::conversation::token_usage::Usage;
@@ -30,7 +30,8 @@ use regex::Regex;
 static BEDROCK_VERSION_SUFFIX_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"-v\d+(:\d+)?$").unwrap());
 
 pub fn bedrock_anthropic_thinking_fields(model_config: &ModelConfig) -> Option<Document> {
-    let thinking_type = bedrock_anthropic_thinking_type(model_config);
+    let anthropic_config = bedrock_anthropic_model_config(model_config)?;
+    let thinking_type = thinking_type_for_provider(ANTHROPIC_PROVIDER_NAME, &anthropic_config);
     let thinking = match thinking_type {
         ThinkingType::Adaptive => Document::Object(HashMap::from([(
             "type".to_string(),
@@ -57,7 +58,18 @@ pub fn bedrock_anthropic_thinking_fields(model_config: &ModelConfig) -> Option<D
                 ),
             ]))
         }
-        ThinkingType::Disabled => return None,
+        ThinkingType::Disabled => {
+            if !requires_explicit_thinking_disable(
+                ANTHROPIC_PROVIDER_NAME,
+                &anthropic_config.model_name,
+            ) {
+                return None;
+            }
+            Document::Object(HashMap::from([(
+                "type".to_string(),
+                Document::String("disabled".to_string()),
+            )]))
+        }
     };
 
     let mut fields = HashMap::from([("thinking".to_string(), thinking)]);
@@ -75,17 +87,13 @@ pub fn bedrock_anthropic_thinking_fields(model_config: &ModelConfig) -> Option<D
     Some(Document::Object(fields))
 }
 
-fn bedrock_anthropic_thinking_type(model_config: &ModelConfig) -> ThinkingType {
-    let Some((_, anthropic_model)) = model_config.model_name.rsplit_once("anthropic.") else {
-        return ThinkingType::Disabled;
-    };
+fn bedrock_anthropic_model_config(model_config: &ModelConfig) -> Option<ModelConfig> {
+    let (_, anthropic_model) = model_config.model_name.rsplit_once("anthropic.")?;
 
-    let anthropic_config = ModelConfig {
+    Some(ModelConfig {
         model_name: strip_bedrock_version_suffix(anthropic_model),
         ..model_config.clone()
-    };
-
-    thinking_type_for_provider(ANTHROPIC_PROVIDER_NAME, &anthropic_config)
+    })
 }
 
 /// Bedrock model ids carry a `-v1:0` style suffix (e.g.
@@ -133,16 +141,11 @@ pub fn bedrock_inference_config(model_config: &ModelConfig) -> bedrock::Inferenc
 }
 
 /// Whether `temperature` may be sent for this Bedrock model. For `anthropic.*`
-/// ids we resolve against the Anthropic canonical registry (mapping the model
-/// name the same way [`bedrock_anthropic_thinking_type`] does); for other known
+/// ids we resolve against the Anthropic canonical registry; for other known
 /// Bedrock ids we consult the Bedrock canonical registry and otherwise keep the
 /// permissive fallback used by [`model_supports_temperature`].
 fn bedrock_model_supports_temperature(model_config: &ModelConfig) -> bool {
-    if let Some((_, anthropic_model)) = model_config.model_name.rsplit_once("anthropic.") {
-        let anthropic_config = ModelConfig {
-            model_name: strip_bedrock_version_suffix(anthropic_model),
-            ..model_config.clone()
-        };
+    if let Some(anthropic_config) = bedrock_anthropic_model_config(model_config) {
         model_supports_temperature(ANTHROPIC_PROVIDER_NAME, &anthropic_config)
     } else {
         maybe_get_canonical_model(BEDROCK_PROVIDER_NAME, &model_config.model_name)
@@ -702,6 +705,13 @@ mod tests {
         )]));
 
         assert!(bedrock_anthropic_thinking_fields(&config).is_none());
+
+        config.model_name = "us.anthropic.claude-opus-4-7-20251101-v1:0".to_string();
+        let fields = bedrock_anthropic_thinking_fields(&config).expect("thinking fields");
+        assert_eq!(
+            from_bedrock_json(&fields).unwrap(),
+            json!({ "thinking": {"type": "disabled"} })
+        );
     }
 
     #[test]

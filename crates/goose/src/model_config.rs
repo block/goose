@@ -87,7 +87,7 @@ fn configured_fast_model_name() -> Option<String> {
 }
 
 /// Resolve the model config to use for lightweight "fast" tasks (session
-/// naming, compaction, summarization). Resolution order:
+/// naming, tool-call labels, orchestrator routing). Resolution order:
 ///   1. `GOOSE_FAST_MODEL` (user override)
 ///   2. the provider's declared default fast model
 ///   3. the supplied `model_config` (i.e. the main model)
@@ -112,8 +112,8 @@ pub async fn get_fast_model(
     }
 }
 
-/// Fast tasks summarize a transcript or tool result that never recurs, so a prompt
-/// cache entry written for one can never be read back and only costs the
+/// A one-shot task summarizes a transcript or tool result that never recurs, so
+/// a prompt cache entry written for it can never be read back and only costs the
 /// cache-write premium.
 fn one_shot_model_config(model_config: ModelConfig) -> ModelConfig {
     model_config
@@ -121,9 +121,8 @@ fn one_shot_model_config(model_config: ModelConfig) -> ModelConfig {
         .with_prompt_cache_disabled()
 }
 
-/// Run a completion for a lightweight "fast" task (session naming, compaction,
-/// summarization) using the provider's fast model, falling back to the supplied
-/// main `model_config` if the fast model errors.
+/// Run a completion for a lightweight "fast" task (session naming, tool-call
+/// labels, orchestrator routing) using the provider's fast model.
 pub async fn complete_fast(
     provider: &dyn Provider,
     model_config: &ModelConfig,
@@ -131,6 +130,7 @@ pub async fn complete_fast(
     system: &str,
     messages: &[Message],
     tools: &[Tool],
+    fallback_to_main_model: bool,
 ) -> Result<(Message, ProviderUsage), ProviderError> {
     let fast_model_config = one_shot_model_config(
         get_fast_model(provider.get_name(), model_config)
@@ -145,7 +145,10 @@ pub async fn complete_fast(
     .await
     {
         Ok(response) => Ok(response),
-        Err(e) if fast_model_config.model_name != model_config.model_name => {
+        Err(e)
+            if fallback_to_main_model
+                && fast_model_config.model_name != model_config.model_name =>
+        {
             tracing::warn!(
                 "Fast model {} failed with error: {}. Falling back to main model {}",
                 fast_model_config.model_name,
@@ -161,6 +164,25 @@ pub async fn complete_fast(
         }
         Err(e) => Err(e),
     }
+}
+
+/// Run a completion for compaction or tool-result summarization on the main
+/// session model with one-shot semantics (thinking off, no prompt-cache writes).
+pub async fn complete_compaction(
+    provider: &dyn Provider,
+    model_config: &ModelConfig,
+    session_id: &str,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+) -> Result<(Message, ProviderUsage), ProviderError> {
+    let compaction_model_config = one_shot_model_config(model_config.clone());
+
+    crate::session_context::with_session_id(
+        Some(session_id.to_string()),
+        provider.complete(&compaction_model_config, system, messages, tools),
+    )
+    .await
 }
 
 async fn provider_default_fast_model(provider_name: &str) -> Option<String> {

@@ -1842,14 +1842,14 @@ fn mlx_config_support(config: &Option<serde_json::Value>) -> Option<String> {
     mlx_config_support_for_value(config)
 }
 
-#[cfg(feature = "mlx")]
+#[cfg(all(feature = "mlx", target_os = "macos"))]
 fn mlx_config_support_for_value(config: &serde_json::Value) -> Option<String> {
     safemlx_lm::check_model_config(config)
         .unsupported_reason()
         .map(str::to_string)
 }
 
-#[cfg(not(feature = "mlx"))]
+#[cfg(not(all(feature = "mlx", target_os = "macos")))]
 fn mlx_config_support_for_value(_config: &serde_json::Value) -> Option<String> {
     None
 }
