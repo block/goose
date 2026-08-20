@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use crate::config::paths::Paths;
 use crate::recipe::read_recipe_file_content::{
-    read_recipe_file, read_recipe_file_with_byte_limit, RecipeFile,
+    expand_tilde_path, read_recipe_file, read_recipe_file_with_byte_limit, RecipeFile,
 };
 use crate::recipe::Recipe;
 use crate::recipe::RECIPE_FILE_EXTENSIONS;
@@ -127,12 +127,13 @@ fn load_local_recipe_file_with_byte_limit_from_dirs(
 }
 
 fn read_bounded_local_candidate(path: &Path, max_bytes: usize) -> BoundedLocalRecipeLoad {
-    let known_bytes = fs::symlink_metadata(path)
+    let path = expand_tilde_path(path);
+    let known_bytes = fs::symlink_metadata(&path)
         .ok()
         .filter(|metadata| metadata.is_file())
         .and_then(|metadata| usize::try_from(metadata.len()).ok())
         .filter(|file_bytes| *file_bytes <= max_bytes);
-    let recipe_file = read_recipe_file_with_byte_limit(path, max_bytes);
+    let recipe_file = read_recipe_file_with_byte_limit(&path, max_bytes);
     let consumed_bytes = match &recipe_file {
         Ok(recipe_file) => recipe_file.content.len(),
         Err(_) => known_bytes.unwrap_or(0),
@@ -287,6 +288,23 @@ fn generate_recipe_filename(title: &str, recipe_library_dir: &Path) -> PathBuf {
     }
 }
 
+pub fn save_recipe_to_file(recipe: Recipe, file_path: Option<PathBuf>) -> anyhow::Result<PathBuf> {
+    let recipe_library_dir = get_recipe_library_dir(true);
+
+    let file_path_value = match file_path {
+        Some(path) => path,
+        None => generate_recipe_filename(&recipe.title, &recipe_library_dir),
+    };
+
+    if let Some(parent) = file_path_value.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let yaml_content = recipe.to_yaml()?;
+    fs::write(&file_path_value, yaml_content)?;
+    Ok(file_path_value)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -317,21 +335,24 @@ mod tests {
         assert_eq!(exhausted.consumed_bytes, invalid_yaml.len());
         assert!(exhausted.recipe_file.is_err());
     }
-}
 
-pub fn save_recipe_to_file(recipe: Recipe, file_path: Option<PathBuf>) -> anyhow::Result<PathBuf> {
-    let recipe_library_dir = get_recipe_library_dir(true);
+    #[cfg(unix)]
+    #[test]
+    fn bounded_tilde_paths_share_read_and_accounting_resolution() {
+        let home = tempfile::tempdir().unwrap();
+        let home_path = home.path().to_string_lossy().into_owned();
+        let _guard = env_lock::lock_env([("HOME", Some(home_path.as_str()))]);
+        let invalid_content = [0xff; 8];
+        fs::write(home.path().join("invalid.yaml"), invalid_content).unwrap();
+        let valid_content = "title: valid";
+        fs::write(home.path().join("valid.yaml"), valid_content).unwrap();
 
-    let file_path_value = match file_path {
-        Some(path) => path,
-        None => generate_recipe_filename(&recipe.title, &recipe_library_dir),
-    };
+        let invalid = read_bounded_local_candidate(Path::new("~/invalid.yaml"), 32);
+        assert!(invalid.recipe_file.is_err());
+        assert_eq!(invalid.consumed_bytes, invalid_content.len());
 
-    if let Some(parent) = file_path_value.parent() {
-        fs::create_dir_all(parent)?;
+        let valid = read_bounded_local_candidate(Path::new("~/valid.yaml"), 32);
+        assert_eq!(valid.consumed_bytes, valid_content.len());
+        assert_eq!(valid.recipe_file.unwrap().content, valid_content);
     }
-
-    let yaml_content = recipe.to_yaml()?;
-    fs::write(&file_path_value, yaml_content)?;
-    Ok(file_path_value)
 }

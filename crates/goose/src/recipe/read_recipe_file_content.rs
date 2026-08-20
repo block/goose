@@ -27,7 +27,7 @@ fn read_recipe_file_with<P: AsRef<Path>>(
     read_content: impl FnOnce(&Path, &Path) -> std::io::Result<String>,
 ) -> Result<RecipeFile> {
     let raw_path = recipe_path.as_ref();
-    let path = convert_path_with_tilde_expansion(raw_path);
+    let path = expand_tilde_path(raw_path);
     let parent = path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
@@ -53,7 +53,7 @@ fn read_recipe_file_with<P: AsRef<Path>>(
     })
 }
 
-fn convert_path_with_tilde_expansion(path: &Path) -> PathBuf {
+pub(crate) fn expand_tilde_path(path: &Path) -> PathBuf {
     if let Some(path_str) = path.to_str() {
         // Handle exact "~" (Windows only to avoid changing behavior on Unix)
         if cfg!(windows) && path_str == "~" {
@@ -80,7 +80,7 @@ fn convert_path_with_tilde_expansion(path: &Path) -> PathBuf {
 
 pub fn read_parameter_file_content<P: AsRef<Path>>(file_path: P) -> Result<String> {
     let raw_path = file_path.as_ref();
-    let path = convert_path_with_tilde_expansion(raw_path);
+    let path = expand_tilde_path(raw_path);
 
     let content = fs::read_to_string(&path)
         .map_err(|e| anyhow!("Failed to read parameter file {}: {}", path.display(), e))?;
