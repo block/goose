@@ -1223,6 +1223,7 @@ where
         let mut last_finish_reason: Option<String> = None;
         let mut output_token_limit_reached = false;
         let mut output_token_limit_metadata_emitted = false;
+        let mut usage_emitted = false;
 
         'outer: while let Some(response) = stream.next().await {
             let response_str = response?;
@@ -1276,6 +1277,7 @@ where
             output_token_limit_reached |= last_finish_reason.as_deref() == Some("length");
 
             if chunk.choices.is_empty() {
+                usage_emitted |= usage.is_some();
                 yield (None, usage)
             } else if chunk.choices[0].delta.tool_calls.as_ref().is_some_and(|tc| !tc.is_empty()) {
                 let mut tool_call_data: ToolCallData = HashMap::new();
@@ -1509,6 +1511,7 @@ where
                 msg.metadata.output_token_limit_reached = output_token_limit_reached;
                 output_token_limit_metadata_emitted |= output_token_limit_reached;
 
+                usage_emitted |= usage.is_some();
                 yield (
                     Some(msg),
                     usage,
@@ -1551,18 +1554,19 @@ where
                         msg = msg.with_id(id);
                     }
 
-                    yield (
-                        Some(msg),
-                        if chunk.choices[0].finish_reason.is_some() {
-                            usage
-                        } else {
-                            None
-                        },
-                    )
+                    let final_usage = if chunk.choices[0].finish_reason.is_some() {
+                        usage
+                    } else {
+                        None
+                    };
+                    usage_emitted |= final_usage.is_some();
+                    yield (Some(msg), final_usage)
                 } else if usage.is_some() {
+                    usage_emitted = true;
                     yield (None, usage)
                 }
             } else if usage.is_some() {
+                usage_emitted = true;
                 yield (None, usage)
             }
         }
@@ -1602,7 +1606,17 @@ where
         }
 
         if output_token_limit_reached && !output_token_limit_metadata_emitted {
-            yield (Some(output_token_limit_marker(last_response_id)), None)
+            yield (Some(output_token_limit_marker(last_response_id.clone())), None)
+        }
+
+        if !usage_emitted && (last_response_id.is_some() || last_finish_reason.is_some()) {
+            let mut usage = ProviderUsage::new(
+                last_seen_model.unwrap_or_else(|| "unknown".to_string()),
+                Usage::default(),
+            );
+            usage.response_id = last_response_id;
+            usage.finish_reasons = last_finish_reason.map(|reason| vec![reason]);
+            yield (None, Some(usage))
         }
     }
 }
@@ -3235,6 +3249,26 @@ data: [DONE]
             "tool call must survive intermediate empty-string finish_reason"
         );
         assert_usage_yielded_once(&result, 100, 20, 120);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_metadata_without_usage() -> anyhow::Result<()> {
+        let response_lines = r#"
+data: {"id":"chatcmpl-no-usage","model":"test-model","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}
+data: {"id":"chatcmpl-no-usage","model":"test-model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+data: [DONE]
+"#;
+
+        let result = run_streaming_test(response_lines).await?;
+
+        assert_eq!(result.usage_count, 1);
+        let usage = result.usage.unwrap();
+        assert_eq!(usage.model, "test-model");
+        assert_eq!(usage.usage, Usage::default());
+        assert_eq!(usage.finish_reasons, Some(vec!["stop".to_string()]));
+        assert_eq!(usage.response_id.as_deref(), Some("chatcmpl-no-usage"));
 
         Ok(())
     }
