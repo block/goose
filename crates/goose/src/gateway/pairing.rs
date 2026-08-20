@@ -115,11 +115,11 @@ impl PairingStore {
             }
         };
 
-        let has_legacy_codes = legacy_codes.is_some();
-        Self::complete_pending_code_migration(config, legacy_codes)?;
-        if !has_legacy_codes {
+        let Some(legacy_codes) = legacy_codes else {
             return Self::verify_legacy_pending_codes_removed(config);
-        }
+        };
+
+        Self::complete_pending_code_migration(config, Some(legacy_codes))?;
 
         config
             .delete(PENDING_CODES_CONFIG_KEY)
@@ -175,6 +175,7 @@ impl PairingStore {
                 PENDING_CODES_SECRET_KEY,
                 |stored: StoredPendingCodesValue| {
                     let mut state = stored.into_state();
+                    state.legacy_import_complete = true;
                     state.codes.retain(|pending| pending.code != code);
                     state.codes.push(StoredPendingCode {
                         code: code.to_string(),
@@ -198,10 +199,16 @@ impl PairingStore {
                 PENDING_CODES_SECRET_KEY,
                 |stored: StoredPendingCodesValue| {
                     let mut state = stored.into_state();
+                    let needs_migration_marker = !state.legacy_import_complete;
+                    state.legacy_import_complete = true;
                     let Some(position) =
                         state.codes.iter().position(|pending| pending.code == code)
                     else {
-                        return SecretUpdate::Unchanged(None);
+                        return if needs_migration_marker {
+                            SecretUpdate::Write(state, None)
+                        } else {
+                            SecretUpdate::Unchanged(None)
+                        };
                     };
                     let consumed = Some(state.codes.remove(position))
                         .filter(|pending| now <= pending.expires_at)
@@ -547,25 +554,41 @@ mod tests {
         let directory = TempDir::new().unwrap();
         let config = test_config(&directory);
         let code = "SECRET-VEC-CODE";
+        let legacy_codes = vec![StoredPendingCode {
+            code: code.to_string(),
+            gateway_type: "telegram".to_string(),
+            expires_at: 101,
+        }];
         config
-            .set_secret(
-                PENDING_CODES_SECRET_KEY,
-                &vec![StoredPendingCode {
-                    code: code.to_string(),
-                    gateway_type: "telegram".to_string(),
-                    expires_at: 101,
-                }],
-            )
+            .set_secret(PENDING_CODES_SECRET_KEY, &legacy_codes)
             .unwrap();
 
         assert_eq!(
             PairingStore::consume_pending_code_in(&config, code, 100).unwrap(),
             Some("telegram".to_string())
         );
+        assert!(
+            config
+                .get_secret::<StoredPendingCodes>(PENDING_CODES_SECRET_KEY)
+                .unwrap()
+                .legacy_import_complete
+        );
+        PairingStore::complete_pending_code_migration(&config, Some(legacy_codes)).unwrap();
         assert_eq!(
             PairingStore::consume_pending_code_in(&config, code, 100).unwrap(),
             None
         );
+    }
+
+    #[test]
+    fn migration_without_legacy_config_does_not_touch_secret_storage() {
+        let directory = TempDir::new().unwrap();
+        let config = test_config(&directory);
+        let secrets_path = directory.path().join("secrets.yaml");
+
+        assert!(!secrets_path.exists());
+        PairingStore::migrate_pending_codes(&config).unwrap();
+        assert!(!secrets_path.exists());
     }
 
     #[cfg(unix)]
