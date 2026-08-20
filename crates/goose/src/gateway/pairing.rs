@@ -130,6 +130,7 @@ impl PairingStore {
     fn verify_legacy_pending_codes_removed(config: &Config) -> anyhow::Result<()> {
         match config.get_param::<Vec<StoredPendingCode>>(PENDING_CODES_CONFIG_KEY) {
             Err(ConfigError::NotFound(_)) => Ok(()),
+            Ok(codes) if codes.is_empty() => Ok(()),
             Ok(_) => Err(anyhow::anyhow!(
                 "legacy pending codes remain in GATEWAY_PENDING_CODES, the system config, or GOOSE_ADDITIONAL_CONFIG_FILES"
             )),
@@ -429,6 +430,30 @@ mod tests {
         assert_eq!(
             PairingStore::consume_pending_code_in(&config, &legacy_code.code, 100).unwrap(),
             None
+        );
+    }
+
+    #[test]
+    fn empty_non_writable_legacy_source_does_not_disable_pairing() {
+        let directory = TempDir::new().unwrap();
+        let system_config_path = directory.path().join("system.yaml");
+        let user_config_path = directory.path().join("user.yaml");
+        let secrets_path = directory.path().join("secrets.yaml");
+        let system_config =
+            Config::new_with_file_secrets(&system_config_path, &secrets_path).unwrap();
+        system_config
+            .set_param(PENDING_CODES_CONFIG_KEY, Vec::<StoredPendingCode>::new())
+            .unwrap();
+        let config = Config::new_with_config_paths(
+            vec![system_config_path, user_config_path],
+            &secrets_path,
+        )
+        .unwrap();
+
+        PairingStore::store_pending_code_in(&config, "NEW-CODE", "telegram", 101).unwrap();
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, "NEW-CODE", 100).unwrap(),
+            Some("telegram".to_string())
         );
     }
 
