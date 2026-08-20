@@ -391,6 +391,19 @@ impl Default for Agent {
     }
 }
 
+fn has_unique_persisted_extension(configs: &[ExtensionConfig], key: &str) -> Result<bool> {
+    match configs
+        .iter()
+        .filter(|config| config.key() == key)
+        .take(2)
+        .count()
+    {
+        0 => Ok(false),
+        1 => Ok(true),
+        _ => Err(anyhow!("Duplicate session extension key '{key}'")),
+    }
+}
+
 impl Agent {
     pub fn new() -> Self {
         let config = Config::global();
@@ -1607,19 +1620,16 @@ impl Agent {
             .session_manager
             .get_session(session_id, false)
             .await?;
-        let key_is_persisted = EnabledExtensionsState::extensions_or_default(
+        let persisted_extensions = EnabledExtensionsState::extensions_or_default(
             Some(&session.extension_data),
             Config::global(),
-        )
-        .iter()
-        .any(|config| config.key() == key);
-
-        let removed = self.extension_manager.remove_extension_by_key(key).await?;
-        let frontend_removed = self.remove_frontend_extension_by_key(key).await;
-
-        if !removed && !frontend_removed && !key_is_persisted {
+        );
+        if !has_unique_persisted_extension(&persisted_extensions, key)? {
             return Ok(false);
         }
+
+        self.extension_manager.remove_extension_by_key(key).await?;
+        self.remove_frontend_extension_by_key(key).await;
 
         // Persist extension state after successful removal
         self.persist_extension_state(session_id)
@@ -4170,6 +4180,33 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
+
+    fn persisted_builtin(name: &str) -> ExtensionConfig {
+        ExtensionConfig::Builtin {
+            name: name.to_string(),
+            description: String::new(),
+            display_name: None,
+            timeout: None,
+            bundled: None,
+            available_tools: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn persisted_extension_identity_must_be_unique_before_removal() {
+        let session_extension = persisted_builtin("session-only");
+        assert!(has_unique_persisted_extension(&[session_extension], "session-only").unwrap());
+        assert!(!has_unique_persisted_extension(&[], "missing").unwrap());
+
+        let duplicate_result = has_unique_persisted_extension(
+            &[persisted_builtin("a.b"), persisted_builtin("a/b")],
+            "a_b",
+        );
+        assert_eq!(
+            duplicate_result.unwrap_err().to_string(),
+            "Duplicate session extension key 'a_b'"
+        );
+    }
 
     #[test]
     fn provider_creation_context_preserves_acp_error_code() {
