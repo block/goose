@@ -882,6 +882,12 @@ pub fn get_usage(usage: &Value) -> Usage {
     let cache_write_input_tokens = usage
         .get("cache_creation_input_tokens")
         .and_then(|v| v.as_i64())
+        .or_else(|| {
+            usage
+                .get("prompt_tokens_details")
+                .and_then(|d| d.get("cache_write_tokens"))
+                .and_then(|v| v.as_i64())
+        })
         .map(|v| v as i32);
 
     let total_tokens = usage
