@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::pin::Pin;
+use tokio::sync::watch;
 
 use crate::{
     canonical::{catalog::ProviderSetupMetadata, map_to_canonical_model, CanonicalModelRegistry},
@@ -652,6 +653,12 @@ pub trait Provider: Send + Sync {
     /// advertised capability; the default keeps the model-name-based path.
     fn thinking_effort_support(&self) -> ThinkingEffortSupport {
         ThinkingEffortSupport::Unspecified
+    }
+
+    /// Subscribe to provider-managed thinking-effort capability changes.
+    /// Providers without an asynchronous capability source return `None`.
+    fn subscribe_thinking_effort_support(&self) -> Option<watch::Receiver<ThinkingEffortSupport>> {
+        None
     }
 
     /// Forward a thinking-effort selection to the provider. Returns `Ok(true)`

@@ -29,7 +29,7 @@ use std::sync::{
 use std::thread::JoinHandle;
 use tokio::io::AsyncReadExt;
 use tokio::process::{Child, Command};
-use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex};
+use tokio::sync::{mpsc, oneshot, watch, Mutex as TokioMutex};
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 
 use crate::acp::handoff::{build_handoff_context_memo, memo_token_budget, prompt_token_cost};
@@ -240,6 +240,37 @@ impl Drop for HandoffContextClaimGuard {
     }
 }
 
+#[derive(Clone)]
+struct AcpEffortState {
+    capability: Arc<Mutex<Option<ThinkingEffortCapability>>>,
+    updates: watch::Sender<ThinkingEffortSupport>,
+}
+
+impl AcpEffortState {
+    fn new() -> Self {
+        let (updates, _) = watch::channel(ThinkingEffortSupport::Unsupported);
+        Self {
+            capability: Arc::new(Mutex::new(None)),
+            updates,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct AcpSessionState {
+    active_id: Arc<Mutex<Option<SessionId>>>,
+    effort: AcpEffortState,
+}
+
+impl AcpSessionState {
+    fn new(effort: AcpEffortState) -> Self {
+        Self {
+            active_id: Arc::new(Mutex::new(None)),
+            effort,
+        }
+    }
+}
+
 pub struct AcpProvider {
     name: String,
     goose_mode: Arc<Mutex<GooseMode>>,
@@ -271,7 +302,7 @@ pub struct AcpProvider {
     /// redundant-send guard: unlike a goose-side cache of the last applied
     /// value, it tracks the agent resetting its own effort (e.g. on a model
     /// switch), so the persisted value is re-applied when that happens.
-    effort_state: Arc<Mutex<Option<ThinkingEffortCapability>>>,
+    effort: AcpEffortState,
 
     tx: Option<mpsc::Sender<ClientRequest>>,
     cancel_tx: Option<oneshot::Sender<()>>,
@@ -368,13 +399,13 @@ impl AcpProvider {
         let pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>> =
             Arc::new(Mutex::new(HashMap::new()));
         let context_size = Arc::new(AtomicU64::new(0));
-        let effort_state = Arc::new(Mutex::new(None));
+        let effort = AcpEffortState::new();
         let client_loop = AcpClientLoop::new(
             config,
             goose_mode_shared.clone(),
             pending_tool_updates.clone(),
             context_size.clone(),
-            effort_state.clone(),
+            effort.clone(),
         );
         let (cancel_tx, cancel_rx) = oneshot::channel();
         let loop_thread = spawn_client_loop(run(client_loop, rx, init_tx, cancel_rx));
@@ -419,7 +450,7 @@ impl AcpProvider {
             context_size,
             model_config_option_id,
             applied_model: Arc::new(Mutex::new(applied_model)),
-            effort_state,
+            effort,
             tx: client_loop_guard.tx.take(),
             cancel_tx: client_loop_guard.cancel_tx.take(),
             loop_thread: client_loop_guard.thread.take(),
@@ -521,7 +552,8 @@ impl AcpProvider {
 
     fn effort_capability(&self) -> Result<Option<ThinkingEffortCapability>> {
         Ok(self
-            .effort_state
+            .effort
+            .capability
             .lock()
             .map_err(|_| anyhow::anyhow!("effort_state lock poisoned"))?
             .clone())
@@ -539,7 +571,8 @@ impl AcpProvider {
     ) -> Result<()> {
         {
             let state = self
-                .effort_state
+                .effort
+                .capability
                 .lock()
                 .map_err(|_| anyhow::anyhow!("effort_state lock poisoned"))?;
             let current = state
@@ -717,6 +750,10 @@ impl Provider for AcpProvider {
             Some(capability) => ThinkingEffortSupport::Options(capability),
             None => ThinkingEffortSupport::Unsupported,
         }
+    }
+
+    fn subscribe_thinking_effort_support(&self) -> Option<watch::Receiver<ThinkingEffortSupport>> {
+        Some(self.effort.updates.subscribe())
     }
 
     async fn set_thinking_effort(
@@ -1086,7 +1123,7 @@ struct AcpClientLoop {
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
     context_size: Arc<AtomicU64>,
-    effort_state: Arc<Mutex<Option<ThinkingEffortCapability>>>,
+    effort: AcpEffortState,
 }
 
 impl AcpClientLoop {
@@ -1095,7 +1132,7 @@ impl AcpClientLoop {
         goose_mode: Arc<Mutex<GooseMode>>,
         pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
         context_size: Arc<AtomicU64>,
-        effort_state: Arc<Mutex<Option<ThinkingEffortCapability>>>,
+        effort: AcpEffortState,
     ) -> Self {
         Self {
             config,
@@ -1103,7 +1140,7 @@ impl AcpClientLoop {
             prompt_response_tx: Arc::new(Mutex::new(None)),
             pending_tool_updates,
             context_size,
-            effort_state,
+            effort,
         }
     }
 
@@ -1158,11 +1195,11 @@ impl AcpClientLoop {
             prompt_response_tx,
             pending_tool_updates,
             context_size,
-            effort_state,
+            effort,
         } = self;
         let notification_callback = config.notification_callback.clone();
         let reverse_modes = reverse_mode_mapping(&config.mode_mapping);
-        let active_session_id = Arc::new(Mutex::new(None));
+        let session_state = AcpSessionState::new(effort);
 
         Client
             .builder()
@@ -1173,14 +1210,14 @@ impl AcpClientLoop {
                     let goose_mode = goose_mode.clone();
                     let pending_tool_updates = pending_tool_updates.clone();
                     let context_size = context_size.clone();
-                    let effort_state = effort_state.clone();
-                    let active_session_id = active_session_id.clone();
+                    let session_state = session_state.clone();
                     async move |notification: SessionNotification, _cx| {
-                        let is_active_session = active_session_id.lock().is_ok_and(|active| {
-                            active
-                                .as_ref()
-                                .map_or(true, |id| id == &notification.session_id)
-                        });
+                        let is_active_session =
+                            session_state.active_id.lock().is_ok_and(|active| {
+                                active
+                                    .as_ref()
+                                    .is_none_or(|id| id == &notification.session_id)
+                            });
                         if !is_active_session {
                             return Ok(());
                         }
@@ -1200,7 +1237,7 @@ impl AcpClientLoop {
                                 }
                             }
                             SessionUpdate::ConfigOptionUpdate(update) => {
-                                refresh_effort_state(&effort_state, &update.config_options);
+                                publish_effort_state(&session_state.effort, &update.config_options);
                                 for opt in &update.config_options {
                                     if opt.category == Some(SessionConfigOptionCategory::Mode) {
                                         if let SessionConfigKind::Select(sel) = &opt.kind {
@@ -1384,8 +1421,7 @@ impl AcpClientLoop {
                     cx,
                     rx,
                     prompt_response_tx,
-                    effort_state,
-                    active_session_id,
+                    session_state,
                     init_tx,
                 )
                 .await
@@ -1491,8 +1527,7 @@ async fn handle_requests(
     cx: ConnectionTo<Agent>,
     rx: &mut mpsc::Receiver<ClientRequest>,
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
-    effort_state: Arc<Mutex<Option<ThinkingEffortCapability>>>,
-    active_session_id: Arc<Mutex<Option<SessionId>>>,
+    session_state: AcpSessionState,
     init_tx: oneshot::Sender<Result<InitializeResponse>>,
 ) -> Result<(), agent_client_protocol::Error> {
     let mut init_tx = Some(init_tx);
@@ -1537,16 +1572,16 @@ async fn handle_requests(
                     .await;
                 let result = match session {
                     Ok(session) => {
-                        *active_session_id.lock().unwrap() = Some(session.session_id.clone());
+                        *session_state.active_id.lock().unwrap() = Some(session.session_id.clone());
                         session_ids.push(session.session_id.clone());
                         if let Some(config_options) = session.config_options.as_deref() {
-                            refresh_effort_state(&effort_state, config_options);
+                            publish_effort_state(&session_state.effort, config_options);
                         }
                         apply_session_config_options(
                             &config,
                             &cx,
                             session.session_id.clone(),
-                            &effort_state,
+                            &session_state.effort,
                         )
                         .await?;
                         apply_session_mode(&config, &goose_mode, &cx, session).await
@@ -1559,11 +1594,12 @@ async fn handle_requests(
                 session_id,
                 response_tx,
             } => {
-                let previous_session_id = active_session_id
+                let previous_session_id = session_state
+                    .active_id
                     .lock()
                     .unwrap()
                     .replace(session_id.clone());
-                let previous_effort_state = effort_state.lock().unwrap().take();
+                let previous_effort_state = session_state.effort.capability.lock().unwrap().take();
                 let result = if supports_load {
                     let mcp_servers =
                         filter_supported_servers(&config.mcp_servers, &mcp_capabilities);
@@ -1587,20 +1623,28 @@ async fn handle_requests(
                     Ok(session) => {
                         session_ids.push(session.session_id.clone());
                         if let Some(config_options) = session.config_options.as_deref() {
-                            refresh_effort_state(&effort_state, config_options);
+                            publish_effort_state(&session_state.effort, config_options);
                         }
                         apply_session_config_options(
                             &config,
                             &cx,
                             session.session_id.clone(),
-                            &effort_state,
+                            &session_state.effort,
                         )
                         .await?;
                         apply_session_mode(&config, &goose_mode, &cx, session).await
                     }
                     Err(error) => {
-                        *active_session_id.lock().unwrap() = previous_session_id;
-                        *effort_state.lock().unwrap() = previous_effort_state;
+                        *session_state.active_id.lock().unwrap() = previous_session_id;
+                        *session_state.effort.capability.lock().unwrap() =
+                            previous_effort_state.clone();
+                        publish_effort_support(
+                            &session_state.effort.updates,
+                            previous_effort_state.map_or(
+                                ThinkingEffortSupport::Unsupported,
+                                ThinkingEffortSupport::Options,
+                            ),
+                        );
                         Err(error)
                     }
                 };
@@ -1648,7 +1692,9 @@ async fn handle_requests(
                     .send_request(req)
                     .block_task()
                     .await
-                    .map(|response| refresh_effort_state(&effort_state, &response.config_options))
+                    .map(|response| {
+                        publish_effort_state(&session_state.effort, &response.config_options)
+                    })
                     .map_err(anyhow::Error::from);
                 log_undelivered(
                     response_tx.send(result),
@@ -1706,7 +1752,7 @@ async fn apply_session_config_options(
     config: &AcpProviderConfig,
     cx: &ConnectionTo<Agent>,
     session_id: SessionId,
-    effort_state: &Arc<Mutex<Option<ThinkingEffortCapability>>>,
+    effort: &AcpEffortState,
 ) -> Result<()> {
     for (config_id, value) in &config.session_config_options {
         let value_id = agent_client_protocol::schema::v1::SessionConfigValueId::new(value.clone());
@@ -1727,7 +1773,7 @@ async fn apply_session_config_options(
             })?;
         // Pinning the model here makes the agent rebuild its per-model effort
         // levels, so this response supersedes the session/new snapshot.
-        refresh_effort_state(effort_state, &response.config_options);
+        publish_effort_state(effort, &response.config_options);
     }
     Ok(())
 }
@@ -2175,6 +2221,7 @@ fn extract_effort_capability(
 /// Config-options payloads carry the agent's full set, so a payload without an
 /// effort selector means the current model has none and the mirrored capability
 /// must be dropped.
+#[cfg(test)]
 fn refresh_effort_state(
     effort_state: &Arc<Mutex<Option<ThinkingEffortCapability>>>,
     config_options: &[SessionConfigOption],
@@ -2182,6 +2229,34 @@ fn refresh_effort_state(
     if let Ok(mut state) = effort_state.lock() {
         *state = extract_effort_capability(config_options);
     }
+}
+
+fn publish_effort_support(
+    effort_updates: &watch::Sender<ThinkingEffortSupport>,
+    support: ThinkingEffortSupport,
+) {
+    effort_updates.send_if_modified(|current| {
+        if *current == support {
+            false
+        } else {
+            *current = support;
+            true
+        }
+    });
+}
+
+fn publish_effort_state(effort: &AcpEffortState, config_options: &[SessionConfigOption]) {
+    let capability = extract_effort_capability(config_options);
+    if let Ok(mut state) = effort.capability.lock() {
+        *state = capability.clone();
+    }
+    publish_effort_support(
+        &effort.updates,
+        capability.map_or(
+            ThinkingEffortSupport::Unsupported,
+            ThinkingEffortSupport::Options,
+        ),
+    );
 }
 
 /// Map a goose effort value onto the agent's advertised vocabulary. Values goose
@@ -2445,7 +2520,7 @@ mod tests {
                 context_size: Arc::new(AtomicU64::new(0)),
                 model_config_option_id: None,
                 applied_model: Arc::new(Mutex::new(None)),
-                effort_state: Arc::new(Mutex::new(None)),
+                effort: AcpEffortState::new(),
                 tx,
                 cancel_tx: None,
                 loop_thread: None,
@@ -3323,7 +3398,7 @@ mod tests {
         capability: Option<ThinkingEffortCapability>,
     ) -> AcpProvider {
         let (provider, _) = test_provider_with_tx(Some(tx));
-        *provider.effort_state.lock().unwrap() = capability;
+        *provider.effort.capability.lock().unwrap() = capability;
         provider
     }
 
@@ -3531,6 +3606,29 @@ mod tests {
         assert!(effort_state.lock().unwrap().is_none());
     }
 
+    #[test]
+    fn publish_effort_state_notifies_subscribers() {
+        let effort = AcpEffortState::new();
+        let mut subscriber = effort.updates.subscribe();
+
+        publish_effort_state(
+            &effort,
+            &[SessionConfigOption::select(
+                "effort",
+                "Thinking",
+                "high",
+                effort_select_options(&["default", "high"]),
+            )
+            .category(SessionConfigOptionCategory::ThoughtLevel)],
+        );
+
+        assert!(subscriber.has_changed().unwrap());
+        assert_eq!(
+            subscriber.borrow_and_update().clone(),
+            ThinkingEffortSupport::Options(effort_capability(&["default", "high"], "high"))
+        );
+    }
+
     #[test_case("high" => Some("high".to_string()) ; "exact match passes through")]
     #[test_case("HIGH" => Some("high".to_string()) ; "match ignores case")]
     #[test_case("off" => Some("default".to_string()) ; "off maps to the agent default")]
@@ -3728,7 +3826,7 @@ mod tests {
         let provider =
             test_provider_with_effort(tx, Some(effort_capability(&["default", "high"], "high")));
         refresh_effort_state(
-            &provider.effort_state,
+            &provider.effort.capability,
             &[SessionConfigOption::select(
                 "effort",
                 "Thinking",
