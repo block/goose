@@ -272,11 +272,11 @@ A few notes for integrators:
   its card to `<data-dir>/roam/serve.json`, and prints it on startup — this is
   exactly what the desktop app runs for its remote-access feature.
 - **For browser apps**, the same transport compiles to WebAssembly. The wasm
-  bindings (`@aaif/goose-roam-web`, built from
-  `crates/goose-roaming/web/goose-roaming-web`) expose a `RoamClient` to
-  JavaScript — generate an identity, print your card, dial a host's card, and
-  drive ACP from inside a browser tab, with no server in between. The web
-  client below is built on these bindings.
+  bindings (`@aaif/goose-roam-web`, built from the `goose-roaming-web` crate in
+  the [goose-mobile repo](https://github.com/aaif-goose/goose-mobile/tree/main/mobile-web))
+  expose a `RoamClient` to JavaScript — generate an identity, print your card,
+  dial a host's card, and drive ACP from inside a browser tab, with no server in
+  between. The web client below is built on these bindings.
 - The crate's [README](https://github.com/aaif-goose/goose/tree/main/crates/goose-roaming)
   covers the design decisions (why the host controls the working directory,
   why trust is all-or-nothing, etc.) in more depth.
@@ -307,8 +307,9 @@ Once connected, the tab can list and open the host's sessions, start new ones,
 stream responses, steer a running turn, and group sessions by project. You can
 connect several hosts at once; their sessions appear in one merged list.
 
-The source lives in `crates/goose-roaming/web/` — the README there has build
-details if you want to host it yourself (it builds to a static site).
+The source lives in the [goose-mobile repo](https://github.com/aaif-goose/goose-mobile/tree/main/mobile-web)
+(`mobile-web/`) — the README there has build details if you want to host it
+yourself (it builds to a static site).
 
 ## The desktop app: a reference host integration
 

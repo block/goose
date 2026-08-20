@@ -153,25 +153,20 @@ built in, keeping iroh out of core.
 
 ## Browser web client
 
-`web/` is the **official browser client for roam**: a pure-browser React app
-that connects to a `goose roam share` agent — iroh compiled to wasm runs
-*inside the browser tab*, driving the agent over ACP. No Tauri, no local
-bridge; the tab is the roam peer. The stock iroh wasm build tunnels QUIC over
-WebSocket to the relay (its UDP transport is compiled out in browsers; a
-WebRTC custom transport could add direct paths later). Proven end to end
-(real Chrome → managed relay → live agent response, streaming, tool calls,
-session list/load/new).
+The **official browser client for roam** lives in a separate repo:
+[aaif-goose/goose-mobile](https://github.com/aaif-goose/goose-mobile/tree/main/mobile-web)
+(`mobile-web/`). It is a pure-browser React app that connects to a
+`goose roam share` agent — iroh compiled to wasm runs *inside the browser tab*,
+driving the agent over ACP. No Tauri, no local bridge; the tab is the roam peer.
+The stock iroh wasm build tunnels QUIC over WebSocket to the relay (its UDP
+transport is compiled out in browsers; a WebRTC custom transport could add
+direct paths later).
 
-It **reuses goose's reference clients**: `GooseClient` from `ui/sdk` as the
-protocol layer, and the desktop app's real components (`MarkdownContent`,
-`ToolCallStatusIndicator`, the desktop Tailwind theme) for rendering.
-
-The feature is **optional and zero-cost for SDK consumers**: the wasm crate has
-its own `[workspace]`, so `cargo build`/`test`/`clippy` never touch it, and it
-needs an extra wasm toolchain only if you build it. The output is a static
-site — build once, host on any CDN over HTTPS, and it works browser → iroh
-relay → any roam host whose card you hold. See `web/README.md` for the
-architecture and build, `web/webapp/TRYME.md` for a runbook.
+It is fully decoupled from this crate: the `goose-roaming-web` wasm crate there
+**mirrors** this crate's connection-card and frame wire format by copying its
+constants (`CARD_VERSION`, `MAX_FRAME_BYTES`, card bounds). When you change the
+wire format here, update goose-mobile in the same change — a drift will not fail
+to compile there, it will break pairing at runtime.
 
 ## Prior art
 
