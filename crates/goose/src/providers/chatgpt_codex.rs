@@ -1,8 +1,12 @@
 use crate::config::paths::Paths;
 use crate::conversation::message::{Message, MessageContent};
 use crate::providers::api_client::{AuthProvider, RequestBuilderDecorator};
-use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
+use crate::providers::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
+    DEFAULT_CONNECT_TIMEOUT_SECS, DEFAULT_PROVIDER_TIMEOUT_SECS,
+};
 use crate::providers::openai_compatible::handle_status;
+use crate::providers::private_file::write_private_file;
 use crate::providers::retry::ProviderRetry;
 use anyhow::{anyhow, Result};
 use async_stream::try_stream;
@@ -17,13 +21,12 @@ use goose_providers::formats::openai_responses::responses_api_to_streaming_messa
 use goose_providers::model::ModelConfig;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
-use rmcp::model::{RawContent, Role, Tool};
+use rmcp::model::{ContentBlock, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::Digest;
 use std::io;
 use std::net::SocketAddr;
-use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
 use tokio::pin;
@@ -177,7 +180,7 @@ fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
                                 .content
                                 .iter()
                                 .filter_map(|c| {
-                                    if let RawContent::Text(t) = c.deref() {
+                                    if let ContentBlock::Text(t) = c {
                                         Some(t.text.clone())
                                     } else {
                                         None
@@ -347,11 +350,8 @@ impl TokenCache {
     }
 
     fn save(&self, token_data: &TokenData) -> Result<()> {
-        if let Some(parent) = self.cache_path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
         let contents = serde_json::to_string(token_data)?;
-        std::fs::write(&self.cache_path, contents)?;
+        write_private_file(&self.cache_path, &contents)?;
         Ok(())
     }
 
@@ -924,7 +924,13 @@ impl ChatGptCodexProvider {
             );
         }
 
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
+            .read_timeout(std::time::Duration::from_secs(
+                DEFAULT_PROVIDER_TIMEOUT_SECS,
+            ))
+            .build()
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
         let request = client
             .post(format!("{}/responses", CODEX_API_ENDPOINT))
             .header(
@@ -935,11 +941,13 @@ impl ChatGptCodexProvider {
             .headers(headers)
             .json(payload);
 
-        let response = (self.request_builder)(request)
-            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?
-            .send()
-            .await
-            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+        let request = (self.request_builder)(request)
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
+        let response = goose_providers::http_status::send_bounded(
+            request,
+            std::time::Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
+        )
+        .await?;
 
         handle_status(response).await
     }
@@ -961,6 +969,16 @@ impl goose_providers::base::ProviderDescriptor for ChatGptCodexProvider {
                 None,
                 false,
             )],
+        )
+        .with_setup(
+            crate::providers::catalog::ProviderSetupMetadata::new(
+                crate::providers::catalog::ProviderSetupCategory::Model,
+                crate::providers::catalog::ProviderSetupMethod::OauthDeviceCode,
+                crate::providers::catalog::ProviderSetupGroup::Default,
+            )
+            .with_docs_url("https://chatgpt.com")
+            .with_native_connect_query("ChatGPT Codex")
+            .with_capabilities(false, true, false),
         )
     }
 }
@@ -1052,7 +1070,7 @@ mod tests {
     use crate::conversation::message::Message;
     use goose_test_support::TEST_IMAGE_B64;
     use jsonwebtoken::{Algorithm, EncodingKey, Header};
-    use rmcp::model::{CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData};
+    use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, ErrorCode, ErrorData};
     use rmcp::object;
     use test_case::test_case;
     use wiremock::matchers::{body_string_contains, method, path};
@@ -1102,6 +1120,33 @@ mod tests {
         assert!(TokenCache::new().has_token());
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn token_cache_replaces_loose_file_with_owner_only_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let directory = tempfile::tempdir().unwrap();
+        let cache_path = directory.path().join("tokens.json");
+        std::fs::write(&cache_path, "{}").unwrap();
+        std::fs::set_permissions(&cache_path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let cache = TokenCache {
+            cache_path: cache_path.clone(),
+        };
+
+        cache
+            .save(&TokenData {
+                access_token: "access".to_string(),
+                refresh_token: "refresh".to_string(),
+                id_token: None,
+                expires_at: Utc::now() + chrono::Duration::hours(1),
+                account_id: None,
+            })
+            .unwrap();
+
+        let mode = std::fs::metadata(cache_path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+    }
+
     #[test_case(
         vec![
             Message::user().with_text("user text"),
@@ -1111,7 +1156,7 @@ mod tests {
             ),
             Message::user().with_tool_response(
                 "call-1",
-                Ok(CallToolResult::success(vec![Content::text("tool output")])),
+                Ok(CallToolResult::success(vec![ContentBlock::text("tool output")])),
             ),
             Message::assistant().with_text("assistant follow-up"),
         ],
@@ -1133,7 +1178,7 @@ mod tests {
             ),
             Message::user().with_tool_response(
                 "call-1",
-                Ok(CallToolResult::success(vec![Content::text("tool output")])),
+                Ok(CallToolResult::success(vec![ContentBlock::text("tool output")])),
             ),
             Message::assistant().with_text("assistant follow-up"),
         ],

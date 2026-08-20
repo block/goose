@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router';
 import { useChatContext } from '../contexts/ChatContext';
 import { getSessionDisplayName } from '../sessions';
 import { AppEvents } from '../constants/events';
@@ -12,6 +12,11 @@ import {
 import { groupSessionsByProject } from '../utils/projectSessions';
 
 const MAX_RECENT_SESSIONS = 25;
+
+function pairSessionPath(sessionId: string): string {
+  const searchParams = new URLSearchParams({ resumeSessionId: sessionId });
+  return `/pair?${searchParams.toString()}`;
+}
 
 export function prependUnique(
   prev: SessionListItem[],
@@ -188,7 +193,7 @@ export function useNavigationSessions() {
         const sessionId =
           currentSessionId || lastSessionIdRef.current || chatContext?.chat?.sessionId;
         if (sessionId && sessionId.length > 0) {
-          navigate(`/pair?resumeSessionId=${sessionId}`);
+          navigate(pairSessionPath(sessionId));
         } else {
           navigate('/');
         }
@@ -201,7 +206,7 @@ export function useNavigationSessions() {
 
   const handleSessionClick = useCallback(
     (sessionId: string) => {
-      navigate(`/pair?resumeSessionId=${sessionId}`);
+      navigate(pairSessionPath(sessionId));
     },
     [navigate]
   );

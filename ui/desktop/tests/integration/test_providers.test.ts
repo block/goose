@@ -6,7 +6,7 @@
  * and validates the output.
  */
 
-import { expect, beforeAll } from 'vitest';
+import { beforeAll } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -29,7 +29,7 @@ beforeAll(() => {
 
 const { testAgentic, testNonAgentic } = providerTest(discoverTestCases());
 
-testNonAgentic('reads files via shell tool', async (tc) => {
+testNonAgentic('reads files via shell tool', async (tc, { expect }) => {
   const testdir = fs.mkdtempSync(path.join(os.tmpdir(), 'goose-test-'));
   try {
     const tokenA = `smoke-alpha-${Math.floor(Math.random() * 32768)}`;
@@ -68,7 +68,7 @@ testNonAgentic('reads files via shell tool', async (tc) => {
   }
 });
 
-testAgentic('reads file contents', async (tc) => {
+testAgentic('reads file contents', async (tc, { expect }) => {
   const testdir = fs.mkdtempSync(path.join(os.tmpdir(), 'goose-test-'));
   try {
     fs.copyFileSync(testFile, path.join(testdir, 'test-content.txt'));

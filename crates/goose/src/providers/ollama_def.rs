@@ -22,7 +22,20 @@ pub struct OllamaProviderDef;
 
 impl ProviderDescriptor for OllamaProviderDef {
     fn metadata() -> goose_providers::base::ProviderMetadata {
-        OllamaProvider::metadata()
+        OllamaProvider::metadata().with_setup(
+            crate::providers::catalog::ProviderSetupMetadata::new(
+                crate::providers::catalog::ProviderSetupCategory::Model,
+                crate::providers::catalog::ProviderSetupMethod::ConfigFields,
+                crate::providers::catalog::ProviderSetupGroup::Default,
+            )
+            .with_docs_url("https://ollama.com")
+            .with_field(
+                "OLLAMA_HOST",
+                "Host",
+                Some("localhost or http://localhost:11434"),
+                Some("http://localhost:11434"),
+            ),
+        )
     }
 }
 

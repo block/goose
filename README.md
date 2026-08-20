@@ -7,7 +7,7 @@ _your native open source AI agent — desktop app, CLI, and API — for code, wo
 <p align="center">
   <a href="https://opensource.org/licenses/Apache-2.0"
     ><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
-  <a href="https://discord.gg/goose-oss"
+  <a href="https://discord.gg/n8R5VaWDAn"
     ><img src="https://img.shields.io/discord/1287729918100246654?logo=discord&logoColor=white&label=Join+Us&color=blueviolet" alt="Discord"></a>
   <a href="https://github.com/aaif-goose/goose/actions/workflows/ci.yml"
      ><img src="https://img.shields.io/github/actions/workflow/status/aaif-goose/goose/ci.yml?branch=main" alt="CI"></a>
@@ -57,7 +57,7 @@ curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download
 > Because it always helps them "migrate" their code to production! 🚀
 
 # goose around with us
-- [Discord](https://discord.gg/goose-oss)
+- [Discord](https://discord.gg/n8R5VaWDAn)
 - [YouTube](https://www.youtube.com/@goose-oss)
 - [LinkedIn](https://www.linkedin.com/company/goose-oss)
 - [Twitter/X](https://x.com/goose_oss)

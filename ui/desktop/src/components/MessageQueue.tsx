@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { X, Clock, Send, GripVertical, Zap, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from './ui/button';
 import { ImageData } from '../types/message';
@@ -128,6 +128,8 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
   const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
   const [editingMessage, setEditingMessage] = useState<string | null>(null);
   const [editContent, setEditContent] = useState<string>('');
+  const onTriggerQueueProcessingRef = useRef(onTriggerQueueProcessing);
+  onTriggerQueueProcessingRef.current = onTriggerQueueProcessing;
   const isSendingMessage = (messageId: string) => sendingMessageIds?.has(messageId) ?? false;
 
   if (queuedMessages.length === 0) {
@@ -434,7 +436,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
                             if (editingMessageIdRef) editingMessageIdRef.current = null;
                             // Trigger queue processing if system is ready
                             if (onTriggerQueueProcessing) {
-                              setTimeout(onTriggerQueueProcessing, 100);
+                              setTimeout(() => onTriggerQueueProcessingRef.current?.(), 100);
                             }
                             setEditContent('');
                           }}
@@ -450,7 +452,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
                             if (editingMessageIdRef) editingMessageIdRef.current = null;
                             // Trigger queue processing if system is ready
                             if (onTriggerQueueProcessing) {
-                              setTimeout(onTriggerQueueProcessing, 100);
+                              setTimeout(() => onTriggerQueueProcessingRef.current?.(), 100);
                             }
                             setEditContent('');
                           }}

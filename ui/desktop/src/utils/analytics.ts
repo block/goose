@@ -447,27 +447,6 @@ export function trackScheduleRunNow(success: boolean, errorDetails?: string): vo
 // Recipe Tracking
 // ============================================================================
 
-export function trackRecipeCreated(success: boolean, errorDetails?: string): void {
-  trackEvent({
-    name: 'recipe_created',
-    properties: { success, error_details: errorDetails },
-  });
-}
-
-export function trackRecipeImported(success: boolean, errorDetails?: string): void {
-  trackEvent({
-    name: 'recipe_imported',
-    properties: { success, error_details: errorDetails },
-  });
-}
-
-export function trackRecipeEdited(success: boolean, errorDetails?: string): void {
-  trackEvent({
-    name: 'recipe_edited',
-    properties: { success, error_details: errorDetails },
-  });
-}
-
 export function trackRecipeDeleted(success: boolean, errorDetails?: string): void {
   trackEvent({
     name: 'recipe_deleted',
@@ -556,30 +535,9 @@ export function trackVoiceDictation(
   });
 }
 
-export function trackModeChanged(fromMode: string, toMode: string): void {
-  trackEvent({
-    name: 'input_mode_changed',
-    properties: { from_mode: fromMode, to_mode: toMode },
-  });
-}
-
 export function trackDiagnosticsOpened(): void {
   trackEvent({
     name: 'input_diagnostics_opened',
-    properties: {},
-  });
-}
-
-export function trackCreateRecipeOpened(): void {
-  trackEvent({
-    name: 'input_create_recipe_opened',
-    properties: {},
-  });
-}
-
-export function trackEditRecipeOpened(): void {
-  trackEvent({
-    name: 'input_edit_recipe_opened',
     properties: {},
   });
 }

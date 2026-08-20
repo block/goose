@@ -140,7 +140,9 @@ async function ensureWindowsUvBinaries() {
                 );
             }
 
-            fs.copyFileSync(extractedPath, path.join(srcBinDir, name));
+            const destPath = path.join(srcBinDir, name);
+            fs.rmSync(destPath, { force: true });
+            fs.copyFileSync(extractedPath, destPath);
             console.log(`Copied pinned ${name}`);
         }
     } finally {
@@ -225,9 +227,11 @@ async function copyPlatformFiles(targetPlatform) {
             const destPath = path.join(srcBinDir, file.name);
             
             if (file.isDirectory()) {
-                fs.cpSync(srcPath, destPath, { recursive: true, force: true });
+                fs.rmSync(destPath, { recursive: true, force: true });
+                fs.cpSync(srcPath, destPath, { recursive: true });
                 console.log(`Copied directory: ${file.name}`);
             } else {
+                fs.rmSync(destPath, { force: true });
                 fs.copyFileSync(srcPath, destPath);
                 console.log(`Copied: ${file.name}`);
             }

@@ -25,7 +25,7 @@ export const saveRecipe = async (
     if (typeof error === 'object' && error !== null && 'message' in error) {
       error_message = error.message as string;
     }
-    throw new Error(error_message);
+    throw new Error(error_message, { cause: error });
   }
 };
 

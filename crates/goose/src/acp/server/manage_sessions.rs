@@ -98,28 +98,33 @@ impl GooseAcpAgent {
     pub(super) async fn on_delete_session(
         &self,
         req: DeleteSessionRequest,
-    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+    ) -> Result<DeleteSessionResponse, agent_client_protocol::Error> {
+        let session_id = req.session_id.0.to_string();
         self.session_manager
-            .delete_session(&req.session_id)
+            .delete_session(&session_id)
             .await
             .internal_err()?;
-        self.sessions.lock().await.remove(&req.session_id);
+        self.sessions.lock().await.remove(&session_id);
         self.agent_manager
-            .remove_session_if_loaded(&req.session_id)
+            .remove_session_if_loaded(&session_id)
             .await
             .internal_err_ctx("Failed to remove in-memory agent")?;
-        Ok(EmptyResponse {})
+        Ok(DeleteSessionResponse::new())
     }
 
     pub(super) async fn on_export_session(
         &self,
         req: ExportSessionRequest,
     ) -> Result<ExportSessionResponse, agent_client_protocol::Error> {
-        let data = self
-            .session_manager
-            .export_session(&req.session_id)
-            .await
-            .internal_err()?;
+        let data = match req.format {
+            SessionExportFormat::Json => self.session_manager.export_session(&req.session_id).await,
+            SessionExportFormat::Markdown => {
+                self.session_manager
+                    .export_session_markdown(&req.session_id)
+                    .await
+            }
+        }
+        .internal_err()?;
         Ok(ExportSessionResponse { data })
     }
 

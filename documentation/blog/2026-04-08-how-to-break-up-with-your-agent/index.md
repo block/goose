@@ -82,7 +82,7 @@ Pick the UI you like. Pick the agent you like. They don't have to be the same th
 - [ACP clients guide](/docs/guides/acp-clients)
 - [ACP providers guide](/docs/guides/acp-providers)
 - [Goose on GitHub](https://github.com/aaif-goose/goose)
-- [Discord community](https://discord.gg/goose-oss)
+- [Discord community](https://discord.gg/n8R5VaWDAn)
 
 <head>
   <meta property="og:title" content="How to Break Up with Your Agent" />

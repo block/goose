@@ -5,10 +5,12 @@
 mod arguments;
 mod builtin;
 pub mod client;
+mod supporting_files;
 
 pub use client::{SkillsClient, EXTENSION_NAME};
+pub(crate) use supporting_files::{load_supporting_file, read_source_file_with_limit};
 
-use crate::config::paths::Paths;
+use crate::config::{paths::Paths, Config};
 use crate::plugins::installed_plugin_skill_dirs;
 use crate::sources::parse_frontmatter;
 use agent_client_protocol::Error;
@@ -99,7 +101,27 @@ pub(crate) fn validate_skill_name(name: &str) -> Result<(), Error> {
     Ok(())
 }
 
-fn loaded_skill_context(skill: &SourceEntry, content: &str) -> String {
+const DEFAULT_GOOSE_DOCS_ROOT: &str = "https://goose-docs.ai";
+const GOOSE_DOCS_ROOT_PLACEHOLDER: &str = "{{GOOSE_DOCS_ROOT}}";
+
+/// Substitute the `{{GOOSE_DOCS_ROOT}}` placeholder in the builtin
+/// `goose-doc-guide` skill with the resolved docs root. Resolution is
+/// deterministic: the configured `GOOSE_DOCS_ROOT` if set, otherwise the
+/// canonical online docs root.
+fn resolve_docs_root_placeholder(skill: &SourceEntry, content: &str, docs_root: &str) -> String {
+    if skill.name != "goose-doc-guide" || skill.source_type != SourceType::BuiltinSkill {
+        return content.to_string();
+    }
+
+    content.replace(GOOSE_DOCS_ROOT_PLACEHOLDER, docs_root)
+}
+
+fn loaded_skill_context(skill: &SourceEntry, content: &str) -> Result<String> {
+    let docs_root = Config::global()
+        .get_goose_docs_root()?
+        .unwrap_or_else(|| DEFAULT_GOOSE_DOCS_ROOT.to_string());
+    let content = resolve_docs_root_placeholder(skill, content, &docs_root);
+
     let title = format!("{} ({})", skill.name, skill.source_type);
     let mut output = format!(
         "# Loaded Skill: {title}\n\n{}\n\n## Content\n\n{}\n",
@@ -128,7 +150,7 @@ fn loaded_skill_context(skill: &SourceEntry, content: &str) -> String {
         }
     }
 
-    output
+    Ok(output)
 }
 
 pub fn loaded_skill_context_with_args(skill: &SourceEntry, args: Option<&str>) -> Result<String> {
@@ -138,7 +160,7 @@ pub fn loaded_skill_context_with_args(skill: &SourceEntry, args: Option<&str>) -
         skill.content.clone()
     };
 
-    Ok(loaded_skill_context(skill, &content))
+    loaded_skill_context(skill, &content)
 }
 
 pub fn skill_argument_hint(skill: &SourceEntry) -> Option<String> {
@@ -422,6 +444,9 @@ fn scan_skills_from_dir(dir: &Path, global: bool, seen: &mut HashSet<String>) ->
         let Some(skill_dir) = skill_file.parent() else {
             continue;
         };
+        let Ok(registered_skill_dir) = skill_dir.canonicalize() else {
+            continue;
+        };
         let content = match std::fs::read_to_string(&skill_file) {
             Ok(c) => c,
             Err(e) => {
@@ -430,7 +455,7 @@ fn scan_skills_from_dir(dir: &Path, global: bool, seen: &mut HashSet<String>) ->
             }
         };
 
-        if let Some(mut source) = parse_skill_content(&content, skill_dir, global) {
+        if let Some(mut source) = parse_skill_content(&content, &registered_skill_dir, global) {
             if !seen.contains(&source.name) {
                 let mut files = Vec::new();
                 let mut visited_support_dirs = HashSet::new();
@@ -440,7 +465,14 @@ fn scan_skills_from_dir(dir: &Path, global: bool, seen: &mut HashSet<String>) ->
                     &mut |path| !should_skip_dir(path) && !path.join("SKILL.md").is_file(),
                     &mut |path| {
                         if path.file_name().and_then(|n| n.to_str()) != Some("SKILL.md") {
-                            files.push(path.to_string_lossy().into_owned());
+                            if let Ok(relative) = path.strip_prefix(skill_dir) {
+                                files.push(
+                                    registered_skill_dir
+                                        .join(relative)
+                                        .to_string_lossy()
+                                        .into_owned(),
+                                );
+                            }
                         }
                     },
                 );
@@ -518,6 +550,20 @@ mod tests {
         }
     }
 
+    fn builtin_goose_doc_guide_skill() -> SourceEntry {
+        SourceEntry {
+            source_type: SourceType::BuiltinSkill,
+            name: "goose-doc-guide".to_string(),
+            description: "Test docs skill".to_string(),
+            content: "Docs root: {{GOOSE_DOCS_ROOT}}.".to_string(),
+            path: "builtin://skills/goose-doc-guide".to_string(),
+            global: true,
+            writable: true,
+            supporting_files: Vec::new(),
+            properties: HashMap::new(),
+        }
+    }
+
     #[test]
     fn loaded_skill_context_with_args_replaces_arguments_placeholder_with_raw_args() {
         let skill = skill_with_content("Review $ARGUMENTS carefully.");
@@ -552,5 +598,25 @@ mod tests {
         assert!(rendered.contains("scripts/my-tool.exe"));
         assert!(rendered.contains(&resolved_path));
         assert!(rendered.contains("load_skill(name: \"test-skill/scripts/my-tool.exe\")"));
+    }
+
+    #[test]
+    fn resolve_docs_root_placeholder_substitutes_builtin_goose_doc_guide_root() {
+        let skill = builtin_goose_doc_guide_skill();
+
+        let rendered =
+            resolve_docs_root_placeholder(&skill, &skill.content, "/tmp/goose docs/root");
+
+        assert_eq!(rendered, "Docs root: /tmp/goose docs/root.");
+    }
+
+    #[test]
+    fn resolve_docs_root_placeholder_ignores_non_builtin_goose_doc_guide_skills() {
+        let mut skill = builtin_goose_doc_guide_skill();
+        skill.source_type = SourceType::Skill;
+
+        let rendered = resolve_docs_root_placeholder(&skill, &skill.content, "/tmp/goose-docs");
+
+        assert_eq!(rendered, skill.content);
     }
 }

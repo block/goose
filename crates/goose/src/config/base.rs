@@ -19,14 +19,16 @@ use thiserror::Error;
 fn write_secrets_file(path: &Path, content: &str) -> std::io::Result<()> {
     #[cfg(unix)]
     {
-        use std::os::unix::fs::OpenOptionsExt;
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
         let mut file = OpenOptions::new()
             .write(true)
             .create(true)
-            .truncate(true)
+            .truncate(false)
             .mode(0o600)
             .open(path)?;
 
+        file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+        file.set_len(0)?;
         file.write_all(content.as_bytes())
     }
 
@@ -148,7 +150,15 @@ enum SecretStorage {
 // Global instance
 static GLOBAL_CONFIG: OnceCell<Config> = OnceCell::new();
 
+#[cfg(test)]
+pub(crate) const TEST_SYSTEM_CONFIG_PATH_ENV: &str = "GOOSE_TEST_SYSTEM_CONFIG_PATH";
+
 fn system_config_path() -> PathBuf {
+    #[cfg(test)]
+    if let Some(path) = env::var_os(TEST_SYSTEM_CONFIG_PATH_ENV) {
+        return path.into();
+    }
+
     #[cfg(unix)]
     {
         PathBuf::from("/etc/goose/config.yaml")
@@ -165,6 +175,25 @@ fn additional_config_paths_from_env() -> Vec<PathBuf> {
     env::var_os("GOOSE_ADDITIONAL_CONFIG_FILES")
         .map(|value| env::split_paths(&value).collect())
         .unwrap_or_default()
+}
+
+fn metadata_is_symlink_or_reparse_point(metadata: &std::fs::Metadata) -> bool {
+    if metadata.file_type().is_symlink() {
+        return true;
+    }
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+
+        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+        metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+    }
+
+    #[cfg(not(windows))]
+    {
+        false
+    }
 }
 
 impl Default for Config {
@@ -510,6 +539,37 @@ impl Config {
                     tracing::warn!("Failed to load config {:?}: {}. Skipping.", path, e);
                 }
             }
+        }
+
+        crate::config::migrations::run_read_migrations(&mut merged);
+
+        Ok(merged)
+    }
+
+    fn load_strict(&self) -> Result<Mapping, ConfigError> {
+        let mut merged = Mapping::new();
+
+        for path in &self.config_paths {
+            match std::fs::symlink_metadata(path) {
+                Ok(_) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    for ancestor in path.ancestors().skip(1) {
+                        match std::fs::symlink_metadata(ancestor) {
+                            Ok(metadata) if metadata_is_symlink_or_reparse_point(&metadata) => {
+                                std::fs::metadata(ancestor)?;
+                            }
+                            Ok(_) => {}
+                            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                            Err(error) => return Err(error.into()),
+                        }
+                    }
+                    continue;
+                }
+                Err(error) => return Err(error.into()),
+            }
+            let content = std::fs::read_to_string(path)?;
+            let layer = parse_yaml_content(&content)?;
+            merge_config_values(&mut merged, layer);
         }
 
         crate::config::migrations::run_read_migrations(&mut merged);
@@ -1105,6 +1165,26 @@ config_value!(CHATGPT_CODEX_REASONING_EFFORT, String, "medium");
 
 config_value!(GOOSE_SEARCH_PATHS, Vec<String>);
 config_value!(GOOSE_MODE, GooseMode);
+impl Config {
+    pub(crate) fn get_goose_mode_strict(&self) -> Result<GooseMode, ConfigError> {
+        match env::var("GOOSE_MODE") {
+            Ok(value) => {
+                let value = Self::parse_env_value(&value)?;
+                Ok(serde_json::from_value(value)?)
+            }
+            Err(env::VarError::NotPresent) => {
+                let values = self.load_strict()?;
+                let value = values
+                    .get("GOOSE_MODE")
+                    .ok_or_else(|| ConfigError::NotFound("GOOSE_MODE".to_string()))?;
+                Ok(serde_yaml::from_value(value.clone())?)
+            }
+            Err(env::VarError::NotUnicode(_)) => Err(ConfigError::DeserializeError(
+                "GOOSE_MODE contains non-Unicode data".to_string(),
+            )),
+        }
+    }
+}
 // GOOSE_PROVIDER and GOOSE_MODEL are handled by crate::config::providers
 // which checks the structured `providers:` block first and falls back to
 // the legacy flat keys. The accessors below delegate to that module.
@@ -1136,7 +1216,6 @@ config_value!(GOOSE_PROMPT_EDITOR, Option<String>);
 config_value!(GOOSE_PROMPT_EDITOR_ALWAYS, Option<bool>);
 config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
 config_value!(GOOSE_DISABLE_SESSION_NAMING, bool);
-config_value!(GOOSE_DISABLE_TOOL_CALL_SUMMARY, bool);
 
 impl Config {
     pub fn get_goose_context_limit(&self) -> Result<Option<usize>, ConfigError> {
@@ -1156,6 +1235,14 @@ impl Config {
                 "GOOSE_MAX_TOKENS must be greater than 0".to_string(),
             )),
             Ok(tokens) => Ok(Some(tokens)),
+            Err(ConfigError::NotFound(_)) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn get_goose_docs_root(&self) -> Result<Option<String>, ConfigError> {
+        match self.get_param::<String>("GOOSE_DOCS_ROOT") {
+            Ok(root) => Ok(Some(root.trim().to_string()).filter(|root| !root.is_empty())),
             Err(ConfigError::NotFound(_)) => Ok(None),
             Err(e) => Err(e),
         }
@@ -2069,6 +2156,28 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
+    fn test_existing_secrets_file_permissions_tightened_on_write() -> Result<(), ConfigError> {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = TempDir::new().unwrap();
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_path = dir.path().join("secrets.yaml");
+        std::fs::write(&secrets_path, "existing: old\n")?;
+        std::fs::set_permissions(&secrets_path, std::fs::Permissions::from_mode(0o644))?;
+
+        let config = Config::new_with_file_secrets(config_file.path(), &secrets_path)?;
+        config.set_secret("key", &"value")?;
+
+        let value: String = config.get_secret("key")?;
+        assert_eq!(value, "value");
+        let mode = std::fs::metadata(&secrets_path)?.permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+
+        Ok(())
+    }
+
+    #[test]
     fn test_merge_config_values_basic_override() {
         let mut base = Mapping::new();
         base.insert(
@@ -2538,6 +2647,48 @@ extensions:
                 ConfigError::DeserializeError(_)
             ));
         }
+    }
+
+    #[test]
+    fn get_goose_docs_root_reads_config_file() {
+        let _guard = env_lock::lock_env([("GOOSE_DOCS_ROOT", None::<&str>)]);
+        let config = new_test_config();
+        config
+            .set_param("GOOSE_DOCS_ROOT", "/tmp/goose-docs")
+            .unwrap();
+
+        assert_eq!(
+            config.get_goose_docs_root().unwrap(),
+            Some("/tmp/goose-docs".to_string())
+        );
+    }
+
+    #[test]
+    fn get_goose_docs_root_reads_env_value() {
+        let _guard = env_lock::lock_env([("GOOSE_DOCS_ROOT", Some("/tmp/env-docs"))]);
+        let config = new_test_config();
+
+        assert_eq!(
+            config.get_goose_docs_root().unwrap(),
+            Some("/tmp/env-docs".to_string())
+        );
+    }
+
+    #[test]
+    fn get_goose_docs_root_returns_none_when_unset() {
+        let _guard = env_lock::lock_env([("GOOSE_DOCS_ROOT", None::<&str>)]);
+        let config = new_test_config();
+
+        assert_eq!(config.get_goose_docs_root().unwrap(), None);
+    }
+
+    #[test]
+    fn get_goose_docs_root_ignores_blank_value() {
+        let _guard = env_lock::lock_env([("GOOSE_DOCS_ROOT", None::<&str>)]);
+        let config = new_test_config();
+        config.set_param("GOOSE_DOCS_ROOT", "   ").unwrap();
+
+        assert_eq!(config.get_goose_docs_root().unwrap(), None);
     }
 
     #[test]
