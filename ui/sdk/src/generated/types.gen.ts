@@ -2560,9 +2560,7 @@ export type GooseSessionUpdate = ({
     sessionUpdate: 'status_message';
 } & StatusMessageUpdate) | ({
     sessionUpdate: 'message_usage';
-} & MessageUsageUpdate) | ({
-    sessionUpdate: 'device_code_update';
-} & DeviceCodeUpdate);
+} & MessageUsageUpdate);
 
 /**
  * Streaming context-window usage update for a session.
@@ -2629,9 +2627,10 @@ export type MessageUsageUpdate = {
 };
 
 /**
- * Live device-code prompt forwarded to the desktop during OAuth device-code flow.
+ * Dedicated provider notification for OAuth device-code flow.
  */
-export type DeviceCodeUpdate = {
+export type ProviderDeviceCodeNotification_unstable = {
+    providerId: string;
     userCode: string;
     verificationUri: string;
     expiresIn: number;

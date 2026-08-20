@@ -26,21 +26,23 @@ pub struct GooseSessionNotification {
     "mapping": {
         "usage_update": "#/$defs/SessionUsageUpdate",
         "status_message": "#/$defs/StatusMessageUpdate",
-        "message_usage": "#/$defs/MessageUsageUpdate",
-        "device_code_update": "#/$defs/DeviceCodeUpdate"
+        "message_usage": "#/$defs/MessageUsageUpdate"
     }
 }))]
 pub enum GooseSessionUpdate {
     UsageUpdate(SessionUsageUpdate),
     StatusMessage(StatusMessageUpdate),
     MessageUsage(MessageUsageUpdate),
-    DeviceCodeUpdate(DeviceCodeUpdate),
 }
 
-/// Live device-code prompt forwarded to the desktop during OAuth device-code flow.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+/// Dedicated provider notification for OAuth device-code flow.
+/// Sent during provider authentication when the ACP client supports
+/// `goose.customNotifications` — avoids a fake empty session ID.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcNotification)]
+#[notification(method = "_goose/unstable/providers/authentication/device-code")]
 #[serde(rename_all = "camelCase")]
-pub struct DeviceCodeUpdate {
+pub struct ProviderDeviceCodeNotification {
+    pub provider_id: String,
     pub user_code: String,
     pub verification_uri: String,
     pub expires_in: u64,
@@ -153,7 +155,10 @@ where
 /// notification, define the struct above (with `JsonRpcNotification` +
 /// `Default`) and add one line below.
 pub fn custom_notification_schemas(generator: &mut SchemaGenerator) -> Vec<CustomMethodSchema> {
-    vec![notification_schema::<GooseSessionNotification>(generator)]
+    vec![
+        notification_schema::<GooseSessionNotification>(generator),
+        notification_schema::<ProviderDeviceCodeNotification>(generator),
+    ]
 }
 
 #[cfg(test)]

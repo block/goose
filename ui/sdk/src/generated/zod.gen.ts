@@ -2141,6 +2141,16 @@ export const zMessageUsageUpdate = z.object({
 });
 
 /**
+ * Dedicated provider notification for OAuth device-code flow.
+ */
+export const zProviderDeviceCodeNotification_unstable = z.object({
+    providerId: z.string(),
+    userCode: z.string(),
+    verificationUri: z.string(),
+    expiresIn: z.number().int().gte(0)
+});
+
+/**
  * Discriminated union of goose-specific session update payloads.
  * Variant tag matches ACP's convention (`sessionUpdate: "<snake_case>"`).
  *

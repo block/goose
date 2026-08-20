@@ -1076,35 +1076,41 @@ impl GooseAcpAgent {
                 .await
                 .internal_err_ctx("Failed to initialize provider")?;
 
-            let client_cx = self.client_cx.get().cloned();
-            let announce: Box<dyn Fn(String, String, u64) + Send + Sync> =
-                Box::new(move |user_code, verification_uri, expires_in| {
-                    let _ = arboard::Clipboard::new()
-                        .ok()
-                        .and_then(|mut cb| cb.set_text(&user_code).ok());
-                    if let Err(e) = webbrowser::open(&verification_uri) {
-                        tracing::warn!("Failed to open browser: {}", e);
-                    }
-                    if let Some(ref cx) = client_cx {
-                        let notification = GooseSessionNotification {
-                            session_id: String::new(),
-                            update: GooseSessionUpdate::DeviceCodeUpdate(DeviceCodeUpdate {
+            if self.supports_goose_custom_notifications() {
+                let client_cx = self.client_cx.get().cloned();
+                let provider_id = req.provider_id.clone();
+                let announce: Box<dyn Fn(String, String, u64) + Send + Sync> =
+                    Box::new(move |user_code, verification_uri, expires_in| {
+                        let _ = arboard::Clipboard::new()
+                            .ok()
+                            .and_then(|mut cb| cb.set_text(&user_code).ok());
+                        if let Err(e) = webbrowser::open(&verification_uri) {
+                            tracing::warn!("Failed to open browser: {}", e);
+                        }
+                        if let Some(ref cx) = client_cx {
+                            let notification = ProviderDeviceCodeNotification {
+                                provider_id: provider_id.clone(),
                                 user_code,
                                 verification_uri,
                                 expires_in,
-                            }),
-                        };
-                        if let Err(e) = cx.send_notification(notification) {
-                            tracing::warn!("Failed to send device code notification: {}", e);
+                            };
+                            if let Err(e) = cx.send_notification(notification) {
+                                tracing::warn!("Failed to send device code notification: {}", e);
+                            }
                         }
-                    }
-                });
-            crate::providers::oauth_device_flow::with_device_code_announce(
-                announce,
-                provider.configure_oauth(),
-            )
-            .await
-            .internal_err_ctx("Failed to authenticate provider")?;
+                    });
+                crate::providers::oauth_device_flow::with_device_code_announce(
+                    announce,
+                    provider.configure_oauth(),
+                )
+                .await
+                .internal_err_ctx("Failed to authenticate provider")?;
+            } else {
+                provider
+                    .configure_oauth()
+                    .await
+                    .internal_err_ctx("Failed to authenticate provider")?;
+            }
         }
         Config::global().invalidate_secrets_cache();
 
