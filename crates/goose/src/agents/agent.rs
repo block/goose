@@ -1434,6 +1434,11 @@ impl Agent {
     ///
     /// Unlike `add_extension`, this avoids per-extension persistence and acquires
     /// the container lock once upfront to prevent serialisation of the parallel futures.
+    ///
+    /// State is persisted once every extension has settled, even when all of them
+    /// fail: the session's enabled list records what actually loaded, so failed
+    /// extensions are dropped instead of staying marked as enabled and being
+    /// retried on every subsequent resume.
     pub async fn add_extensions_bulk(
         self: &Arc<Self>,
         extensions: Vec<ExtensionConfig>,
@@ -1496,9 +1501,7 @@ impl Agent {
 
         let results = futures::future::join_all(extension_futures).await;
 
-        if results.iter().any(|r| r.success) {
-            self.persist_extension_state(session_id).await?;
-        }
+        self.persist_extension_state(session_id).await?;
 
         Ok(results)
     }

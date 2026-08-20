@@ -2954,6 +2954,202 @@ mod tests {
         }
     }
 
+    mod add_extensions_bulk_tests {
+        use super::*;
+        use goose::agents::extension::Envs;
+        use goose::agents::{AgentConfig, ExtensionConfig};
+        use goose::config::permission::PermissionManager;
+        use goose::config::GooseMode;
+        use goose::session::session_manager::SessionType;
+        use goose::session::{
+            EnabledExtensionsState, ExtensionData, ExtensionState, SessionManager,
+        };
+        use rmcp::model::Tool;
+        use rmcp::object;
+        use tempfile::TempDir;
+
+        fn frontend_extension(name: &str) -> ExtensionConfig {
+            ExtensionConfig::Frontend {
+                name: name.to_string(),
+                description: format!("Frontend test extension {name}"),
+                tools: vec![Tool::new(
+                    format!("{name}__tool"),
+                    format!("Run a tool from {name}"),
+                    object!({
+                        "type": "object",
+                        "properties": {
+                            "message": { "type": "string" }
+                        },
+                        "required": ["message"]
+                    }),
+                )],
+                instructions: None,
+                bundled: None,
+                available_tools: vec![],
+            }
+        }
+
+        fn unloadable_stdio_extension(name: &str) -> ExtensionConfig {
+            ExtensionConfig::Stdio {
+                name: name.to_string(),
+                description: format!("Unloadable test extension {name}"),
+                cmd: "goose-test-definitely-missing-binary".to_string(),
+                args: vec![],
+                envs: Envs::default(),
+                env_keys: vec![],
+                timeout: Some(1),
+                cwd: None,
+                bundled: None,
+                available_tools: vec![],
+            }
+        }
+
+        async fn setup_agent_and_session(
+            test_name: &str,
+        ) -> (Arc<Agent>, Arc<SessionManager>, String, TempDir) {
+            let temp_dir = TempDir::new().unwrap();
+            let data_dir = temp_dir.path().to_path_buf();
+            let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
+            let permission_manager = Arc::new(PermissionManager::new(data_dir));
+            let agent = Arc::new(Agent::with_config(AgentConfig::new(
+                session_manager.clone(),
+                permission_manager,
+                None,
+                GooseMode::default(),
+                false,
+                GoosePlatform::GooseDesktop,
+            )));
+
+            let session = session_manager
+                .create_session(
+                    std::env::current_dir().unwrap(),
+                    test_name.to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await
+                .unwrap();
+
+            (agent, session_manager, session.id, temp_dir)
+        }
+
+        async fn persisted_extension_names(
+            session_manager: &SessionManager,
+            session_id: &str,
+        ) -> Vec<String> {
+            let session = session_manager
+                .get_session(session_id, false)
+                .await
+                .unwrap();
+            let mut names: Vec<String> =
+                EnabledExtensionsState::from_extension_data(&session.extension_data)
+                    .expect("enabled extensions state should be persisted")
+                    .extensions
+                    .iter()
+                    .map(|extension| extension.name())
+                    .collect();
+            names.sort();
+            names
+        }
+
+        #[tokio::test]
+        async fn test_bulk_load_persists_loaded_extensions() {
+            let (agent, session_manager, session_id, _temp_dir) =
+                setup_agent_and_session("bulk-load-persist-success").await;
+
+            let results = agent
+                .add_extensions_bulk(
+                    vec![
+                        frontend_extension("frontend-a"),
+                        frontend_extension("frontend-b"),
+                    ],
+                    &session_id,
+                )
+                .await
+                .unwrap();
+
+            assert!(results.iter().all(|result| result.success));
+            assert_eq!(
+                persisted_extension_names(&session_manager, &session_id).await,
+                vec!["frontend-a".to_string(), "frontend-b".to_string()]
+            );
+        }
+
+        #[tokio::test]
+        async fn test_bulk_load_partial_failure_persists_only_loaded_extensions() {
+            let (agent, session_manager, session_id, _temp_dir) =
+                setup_agent_and_session("bulk-load-persist-partial-failure").await;
+
+            let results = agent
+                .add_extensions_bulk(
+                    vec![
+                        frontend_extension("frontend-ok"),
+                        unloadable_stdio_extension("broken"),
+                    ],
+                    &session_id,
+                )
+                .await
+                .unwrap();
+
+            assert_eq!(results.len(), 2);
+            assert!(results
+                .iter()
+                .any(|result| result.name == "frontend-ok" && result.success));
+            let broken = results
+                .iter()
+                .find(|result| result.name == "broken")
+                .expect("broken extension should report a result");
+            assert!(!broken.success);
+            assert!(broken.error.is_some());
+
+            assert_eq!(
+                persisted_extension_names(&session_manager, &session_id).await,
+                vec!["frontend-ok".to_string()]
+            );
+        }
+
+        #[tokio::test]
+        async fn test_bulk_load_total_failure_drops_failed_extensions_from_session_state() {
+            let (agent, session_manager, session_id, _temp_dir) =
+                setup_agent_and_session("bulk-load-persist-total-failure").await;
+
+            // Seed the session with the extensions up front, mirroring a resume
+            // where the enabled list is read back from session metadata.
+            let extensions = vec![
+                unloadable_stdio_extension("broken-one"),
+                unloadable_stdio_extension("broken-two"),
+            ];
+            let mut extension_data = ExtensionData::new();
+            EnabledExtensionsState::new(extensions.clone())
+                .to_extension_data(&mut extension_data)
+                .unwrap();
+            session_manager
+                .update(&session_id)
+                .extension_data(extension_data)
+                .apply()
+                .await
+                .unwrap();
+
+            let results = agent
+                .add_extensions_bulk(extensions, &session_id)
+                .await
+                .unwrap();
+
+            assert_eq!(results.len(), 2);
+            assert!(
+                results.iter().all(|result| !result.success),
+                "expected every extension load to fail: {results:?}"
+            );
+
+            // The failed extensions must not stay marked as enabled in the
+            // session, otherwise every future resume retries them.
+            assert_eq!(
+                persisted_extension_names(&session_manager, &session_id).await,
+                Vec::<String>::new()
+            );
+        }
+    }
+
     mod audience_tool_result_tests {
         use super::*;
         use async_trait::async_trait;
