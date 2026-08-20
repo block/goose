@@ -790,6 +790,7 @@ impl Config {
         &self,
         key: &str,
     ) -> Result<T, ConfigError> {
+        let _guard = self.guard.lock().unwrap();
         let values = self.load_write_config()?;
         let value = values
             .get(key)
