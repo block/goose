@@ -53,6 +53,14 @@ fn read_supporting_file_with_limit(
     read_supporting_file_with_hook(skill_dir, relative, max_characters, |_| {})
 }
 
+pub(crate) fn read_source_file_with_limit(
+    source_dir: &Path,
+    relative: &Path,
+    max_characters: usize,
+) -> io::Result<String> {
+    read_supporting_file_with_limit(source_dir, relative, max_characters)
+}
+
 fn max_utf8_bytes(max_characters: usize) -> io::Result<usize> {
     max_characters.checked_mul(4).ok_or_else(|| {
         io::Error::new(
