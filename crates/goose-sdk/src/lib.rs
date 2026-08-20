@@ -6,9 +6,10 @@
 //!
 //! With `--features uniffi` the crate additionally compiles as a
 //! `cdylib`/`staticlib` and exposes an in-process API to Python and Kotlin via
-//! [uniffi-rs](https://github.com/mozilla/uniffi-rs). The current uniffi surface
-//! lets callers construct declarative providers from JSON and stream provider
-//! completions.
+//! [uniffi-rs](https://github.com/mozilla/uniffi-rs). The uniffi surface
+//! constructs native providers, streams completions, and runs host-driven
+//! OAuth device-code login (protocol in `goose-providers`; the host owns UI
+//! and token storage).
 
 pub use goose_sdk_types::{custom_notifications, custom_requests};
 

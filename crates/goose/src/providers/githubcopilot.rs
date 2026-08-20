@@ -18,7 +18,7 @@ use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::time::Duration;
+
 use url::{Host, Url};
 
 // Task-local so complete() and stream() can't race on the same provider instance.
@@ -84,7 +84,7 @@ pub const GITHUB_COPILOT_STREAM_MODELS: &[&str] = &[
 const GITHUB_COPILOT_DOC_URL: &str =
     "https://docs.github.com/en/copilot/using-github-copilot/ai-models";
 const DEFAULT_GITHUB_HOST: &str = "github.com";
-const DEFAULT_GITHUB_COPILOT_CLIENT_ID: &str = "Iv1.b507a08c87ecfe98";
+const DEFAULT_GITHUB_COPILOT_CLIENT_ID: &str = goose_providers::oauth::GITHUB_COPILOT_CLIENT_ID;
 
 fn normalize_host(host: &str) -> String {
     let host = host.trim_end_matches('/');
@@ -290,7 +290,10 @@ impl GithubCopilotProvider {
         let copilot_token_url: Option<String> = config.get_param("GITHUB_COPILOT_TOKEN_URL").ok();
         let urls = GithubCopilotUrls::new(&host, copilot_token_url.as_deref());
         let client = Client::builder()
-            .timeout(Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
+            .redirect(reqwest::redirect::Policy::none())
+            .timeout(std::time::Duration::from_secs(
+                DEFAULT_PROVIDER_TIMEOUT_SECS,
+            ))
             .build()?;
         let cache = DiskCache::new(&host);
         let mu = tokio::sync::Mutex::new(RefCell::new(None));

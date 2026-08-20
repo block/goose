@@ -30,6 +30,22 @@ just --justfile crates/goose-sdk/justfile _generate python
 
 This writes generated bindings and the debug native library under `crates/goose-sdk/generated/`.
 
+## Python OAuth device-code example
+
+Lists gdk OAuth providers (GitHub Copilot, Kimi Code) without opening a
+browser. Live login is opt-in via `GOOSE_OAUTH_PROVIDER`.
+
+```bash
+just --justfile crates/goose-sdk/justfile _generate python
+DYLD_LIBRARY_PATH=target/debug LD_LIBRARY_PATH=target/debug \
+  uv run --script crates/goose-sdk/examples/uniffi/oauth_device_flow.py
+```
+
+The host owns UI and token storage. gdk returns verification URL + user code,
+then host-driven poll results. For GitHub Copilot, poll success is a GitHub
+OAuth token — call `exchange_github_copilot_token` before using it as an API
+key. PKCE loopback is listed as a grant and is not implemented in this crate.
+
 ## Python provider example
 
 ```bash
