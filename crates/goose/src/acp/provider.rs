@@ -1599,7 +1599,7 @@ async fn handle_requests(
                     .lock()
                     .unwrap()
                     .replace(session_id.clone());
-                let previous_effort_state = session_state.effort.capability.lock().unwrap().take();
+                let previous_effort_state = replace_effort_state(&session_state.effort, None);
                 let result = if supports_load {
                     let mcp_servers =
                         filter_supported_servers(&config.mcp_servers, &mcp_capabilities);
@@ -1636,15 +1636,7 @@ async fn handle_requests(
                     }
                     Err(error) => {
                         *session_state.active_id.lock().unwrap() = previous_session_id;
-                        *session_state.effort.capability.lock().unwrap() =
-                            previous_effort_state.clone();
-                        publish_effort_support(
-                            &session_state.effort.updates,
-                            previous_effort_state.map_or(
-                                ThinkingEffortSupport::Unsupported,
-                                ThinkingEffortSupport::Options,
-                            ),
-                        );
+                        replace_effort_state(&session_state.effort, previous_effort_state);
                         Err(error)
                     }
                 };
@@ -2247,9 +2239,15 @@ fn publish_effort_support(
 
 fn publish_effort_state(effort: &AcpEffortState, config_options: &[SessionConfigOption]) {
     let capability = extract_effort_capability(config_options);
-    if let Ok(mut state) = effort.capability.lock() {
-        *state = capability.clone();
-    }
+    replace_effort_state(effort, capability);
+}
+
+fn replace_effort_state(
+    effort: &AcpEffortState,
+    capability: Option<ThinkingEffortCapability>,
+) -> Option<ThinkingEffortCapability> {
+    let mut state = effort.capability.lock().unwrap();
+    let previous = std::mem::replace(&mut *state, capability.clone());
     publish_effort_support(
         &effort.updates,
         capability.map_or(
@@ -2257,6 +2255,7 @@ fn publish_effort_state(effort: &AcpEffortState, config_options: &[SessionConfig
             ThinkingEffortSupport::Options,
         ),
     );
+    previous
 }
 
 /// Map a goose effort value onto the agent's advertised vocabulary. Values goose
@@ -3626,6 +3625,34 @@ mod tests {
         assert_eq!(
             subscriber.borrow_and_update().clone(),
             ThinkingEffortSupport::Options(effort_capability(&["default", "high"], "high"))
+        );
+    }
+
+    #[test]
+    fn clearing_effort_state_allows_same_options_to_be_republished() {
+        let effort = AcpEffortState::new();
+        let mut subscriber = effort.updates.subscribe();
+        let capability = effort_capability(&["default", "high"], "high");
+
+        replace_effort_state(&effort, Some(capability.clone()));
+        assert!(subscriber.has_changed().unwrap());
+        subscriber.borrow_and_update();
+
+        assert_eq!(
+            replace_effort_state(&effort, None),
+            Some(capability.clone())
+        );
+        assert!(subscriber.has_changed().unwrap());
+        assert_eq!(
+            subscriber.borrow_and_update().clone(),
+            ThinkingEffortSupport::Unsupported
+        );
+
+        replace_effort_state(&effort, Some(capability.clone()));
+        assert!(subscriber.has_changed().unwrap());
+        assert_eq!(
+            subscriber.borrow_and_update().clone(),
+            ThinkingEffortSupport::Options(capability)
         );
     }
 
