@@ -2590,7 +2590,8 @@
           ]
         },
         "toolshim": {
-          "type": "boolean"
+          "type": "boolean",
+          "default": false
         }
       },
       "required": [

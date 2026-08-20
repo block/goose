@@ -671,10 +671,6 @@ impl GooseAcpAgent {
                 .data(format!("Provider is not editable: {}", req.provider_id)));
         }
 
-        let toolshim = match req.toolshim {
-            ToolshimUpdate::Keep => loaded.config.toolshim,
-            ToolshimUpdate::Set(value) => value,
-        };
         let provider = normalize_custom_provider_upsert(req.provider, false)?;
         if provider.requires_auth && provider.api_key.is_none() {
             let api_key_env = if loaded.config.api_key_env.is_empty() {
@@ -700,7 +696,7 @@ impl GooseAcpAgent {
                 requires_auth: provider.requires_auth,
                 catalog_provider_id: provider.catalog_provider_id,
                 base_path: provider.base_path,
-                toolshim,
+                toolshim: req.toolshim,
                 preserves_thinking: provider.preserves_thinking,
             },
         )

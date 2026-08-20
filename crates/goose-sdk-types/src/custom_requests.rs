@@ -1266,40 +1266,6 @@ pub struct CustomProviderUpsertDto {
     pub preserves_thinking: Option<bool>,
 }
 
-#[derive(Debug, Default, Clone, Copy)]
-pub enum ToolshimUpdate {
-    #[default]
-    Keep,
-    Set(bool),
-}
-
-impl ToolshimUpdate {
-    pub fn is_keep(&self) -> bool {
-        matches!(self, Self::Keep)
-    }
-}
-
-impl Serialize for ToolshimUpdate {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        match self {
-            Self::Keep => serializer.serialize_unit(),
-            Self::Set(value) => serializer.serialize_bool(*value),
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for ToolshimUpdate {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        bool::deserialize(deserializer).map(Self::Set)
-    }
-}
-
 /// Create a custom provider backed by Goose's declarative provider store.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(
@@ -1352,9 +1318,8 @@ pub struct CustomProviderUpdateRequest {
     pub provider_id: String,
     #[serde(flatten)]
     pub provider: CustomProviderUpsertDto,
-    #[serde(default, skip_serializing_if = "ToolshimUpdate::is_keep")]
-    #[schemars(with = "bool")]
-    pub toolshim: ToolshimUpdate,
+    #[serde(default)]
+    pub toolshim: bool,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]

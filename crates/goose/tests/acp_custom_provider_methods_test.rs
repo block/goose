@@ -392,6 +392,7 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "headers": {},
                 "requiresAuth": true,
                 "catalogProviderId": "zai",
+                "toolshim": true,
                 "preservesThinking": false
             }),
         )
