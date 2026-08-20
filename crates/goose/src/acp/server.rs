@@ -24,6 +24,7 @@ use crate::conversation::message::{
     ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
     ToolRequest, ToolResponse,
 };
+use crate::conversation::Conversation;
 use crate::execution::manager::{AgentManager, AgentManagerGetResult, RuntimeContext};
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
@@ -183,6 +184,28 @@ fn thinking_effort_error(error: anyhow::Error) -> agent_client_protocol::Error {
     // `{error:#}` rather than `{error}`: context layering hides the cause chain,
     // including the variant this mapping branched on.
     base.data(format!("Failed to update thinking effort: {error:#}"))
+}
+
+async fn resume_saved_provider_session(
+    provider: &Arc<dyn Provider>,
+    conversation: Option<&Conversation>,
+) {
+    let Some(conversation) = conversation else {
+        return;
+    };
+    let provider_name = provider.get_name();
+    let Some(session_id) =
+        crate::agents::latest_provider_session_id(conversation.messages(), provider_name)
+    else {
+        return;
+    };
+    if let Err(error) = provider.resume(session_id).await {
+        warn!(
+            provider = provider_name,
+            %error,
+            "Could not resume provider session during ACP session setup"
+        );
+    }
 }
 
 pub(super) const DEFAULT_PROVIDER_ID: &str = "goose";

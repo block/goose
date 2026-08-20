@@ -7,7 +7,6 @@ use super::tool_calls::conversion::{
 };
 use super::tool_calls::enrichment::tool_chain_summary;
 use super::*;
-use crate::conversation::Conversation;
 use agent_client_protocol::schema::v1::ToolCall;
 
 fn replay_audience_annotations(audience: &[Role]) -> Annotations {
@@ -45,28 +44,6 @@ fn active_turn_messages(conversation: &Conversation) -> &[Message] {
         })
         .map(|start| &messages[start..])
         .unwrap_or(messages)
-}
-
-async fn resume_saved_provider_session(
-    provider: &Arc<dyn Provider>,
-    conversation: Option<&Conversation>,
-) {
-    let Some(conversation) = conversation else {
-        return;
-    };
-    let provider_name = provider.get_name();
-    let Some(session_id) =
-        crate::agents::latest_provider_session_id(conversation.messages(), provider_name)
-    else {
-        return;
-    };
-    if let Err(error) = provider.resume(session_id).await {
-        warn!(
-            provider = provider_name,
-            %error,
-            "Could not resume provider session while loading ACP session"
-        );
-    }
 }
 
 fn send_replay_content_chunk(

@@ -38,7 +38,7 @@ impl GooseAcpAgent {
 
         let new_session = self
             .session_manager
-            .get_session(&new_session_id, false)
+            .get_session(&new_session_id, true)
             .await
             .internal_err()?;
 
@@ -47,7 +47,7 @@ impl GooseAcpAgent {
                 new_session.clone(),
                 args.cwd.clone(),
                 args.mcp_servers,
-                false,
+                true,
             )
             .await?;
 
@@ -55,6 +55,11 @@ impl GooseAcpAgent {
         self.apply_session_recipe(&agent, &goose_session).await?;
         self.register_acp_session(goose_session.id.clone(), agent.clone())
             .await;
+        let provider = agent
+            .provider()
+            .await
+            .internal_err_ctx("Failed to get provider while forking ACP session")?;
+        resume_saved_provider_session(&provider, goose_session.conversation.as_ref()).await;
         let effort_support = agent_thinking_effort_support(&agent).await;
 
         let acp_session_id = SessionId::new(new_session_id.clone());
