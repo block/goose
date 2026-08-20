@@ -136,6 +136,16 @@ enum SecretStorage {
     },
 }
 
+enum SecretMutation<T> {
+    Write(T),
+    Unchanged(T),
+}
+
+pub(crate) enum SecretUpdate<V, R> {
+    Write(V, R),
+    Unchanged(R),
+}
+
 // Global instance
 static GLOBAL_CONFIG: OnceCell<Config> = OnceCell::new();
 
@@ -989,14 +999,18 @@ impl Config {
 
     fn mutate_secrets<T>(
         &self,
-        mutate: impl FnOnce(&mut HashMap<String, Value>) -> Result<T, ConfigError>,
+        mutate: impl FnOnce(&mut HashMap<String, Value>) -> Result<SecretMutation<T>, ConfigError>,
     ) -> Result<T, ConfigError> {
         let _guard = self.guard.lock().unwrap();
         let _storage_lock = self.lock_secrets_for_mutation()?;
         let mut values = self.load_secrets_from_storage()?;
-        let result = mutate(&mut values)?;
-        self.write_all_secrets(&values)?;
-        Ok(result)
+        match mutate(&mut values)? {
+            SecretMutation::Write(result) => {
+                self.write_all_secrets(&values)?;
+                Ok(result)
+            }
+            SecretMutation::Unchanged(result) => Ok(result),
+        }
     }
 
     /// Set a secret value in the system keyring.
@@ -1020,14 +1034,14 @@ impl Config {
         let value = serde_json::to_value(value)?;
         self.mutate_secrets(|values| {
             values.insert(key.to_string(), value);
-            Ok(())
+            Ok(SecretMutation::Write(()))
         })
     }
 
-    pub fn update_secret<T, V, R>(
+    pub(crate) fn update_secret<T, V, R>(
         &self,
         key: &str,
-        update: impl FnOnce(T) -> (V, R),
+        update: impl FnOnce(T) -> SecretUpdate<V, R>,
     ) -> Result<R, ConfigError>
     where
         T: for<'de> Deserialize<'de> + Default,
@@ -1040,9 +1054,13 @@ impl Config {
                 .map(serde_json::from_value)
                 .transpose()?
                 .unwrap_or_default();
-            let (updated, result) = update(current);
-            values.insert(key.to_string(), serde_json::to_value(updated)?);
-            Ok(result)
+            match update(current) {
+                SecretUpdate::Write(updated, result) => {
+                    values.insert(key.to_string(), serde_json::to_value(updated)?);
+                    Ok(SecretMutation::Write(result))
+                }
+                SecretUpdate::Unchanged(result) => Ok(SecretMutation::Unchanged(result)),
+            }
         })
     }
 
@@ -1060,7 +1078,7 @@ impl Config {
             for (key, value) in updates {
                 values.insert(key.clone(), value.clone());
             }
-            Ok(())
+            Ok(SecretMutation::Write(()))
         })
     }
 
@@ -1077,7 +1095,7 @@ impl Config {
     pub fn delete_secret(&self, key: &str) -> Result<(), ConfigError> {
         self.mutate_secrets(|values| {
             values.remove(key);
-            Ok(())
+            Ok(SecretMutation::Write(()))
         })
     }
 
@@ -1091,7 +1109,7 @@ impl Config {
             for key in keys {
                 values.remove(key);
             }
-            Ok(())
+            Ok(SecretMutation::Write(()))
         })
     }
 

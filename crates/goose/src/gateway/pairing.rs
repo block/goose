@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
+use crate::config::base::SecretUpdate;
 use crate::config::{Config, ConfigError};
 
 use super::{PairingState, PlatformUser};
@@ -143,14 +144,15 @@ impl PairingStore {
                 PENDING_CODES_SECRET_KEY,
                 |stored: StoredPendingCodesValue| {
                     let mut state = stored.into_state();
-                    if !state.legacy_import_complete {
-                        for legacy_code in legacy_codes.unwrap_or_default() {
-                            state.codes.retain(|code| code.code != legacy_code.code);
-                            state.codes.push(legacy_code);
-                        }
-                        state.legacy_import_complete = true;
+                    if state.legacy_import_complete {
+                        return SecretUpdate::Unchanged(());
                     }
-                    (state, ())
+                    for legacy_code in legacy_codes.unwrap_or_default() {
+                        state.codes.retain(|code| code.code != legacy_code.code);
+                        state.codes.push(legacy_code);
+                    }
+                    state.legacy_import_complete = true;
+                    SecretUpdate::Write(state, ())
                 },
             )
             .map_err(|error| anyhow::anyhow!("failed to migrate pending codes: {}", error))
@@ -174,7 +176,7 @@ impl PairingStore {
                         gateway_type: gateway_type.to_string(),
                         expires_at,
                     });
-                    (state, ())
+                    SecretUpdate::Write(state, ())
                 },
             )
             .map_err(|error| anyhow::anyhow!("failed to save pending codes: {}", error))
@@ -191,14 +193,15 @@ impl PairingStore {
                 PENDING_CODES_SECRET_KEY,
                 |stored: StoredPendingCodesValue| {
                     let mut state = stored.into_state();
-                    let consumed = state
-                        .codes
-                        .iter()
-                        .position(|pending| pending.code == code)
-                        .map(|position| state.codes.remove(position))
+                    let Some(position) =
+                        state.codes.iter().position(|pending| pending.code == code)
+                    else {
+                        return SecretUpdate::Unchanged(None);
+                    };
+                    let consumed = Some(state.codes.remove(position))
                         .filter(|pending| now <= pending.expires_at)
                         .map(|pending| pending.gateway_type);
-                    (state, consumed)
+                    SecretUpdate::Write(state, consumed)
                 },
             )
             .map_err(|error| anyhow::anyhow!("failed to consume pending code: {}", error))
@@ -455,6 +458,62 @@ mod tests {
         assert_eq!(
             PairingStore::consume_pending_code_in(&config, code, 100).unwrap(),
             None
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unmatched_pending_codes_do_not_rewrite_secret_storage() {
+        use std::os::unix::fs::MetadataExt;
+
+        let directory = TempDir::new().unwrap();
+        let config = test_config(&directory);
+        let secrets_path = directory.path().join("secrets.yaml");
+        PairingStore::store_pending_code_in(&config, "VALID-CODE", "telegram", 101).unwrap();
+        PairingStore::store_pending_code_in(&config, "EXPIRED-CODE", "slack", 99).unwrap();
+
+        let initial_inode = std::fs::metadata(&secrets_path).unwrap().ino();
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, "ZZZZZZ", 100).unwrap(),
+            None
+        );
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, "ZZZZZZ", 100).unwrap(),
+            None
+        );
+        assert_eq!(
+            std::fs::metadata(&secrets_path).unwrap().ino(),
+            initial_inode
+        );
+
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, "VALID-CODE", 100).unwrap(),
+            Some("telegram".to_string())
+        );
+        let consumed_inode = std::fs::metadata(&secrets_path).unwrap().ino();
+        assert_ne!(consumed_inode, initial_inode);
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, "VALID-CODE", 100).unwrap(),
+            None
+        );
+        assert_eq!(
+            std::fs::metadata(&secrets_path).unwrap().ino(),
+            consumed_inode
+        );
+
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, "EXPIRED-CODE", 100).unwrap(),
+            None
+        );
+        let expired_inode = std::fs::metadata(&secrets_path).unwrap().ino();
+        assert_ne!(expired_inode, consumed_inode);
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, "EXPIRED-CODE", 98).unwrap(),
+            None
+        );
+        assert_eq!(
+            std::fs::metadata(&secrets_path).unwrap().ino(),
+            expired_inode
         );
     }
 }
