@@ -139,6 +139,18 @@ async fn parse_errors_do_not_reflect_recipe_contents() {
         assert!(!message.contains(secret));
     }
 
+    // Enum/tag deserialization errors also echo file contents (e.g. unknown variant)
+    // and must be sanitized to the generic message.
+    let enum_secret = "yaml-secret-242";
+    let enum_recipe = format!(
+        "title: Test\ndescription: hi\nprompt: hi\nparameters:\n  - key: foo\n    input_type: {enum_secret}\n    requirement: required\n    description: hi\n"
+    );
+    let path = temp_dir.path().join("enum_invalid.yaml");
+    std::fs::write(&path, enum_recipe).unwrap();
+    let message = create_schedule(&tool, &path).await.unwrap_err();
+    assert_eq!(message, "Invalid YAML recipe");
+    assert!(!message.contains(enum_secret));
+
     assert!(scheduler.jobs.lock().await.is_empty());
 }
 

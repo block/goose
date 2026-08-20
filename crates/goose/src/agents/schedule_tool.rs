@@ -8,6 +8,7 @@ use crate::mcp_utils::ToolResult;
 use chrono::Utc;
 use rmcp::model::{ContentBlock, ErrorCode, ErrorData};
 
+use crate::recipe::template_recipe::parse_recipe_content;
 use crate::recipe::validate_recipe::validate_recipe_template_from_content;
 use crate::scheduler::{
     open_regular_schedule_recipe, ValidatedScheduleRecipe, MAX_SCHEDULE_RECIPE_BYTES,
@@ -179,23 +180,30 @@ impl ScheduleTool {
         let recipe_dir = canonical_recipe_path
             .parent()
             .map(|path| path.to_string_lossy().into_owned());
-        validate_recipe_template_from_content(&content, recipe_dir.clone()).map_err(|error| {
-            let message = error.to_string();
-            // Initial parse/type errors echo the file contents in the serde
-            // error (e.g. `invalid type: string "yaml-secret-242", expected
-            // struct Recipe`). Those must stay generic; the checks that
-            // follow describe the recipe's own shape and are safe to
-            // report with the specific message.
-            if message.contains("invalid type:") {
-                if recipe_path.ends_with(".json") {
-                    recipe_file_error("Invalid JSON recipe")
-                } else {
-                    recipe_file_error("Invalid YAML recipe")
-                }
-            } else {
-                recipe_file_error(&format!("Invalid recipe: {message}"))
+        // Distinguish deserialization failures (which may echo file contents)
+        // from post-parse validation failures structurally. Any error from
+        // `parse_recipe_content` is treated as a generic parse error, except
+        // for `missing field` which is safe and actionable (it names the
+        // expected field, not file contents). Validation errors after a
+        // successful parse are safe to surface with details.
+        match parse_recipe_content(&content, recipe_dir.clone()) {
+            Ok(_) => {
+                // Parse succeeded — any subsequent validation error is safe to report.
+                validate_recipe_template_from_content(&content, recipe_dir)
+                    .map_err(|error| recipe_file_error(&format!("Invalid recipe: {error}")))?;
             }
-        })?;
+            Err(error) => {
+                let message = error.to_string();
+                if message.contains("missing field") {
+                    return Err(recipe_file_error(&format!("Invalid recipe: {message}")));
+                }
+                if recipe_path.ends_with(".json") {
+                    return Err(recipe_file_error("Invalid JSON recipe"));
+                } else {
+                    return Err(recipe_file_error("Invalid YAML recipe"));
+                }
+            }
+        }
 
         // Generate unique job ID
         let job_id = format!("agent_created_{}", uuid::Uuid::new_v4());
