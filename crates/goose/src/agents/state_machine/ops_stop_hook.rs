@@ -2,6 +2,7 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
+use rmcp::model::Role;
 
 use crate::agents::state_machine::effects::GooseEffect;
 use crate::agents::state_machine::{
@@ -55,6 +56,19 @@ impl StopHookOperation {
             block_cap,
         }
     }
+
+    fn trailing_assistant_text(messages: &[Message]) -> String {
+        messages
+            .iter()
+            .rev()
+            .take_while(|message| message.role == Role::Assistant)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .filter(|message| message.is_user_visible())
+            .map(|message| message.user_visible_content().as_concat_text())
+            .collect()
+    }
 }
 
 #[async_trait]
@@ -73,10 +87,7 @@ impl Operation<Session, GooseEffect> for StopHookOperation {
         if !ends_turn(messages) {
             return not_applicable();
         }
-        let last_assistant_text = conversation
-            .last()
-            .map(Message::as_concat_text)
-            .unwrap_or_default();
+        let last_assistant_text = Self::trailing_assistant_text(messages);
 
         let context = HookContext::new(HookEvent::Stop, &session.id)
             .with_last_assistant_message(last_assistant_text)

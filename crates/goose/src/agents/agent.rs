@@ -2576,7 +2576,13 @@ impl Agent {
 
                                 let num_tool_requests = frontend_requests.len() + remaining_requests.len();
                                 if num_tool_requests == 0 {
-                                    let text = filtered_response.as_concat_text();
+                                    let text = if response.is_user_visible() {
+                                        filtered_response
+                                            .user_visible_content()
+                                            .as_concat_text()
+                                    } else {
+                                        String::new()
+                                    };
                                     if !text.is_empty() {
                                         last_assistant_text.push_str(&text);
                                     }
@@ -3989,7 +3995,7 @@ mod tests {
     use crate::recipe::Response;
     use crate::session::session_manager::SessionType;
     use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
-    use rmcp::model::Tool;
+    use rmcp::model::{Annotations, Role, TextContent, Tool};
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
@@ -4566,6 +4572,48 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         }
     }
 
+    struct VisibilityTextProvider;
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for VisibilityTextProvider {
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system_prompt: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
+            let mixed_audience = Message::assistant()
+                .with_content(MessageContent::Text(
+                    TextContent::new("assistant-only block ").with_annotations(
+                        Annotations::default().with_audience(vec![Role::Assistant]),
+                    ),
+                ))
+                .with_content(MessageContent::Text(
+                    TextContent::new("visible last")
+                        .with_annotations(Annotations::default().with_audience(vec![Role::User])),
+                ));
+
+            Ok(Box::pin(futures::stream::iter(vec![
+                Ok((Some(Message::assistant().with_text("visible first ")), None)),
+                Ok((
+                    Some(
+                        Message::assistant()
+                            .with_text("internal message ")
+                            .agent_only(),
+                    ),
+                    None,
+                )),
+                Ok((Some(mixed_audience), Some(usage))),
+            ])))
+        }
+
+        fn get_name(&self) -> &str {
+            "visibility-text"
+        }
+    }
+
     struct OutputLimitMarkerProvider {
         include_content: bool,
         call_count: AtomicUsize,
@@ -5059,6 +5107,26 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             Some("streamed assistant reply")
         );
         assert!(payload.get("message").is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn stop_hook_payload_excludes_non_user_visible_assistant_content() -> Result<()> {
+        let env = StopHookTestEnv::new(RECORD_PAYLOAD_SCRIPT)?;
+        let provider = Arc::new(VisibilityTextProvider);
+        let (agent, session_id) =
+            create_test_agent(env.data_dir(), env.hook_manager(), provider).await?;
+
+        run_stop_hook_test_turn(&agent, &session_id, "hello").await?;
+
+        let payload = env.stop_payload()?;
+        assert_eq!(
+            payload
+                .get("last_assistant_message")
+                .and_then(Value::as_str),
+            Some("visible first visible last")
+        );
 
         Ok(())
     }
