@@ -1071,7 +1071,11 @@ where
                         ResponseUsage::to_usage,
                     );
                     let mut pu = ProviderUsage::new(model.clone(), usage);
-                    pu.finish_reasons = Some(vec![response.status.clone()]);
+                    pu.finish_reasons = Some(vec![response
+                        .incomplete_details
+                        .as_ref()
+                        .and_then(|details| details.reason.clone())
+                        .unwrap_or_else(|| response.status.clone())]);
                     pu.response_id = Some(response.id.clone());
                     final_usage = Some(pu);
                     response_id = Some(response.id.clone());
@@ -1306,6 +1310,10 @@ mod tests {
         assert_eq!(usage.usage.input_tokens, Some(10));
         assert_eq!(usage.usage.output_tokens, Some(5));
         assert_eq!(usage.usage.total_tokens, Some(15));
+        assert_eq!(
+            usage.finish_reasons.as_deref(),
+            Some(&["max_output_tokens".to_string()][..])
+        );
 
         Ok(())
     }
