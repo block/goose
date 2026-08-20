@@ -38,7 +38,7 @@ pub use subagent_task_config::TaskConfig;
 pub use tool_execution::ToolCallContext;
 pub use types::{FrontendTool, RetryConfig, SessionConfig, SuccessCheck};
 
-fn latest_provider_session_id<'a>(
+pub(crate) fn latest_provider_session_id<'a>(
     messages: &'a [crate::conversation::message::Message],
     provider: &str,
 ) -> Option<&'a str> {

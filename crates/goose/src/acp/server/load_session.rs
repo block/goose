@@ -47,6 +47,28 @@ fn active_turn_messages(conversation: &Conversation) -> &[Message] {
         .unwrap_or(messages)
 }
 
+async fn resume_saved_provider_session(
+    provider: &Arc<dyn Provider>,
+    conversation: Option<&Conversation>,
+) {
+    let Some(conversation) = conversation else {
+        return;
+    };
+    let provider_name = provider.get_name();
+    let Some(session_id) =
+        crate::agents::latest_provider_session_id(conversation.messages(), provider_name)
+    else {
+        return;
+    };
+    if let Err(error) = provider.resume(session_id).await {
+        warn!(
+            provider = provider_name,
+            %error,
+            "Could not resume provider session while loading ACP session"
+        );
+    }
+}
+
 fn send_replay_content_chunk(
     cx: &ConnectionTo<Client>,
     session_id: &SessionId,
@@ -299,6 +321,11 @@ impl GooseAcpAgent {
         self.apply_session_recipe(&agent, &session).await?;
         self.register_acp_session(session_id_str.clone(), agent.clone())
             .await;
+        let provider = agent
+            .provider()
+            .await
+            .internal_err_ctx("Failed to get provider while loading ACP session")?;
+        resume_saved_provider_session(&provider, session.conversation.as_ref()).await;
         self.resend_pending_tool_permissions(cx, &agent, &session)?;
 
         session = self
@@ -336,7 +363,79 @@ impl GooseAcpAgent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::InferenceMetadata;
+    use goose_providers::thinking::{
+        ThinkingEffortCapability, ThinkingEffortOption, ThinkingEffortSupport,
+    };
     use rmcp::model::CallToolRequestParams;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    #[derive(Debug)]
+    struct ResumeEffortProvider {
+        resumed: AtomicBool,
+    }
+
+    #[async_trait::async_trait]
+    impl Provider for ResumeEffortProvider {
+        fn get_name(&self) -> &str {
+            "claude-acp"
+        }
+
+        async fn resume(&self, session_id: &str) -> std::result::Result<(), ProviderError> {
+            assert_eq!(session_id, "saved-inner-session");
+            self.resumed.store(true, Ordering::Release);
+            Ok(())
+        }
+
+        fn thinking_effort_support(&self) -> ThinkingEffortSupport {
+            let value = if self.resumed.load(Ordering::Acquire) {
+                "high"
+            } else {
+                "low"
+            };
+            ThinkingEffortSupport::Options(ThinkingEffortCapability {
+                option_id: "effort".to_string(),
+                values: vec![ThinkingEffortOption {
+                    value: value.to_string(),
+                    label: value.to_string(),
+                }],
+                current: Some(value.to_string()),
+            })
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[rmcp::model::Tool],
+        ) -> std::result::Result<crate::providers::base::MessageStream, ProviderError> {
+            Ok(Box::pin(futures::stream::empty()))
+        }
+    }
+
+    #[tokio::test]
+    async fn saved_provider_session_is_resumed_before_effort_snapshot() {
+        let provider = Arc::new(ResumeEffortProvider {
+            resumed: AtomicBool::new(false),
+        });
+        let conversation = Conversation::new_unvalidated([Message::assistant().with_inference(
+            InferenceMetadata {
+                provider: "claude-acp".to_string(),
+                requested_model: "current".to_string(),
+                resolved_model: None,
+                provider_session_id: Some("saved-inner-session".to_string()),
+            },
+        )]);
+
+        let provider_dyn: Arc<dyn Provider> = provider.clone();
+        resume_saved_provider_session(&provider_dyn, Some(&conversation)).await;
+
+        let ThinkingEffortSupport::Options(capability) = provider.thinking_effort_support() else {
+            panic!("expected resumed effort capability");
+        };
+        assert_eq!(capability.current.as_deref(), Some("high"));
+    }
 
     #[test]
     fn acp_replay_populates_only_empty_marked_assistant_messages() {
