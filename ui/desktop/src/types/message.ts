@@ -406,6 +406,7 @@ export function getToolConfirmationRequestContent(
 }
 
 export interface ToolConfirmationData {
+  generation?: string;
   id: string;
   toolName: string;
   arguments: Record<string, unknown>;
@@ -426,6 +427,7 @@ export function getAnyToolConfirmationData(message: Message): ToolConfirmationDa
   const actionRequired = getToolConfirmationContent(message);
   if (actionRequired && actionRequired.data.actionType === 'toolConfirmation') {
     return {
+      generation: actionRequired.data.generation,
       id: actionRequired.data.id,
       toolName: actionRequired.data.toolName,
       arguments: actionRequired.data.arguments,
