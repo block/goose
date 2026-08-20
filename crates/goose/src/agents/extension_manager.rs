@@ -281,6 +281,11 @@ pub fn get_tool_owner(tool: &Tool) -> Option<String> {
         .map(|s| s.to_string())
 }
 
+pub(crate) fn is_tool_owned_by_extension(tool: &Tool, extension_name: &str) -> bool {
+    let expected_owner = name_to_key(extension_name);
+    get_tool_owner(tool).is_some_and(|owner| name_to_key(&owner) == expected_owner)
+}
+
 /// `tools` pairs each advertised public tool name with its owning extension's
 /// key, when known (`None` for tools with no owner metadata, e.g. those
 /// appended outside the extension manager).
@@ -3495,6 +3500,30 @@ mod tests {
 
         assert!(tool_names.iter().any(|n| n.starts_with("ext_a__")));
         assert!(!tool_names.iter().any(|n| n.starts_with("ext_b__")));
+    }
+
+    #[test]
+    fn test_tool_owner_binding_uses_metadata_not_flattened_name() {
+        let tool = |name: &str, owner: &str| {
+            let mut tool = Tool::new(
+                name.to_string(),
+                "test tool".to_string(),
+                Arc::new(serde_json::Map::new()),
+            );
+            tool.meta = Some(MetaObject(
+                serde_json::json!({ TOOL_EXTENSION_META_KEY: owner })
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            ));
+            tool
+        };
+
+        let own_tool = tool("ext_a__own", "ext_a");
+        let sibling_tool = tool("ext_a__ext_b__secret", "ext_a__ext_b");
+
+        assert!(is_tool_owned_by_extension(&own_tool, "ext_a"));
+        assert!(!is_tool_owned_by_extension(&sibling_tool, "ext_a"));
     }
 
     #[tokio::test]
