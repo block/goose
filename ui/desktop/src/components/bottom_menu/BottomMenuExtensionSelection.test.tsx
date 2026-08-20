@@ -120,6 +120,26 @@ describe('BottomMenuExtensionSelection session identities', () => {
     );
   });
 
+  it('keeps an empty authoritative key visible and removes by that exact key', async () => {
+    mocks.configuredExtensions = [configuredExtension('empty-key', '')];
+    mocks.getSessionExtensions.mockResolvedValue([sessionExtension('empty-key', '')]);
+
+    render(<BottomMenuExtensionSelection sessionId="session" />, {
+      wrapper: IntlTestWrapper,
+    });
+
+    await waitFor(() => expect(screen.getByTestId('hidden')).toHaveTextContent('false'));
+    expect(screen.getByTestId('extension-identities')).toHaveTextContent(
+      JSON.stringify([{ name: 'empty-key', enabled: true, extensionKey: '' }])
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'empty-key' }));
+
+    await waitFor(() =>
+      expect(mocks.removeFromAgent).toHaveBeenCalledWith('', 'empty-key', 'session', true)
+    );
+  });
+
   it('hides controls when configured entries repeat an authoritative key', async () => {
     mocks.configuredExtensions = [
       configuredExtension('first', 'duplicate'),

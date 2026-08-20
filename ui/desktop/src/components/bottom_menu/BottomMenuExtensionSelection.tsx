@@ -80,7 +80,7 @@ function mergeSessionExtensions(
   const configuredExtensionKeys = new Set<string>();
   const mergedExtensions: FixedExtensionEntry[] = [];
   for (const extension of configuredExtensions) {
-    if (!extension.configKey || configuredExtensionKeys.has(extension.configKey)) {
+    if (extension.configKey === undefined || configuredExtensionKeys.has(extension.configKey)) {
       return null;
     }
     configuredExtensionKeys.add(extension.configKey);
@@ -359,7 +359,7 @@ function SessionExtensionsMenu({ sessionId }: { sessionId: string }) {
 
       try {
         if (extensionConfig.enabled) {
-          if (!extensionConfig.extensionKey) {
+          if (extensionConfig.extensionKey === undefined) {
             throw new Error('Missing session extension key');
           }
           await removeFromAgent(
