@@ -6,7 +6,7 @@ use goose::conversation::message::{
     ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
     ToolNameParts, ToolRequest, ToolResponse,
 };
-use goose::providers::canonical::maybe_get_canonical_model;
+use goose::providers::canonical_cost::estimate_model_cost;
 #[cfg(target_os = "windows")]
 use goose::subprocess::SubprocessExt;
 use goose::utils::safe_truncate;
@@ -257,6 +257,9 @@ pub fn render_message(message: &Message, debug: bool) {
                 ActionRequiredData::ElicitationResponse { id, .. } => {
                     println!("action_required(elicitation_response): {}", id)
                 }
+                ActionRequiredData::ToolConfirmationResponse { id, .. } => {
+                    println!("action_required(tool_confirmation_response): {}", id)
+                }
             },
             MessageContent::Text(text) => print_markdown(&text.text, theme),
             MessageContent::ToolRequest(req) => render_tool_request(req, theme, debug),
@@ -284,6 +287,10 @@ pub fn render_message(message: &Message, debug: bool) {
                         render_credits_exhausted_notification(notification);
                     }
                 }
+            }
+            MessageContent::Error(error) => {
+                hide_thinking();
+                println!("\n{} {}", danger("error:").bold(), &error.message);
             }
             _ => {
                 eprintln!("WARNING: Message content type could not be rendered");
@@ -345,6 +352,9 @@ pub fn render_message_streaming(
                     ActionRequiredData::ElicitationResponse { id, .. } => {
                         println!("action_required(elicitation_response): {}", id)
                     }
+                    ActionRequiredData::ToolConfirmationResponse { id, .. } => {
+                        println!("action_required(tool_confirmation_response): {}", id)
+                    }
                 }
             }
             MessageContent::Image(image) => {
@@ -376,6 +386,11 @@ pub fn render_message_streaming(
                         render_credits_exhausted_notification(notification);
                     }
                 }
+            }
+            MessageContent::Error(error) => {
+                flush_markdown_buffer(buffer, theme);
+                hide_thinking();
+                println!("\n{} {}", danger("error:").bold(), &error.message);
             }
             _ => {
                 flush_markdown_buffer(buffer, theme);
@@ -1131,7 +1146,7 @@ fn print_table(table_lines: &[&str], theme: Theme) {
     let mut table = Table::new();
     table.set_content_arrangement(ContentArrangement::Dynamic);
 
-    table.load_preset(presets::ASCII_MARKDOWN);
+    table.load_style(presets::ASCII_MARKDOWN);
 
     let mut rows: Vec<Vec<String>> = Vec::new();
     let mut alignments: Vec<CellAlignment> = Vec::new();
@@ -1420,6 +1435,14 @@ fn set_terminal_title() {
     let _ = std::io::stdout().flush();
 }
 
+pub fn display_banner(banners: &[String]) {
+    for banner in banners {
+        for line in banner.lines() {
+            println!("{}", line);
+        }
+    }
+}
+
 pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
     use console::style;
 
@@ -1471,8 +1494,7 @@ pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
 }
 
 fn estimate_cost_usd(provider: &str, model: &str, usage: &Usage) -> Option<f64> {
-    let canonical_model = maybe_get_canonical_model(provider, model)?;
-    canonical_model.cost.estimate_cost(usage)
+    estimate_model_cost(provider, model, usage)
 }
 
 /// Display cost information, if price data is available.

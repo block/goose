@@ -4,7 +4,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use rmcp::model::Role;
 use serde::Serialize;
-use sqlx::{Pool, Sqlite};
+use sqlx::{AssertSqlSafe, Pool, Sqlite};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize)]
@@ -97,7 +97,7 @@ impl<'a> ChatHistorySearch<'a> {
 
     async fn fetch_rows(&self, keywords: &[String]) -> Result<Vec<SqlQueryRow>> {
         let sql = self.build_sql(keywords);
-        let mut query_builder = sqlx::query_as::<_, SqlQueryRow>(&sql);
+        let mut query_builder = sqlx::query_as::<_, SqlQueryRow>(AssertSqlSafe(sql));
 
         for keyword in keywords {
             query_builder = query_builder.bind(keyword);
@@ -150,6 +150,13 @@ impl<'a> ChatHistorySearch<'a> {
                 END,
                 1
             ) = 1
+            AND COALESCE(
+                CASE
+                    WHEN json_valid(m.metadata_json)
+                    THEN json_extract(m.metadata_json, '$.turnContext')
+                END,
+                0
+            ) = 0
             AND EXISTS (
                 SELECT 1 FROM json_each(m.content_json) AS content
                 WHERE json_extract(content.value, '$.type') = 'text'
@@ -263,12 +270,29 @@ impl<'a> ChatHistorySearch<'a> {
     ) -> Result<HashMap<String, usize>> {
         let mut session_totals: HashMap<String, usize> = HashMap::new();
         for session_id in session_messages.keys() {
-            let count: i64 =
-                sqlx::query_scalar("SELECT COUNT(*) FROM messages WHERE session_id = ?")
-                    .bind(session_id)
-                    .fetch_one(self.pool)
-                    .await
-                    .unwrap_or(0);
+            let count: i64 = sqlx::query_scalar(
+                r#"
+                SELECT COUNT(*) FROM messages m WHERE m.session_id = ?
+                AND COALESCE(
+                    CASE
+                        WHEN json_valid(m.metadata_json)
+                        THEN json_extract(m.metadata_json, '$.agentVisible')
+                    END,
+                    1
+                ) = 1
+                AND COALESCE(
+                    CASE
+                        WHEN json_valid(m.metadata_json)
+                        THEN json_extract(m.metadata_json, '$.turnContext')
+                    END,
+                    0
+                ) = 0
+                "#,
+            )
+            .bind(session_id)
+            .fetch_one(self.pool)
+            .await
+            .unwrap_or(0);
             session_totals.insert(session_id.clone(), count as usize);
         }
         Ok(session_totals)
@@ -443,5 +467,26 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(hidden_only.total_matches, 0);
+
+        insert_message(
+            &pool,
+            &Message::user()
+                .with_text("<turn-context>needle in operational context</turn-context>")
+                .with_metadata(MessageMetadata::agent_only().with_turn_context()),
+            now,
+        )
+        .await;
+        let needle = ChatHistorySearch::new(&pool, "needle", Some(10), None, None, None, vec![])
+            .execute()
+            .await
+            .unwrap();
+        assert_eq!(
+            needle.total_matches, 1,
+            "turn-context events are operational context, not searchable conversation"
+        );
+        assert_eq!(
+            needle.results[0].total_messages_in_session, 2,
+            "session totals must not count turn-context or user-only rows"
+        );
     }
 }

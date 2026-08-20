@@ -1103,7 +1103,8 @@ fn convert_to_mono(data: &[f32], channels: usize) -> Vec<f32> {
 
 fn resample_audio(data: &[f32], from_rate: u32, to_rate: u32) -> Result<Vec<f32>> {
     use rubato::{
-        Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction,
+        audioadapter_buffers::direct::SequentialSliceOfVecs, Async, FixedAsync, Resampler,
+        SincInterpolationParameters, SincInterpolationType, WindowFunction,
     };
 
     if from_rate == to_rate {
@@ -1119,25 +1120,28 @@ fn resample_audio(data: &[f32], from_rate: u32, to_rate: u32) -> Result<Vec<f32>
 
     let params = SincInterpolationParameters {
         sinc_len: 256,
-        f_cutoff: 0.95,
+        f_cutoff: Some(0.95),
         interpolation: SincInterpolationType::Linear,
         oversampling_factor: 256,
         window: WindowFunction::BlackmanHarris2,
     };
 
-    let mut resampler = SincFixedIn::<f32>::new(
+    let mut resampler = Async::<f32>::new_sinc(
         to_rate as f64 / from_rate as f64,
         2.0,
-        params,
-        data.len(),
+        &params,
+        1024,
         1,
+        FixedAsync::Input,
     )?;
 
     let waves_in = vec![data.to_vec()];
-    let waves_out = resampler.process(&waves_in, None)?;
+    let input = SequentialSliceOfVecs::new(&waves_in, 1, data.len())?;
+    let output = resampler.process_all(&input, data.len(), None)?;
+    let output = output.take_data();
 
-    tracing::debug!(output_samples = waves_out[0].len(), "resampling complete");
-    Ok(waves_out[0].clone())
+    tracing::debug!(output_samples = output.len(), "resampling complete");
+    Ok(output)
 }
 
 #[cfg(test)]

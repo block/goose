@@ -2,6 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
+    redirect::Policy,
     Client, Response, StatusCode,
 };
 #[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
@@ -13,6 +14,7 @@ use std::fs::read_to_string;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
+use url::Host;
 
 pub const DEFAULT_PROVIDER_TIMEOUT_SECS: u64 = 600;
 pub const DEFAULT_CONNECT_TIMEOUT_SECS: u64 = 30;
@@ -29,6 +31,15 @@ pub struct ApiClient {
     timeout: Duration,
     tls_config: Option<TlsConfig>,
     request_builder: Option<RequestBuilderDecorator>,
+    transport_policy: TransportPolicy,
+}
+
+#[derive(Clone)]
+enum TransportPolicy {
+    Default,
+    HttpsOnly,
+    LoopbackHttp,
+    SameOrigin(url::Origin),
 }
 
 pub enum AuthMethod {
@@ -148,8 +159,14 @@ impl Default for TlsConfig {
 /// Note: the rustls code path (`Identity::from_pem`) accepts all formats natively,
 /// so this conversion is only needed for native-tls.
 #[cfg(feature = "native-tls")]
+const RSA_ALGORITHM_ID: pkcs8::AlgorithmIdentifierRef<'static> = pkcs8::AlgorithmIdentifierRef {
+    oid: pkcs8::ObjectIdentifier::new_unwrap("1.2.840.113549.1.1.1"),
+    parameters: Some(pkcs8::der::asn1::AnyRef::NULL),
+};
+
+#[cfg(feature = "native-tls")]
 fn convert_key_to_pkcs8_pem(key_pem_str: &str) -> Result<String> {
-    use pkcs8::der::{Decode, Encode};
+    use pkcs8::der::{asn1::OctetStringRef, Decode, Encode};
 
     let parsed =
         pem::parse(key_pem_str).map_err(|e| anyhow::anyhow!("Failed to parse PEM key: {}", e))?;
@@ -157,7 +174,8 @@ fn convert_key_to_pkcs8_pem(key_pem_str: &str) -> Result<String> {
     match parsed.tag() {
         "PRIVATE KEY" => Ok(key_pem_str.to_string()),
         "RSA PRIVATE KEY" => {
-            let info = pkcs8::PrivateKeyInfo::new(pkcs1::ALGORITHM_ID, parsed.contents());
+            let private_key = OctetStringRef::new(parsed.contents())?;
+            let info = pkcs8::PrivateKeyInfoRef::new(RSA_ALGORITHM_ID, private_key);
             let der_bytes = info
                 .to_der()
                 .map_err(|e| anyhow::anyhow!("Failed to encode PKCS#8: {}", e))?;
@@ -179,7 +197,8 @@ fn convert_key_to_pkcs8_pem(key_pem_str: &str) -> Result<String> {
                 oid: sec1::ALGORITHM_OID,
                 parameters: Some((&curve_oid).into()),
             };
-            let info = pkcs8::PrivateKeyInfo::new(algorithm, parsed.contents());
+            let private_key = OctetStringRef::new(parsed.contents())?;
+            let info = pkcs8::PrivateKeyInfoRef::new(algorithm, private_key);
             let der_bytes = info
                 .to_der()
                 .map_err(|e| anyhow::anyhow!("Failed to encode PKCS#8: {}", e))?;
@@ -274,6 +293,7 @@ impl ApiClient {
             timeout,
             tls_config,
             request_builder: None,
+            transport_policy: TransportPolicy::Default,
         })
     }
 
@@ -294,6 +314,7 @@ impl ApiClient {
     fn rebuild_client(&mut self) -> Result<()> {
         let mut client_builder =
             Self::client_builder(self.timeout).default_headers(self.default_headers.clone());
+        client_builder = Self::configure_transport(client_builder, &self.transport_policy);
 
         // Configure TLS if needed
         if let Some(ref tls_config) = self.tls_config {
@@ -302,6 +323,51 @@ impl ApiClient {
 
         self.client = client_builder.build()?;
         Ok(())
+    }
+
+    fn configure_transport(
+        client_builder: reqwest::ClientBuilder,
+        transport_policy: &TransportPolicy,
+    ) -> reqwest::ClientBuilder {
+        match transport_policy {
+            TransportPolicy::Default => client_builder,
+            TransportPolicy::HttpsOnly => client_builder.https_only(true),
+            TransportPolicy::LoopbackHttp => {
+                client_builder
+                    .no_proxy()
+                    .redirect(Policy::custom(|attempt| {
+                        if attempt.previous().len() > 10 {
+                            return attempt.error("too many redirects");
+                        }
+                        let url = attempt.url();
+                        let is_loopback_http = url.scheme() == "http"
+                            && match url.host() {
+                                Some(Host::Domain(host)) => host.eq_ignore_ascii_case("localhost"),
+                                Some(Host::Ipv4(address)) => address.is_loopback(),
+                                Some(Host::Ipv6(address)) => address.is_loopback(),
+                                None => false,
+                            };
+                        if url.scheme() == "https" || is_loopback_http {
+                            attempt.follow()
+                        } else {
+                            attempt.error("redirect violates the loopback transport policy")
+                        }
+                    }))
+            }
+            TransportPolicy::SameOrigin(origin) => {
+                let origin = origin.clone();
+                client_builder.redirect(Policy::custom(move |attempt| {
+                    if attempt.previous().len() >= 10 {
+                        return attempt.error("too many redirects");
+                    }
+                    if attempt.url().origin() == origin {
+                        attempt.follow()
+                    } else {
+                        attempt.error("redirect crosses the authenticated request origin")
+                    }
+                }))
+            }
+        }
     }
 
     /// Configure TLS settings on a reqwest ClientBuilder
@@ -361,6 +427,27 @@ impl ApiClient {
     pub fn with_request_builder(mut self, request_builder: RequestBuilderDecorator) -> Self {
         self.request_builder = Some(request_builder);
         self
+    }
+
+    pub fn with_https_only(mut self) -> Result<Self> {
+        self.transport_policy = TransportPolicy::HttpsOnly;
+        self.rebuild_client()?;
+        Ok(self)
+    }
+
+    pub fn with_loopback_http_only(mut self) -> Result<Self> {
+        self.transport_policy = TransportPolicy::LoopbackHttp;
+        self.rebuild_client()?;
+        Ok(self)
+    }
+
+    pub fn with_same_origin_redirects(mut self) -> Result<Self> {
+        let origin = url::Url::parse(&self.host)
+            .map_err(|error| anyhow::anyhow!("Invalid base URL: {}", error))?
+            .origin();
+        self.transport_policy = TransportPolicy::SameOrigin(origin);
+        self.rebuild_client()?;
+        Ok(self)
     }
 
     pub fn request<'a>(&'a self, path: &'a str) -> ApiRequestBuilder<'a> {
@@ -610,7 +697,7 @@ ShGoCNbfNS+COlPMRAujyDlATZcLs9p4tA==
         let re_parsed = pem::parse(&result).unwrap();
         assert_eq!(re_parsed.tag(), "PRIVATE KEY");
         use pkcs8::der::Decode;
-        pkcs8::PrivateKeyInfo::from_der(re_parsed.contents()).unwrap();
+        pkcs8::PrivateKeyInfoRef::from_der(re_parsed.contents()).unwrap();
     }
 
     #[test]
@@ -623,7 +710,7 @@ ShGoCNbfNS+COlPMRAujyDlATZcLs9p4tA==
         let re_parsed = pem::parse(&result).unwrap();
         assert_eq!(re_parsed.tag(), "PRIVATE KEY");
         use pkcs8::der::Decode;
-        pkcs8::PrivateKeyInfo::from_der(re_parsed.contents()).unwrap();
+        pkcs8::PrivateKeyInfoRef::from_der(re_parsed.contents()).unwrap();
     }
 
     #[test]
@@ -715,6 +802,66 @@ mod tests {
             body.extend_from_slice(&chunk);
         }
         Ok(String::from_utf8_lossy(&body).matches("data:").count())
+    }
+
+    #[tokio::test]
+    async fn https_only_rejects_http_after_client_rebuild() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let client = ApiClient::new_with_tls(
+            format!("http://{addr}"),
+            AuthMethod::BearerToken("secret".to_string()),
+            None,
+        )
+        .unwrap()
+        .with_https_only()
+        .unwrap()
+        .with_header("x-test", "value")
+        .unwrap();
+
+        assert!(client.response_get("models").await.is_err());
+        assert!(
+            tokio::time::timeout(Duration::from_millis(100), listener.accept())
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn loopback_transport_rejects_remote_http_redirect() {
+        for status in ["307 Temporary Redirect", "308 Permanent Redirect"] {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let addr = listener.local_addr().unwrap();
+            tokio::spawn(async move {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0u8; 4096];
+                let _ = socket.read(&mut request).await;
+                let response = format!(
+                    "HTTP/1.1 {status}\r\nLocation: http://192.0.2.1/capture\r\nContent-Length: 0\r\n\r\n"
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            });
+            let client = ApiClient::new_with_tls(
+                format!("http://{addr}"),
+                AuthMethod::BearerToken("secret".to_string()),
+                None,
+            )
+            .unwrap()
+            .with_loopback_http_only()
+            .unwrap()
+            .with_header("x-test", "value")
+            .unwrap();
+
+            let error = client
+                .response_post("chat", &serde_json::json!({ "secret": "prompt" }))
+                .await
+                .unwrap_err();
+
+            assert!(
+                format!("{error:#}").contains("redirect violates the loopback transport policy"),
+                "unexpected redirect error: {error:#}"
+            );
+        }
     }
 
     #[tokio::test]

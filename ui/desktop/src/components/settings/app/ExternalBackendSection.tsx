@@ -34,6 +34,19 @@ const i18n = defineMessages({
     defaultMessage:
       'Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base.',
   },
+  workingDir: {
+    id: 'externalBackendSection.workingDir',
+    defaultMessage: 'Remote Working Directory (optional)',
+  },
+  workingDirPlaceholder: {
+    id: 'externalBackendSection.workingDirPlaceholder',
+    defaultMessage: '/home/goose/workspace',
+  },
+  workingDirHelp: {
+    id: 'externalBackendSection.workingDirHelp',
+    defaultMessage:
+      'Absolute path on the external backend. Leave blank to send the local working directory.',
+  },
   secretKey: {
     id: 'externalBackendSection.secretKey',
     defaultMessage: 'Secret Key',
@@ -219,6 +232,24 @@ export default function ExternalBackendSection() {
                 )}
                 <p className="text-xs text-text-secondary">
                   {intl.formatMessage(i18n.serverUrlHelp)}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="external-working-dir" className="text-text-primary text-xs">
+                  {intl.formatMessage(i18n.workingDir)}
+                </label>
+                <Input
+                  id="external-working-dir"
+                  type="text"
+                  placeholder={intl.formatMessage(i18n.workingDirPlaceholder)}
+                  value={config.workingDir || ''}
+                  onChange={(e) => updateField('workingDir', e.target.value)}
+                  onBlur={() => saveConfig(config)}
+                  disabled={isSaving}
+                />
+                <p className="text-xs text-text-secondary">
+                  {intl.formatMessage(i18n.workingDirHelp)}
                 </p>
               </div>
 

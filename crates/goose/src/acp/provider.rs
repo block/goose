@@ -1,8 +1,8 @@
 use agent_client_protocol::schema::v1::{
     Annotations as AcpAnnotations, ClientCapabilities, CloseSessionRequest, ContentBlock,
     ContentChunk, EnvVariable, HttpHeader, ImageContent, InitializeRequest, InitializeResponse,
-    McpCapabilities, McpServer, McpServerHttp, McpServerStdio, NewSessionRequest,
-    NewSessionResponse, PromptRequest, PromptResponse, RequestPermissionOutcome,
+    LoadSessionRequest, McpCapabilities, McpServer, McpServerHttp, McpServerStdio,
+    NewSessionRequest, NewSessionResponse, PromptRequest, PromptResponse, RequestPermissionOutcome,
     RequestPermissionRequest, RequestPermissionResponse, Role as AcpRole, SessionConfigKind,
     SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOptions, SessionId,
     SessionModeState, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
@@ -32,15 +32,15 @@ use tokio::process::{Child, Command};
 use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex};
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 
+use crate::acp::handoff::{build_handoff_context_memo, memo_token_budget, prompt_token_cost};
 use crate::acp::{map_permission_response, PermissionDecision};
 use crate::config::{ExtensionConfig, GooseMode};
-use crate::context_mgmt::format_message_for_compacting;
 use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
-use crate::conversation::Conversation;
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::{MessageStream, PermissionRouting, Provider};
 use crate::subprocess::configure_subprocess;
+use crate::token_counter::create_token_counter;
 use crate::utils::sanitize_unicode_tags;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
@@ -69,6 +69,13 @@ enum ClientRequest {
     NewSession {
         response_tx: oneshot::Sender<Result<NewSessionResponse>>,
     },
+    LoadSession {
+        session_id: SessionId,
+        response_tx: oneshot::Sender<Result<NewSessionResponse>>,
+    },
+    CloseSession {
+        session_id: SessionId,
+    },
     SetMode {
         session_id: SessionId,
         mode_id: String,
@@ -94,9 +101,32 @@ type ClientLoopFn = Box<
             AcpClientLoop,
             mpsc::Receiver<ClientRequest>,
             oneshot::Sender<Result<InitializeResponse>>,
+            oneshot::Receiver<()>,
         ) -> BoxFuture<'static, ()>
         + Send,
 >;
+
+struct ClientLoopGuard {
+    tx: Option<mpsc::Sender<ClientRequest>>,
+    cancel_tx: Option<oneshot::Sender<()>>,
+    thread: Option<JoinHandle<()>>,
+}
+
+impl Drop for ClientLoopGuard {
+    fn drop(&mut self) {
+        if let Some(cancel_tx) = self.cancel_tx.take() {
+            let _ = cancel_tx.send(());
+        }
+        self.tx.take();
+        if let Some(thread) = self.thread.take() {
+            std::thread::spawn(move || {
+                if let Err(error) = thread.join() {
+                    tracing::debug!("AcpClientLoop thread panicked: {error:?}");
+                }
+            });
+        }
+    }
+}
 
 #[derive(Debug)]
 enum AcpUpdate {
@@ -119,7 +149,32 @@ enum AcpUpdate {
         response_tx: oneshot::Sender<RequestPermissionResponse>,
     },
     Complete(StopReason, Option<AcpUsage>),
-    Error(String),
+    Error(agent_client_protocol::Error),
+}
+
+/// Whether dropping the handoff memo could plausibly change the outcome. An agent that
+/// rejected the very first update has told us nothing except that it disliked the prompt,
+/// and the memo is the only part we added — but a spent account or a missing credential
+/// says nothing about the prompt at all, so retrying would burn the single fallback the
+/// session gets and consume a memo the agent never actually refused.
+fn retry_without_memo_could_help(error: &agent_client_protocol::Error) -> bool {
+    if error.code == agent_client_protocol::schema::v1::ErrorCode::AuthRequired {
+        return false;
+    }
+    error
+        .data
+        .as_ref()
+        .and_then(|data| data.get("reason"))
+        .and_then(serde_json::Value::as_str)
+        != Some(crate::acp::CREDITS_EXHAUSTED_REASON)
+}
+
+fn provider_error_from_acp(error: agent_client_protocol::Error) -> ProviderError {
+    if error.code == agent_client_protocol::schema::v1::ErrorCode::AuthRequired {
+        ProviderError::Authentication(error.to_string())
+    } else {
+        ProviderError::RequestFailed(error.to_string())
+    }
 }
 
 /// Per-tool-call buffer for accumulating ACP ToolCallUpdate fields across
@@ -142,26 +197,35 @@ struct HandoffContextClaim {
     include_context: bool,
 }
 
-type SessionTitleCallback = Arc<dyn Fn(String) + Send + Sync>;
-
-#[derive(Clone, Default)]
-struct SessionTitlePublisher {
-    callback: Arc<Mutex<Option<SessionTitleCallback>>>,
+struct HandoffContextClaimGuard {
+    handoff_context_sent: Arc<AtomicBool>,
+    pending: bool,
 }
 
-impl SessionTitlePublisher {
-    fn set_callback(&self, callback: SessionTitleCallback) {
-        *self.callback.lock().unwrap() = Some(callback);
+impl HandoffContextClaimGuard {
+    fn new(handoff_context_sent: Arc<AtomicBool>, first_prompt: bool) -> Self {
+        Self {
+            handoff_context_sent,
+            pending: first_prompt,
+        }
     }
 
-    fn publish(&self, title: &str) {
-        let title = title.trim();
-        if title.is_empty() {
-            return;
-        }
+    fn commit(&mut self) {
+        self.pending = false;
+    }
 
-        if let Some(callback) = self.callback.lock().unwrap().clone() {
-            callback(title.to_string());
+    fn rollback(&mut self) {
+        if self.pending {
+            self.handoff_context_sent.store(false, Ordering::Release);
+            self.pending = false;
+        }
+    }
+}
+
+impl Drop for HandoffContextClaimGuard {
+    fn drop(&mut self) {
+        if self.pending {
+            self.handoff_context_sent.store(false, Ordering::Release);
         }
     }
 }
@@ -171,18 +235,19 @@ pub struct AcpProvider {
     goose_mode: Arc<Mutex<GooseMode>>,
     mode_mapping: HashMap<GooseMode, Vec<String>>,
 
-    session: AcpSession,
+    session: Mutex<AcpSession>,
 
     pending_confirmations:
         Arc<TokioMutex<HashMap<String, oneshot::Sender<PermissionConfirmation>>>>,
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
-    handoff_context_sent: AtomicBool,
+    /// True after the first ACP prompt completes with the handoff context committed.
+    /// Failed or abandoned first prompts reset this so the next prompt can retry it.
+    handoff_context_sent: Arc<AtomicBool>,
     /// Latest `size` reported by the ACP server in a `session/update` →
     /// `usage_update` notification. 0 means no real update has arrived yet,
     /// in which case `get_context_limit()` falls back to the supplied model
     /// configuration's context limit.
     context_size: Arc<AtomicU64>,
-    session_title_publisher: SessionTitlePublisher,
 
     /// Config option id used to select the model, if this agent supports it.
     model_config_option_id: Option<String>,
@@ -191,6 +256,7 @@ pub struct AcpProvider {
     applied_model: Arc<Mutex<Option<String>>>,
 
     tx: Option<mpsc::Sender<ClientRequest>>,
+    cancel_tx: Option<oneshot::Sender<()>>,
     loop_thread: Option<JoinHandle<()>>,
 }
 
@@ -222,7 +288,15 @@ impl AcpProvider {
             name,
             goose_mode,
             config,
-            Box::new(|cl, rx, init_tx| Box::pin(cl.spawn(rx, init_tx))),
+            Box::new(|cl, rx, init_tx, mut cancel_rx| {
+                Box::pin(async move {
+                    tokio::select! {
+                        biased;
+                        _ = &mut cancel_rx => {}
+                        _ = cl.spawn(rx, init_tx) => {}
+                    }
+                })
+            }),
         )
         .await
     }
@@ -238,10 +312,16 @@ impl AcpProvider {
             name,
             goose_mode,
             config,
-            Box::new(move |cl, mut rx, init_tx| {
+            Box::new(move |cl, mut rx, init_tx, mut cancel_rx| {
                 Box::pin(async move {
-                    if let Err(e) = cl.run(transport, &mut rx, init_tx).await {
-                        tracing::error!("ACP protocol error: {e}");
+                    tokio::select! {
+                        biased;
+                        _ = &mut cancel_rx => {}
+                        result = cl.run(transport, &mut rx, init_tx) => {
+                            if let Err(e) = result {
+                                tracing::error!("ACP protocol error: {e}");
+                            }
+                        }
                     }
                 })
             }),
@@ -270,15 +350,19 @@ impl AcpProvider {
         let pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>> =
             Arc::new(Mutex::new(HashMap::new()));
         let context_size = Arc::new(AtomicU64::new(0));
-        let session_title_publisher = SessionTitlePublisher::default();
         let client_loop = AcpClientLoop::new(
             config,
             goose_mode_shared.clone(),
             pending_tool_updates.clone(),
             context_size.clone(),
-            session_title_publisher.clone(),
         );
-        let loop_thread = spawn_client_loop(run(client_loop, rx, init_tx));
+        let (cancel_tx, cancel_rx) = oneshot::channel();
+        let loop_thread = spawn_client_loop(run(client_loop, rx, init_tx, cancel_rx));
+        let mut client_loop_guard = ClientLoopGuard {
+            tx: Some(tx),
+            cancel_tx: Some(cancel_tx),
+            thread: Some(loop_thread),
+        };
 
         let _init_response = init_rx
             .await
@@ -286,11 +370,15 @@ impl AcpProvider {
 
         // Create the ACP session eagerly during connect.
         let (session_tx, session_rx) = oneshot::channel();
-        tx.send(ClientRequest::NewSession {
-            response_tx: session_tx,
-        })
-        .await
-        .context("ACP client is unavailable")?;
+        client_loop_guard
+            .tx
+            .as_ref()
+            .unwrap()
+            .send(ClientRequest::NewSession {
+                response_tx: session_tx,
+            })
+            .await
+            .context("ACP client is unavailable")?;
         let response = session_rx
             .await
             .context("ACP session creation cancelled")??;
@@ -304,21 +392,39 @@ impl AcpProvider {
             name,
             goose_mode: goose_mode_shared,
             mode_mapping,
-            session,
+            session: Mutex::new(session),
             pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
             pending_tool_updates,
-            handoff_context_sent: AtomicBool::new(false),
+            handoff_context_sent: Arc::new(AtomicBool::new(false)),
             context_size,
-            session_title_publisher,
             model_config_option_id,
             applied_model: Arc::new(Mutex::new(applied_model)),
-            tx: Some(tx),
-            loop_thread: Some(loop_thread),
+            tx: client_loop_guard.tx.take(),
+            cancel_tx: client_loop_guard.cancel_tx.take(),
+            loop_thread: client_loop_guard.thread.take(),
         })
     }
 
     fn acp_session_id(&self) -> SessionId {
-        self.session.id.clone()
+        self.session.lock().unwrap().id.clone()
+    }
+
+    async fn load_session(&self, session_id: SessionId) -> Result<AcpSession> {
+        let (response_tx, response_rx) = oneshot::channel();
+        self.tx
+            .as_ref()
+            .unwrap()
+            .send(ClientRequest::LoadSession {
+                session_id,
+                response_tx,
+            })
+            .await
+            .context("ACP client is unavailable")?;
+        let response = response_rx.await.context("ACP session load cancelled")??;
+        Ok(AcpSession {
+            id: response.session_id.clone(),
+            response,
+        })
     }
 
     pub(crate) async fn send_set_mode(&self, _goose_id: &str, mode_id: String) -> Result<()> {
@@ -413,6 +519,8 @@ impl AcpProvider {
 
     fn session_has_config_option(&self, category: SessionConfigOptionCategory) -> bool {
         self.session
+            .lock()
+            .unwrap()
             .response
             .config_options
             .as_ref()
@@ -425,6 +533,29 @@ impl AcpProvider {
             first_prompt,
             include_context: first_prompt && has_handoff_context(messages),
         }
+    }
+
+    /// Prior conversation, bounded against the agent's context window. The agent's own
+    /// system prompt and tool schemas are invisible to us, hence the conservative share.
+    async fn bounded_handoff_memo(
+        &self,
+        model_config: &ModelConfig,
+        messages: &[Message],
+        current_prompt: &[ContentBlock],
+    ) -> Option<String> {
+        let last_user_index = last_user_message_index(messages)?;
+        let counter = match create_token_counter().await {
+            Ok(counter) => counter,
+            Err(error) => {
+                tracing::error!(%error, "no token counter, dropping ACP handoff context");
+                return None;
+            }
+        };
+
+        let context_limit = self.get_context_limit(model_config).await.ok()?;
+        let budget = memo_token_budget(context_limit, prompt_token_cost(current_prompt, &counter));
+
+        build_handoff_context_memo(&messages[..last_user_index], budget, &counter)
     }
 }
 
@@ -441,6 +572,33 @@ impl Provider for AcpProvider {
         &self.name
     }
 
+    fn provider_session_id(&self) -> Option<String> {
+        Some(self.acp_session_id().to_string())
+    }
+
+    async fn resume(&self, session_id: &str) -> Result<(), ProviderError> {
+        if self.acp_session_id().0.as_ref() == session_id {
+            return Ok(());
+        }
+
+        let previous_session_id = self.acp_session_id();
+        let loaded = self
+            .load_session(SessionId::new(session_id))
+            .await
+            .map_err(|error| ProviderError::RequestFailed(error.to_string()))?;
+        *self.session.lock().unwrap() = loaded;
+        self.handoff_context_sent.store(true, Ordering::Release);
+        let _ = self
+            .tx
+            .as_ref()
+            .unwrap()
+            .send(ClientRequest::CloseSession {
+                session_id: previous_session_id,
+            })
+            .await;
+        Ok(())
+    }
+
     async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
         let size = self.context_size.load(Ordering::Relaxed);
         if size > 0 {
@@ -451,8 +609,9 @@ impl Provider for AcpProvider {
 
     async fn update_mode(&self, session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
         if let Some(candidates) = self.mode_mapping.get(&mode) {
-            let mode_str = select_mode_id(candidates, self.session.response.modes.as_ref())
-                .ok_or_else(|| {
+            let session = self.session.lock().unwrap().clone();
+            let mode_str =
+                select_mode_id(candidates, session.response.modes.as_ref()).ok_or_else(|| {
                     ProviderError::RequestFailed(format!(
                         "None of the mode ids [{}] are offered by the agent",
                         candidates.join(", ")
@@ -487,10 +646,6 @@ impl Provider for AcpProvider {
         true
     }
 
-    fn set_session_title_callback(&self, callback: Arc<dyn Fn(String) + Send + Sync>) {
-        self.session_title_publisher.set_callback(callback);
-    }
-
     async fn handle_permission_confirmation(
         &self,
         request_id: &str,
@@ -519,33 +674,67 @@ impl Provider for AcpProvider {
                 ProviderError::RequestFailed(format!("Failed to set ACP model option: {e}"))
             })?;
 
-        let current_prompt_blocks = messages_to_prompt(messages, false);
+        let current_prompt_blocks = messages_to_prompt(messages, None);
         if current_prompt_blocks.is_empty() {
             return Ok(Box::pin(futures::stream::empty()));
         }
 
         let claim = self.claim_handoff_context(messages);
-        let prompt_blocks = if claim.include_context {
-            messages_to_prompt(messages, true)
+        let mut handoff_claim_guard =
+            HandoffContextClaimGuard::new(self.handoff_context_sent.clone(), claim.first_prompt);
+        let memo = if claim.include_context {
+            self.bounded_handoff_memo(model_config, messages, &current_prompt_blocks)
+                .await
         } else {
-            current_prompt_blocks
+            None
+        };
+        if claim.include_context && memo.is_none() {
+            // Nothing fit beside this turn's prompt, so the context never left goose. Give
+            // it back rather than marking a handoff that never happened as done — a single
+            // oversized turn would otherwise cost the session its whole history.
+            handoff_claim_guard.rollback();
+        }
+        // A memo is only ever an estimate of what the agent will accept, so keep the bare
+        // prompt to retry with. Without it a bad estimate leaves the session unresumable.
+        let (prompt_blocks, mut bare_retry_blocks) = match memo {
+            Some(memo) => (
+                messages_to_prompt(messages, Some(memo)),
+                Some(current_prompt_blocks),
+            ),
+            None => (current_prompt_blocks, None),
         };
         // Drop any tool-call buffer state left over from a prior prompt
         // (e.g. cancelled or interrupted before its terminal status arrived).
         if let Ok(mut buffer) = self.pending_tool_updates.lock() {
             buffer.clear();
         }
-        let mut rx = match self.prompt(session_id, prompt_blocks).await {
+        let mut rx = match self.prompt(session_id.clone(), prompt_blocks).await {
             Ok(rx) => rx,
-            Err(e) => {
-                if claim.first_prompt {
-                    self.handoff_context_sent.store(false, Ordering::Release);
+            Err(e) => match bare_retry_blocks.take() {
+                Some(blocks) => {
+                    // Consume the handoff before retrying. The memo is the only thing this
+                    // attempt added, so rebuilding it next time would reproduce the same
+                    // rejection and leave the session permanently unresumable.
+                    handoff_claim_guard.commit();
+                    self.prompt(session_id.clone(), blocks)
+                        .await
+                        .map_err(|retry_error| {
+                            ProviderError::RequestFailed(format!(
+                                "Failed to send ACP prompt: {retry_error}"
+                            ))
+                        })?
                 }
-                return Err(ProviderError::RequestFailed(format!(
-                    "Failed to send ACP prompt: {e}"
-                )));
-            }
+                // Nothing was added to this prompt, so the guard rolls the claim back as
+                // it drops and the next attempt can still carry the context.
+                None => {
+                    return Err(ProviderError::RequestFailed(format!(
+                        "Failed to send ACP prompt: {e}"
+                    )));
+                }
+            },
         };
+        let bare_retry =
+            bare_retry_blocks.map(|blocks| (self.tx.as_ref().unwrap().clone(), session_id, blocks));
 
         let pending_confirmations = self.pending_confirmations.clone();
         let goose_mode = *self
@@ -558,12 +747,15 @@ impl Provider for AcpProvider {
 
         Ok(Box::pin(try_stream! {
             let mut suppress_text = false;
+            let mut bare_retry = bare_retry;
+            let mut updates_seen = 0usize;
             let mut rejected_tool_calls: HashSet<String> = HashSet::new();
             // Stable id+timestamp per contiguous run so Desktop coalesces chunks into one bubble.
             let mut text_run: Option<(String, i64)> = None;
             let mut thought_run: Option<(String, i64)> = None;
 
             while let Some(update) = rx.recv().await {
+                updates_seen += 1;
                 match update {
                     AcpUpdate::Text(text) => {
                         if !suppress_text {
@@ -685,7 +877,15 @@ impl Provider for AcpProvider {
                         }
                         let _ = response_tx.send(map_permission_response(&request, decision));
                     }
-                    AcpUpdate::Complete(_reason, usage) => {
+                    AcpUpdate::Complete(reason, usage) => {
+                        // Prefer retrying context over silently losing it. A harness may have
+                        // ingested the memo before cancelling or refusing, so a retry can duplicate
+                        // it, but treating an unprocessed handoff as delivered is unrecoverable.
+                        if matches!(reason, StopReason::Cancelled | StopReason::Refusal) {
+                            handoff_claim_guard.rollback();
+                        } else {
+                            handoff_claim_guard.commit();
+                        }
                         if let Some(usage) = usage {
                             let provider_usage = ProviderUsage::new(
                                 model_name.clone(),
@@ -700,7 +900,35 @@ impl Provider for AcpProvider {
                         break;
                     }
                     AcpUpdate::Error(e) => {
-                        Err(ProviderError::RequestFailed(e))?;
+                        let retry_could_help = retry_without_memo_could_help(&e);
+                        let error = provider_error_from_acp(e);
+                        if updates_seen == 1 && retry_could_help {
+                            if let Some((tx, session_id, blocks)) = bare_retry.take() {
+                                // Consume the handoff before retrying. The agent has already
+                                // seen and rejected this memo, so rebuilding it on a later
+                                // turn would reproduce the rejection forever.
+                                handoff_claim_guard.commit();
+                                let (response_tx, response_rx) = mpsc::channel(64);
+                                let request = ClientRequest::Prompt {
+                                    session_id,
+                                    content: blocks,
+                                    response_tx,
+                                };
+                                if tx.send(request).await.is_ok() {
+                                    tracing::error!(
+                                        %error,
+                                        "ACP prompt with handoff context rejected, retrying without it"
+                                    );
+                                    rx = response_rx;
+                                    updates_seen = 0;
+                                    continue;
+                                }
+                            }
+                        }
+                        // Reset before yielding so an immediate retry can include the handoff even
+                        // while the failed stream value is still alive.
+                        handoff_claim_guard.rollback();
+                        Err(error)?;
                     }
                 }
             }
@@ -708,7 +936,8 @@ impl Provider for AcpProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        let (_, available) = resolve_model_info(&self.name, &self.session.response)?;
+        let session = self.session.lock().unwrap().clone();
+        let (_, available) = resolve_model_info(&self.name, &session.response)?;
         Ok(available)
     }
 }
@@ -716,6 +945,7 @@ impl Provider for AcpProvider {
 impl Drop for AcpProvider {
     fn drop(&mut self) {
         self.tx.take();
+        let _cancel_tx = self.cancel_tx.take();
         if let Some(h) = self.loop_thread.take() {
             if let Err(e) = h.join() {
                 tracing::debug!("AcpClientLoop thread panicked: {e:?}");
@@ -730,7 +960,6 @@ struct AcpClientLoop {
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
     context_size: Arc<AtomicU64>,
-    session_title_publisher: SessionTitlePublisher,
 }
 
 impl AcpClientLoop {
@@ -739,7 +968,6 @@ impl AcpClientLoop {
         goose_mode: Arc<Mutex<GooseMode>>,
         pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
         context_size: Arc<AtomicU64>,
-        session_title_publisher: SessionTitlePublisher,
     ) -> Self {
         Self {
             config,
@@ -747,7 +975,6 @@ impl AcpClientLoop {
             prompt_response_tx: Arc::new(Mutex::new(None)),
             pending_tool_updates,
             context_size,
-            session_title_publisher,
         }
     }
 
@@ -802,7 +1029,6 @@ impl AcpClientLoop {
             prompt_response_tx,
             pending_tool_updates,
             context_size,
-            session_title_publisher,
         } = self;
         let notification_callback = config.notification_callback.clone();
         let reverse_modes = reverse_mode_mapping(&config.mode_mapping);
@@ -816,7 +1042,6 @@ impl AcpClientLoop {
                     let goose_mode = goose_mode.clone();
                     let pending_tool_updates = pending_tool_updates.clone();
                     let context_size = context_size.clone();
-                    let session_title_publisher = session_title_publisher.clone();
                     async move |notification: SessionNotification, _cx| {
                         if let Some(ref cb) = notification_callback {
                             cb(notification.clone());
@@ -852,11 +1077,6 @@ impl AcpClientLoop {
                             }
                             SessionUpdate::UsageUpdate(usage) => {
                                 context_size.store(usage.size, Ordering::Relaxed);
-                            }
-                            SessionUpdate::SessionInfoUpdate(update) => {
-                                if let Some(title) = update.title.value() {
-                                    session_title_publisher.publish(title);
-                                }
                             }
                             _ => {}
                         }
@@ -1076,6 +1296,20 @@ async fn spawn_acp_process(config: &AcpProviderConfig) -> Result<Child> {
         .stderr(Stdio::piped())
         .kill_on_drop(true);
 
+    if let Some(command_dir) = config.command.parent() {
+        // npm adapters commonly use `/usr/bin/env node`, while desktop PATH may omit their bin dir.
+        let path = std::env::join_paths(
+            std::iter::once(command_dir.to_path_buf()).chain(
+                std::env::var_os("PATH")
+                    .as_ref()
+                    .map(std::env::split_paths)
+                    .into_iter()
+                    .flatten(),
+            ),
+        )?;
+        cmd.env("PATH", path);
+    }
+
     for key in &config.env_remove {
         cmd.env_remove(key);
     }
@@ -1094,6 +1328,11 @@ fn log_undelivered<E: std::fmt::Debug>(result: Result<(), E>, method: &str) {
     }
 }
 
+fn acp_method_error(method: &str, error: agent_client_protocol::Error) -> anyhow::Error {
+    let message = format!("ACP {method} failed: {error}");
+    anyhow::Error::new(error).context(message)
+}
+
 async fn handle_requests(
     config: AcpProviderConfig,
     goose_mode: Arc<Mutex<GooseMode>>,
@@ -1107,8 +1346,7 @@ async fn handle_requests(
     let client_capabilities = ClientCapabilities::new();
     let init_response: InitializeResponse = cx
         .send_request(
-            InitializeRequest::new(ProtocolVersion::LATEST)
-                .client_capabilities(client_capabilities),
+            InitializeRequest::new(ProtocolVersion::V1).client_capabilities(client_capabilities),
         )
         .block_task()
         .await
@@ -1125,6 +1363,7 @@ async fn handle_requests(
         .session_capabilities
         .close
         .is_some();
+    let supports_load = init_response.agent_capabilities.load_session;
     let mcp_capabilities = init_response.agent_capabilities.mcp_capabilities.clone();
     if let Some(tx) = init_tx.take() {
         log_undelivered(tx.send(Ok(init_response)), AGENT_METHOD_NAMES.initialize);
@@ -1149,12 +1388,55 @@ async fn handle_requests(
                             .await?;
                         apply_session_mode(&config, &goose_mode, &cx, session).await
                     }
-                    Err(err) => Err(anyhow::anyhow!(
-                        "ACP {} failed: {err}",
-                        AGENT_METHOD_NAMES.session_new
-                    )),
+                    Err(error) => Err(acp_method_error(AGENT_METHOD_NAMES.session_new, error)),
                 };
                 log_undelivered(response_tx.send(result), AGENT_METHOD_NAMES.session_new);
+            }
+            ClientRequest::LoadSession {
+                session_id,
+                response_tx,
+            } => {
+                let result = if supports_load {
+                    let mcp_servers =
+                        filter_supported_servers(&config.mcp_servers, &mcp_capabilities);
+                    cx.send_request(
+                        LoadSessionRequest::new(session_id.clone(), config.work_dir.clone())
+                            .mcp_servers(mcp_servers),
+                    )
+                    .block_task()
+                    .await
+                    .map(|response| {
+                        NewSessionResponse::new(session_id.clone())
+                            .modes(response.modes)
+                            .config_options(response.config_options)
+                            .meta(response.meta)
+                    })
+                    .map_err(anyhow::Error::from)
+                } else {
+                    Err(anyhow::anyhow!("ACP agent does not support session/load"))
+                };
+                let result = match result {
+                    Ok(session) => {
+                        session_ids.push(session.session_id.clone());
+                        apply_session_config_options(&config, &cx, session.session_id.clone())
+                            .await?;
+                        apply_session_mode(&config, &goose_mode, &cx, session).await
+                    }
+                    Err(error) => Err(error),
+                };
+                log_undelivered(response_tx.send(result), AGENT_METHOD_NAMES.session_load);
+            }
+            ClientRequest::CloseSession { session_id } => {
+                if supports_close {
+                    if let Err(error) = cx
+                        .send_request(CloseSessionRequest::new(session_id.clone()))
+                        .block_task()
+                        .await
+                    {
+                        tracing::debug!(method = AGENT_METHOD_NAMES.session_close, session_id = %session_id, %error, "failed to close replaced ACP session");
+                    }
+                }
+                session_ids.retain(|id| id != &session_id);
             }
             ClientRequest::SetMode {
                 session_id,
@@ -1212,7 +1494,7 @@ async fn handle_requests(
                     }
                     Err(e) => {
                         log_undelivered(
-                            response_tx.try_send(AcpUpdate::Error(e.to_string())),
+                            response_tx.try_send(AcpUpdate::Error(e)),
                             AGENT_METHOD_NAMES.session_prompt,
                         );
                     }
@@ -1223,7 +1505,7 @@ async fn handle_requests(
         }
     }
 
-    if supports_close {
+    if supports_close && !supports_load {
         for session_id in session_ids {
             if let Err(e) = cx
                 .send_request(CloseSessionRequest::new(session_id.clone()))
@@ -1405,7 +1687,7 @@ fn filter_supported_servers(
         .collect()
 }
 
-fn messages_to_prompt(messages: &[Message], include_handoff_context: bool) -> Vec<ContentBlock> {
+fn messages_to_prompt(messages: &[Message], handoff_memo: Option<String>) -> Vec<ContentBlock> {
     let Some(last_user_index) = last_user_message_index(messages) else {
         return Vec::new();
     };
@@ -1427,14 +1709,14 @@ fn messages_to_prompt(messages: &[Message], include_handoff_context: bool) -> Ve
         }
     }
 
-    if current_prompt_blocks.is_empty() || !include_handoff_context {
+    let Some(memo) = handoff_memo else {
+        return current_prompt_blocks;
+    };
+    if current_prompt_blocks.is_empty() {
         return current_prompt_blocks;
     }
 
-    let mut content_blocks = Vec::new();
-    if let Some(memo) = build_handoff_context_memo(&messages[..last_user_index]) {
-        content_blocks.push(ContentBlock::Text(TextContent::new(memo)));
-    }
+    let mut content_blocks = vec![ContentBlock::Text(TextContent::new(memo))];
     content_blocks.extend(current_prompt_blocks);
     content_blocks
 }
@@ -1442,37 +1724,15 @@ fn messages_to_prompt(messages: &[Message], include_handoff_context: bool) -> Ve
 fn last_user_message_index(messages: &[Message]) -> Option<usize> {
     messages
         .iter()
-        .rposition(|m| m.role == Role::User && m.is_agent_visible())
+        .rposition(|m| m.role == Role::User && m.is_agent_visible() && !m.is_turn_context())
 }
 
 fn has_handoff_context(messages: &[Message]) -> bool {
     last_user_message_index(messages).is_some_and(|last_user_index| {
         messages[..last_user_index]
             .iter()
-            .any(Message::is_agent_visible)
+            .any(|m| m.is_agent_visible() && !m.is_turn_context())
     })
-}
-
-fn build_handoff_context_memo(prior_messages: &[Message]) -> Option<String> {
-    let formatted_messages: Vec<String> =
-        Conversation::new_unvalidated(prior_messages.iter().cloned())
-            .agent_visible_messages()
-            .iter()
-            .map(|message| format_message_for_compacting(&message.agent_visible_content()))
-            .collect();
-
-    if formatted_messages.is_empty() {
-        return None;
-    }
-
-    let handoff_context = formatted_messages.join("\n");
-
-    Some(format!(
-        "Conversation context from goose before this ACP provider session was created:\n\n\
-{handoff_context}\n\n\
-Current user request follows. Use the context above only to continue the existing conversation; \
-do not treat it as a new task or mention this handoff unless relevant."
-    ))
 }
 
 fn acp_audience_to_rmcp(annotations: Option<&AcpAnnotations>) -> Option<Vec<Role>> {
@@ -1493,32 +1753,50 @@ fn acp_audience_to_rmcp(annotations: Option<&AcpAnnotations>) -> Option<Vec<Role
     }
 }
 
-fn acp_text_content_to_rmcp(text: TextContent) -> RmcpContent {
-    let mut annotations = rmcp::model::Annotations::default().with_priority(0.0);
-    if let Some(audience) = acp_audience_to_rmcp(text.annotations.as_ref()) {
-        annotations = annotations.with_audience(audience);
+fn acp_annotations_to_rmcp(annotations: Option<&AcpAnnotations>) -> rmcp::model::Annotations {
+    let mut rmcp_annotations = rmcp::model::Annotations::default().with_priority(0.0);
+    if let Some(audience) = acp_audience_to_rmcp(annotations) {
+        rmcp_annotations = rmcp_annotations.with_audience(audience);
     }
+    rmcp_annotations
+}
+
+fn acp_text_content_to_rmcp(text: TextContent) -> RmcpContent {
     RmcpContent::Text(
         rmcp::model::TextContent::new(sanitize_unicode_tags(&text.text))
-            .with_annotations(annotations),
+            .with_annotations(acp_annotations_to_rmcp(text.annotations.as_ref())),
     )
 }
 
 fn acp_image_content_to_rmcp(image: ImageContent) -> RmcpContent {
-    let mut annotations = rmcp::model::Annotations::default().with_priority(0.0);
-    if let Some(audience) = acp_audience_to_rmcp(image.annotations.as_ref()) {
-        annotations = annotations.with_audience(audience);
-    }
     RmcpContent::Image(
-        rmcp::model::ImageContent::new(image.data, image.mime_type).with_annotations(annotations),
+        rmcp::model::ImageContent::new(image.data, image.mime_type)
+            .with_annotations(acp_annotations_to_rmcp(image.annotations.as_ref())),
     )
 }
 
 fn visible_rmcp_text(text: impl Into<String>) -> RmcpContent {
+    visible_rmcp_text_with_annotations(text, None)
+}
+
+fn visible_rmcp_text_with_annotations(
+    text: impl Into<String>,
+    annotations: Option<&AcpAnnotations>,
+) -> RmcpContent {
     RmcpContent::Text(
-        rmcp::model::TextContent::new(text)
-            .with_annotations(rmcp::model::Annotations::default().with_priority(0.0)),
+        rmcp::model::TextContent::new(text).with_annotations(acp_annotations_to_rmcp(annotations)),
     )
+}
+
+fn acp_content_annotations(content: &ContentBlock) -> Option<&AcpAnnotations> {
+    match content {
+        ContentBlock::Text(content) => content.annotations.as_ref(),
+        ContentBlock::Image(content) => content.annotations.as_ref(),
+        ContentBlock::Audio(content) => content.annotations.as_ref(),
+        ContentBlock::ResourceLink(content) => content.annotations.as_ref(),
+        ContentBlock::Resource(content) => content.annotations.as_ref(),
+        _ => None,
+    }
 }
 
 fn acp_text_update_message(text: TextContent, id: String, created: i64) -> Message {
@@ -1548,7 +1826,10 @@ fn acp_tool_call_content_to_rmcp(
                     }
                     other => {
                         if let Ok(json) = serde_json::to_string(&other) {
-                            out.push(visible_rmcp_text(json));
+                            out.push(visible_rmcp_text_with_annotations(
+                                json,
+                                acp_content_annotations(&other),
+                            ));
                         }
                     }
                 },
@@ -1712,7 +1993,7 @@ mod tests {
     use super::*;
     use crate::agents::extension::Envs;
     use agent_client_protocol::schema::v1::{
-        SessionConfigSelectOption, SessionMode, SessionModeId,
+        ErrorCode, SessionConfigSelectOption, SessionMode, SessionModeId,
     };
 
     use test_case::test_case;
@@ -1724,23 +2005,126 @@ mod tests {
         }
     }
 
-    fn test_provider() -> (AcpProvider, ModelConfig) {
-        test_provider_with_tx(None)
+    fn acp_error_code(error: &anyhow::Error) -> Option<ErrorCode> {
+        error.chain().find_map(|source| {
+            source
+                .downcast_ref::<agent_client_protocol::Error>()
+                .map(|error| error.code)
+        })
+    }
+
+    /// The prompt as `stream` builds it on a first prompt, with a budget generous
+    /// enough that nothing is dropped. Memo bounding is covered in `acp::handoff`.
+    async fn prompt_with_handoff(messages: &[Message]) -> Vec<ContentBlock> {
+        let counter = crate::token_counter::create_token_counter().await.unwrap();
+        let memo = last_user_message_index(messages)
+            .and_then(|index| build_handoff_context_memo(&messages[..index], 50_000, &counter));
+        messages_to_prompt(messages, memo)
     }
 
     #[test]
-    fn session_title_publisher_forwards_non_empty_titles() {
-        let publisher = SessionTitlePublisher::default();
-        let titles = Arc::new(Mutex::new(Vec::new()));
-        let received = titles.clone();
-        publisher.set_callback(Arc::new(move |title| {
-            received.lock().unwrap().push(title);
-        }));
+    fn startup_cleanup_does_not_block_while_the_client_loop_stops() {
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let client_thread = std::thread::spawn(move || release_rx.recv().unwrap());
+        let guard = ClientLoopGuard {
+            tx: None,
+            cancel_tx: None,
+            thread: Some(client_thread),
+        };
+        let (dropped_tx, dropped_rx) = std::sync::mpsc::channel();
+        let drop_thread = std::thread::spawn(move || {
+            drop(guard);
+            dropped_tx.send(()).unwrap();
+        });
 
-        publisher.publish("  Generated title  ");
-        publisher.publish("  ");
+        let returned_without_joining = dropped_rx
+            .recv_timeout(std::time::Duration::from_millis(100))
+            .is_ok();
+        release_tx.send(()).unwrap();
+        drop_thread.join().unwrap();
 
-        assert_eq!(*titles.lock().unwrap(), vec!["Generated title"]);
+        assert!(returned_without_joining);
+    }
+
+    #[test]
+    fn provider_drop_closes_requests_without_forcing_cancellation() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let (cancel_tx, mut cancel_rx) = oneshot::channel();
+        let (graceful_tx, graceful_rx) = std::sync::mpsc::channel();
+        let client_thread = std::thread::spawn(move || {
+            while rx.blocking_recv().is_some() {}
+            graceful_tx
+                .send(matches!(
+                    cancel_rx.try_recv(),
+                    Err(oneshot::error::TryRecvError::Empty)
+                ))
+                .unwrap();
+        });
+        let (mut provider, _) = test_provider_with_tx(Some(tx));
+        provider.cancel_tx = Some(cancel_tx);
+        provider.loop_thread = Some(client_thread);
+
+        drop(provider);
+
+        assert!(graceful_rx.recv().unwrap());
+    }
+
+    #[test]
+    fn session_new_error_preserves_auth_required_code() {
+        let error = acp_method_error(
+            AGENT_METHOD_NAMES.session_new,
+            agent_client_protocol::Error::auth_required(),
+        );
+
+        assert_eq!(
+            error.to_string(),
+            "ACP session/new failed: Authentication required"
+        );
+        assert_eq!(acp_error_code(&error), Some(ErrorCode::AuthRequired));
+    }
+
+    #[test]
+    fn session_new_error_preserves_non_authentication_code() {
+        let error = acp_method_error(
+            AGENT_METHOD_NAMES.session_new,
+            agent_client_protocol::Error::internal_error(),
+        );
+
+        assert_eq!(acp_error_code(&error), Some(ErrorCode::InternalError));
+    }
+
+    #[tokio::test]
+    async fn prompt_error_update_preserves_auth_required_code() {
+        let (tx, mut rx) = mpsc::channel(1);
+        tx.send(AcpUpdate::Error(
+            agent_client_protocol::Error::auth_required().data("sign in"),
+        ))
+        .await
+        .unwrap();
+
+        let AcpUpdate::Error(error) = rx.recv().await.unwrap() else {
+            panic!("expected ACP error update");
+        };
+        assert_eq!(error.code, ErrorCode::AuthRequired);
+        assert_eq!(error.data, Some(serde_json::json!("sign in")));
+    }
+
+    #[test]
+    fn prompt_auth_error_maps_to_provider_authentication() {
+        let error = provider_error_from_acp(agent_client_protocol::Error::auth_required());
+
+        assert!(matches!(error, ProviderError::Authentication(_)));
+    }
+
+    #[test]
+    fn prompt_internal_error_remains_request_failed() {
+        let error = provider_error_from_acp(agent_client_protocol::Error::internal_error());
+
+        assert!(matches!(error, ProviderError::RequestFailed(_)));
+    }
+
+    fn test_provider() -> (AcpProvider, ModelConfig) {
+        test_provider_with_tx(None)
     }
 
     fn test_provider_with_tx(
@@ -1751,36 +2135,36 @@ mod tests {
                 name: "acp-test".to_string(),
                 goose_mode: Arc::new(Mutex::new(GooseMode::Auto)),
                 mode_mapping: HashMap::new(),
-                session: AcpSession {
+                session: Mutex::new(AcpSession {
                     id: SessionId::new("test-session"),
                     response: NewSessionResponse::new("test-session"),
-                },
+                }),
                 pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
                 pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
-                handoff_context_sent: AtomicBool::new(false),
+                handoff_context_sent: Arc::new(AtomicBool::new(false)),
                 context_size: Arc::new(AtomicU64::new(0)),
-                session_title_publisher: SessionTitlePublisher::default(),
                 model_config_option_id: None,
                 applied_model: Arc::new(Mutex::new(None)),
                 tx,
+                cancel_tx: None,
                 loop_thread: None,
             },
             ModelConfig::new("test-model"),
         )
     }
 
-    #[test]
-    fn messages_to_prompt_without_prior_history_preserves_current_prompt() {
+    #[tokio::test]
+    async fn messages_to_prompt_without_prior_history_preserves_current_prompt() {
         let messages = vec![Message::user().with_text("current request")];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages).await;
 
         assert_eq!(blocks.len(), 1);
         assert_eq!(prompt_text(&blocks[0]), "current request");
     }
 
-    #[test]
-    fn messages_to_prompt_prepends_handoff_context_before_latest_user() {
+    #[tokio::test]
+    async fn messages_to_prompt_prepends_handoff_context_before_latest_user() {
         let messages = vec![
             Message::user().with_text("inspect src/lib.rs"),
             Message::assistant()
@@ -1795,7 +2179,7 @@ mod tests {
             Message::user().with_text("continue from there"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages).await;
 
         assert_eq!(blocks.len(), 2);
         let memo = prompt_text(&blocks[0]);
@@ -1810,8 +2194,39 @@ mod tests {
         assert_eq!(prompt_text(&blocks[1]), "continue from there");
     }
 
-    #[test]
-    fn messages_to_prompt_drops_user_only_acp_rows_from_handoff() {
+    #[tokio::test]
+    async fn messages_to_prompt_skips_turn_context_events() {
+        use crate::conversation::message::MessageMetadata;
+
+        let turn_context = |text: &str| {
+            Message::user()
+                .with_text(text)
+                .with_metadata(MessageMetadata::agent_only().with_turn_context())
+        };
+        let messages = vec![
+            Message::user().with_text("inspect src/lib.rs"),
+            turn_context("<turn-context>old cwd /repo</turn-context>"),
+            Message::assistant().with_text("I found the file"),
+            Message::user().with_text("continue from there"),
+            turn_context("<turn-context>new cwd /repo</turn-context>"),
+        ];
+
+        let blocks = prompt_with_handoff(&messages).await;
+
+        assert_eq!(blocks.len(), 2);
+        assert!(
+            !prompt_text(&blocks[0]).contains("turn-context"),
+            "handoff memo must not include turn-context events"
+        );
+        assert_eq!(
+            prompt_text(&blocks[1]),
+            "continue from there",
+            "the current prompt must be the user's request, not a trailing turn-context event"
+        );
+    }
+
+    #[tokio::test]
+    async fn messages_to_prompt_drops_user_only_acp_rows_from_handoff() {
         let user_only = TextContent::new("SECRET_USER_ONLY")
             .annotations(AcpAnnotations::new().audience(vec![AcpRole::User]));
         let messages = vec![
@@ -1820,7 +2235,7 @@ mod tests {
             Message::user().with_text("current request"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages).await;
 
         assert_eq!(blocks.len(), 2);
         let memo = prompt_text(&blocks[0]);
@@ -1830,8 +2245,8 @@ mod tests {
         assert_eq!(prompt_text(&blocks[1]), "current request");
     }
 
-    #[test]
-    fn messages_to_prompt_keeps_latest_user_images_after_handoff_memo() {
+    #[tokio::test]
+    async fn messages_to_prompt_keeps_latest_user_images_after_handoff_memo() {
         let messages = vec![
             Message::assistant().with_text("prior answer"),
             Message::user()
@@ -1839,7 +2254,7 @@ mod tests {
                 .with_text("describe this"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages).await;
 
         assert_eq!(blocks.len(), 3);
         assert!(prompt_text(&blocks[0]).contains("[assistant]: prior answer"));
@@ -1853,8 +2268,8 @@ mod tests {
         assert_eq!(prompt_text(&blocks[2]), "describe this");
     }
 
-    #[test]
-    fn messages_to_prompt_excludes_user_only_current_and_handoff_content() {
+    #[tokio::test]
+    async fn messages_to_prompt_excludes_user_only_current_and_handoff_content() {
         use rmcp::model::{Annotations, TextContent};
 
         fn user_only_text(text: &str) -> MessageContent {
@@ -1873,7 +2288,8 @@ mod tests {
                 .with_content(user_only_text("SECRET_CURRENT")),
         ];
 
-        let rendered = messages_to_prompt(&messages, true)
+        let rendered = prompt_with_handoff(&messages)
+            .await
             .iter()
             .filter_map(|block| match block {
                 ContentBlock::Text(text) => Some(text.text.as_str()),
@@ -1888,8 +2304,8 @@ mod tests {
         assert!(!rendered.contains("SECRET_CURRENT"));
     }
 
-    #[test]
-    fn messages_to_prompt_drops_handoff_when_current_content_is_user_only() {
+    #[tokio::test]
+    async fn messages_to_prompt_drops_handoff_when_current_content_is_user_only() {
         use rmcp::model::{Annotations, TextContent};
 
         let current = MessageContent::Text(
@@ -1901,7 +2317,7 @@ mod tests {
             Message::user().with_content(current),
         ];
 
-        assert!(messages_to_prompt(&messages, true).is_empty());
+        assert!(prompt_with_handoff(&messages).await.is_empty());
     }
 
     #[tokio::test]
@@ -2050,6 +2466,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn resume_replaces_session_and_skips_handoff() {
+        let (tx, mut rx) = mpsc::channel(2);
+        let (provider, _) = test_provider_with_tx(Some(tx));
+
+        let handle = tokio::spawn(async move {
+            provider.resume("saved-session").await.unwrap();
+            provider
+        });
+
+        let ClientRequest::LoadSession {
+            session_id,
+            response_tx,
+        } = rx.recv().await.expect("expected session/load")
+        else {
+            panic!("expected session/load");
+        };
+        assert_eq!(session_id.to_string(), "saved-session");
+        response_tx
+            .send(Ok(NewSessionResponse::new("saved-session")))
+            .unwrap();
+
+        let ClientRequest::CloseSession { session_id } =
+            rx.recv().await.expect("expected temporary session close")
+        else {
+            panic!("expected temporary session close");
+        };
+        assert_eq!(session_id.to_string(), "test-session");
+
+        let provider = handle.await.unwrap();
+        assert_eq!(
+            provider.provider_session_id().as_deref(),
+            Some("saved-session")
+        );
+
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        let claim = provider.claim_handoff_context(&messages);
+        assert!(!claim.first_prompt);
+        assert!(!claim.include_context);
+    }
+
+    #[tokio::test]
     async fn get_context_limit_surfaces_captured_context_size() {
         let (provider, model) = test_provider();
         assert_eq!(
@@ -2062,7 +2522,173 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn failed_first_prompt_send_rolls_back_handoff_context_claim() {
+    async fn streamed_error_after_bare_retry_consumes_handoff_context() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        let (next_content_tx, next_content_rx) = oneshot::channel();
+
+        // Serve the first prompt and its memo-free retry like a harness that accepts the
+        // request but fails while processing it, then capture the following turn.
+        let server = tokio::spawn(async move {
+            for _ in 0..2 {
+                if let Some(ClientRequest::Prompt { response_tx, .. }) = rx.recv().await {
+                    let _ = response_tx
+                        .send(AcpUpdate::Error(
+                            agent_client_protocol::Error::internal_error().data("prompt too large"),
+                        ))
+                        .await;
+                }
+            }
+            if let Some(ClientRequest::Prompt {
+                content,
+                response_tx,
+                ..
+            }) = rx.recv().await
+            {
+                let _ = next_content_tx.send(content);
+                let _ = response_tx
+                    .send(AcpUpdate::Complete(StopReason::EndTurn, None))
+                    .await;
+            }
+        });
+
+        let mut first_stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        let first = first_stream.next().await;
+        assert!(
+            matches!(first, Some(Err(ProviderError::RequestFailed(_)))),
+            "expected streamed error, got {first:?}"
+        );
+
+        let mut next_stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        let next_content = next_content_rx.await.unwrap();
+        assert_eq!(
+            next_content.len(),
+            1,
+            "a rejected memo must not be rebuilt on the next turn"
+        );
+        assert_eq!(prompt_text(&next_content[0]), "current request");
+        assert!(next_stream.next().await.is_none());
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn cancelled_first_prompt_rolls_back_handoff_context_claim() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        let server = tokio::spawn(async move {
+            if let Some(ClientRequest::Prompt { response_tx, .. }) = rx.recv().await {
+                let _ = response_tx
+                    .send(AcpUpdate::Complete(StopReason::Cancelled, None))
+                    .await;
+            }
+        });
+
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        assert!(stream.next().await.is_none());
+        server.await.unwrap();
+
+        let next_claim = provider.claim_handoff_context(&messages);
+        assert!(next_claim.include_context);
+    }
+
+    #[tokio::test]
+    async fn refused_first_prompt_rolls_back_handoff_context_claim() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        let server = tokio::spawn(async move {
+            if let Some(ClientRequest::Prompt { response_tx, .. }) = rx.recv().await {
+                let _ = response_tx
+                    .send(AcpUpdate::Complete(StopReason::Refusal, None))
+                    .await;
+            }
+        });
+
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        assert!(stream.next().await.is_none());
+        server.await.unwrap();
+
+        let next_claim = provider.claim_handoff_context(&messages);
+        assert!(next_claim.include_context);
+    }
+
+    #[tokio::test]
+    async fn completed_first_prompt_commits_handoff_context_claim() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        let server = tokio::spawn(async move {
+            if let Some(ClientRequest::Prompt { response_tx, .. }) = rx.recv().await {
+                let _ = response_tx
+                    .send(AcpUpdate::Complete(StopReason::EndTurn, None))
+                    .await;
+            }
+        });
+
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        assert!(stream.next().await.is_none());
+        server.await.unwrap();
+
+        let next_claim = provider.claim_handoff_context(&messages);
+        assert!(!next_claim.include_context);
+    }
+
+    #[tokio::test]
+    async fn dropped_first_prompt_stream_rolls_back_handoff_context_claim() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+
+        let stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        let request = rx.recv().await;
+        assert!(matches!(request, Some(ClientRequest::Prompt { .. })));
+        drop(stream);
+
+        let next_claim = provider.claim_handoff_context(&messages);
+        assert!(next_claim.include_context);
+    }
+
+    #[tokio::test]
+    async fn failed_first_prompt_send_without_handoff_rolls_back_claim() {
+        let (tx, rx) = mpsc::channel(1);
+        drop(rx);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![Message::user().with_text("current request")];
+
+        let result = provider.stream(&model, "", &messages, &[]).await;
+
+        assert!(matches!(result, Err(ProviderError::RequestFailed(_))));
+        let next_claim = provider.claim_handoff_context(&messages);
+        assert!(next_claim.first_prompt);
+    }
+
+    #[tokio::test]
+    async fn failed_handoff_send_consumes_the_claim() {
         let (tx, rx) = mpsc::channel(1);
         drop(rx);
         let (provider, model) = test_provider_with_tx(Some(tx));
@@ -2075,8 +2701,231 @@ mod tests {
 
         assert!(matches!(result, Err(ProviderError::RequestFailed(_))));
         let next_claim = provider.claim_handoff_context(&messages);
-        assert!(next_claim.first_prompt);
-        assert!(next_claim.include_context);
+        assert!(
+            !next_claim.include_context,
+            "a memo that already failed to send must not be rebuilt"
+        );
+    }
+
+    fn expect_prompt(request: ClientRequest) -> (Vec<ContentBlock>, mpsc::Sender<AcpUpdate>) {
+        match request {
+            ClientRequest::Prompt {
+                content,
+                response_tx,
+                ..
+            } => (content, response_tx),
+            _ => panic!("expected ACP prompt request"),
+        }
+    }
+
+    #[tokio::test]
+    async fn rejected_handoff_prompt_retries_once_without_the_memo() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(2);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+
+        let handle = tokio::spawn(async move {
+            let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+            let mut results = Vec::new();
+            while let Some(item) = stream.next().await {
+                results.push(item);
+            }
+            results
+        });
+
+        let (content, response_tx) = expect_prompt(rx.recv().await.unwrap());
+        assert_eq!(content.len(), 2, "memo precedes the current prompt");
+        response_tx
+            .send(AcpUpdate::Error(
+                agent_client_protocol::Error::invalid_request().data("Prompt is too long"),
+            ))
+            .await
+            .unwrap();
+
+        let (content, response_tx) = expect_prompt(rx.recv().await.unwrap());
+        assert_eq!(content.len(), 1, "retry carries the current prompt only");
+        assert_eq!(prompt_text(&content[0]), "current request");
+        response_tx
+            .send(AcpUpdate::Complete(StopReason::EndTurn, None))
+            .await
+            .unwrap();
+
+        let results = handle.await.unwrap();
+        assert!(results.iter().all(|item| item.is_ok()));
+    }
+
+    #[tokio::test]
+    async fn rejected_retry_surfaces_the_error() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(2);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+
+        let handle = tokio::spawn(async move {
+            let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+            let mut results = Vec::new();
+            while let Some(item) = stream.next().await {
+                results.push(item);
+            }
+            results
+        });
+
+        for _ in 0..2 {
+            let (_, response_tx) = expect_prompt(rx.recv().await.unwrap());
+            response_tx
+                .send(AcpUpdate::Error(
+                    agent_client_protocol::Error::invalid_request().data("Prompt is too long"),
+                ))
+                .await
+                .unwrap();
+        }
+
+        let results = handle.await.unwrap();
+        assert!(matches!(
+            results.as_slice(),
+            [Err(ProviderError::RequestFailed(_))]
+        ));
+        assert!(rx.try_recv().is_err(), "exactly one retry");
+    }
+
+    #[tokio::test]
+    async fn auth_failure_surfaces_instead_of_retrying_without_the_memo() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(2);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+
+        let handle = tokio::spawn(async move {
+            let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+            let mut results = Vec::new();
+            while let Some(item) = stream.next().await {
+                results.push(item);
+            }
+            results
+        });
+
+        let (_, response_tx) = expect_prompt(rx.recv().await.unwrap());
+        response_tx
+            .send(AcpUpdate::Error(
+                agent_client_protocol::Error::auth_required(),
+            ))
+            .await
+            .unwrap();
+
+        // As above: a retry would leave the stream waiting on a prompt nothing serves.
+        let results = tokio::time::timeout(std::time::Duration::from_secs(10), handle)
+            .await
+            .expect("stream ended without retrying")
+            .unwrap();
+        assert!(matches!(
+            results.as_slice(),
+            [Err(ProviderError::Authentication(_))]
+        ));
+        assert!(rx.try_recv().is_err(), "no retry on an auth failure");
+    }
+
+    #[tokio::test]
+    async fn a_budget_too_small_for_a_memo_keeps_the_claim() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        // A window this small leaves no room for a memo beside the current prompt.
+        provider.context_size.store(64, Ordering::Relaxed);
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        let server = tokio::spawn(async move {
+            let Some(ClientRequest::Prompt {
+                content,
+                response_tx,
+                ..
+            }) = rx.recv().await
+            else {
+                return Vec::new();
+            };
+            let _ = response_tx
+                .send(AcpUpdate::Complete(StopReason::EndTurn, None))
+                .await;
+            content
+        });
+
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        assert!(stream.next().await.is_none());
+        let content = server.await.unwrap();
+        assert_eq!(content.len(), 1, "no memo fit beside the prompt");
+
+        assert!(
+            provider.claim_handoff_context(&messages).include_context,
+            "context that never left goose must still be handed off later"
+        );
+    }
+
+    #[tokio::test]
+    async fn exhausted_credits_surface_without_spending_the_handoff() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(2);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+
+        let handle = tokio::spawn(async move {
+            let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+            let mut results = Vec::new();
+            while let Some(item) = stream.next().await {
+                results.push(item);
+            }
+            (provider, results)
+        });
+
+        let (_, response_tx) = expect_prompt(rx.recv().await.unwrap());
+        response_tx
+            .send(AcpUpdate::Error(
+                agent_client_protocol::Error::internal_error()
+                    .data(serde_json::json!({ "reason": crate::acp::CREDITS_EXHAUSTED_REASON })),
+            ))
+            .await
+            .unwrap();
+
+        // A retry here would leave the stream waiting on a prompt nothing serves, so bound
+        // the wait rather than hanging the suite on a regression.
+        let (provider, results) = tokio::time::timeout(std::time::Duration::from_secs(10), handle)
+            .await
+            .expect("stream ended without retrying")
+            .unwrap();
+        assert!(matches!(
+            results.as_slice(),
+            [Err(ProviderError::RequestFailed(_))]
+        ));
+        assert!(
+            rx.try_recv().is_err(),
+            "a spent account is not a prompt the agent refused"
+        );
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        assert!(
+            provider.claim_handoff_context(&messages).include_context,
+            "the memo survives so a topped-up account still resumes the conversation"
+        );
     }
 
     fn test_provider_with_model_option(
@@ -2164,6 +3013,37 @@ mod tests {
             mode_mapping,
             notification_callback: None,
         }
+    }
+
+    #[tokio::test]
+    async fn cancelling_start_stops_client_loop() {
+        let stopped = Arc::new(AtomicBool::new(false));
+        let stopped_in_loop = stopped.clone();
+        let start = AcpProvider::start(
+            "acp-test".to_string(),
+            GooseMode::Auto,
+            test_acp_config(HashMap::new(), None),
+            Box::new(move |_, _, init_tx, cancel_rx| {
+                Box::pin(async move {
+                    let _init_tx = init_tx;
+                    let _ = cancel_rx.await;
+                    stopped_in_loop.store(true, Ordering::SeqCst);
+                })
+            }),
+        );
+
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(10), start)
+                .await
+                .is_err()
+        );
+        tokio::time::timeout(std::time::Duration::from_secs(1), async {
+            while !stopped.load(Ordering::SeqCst) {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
     }
 
     #[test_case(GooseMode::Auto)]
@@ -2292,10 +3172,9 @@ mod tests {
             GooseMode::Auto,
             vec!["full-access".to_string(), "agent-full-access".to_string()],
         )]);
-        provider.session.response = NewSessionResponse::new("test-session").modes(mode_state(
-            "read-only",
-            &["read-only", "agent", "agent-full-access"],
-        ));
+        provider.session.lock().unwrap().response = NewSessionResponse::new("test-session").modes(
+            mode_state("read-only", &["read-only", "agent", "agent-full-access"]),
+        );
 
         let handle = tokio::spawn(async move {
             provider
@@ -2326,7 +3205,7 @@ mod tests {
         let (tx, mut rx) = mpsc::channel(1);
         let (mut provider, _) = test_provider_with_tx(Some(tx));
         provider.mode_mapping = HashMap::from([(GooseMode::Chat, vec!["read-only".to_string()])]);
-        provider.session.response = NewSessionResponse::new("test-session")
+        provider.session.lock().unwrap().response = NewSessionResponse::new("test-session")
             .modes(mode_state("agent", &["agent", "agent-full-access"]));
 
         let result = provider.update_mode("session", GooseMode::Chat).await;
@@ -2336,8 +3215,8 @@ mod tests {
         assert_eq!(*provider.goose_mode.lock().unwrap(), GooseMode::Auto);
     }
 
-    #[test]
-    fn messages_to_prompt_includes_all_prior_handoff_context() {
+    #[tokio::test]
+    async fn messages_to_prompt_includes_all_prior_handoff_context() {
         let messages = vec![
             Message::user().with_text("older context that should be retained"),
             Message::assistant().with_text("middle context"),
@@ -2345,7 +3224,7 @@ mod tests {
             Message::user().with_text("current request"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages).await;
 
         assert_eq!(blocks.len(), 2);
         let memo = prompt_text(&blocks[0]);
@@ -2387,6 +3266,9 @@ mod tests {
             headers: HashMap::from([("Authorization".into(), "Bearer ghp_xxxxxxxxxxxx".into())]),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
+            scopes: vec![],
             bundled: Some(false),
             available_tools: vec![],
         },
@@ -2441,6 +3323,9 @@ mod tests {
             headers: HashMap::from([("Authorization".into(), "Bearer ghp_xxxxxxxxxxxx".into())]),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
+            scopes: vec![],
             bundled: Some(false),
             available_tools: vec![],
         };
@@ -2713,6 +3598,70 @@ mod tests {
                 .and_then(|annotations| annotations.priority),
             Some(0.0)
         );
+    }
+
+    #[test]
+    fn acp_tool_call_fallback_content_preserves_audience_annotations() {
+        use agent_client_protocol::schema::v1::{
+            AudioContent, EmbeddedResource, EmbeddedResourceResource, ResourceLink,
+            TextResourceContents,
+        };
+
+        let blocks = [
+            ContentBlock::Audio(
+                AudioContent::new("audio-user", "audio/wav")
+                    .annotations(AcpAnnotations::new().audience(vec![AcpRole::User])),
+            ),
+            ContentBlock::Audio(
+                AudioContent::new("audio-assistant", "audio/wav")
+                    .annotations(AcpAnnotations::new().audience(vec![AcpRole::Assistant])),
+            ),
+            ContentBlock::ResourceLink(
+                ResourceLink::new("user resource", "file:///user")
+                    .annotations(AcpAnnotations::new().audience(vec![AcpRole::User])),
+            ),
+            ContentBlock::ResourceLink(
+                ResourceLink::new("assistant resource", "file:///assistant")
+                    .annotations(AcpAnnotations::new().audience(vec![AcpRole::Assistant])),
+            ),
+            ContentBlock::Resource(
+                EmbeddedResource::new(EmbeddedResourceResource::TextResourceContents(
+                    TextResourceContents::new("user body", "file:///user-body"),
+                ))
+                .annotations(AcpAnnotations::new().audience(vec![AcpRole::User])),
+            ),
+            ContentBlock::Resource(
+                EmbeddedResource::new(EmbeddedResourceResource::TextResourceContents(
+                    TextResourceContents::new("assistant body", "file:///assistant-body"),
+                ))
+                .annotations(AcpAnnotations::new().audience(vec![AcpRole::Assistant])),
+            ),
+        ];
+        let content = blocks
+            .into_iter()
+            .map(|block| {
+                ToolCallContent::Content(agent_client_protocol::schema::v1::Content::new(block))
+            })
+            .collect();
+
+        let out = acp_tool_call_content_to_rmcp(Some(content), None);
+
+        assert_eq!(out.len(), 6);
+        for (content, expected_role) in out.iter().zip([
+            Role::User,
+            Role::Assistant,
+            Role::User,
+            Role::Assistant,
+            Role::User,
+            Role::Assistant,
+        ]) {
+            let annotations = content
+                .as_text()
+                .and_then(|text| text.annotations.as_ref())
+                .expect("fallback content should carry annotations");
+            assert_eq!(annotations.audience.as_deref(), Some(&[expected_role][..]));
+            assert_eq!(annotations.priority, Some(0.0));
+        }
     }
 
     #[test]

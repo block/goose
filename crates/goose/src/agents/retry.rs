@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command;
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
@@ -36,6 +37,8 @@ const GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS: &str = "GOOSE_RECIPE_RETRY_TIMEOUT_SEC
 
 /// Environment variable for configuring on_failure timeout globally
 const GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS: &str = "GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS";
+
+const MAX_COMMAND_STDERR_BYTES: usize = 8 * 1024;
 
 /// Manages retry state and operations for agent execution
 #[derive(Debug)]
@@ -96,20 +99,9 @@ impl RetryManager {
         *self.attempts.lock().await
     }
 
-    /// Reset status for retry: clear message history and final output tool state
-    async fn reset_status_for_retry(
-        messages: &mut Conversation,
-        initial_messages: &[Message],
-        final_output_tool: &Arc<Mutex<Option<crate::agents::final_output_tool::FinalOutputTool>>>,
-    ) {
+    async fn reset_status_for_retry(messages: &mut Conversation, initial_messages: &[Message]) {
         *messages = Conversation::new_unvalidated(initial_messages.to_vec());
         info!("Reset message history to initial state for retry");
-
-        let mut guard = final_output_tool.lock().await;
-        if let Some(fot) = guard.as_mut() {
-            fot.final_output = None;
-            info!("Cleared final output tool state for retry");
-        }
     }
 
     pub async fn handle_retry_logic(
@@ -117,7 +109,6 @@ impl RetryManager {
         messages: &mut Conversation,
         session_config: &SessionConfig,
         initial_messages: &[Message],
-        final_output_tool: &Arc<Mutex<Option<crate::agents::final_output_tool::FinalOutputTool>>>,
     ) -> Result<RetryResult> {
         let Some(retry_config) = &session_config.retry_config else {
             return Ok(RetryResult::Skipped);
@@ -153,7 +144,7 @@ impl RetryManager {
             execute_on_failure_command(on_failure_cmd, retry_config).await?;
         }
 
-        Self::reset_status_for_retry(messages, initial_messages, final_output_tool).await;
+        Self::reset_status_for_retry(messages, initial_messages).await;
 
         let new_attempts = self.increment_attempts().await;
         info!("Incrementing retry attempts to {}", new_attempts);
@@ -197,8 +188,13 @@ pub async fn execute_success_checks(
     checks: &[SuccessCheck],
     retry_config: &RetryConfig,
 ) -> Result<bool> {
-    let timeout = get_retry_timeout(retry_config);
+    execute_success_checks_with_timeout(checks, get_retry_timeout(retry_config)).await
+}
 
+pub async fn execute_success_checks_with_timeout(
+    checks: &[SuccessCheck],
+    timeout: Duration,
+) -> Result<bool> {
     for check in checks {
         match check {
             SuccessCheck::Shell { command } => {
@@ -249,18 +245,26 @@ pub async fn execute_shell_command(
 
         cmd.set_no_window();
 
-        let output = cmd
-            .stdout(Stdio::piped())
+        let mut child = cmd
+            .stdout(Stdio::null())
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
             .kill_on_drop(true)
-            .output()
-            .await?;
+            .spawn()?;
+        let stderr = child
+            .stderr
+            .take()
+            .expect("stderr was configured to be piped");
+        let (status, stderr) = tokio::try_join!(child.wait(), capture_tail(stderr))?;
+        let output = std::process::Output {
+            status,
+            stdout: Vec::new(),
+            stderr,
+        };
 
         debug!(
-            "Shell command completed with status: {}, stdout: {}, stderr: {}",
+            "Shell command completed with status: {}, stderr: {}",
             output.status,
-            String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
 
@@ -277,9 +281,45 @@ pub async fn execute_shell_command(
     }
 }
 
+async fn capture_tail<R>(mut reader: R) -> std::io::Result<Vec<u8>>
+where
+    R: AsyncRead + Unpin,
+{
+    let mut tail = Vec::with_capacity(MAX_COMMAND_STDERR_BYTES);
+    let mut chunk = [0; 4096];
+
+    loop {
+        let count = reader.read(&mut chunk).await?;
+        if count == 0 {
+            return Ok(tail);
+        }
+
+        if count >= MAX_COMMAND_STDERR_BYTES {
+            tail.clear();
+            tail.extend_from_slice(&chunk[count - MAX_COMMAND_STDERR_BYTES..count]);
+            continue;
+        }
+
+        let overflow = tail
+            .len()
+            .saturating_add(count)
+            .saturating_sub(MAX_COMMAND_STDERR_BYTES);
+        if overflow > 0 {
+            tail.drain(..overflow);
+        }
+        tail.extend_from_slice(&chunk[..count]);
+    }
+}
+
 /// Execute an on_failure command and return an error if it fails
 pub async fn execute_on_failure_command(command: &str, retry_config: &RetryConfig) -> Result<()> {
-    let timeout = get_on_failure_timeout(retry_config);
+    execute_on_failure_command_with_timeout(command, get_on_failure_timeout(retry_config)).await
+}
+
+pub async fn execute_on_failure_command_with_timeout(
+    command: &str,
+    timeout: Duration,
+) -> Result<()> {
     info!(
         "Executing on_failure command with timeout {:?}: {}",
         timeout, command
@@ -391,7 +431,7 @@ mod tests {
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.status.success());
-        assert!(String::from_utf8_lossy(&output.stdout).contains("hello world"));
+        assert!(output.stdout.is_empty());
     }
 
     #[tokio::test]
@@ -400,6 +440,31 @@ mod tests {
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(!output.status.success());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_execute_shell_command_bounds_stderr_tail() {
+        let command = "i=0; while [ $i -lt 10000 ]; do printf x >&2; i=$((i + 1)); done; printf diagnostic-tail >&2; exit 1";
+        let output = execute_shell_command(command, Duration::from_secs(30))
+            .await
+            .unwrap();
+
+        assert!(!output.status.success());
+        assert_eq!(output.stderr.len(), MAX_COMMAND_STDERR_BYTES);
+        assert!(output.stderr.ends_with(b"diagnostic-tail"));
+    }
+
+    #[tokio::test]
+    async fn test_capture_tail_preserves_small_diagnostic() {
+        use tokio::io::AsyncWriteExt;
+
+        let diagnostic = b"useful diagnostic";
+        let (mut writer, reader) = tokio::io::duplex(diagnostic.len());
+        writer.write_all(diagnostic).await.unwrap();
+        writer.shutdown().await.unwrap();
+
+        assert_eq!(capture_tail(reader).await.unwrap(), diagnostic);
     }
 
     #[tokio::test]

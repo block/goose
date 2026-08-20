@@ -16,6 +16,12 @@ The issue is the source of truth for work intended for an upstream pull request.
 
 Maintainer-directed work, urgent security fixes, release automation, and local or exploratory changes do not require a Ready issue.
 
+## Agent Loop Migration
+
+We are replacing the legacy agent loop in `crates/goose/src/agents/agent.rs` with the state machine in `crates/goose/src/agents/state_machine/`. The state-machine path is enabled with `GOOSE_STATE_MACHINE=1`.
+
+Until the migration is complete, changes to agent-loop behavior must be implemented and tested in both paths. When reviewing code, check whether a change to either path also applies to the other and flag missing parity.
+
 ## Setup
 ```bash
 source bin/activate-hermit

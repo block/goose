@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::Path;
 
 use anyhow::{anyhow, Result};
 
@@ -88,6 +89,26 @@ pub fn list_commands() -> &'static [CommandDef] {
     COMMANDS
 }
 
+pub fn context_management_unsupported_message(command: &str, provider: &str) -> String {
+    format!(
+        "/{command} is not available for provider '{provider}' because it manages its own conversation context"
+    )
+}
+
+pub fn is_known_slash_command(message_text: &str, working_dir: Option<&Path>) -> bool {
+    let Some(parsed) = parse_slash_command(message_text) else {
+        return false;
+    };
+
+    COMMANDS
+        .iter()
+        .any(|command| command.name == parsed.command)
+        || recipe_slash_command::get_recipe_for_command(parsed.command).is_some()
+        || skill_slash_command::list_commands(working_dir)
+            .into_iter()
+            .any(|command| command.name.eq_ignore_ascii_case(parsed.command))
+}
+
 fn is_clear_goal_param(params_str: &str) -> bool {
     matches!(params_str, "off" | "clear" | "none")
 }
@@ -150,6 +171,14 @@ impl Agent {
     }
 
     async fn handle_compact_command(&self, session_id: &str) -> Result<Option<Message>> {
+        let provider = self.provider().await?;
+        if provider.manages_own_context() {
+            return Err(anyhow!(context_management_unsupported_message(
+                "compact",
+                provider.get_name()
+            )));
+        }
+
         let manager = self.config.session_manager.clone();
         let session = manager.get_session(session_id, true).await?;
         let conversation = session
@@ -158,7 +187,7 @@ impl Agent {
 
         let model_config = self.model_config_for_session(session_id).await?;
         let compaction = compact_messages(
-            self.provider().await?.as_ref(),
+            provider.as_ref(),
             &model_config,
             session_id,
             &conversation,
@@ -183,6 +212,14 @@ impl Agent {
 
     async fn handle_clear_command(&self, session_id: &str) -> Result<Option<Message>> {
         use crate::conversation::Conversation;
+
+        let provider = self.provider().await?;
+        if provider.manages_own_context() {
+            return Err(anyhow!(context_management_unsupported_message(
+                "clear",
+                provider.get_name()
+            )));
+        }
 
         let manager = self.config.session_manager.clone();
         manager
@@ -408,7 +445,6 @@ impl Agent {
                     .await?
                     .conversation
                     .ok_or_else(|| anyhow!("No conversation found"))?
-                    .messages()
                     .last()
                     .cloned()
                     .ok_or_else(|| anyhow!("No messages in conversation"))?;
@@ -425,12 +461,19 @@ impl Agent {
         &self,
         command: &str,
         params_str: &str,
-        _session_id: &str,
+        session_id: &str,
     ) -> Result<Option<Message>> {
         match recipe_slash_command::resolve_command(command, params_str) {
             Ok(None) => Ok(None),
-            Ok(Some((response, prompt))) => {
-                self.apply_recipe_components(response, true).await;
+            Ok(Some((recipe, prompt))) => {
+                self.apply_recipe_components(recipe.response.clone(), true)
+                    .await;
+                self.config
+                    .session_manager
+                    .update(session_id)
+                    .recipe(Some(recipe))
+                    .apply()
+                    .await?;
                 Ok(Some(Message::user().with_text(prompt)))
             }
             Err(text) => Ok(Some(Message::assistant().with_text(text))),

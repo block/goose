@@ -149,9 +149,6 @@ impl McpClientTrait for SkillsClient {
                     && matches!(s.source_type, SourceType::Skill | SourceType::BuiltinSkill)
             }) {
                 let skill_dir = PathBuf::from(&skill.path);
-                let canonical_skill_dir = skill_dir
-                    .canonicalize()
-                    .unwrap_or_else(|_| skill_dir.clone());
 
                 for file_path in &skill.supporting_files {
                     let file_path_buf = Path::new(file_path);
@@ -162,30 +159,14 @@ impl McpClientTrait for SkillsClient {
                         continue;
                     }
 
-                    return Ok(match file_path_buf.canonicalize() {
-                        Ok(canonical) if canonical.starts_with(&canonical_skill_dir) => {
-                            match std::fs::read_to_string(&canonical) {
-                                Ok(content) => {
-                                    CallToolResult::success(vec![ContentBlock::text(format!(
-                                        "# Loaded: {}\n\n{}\n\n---\nFile loaded into context.",
-                                        skill_name, content
-                                    ))])
-                                }
-                                Err(e) => CallToolResult::error(vec![ContentBlock::text(format!(
-                                    "Failed to read '{}': {}",
-                                    skill_name, e
-                                ))]),
-                            }
-                        }
-                        Ok(_) => CallToolResult::error(vec![ContentBlock::text(format!(
-                            "Refusing to load '{}': resolves outside the skill directory",
-                            skill_name
-                        ))]),
+                    let result = match super::load_supporting_file(&skill_dir, rel, skill_name) {
+                        Ok(content) => CallToolResult::success(vec![ContentBlock::text(content)]),
                         Err(e) => CallToolResult::error(vec![ContentBlock::text(format!(
-                            "Failed to resolve '{}': {}",
+                            "Failed to read '{}': {}",
                             skill_name, e
                         ))]),
-                    });
+                    };
+                    return Ok(result);
                 }
 
                 let available: Vec<String> = skill
@@ -289,6 +270,8 @@ mod tests {
             "---\nname: my-skill\ndescription: A test skill\n---\nDo the thing.",
         )
         .unwrap();
+        fs::create_dir(skill_dir.join("nested")).unwrap();
+        fs::write(skill_dir.join("nested/guide.md"), "Nested guidance.").unwrap();
 
         let session = std::sync::Arc::new(crate::session::Session {
             working_dir: temp_dir.path().to_path_buf(),
@@ -297,6 +280,7 @@ mod tests {
         let client = SkillsClient::new(PlatformExtensionContext {
             extension_manager: None,
             session_manager: Arc::new(crate::session::SessionManager::instance()),
+            scheduler: None,
             session: Some(session),
             use_login_shell_path: false,
         })
@@ -323,6 +307,21 @@ mod tests {
         };
         assert!(text.contains("my-skill"));
         assert!(text.contains("Do the thing"));
+
+        let args: JsonObject =
+            serde_json::from_value(serde_json::json!({"name": "my-skill/nested/guide.md"}))
+                .unwrap();
+        let result = client
+            .call_tool(&ctx, "load_skill", Some(args), CancellationToken::new())
+            .await
+            .unwrap();
+
+        assert!(!result.is_error.unwrap_or(false));
+        let text = match &result.content[0] {
+            rmcp::model::ContentBlock::Text(t) => &t.text,
+            _ => panic!("expected text"),
+        };
+        assert!(text.contains("Nested guidance."));
     }
 
     #[tokio::test]
@@ -330,6 +329,7 @@ mod tests {
         let client = SkillsClient::new(PlatformExtensionContext {
             extension_manager: None,
             session_manager: Arc::new(crate::session::SessionManager::instance()),
+            scheduler: None,
             session: None,
             use_login_shell_path: false,
         })

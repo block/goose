@@ -41,7 +41,11 @@ pub struct ChatRecallClient {
 }
 
 fn format_agent_visible_excerpt(conversation: &Conversation) -> Option<(usize, String)> {
-    let messages = conversation.agent_visible_messages();
+    let messages: Vec<_> = conversation
+        .agent_visible_messages()
+        .into_iter()
+        .filter(|message| !message.is_turn_context())
+        .collect();
     let total = messages.len();
     if total == 0 {
         return None;

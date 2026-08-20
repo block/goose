@@ -2,8 +2,9 @@ use super::{
     Gateway, GatewayConfig, GatewayHandler, IncomingMessage, OutgoingMessage, PlatformUser,
 };
 use async_trait::async_trait;
-use reqwest::Client;
-use serde::Deserialize;
+use reqwest::{Client, RequestBuilder, Response};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
 const TELEGRAM_API_BASE: &str = "https://api.telegram.org";
@@ -16,6 +17,18 @@ const MAX_VOICE_FILE_SIZE: i64 = 20 * 1024 * 1024;
 pub struct TelegramGateway {
     bot_token: String,
     client: Client,
+    api_base: String,
+}
+
+#[derive(Debug, Serialize)]
+struct SendRichMessageRequest<'a> {
+    chat_id: i64,
+    rich_message: InputRichMessage<'a>,
+}
+
+#[derive(Debug, Serialize)]
+struct InputRichMessage<'a> {
+    markdown: &'a str,
 }
 
 #[derive(Debug, Deserialize)]
@@ -106,11 +119,31 @@ impl TelegramGateway {
             .http1_only()
             .build()?;
 
-        Ok(Self { bot_token, client })
+        Ok(Self {
+            bot_token,
+            client,
+            api_base: TELEGRAM_API_BASE.to_string(),
+        })
     }
 
     fn api_url(&self, method: &str) -> String {
-        format!("{}/bot{}/{}", TELEGRAM_API_BASE, self.bot_token, method)
+        format!("{}/bot{}/{}", self.api_base, self.bot_token, method)
+    }
+
+    async fn send_request(request: RequestBuilder) -> reqwest::Result<Response> {
+        request.send().await.map_err(reqwest::Error::without_url)
+    }
+
+    async fn response_json<T: DeserializeOwned>(response: Response) -> reqwest::Result<T> {
+        response.json().await.map_err(reqwest::Error::without_url)
+    }
+
+    async fn response_bytes(response: Response) -> reqwest::Result<Vec<u8>> {
+        response
+            .bytes()
+            .await
+            .map(Vec::from)
+            .map_err(reqwest::Error::without_url)
     }
 
     async fn get_updates(&self, offset: Option<i64>) -> anyhow::Result<Vec<TelegramUpdate>> {
@@ -122,15 +155,14 @@ impl TelegramGateway {
             params["offset"] = serde_json::json!(offset);
         }
 
-        let resp: TelegramResponse<Vec<TelegramUpdate>> = self
-            .client
-            .post(self.api_url("getUpdates"))
-            .json(&params)
-            .timeout(std::time::Duration::from_secs(POLL_TIMEOUT_SECS + 10))
-            .send()
-            .await?
-            .json()
-            .await?;
+        let response = Self::send_request(
+            self.client
+                .post(self.api_url("getUpdates"))
+                .json(&params)
+                .timeout(std::time::Duration::from_secs(POLL_TIMEOUT_SECS + 10)),
+        )
+        .await?;
+        let resp: TelegramResponse<Vec<TelegramUpdate>> = Self::response_json(response).await?;
 
         resp.result.ok_or_else(|| {
             anyhow::anyhow!(
@@ -141,37 +173,34 @@ impl TelegramGateway {
     }
 
     async fn send_text(&self, chat_id: i64, text: &str) -> anyhow::Result<()> {
-        let html = super::telegram_format::markdown_to_telegram_html(text);
-        for chunk in split_message(&html, MAX_MESSAGE_LENGTH) {
-            let resp = self
-                .client
-                .post(self.api_url("sendMessage"))
-                .json(&serde_json::json!({
-                    "chat_id": chat_id,
-                    "text": chunk,
-                    "parse_mode": "HTML",
-                }))
-                .send()
-                .await?;
+        let chunks = split_message(text, MAX_MESSAGE_LENGTH);
+        for (index, chunk) in chunks.iter().enumerate() {
+            let resp = Self::send_request(self.client.post(self.api_url("sendRichMessage")).json(
+                &SendRichMessageRequest {
+                    chat_id,
+                    rich_message: InputRichMessage { markdown: chunk },
+                },
+            ))
+            .await?;
 
-            if let Ok(body) = resp.json::<TelegramResponse<serde_json::Value>>().await {
+            if let Ok(body) = Self::response_json::<TelegramResponse<serde_json::Value>>(resp).await
+            {
                 if !body.ok {
                     tracing::warn!(
                         error = body.description.as_deref().unwrap_or("unknown"),
-                        "Telegram rejected HTML, falling back to plain text"
+                        "Telegram rejected rich markdown, falling back to plain text"
                     );
-                    for plain_chunk in split_message(text, MAX_MESSAGE_LENGTH) {
-                        let plain_resp = self
-                            .client
-                            .post(self.api_url("sendMessage"))
-                            .json(&serde_json::json!({
-                                "chat_id": chat_id,
-                                "text": plain_chunk,
-                            }))
-                            .send()
-                            .await?
-                            .json::<TelegramResponse<serde_json::Value>>()
+                    for plain_chunk in &chunks[index..] {
+                        let plain_response =
+                            Self::send_request(self.client.post(self.api_url("sendMessage")).json(
+                                &serde_json::json!({
+                                    "chat_id": chat_id,
+                                    "text": plain_chunk,
+                                }),
+                            ))
                             .await?;
+                        let plain_resp: TelegramResponse<serde_json::Value> =
+                            Self::response_json(plain_response).await?;
                         if !plain_resp.ok {
                             anyhow::bail!(
                                 "Telegram sendMessage failed: {}",
@@ -187,14 +216,13 @@ impl TelegramGateway {
     }
 
     async fn send_chat_action(&self, chat_id: i64, action: &str) -> anyhow::Result<()> {
-        self.client
-            .post(self.api_url("sendChatAction"))
-            .json(&serde_json::json!({
+        Self::send_request(self.client.post(self.api_url("sendChatAction")).json(
+            &serde_json::json!({
                 "chat_id": chat_id,
                 "action": action,
-            }))
-            .send()
-            .await?;
+            }),
+        ))
+        .await?;
         Ok(())
     }
 
@@ -205,14 +233,13 @@ impl TelegramGateway {
     /// 2. Fetch the raw bytes from `https://api.telegram.org/file/bot<TOKEN>/<file_path>`.
     async fn download_file(&self, file_id: &str) -> anyhow::Result<Vec<u8>> {
         // Step 1 – resolve file_id → file_path
-        let resp: TelegramResponse<TelegramFile> = self
-            .client
-            .post(self.api_url("getFile"))
-            .json(&serde_json::json!({ "file_id": file_id }))
-            .send()
-            .await?
-            .json()
-            .await?;
+        let response = Self::send_request(
+            self.client
+                .post(self.api_url("getFile"))
+                .json(&serde_json::json!({ "file_id": file_id })),
+        )
+        .await?;
+        let resp: TelegramResponse<TelegramFile> = Self::response_json(response).await?;
 
         let tg_file = resp.result.ok_or_else(|| {
             anyhow::anyhow!(
@@ -230,8 +257,8 @@ impl TelegramGateway {
             "{}/file/bot{}/{}",
             TELEGRAM_API_BASE, self.bot_token, file_path
         );
-        let bytes = self.client.get(&download_url).send().await?.bytes().await?;
-        Ok(bytes.to_vec())
+        let response = Self::send_request(self.client.get(&download_url)).await?;
+        Ok(Self::response_bytes(response).await?)
     }
 
     /// Save voice bytes to a temporary file and return the path.
@@ -501,13 +528,8 @@ impl Gateway for TelegramGateway {
     }
 
     async fn validate_config(&self) -> anyhow::Result<()> {
-        let resp: TelegramResponse<serde_json::Value> = self
-            .client
-            .get(self.api_url("getMe"))
-            .send()
-            .await?
-            .json()
-            .await?;
+        let response = Self::send_request(self.client.get(self.api_url("getMe"))).await?;
+        let resp: TelegramResponse<serde_json::Value> = Self::response_json(response).await?;
 
         if !resp.ok {
             anyhow::bail!(
@@ -592,6 +614,211 @@ fn split_message(text: &str, max_len: usize) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+    use wiremock::matchers::{body_json, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    const SECRET_BOT_TOKEN: &str = "123456789:AASecret_Telegram_Token";
+
+    fn test_gateway(api_base: String) -> TelegramGateway {
+        TelegramGateway {
+            bot_token: "test-token".to_string(),
+            client: Client::builder().no_proxy().build().unwrap(),
+            api_base,
+        }
+    }
+
+    fn secret_gateway(api_base: String) -> TelegramGateway {
+        TelegramGateway {
+            bot_token: SECRET_BOT_TOKEN.to_string(),
+            client: Client::builder().no_proxy().build().unwrap(),
+            api_base,
+        }
+    }
+
+    fn assert_log_fields_are_redacted(
+        error: &(impl std::fmt::Display + std::fmt::Debug),
+        diagnostic: &str,
+    ) {
+        let display_log_field = format!("{error}");
+        let debug_log_field = format!("{error:?}");
+
+        for rendered in [&display_log_field, &debug_log_field] {
+            assert!(!rendered.contains(SECRET_BOT_TOKEN), "{rendered}");
+        }
+        assert!(
+            display_log_field.contains(diagnostic),
+            "{display_log_field}"
+        );
+    }
+
+    #[tokio::test]
+    async fn request_errors_remove_token_url_from_display_and_debug() {
+        let server = MockServer::start().await;
+        let request_path = format!("/bot{SECRET_BOT_TOKEN}/getMe");
+        let redirect_url = format!("{}{request_path}", server.uri());
+
+        Mock::given(method("GET"))
+            .and(path(request_path))
+            .respond_with(
+                ResponseTemplate::new(302).append_header("Location", redirect_url.as_str()),
+            )
+            .mount(&server)
+            .await;
+
+        let error = secret_gateway(server.uri())
+            .validate_config()
+            .await
+            .unwrap_err();
+
+        assert_log_fields_are_redacted(&error, "redirect");
+        assert!(error
+            .downcast_ref::<reqwest::Error>()
+            .unwrap()
+            .is_redirect());
+        assert!(error
+            .downcast_ref::<reqwest::Error>()
+            .unwrap()
+            .url()
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn response_errors_remove_token_url_from_display_and_debug() {
+        let server = MockServer::start().await;
+        let request_path = format!("/bot{SECRET_BOT_TOKEN}/getUpdates");
+
+        Mock::given(method("POST"))
+            .and(path(request_path))
+            .respond_with(ResponseTemplate::new(200).set_body_raw("{", "application/json"))
+            .mount(&server)
+            .await;
+
+        let error = secret_gateway(server.uri())
+            .get_updates(None)
+            .await
+            .unwrap_err();
+
+        assert_log_fields_are_redacted(&error, "decoding response body");
+        assert!(error.downcast_ref::<reqwest::Error>().unwrap().is_decode());
+        assert!(error
+            .downcast_ref::<reqwest::Error>()
+            .unwrap()
+            .url()
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn timeout_errors_remove_token_url_from_display_and_debug() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let _connection = listener.accept().await.unwrap();
+            std::future::pending::<()>().await;
+        });
+
+        let gateway = secret_gateway(format!("http://{addr}"));
+        let url = gateway.api_url("getMe");
+        let error = TelegramGateway::send_request(
+            gateway
+                .client
+                .get(url)
+                .timeout(std::time::Duration::from_millis(20)),
+        )
+        .await
+        .unwrap_err();
+
+        assert_log_fields_are_redacted(&error, "error sending request");
+        assert!(error.is_timeout());
+        assert!(error.url().is_none());
+    }
+
+    #[tokio::test]
+    async fn body_errors_remove_token_url_from_display_and_debug() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0; 2048];
+            let _ = socket.read(&mut request).await;
+            socket
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\ncontent-length: 32\r\nconnection: close\r\n\r\nshort",
+                )
+                .await
+                .unwrap();
+        });
+
+        let gateway = secret_gateway(format!("http://{addr}"));
+        let url = format!("http://{addr}/file/bot{SECRET_BOT_TOKEN}/voice.ogg");
+        let response = TelegramGateway::send_request(gateway.client.get(url))
+            .await
+            .unwrap();
+        let error = TelegramGateway::response_bytes(response).await.unwrap_err();
+
+        assert_log_fields_are_redacted(&error, "error decoding response body");
+        assert!(error.is_decode());
+        assert!(error.url().is_none());
+    }
+
+    #[tokio::test]
+    async fn send_text_uses_rich_markdown() {
+        let server = MockServer::start().await;
+        let markdown = "| Tool | Status |\n|---|---|\n| **MCP** | `ready` |";
+
+        Mock::given(method("POST"))
+            .and(path("/bottest-token/sendRichMessage"))
+            .and(body_json(serde_json::json!({
+                "chat_id": 123,
+                "rich_message": { "markdown": markdown },
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ok": true,
+                "result": {},
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        test_gateway(server.uri())
+            .send_text(123, markdown)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn send_text_falls_back_from_rejected_rich_markdown_chunk() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/bottest-token/sendRichMessage"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ok": false,
+                "description": "invalid rich markdown",
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/bottest-token/sendMessage"))
+            .and(body_json(serde_json::json!({
+                "chat_id": 123,
+                "text": "broken **markdown",
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ok": true,
+                "result": {},
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        test_gateway(server.uri())
+            .send_text(123, "broken **markdown")
+            .await
+            .unwrap();
+    }
 
     #[test]
     fn split_short_message() {

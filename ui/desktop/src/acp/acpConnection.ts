@@ -1,23 +1,23 @@
-import {
-  DEFAULT_GOOSE_MCP_HOST_CAPABILITIES,
-  GooseClient,
-  type GooseClientCallbacks,
-} from '@aaif/goose-sdk';
-import { PROTOCOL_VERSION, type InitializeResponse } from '@agentclientprotocol/sdk';
+import { DEFAULT_GOOSE_MCP_HOST_CAPABILITIES } from '@aaif/goose-sdk';
+import { methods, PROTOCOL_VERSION, type InitializeResponse } from '@agentclientprotocol/sdk';
+import { createWebSocketStream } from '@agentclientprotocol/sdk/experimental/ws-client';
 import packageJson from '../../package.json';
 import { GOOSE_SERVE_EXITED_USER_MESSAGE } from '../gooseServeLeaseRegistry';
 import {
   handleAcpGooseSessionNotification,
   handleAcpSessionNotification,
 } from './chatNotifications';
-import { createWebSocketStream } from './createWebSocketStream';
 import { requestAcpElicitation } from './elicitationRequests';
+import {
+  connectGooseAcpClient,
+  type GooseAcpCallbacks,
+  type GooseAcpClient,
+} from './gooseAcpClient';
 import { requestAcpPermission } from './permissionRequests';
 import { requestAcpRecipeParams } from './recipeParamRequests';
 
 type AcpConnection = {
-  client: GooseClient;
-  stream: ReturnType<typeof createWebSocketStream>;
+  client: GooseAcpClient;
   initializeResponse: InitializeResponse;
 };
 
@@ -26,6 +26,7 @@ type AcpRecoveryListener = (recovering: boolean) => void;
 const ACP_INITIALIZE_TIMEOUT_MS = 10_000;
 const ACP_RECONNECT_BASE_DELAY_MS = 500;
 const ACP_RECONNECT_MAX_DELAY_MS = 30_000;
+const ACP_V1_PROTOCOL_VERSION: 1 = PROTOCOL_VERSION;
 
 let currentConnection: AcpConnection | null = null;
 let pendingConnection: Promise<AcpConnection> | null = null;
@@ -33,7 +34,7 @@ let connectionGeneration = 0;
 let recovering = false;
 const recoveryListeners = new Set<AcpRecoveryListener>();
 
-export async function getAcpClient(): Promise<GooseClient> {
+export async function getAcpClient(): Promise<GooseAcpClient> {
   return (await getConnection()).client;
 }
 
@@ -77,7 +78,7 @@ function recoverConnection(immediate: boolean): void {
   connectionGeneration += 1;
   currentConnection = null;
   pendingConnection = null;
-  previousConnection?.stream.close();
+  previousConnection?.client.connection.close();
 
   const generation = connectionGeneration;
   const recoveryAttempt = immediate
@@ -132,13 +133,14 @@ async function openConnection(generation: number): Promise<AcpConnection> {
     throw new Error('ACP URL is not available');
   }
 
-  const stream = createWebSocketStream(wsUrl);
-  const client = new GooseClient(createClientCallbacks(), stream);
+  // Electron treats an explicitly passed undefined protocol as a subprotocol.
+  const stream = createWebSocketStream(wsUrl, { protocols: [] });
+  const client = connectGooseAcpClient(stream, createClientCallbacks());
 
   try {
     const initializeResponse = await withTimeout(
-      client.initialize({
-        protocolVersion: PROTOCOL_VERSION,
+      client.connection.agent.request(methods.agent.initialize, {
+        protocolVersion: ACP_V1_PROTOCOL_VERSION,
         _meta: {
           'goose/useLoginShellPath': true,
         },
@@ -165,17 +167,17 @@ async function openConnection(generation: number): Promise<AcpConnection> {
       throw new Error('ACP connection attempt is no longer current');
     }
 
-    const connection = { client, stream, initializeResponse };
+    const connection = { client, initializeResponse };
     currentConnection = connection;
     const handleClose = () => {
       if (currentConnection === connection) {
         recoverConnection(false);
       }
     };
-    connection.client.closed.then(handleClose, handleClose);
+    connection.client.connection.closed.then(handleClose, handleClose);
     return connection;
   } catch (error) {
-    stream.close();
+    client.connection.close(error);
     throw error;
   }
 }
@@ -212,14 +214,14 @@ function delay(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
-function createClientCallbacks(): () => GooseClientCallbacks {
-  return () => ({
+function createClientCallbacks(): GooseAcpCallbacks {
+  return {
     requestPermission: requestAcpPermission,
     unstable_createElicitation: requestAcpElicitation,
     unstable_sessionRecipeRequestParams: requestAcpRecipeParams,
     sessionUpdate: handleAcpSessionNotification,
     unstable_sessionUpdate: handleAcpGooseSessionNotification,
-  });
+  };
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {

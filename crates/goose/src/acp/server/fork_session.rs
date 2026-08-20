@@ -72,7 +72,6 @@ impl GooseAcpAgent {
         if let Some(co) = config_options {
             response = response.config_options(co);
         }
-        self.notify_session_setup(cx, &goose_session).await?;
         Ok(response)
     }
 }

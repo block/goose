@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "Connexion perdue. Reconnexion…"
   },
+  "baseChat.retry": {
+    "defaultMessage": "Réessayer"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extension mise à jour"
   },
@@ -929,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Répertoires récents"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "Impossible de basculer vers {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "Aucune branche trouvée"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "Rechercher des branches…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "Vous avez peut-être des modifications non validées."
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Accepter"
   },
@@ -1225,6 +1240,15 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Se connecter à un serveur goose exécuté ailleurs (nécessite le redémarrage de l'application)"
+  },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "Répertoire de travail distant (facultatif)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "Chemin absolu sur le backend externe. Laissez vide pour envoyer le répertoire de travail local."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
   },
   "goosehintsModal.close": {
     "defaultMessage": "Fermer"
@@ -1877,9 +1901,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "Utiliser {modelId}"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "Annuler"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "Copier le code"
   },
@@ -1889,23 +1910,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "Aucune application trouvée pour ouvrir ce lien."
   },
-  "markdownContent.open": {
-    "defaultMessage": "Ouvrir"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "Ouvrir le lien externe"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "Ouvrir le lien {protocol} ?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "Cela ouvrira : {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "Application"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "Annuler"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "Fermer"
@@ -1930,18 +1936,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "Déplacer la fenêtre Picture-in-Picture (utilisez les touches fléchées)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "Ouvrir"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Ouvrir le lien externe"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "Cela ouvrira : {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "Ouvrir le lien {protocol} ?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Picture-in-Picture"
@@ -3845,6 +3839,12 @@
   "sessions.saving": {
     "defaultMessage": "Enregistrement..."
   },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count,plural,one{{count} job} other{{count} jobs}}"
+  },
   "sessions.search.noResults": {
     "defaultMessage": "Aucune session correspondante trouvée"
   },
@@ -4415,6 +4415,9 @@
   "telemetrySettings.updateError": {
     "defaultMessage": "Échec de la mise à jour des paramètres de télémétrie."
   },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
+  },
   "themeSelector.dark": {
     "defaultMessage": "Sombre"
   },
@@ -4612,5 +4615,35 @@
   },
   "userMessage.removeImageFromEdit": {
     "defaultMessage": "Supprimer l'image du message"
+  },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "Récents"
+  },
+  "providerConfigurationModal.chooseModel": {
+    "defaultMessage": "Choisir un modèle"
+  },
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Obsolète — utilisez plutôt {replacement}."
+  },
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "Adaptateur ACP trouvé"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "Adaptateur ACP introuvable"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Connectez-vous à partir de la CLI du fournisseur, puis vérifiez à nouveau."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Vérifier à nouveau"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "Vérification..."
+  },
+  "acpReadinessPanel.connected": {
+    "defaultMessage": "Connexion réussie"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Vérifiez la connexion de votre compte avant de continuer."
   }
 }

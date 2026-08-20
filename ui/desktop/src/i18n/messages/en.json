@@ -1,4 +1,25 @@
 {
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "ACP adapter found"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "ACP adapter not found"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Sign in through the provider CLI, then check again."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Check again"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "Checking..."
+  },
+  "acpReadinessPanel.connected": {
+    "defaultMessage": "Connected successfully"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Check your account connection before continuing."
+  },
   "alertBox.autoCompactAt": {
     "defaultMessage": "Auto compact at"
   },
@@ -133,6 +154,9 @@
   },
   "baseChat.reconnecting": {
     "defaultMessage": "Connection lost. Reconnecting…"
+  },
+  "baseChat.retry": {
+    "defaultMessage": "Retry"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extension Updated"
@@ -1226,6 +1250,27 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Connect to an ACP-compatible backend running elsewhere."
   },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "Remote Working Directory (optional)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "Absolute path on the external backend. Leave blank to send the local working directory."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
+  },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "Failed to switch to {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "No branches found"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "Search branches…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "You may have uncommitted changes."
+  },
   "goosehintsModal.close": {
     "defaultMessage": "Close"
   },
@@ -1877,9 +1922,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "Use {modelId}"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "Cancel"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "Copy code"
   },
@@ -1889,23 +1931,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "No application found to open this link."
   },
-  "markdownContent.open": {
-    "defaultMessage": "Open"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "Open External Link"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "Open {protocol} link?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "This will open: {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "App"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "Cancel"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "Close"
@@ -1930,18 +1957,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "Move Picture-in-Picture window (use arrow keys)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "Open"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Open External Link"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "This will open: {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "Open {protocol} link?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Picture-in-Picture"
@@ -2321,6 +2336,9 @@
   "modelsBottomBar.localModelSettingsTitle": {
     "defaultMessage": "Local Model Settings — {modelName}"
   },
+  "modelsBottomBar.recentModels": {
+    "defaultMessage": "Recent"
+  },
   "modelsBottomBar.resolvedModel": {
     "defaultMessage": "Resolved model"
   },
@@ -2693,6 +2711,9 @@
   "promptsSettings.unsavedChanges": {
     "defaultMessage": "You have unsaved changes"
   },
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Deprecated — use {replacement} instead."
+  },
   "providerCard.noMetadata": {
     "defaultMessage": "ProviderCard error: No metadata provided"
   },
@@ -2773,6 +2794,9 @@
   },
   "providerConfigurationModal.checkConfigAgain": {
     "defaultMessage": "Check your configuration again to use this provider."
+  },
+  "providerConfigurationModal.chooseModel": {
+    "defaultMessage": "Choose model"
   },
   "providerConfigurationModal.close": {
     "defaultMessage": "Close"
@@ -3845,6 +3869,12 @@
   "sessions.saving": {
     "defaultMessage": "Saving..."
   },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count,plural,one{{count} job} other{{count} jobs}}"
+  },
   "sessions.search.noResults": {
     "defaultMessage": "No matching sessions found"
   },
@@ -4414,6 +4444,9 @@
   },
   "telemetrySettings.updateError": {
     "defaultMessage": "Failed to update telemetry settings."
+  },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
   },
   "themeSelector.dark": {
     "defaultMessage": "Dark"

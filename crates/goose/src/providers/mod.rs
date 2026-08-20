@@ -17,6 +17,7 @@ pub mod bedrock;
 pub mod canonical {
     pub use goose_providers::canonical::*;
 }
+pub mod canonical_cost;
 mod catalog_util;
 pub mod catalog {
     pub use super::catalog_util::*;

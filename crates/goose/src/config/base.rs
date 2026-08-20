@@ -150,7 +150,15 @@ enum SecretStorage {
 // Global instance
 static GLOBAL_CONFIG: OnceCell<Config> = OnceCell::new();
 
+#[cfg(test)]
+pub(crate) const TEST_SYSTEM_CONFIG_PATH_ENV: &str = "GOOSE_TEST_SYSTEM_CONFIG_PATH";
+
 fn system_config_path() -> PathBuf {
+    #[cfg(test)]
+    if let Some(path) = env::var_os(TEST_SYSTEM_CONFIG_PATH_ENV) {
+        return path.into();
+    }
+
     #[cfg(unix)]
     {
         PathBuf::from("/etc/goose/config.yaml")
@@ -167,6 +175,25 @@ fn additional_config_paths_from_env() -> Vec<PathBuf> {
     env::var_os("GOOSE_ADDITIONAL_CONFIG_FILES")
         .map(|value| env::split_paths(&value).collect())
         .unwrap_or_default()
+}
+
+fn metadata_is_symlink_or_reparse_point(metadata: &std::fs::Metadata) -> bool {
+    if metadata.file_type().is_symlink() {
+        return true;
+    }
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+
+        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+        metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+    }
+
+    #[cfg(not(windows))]
+    {
+        false
+    }
 }
 
 impl Default for Config {
@@ -512,6 +539,37 @@ impl Config {
                     tracing::warn!("Failed to load config {:?}: {}. Skipping.", path, e);
                 }
             }
+        }
+
+        crate::config::migrations::run_read_migrations(&mut merged);
+
+        Ok(merged)
+    }
+
+    fn load_strict(&self) -> Result<Mapping, ConfigError> {
+        let mut merged = Mapping::new();
+
+        for path in &self.config_paths {
+            match std::fs::symlink_metadata(path) {
+                Ok(_) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    for ancestor in path.ancestors().skip(1) {
+                        match std::fs::symlink_metadata(ancestor) {
+                            Ok(metadata) if metadata_is_symlink_or_reparse_point(&metadata) => {
+                                std::fs::metadata(ancestor)?;
+                            }
+                            Ok(_) => {}
+                            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                            Err(error) => return Err(error.into()),
+                        }
+                    }
+                    continue;
+                }
+                Err(error) => return Err(error.into()),
+            }
+            let content = std::fs::read_to_string(path)?;
+            let layer = parse_yaml_content(&content)?;
+            merge_config_values(&mut merged, layer);
         }
 
         crate::config::migrations::run_read_migrations(&mut merged);
@@ -1107,6 +1165,26 @@ config_value!(CHATGPT_CODEX_REASONING_EFFORT, String, "medium");
 
 config_value!(GOOSE_SEARCH_PATHS, Vec<String>);
 config_value!(GOOSE_MODE, GooseMode);
+impl Config {
+    pub(crate) fn get_goose_mode_strict(&self) -> Result<GooseMode, ConfigError> {
+        match env::var("GOOSE_MODE") {
+            Ok(value) => {
+                let value = Self::parse_env_value(&value)?;
+                Ok(serde_json::from_value(value)?)
+            }
+            Err(env::VarError::NotPresent) => {
+                let values = self.load_strict()?;
+                let value = values
+                    .get("GOOSE_MODE")
+                    .ok_or_else(|| ConfigError::NotFound("GOOSE_MODE".to_string()))?;
+                Ok(serde_yaml::from_value(value.clone())?)
+            }
+            Err(env::VarError::NotUnicode(_)) => Err(ConfigError::DeserializeError(
+                "GOOSE_MODE contains non-Unicode data".to_string(),
+            )),
+        }
+    }
+}
 // GOOSE_PROVIDER and GOOSE_MODEL are handled by crate::config::providers
 // which checks the structured `providers:` block first and falls back to
 // the legacy flat keys. The accessors below delegate to that module.

@@ -28,34 +28,13 @@ const customOneDarkTheme = {
 
 import { Check, Copy } from './icons';
 import { wrapHTMLInCodeBlock } from '../utils/htmlSecurity';
-import { isProtocolSafe, getProtocol, BLOCKED_PROTOCOLS } from '../utils/urlSecurity';
-import { ConfirmationModal } from './ui/ConfirmationModal';
+import { BLOCKED_PROTOCOLS } from '../utils/urlSecurity';
 import { defineMessages, useIntl } from '../i18n';
 
 const i18n = defineMessages({
   copyCode: {
     id: 'markdownContent.copyCode',
     defaultMessage: 'Copy code',
-  },
-  openExternalLink: {
-    id: 'markdownContent.openExternalLink',
-    defaultMessage: 'Open External Link',
-  },
-  openProtocolLink: {
-    id: 'markdownContent.openProtocolLink',
-    defaultMessage: 'Open {protocol} link?',
-  },
-  thisWillOpen: {
-    id: 'markdownContent.thisWillOpen',
-    defaultMessage: 'This will open: {href}',
-  },
-  open: {
-    id: 'markdownContent.open',
-    defaultMessage: 'Open',
-  },
-  cancel: {
-    id: 'markdownContent.cancel',
-    defaultMessage: 'Cancel',
   },
   failedToOpenLink: {
     id: 'markdownContent.failedToOpenLink',
@@ -204,7 +183,6 @@ const MarkdownContent = memo(function MarkdownContent({
 }: MarkdownContentProps) {
   const intl = useIntl();
   const [processedContent, setProcessedContent] = useState(content);
-  const [pendingLink, setPendingLink] = useState<{ protocol: string; href: string } | null>(null);
 
   useEffect(() => {
     try {
@@ -216,31 +194,26 @@ const MarkdownContent = memo(function MarkdownContent({
     }
   }, [content]);
 
-  const handleConfirmOpen = useCallback(async () => {
-    if (pendingLink) {
+  const handleOpenExternal = useCallback(
+    async (href: string) => {
       try {
-        await window.electron.openExternal(pendingLink.href);
+        await window.electron.openExternal(href);
       } catch {
         await window.electron.showMessageBox({
           type: 'error',
           buttons: ['OK'],
           title: intl.formatMessage(i18n.failedToOpenLink),
           message: intl.formatMessage(i18n.noApplicationFound),
-          detail: pendingLink.href,
+          detail: href,
         });
       }
-    }
-    setPendingLink(null);
-  }, [pendingLink, intl]);
-
-  const handleCancelOpen = useCallback(() => {
-    setPendingLink(null);
-  }, []);
+    },
+    [intl]
+  );
 
   return (
-    <>
-      <div
-        className={`w-full overflow-x-hidden prose prose-sm text-text-primary dark:prose-invert max-w-full word-break font-sans
+    <div
+      className={`w-full overflow-x-hidden prose prose-sm text-text-primary dark:prose-invert max-w-full word-break font-sans
         prose-pre:p-0 prose-pre:m-0 !p-0
         prose-code:break-all prose-code:whitespace-pre-wrap prose-code:font-mono
         prose-a:break-all prose-a:overflow-wrap-anywhere
@@ -256,60 +229,43 @@ const MarkdownContent = memo(function MarkdownContent({
         prose-ol:my-2 prose-ol:font-sans
         prose-ul:mt-0 prose-ul:mb-3 prose-ul:font-sans
         prose-li:m-0 prose-li:font-sans ${className}`}
-      >
-        <ReactMarkdown
-          urlTransform={customUrlTransform}
-          remarkPlugins={[remarkGfm, remarkBreaks, [remarkMath, { singleDollarTextMath: false }]]}
-          rehypePlugins={[
-            [
-              rehypeKatex,
-              {
-                throwOnError: false,
-                errorColor: '#cc0000',
-                strict: false,
-              },
-            ],
-          ]}
-          components={{
-            a: (props) => {
-              return (
-                <a
-                  {...props}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (!props.href) return;
-
-                    if (isProtocolSafe(props.href)) {
-                      window.electron.openExternal(props.href);
-                    } else {
-                      const protocol = getProtocol(props.href);
-                      if (!protocol) return;
-                      setPendingLink({ protocol, href: props.href });
-                    }
-                  }}
-                />
-              );
+    >
+      <ReactMarkdown
+        urlTransform={customUrlTransform}
+        remarkPlugins={[remarkGfm, remarkBreaks, [remarkMath, { singleDollarTextMath: false }]]}
+        rehypePlugins={[
+          [
+            rehypeKatex,
+            {
+              throwOnError: false,
+              errorColor: '#cc0000',
+              strict: false,
             },
-            code: MarkdownCode,
-          }}
-        >
-          {processedContent}
-        </ReactMarkdown>
-      </div>
-      <ConfirmationModal
-        isOpen={pendingLink !== null}
-        title={intl.formatMessage(i18n.openExternalLink)}
-        message={intl.formatMessage(i18n.openProtocolLink, { protocol: pendingLink?.protocol ?? '' })}
-        detail={intl.formatMessage(i18n.thisWillOpen, { href: pendingLink?.href ?? '' })}
-        onConfirm={handleConfirmOpen}
-        onCancel={handleCancelOpen}
-        confirmLabel={intl.formatMessage(i18n.open)}
-        cancelLabel={intl.formatMessage(i18n.cancel)}
-      />
-    </>
+          ],
+        ]}
+        components={{
+          a: (props) => {
+            return (
+              <a
+                {...props}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!props.href) return;
+
+                  void handleOpenExternal(props.href);
+                }}
+              />
+            );
+          },
+          code: MarkdownCode,
+        }}
+      >
+        {processedContent}
+      </ReactMarkdown>
+    </div>
   );
 });
 
