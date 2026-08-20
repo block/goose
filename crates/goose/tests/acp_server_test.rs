@@ -3,16 +3,17 @@
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
 use agent_client_protocol::schema::v1::{
-    ContentBlock, ListSessionsRequest, ListSessionsResponse, NewSessionRequest, PromptRequest,
-    SessionConfigKind, SessionConfigOptionCategory, SessionConfigOptionValue, SessionInfo,
-    SetSessionConfigOptionRequest, StopReason, TextContent,
+    ContentBlock, ListSessionsRequest, ListSessionsResponse, McpServer, McpServerHttp,
+    NewSessionRequest, PromptRequest, SessionConfigKind, SessionConfigOptionCategory,
+    SessionConfigOptionValue, SessionInfo, SetSessionConfigOptionRequest, StopReason, TextContent,
 };
 use agent_client_protocol::ErrorCode;
 use common_tests::fixtures::server::{
     assert_session_response_precedes_available_commands, AcpServerConnection,
 };
 use common_tests::fixtures::{
-    run_test, spawn_acp_server_in_process, Connection, OpenAiFixture, Session, TestConnectionConfig,
+    run_test, spawn_acp_server_in_process, Connection, DuplexTransport, OpenAiFixture,
+    PermissionDecision, Session, SessionData, TestConnectionConfig,
 };
 #[cfg(feature = "code-mode")]
 use common_tests::run_prompt_codemode;
@@ -29,12 +30,15 @@ use common_tests::{
     run_shell_terminal_false, run_shell_terminal_true, GENERATED_SESSION_TITLE,
     OPENAI_SESSION_NAME_RESPONSE, TURN_CONTEXT_OPEN,
 };
+use futures::StreamExt as _;
+use futures::{AsyncBufReadExt as _, AsyncWriteExt as _};
 use goose::config::GooseMode;
 use goose::conversation::message::{Message, MessageMetadata};
 use goose::custom_requests::{GetSessionInfoRequest, GetSessionInfoResponse};
 use goose::recipe::{Recipe, Settings};
 use goose::recipe_deeplink;
 use goose::session::{SessionManager, SessionType};
+use goose_test_support::TEST_MODEL;
 use std::path::Path;
 
 tests_config_option_set_error!(AcpServerConnection);
@@ -795,6 +799,276 @@ fn test_new_session_cleans_up_when_config_fails() {
             .await
             .unwrap();
         assert!(sessions.is_empty());
+    });
+}
+
+/// A TCP endpoint that accepts connections but never answers, so an MCP
+/// extension pointed at it stalls on `initialize` until its timeout.
+async fn stalling_endpoint() -> String {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        let mut held = Vec::new();
+        while let Ok((socket, _)) = listener.accept().await {
+            held.push(socket);
+        }
+    });
+    format!("http://{addr}/mcp")
+}
+
+/// An endpoint where connections are refused immediately.
+fn refused_endpoint() -> String {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    drop(listener);
+    format!("http://{addr}/mcp")
+}
+
+fn write_config_with_http_extension(data_root: &Path, name: &str, uri: &str) {
+    let config_path = data_root.join(goose::config::base::CONFIG_YAML_NAME);
+    std::fs::write(
+        &config_path,
+        format!(
+            "GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\nGOOSE_MODE: auto\nGOOSE_TOOL_PAIR_SUMMARIZATION: false\nextensions:\n  {name}:\n    enabled: true\n    type: streamable_http\n    name: {name}\n    description: test extension\n    uri: \"{uri}\"\n"
+        ),
+    )
+    .unwrap();
+}
+
+/// Minimal JSON-RPC client over the raw ACP transport, for tests that need
+/// wire-level control (goose capabilities, notification ordering).
+struct RawAcpClient {
+    outgoing: common_tests::fixtures::CompatDuplexStream,
+    incoming:
+        futures::io::Lines<futures::io::BufReader<common_tests::fixtures::CompatDuplexStream>>,
+    next_id: u64,
+}
+
+impl RawAcpClient {
+    async fn initialize(&mut self, goose_custom_notifications: bool) {
+        let capabilities = if goose_custom_notifications {
+            serde_json::json!({ "_meta": { "goose": { "customNotifications": true } } })
+        } else {
+            serde_json::json!({})
+        };
+        let response = self
+            .request(
+                "initialize",
+                serde_json::json!({
+                    "protocolVersion": 1,
+                    "clientCapabilities": capabilities,
+                }),
+            )
+            .await;
+        assert!(
+            response["result"]["protocolVersion"].is_number(),
+            "unexpected initialize response: {response}"
+        );
+    }
+
+    async fn request(&mut self, method: &str, params: serde_json::Value) -> serde_json::Value {
+        let id = self.next_id;
+        self.next_id += 1;
+        self.send(serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": method,
+            "params": params,
+        }))
+        .await;
+        self.response(id).await
+    }
+
+    async fn send(&mut self, message: serde_json::Value) {
+        self.outgoing
+            .write_all(format!("{message}\n").as_bytes())
+            .await
+            .unwrap();
+        self.outgoing.flush().await.unwrap();
+    }
+
+    async fn response(&mut self, id: u64) -> serde_json::Value {
+        loop {
+            let message = self.next_message().await;
+            if message["id"] == id {
+                return message;
+            }
+        }
+    }
+
+    async fn next_message(&mut self) -> serde_json::Value {
+        let line = self
+            .incoming
+            .next()
+            .await
+            .expect("ACP connection closed")
+            .unwrap();
+        serde_json::from_str(&line).unwrap()
+    }
+}
+
+async fn raw_client(transport: DuplexTransport) -> RawAcpClient {
+    let (outgoing, incoming) = transport.into_parts();
+    RawAcpClient {
+        outgoing,
+        incoming: futures::io::BufReader::new(incoming).lines(),
+        next_id: 0,
+    }
+}
+
+#[test]
+fn test_new_session_returns_before_stalled_extension_loads() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let work_dir = tempfile::tempdir().unwrap();
+        write_config_with_http_extension(
+            data_root.path(),
+            "stalling-mcp",
+            &stalling_endpoint().await,
+        );
+        let openai = OpenAiFixture::new(
+            vec![],
+            <AcpServerConnection as Connection>::expected_session_id(),
+        )
+        .await;
+        let (transport, _handle, _permissions) = spawn_acp_server_in_process(
+            openai.uri(),
+            &[],
+            data_root.path(),
+            GooseMode::default(),
+            None,
+            TEST_MODEL,
+            true,
+        )
+        .await;
+        let mut client = raw_client(transport).await;
+        client.initialize(false).await;
+
+        // The stalling extension's initialize would hold session/new for the
+        // full extension timeout, so a response within the bound below proves
+        // the response is no longer gated on extension loading.
+        let response = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            client.request(
+                "session/new",
+                serde_json::json!({ "cwd": work_dir.path(), "mcpServers": [] }),
+            ),
+        )
+        .await
+        .expect("session/new must not wait for a stalled extension");
+        assert!(
+            response["result"]["sessionId"].is_string(),
+            "unexpected session/new response: {response}"
+        );
+    });
+}
+
+#[test]
+fn test_new_session_extension_failure_surfaces_via_notification() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let work_dir = tempfile::tempdir().unwrap();
+        write_config_with_http_extension(data_root.path(), "refused-mcp", &refused_endpoint());
+        let openai = OpenAiFixture::new(
+            vec![],
+            <AcpServerConnection as Connection>::expected_session_id(),
+        )
+        .await;
+        let (transport, _handle, _permissions) = spawn_acp_server_in_process(
+            openai.uri(),
+            &[],
+            data_root.path(),
+            GooseMode::default(),
+            None,
+            TEST_MODEL,
+            true,
+        )
+        .await;
+        let mut client = raw_client(transport).await;
+        client.initialize(true).await;
+
+        let response = client
+            .request(
+                "session/new",
+                serde_json::json!({ "cwd": work_dir.path(), "mcpServers": [] }),
+            )
+            .await;
+        let session_id = response["result"]["sessionId"]
+            .as_str()
+            .expect("sessionId in session/new response")
+            .to_string();
+
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
+        let mut results = None;
+        while results.is_none() {
+            let message = tokio::time::timeout_at(deadline, client.next_message())
+                .await
+                .expect("timed out waiting for extensions_loaded notification");
+            if message["method"] == "_goose/unstable/session/update"
+                && message["params"]["sessionId"] == session_id
+                && message["params"]["update"]["sessionUpdate"] == "extensions_loaded"
+            {
+                results = Some(message["params"]["update"]["extensionResults"].clone());
+            }
+        }
+        let results = results.expect("extensionResults present");
+        let failed = results
+            .as_array()
+            .expect("extensionResults is an array")
+            .iter()
+            .find(|result| result["name"] == "refused-mcp")
+            .expect("refused-mcp in extensionResults");
+        assert_eq!(failed["success"], false);
+        assert!(failed["error"].is_string());
+
+        // The client already received the sessionId, so a late extension
+        // failure must not delete the session.
+        let info = client
+            .request(
+                "_goose/unstable/session/info",
+                serde_json::json!({ "sessionId": session_id }),
+            )
+            .await;
+        assert_eq!(
+            info["result"]["session"]["sessionId"], session_id,
+            "session must survive a background extension failure: {info}"
+        );
+    });
+}
+
+#[test]
+fn test_prompt_immediately_after_new_session_activates_agent() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let openai = OpenAiFixture::new(
+            vec![(
+                format!("what is 1+1{TURN_CONTEXT_OPEN}"),
+                include_str!("acp_test_data/openai_basic.txt"),
+            )],
+            <AcpServerConnection as Connection>::expected_session_id(),
+        )
+        .await;
+        let mut conn = <AcpServerConnection as Connection>::new(
+            TestConnectionConfig {
+                mcp_servers: vec![McpServer::Http(McpServerHttp::new(
+                    "refused-mcp",
+                    refused_endpoint(),
+                ))],
+                data_root: data_root.path().to_path_buf(),
+                ..Default::default()
+            },
+            openai,
+        )
+        .await;
+
+        // new_session returns before the (fast-failing) extension loaded; the
+        // prompt must lazily activate the same agent instead of failing.
+        let SessionData { mut session, .. } = conn.new_session().await.unwrap();
+        let output = session
+            .prompt("what is 1+1", PermissionDecision::Cancel)
+            .await
+            .unwrap();
+        assert_eq!(output.text, "2");
     });
 }
 

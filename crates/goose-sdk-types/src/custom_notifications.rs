@@ -26,13 +26,15 @@ pub struct GooseSessionNotification {
     "mapping": {
         "usage_update": "#/$defs/SessionUsageUpdate",
         "status_message": "#/$defs/StatusMessageUpdate",
-        "message_usage": "#/$defs/MessageUsageUpdate"
+        "message_usage": "#/$defs/MessageUsageUpdate",
+        "extensions_loaded": "#/$defs/ExtensionsLoadedUpdate"
     }
 }))]
 pub enum GooseSessionUpdate {
     UsageUpdate(SessionUsageUpdate),
     StatusMessage(StatusMessageUpdate),
     MessageUsage(MessageUsageUpdate),
+    ExtensionsLoaded(ExtensionsLoadedUpdate),
 }
 
 impl Default for GooseSessionUpdate {
@@ -100,6 +102,25 @@ pub enum CostSourceData {
     ProviderReported,
     /// Cost computed from the canonical pricing table.
     Estimated,
+}
+
+/// Per-session extension load results, sent once a session whose `session/new`
+/// returned before agent activation finishes loading its extensions.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionsLoadedUpdate {
+    pub extension_results: Vec<ExtensionLoadResultData>,
+}
+
+/// Wire mirror of the agent's `ExtensionLoadResult` (this crate cannot depend
+/// on goose); field names and serde casing MUST stay in parity.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionLoadResultData {
+    pub name: String,
+    pub success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
 /// Live UI/session status. This is not conversation transcript content, and
@@ -173,6 +194,43 @@ mod tests {
                         "type": "notice",
                         "message": "Compaction complete"
                     }
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn extensions_loaded_serializes_to_expected_wire_shape() {
+        let notification = GooseSessionNotification {
+            session_id: "s1".to_string(),
+            update: GooseSessionUpdate::ExtensionsLoaded(ExtensionsLoadedUpdate {
+                extension_results: vec![
+                    ExtensionLoadResultData {
+                        name: "developer".to_string(),
+                        success: true,
+                        error: None,
+                    },
+                    ExtensionLoadResultData {
+                        name: "broken-mcp".to_string(),
+                        success: false,
+                        error: Some("Connection refused".to_string()),
+                    },
+                ],
+            }),
+        };
+
+        let value = serde_json::to_value(notification).unwrap();
+
+        assert_eq!(
+            value,
+            json!({
+                "sessionId": "s1",
+                "update": {
+                    "sessionUpdate": "extensions_loaded",
+                    "extensionResults": [
+                        { "name": "developer", "success": true },
+                        { "name": "broken-mcp", "success": false, "error": "Connection refused" }
+                    ]
                 }
             })
         );

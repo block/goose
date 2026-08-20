@@ -6715,6 +6715,19 @@
           "required": [
             "sessionUpdate"
           ]
+        },
+        {
+          "$ref": "#/$defs/ExtensionsLoadedUpdate",
+          "type": "object",
+          "properties": {
+            "sessionUpdate": {
+              "type": "string",
+              "const": "extensions_loaded"
+            }
+          },
+          "required": [
+            "sessionUpdate"
+          ]
         }
       ],
       "description": "Discriminated union of goose-specific session update payloads.\nVariant tag matches ACP's convention (`sessionUpdate: \"<snake_case>\"`).\n\n`discriminator.mapping` is what makes TS codegen (`@hey-api/openapi-ts`)\nemit the correct snake_case tag value even when this enum has a single\nvariant. Add a mapping entry per variant.",
@@ -6723,7 +6736,8 @@
         "mapping": {
           "usage_update": "#/$defs/SessionUsageUpdate",
           "status_message": "#/$defs/StatusMessageUpdate",
-          "message_usage": "#/$defs/MessageUsageUpdate"
+          "message_usage": "#/$defs/MessageUsageUpdate",
+          "extensions_loaded": "#/$defs/ExtensionsLoadedUpdate"
         }
       }
     },
@@ -6915,6 +6929,43 @@
         "usage"
       ],
       "description": "Per-message token usage/cost/timing, keyed by the message id used for\nchunk matching. Sent live after a turn's messages and on replay."
+    },
+    "ExtensionLoadResultData": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "success": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "success"
+      ],
+      "description": "Wire mirror of the agent's `ExtensionLoadResult` (this crate cannot depend\non goose); field names and serde casing MUST stay in parity."
+    },
+    "ExtensionsLoadedUpdate": {
+      "type": "object",
+      "properties": {
+        "extensionResults": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExtensionLoadResultData"
+          }
+        }
+      },
+      "required": [
+        "extensionResults"
+      ],
+      "description": "Per-session extension load results, sent once a session whose `session/new`\nreturned before agent activation finishes loading its extensions."
     },
     "RequestRecipeParams_unstable": {
       "type": "object",

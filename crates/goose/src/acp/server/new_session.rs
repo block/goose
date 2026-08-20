@@ -6,12 +6,15 @@ use crate::recipe::{Recipe, Settings};
 use crate::session::{ExtensionData, Session, SessionType};
 
 use super::GooseAcpAgent;
-use agent_client_protocol::schema::v1::{Meta, NewSessionRequest, NewSessionResponse, SessionId};
+use agent_client_protocol::schema::v1::{
+    Meta, NewSessionRequest, NewSessionResponse, SessionConfigOption, SessionId,
+};
 use agent_client_protocol::{Client, ConnectionTo};
 use goose_providers::model::ModelConfig;
 use goose_providers::thinking::ThinkingEffortSupport;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tracing::warn;
 
 struct InitialSessionConfig {
@@ -34,7 +37,7 @@ struct NewSessionMetaFields {
 
 impl GooseAcpAgent {
     pub(super) async fn handle_new_session(
-        &self,
+        self: &Arc<Self>,
         cx: &ConnectionTo<Client>,
         args: NewSessionRequest,
     ) -> Result<NewSessionResponse, agent_client_protocol::Error> {
@@ -66,8 +69,13 @@ impl GooseAcpAgent {
         }
     }
 
+    /// Create the session row and return as soon as it is configured. Agent
+    /// activation (provider construction plus MCP initialize for every enabled
+    /// extension) runs in a background task; a prompt or config request racing
+    /// ahead of it waits on the per-session agent creation lock instead of
+    /// blocking `session/new` (see issue #11396).
     async fn finish_new_session_setup(
-        &self,
+        self: &Arc<Self>,
         cx: &ConnectionTo<Client>,
         config: &Config,
         session: &Session,
@@ -80,20 +88,57 @@ impl GooseAcpAgent {
             .await?;
 
         let reloaded_session = self.reload_session(&session.id).await?;
-        let (agent, extension_results) = self.activate_acp_session(cx, &reloaded_session).await?;
-        if let Some(recipe) = &rendered_recipe {
-            self.apply_recipe(&agent, recipe).await;
-        }
-
-        let reloaded_session = self.reload_session(&session.id).await?;
         let response = self
-            .build_new_session_response(
-                &reloaded_session,
-                &extension_results,
-                &super::agent_thinking_effort_support(&agent).await,
-            )
+            .build_new_session_response(&reloaded_session, &[], &ThinkingEffortSupport::Unspecified)
             .await?;
+        let initial_config_options = response.config_options.clone();
+        self.spawn_background_session_activation(
+            cx,
+            reloaded_session,
+            rendered_recipe,
+            initial_config_options,
+        );
         Ok(response)
+    }
+
+    fn spawn_background_session_activation(
+        self: &Arc<Self>,
+        cx: &ConnectionTo<Client>,
+        session: Session,
+        rendered_recipe: Option<Recipe>,
+        initial_config_options: Option<Vec<SessionConfigOption>>,
+    ) {
+        let agent = Arc::clone(self);
+        let cx = cx.clone();
+        tokio::spawn(async move {
+            let session_id = session.id.clone();
+            match agent.activate_acp_session(&cx, &session).await {
+                Ok((session_agent, extension_results)) => {
+                    if let Some(recipe) = &rendered_recipe {
+                        agent.apply_recipe(&session_agent, recipe).await;
+                    }
+                    agent
+                        .notify_session_activated(
+                            &cx,
+                            &session_id,
+                            &extension_results,
+                            initial_config_options,
+                        )
+                        .await;
+                }
+                Err(error) => {
+                    // The client already holds the sessionId from the
+                    // NewSessionResponse, so the session is kept and the next
+                    // request surfaces the failure instead of the session
+                    // silently disappearing.
+                    warn!(
+                        session_id,
+                        error = ?error,
+                        "Background session activation failed"
+                    );
+                }
+            }
+        });
     }
 
     async fn cleanup_failed_new_session(&self, session_id: &str) {

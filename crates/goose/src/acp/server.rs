@@ -777,6 +777,68 @@ impl GooseAcpAgent {
         Ok((session, totals))
     }
 
+    /// Deliver post-activation follow-ups for a session whose `session/new`
+    /// returned before its extensions finished loading: the extension load
+    /// results and a config update that replaces the thinking-effort fallback
+    /// (`Unspecified`) from the immediate response with the live provider's.
+    /// Both are goose-custom traffic, so they are only sent to clients that
+    /// opted in via the custom-notifications capability.
+    async fn notify_session_activated(
+        &self,
+        cx: &ConnectionTo<Client>,
+        session_id: &str,
+        extension_results: &[ExtensionLoadResult],
+        initial_config_options: Option<Vec<SessionConfigOption>>,
+    ) {
+        if !self.supports_goose_custom_notifications() {
+            return;
+        }
+
+        let notification = GooseSessionNotification {
+            session_id: session_id.to_string(),
+            update: GooseSessionUpdate::ExtensionsLoaded(ExtensionsLoadedUpdate {
+                extension_results: extension_results
+                    .iter()
+                    .map(|result| ExtensionLoadResultData {
+                        name: result.name.clone(),
+                        success: result.success,
+                        error: result.error.clone(),
+                    })
+                    .collect(),
+            }),
+        };
+        if let Err(error) = cx.send_notification(notification) {
+            warn!(
+                session_id,
+                %error,
+                "Failed to send extensions-loaded notification"
+            );
+        }
+
+        let session_id = SessionId::new(session_id.to_string());
+        match self.build_config_update(&session_id).await {
+            Ok((notification, config_options)) => {
+                if Some(config_options) == initial_config_options {
+                    return;
+                }
+                if let Err(error) = cx.send_notification(notification) {
+                    warn!(
+                        session_id = %session_id.0,
+                        %error,
+                        "Failed to send post-activation config update"
+                    );
+                }
+            }
+            Err(error) => {
+                warn!(
+                    session_id = %session_id.0,
+                    error = ?error,
+                    "Failed to build post-activation config update"
+                );
+            }
+        }
+    }
+
     pub(super) fn supports_recipe_param_requests(&self) -> bool {
         self.client_supports_recipe_param_requests
             .get()
@@ -1692,7 +1754,7 @@ impl GooseAcpAgent {
     }
 
     async fn on_new_session(
-        &self,
+        self: &Arc<Self>,
         cx: &ConnectionTo<Client>,
         args: NewSessionRequest,
     ) -> Result<NewSessionResponse, agent_client_protocol::Error> {

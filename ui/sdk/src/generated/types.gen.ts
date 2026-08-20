@@ -2560,7 +2560,9 @@ export type GooseSessionUpdate = ({
     sessionUpdate: 'status_message';
 } & StatusMessageUpdate) | ({
     sessionUpdate: 'message_usage';
-} & MessageUsageUpdate);
+} & MessageUsageUpdate) | ({
+    sessionUpdate: 'extensions_loaded';
+} & ExtensionsLoadedUpdate);
 
 /**
  * Streaming context-window usage update for a session.
@@ -2624,6 +2626,24 @@ export type CostSourceData = 'provider_reported' | 'estimated';
 export type MessageUsageUpdate = {
     messageId?: string | null;
     usage: MessageUsageData;
+};
+
+/**
+ * Wire mirror of the agent's `ExtensionLoadResult` (this crate cannot depend
+ * on goose); field names and serde casing MUST stay in parity.
+ */
+export type ExtensionLoadResultData = {
+    name: string;
+    success: boolean;
+    error?: string | null;
+};
+
+/**
+ * Per-session extension load results, sent once a session whose `session/new`
+ * returned before agent activation finishes loading its extensions.
+ */
+export type ExtensionsLoadedUpdate = {
+    extensionResults: Array<ExtensionLoadResultData>;
 };
 
 export type RequestRecipeParams_unstable = {

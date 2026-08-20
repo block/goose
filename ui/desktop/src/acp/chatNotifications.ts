@@ -2,6 +2,8 @@ import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
 import type { SessionNotification } from '@agentclientprotocol/sdk';
 import { AppEvents } from '../constants/events';
 import { maybeHandlePlatformEvent } from '../utils/platform_events';
+import type { ExtensionLoadResult } from '../types/extensions';
+import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 import { toolNotificationEvent } from './adapter/toolNotifications';
 import { acpChatSessionActions, acpChatSessionStore } from './chatSessionStore';
 
@@ -47,5 +49,17 @@ export function handleAcpGooseSessionNotification(
   notification: GooseSessionNotification_unstable
 ): Promise<void> {
   acpChatSessionActions.applyAcpGooseSessionNotification(notification);
+  if (notification.update.sessionUpdate === 'extensions_loaded') {
+    handleExtensionsLoaded(notification.sessionId, notification.update.extensionResults);
+  }
   return Promise.resolve();
+}
+
+function handleExtensionsLoaded(sessionId: string, extensionResults: ExtensionLoadResult[]): void {
+  showExtensionLoadResults(extensionResults);
+  window.dispatchEvent(
+    new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED, {
+      detail: { sessionId, extensionResults },
+    })
+  );
 }

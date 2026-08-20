@@ -4,7 +4,11 @@ import { AppEvents } from '../../constants/events';
 import { ChatState } from '../../types/chatState';
 import type { Session } from '../../types/session';
 import { maybeHandlePlatformEvent } from '../../utils/platform_events';
-import { handleAcpSessionNotification } from '../chatNotifications';
+import { showExtensionLoadResults } from '../../utils/extensionErrorUtils';
+import {
+  handleAcpGooseSessionNotification,
+  handleAcpSessionNotification,
+} from '../chatNotifications';
 import type { AcpChatSessionSnapshot } from '../chatSessionStore';
 import { acpChatSessionActions, acpChatSessionStore } from '../chatSessionStore';
 
@@ -20,6 +24,10 @@ vi.mock('../chatSessionStore', () => ({
 
 vi.mock('../../utils/platform_events', () => ({
   maybeHandlePlatformEvent: vi.fn(),
+}));
+
+vi.mock('../../utils/extensionErrorUtils', () => ({
+  showExtensionLoadResults: vi.fn(),
 }));
 
 const SESSION_ID = 'session-1';
@@ -183,5 +191,50 @@ describe('handleAcpSessionNotification', () => {
     await handleAcpSessionNotification(platformEventToolUpdate('completed'));
 
     expect(maybeHandlePlatformEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleAcpGooseSessionNotification', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows toasts and dispatches SESSION_EXTENSIONS_LOADED for extensions_loaded', async () => {
+    const dispatchEvent = vi.spyOn(window, 'dispatchEvent');
+    const extensionResults = [
+      { name: 'developer', success: true },
+      { name: 'refused-mcp', success: false, error: 'Connection refused' },
+    ];
+
+    await handleAcpGooseSessionNotification({
+      sessionId: SESSION_ID,
+      update: { sessionUpdate: 'extensions_loaded', extensionResults },
+    });
+
+    expect(acpChatSessionActions.applyAcpGooseSessionNotification).toHaveBeenCalledTimes(1);
+    expect(showExtensionLoadResults).toHaveBeenCalledWith(extensionResults);
+    expect(dispatchEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: AppEvents.SESSION_EXTENSIONS_LOADED,
+        detail: { sessionId: SESSION_ID, extensionResults },
+      })
+    );
+  });
+
+  it('does not emit extension events for other goose updates', async () => {
+    const dispatchEvent = vi.spyOn(window, 'dispatchEvent');
+
+    await handleAcpGooseSessionNotification({
+      sessionId: SESSION_ID,
+      update: {
+        sessionUpdate: 'status_message',
+        status: { type: 'notice', message: 'Compaction complete' },
+      },
+    });
+
+    expect(showExtensionLoadResults).not.toHaveBeenCalled();
+    expect(dispatchEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: AppEvents.SESSION_EXTENSIONS_LOADED })
+    );
   });
 });

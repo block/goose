@@ -2141,6 +2141,24 @@ export const zMessageUsageUpdate = z.object({
 });
 
 /**
+ * Wire mirror of the agent's `ExtensionLoadResult` (this crate cannot depend
+ * on goose); field names and serde casing MUST stay in parity.
+ */
+export const zExtensionLoadResultData = z.object({
+    name: z.string(),
+    success: z.boolean(),
+    error: z.string().nullish()
+});
+
+/**
+ * Per-session extension load results, sent once a session whose `session/new`
+ * returned before agent activation finishes loading its extensions.
+ */
+export const zExtensionsLoadedUpdate = z.object({
+    extensionResults: z.array(zExtensionLoadResultData)
+});
+
+/**
  * Discriminated union of goose-specific session update payloads.
  * Variant tag matches ACP's convention (`sessionUpdate: "<snake_case>"`).
  *
@@ -2151,7 +2169,8 @@ export const zMessageUsageUpdate = z.object({
 export const zGooseSessionUpdate = z.discriminatedUnion('sessionUpdate', [
     zSessionUsageUpdate.extend({ sessionUpdate: z.literal('usage_update') }),
     zStatusMessageUpdate.extend({ sessionUpdate: z.literal('status_message') }),
-    zMessageUsageUpdate.extend({ sessionUpdate: z.literal('message_usage') })
+    zMessageUsageUpdate.extend({ sessionUpdate: z.literal('message_usage') }),
+    zExtensionsLoadedUpdate.extend({ sessionUpdate: z.literal('extensions_loaded') })
 ]);
 
 /**

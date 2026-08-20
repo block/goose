@@ -303,7 +303,7 @@ impl OpenAiFixture {
     }
 }
 
-type CompatDuplexStream = tokio_util::compat::Compat<tokio::io::DuplexStream>;
+pub type CompatDuplexStream = tokio_util::compat::Compat<tokio::io::DuplexStream>;
 
 pub struct DuplexTransport {
     outgoing: CompatDuplexStream,
@@ -321,7 +321,7 @@ impl DuplexTransport {
         agent_client_protocol::ByteStreams::new(self.outgoing, self.incoming)
     }
 
-    fn into_parts(self) -> (CompatDuplexStream, CompatDuplexStream) {
+    pub fn into_parts(self) -> (CompatDuplexStream, CompatDuplexStream) {
         (self.outgoing, self.incoming)
     }
 }
