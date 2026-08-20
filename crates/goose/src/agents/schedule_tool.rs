@@ -190,9 +190,24 @@ impl ScheduleTool {
         // the substring `missing field`).
         match parse_recipe_content(&content, recipe_dir.clone()) {
             Ok(_) => {
-                // Parse succeeded — any subsequent validation error is safe to report.
-                validate_recipe_template_from_content(&content, recipe_dir)
-                    .map_err(|error| recipe_file_error(&format!("Invalid recipe: {error}")))?;
+                if let Err(error) = validate_recipe_template_from_content(&content, recipe_dir) {
+                    let message = error.to_string();
+                    // Only fixed validation diagnostics are safe to surface.
+                    // All other post-parse errors may embed dynamic values
+                    // (e.g. `Unnecessary parameter definitions: yaml-secret-242`)
+                    // and must be sanitized to avoid reflecting file contents.
+                    if message == "Recipe must specify at least one of `instructions` or `prompt`."
+                        || message == "missing field `title`"
+                        || message == "missing field `description`"
+                    {
+                        return Err(recipe_file_error(&format!("Invalid recipe: {message}")));
+                    }
+                    if recipe_path.ends_with(".json") {
+                        return Err(recipe_file_error("Invalid JSON recipe"));
+                    } else {
+                        return Err(recipe_file_error("Invalid YAML recipe"));
+                    }
+                }
             }
             Err(error) => {
                 let message = error.to_string();
