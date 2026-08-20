@@ -1176,9 +1176,11 @@ impl AcpClientLoop {
                     let effort_state = effort_state.clone();
                     let active_session_id = active_session_id.clone();
                     async move |notification: SessionNotification, _cx| {
-                        let is_active_session = active_session_id
-                            .lock()
-                            .is_ok_and(|active| active.as_ref() == Some(&notification.session_id));
+                        let is_active_session = active_session_id.lock().is_ok_and(|active| {
+                            active
+                                .as_ref()
+                                .map_or(true, |id| id == &notification.session_id)
+                        });
                         if !is_active_session {
                             return Ok(());
                         }
@@ -1537,10 +1539,9 @@ async fn handle_requests(
                     Ok(session) => {
                         *active_session_id.lock().unwrap() = Some(session.session_id.clone());
                         session_ids.push(session.session_id.clone());
-                        refresh_effort_state(
-                            &effort_state,
-                            session.config_options.as_deref().unwrap_or_default(),
-                        );
+                        if let Some(config_options) = session.config_options.as_deref() {
+                            refresh_effort_state(&effort_state, config_options);
+                        }
                         apply_session_config_options(
                             &config,
                             &cx,
@@ -1562,6 +1563,7 @@ async fn handle_requests(
                     .lock()
                     .unwrap()
                     .replace(session_id.clone());
+                let previous_effort_state = effort_state.lock().unwrap().take();
                 let result = if supports_load {
                     let mcp_servers =
                         filter_supported_servers(&config.mcp_servers, &mcp_capabilities);
@@ -1584,10 +1586,9 @@ async fn handle_requests(
                 let result = match result {
                     Ok(session) => {
                         session_ids.push(session.session_id.clone());
-                        refresh_effort_state(
-                            &effort_state,
-                            session.config_options.as_deref().unwrap_or_default(),
-                        );
+                        if let Some(config_options) = session.config_options.as_deref() {
+                            refresh_effort_state(&effort_state, config_options);
+                        }
                         apply_session_config_options(
                             &config,
                             &cx,
@@ -1599,6 +1600,7 @@ async fn handle_requests(
                     }
                     Err(error) => {
                         *active_session_id.lock().unwrap() = previous_session_id;
+                        *effort_state.lock().unwrap() = previous_effort_state;
                         Err(error)
                     }
                 };
