@@ -987,15 +987,16 @@ impl Config {
         Ok(())
     }
 
-    fn mutate_secrets(
+    fn mutate_secrets<T>(
         &self,
-        mutate: impl FnOnce(&mut HashMap<String, Value>),
-    ) -> Result<(), ConfigError> {
+        mutate: impl FnOnce(&mut HashMap<String, Value>) -> Result<T, ConfigError>,
+    ) -> Result<T, ConfigError> {
         let _guard = self.guard.lock().unwrap();
         let _storage_lock = self.lock_secrets_for_mutation()?;
         let mut values = self.load_secrets_from_storage()?;
-        mutate(&mut values);
-        self.write_all_secrets(&values)
+        let result = mutate(&mut values)?;
+        self.write_all_secrets(&values)?;
+        Ok(result)
     }
 
     /// Set a secret value in the system keyring.
@@ -1019,6 +1020,29 @@ impl Config {
         let value = serde_json::to_value(value)?;
         self.mutate_secrets(|values| {
             values.insert(key.to_string(), value);
+            Ok(())
+        })
+    }
+
+    pub fn update_secret<T, V, R>(
+        &self,
+        key: &str,
+        update: impl FnOnce(T) -> (V, R),
+    ) -> Result<R, ConfigError>
+    where
+        T: for<'de> Deserialize<'de> + Default,
+        V: Serialize,
+    {
+        self.mutate_secrets(|values| {
+            let current = values
+                .get(key)
+                .cloned()
+                .map(serde_json::from_value)
+                .transpose()?
+                .unwrap_or_default();
+            let (updated, result) = update(current);
+            values.insert(key.to_string(), serde_json::to_value(updated)?);
+            Ok(result)
         })
     }
 
@@ -1036,6 +1060,7 @@ impl Config {
             for (key, value) in updates {
                 values.insert(key.clone(), value.clone());
             }
+            Ok(())
         })
     }
 
@@ -1052,6 +1077,7 @@ impl Config {
     pub fn delete_secret(&self, key: &str) -> Result<(), ConfigError> {
         self.mutate_secrets(|values| {
             values.remove(key);
+            Ok(())
         })
     }
 
@@ -1065,6 +1091,7 @@ impl Config {
             for key in keys {
                 values.remove(key);
             }
+            Ok(())
         })
     }
 

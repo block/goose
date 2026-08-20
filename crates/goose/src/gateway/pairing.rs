@@ -3,12 +3,13 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
-use crate::config::Config;
+use crate::config::{Config, ConfigError};
 
 use super::{PairingState, PlatformUser};
 
 const PAIRINGS_CONFIG_KEY: &str = "gateway_pairings";
 const PENDING_CODES_CONFIG_KEY: &str = "gateway_pending_codes";
+const PENDING_CODES_SECRET_KEY: &str = "gateway_pending_codes";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct StoredPairing {
@@ -23,6 +24,38 @@ struct StoredPendingCode {
     code: String,
     gateway_type: String,
     expires_at: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct StoredPendingCodes {
+    codes: Vec<StoredPendingCode>,
+    #[serde(default)]
+    legacy_import_complete: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum StoredPendingCodesValue {
+    State(StoredPendingCodes),
+    Codes(Vec<StoredPendingCode>),
+}
+
+impl Default for StoredPendingCodesValue {
+    fn default() -> Self {
+        Self::State(StoredPendingCodes::default())
+    }
+}
+
+impl StoredPendingCodesValue {
+    fn into_state(self) -> StoredPendingCodes {
+        match self {
+            Self::State(state) => state,
+            Self::Codes(codes) => StoredPendingCodes {
+                codes,
+                legacy_import_complete: false,
+            },
+        }
+    }
 }
 
 pub struct PairingStore {
@@ -69,16 +102,106 @@ impl PairingStore {
             .map_err(|e| anyhow::anyhow!("failed to save gateway pairings: {}", e))
     }
 
-    fn load_pending_codes() -> Vec<StoredPendingCode> {
-        Config::global()
-            .get_param(PENDING_CODES_CONFIG_KEY)
-            .unwrap_or_default()
+    fn migrate_pending_codes(config: &Config) -> anyhow::Result<()> {
+        let legacy_codes = match config.get_param(PENDING_CODES_CONFIG_KEY) {
+            Ok(codes) => Some(codes),
+            Err(ConfigError::NotFound(_)) => None,
+            Err(error) => {
+                return Err(anyhow::anyhow!(
+                    "failed to load legacy pending codes: {}",
+                    error
+                ));
+            }
+        };
+
+        let has_legacy_codes = legacy_codes.is_some();
+        Self::complete_pending_code_migration(config, legacy_codes)?;
+        if !has_legacy_codes {
+            return Ok(());
+        }
+
+        if let Err(delete_error) = config.delete(PENDING_CODES_CONFIG_KEY) {
+            match config.get_param::<Vec<StoredPendingCode>>(PENDING_CODES_CONFIG_KEY) {
+                Err(ConfigError::NotFound(_)) => return Ok(()),
+                _ => {
+                    return Err(anyhow::anyhow!(
+                        "failed to remove legacy pending codes: {}",
+                        delete_error
+                    ));
+                }
+            }
+        }
+        Ok(())
     }
 
-    fn save_pending_codes(codes: &[StoredPendingCode]) -> anyhow::Result<()> {
-        Config::global()
-            .set_param(PENDING_CODES_CONFIG_KEY, codes)
-            .map_err(|e| anyhow::anyhow!("failed to save pending codes: {}", e))
+    fn complete_pending_code_migration(
+        config: &Config,
+        legacy_codes: Option<Vec<StoredPendingCode>>,
+    ) -> anyhow::Result<()> {
+        config
+            .update_secret(
+                PENDING_CODES_SECRET_KEY,
+                |stored: StoredPendingCodesValue| {
+                    let mut state = stored.into_state();
+                    if !state.legacy_import_complete {
+                        for legacy_code in legacy_codes.unwrap_or_default() {
+                            state.codes.retain(|code| code.code != legacy_code.code);
+                            state.codes.push(legacy_code);
+                        }
+                        state.legacy_import_complete = true;
+                    }
+                    (state, ())
+                },
+            )
+            .map_err(|error| anyhow::anyhow!("failed to migrate pending codes: {}", error))
+    }
+
+    fn store_pending_code_in(
+        config: &Config,
+        code: &str,
+        gateway_type: &str,
+        expires_at: i64,
+    ) -> anyhow::Result<()> {
+        Self::migrate_pending_codes(config)?;
+        config
+            .update_secret(
+                PENDING_CODES_SECRET_KEY,
+                |stored: StoredPendingCodesValue| {
+                    let mut state = stored.into_state();
+                    state.codes.retain(|pending| pending.code != code);
+                    state.codes.push(StoredPendingCode {
+                        code: code.to_string(),
+                        gateway_type: gateway_type.to_string(),
+                        expires_at,
+                    });
+                    (state, ())
+                },
+            )
+            .map_err(|error| anyhow::anyhow!("failed to save pending codes: {}", error))
+    }
+
+    fn consume_pending_code_in(
+        config: &Config,
+        code: &str,
+        now: i64,
+    ) -> anyhow::Result<Option<String>> {
+        Self::migrate_pending_codes(config)?;
+        config
+            .update_secret(
+                PENDING_CODES_SECRET_KEY,
+                |stored: StoredPendingCodesValue| {
+                    let mut state = stored.into_state();
+                    let consumed = state
+                        .codes
+                        .iter()
+                        .position(|pending| pending.code == code)
+                        .map(|position| state.codes.remove(position))
+                        .filter(|pending| now <= pending.expires_at)
+                        .map(|pending| pending.gateway_type);
+                    (state, consumed)
+                },
+            )
+            .map_err(|error| anyhow::anyhow!("failed to consume pending code: {}", error))
     }
 
     pub async fn get(&self, user: &PlatformUser) -> anyhow::Result<PairingState> {
@@ -107,32 +230,12 @@ impl PairingStore {
         gateway_type: &str,
         expires_at: i64,
     ) -> anyhow::Result<()> {
-        let mut codes = Self::load_pending_codes();
-        codes.retain(|c| c.code != code);
-        codes.push(StoredPendingCode {
-            code: code.to_string(),
-            gateway_type: gateway_type.to_string(),
-            expires_at,
-        });
-        Self::save_pending_codes(&codes)
+        Self::store_pending_code_in(Config::global(), code, gateway_type, expires_at)
     }
 
     pub async fn consume_pending_code(&self, code: &str) -> anyhow::Result<Option<String>> {
-        let mut codes = Self::load_pending_codes();
-        let pos = codes.iter().position(|c| c.code == code);
-        let Some(pos) = pos else {
-            return Ok(None);
-        };
-
-        let entry = codes.remove(pos);
-        Self::save_pending_codes(&codes)?;
-
         let now = chrono::Utc::now().timestamp();
-        if now > entry.expires_at {
-            return Ok(None);
-        }
-
-        Ok(Some(entry.gateway_type))
+        Self::consume_pending_code_in(Config::global(), code, now)
     }
 
     pub fn generate_code() -> String {
@@ -177,6 +280,16 @@ impl PairingStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Barrier};
+    use tempfile::TempDir;
+
+    fn test_config(directory: &TempDir) -> Config {
+        Config::new_with_file_secrets(
+            directory.path().join("config.yaml"),
+            directory.path().join("secrets.yaml"),
+        )
+        .unwrap()
+    }
 
     #[test]
     fn test_code_generation() {
@@ -185,5 +298,163 @@ mod tests {
         assert!(code
             .chars()
             .all(|c| "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".contains(c)));
+    }
+
+    #[test]
+    fn pending_codes_are_secret_and_consumed_once() {
+        let directory = TempDir::new().unwrap();
+        let config = test_config(&directory);
+        let code = "SECRET-CODE";
+
+        PairingStore::store_pending_code_in(&config, code, "telegram", 101).unwrap();
+
+        let ordinary_config =
+            std::fs::read_to_string(directory.path().join("config.yaml")).unwrap_or_default();
+        assert!(!ordinary_config.contains(code));
+        assert!(!config
+            .all_values()
+            .unwrap()
+            .contains_key(PENDING_CODES_CONFIG_KEY));
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, code, 100).unwrap(),
+            Some("telegram".to_string())
+        );
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, code, 100).unwrap(),
+            None
+        );
+
+        PairingStore::store_pending_code_in(&config, code, "telegram", 99).unwrap();
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, code, 100).unwrap(),
+            None
+        );
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, code, 98).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn pending_code_store_migrates_and_removes_legacy_config() {
+        let directory = TempDir::new().unwrap();
+        let config = test_config(&directory);
+        let legacy_code = "LEGACY-CODE";
+        let new_code = "NEW-CODE";
+        config
+            .set_param(
+                PENDING_CODES_CONFIG_KEY,
+                &[StoredPendingCode {
+                    code: legacy_code.to_string(),
+                    gateway_type: "slack".to_string(),
+                    expires_at: 101,
+                }],
+            )
+            .unwrap();
+
+        PairingStore::store_pending_code_in(&config, new_code, "telegram", 101).unwrap();
+
+        let ordinary_config =
+            std::fs::read_to_string(directory.path().join("config.yaml")).unwrap_or_default();
+        assert!(!ordinary_config.contains(legacy_code));
+        assert!(!ordinary_config.contains(new_code));
+        assert!(!config
+            .all_values()
+            .unwrap()
+            .contains_key(PENDING_CODES_CONFIG_KEY));
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, legacy_code, 100).unwrap(),
+            Some("slack".to_string())
+        );
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, new_code, 100).unwrap(),
+            Some("telegram".to_string())
+        );
+    }
+
+    #[test]
+    fn pending_code_consumption_is_serialized_across_config_instances() {
+        let directory = TempDir::new().unwrap();
+        let config_path = directory.path().join("config.yaml");
+        let secrets_path = directory.path().join("secrets.yaml");
+        let config = Config::new_with_file_secrets(&config_path, &secrets_path).unwrap();
+        let code = "ONE-TIME-CODE";
+        PairingStore::store_pending_code_in(&config, code, "telegram", 101).unwrap();
+
+        let barrier = Arc::new(Barrier::new(2));
+        let handles: Vec<_> = (0..2)
+            .map(|_| {
+                let config_path = config_path.clone();
+                let secrets_path = secrets_path.clone();
+                let barrier = Arc::clone(&barrier);
+                std::thread::spawn(move || {
+                    let config = Config::new_with_file_secrets(config_path, secrets_path).unwrap();
+                    barrier.wait();
+                    PairingStore::consume_pending_code_in(&config, code, 100).unwrap()
+                })
+            })
+            .collect();
+        let results: Vec<_> = handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect();
+
+        assert_eq!(results.iter().filter(|result| result.is_some()).count(), 1);
+        assert_eq!(results.iter().filter(|result| result.is_none()).count(), 1);
+    }
+
+    #[test]
+    fn delayed_legacy_migration_cannot_reinsert_consumed_code() {
+        let directory = TempDir::new().unwrap();
+        let config = test_config(&directory);
+        let code = "LEGACY-ONE-TIME-CODE";
+        config
+            .set_param(
+                PENDING_CODES_CONFIG_KEY,
+                &[StoredPendingCode {
+                    code: code.to_string(),
+                    gateway_type: "telegram".to_string(),
+                    expires_at: 101,
+                }],
+            )
+            .unwrap();
+        let stale_snapshot = config.get_param(PENDING_CODES_CONFIG_KEY).unwrap();
+
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, code, 100).unwrap(),
+            Some("telegram".to_string())
+        );
+        PairingStore::complete_pending_code_migration(&config, Some(stale_snapshot)).unwrap();
+
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, code, 100).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn pending_code_migration_accepts_legacy_secret_vec() {
+        let directory = TempDir::new().unwrap();
+        let config = test_config(&directory);
+        let code = "SECRET-VEC-CODE";
+        config
+            .set_secret(
+                PENDING_CODES_SECRET_KEY,
+                &vec![StoredPendingCode {
+                    code: code.to_string(),
+                    gateway_type: "telegram".to_string(),
+                    expires_at: 101,
+                }],
+            )
+            .unwrap();
+
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, code, 100).unwrap(),
+            Some("telegram".to_string())
+        );
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, code, 100).unwrap(),
+            None
+        );
     }
 }
