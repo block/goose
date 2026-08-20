@@ -1,8 +1,8 @@
 //! Peer-to-peer roaming transport for goose agents.
 //!
 //! This crate lets a goose agent expose itself over the internet via
-//! [iroh](https://iroh.computer) so that a remote ACP client (another goose,
-//! the desktop app, or any ACP client) can connect to and drive it through a
+//! [iroh](https://iroh.computer) so that a remote ACP client (another goose, or
+//! any other ACP client) can connect to and drive it through a
 //! relay, with no open ports.
 //!
 //! # Building blocks

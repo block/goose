@@ -5,7 +5,7 @@ Peer-to-peer transport for goose agents, built on
 traversal).
 
 It lets a goose agent accept connections from a remote ACP client (another
-goose, the desktop app, or any ACP client) that drives it, and lets a client
+goose, or any other ACP client) that drives it, and lets a client
 dial a remote agent to hold an interactive session, delegate a one-shot task, or
 bridge it to a local ACP client — typically without port-forwarding.
 

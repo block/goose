@@ -13,13 +13,12 @@ Roaming is designed to be **embedded**: the transport is a standalone Rust crate
 (`goose-roaming`) with no dependency on goose's agent internals, the CLI exposes
 it as `goose roam` commands, and there are wasm bindings for browser apps. If
 you build on goose — or just want an authenticated p2p ACP transport — you can
-use the same pieces directly. The web client and the desktop app's remote-access
-feature (covered near the end) are **reference clients** built entirely on this
-public surface.
+use the same pieces directly. The web client (covered near the end) is a
+**reference client** built entirely on this public surface.
 
 Use it to drive your laptop's agent from another device, hand a one-shot task to
-a remote agent, expose a remote agent to any local ACP client (like the goose
-desktop app or an editor), or wire p2p agent access into your own application.
+a remote agent, expose a remote agent to any local ACP client (like an editor),
+or wire p2p agent access into your own application.
 
 ## The core idea: roaming is an ACP transport
 
@@ -35,7 +34,7 @@ to run over a roaming connection — not a bespoke roaming feature:
 | List the remote's sessions | `session/list` | `roam delegate <target> --list-sessions` |
 | Continue a specific session | `session/load` | `roam delegate <target> --session <id> "…"` |
 | Run a fresh one-shot task | `session/new` + `session/prompt` | `roam delegate <target> "…"` |
-| Drive a remote agent from a real UI | full ACP surface | `roam bridge` → goose desktop, Zed, an editor |
+| Drive a remote agent from a real UI | full ACP surface | `roam bridge` → Zed or another ACP editor |
 | Quick interactive peek | a built-in REPL | `roam connect` |
 
 Because the connection carries the full ACP surface, the connecting side can
@@ -152,8 +151,8 @@ goose roam delegate 'goose+roam://…' --session <SESSION_ID> "Now fix the first
 
 `connect` and `delegate` embed goose's own ACP client. `bridge` does the
 opposite: it exposes a remote agent as a **local ACP endpoint**, so any ACP
-client — the goose desktop app, [Zed](/docs/guides/acp-clients), or another
-editor — can drive it as if it were running locally. It runs no UI and no agent
+client — [Zed](/docs/guides/acp-clients) or another editor — can drive it as if
+it were running locally. It runs no UI and no agent
 of its own; it transparently proxies ACP bytes between the local client and the
 remote agent.
 
@@ -269,8 +268,7 @@ A few notes for integrators:
 - **To expose a full goose backend**, you don't have to implement
   `AcpStreamServer` yourself: `goose serve --roam` runs goose's regular agent
   server *and* exposes it over roam in one process. It works headless, writes
-  its card to `<data-dir>/roam/serve.json`, and prints it on startup — this is
-  exactly what the desktop app runs for its remote-access feature.
+  its card to `<data-dir>/roam/serve.json`, and prints it on startup.
 - **For browser apps**, the same transport compiles to WebAssembly. The wasm
   bindings (`@aaif/goose-roam-web`, built from the `goose-roaming-web` crate in
   the [goose-mobile repo](https://github.com/aaif-goose/goose-mobile/tree/main/mobile-web))
@@ -310,36 +308,6 @@ connect several hosts at once; their sessions appear in one merged list.
 The source lives in the [goose-mobile repo](https://github.com/aaif-goose/goose-mobile/tree/main/mobile-web)
 (`mobile-web/`) — the README there has build details if you want to host it
 yourself (it builds to a static site).
-
-## The desktop app: a reference host integration
-
-The desktop app's Remote Access feature is likewise a **reference integration
-of the pieces above**: it launches `goose serve --roam` as its backend, uses
-the shared per-machine identity and `TrustBook`, and points the pairing QR at
-the hosted web client. The whole loop — enable, pair, chat from your phone,
-revoke — happens in the UI:
-
-1. **Settings → Remote Access → Enable remote access**, then restart goose.
-   The backend now starts as `goose serve --roam`: the same agent server the
-   desktop windows use is also reachable over roam, one process, one session
-   store. A phone talking over roam and the desktop window in front of you
-   see the same sessions, and steering a running turn works because it *is*
-   the same process.
-2. A **pairing QR** appears in the same panel. It encodes the hosted web
-   client's URL with this machine's card in the URL fragment — scanning it
-   with a phone camera opens the web client already pointed at this goose.
-   (Fragments never reach the web server, and the client scrubs the card
-   from the address bar on load.)
-3. First scan from a new device: the host refuses it (not paired yet) and
-   the web client shows the device's own card. Paste that card into
-   **Accept a device** in the same settings panel — no CLI needed. The
-   fingerprint is shown so you can verify it matches what the device shows.
-4. **Paired devices** lists every accepted key with a two-tap **Revoke**.
-   Revoking force-closes that device's live connections within seconds.
-
-The desktop shares one roam identity and one allowlist per machine with the
-CLI — devices you accept in Settings can also connect to a `goose roam share`
-you run later, and `goose roam peers list` shows them.
 
 ## Saved peers
 
@@ -415,10 +383,8 @@ so this composes into multi-machine workflows without any shared state.
   raw `goose+roam://…` card. Remember the peer must also have accepted your key.
 - A message sent to a session that has a run in flight **in the share process**
   becomes a steer of that run. A loop running in a *different* process on the
-  host (a desktop app without roam enabled, another CLI) can't be steered
-  remotely — the web client detects this and warns before sending. With the
-  desktop's Remote Access enabled there is no boundary: roam and the desktop
-  windows share one process.
+  host (another CLI, or a host that does not have roam enabled) can't be steered
+  remotely — the web client detects this and warns before sending.
 - Revoking a peer force-closes its connections within seconds and drops any
   in-flight turn at its next step; no new work can start. One narrow residual:
   an OS process a tool had already spawned (say, a long shell command) may run

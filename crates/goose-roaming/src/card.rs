@@ -28,7 +28,7 @@ use crate::error::RoamingError;
 const CARD_VERSION: u32 = 1;
 const CARD_SCHEME: &str = "goose+roam://";
 
-/// Decode bounds, shared by the wasm and desktop decoders. A card is a tiny
+/// Decode bounds, shared by the native and wasm decoders. A card is a tiny
 /// identity+relay-list blob; anything near these limits is garbage or an
 /// attack, and the caps stop allocation before it starts.
 const MAX_CARD_TEXT_BYTES: usize = 8 * 1024;
@@ -80,8 +80,8 @@ impl ConnectionCard {
 
     /// Decode a card produced by [`Self::encode`].
     ///
-    /// This is the card-decoding contract, applied identically by the wasm
-    /// and desktop decoders: bounded input (text/relay count/URL length caps
+    /// This is the card-decoding contract, applied identically by the native
+    /// and wasm decoders: bounded input (text/relay count/URL length caps
     /// before allocation), required `version == 1`, and http(s)-only relay
     /// URLs validated at decode time — a malformed card is rejected here, not
     /// when dialing.

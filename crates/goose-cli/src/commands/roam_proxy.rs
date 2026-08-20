@@ -2,7 +2,7 @@
 //!
 //! `roam connect`/`delegate` embed an ACP *client* with a built-in terminal UI.
 //! This module is the opposite composition: it exposes a remote agent as a
-//! *local ACP endpoint* so any ACP client (goose desktop, Zed, another editor)
+//! *local ACP endpoint* so any ACP client (Zed, another editor)
 //! can drive it as if it were local.
 //!
 //! The trick is that once the roaming handshake completes, the stream carries

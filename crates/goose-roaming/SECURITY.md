@@ -128,16 +128,13 @@ new work can start after the close.
 - `roaming_trust.json` / `roaming_peers.json` are `0644`: they contain only
   public keys and nicknames, nothing secret. Write access = user-level
   compromise (out of scope, above).
-- All writers (CLI `TrustBook::save`, desktop `roamPeers.ts`) use atomic
-  temp+rename, so the per-connection reader and the revocation watcher never
-  observe a torn file. ✅
-- Known limitation: concurrent writers (CLI + desktop at the same instant)
-  are last-writer-wins on the whole file; a simultaneous accept and revoke
-  could drop one of the two edits. No lock is taken. Acceptable for
-  human-timescale admin actions on one machine; revisit only if trust edits
-  ever become programmatic.
+- `TrustBook::save` uses atomic temp+rename, so the per-connection reader and
+  the revocation watcher never observe a torn file. ✅
+- Read-modify-write is serialized: `TrustBook::update` holds a cross-process
+  `fs2` advisory lock across load+mutate+save, so concurrent accept and revoke
+  cannot lose an edit. All CLI accept/revoke/pair paths go through it. ✅
 
-### `serve.json` (desktop embedding)
+### `serve.json` (embedding)
 - `0644` in the data dir, contains card / endpoint id / fingerprint — all
   non-secret. Removed on startup, written atomically once online. ✅
 

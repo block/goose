@@ -88,9 +88,9 @@ impl TrustBook {
     /// Read-modify-write the trust book under a cross-process advisory lock.
     ///
     /// Atomic replacement in [`save`] protects readers from partial JSON but
-    /// not writers from lost updates: the desktop Settings process and a
-    /// `goose roam peers` command each load the whole book, mutate, and save,
-    /// so the last writer clobbers the other's change with a stale snapshot —
+    /// not writers from lost updates: two `goose roam peers` commands (or any
+    /// other embedder) each load the whole book, mutate, and save, so the last
+    /// writer clobbers the other's change with a stale snapshot —
     /// e.g. a concurrent accept resurrects a peer that was just revoked. This
     /// serializes the whole load+mutate+save so those edits can't race. The
     /// lock is held on a sidecar `.lock` file (never the book itself) and

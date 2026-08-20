@@ -156,8 +156,8 @@ pub enum RoamCommand {
     /// Open a quick interactive REPL against a remote agent (debug/peek).
     ///
     /// This is a minimal built-in chat loop, handy for a quick sanity check. For
-    /// real work, prefer `bridge` (drive the remote agent from the goose desktop
-    /// app, Zed, or any ACP client) or `delegate` (scriptable one-shot tasks).
+    /// real work, prefer `bridge` (drive the remote agent from Zed or any other
+    /// ACP client) or `delegate` (scriptable one-shot tasks).
     Connect {
         /// A saved peer nickname (see `roam peers`) or a `goose+roam://...` card.
         target: String,
@@ -192,7 +192,7 @@ pub enum RoamCommand {
     ///
     /// Unlike `connect` (which has its own terminal UI), `bridge` runs no UI and
     /// no agent: it transparently proxies ACP between a local transport and the
-    /// remote agent. Point the goose desktop app, Zed, or any ACP client at it
+    /// remote agent. Point Zed or any other ACP client at it
     /// and the remote agent behaves as if it were running locally.
     ///
     /// Defaults to stdio (for a client that spawns `goose roam bridge ...` as a
