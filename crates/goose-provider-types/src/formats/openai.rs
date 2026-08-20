@@ -679,6 +679,25 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
     Ok(result)
 }
 
+pub fn record_response_metadata(usage: &mut ProviderUsage, response: &Value) {
+    usage.response_id = response
+        .get("id")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+
+    let finish_reasons = response
+        .get("choices")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|choice| choice.get("finish_reason").and_then(Value::as_str))
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    if !finish_reasons.is_empty() {
+        usage.finish_reasons = Some(finish_reasons);
+    }
+}
+
 /// Convert OpenAI's API response to internal Message format
 pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
     let output_token_limit_reached = response
@@ -2384,6 +2403,26 @@ mod tests {
         assert!(matches!(message.role, Role::Assistant));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_record_response_metadata() {
+        let response = json!({
+            "id": "chatcmpl-123",
+            "choices": [
+                {"finish_reason": "stop"},
+                {"finish_reason": "tool_calls"}
+            ]
+        });
+        let mut usage = ProviderUsage::new("test-model".to_string(), Usage::default());
+
+        record_response_metadata(&mut usage, &response);
+
+        assert_eq!(usage.response_id.as_deref(), Some("chatcmpl-123"));
+        assert_eq!(
+            usage.finish_reasons,
+            Some(vec!["stop".to_string(), "tool_calls".to_string()])
+        );
     }
 
     #[test]

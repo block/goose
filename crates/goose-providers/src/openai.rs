@@ -9,7 +9,7 @@ use crate::errors::ProviderError;
 use crate::formats::openai::is_openai_responses_model;
 use crate::formats::openai::{
     create_request_with_options, get_cost, get_usage, is_reserved_request_param_key,
-    response_to_message, OpenAiFormatOptions,
+    record_response_metadata, response_to_message, OpenAiFormatOptions,
 };
 use crate::formats::openai_responses::{
     create_responses_request_for_model, get_responses_usage, responses_api_to_message,
@@ -338,6 +338,8 @@ impl OpenAiProvider {
             let usage_data = get_responses_usage(&parsed);
             let usage_json = json.get("usage").unwrap_or(&serde_json::Value::Null);
             let mut usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
+            usage.response_id = Some(parsed.id.clone());
+            usage.finish_reasons = Some(vec![parsed.status.clone()]);
             if let Some(cost) = get_cost(usage_json) {
                 usage = usage.with_cost(cost, CostSource::ProviderReported);
             }
@@ -822,6 +824,7 @@ impl Provider for OpenAiProvider {
                 let usage_json = json.get("usage").unwrap_or(&serde_json::Value::Null);
                 let usage_data = get_usage(usage_json);
                 let mut usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
+                record_response_metadata(&mut usage, &json);
                 if let Some(cost) = get_cost(usage_json) {
                     usage = usage.with_cost(cost, CostSource::ProviderReported);
                 }
