@@ -3272,72 +3272,6 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "Подробный"
   },
-  "roamSection.acceptButton": {
-    "defaultMessage": "Принять"
-  },
-  "roamSection.acceptNamePlaceholder": {
-    "defaultMessage": "имя (необязательно) — напр. телефон"
-  },
-  "roamSection.acceptPlaceholder": {
-    "defaultMessage": "goose+roam://…  (карта устройства)"
-  },
-  "roamSection.acceptTitle": {
-    "defaultMessage": "Принять устройство"
-  },
-  "roamSection.acceptedAs": {
-    "defaultMessage": "{name} принято — убедитесь, что отпечаток совпадает на устройстве: {fingerprint}"
-  },
-  "roamSection.copied": {
-    "defaultMessage": "Скопировано"
-  },
-  "roamSection.copyCard": {
-    "defaultMessage": "Скопировать карту подключения"
-  },
-  "roamSection.description": {
-    "defaultMessage": "Подключайтесь к этому goose с телефона или другого компьютера напрямую (peer-to-peer). Без аккаунтов и промежуточных серверов — устройства сопрягаются обменом открытыми ключами."
-  },
-  "roamSection.devicesHelp": {
-    "defaultMessage": "Устройства, ключи которых принимает этот goose. Отзыв устройства отключает его за несколько секунд, и оно больше не сможет подключиться."
-  },
-  "roamSection.devicesTitle": {
-    "defaultMessage": "Сопряжённые устройства"
-  },
-  "roamSection.enable": {
-    "defaultMessage": "Включить удалённый доступ"
-  },
-  "roamSection.enableDescription": {
-    "defaultMessage": "Также открыть локальный бэкенд goose через goose roam (p2p)."
-  },
-  "roamSection.fingerprint": {
-    "defaultMessage": "Отпечаток"
-  },
-  "roamSection.noDevices": {
-    "defaultMessage": "Пока нет сопряжённых устройств."
-  },
-  "roamSection.pairHelp": {
-    "defaultMessage": "Отсканируйте этот код камерой телефона — он откроет веб-клиент goose, уже нацеленный на эту машину. Устройство покажет свою карту; вставьте её ниже, чтобы завершить сопряжение."
-  },
-  "roamSection.pairTitle": {
-    "defaultMessage": "Сопряжение устройства"
-  },
-  "roamSection.restartNote": {
-    "defaultMessage": "Перезапустите goose, чтобы применить."
-  },
-  "roamSection.revoke": {
-    "defaultMessage": "Отозвать"
-  },
-  "roamSection.revokeConfirm": {
-    "defaultMessage": "Точно отозвать?"
-  },
-  "roamSection.title": {
-    "defaultMessage": "Удалённый доступ (roam)"
-  },
-  "roamSection.unnamedDevice": {
-    "defaultMessage": "Безымянное устройство"
-  },
-  "roamSection.waiting": {
-    "defaultMessage": "Ожидание выхода конечной точки роуминга в сеть… (запускается вместе с бэкендом goose)"
-  },
   "scheduleDetailView.actions": {
     "defaultMessage": "Действия"
   },
@@ -4137,7 +4071,7 @@
     "defaultMessage": "Чат"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "Удалённый доступ"
+    "defaultMessage": "Внешний бэкенд"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Клавиатура"

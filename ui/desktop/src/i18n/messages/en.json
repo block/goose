@@ -3302,72 +3302,6 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "Detailed"
   },
-  "roamSection.acceptButton": {
-    "defaultMessage": "Accept"
-  },
-  "roamSection.acceptNamePlaceholder": {
-    "defaultMessage": "name (optional) — e.g. phone"
-  },
-  "roamSection.acceptPlaceholder": {
-    "defaultMessage": "goose+roam://… (the device’s card)"
-  },
-  "roamSection.acceptTitle": {
-    "defaultMessage": "Accept a device"
-  },
-  "roamSection.acceptedAs": {
-    "defaultMessage": "Accepted {name} — verify the fingerprint matches on the device: {fingerprint}"
-  },
-  "roamSection.copied": {
-    "defaultMessage": "Copied"
-  },
-  "roamSection.copyCard": {
-    "defaultMessage": "Copy connection card"
-  },
-  "roamSection.description": {
-    "defaultMessage": "Reach this goose from your phone or another machine, peer to peer. No accounts and no servers in between — devices pair by exchanging public keys."
-  },
-  "roamSection.devicesHelp": {
-    "defaultMessage": "Devices whose keys this goose accepts. Revoking a device disconnects it within seconds and it can no longer connect."
-  },
-  "roamSection.devicesTitle": {
-    "defaultMessage": "Paired devices"
-  },
-  "roamSection.enable": {
-    "defaultMessage": "Enable remote access"
-  },
-  "roamSection.enableDescription": {
-    "defaultMessage": "Also expose the local goose backend over goose roam (p2p)."
-  },
-  "roamSection.fingerprint": {
-    "defaultMessage": "Fingerprint"
-  },
-  "roamSection.noDevices": {
-    "defaultMessage": "No devices paired yet."
-  },
-  "roamSection.pairHelp": {
-    "defaultMessage": "Scan this code with your phone camera — it opens the goose web client already pointed at this machine. The device shows its own card; paste it below to finish pairing."
-  },
-  "roamSection.pairTitle": {
-    "defaultMessage": "Pair a device"
-  },
-  "roamSection.restartNote": {
-    "defaultMessage": "Restart goose to apply."
-  },
-  "roamSection.revoke": {
-    "defaultMessage": "Revoke"
-  },
-  "roamSection.revokeConfirm": {
-    "defaultMessage": "Really revoke?"
-  },
-  "roamSection.title": {
-    "defaultMessage": "Remote access (roam)"
-  },
-  "roamSection.unnamedDevice": {
-    "defaultMessage": "Unnamed device"
-  },
-  "roamSection.waiting": {
-    "defaultMessage": "Waiting for the roaming endpoint to come online… (starts with the goose backend)"
-  },
   "scheduleDetailView.actions": {
     "defaultMessage": "Actions"
   },
@@ -4167,7 +4101,7 @@
     "defaultMessage": "Chat"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "Remote Access"
+    "defaultMessage": "External Backend"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Keyboard"

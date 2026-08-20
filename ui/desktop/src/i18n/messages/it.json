@@ -3272,72 +3272,6 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "Dettagliato"
   },
-  "roamSection.acceptButton": {
-    "defaultMessage": "Accetta"
-  },
-  "roamSection.acceptNamePlaceholder": {
-    "defaultMessage": "nome (facoltativo) — es. telefono"
-  },
-  "roamSection.acceptPlaceholder": {
-    "defaultMessage": "goose+roam://…  (la scheda del dispositivo)"
-  },
-  "roamSection.acceptTitle": {
-    "defaultMessage": "Accetta un dispositivo"
-  },
-  "roamSection.acceptedAs": {
-    "defaultMessage": "{name} accettato — verifica che l'impronta corrisponda sul dispositivo: {fingerprint}"
-  },
-  "roamSection.copied": {
-    "defaultMessage": "Copiato"
-  },
-  "roamSection.copyCard": {
-    "defaultMessage": "Copia scheda di connessione"
-  },
-  "roamSection.description": {
-    "defaultMessage": "Raggiungi questo goose dal telefono o da un'altra macchina, peer-to-peer. Nessun account e nessun server intermediario — i dispositivi si accoppiano scambiando chiavi pubbliche."
-  },
-  "roamSection.devicesHelp": {
-    "defaultMessage": "Dispositivi le cui chiavi sono accettate da questo goose. Revocare un dispositivo lo disconnette in pochi secondi e non potrà più connettersi."
-  },
-  "roamSection.devicesTitle": {
-    "defaultMessage": "Dispositivi associati"
-  },
-  "roamSection.enable": {
-    "defaultMessage": "Abilita accesso remoto"
-  },
-  "roamSection.enableDescription": {
-    "defaultMessage": "Esponi anche il backend locale di goose tramite goose roam (p2p)."
-  },
-  "roamSection.fingerprint": {
-    "defaultMessage": "Impronta"
-  },
-  "roamSection.noDevices": {
-    "defaultMessage": "Nessun dispositivo associato per ora."
-  },
-  "roamSection.pairHelp": {
-    "defaultMessage": "Scansiona questo codice con la fotocamera del telefono: apre il client web di goose già puntato su questa macchina. Il dispositivo mostra la propria scheda; incollala qui sotto per completare l'associazione."
-  },
-  "roamSection.pairTitle": {
-    "defaultMessage": "Accoppia un dispositivo"
-  },
-  "roamSection.restartNote": {
-    "defaultMessage": "Riavvia goose per applicare."
-  },
-  "roamSection.revoke": {
-    "defaultMessage": "Revoca"
-  },
-  "roamSection.revokeConfirm": {
-    "defaultMessage": "Revocare davvero?"
-  },
-  "roamSection.title": {
-    "defaultMessage": "Accesso remoto (roam)"
-  },
-  "roamSection.unnamedDevice": {
-    "defaultMessage": "Dispositivo senza nome"
-  },
-  "roamSection.waiting": {
-    "defaultMessage": "In attesa che l'endpoint roaming sia online… (si avvia con il backend goose)"
-  },
   "scheduleDetailView.actions": {
     "defaultMessage": "Azioni"
   },
@@ -4137,7 +4071,7 @@
     "defaultMessage": "Chat"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "Accesso remoto"
+    "defaultMessage": "Backend esterno"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Tastiera"

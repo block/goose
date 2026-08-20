@@ -3,7 +3,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { View, ViewOptions } from '../../utils/navigationUtils';
 import ModelsSection from './models/ModelsSection';
 import ExternalBackendSection from './app/ExternalBackendSection';
-import RoamSection from './app/RoamSection';
 import AppSettingsSection from './app/AppSettingsSection';
 import ConfigSettings from './config/ConfigSettings';
 import PromptsSettingsSection from './PromptsSettingsSection';
@@ -48,7 +47,7 @@ const i18n = defineMessages({
   },
   tabExternalBackend: {
     id: 'settingsView.tabExternalBackend',
-    defaultMessage: 'Remote Access',
+    defaultMessage: 'External Backend',
   },
   tabPrompts: {
     id: 'settingsView.tabPrompts',
@@ -253,7 +252,6 @@ export default function SettingsView({
                   className="mt-0 focus-visible:outline-none focus-visible:ring-0"
                 >
                   <div className="space-y-8 pb-8">
-                    <RoamSection />
                     <ExternalBackendSection />
                   </div>
                 </TabsContent>

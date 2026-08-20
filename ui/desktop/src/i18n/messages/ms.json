@@ -3272,72 +3272,6 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "Terperinci"
   },
-  "roamSection.acceptButton": {
-    "defaultMessage": "Terima"
-  },
-  "roamSection.acceptNamePlaceholder": {
-    "defaultMessage": "nama (pilihan) — cth. telefon"
-  },
-  "roamSection.acceptPlaceholder": {
-    "defaultMessage": "goose+roam://…  (kad peranti)"
-  },
-  "roamSection.acceptTitle": {
-    "defaultMessage": "Terima peranti"
-  },
-  "roamSection.acceptedAs": {
-    "defaultMessage": "{name} diterima — sahkan cap jari sepadan pada peranti: {fingerprint}"
-  },
-  "roamSection.copied": {
-    "defaultMessage": "Disalin"
-  },
-  "roamSection.copyCard": {
-    "defaultMessage": "Salin kad sambungan"
-  },
-  "roamSection.description": {
-    "defaultMessage": "Capai goose ini dari telefon anda atau mesin lain, secara rakan ke rakan. Tiada akaun dan tiada pelayan perantara — peranti berpasangan dengan bertukar kunci awam."
-  },
-  "roamSection.devicesHelp": {
-    "defaultMessage": "Peranti yang kuncinya diterima oleh goose ini. Membatalkan peranti akan memutuskan sambungannya dalam beberapa saat dan ia tidak lagi boleh bersambung."
-  },
-  "roamSection.devicesTitle": {
-    "defaultMessage": "Peranti berpasangan"
-  },
-  "roamSection.enable": {
-    "defaultMessage": "Dayakan akses jauh"
-  },
-  "roamSection.enableDescription": {
-    "defaultMessage": "Turut dedahkan backend goose tempatan melalui goose roam (p2p)."
-  },
-  "roamSection.fingerprint": {
-    "defaultMessage": "Cap jari"
-  },
-  "roamSection.noDevices": {
-    "defaultMessage": "Belum ada peranti berpasangan."
-  },
-  "roamSection.pairHelp": {
-    "defaultMessage": "Imbas kod ini dengan kamera telefon — ia membuka klien web goose yang sudah menghala ke mesin ini. Peranti memaparkan kadnya sendiri; tampal di bawah untuk melengkapkan pemasangan."
-  },
-  "roamSection.pairTitle": {
-    "defaultMessage": "Pasangkan peranti"
-  },
-  "roamSection.restartNote": {
-    "defaultMessage": "Mulakan semula goose untuk menerapkan."
-  },
-  "roamSection.revoke": {
-    "defaultMessage": "Batalkan"
-  },
-  "roamSection.revokeConfirm": {
-    "defaultMessage": "Betul nak batalkan?"
-  },
-  "roamSection.title": {
-    "defaultMessage": "Akses jauh (roam)"
-  },
-  "roamSection.unnamedDevice": {
-    "defaultMessage": "Peranti tanpa nama"
-  },
-  "roamSection.waiting": {
-    "defaultMessage": "Menunggu titik akhir roaming dalam talian… (bermula bersama backend goose)"
-  },
   "scheduleDetailView.actions": {
     "defaultMessage": "Tindakan"
   },
@@ -4137,7 +4071,7 @@
     "defaultMessage": "Sembang"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "Akses jauh"
+    "defaultMessage": "Backend Luaran"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Papan Kekunci"

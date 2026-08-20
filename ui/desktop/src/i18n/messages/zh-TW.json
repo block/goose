@@ -3272,72 +3272,6 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "詳細"
   },
-  "roamSection.acceptButton": {
-    "defaultMessage": "接受"
-  },
-  "roamSection.acceptNamePlaceholder": {
-    "defaultMessage": "名稱（選填）— 例如：手機"
-  },
-  "roamSection.acceptPlaceholder": {
-    "defaultMessage": "goose+roam://…（裝置的卡片）"
-  },
-  "roamSection.acceptTitle": {
-    "defaultMessage": "接受裝置"
-  },
-  "roamSection.acceptedAs": {
-    "defaultMessage": "已接受 {name} — 請確認裝置上的指紋一致：{fingerprint}"
-  },
-  "roamSection.copied": {
-    "defaultMessage": "已複製"
-  },
-  "roamSection.copyCard": {
-    "defaultMessage": "複製連線卡片"
-  },
-  "roamSection.description": {
-    "defaultMessage": "透過手機或其他裝置以點對點方式存取此 goose。無需帳號，中間沒有伺服器 — 裝置透過交換公鑰進行配對。"
-  },
-  "roamSection.devicesHelp": {
-    "defaultMessage": "此 goose 接受其金鑰的裝置。撤銷裝置後，它會在幾秒內中斷連線，且無法再連線。"
-  },
-  "roamSection.devicesTitle": {
-    "defaultMessage": "已配對裝置"
-  },
-  "roamSection.enable": {
-    "defaultMessage": "啟用遠端存取"
-  },
-  "roamSection.enableDescription": {
-    "defaultMessage": "同時透過 goose roam (p2p) 公開本機 goose 後端。"
-  },
-  "roamSection.fingerprint": {
-    "defaultMessage": "指紋"
-  },
-  "roamSection.noDevices": {
-    "defaultMessage": "尚未配對任何裝置。"
-  },
-  "roamSection.pairHelp": {
-    "defaultMessage": "用手機相機掃描此條碼 — 它會開啟已指向本機的 goose 網頁用戶端。裝置會顯示自己的卡片；貼到下方即可完成配對。"
-  },
-  "roamSection.pairTitle": {
-    "defaultMessage": "配對裝置"
-  },
-  "roamSection.restartNote": {
-    "defaultMessage": "重新啟動 goose 以套用。"
-  },
-  "roamSection.revoke": {
-    "defaultMessage": "撤銷"
-  },
-  "roamSection.revokeConfirm": {
-    "defaultMessage": "確定撤銷？"
-  },
-  "roamSection.title": {
-    "defaultMessage": "遠端存取 (roam)"
-  },
-  "roamSection.unnamedDevice": {
-    "defaultMessage": "未命名裝置"
-  },
-  "roamSection.waiting": {
-    "defaultMessage": "正在等待漫遊端點上線…（隨 goose 後端一同啟動）"
-  },
   "scheduleDetailView.actions": {
     "defaultMessage": "動作"
   },
@@ -4137,7 +4071,7 @@
     "defaultMessage": "聊天"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "遠端存取"
+    "defaultMessage": "外部後端"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "鍵盤"

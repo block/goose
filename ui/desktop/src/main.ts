@@ -51,8 +51,6 @@ import {
   updateTrayMenu,
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
-import { readRoamServeStatus } from './roamStatus';
-import { acceptRoamPeer, listRoamPeers, revokeRoamPeer } from './roamPeers';
 import './utils/gitBranchIpc';
 import './utils/recipeHash';
 import type { GooseApp } from './types/apps';
@@ -1210,7 +1208,6 @@ const createChat = async (
         serverSecret,
         dir: workingDir,
         tls: true,
-        roam: getSettings().roamEnabled,
         env: {
           GOOSE_PATH_ROOT: appConfig.GOOSE_PATH_ROOT as string | undefined,
         },
@@ -1982,7 +1979,6 @@ const validSettingKeys: Set<string> = new Set([
   'showPricing',
   'seenAnnouncementIds',
   'disableAutoDownload',
-  'roamEnabled',
   'recentModels',
 ]);
 
@@ -2015,39 +2011,6 @@ ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
   if (key === 'disableAutoDownload') {
     setAutoDownloadDisabled(value as boolean);
   }
-});
-
-ipcMain.handle('get-roam-status', () => {
-  const status = readRoamServeStatus(appConfig.GOOSE_PATH_ROOT as string | undefined);
-  return { status };
-});
-
-ipcMain.handle('list-roam-peers', () => {
-  try {
-    return listRoamPeers(appConfig.GOOSE_PATH_ROOT as string | undefined);
-  } catch (err) {
-    console.error('list-roam-peers failed (corrupt trust/peers file?):', err);
-    return [];
-  }
-});
-
-ipcMain.handle('revoke-roam-peer', (_event, endpointId: string) => {
-  if (typeof endpointId !== 'string') return false;
-  try {
-    return revokeRoamPeer(endpointId, appConfig.GOOSE_PATH_ROOT as string | undefined);
-  } catch (err) {
-    console.error('revoke-roam-peer failed (corrupt trust file?):', err);
-    return false;
-  }
-});
-
-ipcMain.handle('accept-roam-peer', (_event, cardText: string, name?: string) => {
-  if (typeof cardText !== 'string') return { error: 'invalid card' };
-  return acceptRoamPeer(
-    cardText,
-    typeof name === 'string' ? name : undefined,
-    appConfig.GOOSE_PATH_ROOT as string | undefined
-  );
 });
 
 ipcMain.handle('get-secret-key', (event) => {

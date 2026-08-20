@@ -3272,72 +3272,6 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "Detaylı"
   },
-  "roamSection.acceptButton": {
-    "defaultMessage": "Kabul et"
-  },
-  "roamSection.acceptNamePlaceholder": {
-    "defaultMessage": "ad (isteğe bağlı) — örn. telefon"
-  },
-  "roamSection.acceptPlaceholder": {
-    "defaultMessage": "goose+roam://…  (cihazın kartı)"
-  },
-  "roamSection.acceptTitle": {
-    "defaultMessage": "Cihaz kabul et"
-  },
-  "roamSection.acceptedAs": {
-    "defaultMessage": "{name} kabul edildi — parmak izinin cihazda eşleştiğini doğrulayın: {fingerprint}"
-  },
-  "roamSection.copied": {
-    "defaultMessage": "Kopyalandı"
-  },
-  "roamSection.copyCard": {
-    "defaultMessage": "Bağlantı kartını kopyala"
-  },
-  "roamSection.description": {
-    "defaultMessage": "Bu goose'a telefonunuzdan veya başka bir makineden eşler arası (p2p) erişin. Hesap yok, arada sunucu yok — cihazlar açık anahtar alışverişiyle eşleşir."
-  },
-  "roamSection.devicesHelp": {
-    "defaultMessage": "Bu goose'un anahtarlarını kabul ettiği cihazlar. Bir cihazı iptal etmek, onu saniyeler içinde bağlantıdan düşürür ve bir daha bağlanamaz."
-  },
-  "roamSection.devicesTitle": {
-    "defaultMessage": "Eşleştirilmiş cihazlar"
-  },
-  "roamSection.enable": {
-    "defaultMessage": "Uzaktan erişimi etkinleştir"
-  },
-  "roamSection.enableDescription": {
-    "defaultMessage": "Yerel goose arka ucunu goose roam (p2p) üzerinden de erişilebilir yap."
-  },
-  "roamSection.fingerprint": {
-    "defaultMessage": "Parmak izi"
-  },
-  "roamSection.noDevices": {
-    "defaultMessage": "Henüz eşleştirilmiş cihaz yok."
-  },
-  "roamSection.pairHelp": {
-    "defaultMessage": "Bu kodu telefon kamerasıyla tarayın — goose web istemcisini bu makineye zaten yönlendirilmiş olarak açar. Cihaz kendi kartını gösterir; eşleştirmeyi tamamlamak için aşağıya yapıştırın."
-  },
-  "roamSection.pairTitle": {
-    "defaultMessage": "Cihaz eşleştir"
-  },
-  "roamSection.restartNote": {
-    "defaultMessage": "Uygulamak için goose'u yeniden başlatın."
-  },
-  "roamSection.revoke": {
-    "defaultMessage": "İptal et"
-  },
-  "roamSection.revokeConfirm": {
-    "defaultMessage": "Gerçekten iptal edilsin mi?"
-  },
-  "roamSection.title": {
-    "defaultMessage": "Uzaktan erişim (roam)"
-  },
-  "roamSection.unnamedDevice": {
-    "defaultMessage": "Adsız cihaz"
-  },
-  "roamSection.waiting": {
-    "defaultMessage": "Roaming uç noktasının çevrimiçi olması bekleniyor… (goose arka ucuyla birlikte başlar)"
-  },
   "scheduleDetailView.actions": {
     "defaultMessage": "Eylemler"
   },
@@ -4137,7 +4071,7 @@
     "defaultMessage": "Sohbet"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "Uzaktan erişim"
+    "defaultMessage": "Harici Arka Uç"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Klavye"

@@ -44,8 +44,6 @@ export interface Settings {
   spellcheckEnabled: boolean;
   // Key is kept as `externalGoosed` for backward compat with persisted user settings.
   externalGoosed: ExternalBackendConfig;
-  /** Pass --roam to `goose serve` so the local backend is also reachable over goose-roaming (p2p). */
-  roamEnabled: boolean;
   globalShortcut?: string | null;
   keyboardShortcuts: KeyboardShortcuts;
 
@@ -89,7 +87,6 @@ export const defaultSettings: Settings = {
     url: '',
     secret: '',
   },
-  roamEnabled: false,
 
   // UI preferences
   theme: 'light',

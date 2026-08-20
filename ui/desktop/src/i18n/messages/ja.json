@@ -3272,72 +3272,6 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "詳細"
   },
-  "roamSection.acceptButton": {
-    "defaultMessage": "承認"
-  },
-  "roamSection.acceptNamePlaceholder": {
-    "defaultMessage": "名前（任意）— 例: スマホ"
-  },
-  "roamSection.acceptPlaceholder": {
-    "defaultMessage": "goose+roam://…（デバイスのカード）"
-  },
-  "roamSection.acceptTitle": {
-    "defaultMessage": "デバイスを承認"
-  },
-  "roamSection.acceptedAs": {
-    "defaultMessage": "{name} を承認しました — デバイス側でフィンガープリントが一致することを確認してください: {fingerprint}"
-  },
-  "roamSection.copied": {
-    "defaultMessage": "コピーしました"
-  },
-  "roamSection.copyCard": {
-    "defaultMessage": "接続カードをコピー"
-  },
-  "roamSection.description": {
-    "defaultMessage": "スマートフォンや別のマシンからこの goose にピアツーピアで接続できます。アカウントも中間サーバーも不要 — デバイスは公開鍵を交換してペアリングします。"
-  },
-  "roamSection.devicesHelp": {
-    "defaultMessage": "この goose が鍵を受け入れているデバイスです。デバイスを取り消すと数秒以内に切断され、以後接続できなくなります。"
-  },
-  "roamSection.devicesTitle": {
-    "defaultMessage": "ペアリング済みデバイス"
-  },
-  "roamSection.enable": {
-    "defaultMessage": "リモートアクセスを有効にする"
-  },
-  "roamSection.enableDescription": {
-    "defaultMessage": "ローカルの goose バックエンドを goose roam (p2p) 経由でも公開します。"
-  },
-  "roamSection.fingerprint": {
-    "defaultMessage": "フィンガープリント"
-  },
-  "roamSection.noDevices": {
-    "defaultMessage": "まだペアリングされたデバイスはありません。"
-  },
-  "roamSection.pairHelp": {
-    "defaultMessage": "このコードをスマートフォンのカメラでスキャンすると、このマシンに接続済みの goose ウェブクライアントが開きます。デバイスに表示される自身のカードを下に貼り付けてペアリングを完了してください。"
-  },
-  "roamSection.pairTitle": {
-    "defaultMessage": "デバイスをペアリング"
-  },
-  "roamSection.restartNote": {
-    "defaultMessage": "適用するには goose を再起動してください。"
-  },
-  "roamSection.revoke": {
-    "defaultMessage": "取り消す"
-  },
-  "roamSection.revokeConfirm": {
-    "defaultMessage": "本当に取り消しますか？"
-  },
-  "roamSection.title": {
-    "defaultMessage": "リモートアクセス (roam)"
-  },
-  "roamSection.unnamedDevice": {
-    "defaultMessage": "名前のないデバイス"
-  },
-  "roamSection.waiting": {
-    "defaultMessage": "ローミングエンドポイントがオンラインになるのを待っています…（goose バックエンドと共に起動します）"
-  },
   "scheduleDetailView.actions": {
     "defaultMessage": "操作"
   },
@@ -4137,7 +4071,7 @@
     "defaultMessage": "チャット"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "リモートアクセス"
+    "defaultMessage": "外部バックエンド"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "キーボード"

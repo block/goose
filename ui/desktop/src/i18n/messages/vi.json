@@ -3272,72 +3272,6 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "Chi tiết"
   },
-  "roamSection.acceptButton": {
-    "defaultMessage": "Chấp nhận"
-  },
-  "roamSection.acceptNamePlaceholder": {
-    "defaultMessage": "tên (tùy chọn) — ví dụ: điện thoại"
-  },
-  "roamSection.acceptPlaceholder": {
-    "defaultMessage": "goose+roam://…  (thẻ của thiết bị)"
-  },
-  "roamSection.acceptTitle": {
-    "defaultMessage": "Chấp nhận thiết bị"
-  },
-  "roamSection.acceptedAs": {
-    "defaultMessage": "Đã chấp nhận {name} — kiểm tra dấu vân tay khớp trên thiết bị: {fingerprint}"
-  },
-  "roamSection.copied": {
-    "defaultMessage": "Đã sao chép"
-  },
-  "roamSection.copyCard": {
-    "defaultMessage": "Sao chép thẻ kết nối"
-  },
-  "roamSection.description": {
-    "defaultMessage": "Truy cập goose này từ điện thoại hoặc máy khác, theo kiểu ngang hàng. Không tài khoản, không máy chủ trung gian — các thiết bị ghép nối bằng cách trao đổi khóa công khai."
-  },
-  "roamSection.devicesHelp": {
-    "defaultMessage": "Các thiết bị mà goose này chấp nhận khóa. Thu hồi một thiết bị sẽ ngắt kết nối nó trong vài giây và nó không thể kết nối lại."
-  },
-  "roamSection.devicesTitle": {
-    "defaultMessage": "Thiết bị đã ghép nối"
-  },
-  "roamSection.enable": {
-    "defaultMessage": "Bật truy cập từ xa"
-  },
-  "roamSection.enableDescription": {
-    "defaultMessage": "Đồng thời mở backend goose cục bộ qua goose roam (p2p)."
-  },
-  "roamSection.fingerprint": {
-    "defaultMessage": "Vân tay"
-  },
-  "roamSection.noDevices": {
-    "defaultMessage": "Chưa có thiết bị nào được ghép nối."
-  },
-  "roamSection.pairHelp": {
-    "defaultMessage": "Quét mã này bằng camera điện thoại — nó mở trình khách web goose đã trỏ sẵn vào máy này. Thiết bị hiển thị thẻ của chính nó; dán vào bên dưới để hoàn tất ghép nối."
-  },
-  "roamSection.pairTitle": {
-    "defaultMessage": "Ghép nối thiết bị"
-  },
-  "roamSection.restartNote": {
-    "defaultMessage": "Khởi động lại goose để áp dụng."
-  },
-  "roamSection.revoke": {
-    "defaultMessage": "Thu hồi"
-  },
-  "roamSection.revokeConfirm": {
-    "defaultMessage": "Thu hồi thật chứ?"
-  },
-  "roamSection.title": {
-    "defaultMessage": "Truy cập từ xa (roam)"
-  },
-  "roamSection.unnamedDevice": {
-    "defaultMessage": "Thiết bị chưa đặt tên"
-  },
-  "roamSection.waiting": {
-    "defaultMessage": "Đang chờ điểm cuối roaming trực tuyến… (khởi động cùng backend goose)"
-  },
   "scheduleDetailView.actions": {
     "defaultMessage": "Hành động"
   },
@@ -4137,7 +4071,7 @@
     "defaultMessage": "Trò chuyện"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "Truy cập từ xa"
+    "defaultMessage": "Backend bên ngoài"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Bàn phím"

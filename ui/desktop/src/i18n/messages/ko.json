@@ -3272,72 +3272,6 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "자세히"
   },
-  "roamSection.acceptButton": {
-    "defaultMessage": "수락"
-  },
-  "roamSection.acceptNamePlaceholder": {
-    "defaultMessage": "이름 (선택) — 예: 휴대폰"
-  },
-  "roamSection.acceptPlaceholder": {
-    "defaultMessage": "goose+roam://…  (기기의 카드)"
-  },
-  "roamSection.acceptTitle": {
-    "defaultMessage": "기기 수락"
-  },
-  "roamSection.acceptedAs": {
-    "defaultMessage": "{name} 수락됨 — 기기에서 지문이 일치하는지 확인하세요: {fingerprint}"
-  },
-  "roamSection.copied": {
-    "defaultMessage": "복사됨"
-  },
-  "roamSection.copyCard": {
-    "defaultMessage": "연결 카드 복사"
-  },
-  "roamSection.description": {
-    "defaultMessage": "휴대폰이나 다른 컴퓨터에서 이 goose에 피어 투 피어로 접속하세요. 계정도, 중간 서버도 없습니다 — 기기들은 공개 키를 교환하여 페어링됩니다."
-  },
-  "roamSection.devicesHelp": {
-    "defaultMessage": "이 goose가 키를 수락한 기기입니다. 기기를 해지하면 몇 초 안에 연결이 끊기며 더 이상 연결할 수 없습니다."
-  },
-  "roamSection.devicesTitle": {
-    "defaultMessage": "페어링된 기기"
-  },
-  "roamSection.enable": {
-    "defaultMessage": "원격 접속 활성화"
-  },
-  "roamSection.enableDescription": {
-    "defaultMessage": "로컬 goose 백엔드를 goose roam (p2p)으로도 노출합니다."
-  },
-  "roamSection.fingerprint": {
-    "defaultMessage": "지문"
-  },
-  "roamSection.noDevices": {
-    "defaultMessage": "아직 페어링된 기기가 없습니다."
-  },
-  "roamSection.pairHelp": {
-    "defaultMessage": "휴대폰 카메라로 이 코드를 스캔하면 이 컴퓨터를 가리키는 goose 웹 클라이언트가 열립니다. 기기에 표시되는 카드를 아래에 붙여넣어 페어링을 완료하세요."
-  },
-  "roamSection.pairTitle": {
-    "defaultMessage": "기기 페어링"
-  },
-  "roamSection.restartNote": {
-    "defaultMessage": "적용하려면 goose를 다시 시작하세요."
-  },
-  "roamSection.revoke": {
-    "defaultMessage": "해지"
-  },
-  "roamSection.revokeConfirm": {
-    "defaultMessage": "정말 해지할까요?"
-  },
-  "roamSection.title": {
-    "defaultMessage": "원격 접속 (roam)"
-  },
-  "roamSection.unnamedDevice": {
-    "defaultMessage": "이름 없는 기기"
-  },
-  "roamSection.waiting": {
-    "defaultMessage": "로밍 엔드포인트가 온라인 상태가 되기를 기다리는 중… (goose 백엔드와 함께 시작됩니다)"
-  },
   "scheduleDetailView.actions": {
     "defaultMessage": "작업"
   },
@@ -4137,7 +4071,7 @@
     "defaultMessage": "채팅"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "원격 접속"
+    "defaultMessage": "외부 백엔드"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "키보드"

@@ -135,7 +135,7 @@ export interface SessionListFilter {
   keyword?: string;
 }
 
-const SESSION_LIST_TYPES = ['user', 'scheduled', 'acp'] as const;
+const SESSION_LIST_TYPES = ['user', 'scheduled'] as const;
 
 export async function acpListSessions(
   cursor?: string | null,

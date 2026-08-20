@@ -3272,72 +3272,6 @@
   "responseStyle.detailedLabel": {
     "defaultMessage": "विस्तृत"
   },
-  "roamSection.acceptButton": {
-    "defaultMessage": "स्वीकार करें"
-  },
-  "roamSection.acceptNamePlaceholder": {
-    "defaultMessage": "नाम (वैकल्पिक) — जैसे फ़ोन"
-  },
-  "roamSection.acceptPlaceholder": {
-    "defaultMessage": "goose+roam://…  (डिवाइस का कार्ड)"
-  },
-  "roamSection.acceptTitle": {
-    "defaultMessage": "डिवाइस स्वीकार करें"
-  },
-  "roamSection.acceptedAs": {
-    "defaultMessage": "{name} स्वीकृत — जाँचें कि फ़िंगरप्रिंट डिवाइस पर मेल खाता है: {fingerprint}"
-  },
-  "roamSection.copied": {
-    "defaultMessage": "कॉपी हो गया"
-  },
-  "roamSection.copyCard": {
-    "defaultMessage": "कनेक्शन कार्ड कॉपी करें"
-  },
-  "roamSection.description": {
-    "defaultMessage": "अपने फ़ोन या किसी अन्य मशीन से इस goose तक पहुँचें, पीयर-टू-पीयर। कोई खाता नहीं और बीच में कोई सर्वर नहीं — डिवाइस सार्वजनिक कुंजियों का आदान-प्रदान करके जुड़ते हैं।"
-  },
-  "roamSection.devicesHelp": {
-    "defaultMessage": "वे डिवाइस जिनकी कुंजियाँ यह goose स्वीकार करता है। किसी डिवाइस को निरस्त करने पर वह कुछ सेकंड में डिस्कनेक्ट हो जाता है और फिर कनेक्ट नहीं हो सकता।"
-  },
-  "roamSection.devicesTitle": {
-    "defaultMessage": "युग्मित डिवाइस"
-  },
-  "roamSection.enable": {
-    "defaultMessage": "रिमोट एक्सेस सक्षम करें"
-  },
-  "roamSection.enableDescription": {
-    "defaultMessage": "स्थानीय goose बैकएंड को goose roam (p2p) के माध्यम से भी उपलब्ध कराएँ।"
-  },
-  "roamSection.fingerprint": {
-    "defaultMessage": "फ़िंगरप्रिंट"
-  },
-  "roamSection.noDevices": {
-    "defaultMessage": "अभी तक कोई डिवाइस युग्मित नहीं है।"
-  },
-  "roamSection.pairHelp": {
-    "defaultMessage": "इस कोड को फ़ोन कैमरे से स्कैन करें — यह goose वेब क्लाइंट को इस मशीन की ओर पहले से इंगित करके खोलता है। डिवाइस अपना कार्ड दिखाता है; युग्मन पूरा करने के लिए उसे नीचे चिपकाएँ।"
-  },
-  "roamSection.pairTitle": {
-    "defaultMessage": "डिवाइस जोड़ें"
-  },
-  "roamSection.restartNote": {
-    "defaultMessage": "लागू करने के लिए goose को पुनः प्रारंभ करें।"
-  },
-  "roamSection.revoke": {
-    "defaultMessage": "निरस्त करें"
-  },
-  "roamSection.revokeConfirm": {
-    "defaultMessage": "वाकई निरस्त करें?"
-  },
-  "roamSection.title": {
-    "defaultMessage": "रिमोट एक्सेस (roam)"
-  },
-  "roamSection.unnamedDevice": {
-    "defaultMessage": "अनाम डिवाइस"
-  },
-  "roamSection.waiting": {
-    "defaultMessage": "रोमिंग एंडपॉइंट के ऑनलाइन होने की प्रतीक्षा… (goose बैकएंड के साथ शुरू होता है)"
-  },
   "scheduleDetailView.actions": {
     "defaultMessage": "क्रियाएँ"
   },
@@ -4137,7 +4071,7 @@
     "defaultMessage": "बातचीत"
   },
   "settingsView.tabExternalBackend": {
-    "defaultMessage": "रिमोट एक्सेस"
+    "defaultMessage": "बाहरी बैकएंड"
   },
   "settingsView.tabKeyboard": {
     "defaultMessage": "कीबोर्ड"
