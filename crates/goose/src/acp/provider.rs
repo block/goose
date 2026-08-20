@@ -1162,6 +1162,7 @@ impl AcpClientLoop {
         } = self;
         let notification_callback = config.notification_callback.clone();
         let reverse_modes = reverse_mode_mapping(&config.mode_mapping);
+        let active_session_id = Arc::new(Mutex::new(None));
 
         Client
             .builder()
@@ -1173,7 +1174,14 @@ impl AcpClientLoop {
                     let pending_tool_updates = pending_tool_updates.clone();
                     let context_size = context_size.clone();
                     let effort_state = effort_state.clone();
+                    let active_session_id = active_session_id.clone();
                     async move |notification: SessionNotification, _cx| {
+                        let is_active_session = active_session_id
+                            .lock()
+                            .is_ok_and(|active| active.as_ref() == Some(&notification.session_id));
+                        if !is_active_session {
+                            return Ok(());
+                        }
                         if let Some(ref cb) = notification_callback {
                             cb(notification.clone());
                         }
@@ -1375,6 +1383,7 @@ impl AcpClientLoop {
                     rx,
                     prompt_response_tx,
                     effort_state,
+                    active_session_id,
                     init_tx,
                 )
                 .await
@@ -1481,6 +1490,7 @@ async fn handle_requests(
     rx: &mut mpsc::Receiver<ClientRequest>,
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
     effort_state: Arc<Mutex<Option<ThinkingEffortCapability>>>,
+    active_session_id: Arc<Mutex<Option<SessionId>>>,
     init_tx: oneshot::Sender<Result<InitializeResponse>>,
 ) -> Result<(), agent_client_protocol::Error> {
     let mut init_tx = Some(init_tx);
@@ -1525,6 +1535,7 @@ async fn handle_requests(
                     .await;
                 let result = match session {
                     Ok(session) => {
+                        *active_session_id.lock().unwrap() = Some(session.session_id.clone());
                         session_ids.push(session.session_id.clone());
                         refresh_effort_state(
                             &effort_state,
@@ -1547,6 +1558,10 @@ async fn handle_requests(
                 session_id,
                 response_tx,
             } => {
+                let previous_session_id = active_session_id
+                    .lock()
+                    .unwrap()
+                    .replace(session_id.clone());
                 let result = if supports_load {
                     let mcp_servers =
                         filter_supported_servers(&config.mcp_servers, &mcp_capabilities);
@@ -1582,7 +1597,10 @@ async fn handle_requests(
                         .await?;
                         apply_session_mode(&config, &goose_mode, &cx, session).await
                     }
-                    Err(error) => Err(error),
+                    Err(error) => {
+                        *active_session_id.lock().unwrap() = previous_session_id;
+                        Err(error)
+                    }
                 };
                 log_undelivered(response_tx.send(result), AGENT_METHOD_NAMES.session_load);
             }

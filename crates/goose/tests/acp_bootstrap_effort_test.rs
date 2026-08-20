@@ -1,8 +1,9 @@
 use agent_client_protocol::schema::v1::{
-    AgentCapabilities, InitializeRequest, InitializeResponse, LoadSessionRequest,
-    LoadSessionResponse, NewSessionRequest, NewSessionResponse, SessionConfigOption,
-    SessionConfigOptionCategory, SessionConfigSelectOption, SessionId,
-    SetSessionConfigOptionRequest, SetSessionConfigOptionResponse,
+    AgentCapabilities, ConfigOptionUpdate, InitializeRequest, InitializeResponse,
+    LoadSessionRequest, LoadSessionResponse, NewSessionRequest, NewSessionResponse,
+    SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOption, SessionId,
+    SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
+    SetSessionConfigOptionResponse, UsageUpdate,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{on_receive_request, Agent as SacpAgent, ByteStreams};
@@ -12,6 +13,8 @@ use goose::providers::base::Provider;
 use goose_providers::thinking::ThinkingEffortSupport;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use tokio::sync::Notify;
+use tokio::time::{timeout, Duration};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 fn effort_option(current: &str, values: &[&str]) -> SessionConfigOption {
@@ -136,6 +139,11 @@ async fn loaded_session_refreshes_the_effort_mirror() {
     let (client_read, agent_write) = tokio::io::duplex(64 * 1024);
     let (agent_read, client_write) = tokio::io::duplex(64 * 1024);
 
+    let emit_late_update = Arc::new(Notify::new());
+    let agent_emit_late_update = emit_late_update.clone();
+    let active_update_received = Arc::new(Notify::new());
+    let callback_active_update_received = active_update_received.clone();
+
     let agent = tokio::spawn(async move {
         SacpAgent
             .builder()
@@ -162,11 +170,22 @@ async fn loaded_session_refreshes_the_effort_mirror() {
                 on_receive_request!(),
             )
             .on_receive_request(
-                async |req: LoadSessionRequest, responder, _cx| {
+                async move |req: LoadSessionRequest, responder, cx| {
                     assert_eq!(req.session_id.0.as_ref(), "saved-session");
                     responder.respond(LoadSessionResponse::new().config_options(vec![
                         effort_option("xhigh", &["default", "high", "xhigh"]),
-                    ]))
+                    ]))?;
+                    agent_emit_late_update.notified().await;
+                    cx.send_notification(SessionNotification::new(
+                        SessionId::new("temporary-session"),
+                        SessionUpdate::ConfigOptionUpdate(ConfigOptionUpdate::new(vec![
+                            effort_option("medium", &["low", "medium", "high"]),
+                        ])),
+                    ))?;
+                    cx.send_notification(SessionNotification::new(
+                        SessionId::new("saved-session"),
+                        SessionUpdate::UsageUpdate(UsageUpdate::new(1, 100)),
+                    ))
                 },
                 on_receive_request!(),
             )
@@ -188,7 +207,13 @@ async fn loaded_session_refreshes_the_effort_mirror() {
         session_config_options: vec![],
         model_config_option_id: None,
         mode_mapping: HashMap::new(),
-        notification_callback: None,
+        notification_callback: Some(Arc::new(move |notification| {
+            if notification.session_id.0.as_ref() == "saved-session"
+                && matches!(notification.update, SessionUpdate::UsageUpdate(_))
+            {
+                callback_active_update_received.notify_one();
+            }
+        })),
     };
 
     let provider = AcpProvider::connect_with_transport(
@@ -204,6 +229,11 @@ async fn loaded_session_refreshes_the_effort_mirror() {
         .resume("saved-session")
         .await
         .expect("provider should load the saved session");
+
+    emit_late_update.notify_one();
+    timeout(Duration::from_secs(1), active_update_received.notified())
+        .await
+        .expect("active-session barrier notification should be received");
 
     match provider.thinking_effort_support() {
         ThinkingEffortSupport::Options(capability) => {
