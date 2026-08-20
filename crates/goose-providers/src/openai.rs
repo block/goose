@@ -425,7 +425,7 @@ impl OpenAiProvider {
         "ovhcloud",
     ];
 
-    const PROVIDERS_NEEDING_STANDARD_CHAT_PARAMS: &[&str] = &["nearai"];
+    const PROVIDERS_NEEDING_STANDARD_CHAT_PARAMS: &[&str] = &["nearai", "pleumrouter"];
 
     /// Providers whose reasoning models accept an OpenAI-style
     /// `reasoning_effort` field on chat-completions requests but aren't
