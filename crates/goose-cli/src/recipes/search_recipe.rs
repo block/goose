@@ -26,6 +26,15 @@ pub(crate) fn load_recipe_file_with_byte_limit(
     recipe_name: &str,
     max_bytes: usize,
 ) -> BoundedRecipeLoad {
+    let github_repo = configured_github_recipe_repo();
+    load_recipe_file_with_byte_limit_from_repo(recipe_name, max_bytes, github_repo.as_deref())
+}
+
+pub(crate) fn load_recipe_file_with_byte_limit_from_repo(
+    recipe_name: &str,
+    max_bytes: usize,
+    github_repo: Option<&str>,
+) -> BoundedRecipeLoad {
     let has_recipe_extension = RECIPE_FILE_EXTENSIONS
         .iter()
         .any(|extension| recipe_name.ends_with(&format!(".{extension}")));
@@ -51,15 +60,15 @@ pub(crate) fn load_recipe_file_with_byte_limit(
             recipe_file: Err(error),
             consumed_bytes: Some(local_file_bytes.unwrap_or(0)),
         },
-        Err(error) => match configured_github_recipe_repo() {
+        Err(error) => match github_repo {
             Some(recipe_repo_full_name) => retrieve_recipe_from_github_with_byte_limit(
                 recipe_name,
-                &recipe_repo_full_name,
+                recipe_repo_full_name,
                 max_bytes,
             ),
             None => BoundedRecipeLoad {
                 recipe_file: Err(error),
-                consumed_bytes: None,
+                consumed_bytes: Some(0),
             },
         },
     }

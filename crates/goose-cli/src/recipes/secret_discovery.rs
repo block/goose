@@ -723,13 +723,22 @@ mod tests {
         let root = recipe_with_secret(
             None,
             vec![
+                sub_recipe("missing-extensionless-local-recipe-for-secret-discovery-test"),
                 sub_recipe(missing_path.to_string_lossy()),
                 sub_recipe(invalid_path.to_string_lossy()),
                 sub_recipe(valid_path.to_string_lossy()),
             ],
         );
 
-        let secrets = discover_recipe_secrets(&root);
+        let secrets = discover_recipe_secrets_with_limits_and_loader(
+            &root,
+            DISCOVERY_LIMITS,
+            |path, max_bytes| {
+                crate::recipes::search_recipe::load_recipe_file_with_byte_limit_from_repo(
+                    path, max_bytes, None,
+                )
+            },
+        );
 
         assert_eq!(
             secrets
