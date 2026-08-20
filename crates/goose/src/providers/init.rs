@@ -20,6 +20,7 @@ use super::{
     copilot_acp::CopilotAcpProvider,
     cursor_agent::CursorAgentProvider,
     gcpvertexai::GcpVertexAIProvider,
+    gondola::GondolaProvider,
     gemini_cli::GeminiCliProvider,
     gemini_oauth::GeminiOAuthProvider,
     githubcopilot::GithubCopilotProvider,
@@ -113,6 +114,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             Some(registrations::refresh_only()),
         );
         registry.register::<GeminiCliProvider>(false);
+        registry.register::<GondolaProvider>(false);
         registry.register_with_inventory::<GeminiOAuthProvider>(
             false,
             Some(registrations::gemini_oauth_inventory()),
