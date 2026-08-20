@@ -710,6 +710,37 @@ mod tests {
     }
 
     #[test]
+    fn failed_local_children_do_not_hide_later_sibling_secrets() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let missing_path = temp_dir.path().join("missing.yaml");
+        let invalid_path = temp_dir.path().join("invalid.yaml");
+        let valid_path = temp_dir.path().join("valid.yaml");
+        std::fs::write(&invalid_path, [0xff]).unwrap();
+        write_recipe(
+            &valid_path,
+            &recipe_with_secret(Some("VALID_TOKEN"), vec![]),
+        );
+        let root = recipe_with_secret(
+            None,
+            vec![
+                sub_recipe(missing_path.to_string_lossy()),
+                sub_recipe(invalid_path.to_string_lossy()),
+                sub_recipe(valid_path.to_string_lossy()),
+            ],
+        );
+
+        let secrets = discover_recipe_secrets(&root);
+
+        assert_eq!(
+            secrets
+                .iter()
+                .map(|secret| secret.key.as_str())
+                .collect::<Vec<_>>(),
+            ["VALID_TOKEN"]
+        );
+    }
+
+    #[test]
     fn github_bundle_payloads_share_the_aggregate_discovery_budget() {
         let temp_dir = tempfile::tempdir().unwrap();
         let first_content =

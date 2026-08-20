@@ -29,9 +29,11 @@ pub(crate) fn load_recipe_file_with_byte_limit(
     let has_recipe_extension = RECIPE_FILE_EXTENSIONS
         .iter()
         .any(|extension| recipe_name.ends_with(&format!(".{extension}")));
-    if has_recipe_extension
-        && fs::metadata(recipe_name).is_ok_and(|metadata| metadata.len() > max_bytes as u64)
-    {
+    let local_file_bytes = has_recipe_extension
+        .then(|| fs::metadata(recipe_name))
+        .and_then(Result::ok)
+        .and_then(|metadata| usize::try_from(metadata.len()).ok());
+    if local_file_bytes.is_some_and(|file_bytes| file_bytes > max_bytes) {
         return BoundedRecipeLoad {
             recipe_file: Err(anyhow::anyhow!(
                 "Recipe file exceeds the {max_bytes}-byte limit"
@@ -47,7 +49,7 @@ pub(crate) fn load_recipe_file_with_byte_limit(
         },
         Err(error) if has_recipe_extension => BoundedRecipeLoad {
             recipe_file: Err(error),
-            consumed_bytes: None,
+            consumed_bytes: Some(local_file_bytes.unwrap_or(0)),
         },
         Err(error) => match configured_github_recipe_repo() {
             Some(recipe_repo_full_name) => retrieve_recipe_from_github_with_byte_limit(
