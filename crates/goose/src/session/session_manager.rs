@@ -423,24 +423,9 @@ impl SessionManager {
         session_type: SessionType,
         goose_mode: GooseMode,
     ) -> Result<Session> {
-        self.maybe_spawn_retention_cleanup();
         self.storage
             .create_session(working_dir, name, session_type, goose_mode)
             .await
-    }
-
-    fn maybe_spawn_retention_cleanup(&self) {
-        static CLEANUP_STARTED: std::sync::atomic::AtomicBool =
-            std::sync::atomic::AtomicBool::new(false);
-        if CLEANUP_STARTED.swap(true, std::sync::atomic::Ordering::SeqCst) {
-            return;
-        }
-        let manager = Self {
-            storage: Arc::clone(&self.storage),
-        };
-        tokio::spawn(async move {
-            manager.run_retention_cleanup().await;
-        });
     }
 
     pub async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
@@ -490,33 +475,6 @@ impl SessionManager {
     /// Returns the number of sessions deleted.
     pub async fn delete_sessions_older_than(&self, cutoff: DateTime<Utc>) -> Result<u64> {
         self.storage.delete_sessions_older_than(cutoff).await
-    }
-
-    /// Runs retention cleanup if GOOSE_SESSION_RETENTION_DAYS is configured.
-    /// Best-effort: errors are logged, never propagated.
-    pub async fn run_retention_cleanup(&self) {
-        let retention_days =
-            match crate::config::Config::global().get_goose_session_retention_days() {
-                Ok(Some(days)) => days,
-                Ok(None) => return,
-                Err(e) => {
-                    tracing::warn!("Invalid GOOSE_SESSION_RETENTION_DAYS setting: {e}");
-                    return;
-                }
-            };
-
-        let cutoff = Utc::now() - chrono::Duration::days(retention_days as i64);
-        match self.delete_sessions_older_than(cutoff).await {
-            Ok(0) => {}
-            Ok(deleted) => {
-                tracing::info!(
-                    "Session retention cleanup removed {deleted} session(s) older than {retention_days} day(s)"
-                );
-            }
-            Err(e) => {
-                tracing::warn!("Session retention cleanup failed: {e}");
-            }
-        }
     }
 
     pub async fn get_insights(&self) -> Result<SessionInsights> {

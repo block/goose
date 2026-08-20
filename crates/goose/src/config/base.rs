@@ -1151,17 +1151,6 @@ impl Config {
         }
     }
 
-    pub fn get_goose_session_retention_days(&self) -> Result<Option<u32>, ConfigError> {
-        match self.get_param::<u32>("GOOSE_SESSION_RETENTION_DAYS") {
-            Ok(0) => Err(ConfigError::DeserializeError(
-                "GOOSE_SESSION_RETENTION_DAYS must be greater than 0".to_string(),
-            )),
-            Ok(days) => Ok(Some(days)),
-            Err(ConfigError::NotFound(_)) => Ok(None),
-            Err(e) => Err(e),
-        }
-    }
-
     pub fn get_goose_max_tokens(&self) -> Result<Option<i32>, ConfigError> {
         match self.get_param::<i32>("GOOSE_MAX_TOKENS") {
             Ok(tokens) if tokens <= 0 => Err(ConfigError::DeserializeError(
