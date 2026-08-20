@@ -7,7 +7,6 @@ impl GooseAcpAgent {
         cx: &ConnectionTo<Client>,
         args: ForkSessionRequest,
     ) -> Result<ForkSessionResponse, agent_client_protocol::Error> {
-        validate_absolute_cwd(&args.cwd)?;
         let conversation_before = conversation_before_from_meta(args.meta.as_ref())?;
         let source_session_id = &*args.session_id.0;
 
@@ -42,17 +41,12 @@ impl GooseAcpAgent {
             .await
             .internal_err()?;
 
-        // Mirror the session/load cwd seam: a host-imposed cwd wins, and a
-        // remote client with no meaningful cwd (e.g. the roam web client)
-        // sends "/" — never let that rewrite the forked session's stored
-        // working dir; keep what the copy already has.
-        let cwd = if let Some(host_cwd) = &self.session_cwd {
-            host_cwd.clone()
-        } else if args.cwd == std::path::Path::new("/") {
-            new_session.working_dir.clone()
-        } else {
-            args.cwd.clone()
-        };
+        let cwd = effective_session_cwd(
+            self.session_cwd.as_deref(),
+            &args.cwd,
+            &new_session.working_dir,
+        );
+        validate_absolute_cwd(&cwd)?;
 
         let goose_session = self
             .prepare_session_for_activation(new_session.clone(), cwd, args.mcp_servers, false)

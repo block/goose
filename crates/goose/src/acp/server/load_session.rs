@@ -299,7 +299,6 @@ impl GooseAcpAgent {
         args: LoadSessionRequest,
     ) -> Result<LoadSessionResponse, agent_client_protocol::Error> {
         debug!(?args, "load session request");
-        validate_absolute_cwd(&args.cwd)?;
 
         let session_id_str = args.session_id.0.to_string();
 
@@ -312,17 +311,9 @@ impl GooseAcpAgent {
                     .data(format!("Session not found: {}", session_id_str))
             })?;
 
-        // Mirror the session/new cwd seam: a host-imposed cwd wins, and a
-        // remote client with no meaningful cwd (e.g. the roam web client)
-        // sends "/" — never let that rewrite the session's stored working
-        // dir; keep what the session already has.
-        let cwd = if let Some(host_cwd) = &self.session_cwd {
-            host_cwd.clone()
-        } else if args.cwd == std::path::Path::new("/") {
-            session.working_dir.clone()
-        } else {
-            args.cwd.clone()
-        };
+        let cwd =
+            effective_session_cwd(self.session_cwd.as_deref(), &args.cwd, &session.working_dir);
+        validate_absolute_cwd(&cwd)?;
 
         session = self
             .prepare_session_for_activation(session, cwd, args.mcp_servers, true)

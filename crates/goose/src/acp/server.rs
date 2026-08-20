@@ -192,6 +192,10 @@ struct GooseAcpSession {
 pub struct ActivePromptRun {
     run_id: String,
     cancel_token: CancellationToken,
+    /// The agent actually running this prompt. Roaming gives each connection
+    /// its own agent, so a steer arriving on a second connection must be
+    /// routed here rather than to the caller's connection-local agent.
+    agent: Arc<Agent>,
 }
 
 /// Per-session active-run registry, shared by every `GooseAcpAgent` created
@@ -692,6 +696,25 @@ pub(super) fn build_usage_updates(
     })
 }
 
+/// Resolve the cwd an existing session should be activated with.
+///
+/// A host-imposed cwd always wins, and a remote client with no meaningful cwd
+/// (e.g. a roaming client on a different filesystem) sends "/" — that must
+/// never rewrite the session's stored working dir.
+pub(super) fn effective_session_cwd(
+    host_cwd: Option<&Path>,
+    requested: &Path,
+    stored: &Path,
+) -> PathBuf {
+    if let Some(host_cwd) = host_cwd {
+        return host_cwd.to_path_buf();
+    }
+    if requested == Path::new("/") {
+        return stored.to_path_buf();
+    }
+    requested.to_path_buf()
+}
+
 pub(super) fn validate_absolute_cwd(cwd: &Path) -> Result<(), agent_client_protocol::Error> {
     if !cwd.is_absolute() {
         return Err(
@@ -710,6 +733,26 @@ impl GooseAcpAgent {
     #[cfg(test)]
     pub(crate) fn active_run_registry(&self) -> &ActiveRunRegistry {
         &self.active_prompt_runs
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn test_start_active_run(
+        &self,
+        session_id: &str,
+        run_id: String,
+        agent: Arc<Agent>,
+    ) -> Result<(), agent_client_protocol::Error> {
+        self.start_active_run(session_id, run_id, CancellationToken::new(), agent)
+            .await
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn test_require_active_run(
+        &self,
+        session_id: &str,
+        expected_run_id: &str,
+    ) -> Result<(String, Arc<Agent>), agent_client_protocol::Error> {
+        self.require_active_run(session_id, expected_run_id).await
     }
 
     pub fn permission_manager(&self) -> Arc<PermissionManager> {
@@ -1662,6 +1705,7 @@ impl GooseAcpAgent {
         session_id: &str,
         run_id: String,
         cancel_token: CancellationToken,
+        agent: Arc<Agent>,
     ) -> Result<(), agent_client_protocol::Error> {
         if self.closed_session_ids.lock().await.contains(session_id) {
             return Err(agent_client_protocol::Error::resource_not_found(Some(
@@ -1683,13 +1727,14 @@ impl GooseAcpAgent {
             ActivePromptRun {
                 run_id,
                 cancel_token,
+                agent,
             },
         );
         Ok(())
     }
 
     async fn clear_active_run(&self, session_id: &str, run_id: &str) {
-        {
+        let agent = {
             let mut active_prompt_runs = self.active_prompt_runs.lock().await;
             let Some(active_run) = active_prompt_runs.get(session_id) else {
                 return;
@@ -1699,15 +1744,13 @@ impl GooseAcpAgent {
                 return;
             }
 
-            active_prompt_runs.remove(session_id);
-        }
-
-        let agent = {
-            let sessions = self.sessions.lock().await;
-            sessions
-                .get(session_id)
-                .map(|session| session.agent.clone())
+            active_prompt_runs
+                .remove(session_id)
+                .map(|active_run| active_run.agent)
         };
+
+        // Discard steers on the agent that owned the run; under roaming it may
+        // not be this connection's agent.
         if let Some(agent) = agent {
             agent.discard_pending_steers(session_id).await;
         }
@@ -1732,7 +1775,7 @@ impl GooseAcpAgent {
         &self,
         session_id: &str,
         expected_run_id: &str,
-    ) -> Result<String, agent_client_protocol::Error> {
+    ) -> Result<(String, Arc<Agent>), agent_client_protocol::Error> {
         if expected_run_id.is_empty() {
             return Err(agent_client_protocol::Error::invalid_params()
                 .data("expectedRunId must not be empty"));
@@ -1754,7 +1797,7 @@ impl GooseAcpAgent {
                 })),
             );
         }
-        Ok(active_run.run_id.clone())
+        Ok((active_run.run_id.clone(), active_run.agent.clone()))
     }
 
     fn active_run_meta(active_run_id: Option<&str>) -> Meta {
@@ -1863,16 +1906,18 @@ impl GooseAcpAgent {
 
         let run_id = format!("run_{}", Uuid::new_v4());
         let cancel_token = CancellationToken::new();
-        self.start_active_run(&session_id, run_id.clone(), cancel_token.clone())
-            .await?;
 
-        let agent = match self.get_session_agent(&session_id).await {
-            Ok(agent) => agent,
-            Err(error) => {
-                self.clear_active_run(&session_id, &run_id).await;
-                return Err(error);
-            }
-        };
+        // Resolve the agent before claiming the run so the registry can record
+        // which agent owns it; registration stays atomic, so the cross-connection
+        // guard still admits only one run per session.
+        let agent = self.get_session_agent(&session_id).await?;
+        self.start_active_run(
+            &session_id,
+            run_id.clone(),
+            cancel_token.clone(),
+            agent.clone(),
+        )
+        .await?;
 
         if cancel_token.is_cancelled() {
             self.clear_active_run(&session_id, &run_id).await;
@@ -2072,10 +2117,10 @@ impl GooseAcpAgent {
             );
         }
 
-        self.require_active_run(&req.session_id, &req.expected_run_id)
-            .await?;
-        let agent = self.get_session_agent(&req.session_id).await?;
-        let active_run_id = self
+        // Route to the agent that owns the run, not this connection's agent:
+        // under roaming the steering client may be a different connection than
+        // the one running the prompt.
+        let (active_run_id, agent) = self
             .require_active_run(&req.session_id, &req.expected_run_id)
             .await?;
 
@@ -2448,6 +2493,43 @@ mod tests {
     use std::path::PathBuf;
     use tempfile::NamedTempFile;
     use test_case::test_case;
+
+    #[test]
+    fn effective_session_cwd_prefers_host_cwd_over_client_path() {
+        let cwd = effective_session_cwd(
+            Some(Path::new("/host/share")),
+            Path::new("/client/only/path"),
+            Path::new("/stored"),
+        );
+
+        assert_eq!(cwd, PathBuf::from("/host/share"));
+    }
+
+    #[test]
+    fn effective_session_cwd_keeps_stored_dir_for_rootless_client() {
+        let cwd = effective_session_cwd(None, Path::new("/"), Path::new("/stored"));
+
+        assert_eq!(cwd, PathBuf::from("/stored"));
+    }
+
+    #[test]
+    fn effective_session_cwd_uses_client_path_without_host_override() {
+        let cwd = effective_session_cwd(None, Path::new("/client/path"), Path::new("/stored"));
+
+        assert_eq!(cwd, PathBuf::from("/client/path"));
+    }
+
+    #[test]
+    fn effective_session_cwd_is_validated_instead_of_client_path() {
+        let host = tempfile::tempdir().unwrap();
+        let client_path = Path::new("/does/not/exist/on/host");
+
+        assert!(validate_absolute_cwd(client_path).is_err());
+
+        let cwd = effective_session_cwd(Some(host.path()), client_path, Path::new("/stored"));
+
+        assert!(validate_absolute_cwd(&cwd).is_ok());
+    }
 
     #[test]
     fn agent_creation_auth_error_maps_to_auth_required() {

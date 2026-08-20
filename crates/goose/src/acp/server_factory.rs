@@ -166,6 +166,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn steer_routes_to_the_agent_that_owns_the_run() {
+        let root = tempfile::tempdir().unwrap();
+        let server = server(root.path().to_path_buf(), false);
+
+        let running = server.create_agent().await.unwrap();
+        let steering = server.create_agent().await.unwrap();
+
+        let owner = Arc::new(crate::agents::Agent::new());
+        running
+            .test_start_active_run("session-1", "run-1".to_string(), owner.clone())
+            .await
+            .unwrap();
+
+        let (run_id, resolved) = steering
+            .test_require_active_run("session-1", "run-1")
+            .await
+            .unwrap();
+
+        assert_eq!(run_id, "run-1");
+        assert!(
+            Arc::ptr_eq(&resolved, &owner),
+            "a steer arriving on a second roaming connection must resolve the \
+             agent running the prompt, not the caller's connection-local agent"
+        );
+    }
+
+    #[tokio::test]
     async fn start_scheduler_initializes_before_any_client_connects() {
         let root = tempfile::tempdir().unwrap();
         let server = server(root.path().to_path_buf(), true);
