@@ -675,7 +675,16 @@ pub(super) fn pending_tool_requests(messages: &[Message]) -> Vec<(ToolRequest, T
         .collect()
 }
 
-fn request_was_advertised(messages: &[Message], request: &ToolRequest) -> bool {
+pub(super) fn pending_advertised_tool_requests(
+    messages: &[Message],
+) -> Vec<(ToolRequest, ToolDisposition)> {
+    pending_tool_requests(messages)
+        .into_iter()
+        .filter(|(request, _)| request_was_advertised(messages, request))
+        .collect()
+}
+
+pub(super) fn request_was_advertised(messages: &[Message], request: &ToolRequest) -> bool {
     let Some(tool_call) = request.tool_call.as_ref().ok() else {
         return true;
     };
@@ -827,7 +836,7 @@ impl Operation<Session, GooseEffect> for ToolExecutionOperation<'_> {
         emit: &Emitter,
     ) -> Result<OperationResult<GooseEffect>> {
         let messages = messages_since_kickoff(conversation)?;
-        let mut pending = pending_tool_requests(messages);
+        let mut pending = pending_advertised_tool_requests(messages);
         if pending.is_empty() {
             return not_applicable();
         }
@@ -845,7 +854,6 @@ impl Operation<Session, GooseEffect> for ToolExecutionOperation<'_> {
                 .tool_call
                 .as_ref()
                 .is_ok_and(|tool_call| known_tools.contains(tool_call.name.as_ref()))
-                && request_was_advertised(messages, request)
         });
         let requests: Vec<_> = pending.iter().map(|(request, _)| request.clone()).collect();
         if requests.is_empty() {
@@ -1033,6 +1041,19 @@ mod tests {
         );
 
         assert!(pending_tool_requests(&[message]).is_empty());
+    }
+
+    #[test]
+    fn operation_generated_requests_without_inference_remain_executable() {
+        let message = Message::assistant().with_tool_request(
+            "operation-generated",
+            Ok(CallToolRequestParams::new("registered__tool")),
+        );
+
+        let pending = pending_advertised_tool_requests(&[message]);
+
+        assert_eq!(pending.len(), 1);
+        assert!(matches!(pending[0].1, ToolDisposition::Execute));
     }
 
     #[test]

@@ -126,12 +126,7 @@ impl Provider for GooseInferenceProvider {
         Ok(Box::pin(stream.map(move |result| {
             result.map(|(message, usage)| {
                 let message = message.map(|mut message| {
-                    if message.content.iter().any(|content| {
-                        matches!(
-                            content,
-                            goose_providers::conversation::message::MessageContent::ToolRequest(_)
-                        )
-                    }) {
+                    if message.role == rmcp::model::Role::Assistant {
                         message.metadata.set_operation_note(
                             LLM_OPERATION_NAME,
                             ADVERTISED_TOOLS_NOTE,
