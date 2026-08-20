@@ -229,6 +229,7 @@ fn temp_child_name(name: &str) -> Result<String> {
     }
 }
 
+#[cfg(test)]
 fn temp_child_path(parent: &Path, name: &str) -> Result<PathBuf> {
     Ok(parent.join(temp_child_name(name)?))
 }
@@ -238,12 +239,17 @@ fn unique_temp_child_path(
     recipe_name: &str,
     recipe_repo_full_name: &str,
 ) -> Result<PathBuf> {
-    let child = temp_child_name(recipe_name)?;
+    hashed_temp_child_path(parent, recipe_name, &[recipe_repo_full_name, recipe_name])
+}
+
+fn hashed_temp_child_path(parent: &Path, name: &str, identity: &[&str]) -> Result<PathBuf> {
+    let child = temp_child_name(name)?;
     let visible_child = child.chars().take(160).collect::<String>();
     let mut hasher = Sha256::new();
-    hasher.update(recipe_repo_full_name.as_bytes());
-    hasher.update([0]);
-    hasher.update(recipe_name.as_bytes());
+    for field in identity {
+        hasher.update((field.len() as u64).to_le_bytes());
+        hasher.update(field.as_bytes());
+    }
     let digest = hasher
         .finalize()
         .iter()
@@ -271,7 +277,11 @@ fn get_local_repo_path(
     let (owner, repo_name) = recipe_repo_full_name
         .split_once('/')
         .ok_or_else(|| anyhow::anyhow!("Invalid repository name format"))?;
-    let local_repo_path = temp_child_path(local_repo_parent_path, &format!("{owner}/{repo_name}"))?;
+    let local_repo_path = hashed_temp_child_path(
+        local_repo_parent_path,
+        &format!("{owner}/{repo_name}"),
+        &[recipe_repo_full_name],
+    )?;
     Ok(local_repo_path)
 }
 
@@ -647,8 +657,43 @@ mod tests {
         let second = get_local_repo_path(parent, "owner-two/shared").unwrap();
 
         assert_ne!(first, second);
-        assert_eq!(first, parent.join("owner-one__shared"));
-        assert_eq!(second, parent.join("owner-two__shared"));
+        assert!(
+            first
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("owner-one__shared-")
+        );
+        assert!(
+            second
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("owner-two__shared-")
+        );
+    }
+
+    #[test]
+    fn local_repo_paths_distinguish_sanitized_name_collisions() {
+        let parent = Path::new("goose-recipes");
+        let unicode = get_local_repo_path(parent, "owner/café").unwrap();
+        let underscore = get_local_repo_path(parent, "owner/caf_").unwrap();
+
+        assert_ne!(unicode, underscore);
+        assert!(
+            unicode
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("owner__caf_-")
+        );
+        assert!(
+            underscore
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("owner__caf_-")
+        );
     }
 
     #[test]
