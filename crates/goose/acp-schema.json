@@ -6715,19 +6715,6 @@
           "required": [
             "sessionUpdate"
           ]
-        },
-        {
-          "$ref": "#/$defs/DeviceCodeUpdate",
-          "type": "object",
-          "properties": {
-            "sessionUpdate": {
-              "type": "string",
-              "const": "device_code_update"
-            }
-          },
-          "required": [
-            "sessionUpdate"
-          ]
         }
       ],
       "description": "Discriminated union of goose-specific session update payloads.\nVariant tag matches ACP's convention (`sessionUpdate: \"<snake_case>\"`).\n\n`discriminator.mapping` is what makes TS codegen (`@hey-api/openapi-ts`)\nemit the correct snake_case tag value even when this enum has a single\nvariant. Add a mapping entry per variant.",
@@ -6736,8 +6723,7 @@
         "mapping": {
           "usage_update": "#/$defs/SessionUsageUpdate",
           "status_message": "#/$defs/StatusMessageUpdate",
-          "message_usage": "#/$defs/MessageUsageUpdate",
-          "device_code_update": "#/$defs/DeviceCodeUpdate"
+          "message_usage": "#/$defs/MessageUsageUpdate"
         }
       }
     },
@@ -6930,9 +6916,12 @@
       ],
       "description": "Per-message token usage/cost/timing, keyed by the message id used for\nchunk matching. Sent live after a turn's messages and on replay."
     },
-    "DeviceCodeUpdate": {
+    "ProviderDeviceCodeNotification_unstable": {
       "type": "object",
       "properties": {
+        "providerId": {
+          "type": "string"
+        },
         "userCode": {
           "type": "string"
         },
@@ -6945,11 +6934,14 @@
         }
       },
       "required": [
+        "providerId",
         "userCode",
         "verificationUri",
         "expiresIn"
       ],
-      "description": "Live device-code prompt forwarded to the desktop during OAuth device-code flow."
+      "description": "Dedicated provider notification for OAuth device-code flow.\nSent during provider authentication when the ACP client supports\n`goose.customNotifications` — avoids a fake empty session ID.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/authentication/device-code"
     },
     "RequestRecipeParams_unstable": {
       "type": "object",
@@ -8732,6 +8724,15 @@
                   ],
                   "description": "Params for _goose/unstable/session/update",
                   "title": "GooseSessionNotification_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ProviderDeviceCodeNotification_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/providers/authentication/device-code",
+                  "title": "ProviderDeviceCodeNotification_unstable"
                 }
               ]
             },

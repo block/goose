@@ -570,6 +570,10 @@
     {
       "method": "_goose/unstable/session/update",
       "paramsType": "GooseSessionNotification_unstable"
+    },
+    {
+      "method": "_goose/unstable/providers/authentication/device-code",
+      "paramsType": "ProviderDeviceCodeNotification_unstable"
     }
   ],
   "agentRequests": [

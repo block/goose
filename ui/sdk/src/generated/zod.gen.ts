@@ -2141,16 +2141,6 @@ export const zMessageUsageUpdate = z.object({
 });
 
 /**
- * Dedicated provider notification for OAuth device-code flow.
- */
-export const zProviderDeviceCodeNotification_unstable = z.object({
-    providerId: z.string(),
-    userCode: z.string(),
-    verificationUri: z.string(),
-    expiresIn: z.number().int().gte(0)
-});
-
-/**
  * Discriminated union of goose-specific session update payloads.
  * Variant tag matches ACP's convention (`sessionUpdate: "<snake_case>"`).
  *
@@ -2171,6 +2161,18 @@ export const zGooseSessionUpdate = z.discriminatedUnion('sessionUpdate', [
 export const zGooseSessionNotification_unstable = z.object({
     sessionId: z.string(),
     update: zGooseSessionUpdate
+});
+
+/**
+ * Dedicated provider notification for OAuth device-code flow.
+ * Sent during provider authentication when the ACP client supports
+ * `goose.customNotifications` — avoids a fake empty session ID.
+ */
+export const zProviderDeviceCodeNotification_unstable = z.object({
+    providerId: z.string(),
+    userCode: z.string(),
+    verificationUri: z.string(),
+    expiresIn: z.int().gte(0)
 });
 
 export const zRequestRecipeParams_unstable = z.object({
@@ -2407,7 +2409,10 @@ export const zExtResponse = z.union([
 export const zExtNotification = z.object({
     method: z.string(),
     params: z.union([
-        zGooseSessionNotification_unstable,
+        z.union([
+            zGooseSessionNotification_unstable,
+            zProviderDeviceCodeNotification_unstable
+        ]),
         z.record(z.string(), z.unknown())
     ]).nullish()
 });
