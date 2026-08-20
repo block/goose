@@ -1719,13 +1719,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_job_with_no_prompt_does_not_panic() {
-        let _guard = env_lock::lock_env([
-            ("GOOSE_PROVIDER", Some("openai")),
-            ("GOOSE_MODEL", Some("gpt-4o")),
-            ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
-            ("OPENAI_CUSTOM_HEADERS", Some("")),
-        ]);
+    async fn test_job_with_no_prompt_is_rejected_at_add_time() {
         let temp_dir = tempdir().unwrap();
         let recipe_path = temp_dir.path().join("no_prompt.yaml");
         fs::write(
@@ -1751,15 +1745,15 @@ mod tests {
             recipe_base_dir: None,
         };
 
-        // Schedule the job and let it run — should not panic
-        scheduler.add_scheduled_job(job, true).await.unwrap();
-        sleep(Duration::from_millis(1500)).await;
-
-        // The job should have attempted to run (last_run set) but not crashed the scheduler
-        let jobs = scheduler.list_scheduled_jobs().await;
+        let err = scheduler.add_scheduled_job(job, true).await.unwrap_err();
         assert!(
-            jobs[0].last_run.is_some(),
-            "Job should have attempted to run without panicking"
+            err.to_string()
+                .contains("Invalid recipe: Recipe must specify at least one"),
+            "expected add-time validation error, got: {err}"
+        );
+        assert!(
+            scheduler.list_scheduled_jobs().await.is_empty(),
+            "invalid recipe should not be scheduled"
         );
     }
 }
