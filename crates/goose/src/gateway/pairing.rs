@@ -104,7 +104,7 @@ impl PairingStore {
     }
 
     fn migrate_pending_codes(config: &Config) -> anyhow::Result<()> {
-        let legacy_codes = match config.get_param(PENDING_CODES_CONFIG_KEY) {
+        let legacy_codes = match config.get_write_param(PENDING_CODES_CONFIG_KEY) {
             Ok(codes) => Some(codes),
             Err(ConfigError::NotFound(_)) => None,
             Err(error) => {
@@ -118,21 +118,26 @@ impl PairingStore {
         let has_legacy_codes = legacy_codes.is_some();
         Self::complete_pending_code_migration(config, legacy_codes)?;
         if !has_legacy_codes {
-            return Ok(());
+            return Self::verify_legacy_pending_codes_removed(config);
         }
 
-        if let Err(delete_error) = config.delete(PENDING_CODES_CONFIG_KEY) {
-            match config.get_param::<Vec<StoredPendingCode>>(PENDING_CODES_CONFIG_KEY) {
-                Err(ConfigError::NotFound(_)) => return Ok(()),
-                _ => {
-                    return Err(anyhow::anyhow!(
-                        "failed to remove legacy pending codes: {}",
-                        delete_error
-                    ));
-                }
-            }
+        config
+            .delete(PENDING_CODES_CONFIG_KEY)
+            .map_err(|error| anyhow::anyhow!("failed to remove legacy pending codes: {}", error))?;
+        Self::verify_legacy_pending_codes_removed(config)
+    }
+
+    fn verify_legacy_pending_codes_removed(config: &Config) -> anyhow::Result<()> {
+        match config.get_param::<Vec<StoredPendingCode>>(PENDING_CODES_CONFIG_KEY) {
+            Err(ConfigError::NotFound(_)) => Ok(()),
+            Ok(_) => Err(anyhow::anyhow!(
+                "legacy pending codes remain in GATEWAY_PENDING_CODES, the system config, or GOOSE_ADDITIONAL_CONFIG_FILES"
+            )),
+            Err(error) => Err(anyhow::anyhow!(
+                "failed to verify removal of legacy pending codes: {}",
+                error
+            )),
         }
-        Ok(())
     }
 
     fn complete_pending_code_migration(
@@ -372,6 +377,108 @@ mod tests {
         assert_eq!(
             PairingStore::consume_pending_code_in(&config, new_code, 100).unwrap(),
             Some("telegram".to_string())
+        );
+    }
+
+    #[test]
+    fn pending_code_migration_rejects_non_writable_config_sources() {
+        let directory = TempDir::new().unwrap();
+        let system_config_path = directory.path().join("system.yaml");
+        let user_config_path = directory.path().join("user.yaml");
+        let secrets_path = directory.path().join("secrets.yaml");
+        let system_config =
+            Config::new_with_file_secrets(&system_config_path, &secrets_path).unwrap();
+        let legacy_code = StoredPendingCode {
+            code: "SYSTEM-CODE".to_string(),
+            gateway_type: "slack".to_string(),
+            expires_at: 101,
+        };
+        system_config
+            .set_param(PENDING_CODES_CONFIG_KEY, [&legacy_code])
+            .unwrap();
+        let config = Config::new_with_config_paths(
+            vec![system_config_path, user_config_path.clone()],
+            &secrets_path,
+        )
+        .unwrap();
+
+        let error =
+            PairingStore::store_pending_code_in(&config, "NEW-CODE", "telegram", 101).unwrap_err();
+
+        assert!(error.to_string().contains(
+            "legacy pending codes remain in GATEWAY_PENDING_CODES, the system config, or GOOSE_ADDITIONAL_CONFIG_FILES"
+        ));
+        assert_eq!(
+            config
+                .get_param::<Vec<StoredPendingCode>>(PENDING_CODES_CONFIG_KEY)
+                .unwrap()[0]
+                .code,
+            legacy_code.code
+        );
+        let user_config = std::fs::read_to_string(user_config_path).unwrap_or_default();
+        assert!(!user_config.contains(&legacy_code.code));
+
+        std::fs::write(directory.path().join("system.yaml"), "").unwrap();
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, &legacy_code.code, 100).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn pending_code_migration_preserves_shadowed_writable_code() {
+        let directory = TempDir::new().unwrap();
+        let system_config_path = directory.path().join("system.yaml");
+        let user_config_path = directory.path().join("user.yaml");
+        let secrets_path = directory.path().join("secrets.yaml");
+        let system_config =
+            Config::new_with_file_secrets(&system_config_path, &secrets_path).unwrap();
+        system_config
+            .set_param(
+                PENDING_CODES_CONFIG_KEY,
+                [StoredPendingCode {
+                    code: "SYSTEM-CODE".to_string(),
+                    gateway_type: "slack".to_string(),
+                    expires_at: 101,
+                }],
+            )
+            .unwrap();
+        let user_config = Config::new_with_file_secrets(&user_config_path, &secrets_path).unwrap();
+        user_config
+            .set_param(
+                PENDING_CODES_CONFIG_KEY,
+                [StoredPendingCode {
+                    code: "USER-CODE".to_string(),
+                    gateway_type: "telegram".to_string(),
+                    expires_at: 101,
+                }],
+            )
+            .unwrap();
+        let config = Config::new_with_config_paths(
+            vec![system_config_path.clone(), user_config_path],
+            &secrets_path,
+        )
+        .unwrap();
+
+        assert!(
+            PairingStore::store_pending_code_in(&config, "NEW-CODE", "telegram", 101)
+                .unwrap_err()
+                .to_string()
+                .contains("legacy pending codes remain")
+        );
+
+        std::fs::write(system_config_path, "").unwrap();
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, "USER-CODE", 100).unwrap(),
+            Some("telegram".to_string())
+        );
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, "USER-CODE", 100).unwrap(),
+            None
+        );
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, "SYSTEM-CODE", 100).unwrap(),
+            None
         );
     }
 
