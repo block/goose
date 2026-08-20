@@ -113,6 +113,7 @@ export type ActionRequiredData =
   | {
       actionType: 'toolConfirmation';
       arguments: JsonObject;
+      generation?: string;
       id: string;
       prompt?: string | null;
       toolName: string;

@@ -36,7 +36,7 @@ export default function ToolConfirmation({
 }: ToolConfirmationProps) {
   const intl = useIntl();
   const data = actionRequiredContent.data as ToolConfirmationData;
-  const { id, toolName, arguments: toolArguments, prompt } = data;
+  const { generation, id, toolName, arguments: toolArguments, prompt } = data;
   const displayName = formatToolName(toolName);
 
   return (
@@ -50,7 +50,7 @@ export default function ToolConfirmation({
         {prompt && <div className="py-2 text-sm text-amber-600 dark:text-amber-400">{prompt}</div>}
         <ToolCallArguments args={toolArguments as Record<string, ToolCallArgumentValue>} />
         <ToolApprovalButtons
-          data={{ id, toolName, prompt: prompt ?? undefined, sessionId, isClicked }}
+          data={{ generation, id, toolName, prompt: prompt ?? undefined, sessionId, isClicked }}
         />
       </div>
     </div>
