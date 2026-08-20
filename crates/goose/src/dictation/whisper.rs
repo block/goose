@@ -45,7 +45,7 @@ const TIMESTAMP_BEGIN: u32 = 50364;
 const SAMPLE_BEGIN: usize = 3;
 const MIN_SUPPORTED_AUDIO_SAMPLE_RATE: u32 = 8_000;
 const MAX_SUPPORTED_AUDIO_SAMPLE_RATE: u32 = 96_000;
-const MAX_RESAMPLED_AUDIO_SAMPLES: usize = 50 * 1024 * 1024;
+const MAX_WHISPER_AUDIO_SAMPLES: usize = 50 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WhisperModel {
@@ -1014,6 +1014,8 @@ fn decode_audio_simple(audio_data: &[u8]) -> Result<Vec<f32>> {
         pcm_data
     };
 
+    checked_resampled_sample_count(mono_data.len(), sample_rate, 16_000)?;
+
     let resampled = if sample_rate != 16000 {
         tracing::debug!(from_rate = sample_rate, to_rate = 16000, "resampling audio");
         resample_audio(&mono_data, sample_rate, 16000)?
@@ -1137,8 +1139,8 @@ fn checked_resampled_sample_count(
         .ok_or_else(|| anyhow::anyhow!("Resampled audio size overflow"))?;
 
     anyhow::ensure!(
-        output_samples <= MAX_RESAMPLED_AUDIO_SAMPLES,
-        "Resampled audio would contain {output_samples} samples; maximum is {MAX_RESAMPLED_AUDIO_SAMPLES}"
+        output_samples <= MAX_WHISPER_AUDIO_SAMPLES,
+        "Whisper audio would contain {output_samples} samples; maximum is {MAX_WHISPER_AUDIO_SAMPLES}"
     );
 
     Ok(output_samples)
@@ -1316,13 +1318,25 @@ mod tests {
 
     #[test]
     fn resampled_sample_budget_accepts_boundary_and_rejects_excess() {
-        let boundary_input = MAX_RESAMPLED_AUDIO_SAMPLES / 2;
+        let boundary_input = MAX_WHISPER_AUDIO_SAMPLES / 2;
         assert_eq!(
             checked_resampled_sample_count(boundary_input, 8_000, 16_000).unwrap(),
-            MAX_RESAMPLED_AUDIO_SAMPLES
+            MAX_WHISPER_AUDIO_SAMPLES
         );
 
         let error = checked_resampled_sample_count(boundary_input + 1, 8_000, 16_000).unwrap_err();
+        assert!(error.to_string().contains("maximum"));
+    }
+
+    #[test]
+    fn native_whisper_rate_enforces_resampled_sample_budget() {
+        assert_eq!(
+            checked_resampled_sample_count(MAX_WHISPER_AUDIO_SAMPLES, 16_000, 16_000).unwrap(),
+            MAX_WHISPER_AUDIO_SAMPLES
+        );
+
+        let error = checked_resampled_sample_count(MAX_WHISPER_AUDIO_SAMPLES + 1, 16_000, 16_000)
+            .unwrap_err();
         assert!(error.to_string().contains("maximum"));
     }
 
