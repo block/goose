@@ -14,6 +14,7 @@ activities:
   - Test load tool for knowledge injection and discovery
   - Test delegate tool for task delegation (sync and async)
   - Test multi-turn thinking preservation for providers that reject replayed reasoning_content
+  - Validate ACP thinking-effort discovery, forwarding, and provider switching
   - Test error boundaries including nested delegation prevention
   - Generate comprehensive test report
 
@@ -22,7 +23,7 @@ parameters:
     input_type: string
     requirement: optional
     default: "all"
-    description: "Which test phases to run: all, basic, extensions, delegation, reasoning, advanced"
+    description: "Which test phases to run: all, basic, extensions, delegation, reasoning, acp-effort, advanced"
 
   - key: test_depth
     input_type: string
@@ -389,6 +390,24 @@ prompt: |
   2. Verify neither turn errors and that earlier reasoning is still reflected in later answers.
 
   Log results to: {{ workspace_dir }}/phase3c_reasoning.md
+  {% endif %}
+
+  {% if test_phases == "all" or "acp-effort" in test_phases %}
+  ## 🧠 PHASE 3D: ACP Thinking-Effort Testing
+
+  **Prerequisites**: Run this phase from a goose source checkout with the Rust toolchain
+  available. Skip this phase and record it as SKIPPED otherwise.
+
+  ### ACP Effort Integration Test
+  1. Run `cargo test -p goose effort`.
+  2. Verify ACP agents' advertised effort menus and current values are mirrored after new,
+     loaded, and reconfigured sessions.
+  3. Verify supported effort selections are forwarded to ACP agents and unsupported values
+     are rejected without changing the session.
+  4. Verify ACP-only effort values are removed when switching to a legacy provider while
+     managed providers preserve values they support.
+
+  Log results to: {{ workspace_dir }}/phase3d_acp_effort.md
   {% endif %}
 
   {% if test_phases == "all" or "advanced" in test_phases %}
