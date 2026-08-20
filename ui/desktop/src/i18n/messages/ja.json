@@ -1901,9 +1901,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "{modelId}を使用"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "キャンセル"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "コードをコピー"
   },
@@ -1913,23 +1910,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "このリンクを開くアプリケーションが見つかりません。"
   },
-  "markdownContent.open": {
-    "defaultMessage": "開く"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "外部リンクを開く"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "{protocol}リンクを開きますか？"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "次を開きます: {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "アプリ"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "キャンセル"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "閉じる"
@@ -1954,18 +1936,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "ピクチャ・イン・ピクチャウィンドウを移動（矢印キーを使用）"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "開く"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "外部リンクを開く"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "次を開きます: {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "{protocol}リンクを開きますか？"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "ピクチャ・イン・ピクチャ"
@@ -3869,6 +3839,12 @@
   "sessions.saving": {
     "defaultMessage": "保存中..."
   },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count,plural,one{{count} job} other{{count} jobs}}"
+  },
   "sessions.search.noResults": {
     "defaultMessage": "一致するセッションが見つかりません"
   },
@@ -4438,6 +4414,9 @@
   },
   "telemetrySettings.updateError": {
     "defaultMessage": "テレメトリ設定を更新できませんでした。"
+  },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
   },
   "themeSelector.dark": {
     "defaultMessage": "ダーク"

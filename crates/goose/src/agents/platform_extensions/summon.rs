@@ -1689,49 +1689,81 @@ impl SummonClient {
         recipe: &Recipe,
         session: &crate::session::Session,
         provider_name: &str,
+        provider_default_model: Option<&str>,
     ) -> Result<goose_providers::model::ModelConfig, anyhow::Error> {
-        let mut model_config = session.model_config.clone().map(Ok).unwrap_or_else(|| {
-            crate::model_config::model_config_from_user_config(provider_name, "default")
-        })?;
-
-        let override_model = params
-            .model
-            .clone()
-            .or_else(|| recipe.settings.as_ref().and_then(|s| s.goose_model.clone()))
+        let env_model = std::env::var("GOOSE_SUBAGENT_MODEL").ok();
+        let recipe_settings = recipe.settings.as_ref();
+        let configured = Config::global().all_values().ok();
+        let configured_provider = configured
+            .as_ref()
+            .and_then(|values| values.get("GOOSE_SUBAGENT_PROVIDER"))
+            .and_then(serde_json::Value::as_str);
+        let configured_model = configured
+            .as_ref()
+            .and_then(|values| values.get("GOOSE_SUBAGENT_MODEL"))
+            .and_then(serde_json::Value::as_str);
+        let matches_provider =
+            |candidate: Option<&str>| candidate.is_none() || candidate == Some(provider_name);
+        let model = env_model
             .or_else(|| {
-                Config::global()
-                    .get_param::<String>("GOOSE_SUBAGENT_MODEL")
-                    .ok()
-            });
+                params
+                    .model
+                    .clone()
+                    .filter(|_| matches_provider(params.provider.as_deref()))
+            })
+            .or_else(|| {
+                recipe_settings
+                    .and_then(|settings| settings.goose_model.clone())
+                    .filter(|_| {
+                        matches_provider(
+                            recipe_settings.and_then(|settings| settings.goose_provider.as_deref()),
+                        )
+                    })
+            })
+            .or_else(|| {
+                configured_model
+                    .filter(|_| matches_provider(configured_provider))
+                    .map(str::to_string)
+            })
+            .or_else(|| {
+                session
+                    .model_config
+                    .as_ref()
+                    .filter(|_| matches_provider(session.provider_name.as_deref()))
+                    .map(|config| config.model_name.clone())
+            })
+            .or_else(|| {
+                provider_default_model
+                    .filter(|model| !model.is_empty())
+                    .map(str::to_string)
+            })
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "No model configured for provider '{}'; set GOOSE_SUBAGENT_MODEL",
+                    provider_name
+                )
+            })?;
 
-        if let Some(model) = override_model {
-            if model != model_config.model_name {
-                // Build the overridden config through the canonical session-settings
-                // path. This materializes model-specific fields (context_limit,
-                // max_tokens, reasoning) and env overrides for the *new* model, and
-                // inherits only model-family-agnostic session state from the parent:
-                // reasoning controls like `thinking_effort` and `budget_tokens` carry
-                // over (with the child > parent > global-default precedence the helper
-                // applies), while provider-specific request_params such as
-                // `anthropic_beta` are dropped so they can't bleed into a child
-                // targeting a different model family and trigger a 400 INVALID_ARGUMENT.
-                let parent = model_config;
-                let mut cfg =
-                    crate::model_config::model_config_from_user_config_with_session_settings(
-                        provider_name,
-                        &model,
-                        Some(&parent),
-                        None,
-                        None,
-                    )?;
-                // Remaining model-agnostic session settings the helper doesn't
-                // touch, copied from the parent explicitly.
+        let parent = session.model_config.as_ref();
+        let mut model_config = if parent.is_some_and(|config| {
+            matches_provider(session.provider_name.as_deref()) && config.model_name == model
+        }) {
+            parent.unwrap().clone()
+        } else {
+            let mut cfg = crate::model_config::model_config_from_user_config_with_session_settings(
+                provider_name,
+                &model,
+                parent,
+                None,
+                None,
+            )?;
+            if let Some(parent) = parent {
                 cfg.toolshim = parent.toolshim;
-                cfg.toolshim_model = parent.toolshim_model;
+                cfg.toolshim_model = parent.toolshim_model.clone();
                 cfg.temperature = cfg.temperature.or(parent.temperature);
-                model_config = cfg;
             }
-        }
+            cfg
+        };
 
         if let Some(temp) = params.temperature {
             model_config = model_config.with_temperature(Some(temp));
@@ -1755,9 +1787,10 @@ impl SummonClient {
         ),
         anyhow::Error,
     > {
-        let provider_name = params
-            .provider
+        let env_provider = std::env::var("GOOSE_SUBAGENT_PROVIDER").ok();
+        let provider_name = env_provider
             .clone()
+            .or_else(|| params.provider.clone())
             .or_else(|| {
                 recipe
                     .settings
@@ -1772,8 +1805,19 @@ impl SummonClient {
             .or_else(|| session.provider_name.clone())
             .ok_or_else(|| anyhow::anyhow!("No provider configured"))?;
 
-        let model_config = self.resolve_model_config(params, recipe, session, &provider_name)?;
-        let provider = match providers::get_from_registry(&provider_name).await {
+        let provider_entry = providers::get_from_registry(&provider_name).await;
+        let provider_default_model = provider_entry
+            .as_ref()
+            .ok()
+            .map(|entry| entry.metadata().default_model.as_str());
+        let model_config = self.resolve_model_config(
+            params,
+            recipe,
+            session,
+            &provider_name,
+            provider_default_model,
+        )?;
+        let provider = match provider_entry {
             Ok(entry) => entry.create(extensions.to_vec()).await?,
             Err(error) => {
                 let parent_provider = if let Some(extension_manager) = self
@@ -2838,7 +2882,13 @@ You review code."#;
             ..Default::default()
         };
         client
-            .resolve_model_config(&params, &empty_recipe(), &session_with(parent), PROVIDER)
+            .resolve_model_config(
+                &params,
+                &empty_recipe(),
+                &session_with(parent),
+                PROVIDER,
+                None,
+            )
             .expect("resolve_model_config")
     }
 
@@ -2955,6 +3005,187 @@ You review code."#;
             ContentBlock::Text(t) => t.text.as_str(),
             _ => panic!("Expected text content"),
         }
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_resolve_model_config_env_var_overrides_params_model() {
+        let _env = env_lock::lock_env([
+            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+            ("GOOSE_SUBAGENT_MODEL", Some(OVERRIDE_MODEL)),
+        ]);
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let params = DelegateParams {
+            model: Some("params-model".to_string()),
+            ..Default::default()
+        };
+        let result = client
+            .resolve_model_config(
+                &params,
+                &empty_recipe(),
+                &session_with(parent_config()),
+                PROVIDER,
+                None,
+            )
+            .expect("resolve_model_config");
+        assert_eq!(
+            result.model_name, OVERRIDE_MODEL,
+            "GOOSE_SUBAGENT_MODEL must take priority over params.model"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_resolve_model_config_env_var_overrides_recipe_model() {
+        let _env = env_lock::lock_env([
+            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+            ("GOOSE_SUBAGENT_MODEL", Some(OVERRIDE_MODEL)),
+        ]);
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let mut recipe = empty_recipe();
+        recipe.settings = Some(crate::recipe::Settings {
+            goose_provider: None,
+            goose_model: Some("recipe-model".to_string()),
+            temperature: None,
+            max_turns: None,
+        });
+        let result = client
+            .resolve_model_config(
+                &DelegateParams::default(),
+                &recipe,
+                &session_with(parent_config()),
+                PROVIDER,
+                None,
+            )
+            .expect("resolve_model_config");
+        assert_eq!(
+            result.model_name, OVERRIDE_MODEL,
+            "GOOSE_SUBAGENT_MODEL must take priority over recipe settings"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_resolve_model_config_env_provider_uses_provider_default_model() {
+        let _env = env_lock::lock_env([
+            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+            ("GOOSE_SUBAGENT_PROVIDER", Some(PROVIDER)),
+            ("GOOSE_SUBAGENT_MODEL", None::<&str>),
+            ("ANTHROPIC_API_KEY", Some("test-key")),
+        ]);
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let params = DelegateParams {
+            provider: Some("openai".to_string()),
+            model: Some("model-for-another-provider".to_string()),
+            ..Default::default()
+        };
+        let mut recipe = empty_recipe();
+        recipe.settings = Some(crate::recipe::Settings {
+            goose_provider: Some("openai".to_string()),
+            goose_model: Some("recipe-model-for-another-provider".to_string()),
+            temperature: None,
+            max_turns: None,
+        });
+        let default_model = providers::get_from_registry(PROVIDER)
+            .await
+            .unwrap()
+            .metadata()
+            .default_model
+            .clone();
+        let session = crate::session::Session {
+            provider_name: Some("openai".to_string()),
+            model_config: Some(goose_providers::model::ModelConfig::new(
+                "parent-openai-model",
+            )),
+            ..Default::default()
+        };
+        let (_, result) = client
+            .resolve_provider(&params, &recipe, &session, &[])
+            .await
+            .expect("resolve_provider");
+
+        assert_eq!(result.model_name, default_model);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_resolve_model_config_env_provider_keeps_matching_params_model() {
+        let _env = env_lock::lock_env([
+            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+            ("GOOSE_SUBAGENT_PROVIDER", Some(PROVIDER)),
+            ("GOOSE_SUBAGENT_MODEL", None::<&str>),
+            ("ANTHROPIC_API_KEY", Some("test-key")),
+        ]);
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let params = DelegateParams {
+            provider: Some(PROVIDER.to_string()),
+            model: Some(OVERRIDE_MODEL.to_string()),
+            ..Default::default()
+        };
+        let (_, result) = client
+            .resolve_provider(
+                &params,
+                &empty_recipe(),
+                &session_with(parent_config()),
+                &[],
+            )
+            .await
+            .expect("resolve_provider");
+
+        assert_eq!(result.model_name, OVERRIDE_MODEL);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_resolve_model_config_dynamic_provider_requires_model() {
+        let _env = env_lock::lock_env([
+            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+            ("GOOSE_SUBAGENT_MODEL", None::<&str>),
+        ]);
+
+        let default_model = providers::get_from_registry("lmstudio")
+            .await
+            .unwrap()
+            .metadata()
+            .default_model
+            .clone();
+        assert!(default_model.is_empty());
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let params = DelegateParams {
+            provider: Some("openai".to_string()),
+            model: Some("openai-model".to_string()),
+            ..Default::default()
+        };
+        let session = crate::session::Session {
+            provider_name: Some("openai".to_string()),
+            model_config: Some(goose_providers::model::ModelConfig::new(
+                "parent-openai-model",
+            )),
+            ..Default::default()
+        };
+        let error = client
+            .resolve_model_config(
+                &params,
+                &empty_recipe(),
+                &session,
+                "lmstudio",
+                Some(&default_model),
+            )
+            .unwrap_err();
+
+        assert!(error
+            .to_string()
+            .contains("No model configured for provider 'lmstudio'"));
     }
 
     fn test_tool_notification(request_id: &str, subagent_id: &str) -> ServerNotification {

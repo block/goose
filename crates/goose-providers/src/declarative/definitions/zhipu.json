@@ -11,7 +11,7 @@
       "required": false,
       "secret": false,
       "default": "https://open.bigmodel.cn/api/paas/v4",
-      "description": "Zhipu API base URL. Change to https://open.bigmodel.cn/api/coding/paas/v4 for Coding Plan models like GLM-5.2."
+      "description": "Zhipu API base URL. Change to https://open.bigmodel.cn/api/coding/paas/v4 for Coding Plan models like GLM-5.3."
     }
   ],
   "catalog_provider_id": "zhipuai",
@@ -23,7 +23,7 @@
     {"name": "glm-4.7", "context_limit": 204800},
     {"name": "glm-4.7-flash", "context_limit": 200000},
     {"name": "glm-5", "context_limit": 204800},
-    {"name": "glm-5.2", "context_limit": 1000000, "reasoning": true}
+    {"name": "glm-5.3", "context_limit": 1000000, "reasoning": true}
   ],
   "preserves_thinking": true,
   "supports_streaming": true

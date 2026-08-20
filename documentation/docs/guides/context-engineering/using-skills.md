@@ -27,6 +27,22 @@ You can also ask goose what skills are available, run `goose skills list`, or us
 goose skills are compatible with Claude Desktop and other [agents that support Agent Skills](https://agentskills.io/home#adoption).
 :::
 
+## Built-in Skills
+
+goose ships with a built-in skill that is always available without any installation:
+
+| Skill | Description |
+|-------|-------------|
+| `web-search` | Search the web using DuckDuckGo (no API key), Tavily, or SearXNG, and extract page content. |
+
+For browser automation — navigating pages, clicking, filling forms, and capturing screenshots — install the upstream-maintained browser-use skill:
+
+```bash
+browser-use skill install
+```
+
+This gives you the full, up-to-date skill from the browser-use project, including remote browser support, the AX-tree element selection strategy, and recording tools.
+
 ## Skill Locations
 
 Skills can be stored globally, per-project, or in installed plugins:

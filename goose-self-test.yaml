@@ -122,6 +122,8 @@ extensions:
     name: summon
   - type: builtin
     name: extensionmanager
+  - type: builtin
+    name: skills
 
 prompt: |
   Execute the Goose Self-Testing Integration Suite in {{ workspace_dir }}.
@@ -198,11 +200,12 @@ prompt: |
   This tests the discovery mechanism that lists everything available for loading or delegation.
 
   ### Load Tool - Builtin Skill Test
-  Test loading the builtin `goose-doc-guide` skill:
+  Test loading the builtin skills using the skills extension's load_skill tool:
   ```
-  load(source: "goose-doc-guide")
+  load_skill(name: "goose-doc-guide")
+  load_skill(name: "web-search")
   ```
-  Verify the skill content is returned and can be read. This confirms builtin skills are accessible.
+  Verify the skill content is returned and can be read for each. This confirms all builtin skills are accessible.
 
   ### Load Tool - Knowledge Injection
   If any other skills or recipes are discovered, test loading one:

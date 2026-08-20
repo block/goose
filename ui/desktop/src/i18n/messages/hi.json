@@ -1901,9 +1901,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "{modelId} का प्रयोग करें"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "रद्द करें"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "कोड कॉपी करें"
   },
@@ -1913,23 +1910,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "इस लिंक को खोलने के लिए कोई एप्लिकेशन नहीं मिला."
   },
-  "markdownContent.open": {
-    "defaultMessage": "खुला"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "बाहरी लिंक खोलें"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "{protocol} लिंक खोलें?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "यह खुलेगा: {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "ऐप"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "रद्द करें"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "बंद करें"
@@ -1954,18 +1936,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "पिक्चर-इन-पिक्चर विंडो को स्थानांतरित करें (तीर कुंजियों का उपयोग करें)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "खुला"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "बाहरी लिंक खोलें"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "यह खुलेगा: {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "{protocol} लिंक खोलें?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "चित्र-में-चित्र"
@@ -3869,6 +3839,12 @@
   "sessions.saving": {
     "defaultMessage": "सहेजा जा रहा है..."
   },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count,plural,one{{count} job} other{{count} jobs}}"
+  },
   "sessions.search.noResults": {
     "defaultMessage": "कोई मिलान सत्र नहीं मिला"
   },
@@ -4438,6 +4414,9 @@
   },
   "telemetrySettings.updateError": {
     "defaultMessage": "टेलीमेट्री सेटिंग अपडेट करने में विफल."
+  },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
   },
   "themeSelector.dark": {
     "defaultMessage": "अंधेरा"

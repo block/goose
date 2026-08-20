@@ -374,7 +374,11 @@ fn configured_client(
     tls_config: Option<TlsConfig>,
     request_builder: Option<RequestBuilderDecorator>,
 ) -> Result<ApiClient> {
+    let restrict_redirects = matches!(&auth, AuthMethod::ApiKey { .. });
     let mut client = ApiClient::new_with_tls(host, auth, tls_config)?;
+    if restrict_redirects {
+        client = client.with_same_origin_redirects()?;
+    }
     if let Some(request_builder) = request_builder {
         client = client.with_request_builder(request_builder);
     }
@@ -547,7 +551,7 @@ impl Provider for AzureFoundryProvider {
 mod tests {
     use super::*;
     use serde_json::json;
-    use wiremock::matchers::{body_partial_json, method, path, query_param};
+    use wiremock::matchers::{body_partial_json, header, method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn project_endpoint(server: &MockServer) -> String {
@@ -731,6 +735,123 @@ mod tests {
             ),
             "https://example.test/deployments?page=2&api-version=2025-05-01"
         );
+    }
+
+    #[tokio::test]
+    async fn foundry_api_keys_do_not_follow_cross_origin_redirects() {
+        for header_name in ["api-key", "x-api-key"] {
+            let destination = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/capture"))
+                .respond_with(ResponseTemplate::new(200))
+                .mount(&destination)
+                .await;
+
+            let source = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/redirect"))
+                .and(header(header_name, "foundry-secret"))
+                .respond_with(
+                    ResponseTemplate::new(307)
+                        .append_header("location", format!("{}/capture", destination.uri())),
+                )
+                .expect(1)
+                .mount(&source)
+                .await;
+
+            let client = configured_client(
+                source.uri(),
+                AuthMethod::ApiKey {
+                    header_name: header_name.to_string(),
+                    key: "foundry-secret".to_string(),
+                },
+                None,
+                None,
+            )
+            .unwrap();
+
+            assert!(client.response_get("redirect").await.is_err());
+            assert!(destination.received_requests().await.unwrap().is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn foundry_api_keys_follow_same_origin_redirects() {
+        for header_name in ["api-key", "x-api-key"] {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/redirect"))
+                .respond_with(ResponseTemplate::new(307).append_header("location", "/final"))
+                .expect(1)
+                .mount(&server)
+                .await;
+            Mock::given(method("GET"))
+                .and(path("/final"))
+                .and(header(header_name, "foundry-secret"))
+                .respond_with(ResponseTemplate::new(200))
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            let client = configured_client(
+                server.uri(),
+                AuthMethod::ApiKey {
+                    header_name: header_name.to_string(),
+                    key: "foundry-secret".to_string(),
+                },
+                None,
+                None,
+            )
+            .unwrap();
+
+            assert!(client
+                .response_get("redirect")
+                .await
+                .unwrap()
+                .status()
+                .is_success());
+        }
+    }
+
+    #[tokio::test]
+    async fn foundry_bearer_redirects_keep_reqwest_authorization_behavior() {
+        let destination = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/capture"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&destination)
+            .await;
+
+        let source = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/redirect"))
+            .and(header("authorization", "Bearer foundry-token"))
+            .respond_with(
+                ResponseTemplate::new(307)
+                    .append_header("location", format!("{}/capture", destination.uri())),
+            )
+            .expect(1)
+            .mount(&source)
+            .await;
+
+        let client = configured_client(
+            source.uri(),
+            AuthMethod::BearerToken("foundry-token".to_string()),
+            None,
+            None,
+        )
+        .unwrap();
+
+        assert!(client
+            .response_get("redirect")
+            .await
+            .unwrap()
+            .status()
+            .is_success());
+        let requests = destination.received_requests().await.unwrap();
+        assert_eq!(requests.len(), 1);
+        assert!(requests[0].headers.get("authorization").is_none());
     }
 
     #[test]

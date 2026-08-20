@@ -3,6 +3,7 @@ import { Recipe } from './recipe';
 import type { GooseApp } from './types/apps';
 import type { Settings, SettingKey } from './utils/settings';
 import { defaultSettings } from './utils/settings';
+import type { OpenExternalUrlResult } from './utils/urlSecurity';
 
 // Mapping from settings keys to their old localStorage keys for lazy migration
 const localStorageKeyMap: Partial<Record<SettingKey, string>> = {
@@ -158,7 +159,7 @@ type ElectronAPI = {
     theme: string;
     tokensUpdated?: boolean;
   }) => void;
-  openExternal: (url: string) => Promise<void>;
+  openExternal: (url: string) => Promise<OpenExternalUrlResult>;
   // Update-related functions
   getVersion: () => string;
   checkForUpdates: () => Promise<{ updateInfo: unknown; error: string | null }>;
@@ -300,7 +301,7 @@ const electronAPI: ElectronAPI = {
   }) => {
     ipcRenderer.send('broadcast-theme-change', themeData);
   },
-  openExternal: (url: string): Promise<void> => {
+  openExternal: (url: string): Promise<OpenExternalUrlResult> => {
     return ipcRenderer.invoke('open-external', url);
   },
   getVersion: (): string => {

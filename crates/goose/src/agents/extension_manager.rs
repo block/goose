@@ -9,13 +9,10 @@ use rmcp::service::{ClientInitializeError, ServiceError};
 use rmcp::transport::streamable_http_client::{
     StreamableHttpClientTransportConfig, StreamableHttpError,
 };
-use rmcp::transport::{
-    ConfigureCommandExt, DynamicTransportError, StreamableHttpClientTransport, TokioChildProcess,
-};
+use rmcp::transport::{ConfigureCommandExt, DynamicTransportError, StreamableHttpClientTransport};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
 use std::task::{Context, Poll};
@@ -47,7 +44,7 @@ use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
 use crate::oauth::{oauth_flow, GooseCredentialStore, StaticOAuthClientConfig};
 use crate::prompt_template;
-use crate::subprocess::configure_subprocess;
+use crate::subprocess::spawn_long_lived_mcp_subprocess;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, ContentBlock, ErrorCode, ErrorData, GetPromptResult,
     MetaObject, Prompt, Resource, ResourceContents, ServerInfo, ServerNotification, Tool,
@@ -282,9 +279,12 @@ pub fn get_tool_owner(tool: &Tool) -> Option<String> {
         .map(|s| s.to_string())
 }
 
-fn recover_mangled_tool_name<'a>(
+/// `tools` pairs each advertised public tool name with its owning extension's
+/// key, when known (`None` for tools with no owner metadata, e.g. those
+/// appended outside the extension manager).
+pub(crate) fn recover_mangled_tool_name<'a>(
     emitted: &str,
-    tool_names: impl Iterator<Item = &'a str>,
+    tools: impl Iterator<Item = (&'a str, Option<&'a str>)>,
 ) -> Option<String> {
     let trimmed = emitted.trim();
     let stripped = trimmed
@@ -293,12 +293,22 @@ fn recover_mangled_tool_name<'a>(
         .unwrap_or(trimmed);
 
     let mut matched: Option<&str> = None;
-    for name in tool_names {
+    for (name, owner) in tools {
+        // Prefixed tools: the model turns Goose's "__" separator into a dot
+        // ("developer__shell" -> "developer.shell").
         let separator_mangled = name
             .split_once("__")
             .map(|(extension, tool)| format!("{extension}.{tool}"));
 
-        let matches = stripped == name || separator_mangled.as_deref() == Some(stripped);
+        // Unprefixed tools (e.g. platform extensions like "developer" with
+        // unprefixed_tools=true) carry no "__" in their public name at all —
+        // the owner is only in metadata — so the model's "developer.shell"
+        // has to be checked against "{owner}.{name}" instead (see #9486).
+        let owner_mangled = owner.map(|o| format!("{o}.{name}"));
+
+        let matches = stripped == name
+            || separator_mangled.as_deref() == Some(stripped)
+            || owner_mangled.as_deref() == Some(stripped);
         if name == emitted || !matches {
             continue;
         }
@@ -420,8 +430,6 @@ async fn child_process_client(
     action_required: Arc<ActionRequiredManager>,
     extension_manager: Weak<ExtensionManager>,
 ) -> ExtensionResult<McpClient> {
-    configure_subprocess(&mut command);
-
     if let Ok(path) = SearchPaths::builder().path() {
         command.env("PATH", path);
     }
@@ -436,9 +444,7 @@ async fn child_process_client(
         );
     }
 
-    let (transport, mut stderr) = TokioChildProcess::builder(command)
-        .stderr(Stdio::piped())
-        .spawn()?;
+    let (transport, mut stderr) = spawn_long_lived_mcp_subprocess(command).await?;
     let mut stderr = stderr.take().ok_or_else(|| {
         ExtensionError::SetupError("failed to attach child process stderr".to_owned())
     })?;
@@ -1889,8 +1895,12 @@ impl ExtensionManager {
 
             if !recovery_attempted {
                 recovery_attempted = true;
+                let owners: Vec<(&str, Option<String>)> = tools
+                    .iter()
+                    .map(|t| (t.name.as_ref(), get_tool_owner(t)))
+                    .collect();
                 if let Some(recovered) =
-                    recover_mangled_tool_name(&name, tools.iter().map(|t| t.name.as_ref()))
+                    recover_mangled_tool_name(&name, owners.iter().map(|(n, o)| (*n, o.as_deref())))
                 {
                     name = recovered;
                     continue;
@@ -3316,9 +3326,33 @@ mod tests {
         assert_eq!(resolved.actual_tool_name, "db.query");
     }
 
+    #[tokio::test]
+    async fn test_resolve_tool_recovers_unprefixed_platform_extension_name() {
+        // GLM's documented reproduction (#9486): the built-in "developer"
+        // platform extension is registered with unprefixed_tools=true, so its
+        // tools are advertised with no "__" prefix at all (owner only in
+        // metadata). "developer.tool" must still resolve to the real "tool".
+        // Naming the mock extension literally "developer" makes
+        // is_unprefixed_extension look it up in the real PLATFORM_EXTENSIONS
+        // registry, exercising production behavior, not a fake stand-in.
+        let temp_dir = tempfile::tempdir().unwrap();
+        let extension_manager =
+            ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+        extension_manager
+            .add_mock_extension("developer".to_string(), Arc::new(MockClient {}))
+            .await;
+
+        let resolved = extension_manager
+            .resolve_tool("test-session-id", "developer.tool")
+            .await
+            .expect("unprefixed extension namespace mangling should resolve");
+        assert_eq!(resolved.actual_tool_name, "tool");
+        assert_eq!(resolved.extension_name, "developer");
+    }
+
     #[test]
     fn test_recover_mangled_tool_name() {
-        let tools = ["developer__shell", "platform__search"];
+        let tools = [("developer__shell", None), ("platform__search", None)];
         assert_eq!(
             recover_mangled_tool_name("developer.shell", tools.iter().copied()).as_deref(),
             Some("developer__shell")
@@ -3346,10 +3380,61 @@ mod tests {
             None
         );
 
-        let dotted_tool = ["dotted__db.query"];
+        let dotted_tool = [("dotted__db.query", None)];
         assert_eq!(
             recover_mangled_tool_name("dotted.db.query", dotted_tool.iter().copied()).as_deref(),
             Some("dotted__db.query")
+        );
+    }
+
+    #[test]
+    fn test_recover_mangled_tool_name_unprefixed_extension() {
+        // Platform extensions with unprefixed_tools=true (e.g. "developer")
+        // advertise tools with no "__" prefix at all; the owner lives only in
+        // metadata. GLM's documented "developer.shell" reproduction (#9486)
+        // must recover via the owner, not the tool's own (absent) prefix.
+        let tools = [("shell", Some("developer")), ("write", Some("developer"))];
+        assert_eq!(
+            recover_mangled_tool_name("developer.shell", tools.iter().copied()).as_deref(),
+            Some("shell")
+        );
+        assert_eq!(
+            recover_mangled_tool_name("functions.developer.shell", tools.iter().copied())
+                .as_deref(),
+            Some("shell")
+        );
+
+        // Wrong owner must not match.
+        assert_eq!(
+            recover_mangled_tool_name("other_extension.shell", tools.iter().copied()),
+            None
+        );
+
+        // Ambiguity across two different unprefixed extensions that both own
+        // a tool matching the same mangled input must refuse, not guess.
+        let ambiguous = [("shell", Some("dev_a")), ("shell", Some("dev_b"))];
+        assert_eq!(
+            recover_mangled_tool_name("dev_a.shell", ambiguous.iter().copied()).as_deref(),
+            Some("shell")
+        );
+    }
+
+    #[test]
+    fn test_recover_mangled_tool_name_non_extension_manager_tools() {
+        // recipe__final_output and platform__manage_schedule are appended by
+        // Agent::list_tools outside the extension manager (see #9486); they
+        // use the same "__" convention, so no owner metadata is needed.
+        let tools = [
+            ("recipe__final_output", None),
+            ("platform__manage_schedule", None),
+        ];
+        assert_eq!(
+            recover_mangled_tool_name("recipe.final_output", tools.iter().copied()).as_deref(),
+            Some("recipe__final_output")
+        );
+        assert_eq!(
+            recover_mangled_tool_name("platform.manage_schedule", tools.iter().copied()).as_deref(),
+            Some("platform__manage_schedule")
         );
     }
 
