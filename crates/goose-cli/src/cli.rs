@@ -816,6 +816,10 @@ enum Command {
     #[command(about = "Check that your Goose setup is working")]
     Doctor {},
 
+    /// Restart Goose with the current configuration
+    #[command(about = "Restart Goose with the current configuration")]
+    Restart,
+
     /// Manage system prompts and behaviors
     #[command(about = "Run one of the mcp servers bundled with goose")]
     Mcp {
@@ -1374,6 +1378,7 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
     match command {
         Some(Command::Configure {}) => "configure",
         Some(Command::Doctor {}) => "doctor",
+        Some(Command::Restart) => "restart",
         Some(Command::Info { .. }) => "info",
         Some(Command::Mcp { .. }) => "mcp",
         Some(Command::Acp { .. }) => "acp",
@@ -2649,6 +2654,43 @@ async fn handle_default_session() -> Result<()> {
     session.interactive(None).await
 }
 
+fn validate_restart_config(path: &std::path::Path) -> anyhow::Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+
+    let contents = std::fs::read_to_string(path)?;
+    serde_yaml::from_str::<serde_yaml::Value>(&contents)?;
+    Ok(())
+}
+
+async fn handle_restart_command() -> anyhow::Result<()> {
+    let config_path = std::path::PathBuf::from(Config::global().path());
+    validate_restart_config(&config_path).map_err(|e| {
+        anyhow::anyhow!(
+            "Config validation failed for {}: {}. Fix the file and try again.",
+            config_path.display(),
+            e
+        )
+    })?;
+
+    let exe = std::env::current_exe()?;
+    let args: Vec<_> = std::env::args_os()
+        .skip(1)
+        .filter(|arg| arg != "restart")
+        .collect();
+
+    let mut child = std::process::Command::new(exe)
+        .args(args)
+        .stdin(std::process::Stdio::inherit())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .spawn()?;
+
+    let _ = child.wait();
+    std::process::exit(0);
+}
+
 pub async fn cli() -> anyhow::Result<()> {
     register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
 
@@ -2669,6 +2711,7 @@ pub async fn cli() -> anyhow::Result<()> {
         }
         Some(Command::Configure {}) => handle_configure().await,
         Some(Command::Doctor {}) => crate::commands::doctor::handle_doctor().await,
+        Some(Command::Restart) => handle_restart_command().await,
         Some(Command::Info { verbose, check }) => handle_info(verbose, check).await,
         Some(Command::Mcp { server }) => handle_mcp_command(server).await,
         Some(Command::Acp {
@@ -2975,6 +3018,16 @@ mod tests {
                 );
             }
             _ => panic!("expected serve command"),
+        }
+    }
+
+    #[test]
+    fn restart_command_parses() {
+        let cli = Cli::try_parse_from(["goose", "restart"]).expect("parse failed");
+
+        match cli.command {
+            Some(Command::Restart) => {}
+            _ => panic!("expected restart command"),
         }
     }
 
