@@ -17,9 +17,44 @@ const RETRY_DELAY: std::time::Duration = std::time::Duration::from_secs(5);
 /// Maximum voice file size we'll attempt to download (20 MB, Telegram's bot API limit).
 const MAX_VOICE_FILE_SIZE: i64 = 20 * 1024 * 1024;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct VoiceFileIdentity {
+    #[cfg(unix)]
+    device: u64,
+    #[cfg(unix)]
+    inode: u64,
+    #[cfg(windows)]
+    volume: u32,
+    #[cfg(windows)]
+    index_high: u32,
+    #[cfg(windows)]
+    index_low: u32,
+}
+
 struct VoiceTempFile {
-    _file: tempfile::NamedTempFile,
+    path: tempfile::TempPath,
+    identity: VoiceFileIdentity,
     created_at: std::time::SystemTime,
+    cleanup_on_drop: bool,
+}
+
+impl VoiceTempFile {
+    fn remove(&mut self) -> io::Result<bool> {
+        self.path.disable_cleanup(true);
+        let removed = remove_voice_file_if_unchanged(&self.path, Some(self.identity), |_| {})?;
+        self.cleanup_on_drop = false;
+        Ok(removed)
+    }
+}
+
+impl Drop for VoiceTempFile {
+    fn drop(&mut self) {
+        if self.cleanup_on_drop {
+            let path = self.path.to_path_buf();
+            self.path.disable_cleanup(true);
+            let _ = remove_voice_file_if_unchanged(&path, Some(self.identity), |_| {});
+        }
+    }
 }
 
 struct VoiceTempFiles {
@@ -41,18 +76,30 @@ impl VoiceTempFiles {
             .suffix(&format!(".{extension}"))
             .tempfile_in(&self.parent)?;
         file.write_all(bytes)?;
+        let identity = voice_file_identity(file.as_file())?;
         let path = file.path().to_path_buf();
+        let path_owner = file.into_temp_path();
         self.files
             .lock()
             .map_err(|_| io::Error::other("Telegram voice file registry is unavailable"))?
             .push(VoiceTempFile {
-                _file: file,
+                path: path_owner,
+                identity,
                 created_at: std::time::SystemTime::now(),
+                cleanup_on_drop: true,
             });
         Ok(path)
     }
 
     fn cleanup(&self, max_age: std::time::Duration) -> io::Result<u32> {
+        self.cleanup_with_hook(max_age, |_| {})
+    }
+
+    fn cleanup_with_hook(
+        &self,
+        max_age: std::time::Duration,
+        mut after_opened_candidate: impl FnMut(&std::path::Path),
+    ) -> io::Result<u32> {
         let cutoff = std::time::SystemTime::now()
             .checked_sub(max_age)
             .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
@@ -60,15 +107,231 @@ impl VoiceTempFiles {
             .files
             .lock()
             .map_err(|_| io::Error::other("Telegram voice file registry is unavailable"))?;
-        let previous_count = files.len();
-        files.retain(|file| file.created_at > cutoff);
-        Ok((previous_count - files.len()) as u32)
+        let mut removed_tracked = 0;
+        let mut retained = Vec::with_capacity(files.len());
+        for mut file in std::mem::take(&mut *files) {
+            if file.created_at > cutoff {
+                retained.push(file);
+                continue;
+            }
+            match file.remove() {
+                Ok(true) => removed_tracked += 1,
+                Ok(false) => {}
+                Err(_) => retained.push(file),
+            }
+        }
+        *files = retained;
+        let active_paths: std::collections::HashSet<PathBuf> =
+            files.iter().map(|file| file.path.to_path_buf()).collect();
+        drop(files);
+
+        let removed_orphans = cleanup_orphaned_voice_files(
+            &self.parent,
+            cutoff,
+            &active_paths,
+            &mut after_opened_candidate,
+        )?;
+        Ok(removed_tracked + removed_orphans)
     }
 
     #[cfg(test)]
     fn parent(&self) -> &std::path::Path {
         &self.parent
     }
+}
+
+fn cleanup_orphaned_voice_files(
+    parent: &std::path::Path,
+    cutoff: std::time::SystemTime,
+    active_paths: &std::collections::HashSet<PathBuf>,
+    after_opened_candidate: &mut impl FnMut(&std::path::Path),
+) -> io::Result<u32> {
+    let entries = match std::fs::read_dir(parent) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(0),
+        Err(error) => return Err(error),
+    };
+    let mut removed = 0;
+    for entry in entries {
+        let Ok(entry) = entry else {
+            continue;
+        };
+        if !is_goose_voice_file_name(&entry.file_name()) {
+            continue;
+        }
+        let path = entry.path();
+        if active_paths.contains(&path) {
+            continue;
+        }
+        let Ok(file) = open_owned_voice_file(&path) else {
+            continue;
+        };
+        let Ok(metadata) = file.metadata() else {
+            continue;
+        };
+        if metadata
+            .modified()
+            .map_or(true, |modified| modified > cutoff)
+        {
+            continue;
+        }
+        let Ok(identity) = voice_file_identity(&file) else {
+            continue;
+        };
+        after_opened_candidate(&path);
+        if remove_voice_file_if_unchanged(&path, Some(identity), |_| {})? {
+            removed += 1;
+        }
+    }
+    Ok(removed)
+}
+
+fn is_goose_voice_file_name(name: &std::ffi::OsStr) -> bool {
+    let Some(name) = name.to_str() else {
+        return false;
+    };
+    let Some(rest) = name.strip_prefix("goose_voice_") else {
+        return false;
+    };
+    let Some((random, extension)) = rest.split_once('.') else {
+        return false;
+    };
+    random.len() == 6
+        && random.bytes().all(|byte| byte.is_ascii_alphanumeric())
+        && !extension.is_empty()
+        && extension.len() <= 16
+        && extension.bytes().enumerate().all(|(index, byte)| {
+            byte.is_ascii_alphanumeric() || (index > 0 && matches!(byte, b'-' | b'_'))
+        })
+}
+
+fn remove_voice_file_if_unchanged(
+    path: &std::path::Path,
+    expected_identity: Option<VoiceFileIdentity>,
+    mut after_opened: impl FnMut(&std::path::Path),
+) -> io::Result<bool> {
+    let file = match open_owned_voice_file(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(_) => return Ok(false),
+    };
+    let identity = voice_file_identity(&file)?;
+    if expected_identity.is_some_and(|expected| expected != identity) {
+        return Ok(false);
+    }
+    after_opened(path);
+    let current = match open_owned_voice_file(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(_) => return Ok(false),
+    };
+    if voice_file_identity(&current)? != identity {
+        return Ok(false);
+    }
+    delete_open_voice_file(current, path)?;
+    Ok(true)
+}
+
+#[cfg(unix)]
+fn delete_open_voice_file(_file: std::fs::File, path: &std::path::Path) -> io::Result<()> {
+    std::fs::remove_file(path)
+}
+
+#[cfg(unix)]
+fn open_owned_voice_file(path: &std::path::Path) -> io::Result<std::fs::File> {
+    use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW | libc::O_NONBLOCK)
+        .open(path)?;
+    let metadata = file.metadata()?;
+    if !metadata.is_file()
+        || metadata.uid() != unsafe { libc::geteuid() }
+        || metadata.mode() & 0o777 != 0o600
+        || metadata.nlink() != 1
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "not an owned Telegram voice tempfile",
+        ));
+    }
+    Ok(file)
+}
+
+#[cfg(unix)]
+fn voice_file_identity(file: &std::fs::File) -> io::Result<VoiceFileIdentity> {
+    use std::os::unix::fs::MetadataExt;
+
+    let metadata = file.metadata()?;
+    Ok(VoiceFileIdentity {
+        device: metadata.dev(),
+        inode: metadata.ino(),
+    })
+}
+
+#[cfg(windows)]
+fn open_owned_voice_file(path: &std::path::Path) -> io::Result<std::fs::File> {
+    use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
+    use winapi::um::winbase::FILE_FLAG_OPEN_REPARSE_POINT;
+    use winapi::um::winnt::{
+        DELETE, FILE_ATTRIBUTE_REPARSE_POINT, FILE_GENERIC_READ, FILE_SHARE_DELETE,
+        FILE_SHARE_READ, FILE_SHARE_WRITE,
+    };
+
+    let file = std::fs::OpenOptions::new()
+        .access_mode(FILE_GENERIC_READ | DELETE)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+        .open(path)?;
+    let metadata = file.metadata()?;
+    if !metadata.is_file() || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "not an owned Telegram voice tempfile",
+        ));
+    }
+    Ok(file)
+}
+
+#[cfg(windows)]
+fn delete_open_voice_file(file: std::fs::File, _path: &std::path::Path) -> io::Result<()> {
+    use std::os::windows::io::AsRawHandle;
+    use winapi::um::fileapi::{SetFileInformationByHandle, FILE_DISPOSITION_INFO};
+    use winapi::um::minwinbase::FileDispositionInfo;
+
+    let mut disposition = FILE_DISPOSITION_INFO { DeleteFile: 1 };
+    // SAFETY: the handle is live and the information buffer matches FileDispositionInfo.
+    let result = unsafe {
+        SetFileInformationByHandle(
+            file.as_raw_handle().cast(),
+            FileDispositionInfo,
+            (&mut disposition as *mut FILE_DISPOSITION_INFO).cast(),
+            std::mem::size_of::<FILE_DISPOSITION_INFO>() as u32,
+        )
+    };
+    if result == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn voice_file_identity(file: &std::fs::File) -> io::Result<VoiceFileIdentity> {
+    use std::os::windows::io::AsRawHandle;
+    use winapi::um::fileapi::{GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION};
+
+    let mut information: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+    let result =
+        unsafe { GetFileInformationByHandle(file.as_raw_handle().cast(), &mut information) };
+    if result == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(VoiceFileIdentity {
+        volume: information.dwVolumeSerialNumber,
+        index_high: information.nFileIndexHigh,
+        index_low: information.nFileIndexLow,
+    })
 }
 
 pub struct TelegramGateway {
@@ -704,19 +967,15 @@ mod tests {
             .unwrap_err();
 
         assert_log_fields_are_redacted(&error, "redirect");
-        assert!(
-            error
-                .downcast_ref::<reqwest::Error>()
-                .unwrap()
-                .is_redirect()
-        );
-        assert!(
-            error
-                .downcast_ref::<reqwest::Error>()
-                .unwrap()
-                .url()
-                .is_none()
-        );
+        assert!(error
+            .downcast_ref::<reqwest::Error>()
+            .unwrap()
+            .is_redirect());
+        assert!(error
+            .downcast_ref::<reqwest::Error>()
+            .unwrap()
+            .url()
+            .is_none());
     }
 
     #[tokio::test]
@@ -737,13 +996,11 @@ mod tests {
 
         assert_log_fields_are_redacted(&error, "decoding response body");
         assert!(error.downcast_ref::<reqwest::Error>().unwrap().is_decode());
-        assert!(
-            error
-                .downcast_ref::<reqwest::Error>()
-                .unwrap()
-                .url()
-                .is_none()
-        );
+        assert!(error
+            .downcast_ref::<reqwest::Error>()
+            .unwrap()
+            .url()
+            .is_none());
     }
 
     #[tokio::test]
@@ -1126,7 +1383,8 @@ mod tests {
 
     #[test]
     fn save_voice_file_contains_untrusted_mime_before_pairing() {
-        let gateway = test_gateway(TELEGRAM_API_BASE.to_string());
+        let temp = tempfile::tempdir().unwrap();
+        let gateway = gateway_with_voice_temp_files(VoiceTempFiles::new_in(temp.path()));
         let bytes = b"unpaired voice data";
         let path = gateway
             .save_voice_file(bytes, Some("audio/..\\..\\outside"))
@@ -1142,7 +1400,8 @@ mod tests {
 
     #[test]
     fn cleanup_handles_legitimate_voice_files() {
-        let gateway = test_gateway(TELEGRAM_API_BASE.to_string());
+        let temp = tempfile::tempdir().unwrap();
+        let gateway = gateway_with_voice_temp_files(VoiceTempFiles::new_in(temp.path()));
         let recent_file = gateway
             .save_voice_file(b"recent", Some("audio/ogg"))
             .unwrap();
@@ -1164,6 +1423,121 @@ mod tests {
             1
         );
         assert!(!recent_file.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn saved_voice_files_do_not_retain_open_descriptors() {
+        let temp = tempfile::tempdir().unwrap();
+        let gateway = gateway_with_voice_temp_files(VoiceTempFiles::new_in(temp.path()));
+        let paths: std::collections::HashSet<PathBuf> = (0..32)
+            .map(|_| gateway.save_voice_file(b"voice", None).unwrap())
+            .collect();
+        let descriptor_dir = if std::path::Path::new("/proc/self/fd").exists() {
+            std::path::Path::new("/proc/self/fd")
+        } else {
+            std::path::Path::new("/dev/fd")
+        };
+
+        let retained = std::fs::read_dir(descriptor_dir)
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter_map(|entry| std::fs::read_link(entry.path()).ok())
+            .any(|target| paths.contains(&target));
+
+        assert!(!retained);
+        assert_eq!(gateway.voice_temp_files.files.lock().unwrap().len(), 32);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn saved_voice_files_do_not_retain_open_descriptors() {
+        let temp = tempfile::tempdir().unwrap();
+        let gateway = gateway_with_voice_temp_files(VoiceTempFiles::new_in(temp.path()));
+        let path = gateway.save_voice_file(b"voice", None).unwrap();
+
+        std::fs::remove_file(&path).expect("closed voice files must be removable on Windows");
+    }
+
+    #[test]
+    fn cleanup_reclaims_stale_voice_file_from_previous_process() {
+        let temp = tempfile::tempdir().unwrap();
+        let producer = VoiceTempFiles::new_in(temp.path());
+        let path = producer.save(b"orphaned voice", "ogg").unwrap();
+        std::mem::forget(producer);
+        let cleaner = VoiceTempFiles::new_in(temp.path());
+        assert_eq!(
+            cleaner
+                .cleanup(std::time::Duration::from_secs(3600))
+                .unwrap(),
+            0
+        );
+        assert!(path.exists());
+
+        let old = std::time::SystemTime::now() - std::time::Duration::from_secs(7200);
+        std::fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_times(std::fs::FileTimes::new().set_modified(old))
+            .unwrap();
+
+        assert_eq!(
+            cleaner
+                .cleanup(std::time::Duration::from_secs(3600))
+                .unwrap(),
+            1
+        );
+        assert!(!path.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cleanup_preserves_symlinks_and_unrelated_files() {
+        let temp = tempfile::tempdir().unwrap();
+        let unrelated = temp.path().join("unrelated.txt");
+        let victim = temp.path().join("victim.txt");
+        let disguised_symlink = temp.path().join("goose_voice_ABC123.ogg");
+        std::fs::write(&unrelated, b"unrelated").unwrap();
+        std::fs::write(&victim, b"victim").unwrap();
+        std::os::unix::fs::symlink(&victim, &disguised_symlink).unwrap();
+
+        let cleaner = VoiceTempFiles::new_in(temp.path());
+        assert_eq!(cleaner.cleanup(std::time::Duration::ZERO).unwrap(), 0);
+        assert_eq!(std::fs::read(&unrelated).unwrap(), b"unrelated");
+        assert_eq!(std::fs::read(&victim).unwrap(), b"victim");
+        assert!(disguised_symlink.symlink_metadata().is_ok());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cleanup_preserves_replacement_after_candidate_open() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = tempfile::tempdir().unwrap();
+        let producer = VoiceTempFiles::new_in(temp.path());
+        let path = producer.save(b"original voice", "ogg").unwrap();
+        let moved = temp.path().join("moved-original.ogg");
+        std::mem::forget(producer);
+        let cleaner = VoiceTempFiles::new_in(temp.path());
+        let mut replaced = false;
+
+        let removed = cleaner
+            .cleanup_with_hook(std::time::Duration::ZERO, |candidate| {
+                if candidate == path && !replaced {
+                    std::fs::rename(&path, &moved).unwrap();
+                    std::fs::write(&path, b"replacement").unwrap();
+                    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
+                        .unwrap();
+                    replaced = true;
+                }
+            })
+            .unwrap();
+
+        assert_eq!(removed, 0);
+        assert!(replaced);
+        assert_eq!(std::fs::read(&path).unwrap(), b"replacement");
+        assert_eq!(std::fs::read(&moved).unwrap(), b"original voice");
     }
 
     #[cfg(unix)]
@@ -1236,11 +1610,9 @@ mod tests {
         let gateway = TelegramGateway::new_with_voice_temp_parent(&config, missing_parent.clone())
             .expect("text-only startup must not access voice storage");
         assert!(!missing_parent.exists());
-        assert!(
-            gateway
-                .save_voice_file(b"voice", Some("audio/ogg"))
-                .is_err()
-        );
+        assert!(gateway
+            .save_voice_file(b"voice", Some("audio/ogg"))
+            .is_err());
     }
 
     #[test]
