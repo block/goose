@@ -318,9 +318,9 @@ fn new_session_meta_fields(
     })
 }
 
-/// A remote client with no meaningful cwd (e.g. the roam web client on a
-/// phone) sends "/" — never run an agent in the filesystem root; fall back
-/// to the user's home directory instead.
+/// A remote client whose local cwd is meaningless on this host (`roam connect`
+/// and `roam delegate` do this) sends "/" — never run an agent in the
+/// filesystem root; fall back to the user's home directory instead.
 fn cwd_or_home(cwd: std::path::PathBuf) -> std::path::PathBuf {
     if cwd == std::path::Path::new("/") {
         if let Some(home) = dirs::home_dir() {

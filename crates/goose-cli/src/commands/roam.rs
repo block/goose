@@ -294,7 +294,7 @@ fn print_qr(card: &str) {
                 .quiet_zone(true)
                 .build();
             eprintln!("{art}");
-            eprintln!("scan with a phone camera, then paste the decoded text into the web client");
+            eprintln!("scan with a phone camera, then paste the decoded card into your client");
         }
         Err(err) => eprintln!("could not render QR: {err}"),
     }
@@ -359,7 +359,7 @@ async fn handle_pair(name: Option<String>) -> Result<()> {
     eprintln!("  fingerprint : {}", card.fingerprint());
     node.shutdown().await?;
     eprintln!();
-    eprintln!("on the new device: scan the QR with the goose web client (or paste the card),");
+    eprintln!("on the new device: scan the QR with its client (or paste the card),");
     eprintln!("then copy the card from its pairing screen back here.");
     eprintln!();
 
