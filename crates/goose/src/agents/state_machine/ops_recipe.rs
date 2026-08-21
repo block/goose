@@ -1,6 +1,7 @@
 //! Applies recipe commands and enforces their structured final output.
 
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -8,8 +9,8 @@ use rmcp::model::Tool;
 use tracing_futures::Instrument;
 
 use crate::agents::final_output_tool::{
-    frontend_tools_unsupported_message, provider_discards_frontend_tools, FinalOutputTool,
-    FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
+    structured_output_unsupported_message, FinalOutputTool, FINAL_OUTPUT_CONTINUATION_MESSAGE,
+    FINAL_OUTPUT_TOOL_NAME,
 };
 use crate::agents::state_machine::ops_toolcalling::{
     pending_tool_requests, tool_span, ToolDisposition,
@@ -20,11 +21,18 @@ use crate::agents::state_machine::{
 };
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{Conversation, EffectiveRole};
+use crate::providers::base::Provider;
 use crate::session::Session;
 
-pub struct RecipeOperation;
+pub struct RecipeOperation {
+    provider: Arc<dyn Provider>,
+}
 
 impl RecipeOperation {
+    pub fn new(provider: Arc<dyn Provider>) -> Self {
+        Self { provider }
+    }
+
     fn final_output(session: &Session) -> Result<Option<FinalOutputTool>> {
         session
             .recipe
@@ -190,16 +198,14 @@ impl Operation<Session, GooseEffect> for RecipeOperation {
             return not_applicable();
         };
 
-        if let Some(provider_name) = session.provider_name.as_deref() {
-            if provider_discards_frontend_tools(provider_name) {
-                return self
-                    .command_error(
-                        conversation,
-                        frontend_tools_unsupported_message(provider_name),
-                        emit,
-                    )
-                    .await;
-            }
+        if self.provider.manages_own_context() {
+            return self
+                .command_error(
+                    conversation,
+                    structured_output_unsupported_message(self.provider.get_name()),
+                    emit,
+                )
+                .await;
         }
 
         let messages = messages_since_kickoff(conversation)?;

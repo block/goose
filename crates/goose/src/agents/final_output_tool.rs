@@ -1,10 +1,4 @@
 use crate::agents::tool_execution::ToolCallResult;
-use crate::providers::amp_acp::AMP_ACP_PROVIDER_NAME;
-use crate::providers::claude_acp::CLAUDE_ACP_PROVIDER_NAME;
-use crate::providers::claude_code::CLAUDE_CODE_PROVIDER_NAME;
-use crate::providers::codex_acp::CODEX_ACP_PROVIDER_NAME;
-use crate::providers::copilot_acp::COPILOT_ACP_PROVIDER_NAME;
-use crate::providers::pi_acp::PI_ACP_PROVIDER_NAME;
 use crate::recipe::Response;
 use indoc::formatdoc;
 use rmcp::model::{
@@ -17,28 +11,11 @@ pub const FINAL_OUTPUT_TOOL_NAME: &str = "recipe__final_output";
 pub const FINAL_OUTPUT_CONTINUATION_MESSAGE: &str =
     "You MUST call the `final_output` tool NOW with the final output for the user.";
 
-/// ACP-bridged providers drive an external CLI/agent over the ACP protocol and
-/// forward tools to it only via `--mcp-config` (real MCP servers); their
-/// `Provider::stream()` takes goose's in-process tool list but never forwards
-/// it, so a synthetic frontend-provided tool like `final_output` can never
-/// reach the model. See goose#11296.
-pub(crate) fn provider_discards_frontend_tools(provider_name: &str) -> bool {
-    matches!(
-        provider_name,
-        CLAUDE_CODE_PROVIDER_NAME
-            | CODEX_ACP_PROVIDER_NAME
-            | COPILOT_ACP_PROVIDER_NAME
-            | AMP_ACP_PROVIDER_NAME
-            | PI_ACP_PROVIDER_NAME
-            | CLAUDE_ACP_PROVIDER_NAME
-    )
-}
-
-pub(crate) fn frontend_tools_unsupported_message(provider_name: &str) -> String {
+pub(crate) fn structured_output_unsupported_message(provider_name: &str) -> String {
     format!(
         "This recipe declares a structured `response`, but provider `{provider_name}` can't \
-         support it: it drives an external agent over ACP and never receives goose's \
-         `final_output` tool, so the model can never satisfy this recipe. Remove \
+         support it because it never receives goose's built-in `final_output` tool, so the \
+         model can never satisfy this recipe. Remove \
          `response.json_schema` from the recipe or run it with a different provider."
     )
 }
@@ -194,33 +171,6 @@ mod tests {
     use rmcp::model::CallToolRequestParams;
     use rmcp::object;
     use serde_json::json;
-
-    #[test]
-    fn provider_discards_frontend_tools_covers_every_acp_bridged_provider() {
-        for name in [
-            CLAUDE_CODE_PROVIDER_NAME,
-            CODEX_ACP_PROVIDER_NAME,
-            COPILOT_ACP_PROVIDER_NAME,
-            AMP_ACP_PROVIDER_NAME,
-            PI_ACP_PROVIDER_NAME,
-            CLAUDE_ACP_PROVIDER_NAME,
-        ] {
-            assert!(
-                provider_discards_frontend_tools(name),
-                "{name} should be treated as discarding frontend tools"
-            );
-        }
-    }
-
-    #[test]
-    fn provider_discards_frontend_tools_false_for_direct_providers() {
-        for name in ["anthropic", "openai", "databricks", "ollama", ""] {
-            assert!(
-                !provider_discards_frontend_tools(name),
-                "{name} should not be treated as ACP-bridged"
-            );
-        }
-    }
 
     fn create_complex_test_schema() -> Value {
         json!({

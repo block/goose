@@ -23,8 +23,8 @@ use crate::agents::extension_manager::{
     get_parameter_names, ExtensionManager, ExtensionManagerCapabilities,
 };
 use crate::agents::final_output_tool::{
-    frontend_tools_unsupported_message, provider_discards_frontend_tools,
-    FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
+    structured_output_unsupported_message, FINAL_OUTPUT_CONTINUATION_MESSAGE,
+    FINAL_OUTPUT_TOOL_NAME,
 };
 use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::prompt_manager::PromptManager;
@@ -1667,7 +1667,7 @@ impl Agent {
             Arc::new(DoctorOperation),
             Arc::new(ProjectOperation),
             Arc::new(SkillOperation),
-            Arc::new(RecipeOperation),
+            Arc::new(RecipeOperation::new(provider.clone())),
             Arc::new(ToolExecutionOperation::new(
                 &self.current_goose_mode,
                 self.extension_manager.clone(),
@@ -3154,7 +3154,7 @@ impl Agent {
                     };
 
                     match final_output {
-                        Some(None) if provider_discards_frontend_tools(&provider_name) => {
+                        Some(None) if provider.manages_own_context() => {
                             warn!(
                                 provider = %provider_name,
                                 "Recipe declares structured response, but this provider can't receive the final_output tool; failing fast instead of looping"
@@ -3162,7 +3162,7 @@ impl Agent {
                             let message = push_message_with_id(
                                 &mut messages_to_add,
                                 Message::assistant()
-                                    .with_text(frontend_tools_unsupported_message(&provider_name)),
+                                    .with_text(structured_output_unsupported_message(&provider_name)),
                             );
                             yield AgentEvent::Message(message);
                             exit_chat = true;

@@ -33,7 +33,7 @@ use goose_providers::model::ModelConfig;
 
 use super::cli_common::{error_from_event, extract_usage_tokens};
 
-pub(crate) const CLAUDE_CODE_PROVIDER_NAME: &str = "claude-code";
+const CLAUDE_CODE_PROVIDER_NAME: &str = "claude-code";
 pub const CLAUDE_CODE_DEFAULT_MODEL: &str = "default";
 pub const CLAUDE_CODE_DOC_URL: &str = "https://code.claude.com/docs/en/setup";
 
