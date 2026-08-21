@@ -93,15 +93,12 @@ impl GooseAcpAgent {
             config: conversion.config,
         };
 
-        crate::config::extensions::validate_extension_update(&req.config_key, &entry)
-            .map_err(config_extension_update_error)?;
-
-        Config::global()
-            .set_secret_values(&conversion.secret_updates)
-            .internal_err_ctx("Failed to save extension env secrets")?;
-
-        crate::config::extensions::update_extension(&req.config_key, entry)
-            .map_err(config_extension_update_error)?;
+        crate::config::extensions::update_extension_with_secrets(
+            &req.config_key,
+            entry,
+            &conversion.secret_updates,
+        )
+        .map_err(config_extension_update_error)?;
         Ok(EmptyResponse {})
     }
 

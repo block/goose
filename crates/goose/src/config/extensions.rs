@@ -12,7 +12,7 @@ pub const DEFAULT_EXTENSION_TIMEOUT: u64 = 300;
 pub const DEFAULT_EXTENSION_DESCRIPTION: &str = "";
 pub const DEFAULT_DISPLAY_NAME: &str = "Developer";
 const EXTENSIONS_CONFIG_KEY: &str = "extensions";
-static EXTENSION_ADD_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+static EXTENSION_MUTATION_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ExtensionEntry {
@@ -240,7 +240,7 @@ fn add_extension_with_config(
     config: &Config,
     entry: ExtensionEntry,
 ) -> Result<(), ExtensionAddError> {
-    let _guard = EXTENSION_ADD_GUARD.lock().unwrap();
+    let _guard = EXTENSION_MUTATION_GUARD.lock().unwrap();
     add_extension_with_config_locked(config, entry)
 }
 
@@ -256,7 +256,7 @@ fn add_extension_with_secrets_with_config(
     entry: ExtensionEntry,
     secret_updates: &[(String, serde_json::Value)],
 ) -> Result<(), ExtensionAddError> {
-    let _guard = EXTENSION_ADD_GUARD.lock().unwrap();
+    let _guard = EXTENSION_MUTATION_GUARD.lock().unwrap();
     validate_extension_add_with_config(config, &entry)?;
     config.set_secret_values(secret_updates)?;
     add_extension_with_config_locked(config, entry)
@@ -313,6 +313,35 @@ pub fn update_extension(key: &str, entry: ExtensionEntry) -> Result<(), Extensio
 }
 
 fn update_extension_with_config(
+    config: &Config,
+    key: &str,
+    entry: ExtensionEntry,
+) -> Result<(), ExtensionUpdateError> {
+    let _guard = EXTENSION_MUTATION_GUARD.lock().unwrap();
+    update_extension_with_config_locked(config, key, entry)
+}
+
+pub fn update_extension_with_secrets(
+    key: &str,
+    entry: ExtensionEntry,
+    secret_updates: &[(String, serde_json::Value)],
+) -> Result<(), ExtensionUpdateError> {
+    update_extension_with_secrets_with_config(Config::global(), key, entry, secret_updates)
+}
+
+fn update_extension_with_secrets_with_config(
+    config: &Config,
+    key: &str,
+    entry: ExtensionEntry,
+    secret_updates: &[(String, serde_json::Value)],
+) -> Result<(), ExtensionUpdateError> {
+    let _guard = EXTENSION_MUTATION_GUARD.lock().unwrap();
+    validate_extension_update_with_config(config, key, &entry)?;
+    config.set_secret_values(secret_updates)?;
+    update_extension_with_config_locked(config, key, entry)
+}
+
+fn update_extension_with_config_locked(
     config: &Config,
     key: &str,
     entry: ExtensionEntry,
@@ -880,6 +909,53 @@ extensions:
             serde_yaml::from_value(user_extensions["inherited"].clone()).unwrap();
         assert!(entry.enabled);
         assert_eq!(entry.config.name(), "Inherited");
+    }
+
+    #[test]
+    fn test_concurrent_updates_keep_config_and_secret_coherent() {
+        let (config, _config_file, _secrets_file) = test_config("");
+        add_extension_with_config(&config, builtin_entry("shared", true)).unwrap();
+        let config = Arc::new(config);
+        let barrier = Arc::new(Barrier::new(2));
+        let attempts = [
+            ("first description", "first-secret"),
+            ("second description", "second-secret"),
+        ]
+        .map(|(description, secret)| {
+            let config = Arc::clone(&config);
+            let barrier = Arc::clone(&barrier);
+            std::thread::spawn(move || {
+                barrier.wait();
+                let mut entry = builtin_entry("shared", true);
+                if let ExtensionConfig::Builtin {
+                    description: entry_description,
+                    ..
+                } = &mut entry.config
+                {
+                    *entry_description = description.to_string();
+                }
+                let updates = [(
+                    "SHARED_TOKEN".to_string(),
+                    serde_json::Value::String(secret.to_string()),
+                )];
+                update_extension_with_secrets_with_config(&config, "shared", entry, &updates)
+                    .unwrap();
+            })
+        });
+
+        for attempt in attempts {
+            attempt.join().unwrap();
+        }
+
+        let description = match get_extension_by_name_with_config(&config, "shared").unwrap() {
+            ExtensionConfig::Builtin { description, .. } => description,
+            other => panic!("expected builtin, got {other:?}"),
+        };
+        let secret = config.get_secret::<String>("SHARED_TOKEN").unwrap();
+        assert!(matches!(
+            (description.as_str(), secret.as_str()),
+            ("first description", "first-secret") | ("second description", "second-secret")
+        ));
     }
 
     #[test]
