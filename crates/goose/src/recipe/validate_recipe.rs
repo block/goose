@@ -26,7 +26,8 @@ fn validate_json_schema(schema: &serde_json::Value) -> Result<()> {
     if schema_object.is_empty() {
         return Err(anyhow::anyhow!("Empty JSON schema is not allowed"));
     }
-    jsonschema::meta::validate(schema)
+    jsonschema::validator_for(schema)
+        .map(|_| ())
         .map_err(|error| anyhow::anyhow!("JSON schema validation failed: {error}"))
 }
 
@@ -301,5 +302,26 @@ response:
 "#;
 
         validate_recipe_template_from_content(recipe_content, None).unwrap();
+    }
+
+    #[test]
+    fn response_json_schema_must_compile() {
+        let recipe_content = r#"
+version: 1.0.0
+title: Invalid pattern
+description: Invalid pattern
+instructions: Return structured output
+response:
+  json_schema:
+    type: object
+    properties:
+      result:
+        type: string
+        pattern: "["
+"#;
+
+        let error = validate_recipe_template_from_content(recipe_content, None).unwrap_err();
+
+        assert!(error.to_string().contains("JSON schema validation failed"));
     }
 }

@@ -39,7 +39,7 @@ impl FinalOutputTool {
         if schema.is_empty() {
             return Err("empty json_schema is not allowed".to_string());
         }
-        jsonschema::meta::validate(schema_value).map_err(|error| error.to_string())?;
+        jsonschema::validator_for(schema_value).map_err(|error| error.to_string())?;
 
         Ok(Self {
             response,
@@ -221,6 +221,23 @@ mod tests {
                 }
             })),
         };
+        assert!(FinalOutputTool::try_new(response).is_err());
+    }
+
+    #[test]
+    fn test_try_new_with_invalid_pattern() {
+        let response = Response {
+            json_schema: Some(json!({
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "pattern": "["
+                    }
+                }
+            })),
+        };
+
         assert!(FinalOutputTool::try_new(response).is_err());
     }
 
