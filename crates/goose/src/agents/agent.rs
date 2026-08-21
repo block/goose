@@ -27,8 +27,8 @@ use crate::agents::extension_manager::{
     ExtensionManager, ExtensionManagerCapabilities, get_parameter_names,
 };
 use crate::agents::final_output_tool::{
-    structured_output_unsupported_message, FINAL_OUTPUT_CONTINUATION_MESSAGE,
-    FINAL_OUTPUT_TOOL_NAME,
+    FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
+    structured_output_unsupported_message,
 };
 use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::prompt_manager::PromptManager;
@@ -348,10 +348,6 @@ fn project_message_for_user_event(message: &Message) -> Message {
 
 fn agent_visible_message_text(message: &Message) -> String {
     message.agent_visible_content().as_concat_text()
-}
-
-fn user_visible_message_text(message: &Message) -> String {
-    message.user_visible_content().as_concat_text()
 }
 
 fn attach_turn_usage(
@@ -4878,9 +4874,11 @@ mod tests {
         ));
         assert!(err.to_string().contains("Invalid thinking effort"));
         assert_eq!(provider.effort_calls(), ["bogus"]);
-        assert!(persisted_thinking_effort(&agent, &session_id)
-            .await
-            .is_none());
+        assert!(
+            persisted_thinking_effort(&agent, &session_id)
+                .await
+                .is_none()
+        );
     }
 
     #[tokio::test]
@@ -4900,9 +4898,11 @@ mod tests {
             err.downcast_ref::<ProviderError>(),
             Some(ProviderError::RequestFailed(_))
         ));
-        assert!(persisted_thinking_effort(&agent, &session_id)
-            .await
-            .is_none());
+        assert!(
+            persisted_thinking_effort(&agent, &session_id)
+                .await
+                .is_none()
+        );
     }
 
     const ALWAYS_BLOCK_SCRIPT: &str = r#"#!/bin/sh
@@ -6059,16 +6059,11 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         }
     }
 
-    const RECORD_PRE_SCRIPT: &str =
-        "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/pre.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/pre.log\"\nexit 0\n";
-    const RECORD_RESULT_SCRIPT: &str =
-        "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/result.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/result.log\"\nexit 0\n";
-    const RECORD_POST_SCRIPT: &str =
-        "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/post.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/post.log\"\nexit 0\n";
-    const RECORD_POST_FAILURE_SCRIPT: &str =
-        "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/postfail.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/postfail.log\"\nexit 0\n";
-    const DENY_AND_RECORD_SCRIPT: &str =
-        "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/pre.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/pre.log\"\necho \"blocked by test policy\" >&2\nexit 2\n";
+    const RECORD_PRE_SCRIPT: &str = "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/pre.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/pre.log\"\nexit 0\n";
+    const RECORD_RESULT_SCRIPT: &str = "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/result.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/result.log\"\nexit 0\n";
+    const RECORD_POST_SCRIPT: &str = "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/post.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/post.log\"\nexit 0\n";
+    const RECORD_POST_FAILURE_SCRIPT: &str = "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/postfail.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/postfail.log\"\nexit 0\n";
+    const DENY_AND_RECORD_SCRIPT: &str = "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/pre.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/pre.log\"\necho \"blocked by test policy\" >&2\nexit 2\n";
     /// Logs its stdin like the others, writes nothing to stdout, and exits
     /// non-zero. That is a hook that ran but never returned a decision.
     const ABNORMAL_EXIT_AND_RECORD_SCRIPT: &str =
