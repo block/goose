@@ -341,6 +341,7 @@ mod tests {
 
     #[tokio::test]
     async fn disabled_plugin_skill_is_not_listed_or_loadable() {
+        let _guard = env_lock::lock_env([("PLUGINS", None::<&str>)]);
         let project = TempDir::new().unwrap();
         write_plugin_skill(
             project.path(),
@@ -371,6 +372,7 @@ mod tests {
 
     #[tokio::test]
     async fn enabled_plugin_skill_is_listed_and_loadable() {
+        let _guard = env_lock::lock_env([("PLUGINS", None::<&str>)]);
         let project = TempDir::new().unwrap();
         write_plugin_skill(
             project.path(),

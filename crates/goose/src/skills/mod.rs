@@ -318,45 +318,56 @@ pub(crate) fn parse_skill_frontmatter(raw: &str) -> (String, String) {
 /// dirs first, then global dirs.
 pub fn all_skill_dirs(working_dir: Option<&Path>) -> Vec<(PathBuf, bool)> {
     all_skill_dirs_with_config(working_dir, Config::global())
+        .into_iter()
+        .map(|(path, global, _)| (path, global))
+        .collect()
 }
 
-fn all_skill_dirs_with_config(working_dir: Option<&Path>, config: &Config) -> Vec<(PathBuf, bool)> {
-    let mut dirs: Vec<(PathBuf, bool)> = Vec::new();
+fn all_skill_dirs_with_config(
+    working_dir: Option<&Path>,
+    config: &Config,
+) -> Vec<(PathBuf, bool, bool)> {
+    let mut dirs = Vec::new();
     let plugin_dirs = enabled_plugin_skill_dirs_with_config(working_dir, config);
 
     if let Some(wd) = working_dir {
-        dirs.push((wd.join(".agents").join("skills"), false));
-        dirs.push((wd.join(".goose").join("skills"), false));
-        dirs.push((wd.join(".claude").join("skills"), false));
+        dirs.push((wd.join(".agents").join("skills"), false, true));
+        dirs.push((wd.join(".goose").join("skills"), false, true));
+        dirs.push((wd.join(".claude").join("skills"), false, true));
     }
     dirs.extend(
         plugin_dirs
             .iter()
             .filter(|(_, scope)| *scope == PluginScope::Project)
-            .map(|(dir, _)| (dir.clone(), false)),
+            .map(|(dir, _)| (dir.clone(), false, false)),
     );
 
     let home = dirs::home_dir();
     if let Some(h) = home.as_ref() {
-        dirs.push((h.join(".agents").join("skills"), true));
+        dirs.push((h.join(".agents").join("skills"), true, true));
     }
-    dirs.push((Paths::config_dir().join("skills"), true));
+    dirs.push((Paths::config_dir().join("skills"), true, true));
     if let Some(h) = home.as_ref() {
-        dirs.push((h.join(".claude").join("skills"), true));
-        dirs.push((h.join(".config").join("agents").join("skills"), true));
+        dirs.push((h.join(".claude").join("skills"), true, true));
+        dirs.push((h.join(".config").join("agents").join("skills"), true, true));
     }
 
     dirs.extend(
         plugin_dirs
             .into_iter()
             .filter(|(_, scope)| *scope == PluginScope::User)
-            .map(|(dir, _)| (dir, true)),
+            .map(|(dir, _)| (dir, true, true)),
     );
 
     dirs
 }
 
-fn parse_skill_content(content: &str, path: &Path, global: bool) -> Option<SourceEntry> {
+fn parse_skill_content(
+    content: &str,
+    path: &Path,
+    global: bool,
+    writable: bool,
+) -> Option<SourceEntry> {
     let (metadata, body): (SkillFrontmatter, String) = match parse_frontmatter(content) {
         Ok(Some(parsed)) => parsed,
         Ok(None) => return None,
@@ -389,7 +400,7 @@ fn parse_skill_content(content: &str, path: &Path, global: bool) -> Option<Sourc
         content: body,
         path: path.to_string_lossy().into_owned(),
         global,
-        writable: true,
+        writable,
         supporting_files: Vec::new(),
         properties: metadata.metadata,
     })
@@ -437,7 +448,12 @@ fn walk_files_recursively<F, G>(
     }
 }
 
-fn scan_skills_from_dir(dir: &Path, global: bool, seen: &mut HashSet<String>) -> Vec<SourceEntry> {
+fn scan_skills_from_dir(
+    dir: &Path,
+    global: bool,
+    writable: bool,
+    seen: &mut HashSet<String>,
+) -> Vec<SourceEntry> {
     let mut skill_files = Vec::new();
     let mut visited_dirs = HashSet::new();
 
@@ -468,7 +484,9 @@ fn scan_skills_from_dir(dir: &Path, global: bool, seen: &mut HashSet<String>) ->
             }
         };
 
-        if let Some(mut source) = parse_skill_content(&content, &registered_skill_dir, global) {
+        if let Some(mut source) =
+            parse_skill_content(&content, &registered_skill_dir, global, writable)
+        {
             if !seen.contains(&source.name) {
                 let mut files = Vec::new();
                 let mut visited_support_dirs = HashSet::new();
@@ -510,14 +528,14 @@ fn discover_skills_with_config(working_dir: Option<&Path>, config: &Config) -> V
     let mut sources: Vec<SourceEntry> = Vec::new();
     let mut seen = HashSet::new();
 
-    for (dir, is_global) in all_skill_dirs_with_config(working_dir, config) {
-        for source in scan_skills_from_dir(&dir, is_global, &mut seen) {
+    for (dir, is_global, writable) in all_skill_dirs_with_config(working_dir, config) {
+        for source in scan_skills_from_dir(&dir, is_global, writable, &mut seen) {
             sources.push(source);
         }
     }
 
     for content in builtin::get_all() {
-        if let Some(source) = parse_skill_content(content, &PathBuf::new(), true) {
+        if let Some(source) = parse_skill_content(content, &PathBuf::new(), true, true) {
             if !seen.contains(&source.name) {
                 seen.insert(source.name.clone());
                 let path = format!("builtin://skills/{}", source.name);
@@ -684,6 +702,64 @@ mod tests {
 
         assert_eq!(skill.content.trim(), "project plugin body");
         assert!(!skill.global);
+        assert!(!skill.writable);
         assert!(Path::new(&skill.path).starts_with(plugin_root.canonicalize().unwrap()));
+    }
+
+    #[test]
+    fn project_plugin_skill_is_listed_read_only_and_rejected_by_source_crud() {
+        let project = tempfile::tempdir().unwrap();
+        let path_root = tempfile::tempdir().unwrap();
+        let plugin_root = project.path().join(".agents/plugins/project-plugin");
+        let skill_dir = plugin_root.join("custom-skills/plugin-owned");
+        write_test_skill(&skill_dir, "plugin-owned", "plugin body");
+        std::fs::write(
+            plugin_root.join("plugin.json"),
+            r#"{"name":"project-plugin","skills":{"paths":["./custom-skills"]}}"#,
+        )
+        .unwrap();
+
+        let config = Config::new(path_root.path().join("test-config.yaml"), "skills-test").unwrap();
+        config
+            .set_param(
+                "plugins",
+                HashMap::from([(
+                    plugin_root.to_string_lossy().into_owned(),
+                    HashMap::from([("enabled", true)]),
+                )]),
+            )
+            .unwrap();
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PATH_ROOT", path_root.path().to_str()),
+            ("PLUGINS", None),
+        ]);
+
+        let skill = discover_skills_with_config(Some(project.path()), &config)
+            .into_iter()
+            .find(|skill| skill.name == "plugin-owned")
+            .unwrap();
+        assert!(!skill.global);
+        assert!(!skill.writable);
+
+        let update_err = crate::sources::update_source_with_roots(
+            SourceType::Skill,
+            &skill.path,
+            "plugin-owned",
+            "updated",
+            "updated body",
+            crate::sources::UpdateSourceOptions {
+                properties: Some(HashMap::new()),
+                additional_roots: &[],
+            },
+        )
+        .unwrap_err();
+        assert!(format!("{update_err:?}").contains("not found"));
+
+        let delete_err = crate::sources::delete_source(SourceType::Skill, &skill.path).unwrap_err();
+        assert!(format!("{delete_err:?}").contains("not found"));
+
+        let export_err = crate::sources::export_source(SourceType::Skill, &skill.path).unwrap_err();
+        assert!(format!("{export_err:?}").contains("not found"));
+        assert!(skill_dir.join("SKILL.md").is_file());
     }
 }
