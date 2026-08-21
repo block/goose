@@ -5003,7 +5003,7 @@ dependencies = [
  "rcgen",
  "regex",
  "reqwest 0.13.4",
- "rmcp 3.1.2",
+ "rmcp 3.1.4",
  "rubato",
  "rustls",
  "schemars 1.2.2",
@@ -5074,7 +5074,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "goose-provider-types",
- "rmcp 3.1.2",
+ "rmcp 3.1.4",
  "serde_json",
  "tokio",
  "tokio-util",
@@ -5115,7 +5115,7 @@ dependencies = [
  "rand 0.10.2",
  "regex",
  "reqwest 0.13.4",
- "rmcp 3.1.2",
+ "rmcp 3.1.4",
  "rustyline",
  "serde",
  "serde_json",
@@ -5149,7 +5149,7 @@ dependencies = [
  "goose-providers",
  "include_dir",
  "minijinja",
- "rmcp 3.1.2",
+ "rmcp 3.1.4",
  "serde",
  "serde_json",
  "tokio",
@@ -5192,7 +5192,7 @@ dependencies = [
  "minijinja",
  "regex",
  "reqwest 0.13.4",
- "rmcp 3.1.2",
+ "rmcp 3.1.4",
  "safemlx",
  "safemlx-lm",
  "safemlx-lm-utils",
@@ -5219,7 +5219,7 @@ dependencies = [
  "lopdf",
  "once_cell",
  "process-wrap",
- "rmcp 3.1.2",
+ "rmcp 3.1.4",
  "schemars 1.2.2",
  "serde",
  "serde_json",
@@ -5247,7 +5247,7 @@ dependencies = [
  "rand 0.10.2",
  "regex",
  "reqwest 0.13.4",
- "rmcp 3.1.2",
+ "rmcp 3.1.4",
  "serde",
  "serde_json",
  "strum 0.28.0",
@@ -5277,7 +5277,7 @@ dependencies = [
  "pem 4.0.0",
  "pkcs8 0.11.0",
  "reqwest 0.13.4",
- "rmcp 3.1.2",
+ "rmcp 3.1.4",
  "sec1 0.8.1",
  "serde",
  "serde_json",
@@ -5304,7 +5304,7 @@ dependencies = [
  "goose-context-management",
  "goose-providers",
  "goose-sdk-types",
- "rmcp 3.1.2",
+ "rmcp 3.1.4",
  "serde_json",
  "thiserror 2.0.20",
  "tokio",
@@ -5338,7 +5338,7 @@ dependencies = [
  "axum",
  "env-lock",
  "opentelemetry 0.32.0",
- "rmcp 3.1.2",
+ "rmcp 3.1.4",
  "serde_json",
  "tokio",
 ]
@@ -6025,9 +6025,9 @@ checksum = "cd62e6b5e86ea8eeeb8db1de02880a6abc01a397b2ebb64b5d74ac255318f5cb"
 
 [[package]]
 name = "ignore"
-version = "0.4.32"
+version = "0.4.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b17771570a2b94107741a7b033f19132c2eee21d59d21b24d2ced26500bd66e"
+checksum = "00b69833ed729dc5aa7d19541d96d6cf8e9137194207a04916d658e43168402f"
 dependencies = [
  "crossbeam-deque",
  "globset",
@@ -6689,9 +6689,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-sys-2"
-version = "0.1.146"
+version = "0.1.154"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b291e4bc2d10c43cd8dec16d49b6104cb3cb125f596ec380a753a5db1d965dd"
+checksum = "13a9ea2ce0cdc20bcb1870534022e340b391663f8fe09133951e2fe37fbc29cf"
 dependencies = [
  "bindgen",
  "cc",
@@ -7124,9 +7124,9 @@ dependencies = [
 
 [[package]]
 name = "nostr"
-version = "0.45.1"
+version = "0.45.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5dde8c76076d334409d86c2e1db3e97abe5deb8cb92744f939cbc1fa45bd69e7"
+checksum = "f1f8eb417c440d6fda549016b1f6ad299ea5eb54b9f79ab0c216579f2e96c746"
 dependencies = [
  "base64 0.22.1",
  "bech32",
@@ -9204,9 +9204,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "3.1.2"
+version = "3.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8dddc5b1924b9a59fba420166160ca2c4663a4e01803e52eda33070f56d63c8"
+checksum = "1a15bc53261a9dc37e105df006e4656c598379a8f9581f8950debb130f27a7cf"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -9218,13 +9218,14 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
+ "indexmap 2.14.0",
  "oauth2",
  "pastey",
  "pin-project-lite",
  "process-wrap",
  "rand 0.10.2",
  "reqwest 0.13.4",
- "rmcp-macros 3.1.2",
+ "rmcp-macros 3.1.4",
  "schemars 1.2.2",
  "serde",
  "serde_json",
@@ -9254,9 +9255,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp-macros"
-version = "3.1.2"
+version = "3.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6898e24cd16342b59bfa8a53c2c04b9cf62fc8a2cfea57b9c038b09984bfc521"
+checksum = "a85d45508e9b4ba024fe996c2638799635d75b6dd0ba8f32ccf08f8026f0c780"
 dependencies = [
  "darling 0.24.0",
  "proc-macro2",
@@ -12666,9 +12667,9 @@ dependencies = [
 
 [[package]]
 name = "umya-spreadsheet"
-version = "3.0.1"
+version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2ecbb0bd4092e75183ae19674fc209a5ba016b0bd796378623d1980b6bec044"
+checksum = "560ef3816b56fce89975a58a7f271c57f7b3873aac8fba70572f93f3683be405"
 dependencies = [
  "aes",
  "base64 0.22.1",
