@@ -20,6 +20,7 @@ const RMS_THRESHOLD = 0.015;
 interface RecorderGeneration {
   audioContext: AudioContext | null;
   cancelled: boolean;
+  completesAfterTranscription: boolean;
   pendingTranscriptions: number;
   stream: MediaStream | null;
   worklet: AudioWorkletNode | null;
@@ -82,6 +83,17 @@ function rms(samples: Float32Array): number {
   let sum = 0;
   for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
   return Math.sqrt(sum / samples.length);
+}
+
+function mergeSamples(chunks: Float32Array[]): Float32Array {
+  const total = chunks.reduce((length, chunk) => length + chunk.length, 0);
+  const merged = new Float32Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return merged;
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -178,6 +190,10 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
         generation.pendingTranscriptions--;
         if (generation.pendingTranscriptions === 0 && isActiveGeneration(generation)) {
           setIsTranscribing(false);
+          if (generation.completesAfterTranscription) {
+            activeGenerationRef.current = null;
+            generation.cancelled = true;
+          }
         }
       }
     },
@@ -191,15 +207,8 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
       const chunks = samplesRef.current;
       if (chunks.length === 0) return;
 
-      const total = chunks.reduce((n, chunk) => n + chunk.length, 0);
-      const merged = new Float32Array(total);
-      let offset = 0;
-      for (const chunk of chunks) {
-        merged.set(chunk, offset);
-        offset += chunk.length;
-      }
       samplesRef.current = [];
-      void transcribeChunk(merged, generation);
+      void transcribeChunk(mergeSamples(chunks), generation);
     },
     [isActiveGeneration, transcribeChunk]
   );
@@ -236,7 +245,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
     [flush, isActiveGeneration]
   );
 
-  const stopRecording = useCallback(() => {
+  const cancelActiveGeneration = useCallback(() => {
     const generation = activeGenerationRef.current;
     activeGenerationRef.current = null;
     if (generation) cleanupGeneration(generation);
@@ -248,16 +257,35 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
     }
   }, [resetSpeech]);
 
+  const stopRecording = useCallback(() => {
+    const finalChunks = isSpeakingRef.current ? samplesRef.current : [];
+    cancelActiveGeneration();
+
+    if (mountedRef.current && finalChunks.length > 0) {
+      const finalGeneration: RecorderGeneration = {
+        audioContext: null,
+        cancelled: false,
+        completesAfterTranscription: true,
+        pendingTranscriptions: 0,
+        stream: null,
+        worklet: null,
+      };
+      activeGenerationRef.current = finalGeneration;
+      void transcribeChunk(mergeSamples(finalChunks), finalGeneration);
+    }
+  }, [cancelActiveGeneration, transcribeChunk]);
+
   const startRecording = useCallback(async () => {
     if (!isEnabled) {
       onErrorRef.current('Voice dictation is not enabled');
       return;
     }
 
-    stopRecording();
+    cancelActiveGeneration();
     const generation: RecorderGeneration = {
       audioContext: null,
       cancelled: false,
+      completesAfterTranscription: false,
       pendingTranscriptions: 0,
       stream: null,
       worklet: null,
@@ -337,18 +365,15 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
         onErrorRef.current(errorMessage(error));
       }
     }
-  }, [handleSamples, isActiveGeneration, isEnabled, read, resetSpeech, stopRecording]);
+  }, [cancelActiveGeneration, handleSamples, isActiveGeneration, isEnabled, read, resetSpeech]);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      const generation = activeGenerationRef.current;
-      activeGenerationRef.current = null;
-      if (generation) cleanupGeneration(generation);
-      resetSpeech();
+      cancelActiveGeneration();
     };
-  }, [resetSpeech]);
+  }, [cancelActiveGeneration]);
 
   return {
     isEnabled,

@@ -256,6 +256,76 @@ describe('useAudioRecorder lifecycle', () => {
     expect(mocks.onTranscription).not.toHaveBeenCalled();
   });
 
+  it('transcribes the buffered final phrase when recording is stopped', async () => {
+    const stream = createStream();
+    getUserMedia.mockResolvedValueOnce(stream);
+    mocks.transcribeDictation.mockResolvedValueOnce('final phrase');
+    const { result } = await renderRecorder();
+    await startRecorder(result.current.startRecording);
+
+    act(() => {
+      worklets[0].emit(new Float32Array(3200).fill(0.1));
+      result.current.stopRecording();
+    });
+
+    await waitFor(() => expect(mocks.onTranscription).toHaveBeenCalledWith('final phrase'));
+    await waitFor(() => expect(result.current.isTranscribing).toBe(false));
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    expect(audioContexts[0].close).toHaveBeenCalledOnce();
+    expect(worklets[0].disconnect).toHaveBeenCalledOnce();
+  });
+
+  it('cancels final-phrase transcription when a new recording starts', async () => {
+    const firstStream = createStream();
+    const secondStream = createStream();
+    const transcription = deferred<string>();
+    getUserMedia.mockResolvedValueOnce(firstStream).mockResolvedValueOnce(secondStream);
+    mocks.transcribeDictation.mockReturnValueOnce(transcription.promise);
+    const { result } = await renderRecorder();
+    await startRecorder(result.current.startRecording);
+
+    act(() => {
+      worklets[0].emit(new Float32Array(3200).fill(0.1));
+      result.current.stopRecording();
+    });
+    await waitFor(() => expect(mocks.transcribeDictation).toHaveBeenCalledOnce());
+
+    await startRecorder(result.current.startRecording);
+    await act(async () => {
+      transcription.resolve('stale final phrase');
+      await transcription.promise;
+      await Promise.resolve();
+    });
+
+    expect(mocks.onTranscription).not.toHaveBeenCalled();
+    expect(result.current.isRecording).toBe(true);
+    act(() => result.current.stopRecording());
+  });
+
+  it('cancels final-phrase transcription when unmounted', async () => {
+    const stream = createStream();
+    const transcription = deferred<string>();
+    getUserMedia.mockResolvedValueOnce(stream);
+    mocks.transcribeDictation.mockReturnValueOnce(transcription.promise);
+    const { result, unmount } = await renderRecorder();
+    await startRecorder(result.current.startRecording);
+
+    act(() => {
+      worklets[0].emit(new Float32Array(3200).fill(0.1));
+      result.current.stopRecording();
+    });
+    await waitFor(() => expect(mocks.transcribeDictation).toHaveBeenCalledOnce());
+    unmount();
+
+    await act(async () => {
+      transcription.resolve('stale final phrase');
+      await transcription.promise;
+      await Promise.resolve();
+    });
+
+    expect(mocks.onTranscription).not.toHaveBeenCalled();
+  });
+
   it('records and transcribes a normal generation', async () => {
     const stream = createStream();
     getUserMedia.mockResolvedValueOnce(stream);
