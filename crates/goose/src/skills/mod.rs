@@ -322,12 +322,19 @@ pub fn all_skill_dirs(working_dir: Option<&Path>) -> Vec<(PathBuf, bool)> {
 
 fn all_skill_dirs_with_config(working_dir: Option<&Path>, config: &Config) -> Vec<(PathBuf, bool)> {
     let mut dirs: Vec<(PathBuf, bool)> = Vec::new();
+    let plugin_dirs = enabled_plugin_skill_dirs_with_config(working_dir, config);
 
     if let Some(wd) = working_dir {
         dirs.push((wd.join(".agents").join("skills"), false));
         dirs.push((wd.join(".goose").join("skills"), false));
         dirs.push((wd.join(".claude").join("skills"), false));
     }
+    dirs.extend(
+        plugin_dirs
+            .iter()
+            .filter(|(_, scope)| *scope == PluginScope::Project)
+            .map(|(dir, _)| (dir.clone(), false)),
+    );
 
     let home = dirs::home_dir();
     if let Some(h) = home.as_ref() {
@@ -340,9 +347,10 @@ fn all_skill_dirs_with_config(working_dir: Option<&Path>, config: &Config) -> Ve
     }
 
     dirs.extend(
-        enabled_plugin_skill_dirs_with_config(working_dir, config)
+        plugin_dirs
             .into_iter()
-            .map(|(dir, scope)| (dir, scope == PluginScope::User)),
+            .filter(|(_, scope)| *scope == PluginScope::User)
+            .map(|(dir, _)| (dir, true)),
     );
 
     dirs
@@ -542,6 +550,15 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn write_test_skill(dir: &Path, name: &str, body: &str) {
+        std::fs::create_dir_all(dir).unwrap();
+        std::fs::write(
+            dir.join("SKILL.md"),
+            format!("---\nname: {name}\ndescription: Test skill\n---\n{body}"),
+        )
+        .unwrap();
+    }
+
     fn skill_with_content(content: &str) -> SourceEntry {
         SourceEntry {
             source_type: SourceType::Skill,
@@ -627,5 +644,46 @@ mod tests {
         let rendered = resolve_docs_root_placeholder(&skill, &skill.content, "/tmp/goose-docs");
 
         assert_eq!(rendered, skill.content);
+    }
+
+    #[test]
+    fn project_plugin_skill_precedes_global_skill_with_same_name() {
+        let project = tempfile::tempdir().unwrap();
+        let path_root = tempfile::tempdir().unwrap();
+        let plugin_root = project.path().join(".agents/plugins/project-plugin");
+        write_test_skill(
+            &plugin_root.join("skills/collision"),
+            "collision",
+            "project plugin body",
+        );
+        write_test_skill(
+            &path_root.path().join("config/skills/collision"),
+            "collision",
+            "global body",
+        );
+
+        let config = Config::new(path_root.path().join("test-config.yaml"), "skills-test").unwrap();
+        config
+            .set_param(
+                "plugins",
+                HashMap::from([(
+                    plugin_root.to_string_lossy().into_owned(),
+                    HashMap::from([("enabled", true)]),
+                )]),
+            )
+            .unwrap();
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PATH_ROOT", path_root.path().to_str()),
+            ("PLUGINS", None),
+        ]);
+
+        let skill = discover_skills_with_config(Some(project.path()), &config)
+            .into_iter()
+            .find(|skill| skill.name == "collision")
+            .unwrap();
+
+        assert_eq!(skill.content.trim(), "project plugin body");
+        assert!(!skill.global);
+        assert!(Path::new(&skill.path).starts_with(plugin_root.canonicalize().unwrap()));
     }
 }
