@@ -5,15 +5,21 @@ import type { ExtensionConfig } from '../../../types/extensions';
 // TODO: keep in sync with rust better
 
 export const DEFAULT_EXTENSION_TIMEOUT = 300;
+const RUST_WHITESPACE =
+  /[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]/u;
 
 /**
  * Converts an extension name to a key format
  * TODO: need to keep this in sync better with `name_to_key` on the rust side
  */
 export function nameToKey(name: string): string {
-  return name
-    .split('')
-    .filter((char) => !char.match(/\s/))
+  return Array.from(name)
+    .map((char) => {
+      if (/[A-Za-z0-9_-]/.test(char)) {
+        return char;
+      }
+      return RUST_WHITESPACE.test(char) ? '' : '_';
+    })
     .join('')
     .toLowerCase();
 }

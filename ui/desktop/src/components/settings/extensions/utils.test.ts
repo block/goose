@@ -28,6 +28,12 @@ describe('Extension Utils', () => {
       expect(nameToKey('Extension With Spaces')).toBe('extensionwithspaces');
       expect(nameToKey('  Multiple   Spaces  ')).toBe('multiplespaces');
     });
+
+    it('should normalize punctuation like the Rust config key', () => {
+      expect(nameToKey('foo.bar')).toBe('foo_bar');
+      expect(nameToKey('foo/bar')).toBe('foo_bar');
+      expect(nameToKey('foo\uFEFFbar')).toBe('foo_bar');
+    });
   });
 
   describe('getDefaultFormData', () => {

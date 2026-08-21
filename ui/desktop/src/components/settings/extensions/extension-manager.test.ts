@@ -53,6 +53,7 @@ describe('renameExtensionDefault', () => {
 describe('changesExtensionIdentity', () => {
   it('treats capitalization and whitespace aliases as the same identity', () => {
     expect(changesExtensionIdentity('github', 'Git Hub')).toBe(false);
+    expect(changesExtensionIdentity('foo.bar', 'foo/bar')).toBe(false);
     expect(changesExtensionIdentity('github', 'gitlab')).toBe(true);
   });
 });
