@@ -450,6 +450,9 @@ pub struct AddConfigExtensionRequest {
     pub enabled: bool,
     #[serde(default)]
     pub env: Vec<EnvVariable>,
+    /// Existing canonical identity to atomically replace with this extension.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replace_config_key: Option<String>,
 }
 
 /// Replace a persisted extension without changing its canonical identity.

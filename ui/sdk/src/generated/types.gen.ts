@@ -770,6 +770,10 @@ export type AddConfigExtensionRequest_unstable = {
     extension: GooseExtension;
     enabled?: boolean;
     env?: Array<EnvVariable>;
+    /**
+     * Existing canonical identity to atomically replace with this extension.
+     */
+    replaceConfigKey?: string | null;
 };
 
 /**

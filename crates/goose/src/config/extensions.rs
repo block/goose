@@ -39,6 +39,18 @@ pub enum ExtensionUpdateError {
     Config(#[from] ConfigError),
 }
 
+#[derive(Debug, Error)]
+pub enum ExtensionRenameError {
+    #[error("Extension with key '{key}' was not found")]
+    NotFound { key: String },
+    #[error("An extension with key '{key}' already exists")]
+    AlreadyExists { key: String },
+    #[error("Extension rename must change identity from '{key}'")]
+    IdentityUnchanged { key: String },
+    #[error(transparent)]
+    Config(#[from] ConfigError),
+}
+
 pub fn name_to_key(name: &str) -> String {
     let mut result = String::with_capacity(name.len());
     for c in name.chars() {
@@ -75,6 +87,9 @@ fn inject_name_if_missing(key: &str, value: serde_yaml::Value) -> serde_yaml::Va
 fn parse_extensions_map(raw: &Mapping) -> IndexMap<String, ExtensionEntry> {
     let mut extensions_map = IndexMap::with_capacity(raw.len());
     for (k, v) in raw {
+        if v.is_null() {
+            continue;
+        }
         let Some(key) = k.as_str() else {
             warn!(key = ?k, "Skipping malformed extension config entry");
             continue;
@@ -120,8 +135,9 @@ fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
 }
 
 fn extension_identity_exists(raw: &Mapping, key: &str) -> bool {
-    raw.keys()
-        .filter_map(serde_yaml::Value::as_str)
+    raw.iter()
+        .filter(|(_, value)| !value.is_null())
+        .filter_map(|(stored_key, _)| stored_key.as_str())
         .any(|stored_key| name_to_key(stored_key) == key)
         || parse_extensions_map(raw)
             .values()
@@ -395,6 +411,56 @@ fn update_extension_with_config_locked(
         raw
     })?;
     Ok(())
+}
+
+fn validate_extension_rename_with_config(
+    config: &Config,
+    key: &str,
+    entry: &ExtensionEntry,
+) -> Result<serde_yaml::Value, ExtensionRenameError> {
+    let key = name_to_key(key);
+    let new_key = entry.config.key();
+    if new_key == key {
+        return Err(ExtensionRenameError::IdentityUnchanged { key });
+    }
+
+    let raw: Mapping = config.get_param(EXTENSIONS_CONFIG_KEY)?;
+    let stored_key = extension_identity_key(&raw, &key)
+        .ok_or_else(|| ExtensionRenameError::NotFound { key: key.clone() })?;
+    if extension_identity_exists(&raw, &new_key) {
+        return Err(ExtensionRenameError::AlreadyExists { key: new_key });
+    }
+    Ok(stored_key)
+}
+
+pub fn rename_extension_with_secrets(
+    key: &str,
+    entry: ExtensionEntry,
+    secret_updates: &[(String, serde_json::Value)],
+) -> Result<(), ExtensionRenameError> {
+    rename_extension_with_secrets_with_config(Config::global(), key, entry, secret_updates)
+}
+
+fn rename_extension_with_secrets_with_config(
+    config: &Config,
+    key: &str,
+    entry: ExtensionEntry,
+    secret_updates: &[(String, serde_json::Value)],
+) -> Result<(), ExtensionRenameError> {
+    let _guard = EXTENSION_MUTATION_GUARD.lock().unwrap();
+    let _file_guard = config.lock_extension_mutation()?;
+    validate_extension_rename_with_config(config, key, &entry)?;
+    persist_with_secret_updates(config, secret_updates, || {
+        let stored_key = validate_extension_rename_with_config(config, key, &entry)?;
+        let new_key = entry.config.key();
+        let value = serde_yaml::to_value(entry).map_err(ConfigError::from)?;
+        config.update_param::<Mapping, Mapping, _>(EXTENSIONS_CONFIG_KEY, |mut raw| {
+            raw.insert(stored_key, serde_yaml::Value::Null);
+            raw.insert(serde_yaml::Value::String(new_key), value);
+            raw
+        })?;
+        Ok(())
+    })
 }
 
 pub fn remove_extension(key: &str) {
@@ -951,6 +1017,75 @@ extensions:
             serde_yaml::from_value(user_extensions["inherited"].clone()).unwrap();
         assert!(entry.enabled);
         assert_eq!(entry.config.name(), "Inherited");
+    }
+
+    #[test]
+    fn test_rename_masks_inherited_extension_and_adds_replacement_atomically() {
+        let (config, base_file, _user_file, _secrets_file) = test_config_with_base(
+            r#"
+extensions:
+  inherited-alias:
+    enabled: true
+    type: builtin
+    name: Inherited
+    description: inherited description
+    display_name: Inherited
+"#,
+            "",
+        );
+        let base_before = std::fs::read_to_string(base_file.path()).unwrap();
+
+        rename_extension_with_secrets_with_config(
+            &config,
+            "Inherited",
+            builtin_entry("Replacement", true),
+            &[],
+        )
+        .unwrap();
+
+        let user_extensions = read_extensions(&config);
+        assert!(user_extensions["inherited-alias"].is_null());
+        assert!(user_extensions.contains_key("replacement"));
+        let merged = get_extensions_map_with_config(&config);
+        assert!(!merged.contains_key("inherited-alias"));
+        assert!(merged.contains_key("replacement"));
+        assert_eq!(
+            std::fs::read_to_string(base_file.path()).unwrap(),
+            base_before
+        );
+    }
+
+    #[test]
+    fn test_rename_collision_preserves_original_config_and_secret() {
+        let (config, _config_file, _secrets_file) = test_config("");
+        add_extension_with_config(&config, builtin_entry("Original", true)).unwrap();
+        add_extension_with_config(&config, builtin_entry("Existing", true)).unwrap();
+        config
+            .set_secret("SHARED_TOKEN", &"original-secret")
+            .unwrap();
+        let before = read_extensions(&config);
+        let updates = [(
+            "SHARED_TOKEN".to_string(),
+            serde_json::Value::String("rejected-secret".to_string()),
+        )];
+
+        let error = rename_extension_with_secrets_with_config(
+            &config,
+            "Original",
+            builtin_entry("Existing", false),
+            &updates,
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            error,
+            ExtensionRenameError::AlreadyExists { key } if key == "existing"
+        ));
+        assert_eq!(read_extensions(&config), before);
+        assert_eq!(
+            config.get_secret::<String>("SHARED_TOKEN").unwrap(),
+            "original-secret"
+        );
     }
 
     #[test]

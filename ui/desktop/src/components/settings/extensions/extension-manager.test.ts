@@ -9,44 +9,33 @@ const renamedExtension: ExtensionConfig = {
 };
 
 describe('renameExtensionDefault', () => {
-  it('preserves the original extension when adding the replacement fails', async () => {
-    const addError = new Error('identity already exists');
-    const addToConfig = vi.fn().mockRejectedValue(addError);
-    const removeFromConfig = vi.fn();
+  it('propagates an atomic rename failure', async () => {
+    const renameError = new Error('identity already exists');
+    const renameInConfig = vi.fn().mockRejectedValue(renameError);
 
     await expect(
       renameExtensionDefault({
-        originalName: 'Original',
+        originalConfigKey: 'original',
         extensionConfig: renamedExtension,
         enabled: true,
-        addToConfig,
-        removeFromConfig,
+        renameInConfig,
       })
-    ).rejects.toBe(addError);
+    ).rejects.toBe(renameError);
 
-    expect(removeFromConfig).not.toHaveBeenCalled();
+    expect(renameInConfig).toHaveBeenCalledOnce();
   });
 
-  it('removes the original only after the replacement is persisted', async () => {
-    const operations: string[] = [];
-    const addToConfig = vi.fn().mockImplementation(async () => {
-      operations.push('add');
-    });
-    const removeFromConfig = vi.fn().mockImplementation(async () => {
-      operations.push('remove');
-    });
+  it('uses one backend operation for the original and replacement', async () => {
+    const renameInConfig = vi.fn().mockResolvedValue(undefined);
 
     await renameExtensionDefault({
-      originalName: 'Original',
+      originalConfigKey: 'original-alias',
       extensionConfig: renamedExtension,
       enabled: false,
-      addToConfig,
-      removeFromConfig,
+      renameInConfig,
     });
 
-    expect(operations).toEqual(['add', 'remove']);
-    expect(addToConfig).toHaveBeenCalledWith('Renamed', renamedExtension, false);
-    expect(removeFromConfig).toHaveBeenCalledWith('Original');
+    expect(renameInConfig).toHaveBeenCalledWith('original-alias', renamedExtension, false);
   });
 });
 

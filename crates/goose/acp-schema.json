@@ -1550,6 +1550,13 @@
             "$ref": "#/$defs/EnvVariable"
           },
           "default": []
+        },
+        "replaceConfigKey": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Existing canonical identity to atomically replace with this extension."
         }
       },
       "required": [

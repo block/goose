@@ -508,7 +508,8 @@ export const zGetAvailableExtensionsResponse_unstable = z.object({
 export const zAddConfigExtensionRequest_unstable = z.object({
     extension: zGooseExtension,
     enabled: z.boolean().optional().default(false),
-    env: z.array(zEnvVariable).optional().default([])
+    env: z.array(zEnvVariable).optional().default([]),
+    replaceConfigKey: z.string().nullish()
 });
 
 /**

@@ -167,6 +167,24 @@ export async function addConfigExtension(config: ExtensionConfig, enabled: boole
   await client.goose.configExtensionsAdd_unstable({ extension, enabled, env: inlineEnv(config) });
 }
 
+export async function renameConfigExtension(
+  configKey: string,
+  config: ExtensionConfig,
+  enabled: boolean
+): Promise<void> {
+  const extension = extensionConfigToGooseExtension(config);
+  if (!extension) {
+    throw new Error(`Unsupported extension type for ACP: ${config.type}`);
+  }
+  const client = await getAcpClient();
+  await client.goose.configExtensionsAdd_unstable({
+    extension,
+    enabled,
+    env: inlineEnv(config),
+    replaceConfigKey: configKey,
+  });
+}
+
 export async function updateConfigExtension(
   configKey: string,
   config: ExtensionConfig,

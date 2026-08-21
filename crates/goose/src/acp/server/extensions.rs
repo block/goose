@@ -1,6 +1,8 @@
 use super::*;
 use crate::agents::extension::Envs;
-use crate::config::extensions::{ExtensionAddError, ExtensionEntry, ExtensionUpdateError};
+use crate::config::extensions::{
+    ExtensionAddError, ExtensionEntry, ExtensionRenameError, ExtensionUpdateError,
+};
 use agent_client_protocol::schema::v1::{
     EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerStdio,
 };
@@ -107,8 +109,20 @@ impl GooseAcpAgent {
             config: conversion.config,
         };
 
-        crate::config::extensions::add_extension_with_secrets(entry, &conversion.secret_updates)
+        if let Some(config_key) = req.replace_config_key {
+            crate::config::extensions::rename_extension_with_secrets(
+                &config_key,
+                entry,
+                &conversion.secret_updates,
+            )
+            .map_err(config_extension_rename_error)?;
+        } else {
+            crate::config::extensions::add_extension_with_secrets(
+                entry,
+                &conversion.secret_updates,
+            )
             .map_err(config_extension_add_error)?;
+        }
         Ok(EmptyResponse {})
     }
 
@@ -202,6 +216,24 @@ fn config_extension_update_error(error: ExtensionUpdateError) -> agent_client_pr
         }
         ExtensionUpdateError::Config(error) => agent_client_protocol::Error::internal_error()
             .data(format!("Failed to save extension: {error}")),
+    }
+}
+
+fn config_extension_rename_error(error: ExtensionRenameError) -> agent_client_protocol::Error {
+    match error {
+        ExtensionRenameError::NotFound { key } => agent_client_protocol::Error::invalid_params()
+            .data(format!("Extension '{key}' not found")),
+        ExtensionRenameError::AlreadyExists { key } => {
+            agent_client_protocol::Error::invalid_params()
+                .data(format!("Extension '{key}' already exists"))
+        }
+        ExtensionRenameError::IdentityUnchanged { key } => {
+            agent_client_protocol::Error::invalid_params().data(format!(
+                "Extension rename must change identity from '{key}'"
+            ))
+        }
+        ExtensionRenameError::Config(error) => agent_client_protocol::Error::internal_error()
+            .data(format!("Failed to rename extension: {error}")),
     }
 }
 

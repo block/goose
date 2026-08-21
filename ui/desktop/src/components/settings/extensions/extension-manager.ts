@@ -85,11 +85,14 @@ interface ActivateExtensionDefaultProps {
 }
 
 interface RenameExtensionDefaultProps {
-  originalName: string;
+  originalConfigKey: string;
   extensionConfig: ExtensionConfig;
   enabled: boolean;
-  addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
-  removeFromConfig: (name: string) => Promise<void>;
+  renameInConfig: (
+    configKey: string,
+    extensionConfig: ExtensionConfig,
+    enabled: boolean
+  ) => Promise<void>;
 }
 
 export function changesExtensionIdentity(originalName: string, nextName: string): boolean {
@@ -97,14 +100,12 @@ export function changesExtensionIdentity(originalName: string, nextName: string)
 }
 
 export async function renameExtensionDefault({
-  originalName,
+  originalConfigKey,
   extensionConfig,
   enabled,
-  addToConfig,
-  removeFromConfig,
+  renameInConfig,
 }: RenameExtensionDefaultProps): Promise<void> {
-  await addToConfig(extensionConfig.name, extensionConfig, enabled);
-  await removeFromConfig(originalName);
+  await renameInConfig(originalConfigKey, extensionConfig, enabled);
 }
 
 export async function activateExtensionDefault({

@@ -71,6 +71,7 @@ export default function ExtensionsSection({
   const {
     getExtensions,
     addExtension,
+    renameExtension,
     updateExtension,
     removeExtension,
     setExtensionEnabled,
@@ -181,11 +182,10 @@ export default function ExtensionsSection({
     try {
       if (changesExtensionIdentity(originalName, extensionConfig.name)) {
         await renameExtensionDefault({
-          originalName,
+          originalConfigKey: selectedExtension.configKey ?? nameToKey(originalName),
           extensionConfig,
           enabled: formData.enabled,
-          addToConfig: addExtension,
-          removeFromConfig: removeExtension,
+          renameInConfig: renameExtension,
         });
       } else {
         const configKey = selectedExtension.configKey ?? nameToKey(originalName);
