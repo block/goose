@@ -982,7 +982,9 @@ impl Operation<Session, GooseEffect> for ToolExecutionOperation<'_> {
             effects.push(self.extension_state_effect(session).await?);
         }
 
-        let response = emit.message(response).await;
+        let response = response.with_generated_id_if_missing();
+        emit.emit(AgentEvent::Message(response.user_visible_content()))
+            .await;
         effects.push(response.into());
         applied(effects)
     }
