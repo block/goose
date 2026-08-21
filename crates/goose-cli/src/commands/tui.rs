@@ -1,80 +1,35 @@
 use anyhow::{anyhow, Context, Result};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 const TUI_NPM_SPEC_ENV: &str = "GOOSE_TUI_NPM_SPEC";
-const TUI_REL_PATH: &str = "ui/text/dist/tui.js";
 const DEFAULT_NPM_SPEC: &str = "@aaif/goose@latest";
 const NPM_BIN_NAME: &str = "goose-tui";
 
-enum TuiSource {
-    LocalScript(PathBuf),
-    Npx(String),
+fn resolve_npm_spec() -> String {
+    std::env::var(TUI_NPM_SPEC_ENV).unwrap_or_else(|_| DEFAULT_NPM_SPEC.to_string())
 }
 
-fn find_local_script() -> Option<PathBuf> {
-    let exe = std::env::current_exe().ok()?;
-    find_local_script_from(&exe)
-}
-
-fn find_local_script_from(exe: &Path) -> Option<PathBuf> {
-    let exe_dir = exe.parent().unwrap_or_else(|| Path::new("."));
-
-    let mut dir = Some(exe_dir.to_path_buf());
-    for _ in 0..6 {
-        if let Some(d) = dir.clone() {
-            let candidate = d.join(TUI_REL_PATH);
-            if candidate.is_file() {
-                return Some(candidate);
-            }
-            dir = d.parent().map(Path::to_path_buf);
-        }
-    }
-
-    None
-}
-
-fn resolve_source() -> TuiSource {
-    if let Some(script) = find_local_script() {
-        return TuiSource::LocalScript(script);
-    }
-    let spec = std::env::var(TUI_NPM_SPEC_ENV).unwrap_or_else(|_| DEFAULT_NPM_SPEC.to_string());
-    TuiSource::Npx(spec)
-}
-
-fn build_command(source: &TuiSource, args: &[String]) -> Result<Command> {
-    match source {
-        TuiSource::LocalScript(script) => {
-            let mut cmd = Command::new("node");
-            cmd.arg(script).args(args);
-            Ok(cmd)
-        }
-        TuiSource::Npx(spec) => {
-            let mut cmd = Command::new("npx");
-            cmd.arg("--yes")
-                .arg("--package")
-                .arg(spec)
-                .arg("--")
-                .arg(NPM_BIN_NAME)
-                .args(args);
-            Ok(cmd)
-        }
-    }
+fn build_command(spec: &str, args: &[String], goose_binary: &Path) -> Command {
+    let mut cmd = Command::new("npx");
+    cmd.arg("--yes")
+        .arg("--package")
+        .arg(spec)
+        .arg("--")
+        .arg(NPM_BIN_NAME)
+        .args(args)
+        .env("GOOSE_BINARY", goose_binary);
+    cmd
 }
 
 pub fn handle_tui(args: Vec<String>) -> Result<()> {
-    let source = resolve_source();
+    let spec = resolve_npm_spec();
 
     let goose_binary = std::env::current_exe()
         .context("could not determine current goose executable to expose as GOOSE_BINARY")?;
 
-    let mut cmd = build_command(&source, &args)?;
-    cmd.env("GOOSE_BINARY", &goose_binary);
-
-    let descriptor = match &source {
-        TuiSource::LocalScript(p) => format!("node {}", p.display()),
-        TuiSource::Npx(spec) => format!("npx --package {} -- {}", spec, NPM_BIN_NAME),
-    };
+    let mut cmd = build_command(&spec, &args, &goose_binary);
+    let descriptor = format!("npx --package {} -- {}", spec, NPM_BIN_NAME);
 
     #[cfg(unix)]
     {
@@ -98,30 +53,73 @@ pub fn handle_tui(args: Vec<String>) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::OsStr;
+    #[cfg(unix)]
     use std::fs;
 
     #[test]
-    fn find_local_script_ignores_unrelated_directories() {
-        let temp_dir = tempfile::tempdir().expect("create temp dir");
-        let executable = temp_dir.path().join("install/bin/goose");
-        let planted_script = temp_dir.path().join("checkout").join(TUI_REL_PATH);
-        fs::create_dir_all(planted_script.parent().unwrap()).expect("create script directory");
-        fs::write(&planted_script, "process.exit(0)\n").expect("write planted script");
+    fn resolve_npm_spec_uses_default() {
+        let _guard = env_lock::lock_env([(TUI_NPM_SPEC_ENV, None::<&str>)]);
 
-        assert_eq!(find_local_script_from(&executable), None);
+        assert_eq!(resolve_npm_spec(), DEFAULT_NPM_SPEC);
     }
 
     #[test]
-    fn find_local_script_accepts_executable_ancestor() {
-        let temp_dir = tempfile::tempdir().expect("create temp dir");
-        let executable = temp_dir.path().join("target/debug/goose");
-        let bundled_script = temp_dir.path().join(TUI_REL_PATH);
-        fs::create_dir_all(bundled_script.parent().unwrap()).expect("create script directory");
-        fs::write(&bundled_script, "process.exit(0)\n").expect("write bundled script");
+    fn resolve_npm_spec_honors_override() {
+        let _guard = env_lock::lock_env([(TUI_NPM_SPEC_ENV, Some("@example/tui@1.2.3"))]);
 
+        assert_eq!(resolve_npm_spec(), "@example/tui@1.2.3");
+    }
+
+    #[test]
+    fn build_command_forwards_arguments_and_goose_binary() {
+        let args = vec!["--server".to_string(), "http://localhost:3000".to_string()];
+        let goose_binary = Path::new("/trusted/bin/goose");
+        let command = build_command("@example/tui@1.2.3", &args, goose_binary);
+
+        assert_eq!(command.get_program(), OsStr::new("npx"));
         assert_eq!(
-            find_local_script_from(&executable).as_deref(),
-            Some(bundled_script.as_path())
+            command.get_args().collect::<Vec<_>>(),
+            [
+                "--yes",
+                "--package",
+                "@example/tui@1.2.3",
+                "--",
+                "goose-tui",
+                "--server",
+                "http://localhost:3000",
+            ]
+            .map(OsStr::new)
         );
+        assert_eq!(
+            command
+                .get_envs()
+                .find(|(key, _)| *key == OsStr::new("GOOSE_BINARY")),
+            Some((OsStr::new("GOOSE_BINARY"), Some(goose_binary.as_os_str())))
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn npx_command_ignores_script_in_world_writable_ancestor() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let shared = temp_dir.path().join("shared");
+        let executable = shared.join("victim/target/debug/goose");
+        let planted_script = shared.join("ui/text/dist/tui.js");
+        fs::create_dir_all(executable.parent().unwrap()).expect("create executable dir");
+        fs::create_dir_all(planted_script.parent().unwrap()).expect("create script directory");
+        fs::write(&planted_script, "process.exit(0)\n").expect("write planted script");
+
+        let mut permissions = fs::metadata(&shared)
+            .expect("read shared directory")
+            .permissions();
+        permissions.set_mode(0o1777);
+        fs::set_permissions(&shared, permissions).expect("make ancestor world writable");
+
+        let command = build_command(DEFAULT_NPM_SPEC, &[], &executable);
+        assert_eq!(command.get_program(), OsStr::new("npx"));
+        assert!(!command.get_args().any(|arg| arg == planted_script));
     }
 }
