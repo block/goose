@@ -358,6 +358,44 @@ describe('App Component - Brand New State', () => {
     });
   });
 
+  it('applies createSession after StrictMode remounts PairRouteWrapper', async () => {
+    let resolveSession: ((value: Awaited<ReturnType<typeof createSession>>) => void) | undefined;
+    vi.mocked(createSession).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSession = resolve;
+        })
+    );
+    mockLocation.state = {
+      initialMessage: { msg: 'hello from hub', images: [] },
+      workingDir: '/tmp/hub-dir',
+    };
+    mockLocation.pathname = '/pair';
+
+    render(
+      <React.StrictMode>
+        <PairRouteWrapper activeSessions={[]} setActiveSessions={vi.fn()} />
+      </React.StrictMode>,
+      { wrapper: AppInnerTestWrapper }
+    );
+
+    expect(screen.getByTestId('pending-chat')).toBeInTheDocument();
+
+    resolveSession?.({
+      id: 'session-strict-mode',
+      name: 'untitled',
+      message_count: 0,
+      created_at: '2026-08-21T00:00:00.000Z',
+      updated_at: '2026-08-21T00:00:00.000Z',
+      working_dir: '/tmp/hub-dir',
+      extension_data: { active: [], installed: [] },
+    });
+
+    await waitFor(() => {
+      expect(mockSetSearchParams).toHaveBeenCalled();
+    });
+  });
+
   it('creates the session with Hub-selected extensions and working dir', async () => {
     vi.mocked(createSession).mockResolvedValueOnce({
       id: 'session-hub',

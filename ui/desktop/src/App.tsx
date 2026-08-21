@@ -105,6 +105,7 @@ export const PairRouteWrapper = ({
   const navigate = useNavigate();
 
   useEffect(() => {
+    unmountedRef.current = false;
     return () => {
       unmountedRef.current = true;
     };
