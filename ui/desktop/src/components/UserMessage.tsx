@@ -93,7 +93,7 @@ interface UserMessageProps {
     newContent: string,
     editType: 'fork' | 'edit',
     retainedImages: ImageData[]
-  ) => void;
+  ) => Promise<boolean>;
 }
 
 function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
@@ -162,7 +162,7 @@ function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
   }, []);
 
   const handleSave = useCallback(
-    (editType: 'fork' | 'edit') => {
+    async (editType: 'fork' | 'edit') => {
       const retainedImages = messageImages.filter((_, index) => !removedImageIndices.has(index));
 
       if (editContent.trim().length === 0 && retainedImages.length === 0) {
@@ -170,19 +170,20 @@ function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
         return;
       }
 
-      setIsEditing(false);
-
       if (
         editType === 'edit' &&
         editContent.trim() === textContent.trim() &&
         retainedImages.length === messageImages.length
       ) {
+        setIsEditing(false);
         return;
       }
 
       if (onMessageUpdate && message.id) {
-        onMessageUpdate(message.id, editContent, editType, retainedImages);
+        const updated = await onMessageUpdate(message.id, editContent, editType, retainedImages);
+        if (!updated) return;
       }
+      setIsEditing(false);
     },
     [
       editContent,
@@ -214,7 +215,7 @@ function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
       } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         window.electron.logInfo('Cmd+Enter detected, calling handleSave');
-        handleSave('fork');
+        void handleSave('fork');
       }
     },
     [handleCancel, handleSave]
@@ -301,7 +302,7 @@ function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
                   {intl.formatMessage(i18n.cancel)}
                 </Button>
                 <Button
-                  onClick={() => handleSave('edit')}
+                  onClick={() => void handleSave('edit')}
                   variant="secondary"
                   aria-label={intl.formatMessage(i18n.editInPlaceAriaLabel)}
                   title={intl.formatMessage(i18n.editInPlaceTitle)}
@@ -309,7 +310,7 @@ function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
                   {intl.formatMessage(i18n.editInPlace)}
                 </Button>
                 <Button
-                  onClick={() => handleSave('fork')}
+                  onClick={() => void handleSave('fork')}
                   aria-label={intl.formatMessage(i18n.forkSessionAriaLabel)}
                   title={intl.formatMessage(i18n.forkSessionTitle)}
                 >

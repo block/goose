@@ -71,7 +71,7 @@ interface MessageRowProps {
     newContent: string,
     editType: 'fork' | 'edit',
     retainedImages: ImageData[]
-  ) => void;
+  ) => Promise<boolean>;
   rowContext: MessageRowContext;
   sessionId: string;
   submitElicitationResponse?: (
@@ -163,7 +163,7 @@ interface ProgressiveMessageListProps {
     newContent: string,
     editType: 'fork' | 'edit',
     retainedImages: ImageData[]
-  ) => void;
+  ) => Promise<boolean>;
   onRenderingComplete?: () => void;
   submitElicitationResponse?: (
     elicitationId: string,

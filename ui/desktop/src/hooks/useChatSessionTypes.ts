@@ -33,5 +33,5 @@ export interface UseChatSessionResult {
     newContent: string,
     editType: 'fork' | 'edit',
     retainedImages: ImageData[]
-  ) => Promise<void>;
+  ) => Promise<boolean>;
 }

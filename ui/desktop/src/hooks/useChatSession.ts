@@ -305,6 +305,7 @@ export function useChatSession({
             onFinish,
           }
         );
+        return true;
       } catch (error) {
         const errorMsg = errorMessage(error);
         console.error('Failed to edit message:', error);
@@ -312,6 +313,7 @@ export function useChatSession({
           title: 'Failed to edit message',
           msg: errorMsg,
         });
+        return false;
       }
     },
     [getCurrentSnapshot, onFinish, sessionId]
