@@ -117,6 +117,7 @@ vi.mock('./ProgressiveMessageList', () => ({
     append,
     onMessageUpdate,
     submitElicitationResponse,
+    toolApprovalDisabled,
   }: {
     append: (text: string) => void;
     onMessageUpdate?: (
@@ -129,8 +130,10 @@ vi.mock('./ProgressiveMessageList', () => ({
       elicitationId: string,
       userData: Record<string, unknown>
     ) => Promise<boolean>;
+    toolApprovalDisabled?: boolean;
   }) => (
     <>
+      <div data-testid="tool-approval" data-disabled={String(toolApprovalDisabled)} />
       <button type="button" onClick={() => append('progressive descendant')}>
         progressive descendant
       </button>
@@ -262,6 +265,7 @@ describe('BaseChat recipe trust gate', () => {
       'true'
     );
     expect(screen.getByTestId('recipe-warning')).toHaveAttribute('data-open', 'false');
+    expect(screen.getByTestId('tool-approval')).toHaveAttribute('data-disabled', 'true');
     invokeAllSubmissionPaths();
     expect(mocks.submitMessage).not.toHaveBeenCalled();
     expect(mocks.steerMessage).not.toHaveBeenCalled();
@@ -275,6 +279,7 @@ describe('BaseChat recipe trust gate', () => {
 
     expect(screen.getByTestId('chat-input')).toHaveAttribute('data-initial-value', '');
     expect(screen.getByTestId('chat-input')).toHaveAttribute('data-recipe-accepted', 'false');
+    expect(screen.getByTestId('tool-approval')).toHaveAttribute('data-disabled', 'true');
     expect(screen.getByTestId('chat-input')).toHaveAttribute(
       'data-queue-processing-blocked',
       'true'
@@ -298,6 +303,7 @@ describe('BaseChat recipe trust gate', () => {
       'data-queue-processing-blocked',
       'false'
     );
+    expect(screen.getByTestId('tool-approval')).toHaveAttribute('data-disabled', 'false');
 
     invokeAllSubmissionPaths();
 
@@ -329,6 +335,7 @@ describe('BaseChat recipe trust gate', () => {
     );
 
     expect(screen.getByTestId('chat-input')).toHaveAttribute('data-recipe-accepted', 'false');
+    expect(screen.getByTestId('tool-approval')).toHaveAttribute('data-disabled', 'true');
     expect(screen.getByTestId('chat-input')).toHaveAttribute(
       'data-queue-processing-blocked',
       'true'
@@ -365,6 +372,7 @@ describe('BaseChat recipe trust gate', () => {
       'data-queue-processing-blocked',
       'false'
     );
+    expect(screen.getByTestId('tool-approval')).toHaveAttribute('data-disabled', 'false');
     invokeAllSubmissionPaths();
     expect(mocks.submitMessage).toHaveBeenCalledTimes(5);
     expect(mocks.steerMessage).toHaveBeenCalledTimes(1);
@@ -438,6 +446,7 @@ describe('BaseChat recipe trust gate', () => {
       'data-queue-processing-blocked',
       'false'
     );
+    expect(screen.getByTestId('tool-approval')).toHaveAttribute('data-disabled', 'false');
     invokeAllSubmissionPaths();
     expect(mocks.submitMessage).toHaveBeenCalledTimes(5);
     expect(mocks.steerMessage).toHaveBeenCalledTimes(1);

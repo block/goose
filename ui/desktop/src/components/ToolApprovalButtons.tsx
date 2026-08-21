@@ -60,7 +60,13 @@ export interface ToolApprovalData {
   isClicked?: boolean;
 }
 
-export default function ToolApprovalButtons({ data }: { data: ToolApprovalData }) {
+export default function ToolApprovalButtons({
+  data,
+  disabled = false,
+}: {
+  data: ToolApprovalData;
+  disabled?: boolean;
+}) {
   const intl = useIntl();
   const { generation, id, toolName, prompt, sessionId, isClicked: initialIsClicked } = data;
   const approvalStateKey = generation ?? id;
@@ -93,6 +99,8 @@ export default function ToolApprovalButtons({ data }: { data: ToolApprovalData }
   }, [approvalStateKey, decision, isClicked]);
 
   const handleAction = async (action: Permission) => {
+    if (disabled) return;
+
     try {
       if (resolveAcpPermissionRequest(sessionId, id, generation, action)) {
         setResolvedDecision(action);
@@ -125,6 +133,7 @@ export default function ToolApprovalButtons({ data }: { data: ToolApprovalData }
         <Button
           className="rounded-full"
           variant="secondary"
+          disabled={disabled}
           onClick={() => handleAction('allow_once')}
         >
           {intl.formatMessage(i18n.allowOnce)}
@@ -133,12 +142,18 @@ export default function ToolApprovalButtons({ data }: { data: ToolApprovalData }
           <Button
             className="rounded-full"
             variant="secondary"
+            disabled={disabled}
             onClick={() => handleAction('always_allow')}
           >
             {intl.formatMessage(i18n.alwaysAllow)}
           </Button>
         )}
-        <Button className="rounded-full" variant="outline" onClick={() => handleAction('deny_once')}>
+        <Button
+          className="rounded-full"
+          variant="outline"
+          disabled={disabled}
+          onClick={() => handleAction('deny_once')}
+        >
           {intl.formatMessage(i18n.deny)}
         </Button>
       </div>

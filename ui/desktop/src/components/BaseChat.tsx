@@ -543,6 +543,7 @@ export default function BaseChat({
                     onRenderingComplete={handleRenderingComplete}
                     onMessageUpdate={handleMessageUpdate}
                     submitElicitationResponse={handleSubmitElicitationResponse}
+                    toolApprovalDisabled={!recipeAccepted}
                   />
                 </SearchView>
 

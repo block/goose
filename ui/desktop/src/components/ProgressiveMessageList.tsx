@@ -78,6 +78,7 @@ interface MessageRowProps {
     elicitationId: string,
     userData: Record<string, unknown>
   ) => Promise<boolean>;
+  toolApprovalDisabled: boolean;
   toolNotifications: readonly (NotificationEvent[] | undefined)[];
 }
 
@@ -92,6 +93,7 @@ function MessageRowComponent({
   rowContext,
   sessionId,
   submitElicitationResponse,
+  toolApprovalDisabled,
   toolNotifications,
 }: MessageRowProps) {
   const notification = getSystemNotification(message);
@@ -138,6 +140,7 @@ function MessageRowComponent({
             append={append}
             isStreaming={isStreaming}
             submitElicitationResponse={submitElicitationResponse}
+            toolApprovalDisabled={toolApprovalDisabled}
           />
         )}
       </div>
@@ -169,6 +172,7 @@ interface ProgressiveMessageListProps {
     elicitationId: string,
     userData: Record<string, unknown>
   ) => Promise<boolean>;
+  toolApprovalDisabled?: boolean;
 }
 
 export default function ProgressiveMessageList({
@@ -185,6 +189,7 @@ export default function ProgressiveMessageList({
   onMessageUpdate,
   onRenderingComplete,
   submitElicitationResponse,
+  toolApprovalDisabled = false,
 }: ProgressiveMessageListProps) {
   const intl = useIntl();
   const [renderedCount, setRenderedCount] = useState(() =>
@@ -283,6 +288,7 @@ export default function ProgressiveMessageList({
           rowContext={rowContext}
           sessionId={sessionId}
           submitElicitationResponse={submitElicitationResponse}
+          toolApprovalDisabled={toolApprovalDisabled}
           toolNotifications={toolNotifications}
         />
       );

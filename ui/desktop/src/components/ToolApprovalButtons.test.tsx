@@ -69,6 +69,26 @@ describe('ToolApprovalButtons', () => {
     expect(screen.queryByText('developer__shell - Allowed once')).not.toBeInTheDocument();
   });
 
+  it('does not resolve an ACP request while approvals are disabled', async () => {
+    renderWithIntl(
+      <ToolApprovalButtons
+        disabled
+        data={{
+          id: 'tool-call-blocked',
+          generation: 'permission-generation-blocked',
+          toolName: 'developer__shell',
+          sessionId: 'session-1',
+        }}
+      />
+    );
+
+    const allowButton = screen.getByRole('button', { name: 'Allow Once' });
+    expect(allowButton).toBeDisabled();
+    await userEvent.click(allowButton);
+
+    expect(resolveAcpPermissionRequestMock).not.toHaveBeenCalled();
+  });
+
   it('resets the displayed decision for a new permission generation', async () => {
     resolveAcpPermissionRequestMock.mockReturnValue(true);
     const { rerender } = renderWithIntl(

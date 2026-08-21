@@ -111,6 +111,7 @@ interface ToolCallWithResponseProps {
   append?: (value: string) => void;
   confirmationContent?: ToolConfirmationData;
   isApprovalClicked?: boolean;
+  toolApprovalDisabled?: boolean;
 }
 
 function getSubagentSessionId(
@@ -236,6 +237,7 @@ export default function ToolCallWithResponse({
   append,
   confirmationContent,
   isApprovalClicked,
+  toolApprovalDisabled = false,
 }: ToolCallWithResponseProps) {
   // Handle both the wrapped ToolResult format and the unwrapped format
   // The server serializes ToolResult<T> as { status: "success", value: T } or { status: "error", error: string }
@@ -283,6 +285,7 @@ export default function ToolCallWithResponse({
             )}
             <div className="px-4 pb-2">
               <ToolApprovalButtons
+                disabled={toolApprovalDisabled}
                 data={{
                   generation: confirmationContent.generation,
                   id: confirmationContent.id,

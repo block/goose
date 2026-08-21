@@ -27,12 +27,14 @@ interface ToolConfirmationProps {
   sessionId: string;
   isClicked: boolean;
   actionRequiredContent: ActionRequired & { type: 'actionRequired' };
+  disabled?: boolean;
 }
 
 export default function ToolConfirmation({
   sessionId,
   isClicked,
   actionRequiredContent,
+  disabled = false,
 }: ToolConfirmationProps) {
   const intl = useIntl();
   const data = actionRequiredContent.data as ToolConfirmationData;
@@ -50,6 +52,7 @@ export default function ToolConfirmation({
         {prompt && <div className="py-2 text-sm text-amber-600 dark:text-amber-400">{prompt}</div>}
         <ToolCallArguments args={toolArguments as Record<string, ToolCallArgumentValue>} />
         <ToolApprovalButtons
+          disabled={disabled}
           data={{ generation, id, toolName, prompt: prompt ?? undefined, sessionId, isClicked }}
         />
       </div>
