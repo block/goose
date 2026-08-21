@@ -11,7 +11,7 @@ const PERMISSION_FILE: &str = "permission.yaml";
 
 static PERMISSION_MANAGER: LazyLock<Arc<PermissionManager>> =
     LazyLock::new(|| Arc::new(PermissionManager::new(Paths::config_dir())));
-static PERMISSION_FILE_LOCKS: LazyLock<Mutex<HashMap<PathBuf, Weak<Mutex<()>>>>> =
+static PERMISSION_STATES: LazyLock<Mutex<HashMap<PathBuf, Weak<SharedPermissionState>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Enum representing the possible permission levels for a tool.
@@ -31,12 +31,17 @@ pub struct PermissionConfig {
     pub never_allow: Vec<String>,  // List of tools that are never allowed
 }
 
+#[derive(Debug)]
+struct SharedPermissionState {
+    file_lock: Mutex<()>,
+    permission_map: RwLock<HashMap<String, PermissionConfig>>,
+}
+
 /// PermissionManager manages permission configurations for various tools.
 #[derive(Debug)]
 pub struct PermissionManager {
     config_path: PathBuf,
-    file_lock: Arc<Mutex<()>>,
-    permission_map: RwLock<HashMap<String, PermissionConfig>>,
+    state: Arc<SharedPermissionState>,
 }
 
 // Constants representing specific permission categories
@@ -46,34 +51,33 @@ const SMART_APPROVE_PERMISSION: &str = "smart_approve";
 impl PermissionManager {
     pub fn new(config_dir: PathBuf) -> Self {
         let permission_path = config_dir.join(PERMISSION_FILE);
-        let file_lock = Self::shared_file_lock(&permission_path);
-        let permission_map = {
-            let _file_guard = file_lock.lock().unwrap();
-            if permission_path.exists() {
-                Self::load_permission_map(&permission_path)
-            } else {
-                // Consolidate directory creation for re-use in global singleton or ACP.
-                fs::create_dir_all(&config_dir).expect("Failed to create config directory");
-                HashMap::new()
-            }
-        };
+        let state = Self::shared_state(&config_dir, &permission_path);
         PermissionManager {
             config_path: permission_path,
-            file_lock,
-            permission_map: RwLock::new(permission_map),
+            state,
         }
     }
 
-    fn shared_file_lock(config_path: &Path) -> Arc<Mutex<()>> {
-        let mut locks = PERMISSION_FILE_LOCKS.lock().unwrap();
-        locks.retain(|_, lock| lock.strong_count() > 0);
-        if let Some(lock) = locks.get(config_path).and_then(Weak::upgrade) {
-            return lock;
+    fn shared_state(config_dir: &Path, config_path: &Path) -> Arc<SharedPermissionState> {
+        let mut states = PERMISSION_STATES.lock().unwrap();
+        states.retain(|_, state| state.strong_count() > 0);
+        if let Some(state) = states.get(config_path).and_then(Weak::upgrade) {
+            return state;
         }
 
-        let lock = Arc::new(Mutex::new(()));
-        locks.insert(config_path.to_path_buf(), Arc::downgrade(&lock));
-        lock
+        let permission_map = if config_path.exists() {
+            Self::load_permission_map(config_path)
+        } else {
+            // Consolidate directory creation for re-use in global singleton or ACP.
+            fs::create_dir_all(config_dir).expect("Failed to create config directory");
+            HashMap::new()
+        };
+        let state = Arc::new(SharedPermissionState {
+            file_lock: Mutex::new(()),
+            permission_map: RwLock::new(permission_map),
+        });
+        states.insert(config_path.to_path_buf(), Arc::downgrade(&state));
+        state
     }
 
     fn load_permission_map(config_path: &Path) -> HashMap<String, PermissionConfig> {
@@ -93,8 +97,8 @@ impl PermissionManager {
     }
 
     fn modify_permission_map(&self, modify: impl FnOnce(&mut HashMap<String, PermissionConfig>)) {
-        let _file_guard = self.file_lock.lock().unwrap();
-        let mut map = self.permission_map.write().unwrap();
+        let _file_guard = self.state.file_lock.lock().unwrap();
+        let mut map = self.state.permission_map.write().unwrap();
         if self.config_path.exists() {
             *map = Self::load_permission_map(&self.config_path);
         }
@@ -110,7 +114,8 @@ impl PermissionManager {
 
     /// Returns a list of all the names (keys) in the permission map.
     pub fn get_permission_names(&self) -> Vec<String> {
-        self.permission_map
+        self.state
+            .permission_map
             .read()
             .unwrap()
             .keys()
@@ -179,7 +184,7 @@ impl PermissionManager {
 
     /// Helper function to retrieve the permission level for a specific permission category and tool.
     fn get_permission(&self, name: &str, principal_name: &str) -> Option<PermissionLevel> {
-        let map = self.permission_map.read().unwrap();
+        let map = self.state.permission_map.read().unwrap();
         // Check if the permission category exists in the map
         if let Some(permission_config) = map.get(name) {
             // Check the permission levels for the given tool
@@ -405,7 +410,7 @@ mod tests {
         );
 
         // Ensure it's removed from other levels
-        let map = manager.permission_map.read().unwrap();
+        let map = manager.state.permission_map.read().unwrap();
         let config = map.get(USER_PERMISSION).unwrap();
         assert!(!config.always_allow.contains(&"tool7".to_string()));
         assert!(!config.ask_before.contains(&"tool7".to_string()));
@@ -477,6 +482,7 @@ mod tests {
         let stale_manager = PermissionManager::new(temp_dir.path().to_path_buf());
 
         deleting_manager.remove_extension("git");
+        assert_eq!(stale_manager.get_user_permission("git__status"), None);
         stale_manager.update_user_permission("github__status", PermissionLevel::AskBefore);
 
         let persisted_manager = PermissionManager::new(temp_dir.path().to_path_buf());
