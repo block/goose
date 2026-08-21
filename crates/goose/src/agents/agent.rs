@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use futures::stream::BoxStream;
-use futures::{FutureExt, StreamExt, TryStreamExt, stream};
+use futures::{stream, FutureExt, StreamExt, TryStreamExt};
 use tracing_futures::Instrument;
 
 use super::container::Container;
@@ -17,18 +17,17 @@ use super::tool_confirmation_coordinator::{
 };
 use super::tool_confirmation_router::ToolConfirmationRouter;
 use super::tool_execution::{
-    CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE, ToolCallResult, ToolStream, ToolStreamItem,
-    tool_stream,
+    tool_stream, ToolCallResult, ToolStream, ToolStreamItem, CHAT_MODE_TOOL_SKIPPED_RESPONSE,
+    DECLINED_RESPONSE,
 };
 use crate::action_required_manager::ElicitationOutcome;
-use crate::agents::AgentEvent;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{
-    ExtensionManager, ExtensionManagerCapabilities, get_parameter_names,
+    get_parameter_names, ExtensionManager, ExtensionManagerCapabilities,
 };
 use crate::agents::final_output_tool::{
-    FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
-    structured_output_unsupported_message,
+    structured_output_unsupported_message, FINAL_OUTPUT_CONTINUATION_MESSAGE,
+    FINAL_OUTPUT_TOOL_NAME,
 };
 use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::prompt_manager::PromptManager;
@@ -44,21 +43,22 @@ use crate::agents::state_machine::{
     UnknownToolOperation, MAX_TURNS_MESSAGE,
 };
 use crate::agents::types::{
-    DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS, FrontendTool, SessionConfig,
-    SharedProvider, ToolResultReceiver,
+    FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver,
+    DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
 };
+use crate::agents::AgentEvent;
 use crate::config::extensions::name_to_key;
 use crate::config::permission::PermissionManager;
-use crate::config::{Config, GooseMode, get_enabled_extensions};
+use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::{
-    DEFAULT_COMPACTION_THRESHOLD, check_if_compaction_needed, compact_messages,
+    check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
 };
 use crate::conversation::message::{
     ActionRequiredData, InferenceMetadata, Message, MessageContent, MessageUsage, ProviderMetadata,
     SystemNotificationType,
 };
 use crate::conversation::{
-    Conversation, debug_conversation_fix, fix_conversation, merge_consecutive_messages_for_request,
+    debug_conversation_fix, fix_conversation, merge_consecutive_messages_for_request, Conversation,
 };
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
@@ -84,7 +84,7 @@ use rmcp::model::{
     GetPromptResult, Prompt, ProtocolVersion, Tool,
 };
 use serde_json::Value;
-use tokio::sync::{Mutex, mpsc};
+use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, warn};
 
@@ -4231,7 +4231,7 @@ mod tests {
     use super::*;
     use crate::agents::gen_ai_telemetry::{self, test_support::SpanFieldCapture};
     use crate::plugins::discovery::{DiscoveredPlugin, PluginScope};
-    use crate::providers::base::{MessageStream, PermissionRouting, stream_from_single_message};
+    use crate::providers::base::{stream_from_single_message, MessageStream, PermissionRouting};
     use crate::recipe::Response;
     use crate::session::session_manager::SessionType;
     use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
@@ -4874,11 +4874,9 @@ mod tests {
         ));
         assert!(err.to_string().contains("Invalid thinking effort"));
         assert_eq!(provider.effort_calls(), ["bogus"]);
-        assert!(
-            persisted_thinking_effort(&agent, &session_id)
-                .await
-                .is_none()
-        );
+        assert!(persisted_thinking_effort(&agent, &session_id)
+            .await
+            .is_none());
     }
 
     #[tokio::test]
@@ -4898,11 +4896,9 @@ mod tests {
             err.downcast_ref::<ProviderError>(),
             Some(ProviderError::RequestFailed(_))
         ));
-        assert!(
-            persisted_thinking_effort(&agent, &session_id)
-                .await
-                .is_none()
-        );
+        assert!(persisted_thinking_effort(&agent, &session_id)
+            .await
+            .is_none());
     }
 
     const ALWAYS_BLOCK_SCRIPT: &str = r#"#!/bin/sh
@@ -5538,12 +5534,10 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         assert!(persisted.metadata.user_visible);
         assert!(!persisted.metadata.agent_visible);
         assert!(persisted.metadata.output_token_limit_reached);
-        assert!(
-            conversation
-                .agent_visible_messages()
-                .iter()
-                .all(|message| message.id.as_deref() != Some("provider-output-limit"))
-        );
+        assert!(conversation
+            .agent_visible_messages()
+            .iter()
+            .all(|message| message.id.as_deref() != Some("provider-output-limit")));
 
         Ok(())
     }

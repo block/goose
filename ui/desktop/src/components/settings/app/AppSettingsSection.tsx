@@ -460,7 +460,6 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
             </div>
           </div>
 
-          {/* Legacy Agent Loop */}
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-text-primary text-xs">
