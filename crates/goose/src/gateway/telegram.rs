@@ -131,7 +131,9 @@ impl VoiceTempFiles {
             &active_paths,
             &mut after_opened_candidate,
         )?;
-        Ok(removed_tracked + removed_orphans)
+        let removed_legacy =
+            cleanup_legacy_voice_files(&self.parent, cutoff, &mut after_opened_candidate)?;
+        Ok(removed_tracked + removed_orphans + removed_legacy)
     }
 
     #[cfg(test)]
@@ -198,11 +200,86 @@ fn is_goose_voice_file_name(name: &std::ffi::OsStr) -> bool {
     };
     random.len() == 6
         && random.bytes().all(|byte| byte.is_ascii_alphanumeric())
-        && !extension.is_empty()
+        && is_voice_file_extension(extension)
+}
+
+fn is_legacy_voice_file_name(name: &std::ffi::OsStr) -> bool {
+    let Some(name) = name.to_str() else {
+        return false;
+    };
+    let Some(rest) = name.strip_prefix("voice_") else {
+        return false;
+    };
+    let Some((uuid, extension)) = rest.split_once('.') else {
+        return false;
+    };
+    let uuid_bytes = uuid.as_bytes();
+    uuid_bytes.len() == 36
+        && uuid_bytes.iter().enumerate().all(|(index, byte)| {
+            matches!(index, 8 | 13 | 18 | 23) && *byte == b'-'
+                || !matches!(index, 8 | 13 | 18 | 23) && byte.is_ascii_hexdigit()
+        })
+        && is_voice_file_extension(extension)
+}
+
+fn is_voice_file_extension(extension: &str) -> bool {
+    !extension.is_empty()
         && extension.len() <= 16
         && extension.bytes().enumerate().all(|(index, byte)| {
             byte.is_ascii_alphanumeric() || (index > 0 && matches!(byte, b'-' | b'_'))
         })
+}
+
+fn cleanup_legacy_voice_files(
+    parent: &std::path::Path,
+    cutoff: std::time::SystemTime,
+    after_opened_candidate: &mut impl FnMut(&std::path::Path),
+) -> io::Result<u32> {
+    let root_path = parent.join("goose_voice");
+    let Ok(root) = open_legacy_voice_root(&root_path) else {
+        return Ok(0);
+    };
+    let entries = match std::fs::read_dir(&root_path) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(0),
+        Err(error) => return Err(error),
+    };
+    let mut removed = 0;
+    for entry in entries {
+        let Ok(entry) = entry else {
+            continue;
+        };
+        let name = entry.file_name();
+        if !is_legacy_voice_file_name(&name) {
+            continue;
+        }
+        let Ok(file) = open_owned_voice_file_at(&root, &name) else {
+            continue;
+        };
+        let Ok(metadata) = file.metadata() else {
+            continue;
+        };
+        if metadata
+            .modified()
+            .map_or(true, |modified| modified > cutoff)
+        {
+            continue;
+        }
+        let Ok(identity) = voice_file_identity(&file) else {
+            continue;
+        };
+        let path = root_path.join(&name);
+        after_opened_candidate(&path);
+        let Ok(current) = open_owned_voice_file_at(&root, &name) else {
+            continue;
+        };
+        if voice_file_identity(&current)? != identity {
+            continue;
+        }
+        delete_open_legacy_voice_file(&root, &name, current)?;
+        removed += 1;
+    }
+    Ok(removed)
 }
 
 fn remove_voice_file_if_unchanged(
@@ -238,13 +315,94 @@ fn delete_open_voice_file(_file: std::fs::File, path: &std::path::Path) -> io::R
 }
 
 #[cfg(unix)]
-fn open_owned_voice_file(path: &std::path::Path) -> io::Result<std::fs::File> {
+fn open_legacy_voice_root(path: &std::path::Path) -> io::Result<std::fs::File> {
     use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+
+    let directory = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_CLOEXEC | libc::O_DIRECTORY | libc::O_NOFOLLOW)
+        .open(path)?;
+    let metadata = directory.metadata()?;
+    if !metadata.is_dir()
+        || metadata.uid() != unsafe { libc::geteuid() }
+        || metadata.mode() & 0o777 != 0o700
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "not an owned legacy Telegram voice directory",
+        ));
+    }
+    Ok(directory)
+}
+
+#[cfg(unix)]
+fn open_owned_voice_file_at(
+    directory: &std::fs::File,
+    name: &std::ffi::OsStr,
+) -> io::Result<std::fs::File> {
+    use std::ffi::CString;
+    use std::os::fd::{AsRawFd, FromRawFd};
+    use std::os::unix::ffi::OsStrExt;
+
+    let name = CString::new(name.as_bytes()).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Telegram voice filename contains a NUL byte",
+        )
+    })?;
+    let descriptor = unsafe {
+        libc::openat(
+            directory.as_raw_fd(),
+            name.as_ptr(),
+            libc::O_RDONLY | libc::O_CLOEXEC | libc::O_NOFOLLOW | libc::O_NONBLOCK,
+        )
+    };
+    if descriptor < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let file = unsafe { std::fs::File::from_raw_fd(descriptor) };
+    validate_owned_voice_file(&file)?;
+    Ok(file)
+}
+
+#[cfg(unix)]
+fn delete_open_legacy_voice_file(
+    directory: &std::fs::File,
+    name: &std::ffi::OsStr,
+    _file: std::fs::File,
+) -> io::Result<()> {
+    use std::ffi::CString;
+    use std::os::fd::AsRawFd;
+    use std::os::unix::ffi::OsStrExt;
+
+    let name = CString::new(name.as_bytes()).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Telegram voice filename contains a NUL byte",
+        )
+    })?;
+    if unsafe { libc::unlinkat(directory.as_raw_fd(), name.as_ptr(), 0) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn open_owned_voice_file(path: &std::path::Path) -> io::Result<std::fs::File> {
+    use std::os::unix::fs::OpenOptionsExt;
 
     let file = std::fs::OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW | libc::O_NONBLOCK)
         .open(path)?;
+    validate_owned_voice_file(&file)?;
+    Ok(file)
+}
+
+#[cfg(unix)]
+fn validate_owned_voice_file(file: &std::fs::File) -> io::Result<()> {
+    use std::os::unix::fs::MetadataExt;
+
     let metadata = file.metadata()?;
     if !metadata.is_file()
         || metadata.uid() != unsafe { libc::geteuid() }
@@ -256,7 +414,7 @@ fn open_owned_voice_file(path: &std::path::Path) -> io::Result<std::fs::File> {
             "not an owned Telegram voice tempfile",
         ));
     }
-    Ok(file)
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -272,11 +430,10 @@ fn voice_file_identity(file: &std::fs::File) -> io::Result<VoiceFileIdentity> {
 
 #[cfg(windows)]
 fn open_owned_voice_file(path: &std::path::Path) -> io::Result<std::fs::File> {
-    use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
+    use std::os::windows::fs::OpenOptionsExt;
     use winapi::um::winbase::FILE_FLAG_OPEN_REPARSE_POINT;
     use winapi::um::winnt::{
-        DELETE, FILE_ATTRIBUTE_REPARSE_POINT, FILE_GENERIC_READ, FILE_SHARE_DELETE,
-        FILE_SHARE_READ, FILE_SHARE_WRITE,
+        DELETE, FILE_GENERIC_READ, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
     };
 
     let file = std::fs::OpenOptions::new()
@@ -284,6 +441,15 @@ fn open_owned_voice_file(path: &std::path::Path) -> io::Result<std::fs::File> {
         .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
         .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
         .open(path)?;
+    validate_owned_voice_file(&file)?;
+    Ok(file)
+}
+
+#[cfg(windows)]
+fn validate_owned_voice_file(file: &std::fs::File) -> io::Result<()> {
+    use std::os::windows::fs::MetadataExt;
+    use winapi::um::winnt::FILE_ATTRIBUTE_REPARSE_POINT;
+
     let metadata = file.metadata()?;
     if !metadata.is_file() || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
         return Err(io::Error::new(
@@ -291,7 +457,108 @@ fn open_owned_voice_file(path: &std::path::Path) -> io::Result<std::fs::File> {
             "not an owned Telegram voice tempfile",
         ));
     }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn open_legacy_voice_root(path: &std::path::Path) -> io::Result<std::fs::File> {
+    use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
+    use winapi::um::winbase::{FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT};
+    use winapi::um::winnt::{
+        FILE_ATTRIBUTE_REPARSE_POINT, FILE_LIST_DIRECTORY, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE,
+        FILE_SHARE_READ, FILE_SHARE_WRITE, SYNCHRONIZE,
+    };
+
+    let directory = std::fs::OpenOptions::new()
+        .access_mode(FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | SYNCHRONIZE)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
+        .open(path)?;
+    let metadata = directory.metadata()?;
+    if !metadata.is_dir() || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "not an owned legacy Telegram voice directory",
+        ));
+    }
+    Ok(directory)
+}
+
+#[cfg(windows)]
+fn open_owned_voice_file_at(
+    directory: &std::fs::File,
+    name: &std::ffi::OsStr,
+) -> io::Result<std::fs::File> {
+    use ntapi::ntioapi::{
+        NtCreateFile, FILE_OPEN, FILE_OPEN_REPARSE_POINT, FILE_SYNCHRONOUS_IO_NONALERT,
+        IO_STATUS_BLOCK,
+    };
+    use std::os::windows::ffi::OsStrExt;
+    use std::os::windows::io::{AsRawHandle, FromRawHandle};
+    use winapi::shared::ntdef::{
+        HANDLE, NT_SUCCESS, OBJECT_ATTRIBUTES, OBJ_CASE_INSENSITIVE, UNICODE_STRING,
+    };
+    use winapi::um::winnt::{
+        DELETE, FILE_GENERIC_READ, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
+    };
+
+    let mut name: Vec<u16> = name.encode_wide().collect();
+    let name_bytes = name
+        .len()
+        .checked_mul(std::mem::size_of::<u16>())
+        .and_then(|length| u16::try_from(length).ok())
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Telegram voice filename is too long",
+            )
+        })?;
+    let mut unicode_name = UNICODE_STRING {
+        Length: name_bytes,
+        MaximumLength: name_bytes,
+        Buffer: name.as_mut_ptr(),
+    };
+    let mut attributes = OBJECT_ATTRIBUTES {
+        Length: std::mem::size_of::<OBJECT_ATTRIBUTES>() as u32,
+        RootDirectory: directory.as_raw_handle() as HANDLE,
+        ObjectName: &mut unicode_name,
+        Attributes: OBJ_CASE_INSENSITIVE,
+        SecurityDescriptor: std::ptr::null_mut(),
+        SecurityQualityOfService: std::ptr::null_mut(),
+    };
+    let mut handle: HANDLE = std::ptr::null_mut();
+    let mut io_status: IO_STATUS_BLOCK = unsafe { std::mem::zeroed() };
+    let status = unsafe {
+        NtCreateFile(
+            &mut handle,
+            FILE_GENERIC_READ | DELETE,
+            &mut attributes,
+            &mut io_status,
+            std::ptr::null_mut(),
+            0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            FILE_OPEN,
+            FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if !NT_SUCCESS(status) {
+        let error = unsafe { ntapi::ntrtl::RtlNtStatusToDosError(status) };
+        return Err(io::Error::from_raw_os_error(error as i32));
+    }
+    let file = unsafe { std::fs::File::from_raw_handle(handle.cast()) };
+    validate_owned_voice_file(&file)?;
     Ok(file)
+}
+
+#[cfg(windows)]
+fn delete_open_legacy_voice_file(
+    _directory: &std::fs::File,
+    _name: &std::ffi::OsStr,
+    file: std::fs::File,
+) -> io::Result<()> {
+    delete_open_voice_file(file, std::path::Path::new(""))
 }
 
 #[cfg(windows)]
@@ -1491,6 +1758,92 @@ mod tests {
         assert!(!path.exists());
     }
 
+    #[test]
+    fn cleanup_reclaims_only_stale_legacy_voice_files() {
+        let temp = tempfile::tempdir().unwrap();
+        let legacy_root = temp.path().join("goose_voice");
+        std::fs::create_dir(&legacy_root).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            std::fs::set_permissions(&legacy_root, std::fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        let stale = legacy_root.join("voice_01234567-89ab-cdef-0123-456789abcdef.ogg");
+        let recent = legacy_root.join("voice_abcdef01-2345-6789-abcd-ef0123456789.mp3");
+        let unrelated = legacy_root.join("notes.txt");
+        std::fs::write(&stale, b"stale voice").unwrap();
+        std::fs::write(&recent, b"recent voice").unwrap();
+        std::fs::write(&unrelated, b"unrelated").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            std::fs::set_permissions(&stale, std::fs::Permissions::from_mode(0o600)).unwrap();
+            std::fs::set_permissions(&recent, std::fs::Permissions::from_mode(0o600)).unwrap();
+        }
+        let old = std::time::SystemTime::now() - std::time::Duration::from_secs(7200);
+        std::fs::File::options()
+            .write(true)
+            .open(&stale)
+            .unwrap()
+            .set_times(std::fs::FileTimes::new().set_modified(old))
+            .unwrap();
+
+        let cleaner = VoiceTempFiles::new_in(temp.path());
+        assert_eq!(
+            cleaner
+                .cleanup(std::time::Duration::from_secs(3600))
+                .unwrap(),
+            1
+        );
+        assert!(!stale.exists());
+        assert_eq!(std::fs::read(&recent).unwrap(), b"recent voice");
+        assert_eq!(std::fs::read(&unrelated).unwrap(), b"unrelated");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cleanup_legacy_root_replacement_stays_anchored() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = tempfile::tempdir().unwrap();
+        let legacy_root = temp.path().join("goose_voice");
+        let moved_root = temp.path().join("moved-goose-voice");
+        let filename = "voice_01234567-89ab-cdef-0123-456789abcdef.ogg";
+        std::fs::create_dir(&legacy_root).unwrap();
+        std::fs::set_permissions(&legacy_root, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let original = legacy_root.join(filename);
+        std::fs::write(&original, b"legacy voice").unwrap();
+        std::fs::set_permissions(&original, std::fs::Permissions::from_mode(0o600)).unwrap();
+        let cleaner = VoiceTempFiles::new_in(temp.path());
+        let mut replaced = false;
+
+        let removed = cleaner
+            .cleanup_with_hook(std::time::Duration::ZERO, |candidate| {
+                if candidate == original && !replaced {
+                    std::fs::rename(&legacy_root, &moved_root).unwrap();
+                    std::fs::create_dir(&legacy_root).unwrap();
+                    std::fs::set_permissions(&legacy_root, std::fs::Permissions::from_mode(0o700))
+                        .unwrap();
+                    let replacement = legacy_root.join(filename);
+                    std::fs::write(&replacement, b"replacement").unwrap();
+                    std::fs::set_permissions(&replacement, std::fs::Permissions::from_mode(0o600))
+                        .unwrap();
+                    replaced = true;
+                }
+            })
+            .unwrap();
+
+        assert_eq!(removed, 1);
+        assert!(replaced);
+        assert!(!moved_root.join(filename).exists());
+        assert_eq!(
+            std::fs::read(legacy_root.join(filename)).unwrap(),
+            b"replacement"
+        );
+    }
+
     #[cfg(unix)]
     #[test]
     fn cleanup_preserves_symlinks_and_unrelated_files() {
@@ -1543,13 +1896,16 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn precreated_legacy_root_cannot_redirect_voice_save_or_cleanup() {
+        use std::os::unix::fs::PermissionsExt;
+
         let sandbox = tempfile::tempdir().unwrap();
         let fake_tmp = sandbox.path().join("tmp");
         let victim_dir = sandbox.path().join("victim");
         std::fs::create_dir(&fake_tmp).unwrap();
         std::fs::create_dir(&victim_dir).unwrap();
-        let victim_file = victim_dir.join("unrelated.txt");
+        let victim_file = victim_dir.join("voice_01234567-89ab-cdef-0123-456789abcdef.ogg");
         std::fs::write(&victim_file, b"keep me").unwrap();
+        std::fs::set_permissions(&victim_file, std::fs::Permissions::from_mode(0o600)).unwrap();
         std::os::unix::fs::symlink(&victim_dir, fake_tmp.join("goose_voice")).unwrap();
         let gateway = gateway_with_voice_temp_files(VoiceTempFiles::new_in(&fake_tmp));
 
