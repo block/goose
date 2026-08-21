@@ -9529,9 +9529,9 @@ dependencies = [
 
 [[package]]
 name = "safemlx-lm"
-version = "0.1.5"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78f450654386009003b745adfdae7af2c7f44ae749d75621a2a0b07607945e9f"
+checksum = "10021db1789b1707952ae7e952c81eafd5b7b2a81e34eb47719f2a182671d4db"
 dependencies = [
  "anyhow",
  "clap",
@@ -9542,7 +9542,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.20",
- "tokenizers 0.22.2",
+ "tokenizers 0.23.1",
 ]
 
 [[package]]
