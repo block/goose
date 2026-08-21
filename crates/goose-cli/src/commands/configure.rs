@@ -9,7 +9,7 @@ use goose::config::declarative_providers::{
     create_custom_provider, remove_custom_provider, CreateCustomProviderParams,
 };
 use goose::config::extensions::{
-    add_extension, get_all_extension_names, get_all_extensions, get_enabled_extensions,
+    add_extension, add_extension_with_secrets, get_all_extensions, get_enabled_extensions,
     get_extension_by_name, name_to_key, remove_extension, set_extension, set_extension_enabled,
 };
 use goose::config::paths::Paths;
@@ -1096,36 +1096,52 @@ fn prompt_extension_description() -> anyhow::Result<String> {
 }
 
 fn prompt_extension_name(placeholder: &str) -> anyhow::Result<String> {
-    let extensions = get_all_extension_names();
+    let extension_identities = configured_extension_identity_keys(&get_all_extensions());
     Ok(
         cliclack::input("What would you like to call this extension?")
             .placeholder(placeholder)
-            .validate(move |input: &String| validate_new_extension_name(input, &extensions))
+            .validate(move |input: &String| {
+                validate_new_extension_name(input, &extension_identities)
+            })
             .interact()?,
     )
 }
 
-fn validate_new_extension_name(input: &str, extensions: &[String]) -> Result<(), &'static str> {
+fn configured_extension_identity_keys(extensions: &[ExtensionEntry]) -> Vec<String> {
+    extensions.iter().map(|entry| entry.config.key()).collect()
+}
+
+fn validate_new_extension_name(
+    input: &str,
+    extension_identities: &[String],
+) -> Result<(), &'static str> {
     if input.is_empty() {
         return Err("Please enter a name");
     }
     let key = name_to_key(input);
-    if extensions
-        .iter()
-        .any(|existing| name_to_key(existing) == key)
-    {
+    if extension_identities.iter().any(|existing| existing == &key) {
         return Err("An extension with this name already exists");
     }
     Ok(())
 }
 
-fn collect_env_vars() -> anyhow::Result<(HashMap<String, String>, Vec<String>)> {
+struct CollectedEnvVars {
+    envs: HashMap<String, String>,
+    env_keys: Vec<String>,
+    secret_updates: Vec<(String, Value)>,
+}
+
+fn collect_env_vars() -> anyhow::Result<CollectedEnvVars> {
     let envs = HashMap::new();
     let mut env_keys = Vec::new();
-    let config = Config::global();
+    let mut secret_updates = Vec::new();
 
     if !cliclack::confirm("Would you like to add environment variables?").interact()? {
-        return Ok((envs, env_keys));
+        return Ok(CollectedEnvVars {
+            envs,
+            env_keys,
+            secret_updates,
+        });
     }
 
     loop {
@@ -1137,9 +1153,7 @@ fn collect_env_vars() -> anyhow::Result<(HashMap<String, String>, Vec<String>)> 
             .mask('▪')
             .interact()?;
 
-        if !try_store_secret(config, &key, value)? {
-            return Err(anyhow::anyhow!("Failed to store secret"));
-        }
+        secret_updates.push((key.clone(), Value::String(value)));
         env_keys.push(key);
 
         if !cliclack::confirm("Add another environment variable?").interact()? {
@@ -1147,7 +1161,11 @@ fn collect_env_vars() -> anyhow::Result<(HashMap<String, String>, Vec<String>)> 
         }
     }
 
-    Ok((envs, env_keys))
+    Ok(CollectedEnvVars {
+        envs,
+        env_keys,
+        secret_updates,
+    })
 }
 
 fn collect_headers() -> anyhow::Result<HashMap<String, String>> {
@@ -1270,23 +1288,30 @@ fn configure_stdio_extension() -> anyhow::Result<()> {
     let args = parts;
 
     let description = prompt_extension_description()?;
-    let (envs, env_keys) = collect_env_vars()?;
+    let CollectedEnvVars {
+        envs,
+        env_keys,
+        secret_updates,
+    } = collect_env_vars()?;
 
-    add_extension(ExtensionEntry {
-        enabled: true,
-        config: ExtensionConfig::Stdio {
-            name: name.clone(),
-            cmd,
-            args,
-            envs: Envs::new(envs),
-            env_keys,
-            description,
-            timeout: Some(timeout),
-            cwd: None,
-            bundled: None,
-            available_tools: Vec::new(),
+    add_extension_with_secrets(
+        ExtensionEntry {
+            enabled: true,
+            config: ExtensionConfig::Stdio {
+                name: name.clone(),
+                cmd,
+                args,
+                envs: Envs::new(envs),
+                env_keys,
+                description,
+                timeout: Some(timeout),
+                cwd: None,
+                bundled: None,
+                available_tools: Vec::new(),
+            },
         },
-    })?;
+        &secret_updates,
+    )?;
 
     cliclack::outro(format!("Added {} extension", style(name).green()))?;
     Ok(())
@@ -2350,17 +2375,40 @@ mod tests {
 
     #[test]
     fn new_extension_names_reject_canonical_aliases() {
-        let extensions = vec!["github".to_string(), "Existing Tool".to_string()];
+        let extension_identities = vec!["github".to_string(), "existingtool".to_string()];
 
         assert_eq!(
-            validate_new_extension_name("Git Hub", &extensions),
+            validate_new_extension_name("Git Hub", &extension_identities),
             Err("An extension with this name already exists")
         );
         assert_eq!(
-            validate_new_extension_name("EXISTINGTOOL", &extensions),
+            validate_new_extension_name("EXISTINGTOOL", &extension_identities),
             Err("An extension with this name already exists")
         );
-        assert!(validate_new_extension_name("gitlab", &extensions).is_ok());
+        assert!(validate_new_extension_name("gitlab", &extension_identities).is_ok());
+    }
+
+    #[test]
+    fn configured_extension_names_use_entry_identity() {
+        let extensions = vec![ExtensionEntry {
+            enabled: true,
+            config: ExtensionConfig::Builtin {
+                name: "GitHub".to_string(),
+                description: String::new(),
+                display_name: None,
+                timeout: None,
+                bundled: None,
+                available_tools: Vec::new(),
+            },
+        }];
+
+        let extension_identities = configured_extension_identity_keys(&extensions);
+
+        assert_eq!(extension_identities, vec!["github"]);
+        assert_eq!(
+            validate_new_extension_name("Git Hub", &extension_identities),
+            Err("An extension with this name already exists")
+        );
     }
 
     #[test]
