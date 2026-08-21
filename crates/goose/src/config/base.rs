@@ -786,18 +786,6 @@ impl Config {
         }
     }
 
-    pub(crate) fn get_write_param<T: for<'de> Deserialize<'de>>(
-        &self,
-        key: &str,
-    ) -> Result<T, ConfigError> {
-        let _guard = self.guard.lock().unwrap();
-        let values = self.load_write_config()?;
-        let value = values
-            .get(key)
-            .ok_or_else(|| ConfigError::NotFound(key.to_string()))?;
-        Ok(serde_yaml::from_value(value.clone())?)
-    }
-
     pub(crate) fn get_param_source_values<T: for<'de> Deserialize<'de>>(
         &self,
         key: &str,

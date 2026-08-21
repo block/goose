@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
 use crate::config::base::SecretUpdate;
-use crate::config::{Config, ConfigError};
+use crate::config::Config;
 
 use super::{PairingState, PlatformUser};
 
@@ -36,6 +36,19 @@ struct StoredPendingCodes {
     imported_legacy_codes: Vec<String>,
 }
 
+impl StoredPendingCodes {
+    fn revoke_imported_codes(&mut self) -> bool {
+        let previous_len = self.codes.len();
+        self.codes.retain(|pending| {
+            !self
+                .imported_legacy_codes
+                .iter()
+                .any(|code| code == &pending.code)
+        });
+        self.codes.len() != previous_len
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum StoredPendingCodesValue {
@@ -54,9 +67,9 @@ impl StoredPendingCodesValue {
         match self {
             Self::State(state) => state,
             Self::Codes(codes) => StoredPendingCodes {
-                imported_legacy_codes: codes.iter().map(|code| code.code.clone()).collect(),
                 codes,
                 legacy_import_complete: false,
+                imported_legacy_codes: Vec::new(),
             },
         }
     }
@@ -107,42 +120,25 @@ impl PairingStore {
     }
 
     fn migrate_pending_codes(config: &Config) -> anyhow::Result<()> {
-        let legacy_codes: Option<Vec<StoredPendingCode>> =
-            match config.get_write_param(PENDING_CODES_CONFIG_KEY) {
-                Ok(codes) => Some(codes),
-                Err(ConfigError::NotFound(_)) => None,
-                Err(error) => {
-                    return Err(anyhow::anyhow!(
-                        "failed to load legacy pending codes: {}",
-                        error
-                    ));
-                }
-            };
-
-        if legacy_codes.as_ref().is_some_and(|codes| !codes.is_empty()) {
-            Self::complete_pending_code_migration(config, legacy_codes)?;
-        }
-        Self::verify_legacy_pending_codes_removed(config)
-    }
-
-    fn verify_legacy_pending_codes_removed(config: &Config) -> anyhow::Result<()> {
-        let source_values = config
+        let legacy_codes: Vec<_> = config
             .get_param_source_values::<Vec<StoredPendingCode>>(PENDING_CODES_CONFIG_KEY)
-            .map_err(|error| {
-                anyhow::anyhow!("failed to verify removal of legacy pending codes: {error}")
-            })?;
-        if source_values.iter().all(Vec::is_empty) {
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!(
-                "legacy pending codes remain in ordinary configuration; stop older Goose processes, remove GATEWAY_PENDING_CODES and gateway_pending_codes from configured files, then retry"
-            ))
+            .map_err(|error| anyhow::anyhow!("failed to verify legacy pending codes: {error}"))?
+            .into_iter()
+            .flatten()
+            .collect();
+        if legacy_codes.is_empty() {
+            return Ok(());
         }
+
+        Self::revoke_legacy_pending_codes(config, legacy_codes)?;
+        Err(anyhow::anyhow!(
+            "legacy pending codes remain in ordinary configuration and have been revoked; stop older Goose processes, remove GATEWAY_PENDING_CODES and gateway_pending_codes from configured files, then retry and generate a new pairing code"
+        ))
     }
 
-    fn complete_pending_code_migration(
+    fn revoke_legacy_pending_codes(
         config: &Config,
-        legacy_codes: Option<Vec<StoredPendingCode>>,
+        legacy_codes: Vec<StoredPendingCode>,
     ) -> anyhow::Result<()> {
         config
             .update_secret(
@@ -150,7 +146,7 @@ impl PairingStore {
                 |stored: StoredPendingCodesValue| {
                     let mut state = stored.into_state();
                     let mut changed = !state.legacy_import_complete;
-                    for legacy_code in legacy_codes.unwrap_or_default() {
+                    for legacy_code in legacy_codes {
                         if state
                             .imported_legacy_codes
                             .iter()
@@ -158,11 +154,10 @@ impl PairingStore {
                         {
                             continue;
                         }
-                        state.imported_legacy_codes.push(legacy_code.code.clone());
-                        state.codes.retain(|code| code.code != legacy_code.code);
-                        state.codes.push(legacy_code);
+                        state.imported_legacy_codes.push(legacy_code.code);
                         changed = true;
                     }
+                    changed |= state.revoke_imported_codes();
                     state.legacy_import_complete = true;
                     if changed {
                         SecretUpdate::Write(state, ())
@@ -186,6 +181,10 @@ impl PairingStore {
                 PENDING_CODES_SECRET_KEY,
                 |stored: StoredPendingCodesValue| {
                     let mut state = stored.into_state();
+                    state.revoke_imported_codes();
+                    state
+                        .imported_legacy_codes
+                        .retain(|legacy_code| legacy_code != code);
                     state.legacy_import_complete = true;
                     state.codes.retain(|pending| pending.code != code);
                     state.codes.push(StoredPendingCode {
@@ -210,12 +209,13 @@ impl PairingStore {
                 PENDING_CODES_SECRET_KEY,
                 |stored: StoredPendingCodesValue| {
                     let mut state = stored.into_state();
-                    let needs_migration_marker = !state.legacy_import_complete;
+                    let mut needs_write = !state.legacy_import_complete;
                     state.legacy_import_complete = true;
+                    needs_write |= state.revoke_imported_codes();
                     let Some(position) =
                         state.codes.iter().position(|pending| pending.code == code)
                     else {
-                        return if needs_migration_marker {
+                        return if needs_write {
                             SecretUpdate::Write(state, None)
                         } else {
                             SecretUpdate::Unchanged(None)
@@ -362,7 +362,7 @@ mod tests {
     }
 
     #[test]
-    fn pending_code_store_imports_legacy_config_and_requires_cleanup() {
+    fn pending_code_store_revokes_legacy_config_and_requires_cleanup() {
         let directory = TempDir::new().unwrap();
         let config = test_config(&directory);
         let legacy_code = "LEGACY-CODE";
@@ -400,7 +400,7 @@ mod tests {
             .contains_key(PENDING_CODES_CONFIG_KEY));
         assert_eq!(
             PairingStore::consume_pending_code_in(&config, legacy_code, 100).unwrap(),
-            Some("slack".to_string())
+            None
         );
         assert_eq!(
             PairingStore::consume_pending_code_in(&config, new_code, 100).unwrap(),
@@ -516,7 +516,7 @@ mod tests {
     }
 
     #[test]
-    fn pending_code_migration_preserves_shadowed_writable_code() {
+    fn pending_code_migration_revokes_codes_from_every_source() {
         let directory = TempDir::new().unwrap();
         let system_config_path = directory.path().join("system.yaml");
         let user_config_path = directory.path().join("user.yaml");
@@ -561,10 +561,6 @@ mod tests {
         config.delete(PENDING_CODES_CONFIG_KEY).unwrap();
         assert_eq!(
             PairingStore::consume_pending_code_in(&config, "USER-CODE", 100).unwrap(),
-            Some("telegram".to_string())
-        );
-        assert_eq!(
-            PairingStore::consume_pending_code_in(&config, "USER-CODE", 100).unwrap(),
             None
         );
         assert_eq!(
@@ -605,7 +601,7 @@ mod tests {
     }
 
     #[test]
-    fn delayed_legacy_migration_cannot_reinsert_consumed_code() {
+    fn delayed_legacy_migration_cannot_activate_revoked_code() {
         let directory = TempDir::new().unwrap();
         let config = test_config(&directory);
         let code = "LEGACY-ONE-TIME-CODE";
@@ -622,14 +618,13 @@ mod tests {
         let stale_snapshot: Vec<StoredPendingCode> =
             config.get_param(PENDING_CODES_CONFIG_KEY).unwrap();
 
-        PairingStore::complete_pending_code_migration(&config, Some(stale_snapshot.clone()))
-            .unwrap();
+        PairingStore::revoke_legacy_pending_codes(&config, stale_snapshot.clone()).unwrap();
         config.delete(PENDING_CODES_CONFIG_KEY).unwrap();
         assert_eq!(
             PairingStore::consume_pending_code_in(&config, code, 100).unwrap(),
-            Some("telegram".to_string())
+            None
         );
-        PairingStore::complete_pending_code_migration(&config, Some(stale_snapshot)).unwrap();
+        PairingStore::revoke_legacy_pending_codes(&config, stale_snapshot).unwrap();
 
         assert_eq!(
             PairingStore::consume_pending_code_in(&config, code, 100).unwrap(),
@@ -638,7 +633,7 @@ mod tests {
     }
 
     #[test]
-    fn new_legacy_code_after_completed_migration_is_imported_once() {
+    fn new_legacy_code_after_completed_migration_is_revoked() {
         let directory = TempDir::new().unwrap();
         let config = test_config(&directory);
         PairingStore::store_pending_code_in(&config, "CURRENT-CODE", "telegram", 101).unwrap();
@@ -669,16 +664,17 @@ mod tests {
         config.delete(PENDING_CODES_CONFIG_KEY).unwrap();
         assert_eq!(
             PairingStore::consume_pending_code_in(&config, "ROLLBACK-CODE", 100).unwrap(),
-            Some("slack".to_string())
-        );
-        assert_eq!(
-            PairingStore::consume_pending_code_in(&config, "ROLLBACK-CODE", 100).unwrap(),
             None
+        );
+        PairingStore::store_pending_code_in(&config, "FRESH-CODE", "slack", 101).unwrap();
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, "FRESH-CODE", 100).unwrap(),
+            Some("slack".to_string())
         );
     }
 
     #[test]
-    fn legacy_code_written_during_migration_is_preserved_for_cleanup() {
+    fn legacy_code_written_during_migration_is_preserved_until_cleanup() {
         let directory = TempDir::new().unwrap();
         let config_path = directory.path().join("config.yaml");
         let secrets_path = directory.path().join("secrets.yaml");
@@ -697,8 +693,8 @@ mod tests {
         config
             .set_param(PENDING_CODES_CONFIG_KEY, [&first])
             .unwrap();
-        let stale_snapshot = config.get_write_param(PENDING_CODES_CONFIG_KEY).unwrap();
-        PairingStore::complete_pending_code_migration(&config, Some(stale_snapshot)).unwrap();
+        let stale_snapshot = config.get_param(PENDING_CODES_CONFIG_KEY).unwrap();
+        PairingStore::revoke_legacy_pending_codes(&config, stale_snapshot).unwrap();
 
         old_process
             .set_param(PENDING_CODES_CONFIG_KEY, [&first, &second])
@@ -709,7 +705,7 @@ mod tests {
             .to_string()
             .contains("stop older Goose processes"));
         let legacy_codes: Vec<StoredPendingCode> =
-            config.get_write_param(PENDING_CODES_CONFIG_KEY).unwrap();
+            config.get_param(PENDING_CODES_CONFIG_KEY).unwrap();
         assert_eq!(
             legacy_codes
                 .iter()
@@ -721,12 +717,80 @@ mod tests {
         config.delete(PENDING_CODES_CONFIG_KEY).unwrap();
         assert_eq!(
             PairingStore::consume_pending_code_in(&config, "FIRST-CODE", 100).unwrap(),
-            Some("telegram".to_string())
+            None
         );
         assert_eq!(
             PairingStore::consume_pending_code_in(&config, "SECOND-CODE", 100).unwrap(),
-            Some("slack".to_string())
+            None
         );
+    }
+
+    #[test]
+    fn legacy_codes_consumed_by_old_writer_cannot_be_reused() {
+        let directory = TempDir::new().unwrap();
+        let config_path = directory.path().join("config.yaml");
+        let secrets_path = directory.path().join("secrets.yaml");
+        let config = Config::new_with_file_secrets(&config_path, &secrets_path).unwrap();
+        let old_process = Config::new_with_file_secrets(&config_path, &secrets_path).unwrap();
+        let first = StoredPendingCode {
+            code: "FIRST-CODE".to_string(),
+            gateway_type: "telegram".to_string(),
+            expires_at: 101,
+        };
+        let second = StoredPendingCode {
+            code: "SECOND-CODE".to_string(),
+            gateway_type: "slack".to_string(),
+            expires_at: 101,
+        };
+        old_process
+            .set_param(PENDING_CODES_CONFIG_KEY, [&first, &second])
+            .unwrap();
+
+        assert!(PairingStore::migrate_pending_codes(&config).is_err());
+        old_process
+            .set_param(PENDING_CODES_CONFIG_KEY, [&second])
+            .unwrap();
+        old_process.delete(PENDING_CODES_CONFIG_KEY).unwrap();
+
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, &first.code, 100).unwrap(),
+            None
+        );
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, &second.code, 100).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn imported_legacy_codes_already_in_secret_state_are_revoked() {
+        let directory = TempDir::new().unwrap();
+        let config = test_config(&directory);
+        let code = "IMPORTED-CODE";
+        config
+            .set_secret(
+                PENDING_CODES_SECRET_KEY,
+                &StoredPendingCodes {
+                    codes: vec![StoredPendingCode {
+                        code: code.to_string(),
+                        gateway_type: "telegram".to_string(),
+                        expires_at: 101,
+                    }],
+                    legacy_import_complete: true,
+                    imported_legacy_codes: vec![code.to_string()],
+                },
+            )
+            .unwrap();
+
+        assert_eq!(
+            PairingStore::consume_pending_code_in(&config, code, 100).unwrap(),
+            None
+        );
+        assert!(config
+            .get_secret::<StoredPendingCodes>(PENDING_CODES_SECRET_KEY)
+            .unwrap()
+            .codes
+            .is_empty());
     }
 
     #[test]
@@ -753,7 +817,7 @@ mod tests {
                 .unwrap()
                 .legacy_import_complete
         );
-        PairingStore::complete_pending_code_migration(&config, Some(legacy_codes)).unwrap();
+        PairingStore::revoke_legacy_pending_codes(&config, legacy_codes).unwrap();
         assert_eq!(
             PairingStore::consume_pending_code_in(&config, code, 100).unwrap(),
             None
