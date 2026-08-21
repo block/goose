@@ -10,7 +10,7 @@ use anyhow::{anyhow, bail, Result};
 use chrono::{DateTime, Duration, Utc};
 use fs_err as fs;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use tracing::warn;
 
@@ -94,6 +94,23 @@ pub(crate) fn enabled_plugin_skill_dirs(
     project_root: Option<&Path>,
 ) -> Vec<(PathBuf, PluginScope)> {
     enabled_plugin_skill_dirs_with_config(project_root, Config::global())
+}
+
+pub(crate) fn configured_project_plugin_skill_dirs(config: &Config) -> Vec<PathBuf> {
+    let entries: HashMap<String, discovery::PluginConfigEntry> = config
+        .get_param(discovery::PLUGINS_CONFIG_KEY)
+        .unwrap_or_default();
+    let user_plugins_dir = plugin_install_dir();
+    let mut seen = HashSet::new();
+
+    entries
+        .into_iter()
+        .filter(|(_, entry)| entry.enabled)
+        .map(|(path, _)| PathBuf::from(path))
+        .filter(|path| !path.starts_with(&user_plugins_dir))
+        .flat_map(|path| formats::open_plugins::installed_skill_dirs(&path))
+        .filter(|path| seen.insert(path.clone()))
+        .collect()
 }
 
 pub(crate) fn enabled_plugin_skill_dirs_with_config(
