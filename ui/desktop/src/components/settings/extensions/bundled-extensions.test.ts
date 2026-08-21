@@ -35,6 +35,7 @@ vi.mock('./deprecated-bundled-extensions.json', () => ({
 describe('syncBundledExtensions', () => {
   it('skips already bundled non-deprecated extensions', async () => {
     const addExtensionFn = vi.fn().mockResolvedValue(undefined);
+    const updateExtensionFn = vi.fn().mockResolvedValue(undefined);
     const existingExtensions = [
       {
         name: 'developer',
@@ -46,12 +47,46 @@ describe('syncBundledExtensions', () => {
       },
     ] as FixedExtensionEntry[];
 
-    await syncBundledExtensions(existingExtensions, addExtensionFn);
+    await syncBundledExtensions(existingExtensions, addExtensionFn, updateExtensionFn);
 
     expect(addExtensionFn).not.toHaveBeenCalledWith(
       'developer',
       expect.anything(),
       expect.anything()
+    );
+    expect(updateExtensionFn).not.toHaveBeenCalled();
+  });
+
+  it('updates a matching legacy extension through the explicit update path', async () => {
+    const addExtensionFn = vi.fn().mockResolvedValue(undefined);
+    const updateExtensionFn = vi.fn().mockResolvedValue(undefined);
+    const existingExtensions = [
+      {
+        name: 'Developer',
+        configKey: 'developer',
+        type: 'builtin',
+        description: 'Legacy developer tools',
+        enabled: false,
+        bundled: false,
+        timeout: 30,
+      },
+    ] as FixedExtensionEntry[];
+
+    await syncBundledExtensions(existingExtensions, addExtensionFn, updateExtensionFn);
+
+    expect(addExtensionFn).not.toHaveBeenCalledWith(
+      'developer',
+      expect.anything(),
+      expect.anything()
+    );
+    expect(updateExtensionFn).toHaveBeenCalledWith(
+      'developer',
+      expect.objectContaining({
+        type: 'builtin',
+        name: 'developer',
+        bundled: true,
+      }),
+      false
     );
   });
 });
@@ -102,6 +137,7 @@ describe('pruneDeprecatedBundledExtensions', () => {
   it('allows same-id bundled extensions to be re-added after prune', async () => {
     const removeExtensionFn = vi.fn().mockResolvedValue(undefined);
     const addExtensionFn = vi.fn().mockResolvedValue(undefined);
+    const updateExtensionFn = vi.fn().mockResolvedValue(undefined);
     const existingExtensions = [
       {
         name: 'Google Drive',
@@ -120,7 +156,7 @@ describe('pruneDeprecatedBundledExtensions', () => {
       removeExtensionFn
     );
 
-    await syncBundledExtensions(remainingExtensions, addExtensionFn);
+    await syncBundledExtensions(remainingExtensions, addExtensionFn, updateExtensionFn);
 
     expect(removeExtensionFn).toHaveBeenCalledWith('googledrive');
     expect(addExtensionFn).toHaveBeenCalledWith(
@@ -132,5 +168,6 @@ describe('pruneDeprecatedBundledExtensions', () => {
       }),
       true
     );
+    expect(updateExtensionFn).not.toHaveBeenCalled();
   });
 });

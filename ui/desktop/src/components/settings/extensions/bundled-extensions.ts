@@ -68,7 +68,8 @@ export async function pruneDeprecatedBundledExtensions(
  */
 export async function syncBundledExtensions(
   existingExtensions: FixedExtensionEntry[],
-  addExtensionFn: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>
+  addExtensionFn: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>,
+  updateExtensionFn: (configKey: string, config: ExtensionConfig, enabled: boolean) => Promise<void>
 ): Promise<void> {
   try {
     // Cast the imported JSON data to the expected type
@@ -122,7 +123,15 @@ export async function syncBundledExtensions(
 
       // Add or update the extension, preserving enabled state if it exists
       const enabled = existingExt ? existingExt.enabled : bundledExt.enabled;
-      await addExtensionFn(bundledExt.name, extConfig, enabled);
+      if (existingExt) {
+        await updateExtensionFn(
+          existingExt.configKey ?? nameToKey(existingExt.name),
+          extConfig,
+          enabled
+        );
+      } else {
+        await addExtensionFn(bundledExt.name, extConfig, enabled);
+      }
     }
   } catch (error) {
     console.error('Failed to sync built-in extensions:', error);

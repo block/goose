@@ -448,6 +448,20 @@ pub struct AddConfigExtensionRequest {
     pub enabled: bool,
 }
 
+/// Replace a persisted extension without changing its canonical identity.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/config/extensions/update",
+    response = EmptyResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateConfigExtensionRequest {
+    pub config_key: String,
+    pub extension: GooseExtension,
+    #[serde(default)]
+    pub enabled: bool,
+}
+
 /// Remove a persisted extension from the user's global goose config.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/config/extensions/remove", response = EmptyResponse)]

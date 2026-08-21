@@ -285,6 +285,7 @@ fn test_custom_get_extensions() {
                         "type": "stdio",
                         "name": config_key.to_uppercase(),
                         "command": "replacement-command",
+                        "args": [],
                         "env": [
                             { "name": "INLINE_TOKEN", "value": "replacement-secret" }
                         ]
@@ -307,6 +308,44 @@ fn test_custom_get_extensions() {
             .await
             .unwrap_or_else(|| panic!("missing original extension after rejected add"));
         assert_eq!(entry["extension"]["server"]["command"], "test-command");
+
+        let update_result = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/extensions/update",
+            serde_json::json!({
+                "configKey": config_key,
+                "enabled": true,
+                "extension": {
+                    "type": "mcp",
+                    "description": "Replacement",
+                    "envKeys": [],
+                    "server": {
+                        "type": "stdio",
+                        "name": config_key.to_uppercase(),
+                        "command": "replacement-command",
+                        "args": [],
+                        "env": [
+                            { "name": "INLINE_TOKEN", "value": "replacement-secret" }
+                        ]
+                    }
+                }
+            }),
+        )
+        .await;
+        assert!(update_result.is_ok(), "expected ok, got: {update_result:?}");
+        assert_eq!(
+            goose::config::Config::global()
+                .get_secret::<String>("INLINE_TOKEN")
+                .unwrap(),
+            "replacement-secret"
+        );
+        let entry = list_extension()
+            .await
+            .unwrap_or_else(|| panic!("missing explicitly updated extension"));
+        assert_eq!(
+            entry["extension"]["server"]["command"],
+            "replacement-command"
+        );
 
         let set_enabled_result = send_custom(
             conn.cx(),

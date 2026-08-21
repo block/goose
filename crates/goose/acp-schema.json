@@ -1552,6 +1552,28 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/config/extensions/add"
     },
+    "UpdateConfigExtensionRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "configKey": {
+          "type": "string"
+        },
+        "extension": {
+          "$ref": "#/$defs/GooseExtension"
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "configKey",
+        "extension"
+      ],
+      "description": "Replace a persisted extension without changing its canonical identity.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/extensions/update"
+    },
     "RemoveConfigExtensionRequest_unstable": {
       "type": "object",
       "properties": {
@@ -7194,6 +7216,15 @@
                   ],
                   "description": "Params for _goose/unstable/config/extensions/add",
                   "title": "AddConfigExtensionRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/UpdateConfigExtensionRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/extensions/update",
+                  "title": "UpdateConfigExtensionRequest_unstable"
                 },
                 {
                   "allOf": [

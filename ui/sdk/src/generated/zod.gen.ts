@@ -511,6 +511,15 @@ export const zAddConfigExtensionRequest_unstable = z.object({
 });
 
 /**
+ * Replace a persisted extension without changing its canonical identity.
+ */
+export const zUpdateConfigExtensionRequest_unstable = z.object({
+    configKey: z.string(),
+    extension: zGooseExtension,
+    enabled: z.boolean().optional().default(false)
+});
+
+/**
  * Remove a persisted extension from the user's global goose config.
  */
 export const zRemoveConfigExtensionRequest_unstable = z.object({
@@ -2214,6 +2223,7 @@ export const zExtRequest = z.object({
             zGetConfigExtensionsRequest_unstable,
             zGetAvailableExtensionsRequest_unstable,
             zAddConfigExtensionRequest_unstable,
+            zUpdateConfigExtensionRequest_unstable,
             zRemoveConfigExtensionRequest_unstable,
             zSetConfigExtensionEnabledRequest_unstable,
             zGetSessionExtensionsRequest_unstable,

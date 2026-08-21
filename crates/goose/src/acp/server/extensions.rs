@@ -1,6 +1,6 @@
 use super::*;
 use crate::agents::extension::Envs;
-use crate::config::extensions::{ExtensionAddError, ExtensionEntry};
+use crate::config::extensions::{ExtensionAddError, ExtensionEntry, ExtensionUpdateError};
 use agent_client_protocol::schema::v1::{HttpHeader, McpServer, McpServerHttp, McpServerStdio};
 
 impl GooseAcpAgent {
@@ -89,6 +89,28 @@ impl GooseAcpAgent {
         Ok(EmptyResponse {})
     }
 
+    pub(super) async fn on_update_config_extension(
+        &self,
+        req: UpdateConfigExtensionRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        let conversion = goose_extension_to_config(req.extension)?;
+        let entry = ExtensionEntry {
+            enabled: req.enabled,
+            config: conversion.config,
+        };
+
+        crate::config::extensions::validate_extension_update(&req.config_key, &entry)
+            .map_err(config_extension_update_error)?;
+
+        Config::global()
+            .set_secret_values(&conversion.secret_updates)
+            .internal_err_ctx("Failed to save extension env secrets")?;
+
+        crate::config::extensions::update_extension(&req.config_key, entry)
+            .map_err(config_extension_update_error)?;
+        Ok(EmptyResponse {})
+    }
+
     pub(super) async fn on_remove_config_extension(
         &self,
         req: RemoveConfigExtensionRequest,
@@ -144,6 +166,20 @@ fn config_extension_add_error(error: ExtensionAddError) -> agent_client_protocol
         ExtensionAddError::AlreadyExists { key } => agent_client_protocol::Error::invalid_params()
             .data(format!("Extension '{key}' already exists")),
         ExtensionAddError::Config(error) => agent_client_protocol::Error::internal_error()
+            .data(format!("Failed to save extension: {error}")),
+    }
+}
+
+fn config_extension_update_error(error: ExtensionUpdateError) -> agent_client_protocol::Error {
+    match error {
+        ExtensionUpdateError::NotFound { key } => agent_client_protocol::Error::invalid_params()
+            .data(format!("Extension '{key}' not found")),
+        ExtensionUpdateError::IdentityChanged { key, new_key } => {
+            agent_client_protocol::Error::invalid_params().data(format!(
+                "Extension update cannot change identity from '{key}' to '{new_key}'"
+            ))
+        }
+        ExtensionUpdateError::Config(error) => agent_client_protocol::Error::internal_error()
             .data(format!("Failed to save extension: {error}")),
     }
 }

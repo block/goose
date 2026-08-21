@@ -195,6 +195,14 @@ impl GooseAcpAgent {
         self.on_add_config_extension(req).await
     }
 
+    #[custom_method(UpdateConfigExtensionRequest)]
+    async fn dispatch_update_config_extension(
+        &self,
+        req: UpdateConfigExtensionRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_update_config_extension(req).await
+    }
+
     #[custom_method(RemoveConfigExtensionRequest)]
     async fn dispatch_remove_config_extension(
         &self,

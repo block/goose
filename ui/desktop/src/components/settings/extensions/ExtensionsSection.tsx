@@ -62,8 +62,14 @@ export default function ExtensionsSection({
   searchTerm = '',
 }: ExtensionSectionProps) {
   const intl = useIntl();
-  const { getExtensions, addExtension, removeExtension, setExtensionEnabled, extensionsList } =
-    useConfig();
+  const {
+    getExtensions,
+    addExtension,
+    updateExtension,
+    removeExtension,
+    setExtensionEnabled,
+    extensionsList,
+  } = useConfig();
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -169,8 +175,11 @@ export default function ExtensionsSection({
     try {
       if (originalName !== extensionConfig.name) {
         await removeExtension(originalName);
+        await addExtension(extensionConfig.name, extensionConfig, formData.enabled);
+      } else {
+        const configKey = selectedExtension.configKey ?? nameToKey(originalName);
+        await updateExtension(configKey, extensionConfig, formData.enabled);
       }
-      await addExtension(extensionConfig.name, extensionConfig, formData.enabled);
     } catch (error) {
       console.error('Failed to update extension:', error);
     } finally {

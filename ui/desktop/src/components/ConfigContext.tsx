@@ -4,6 +4,7 @@ import { acpListProviderDetails } from '../acp/providers';
 import {
   getConfiguredExtensions,
   addConfigExtension,
+  updateConfigExtension,
   removeConfigExtension,
   setConfigExtensionEnabled,
 } from '../acp/extensions';
@@ -31,6 +32,7 @@ interface ConfigContextType {
   read: (key: string, is_secret: boolean, options?: { throwOnError?: boolean }) => Promise<unknown>;
   remove: (key: string, is_secret: boolean) => Promise<void>;
   addExtension: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
+  updateExtension: (configKey: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
   setExtensionEnabled: (configKey: string, enabled: boolean) => Promise<void>;
   removeExtension: (name: string) => Promise<void>;
   getProviders: (b: boolean) => Promise<ProviderDetails[]>;
@@ -100,6 +102,15 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       await addConfigExtension(config, enabled);
       await reloadConfig();
       // Refresh extensions list after successful addition
+      await refreshExtensions();
+    },
+    [reloadConfig, refreshExtensions]
+  );
+
+  const updateExtension = useCallback(
+    async (configKey: string, config: ExtensionConfig, enabled: boolean) => {
+      await updateConfigExtension(configKey, config, enabled);
+      await reloadConfig();
       await refreshExtensions();
     },
     [reloadConfig, refreshExtensions]
@@ -185,11 +196,18 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
         ) => {
           await addConfigExtension(config, enabled);
         };
+        const updateExtensionForSync = async (
+          configKey: string,
+          config: ExtensionConfig,
+          enabled: boolean
+        ) => {
+          await updateConfigExtension(configKey, config, enabled);
+        };
         const removeExtensionForSync = async (configKey: string) => {
           await removeConfigExtension(configKey);
         };
         extensions = await pruneDeprecatedBundledExtensions(extensions, removeExtensionForSync);
-        await syncBundledExtensions(extensions, addExtensionForSync);
+        await syncBundledExtensions(extensions, addExtensionForSync, updateExtensionForSync);
         // Reload extensions after sync
         const refreshedResponse = await getConfiguredExtensions();
         extensions = refreshedResponse.extensions;
@@ -212,6 +230,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       read,
       remove,
       addExtension,
+      updateExtension,
       removeExtension,
       setExtensionEnabled,
       getProviders,
@@ -226,6 +245,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     read,
     remove,
     addExtension,
+    updateExtension,
     removeExtension,
     setExtensionEnabled,
     getProviders,

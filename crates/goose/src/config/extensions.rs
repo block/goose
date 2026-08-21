@@ -28,6 +28,16 @@ pub enum ExtensionAddError {
     Config(#[from] ConfigError),
 }
 
+#[derive(Debug, Error)]
+pub enum ExtensionUpdateError {
+    #[error("Extension with key '{key}' was not found")]
+    NotFound { key: String },
+    #[error("Extension update cannot change identity from '{key}' to '{new_key}'")]
+    IdentityChanged { key: String, new_key: String },
+    #[error(transparent)]
+    Config(#[from] ConfigError),
+}
+
 pub fn name_to_key(name: &str) -> String {
     let mut result = String::with_capacity(name.len());
     for c in name.chars() {
@@ -115,6 +125,17 @@ fn extension_identity_exists(raw: &Mapping, key: &str) -> bool {
         || parse_extensions_map(raw)
             .values()
             .any(|entry| entry.config.key() == key)
+}
+
+fn extension_identity_key(raw: &Mapping, key: &str) -> Option<serde_yaml::Value> {
+    raw.iter().find_map(|(stored_key, value)| {
+        let stored_key_str = stored_key.as_str()?;
+        let value = inject_name_if_missing(stored_key_str, value.clone());
+        serde_yaml::from_value::<ExtensionEntry>(value)
+            .ok()
+            .filter(|entry| entry.config.key() == key)
+            .map(|_| stored_key.clone())
+    })
 }
 
 fn validate_extension_add_with_config(
@@ -234,6 +255,63 @@ fn add_extension_with_config(
 
     if collision {
         return Err(ExtensionAddError::AlreadyExists { key });
+    }
+    Ok(())
+}
+
+fn validate_extension_update_with_config(
+    config: &Config,
+    key: &str,
+    entry: &ExtensionEntry,
+) -> Result<(), ExtensionUpdateError> {
+    let key = name_to_key(key);
+    let new_key = entry.config.key();
+    if new_key != key {
+        return Err(ExtensionUpdateError::IdentityChanged { key, new_key });
+    }
+
+    let raw: Mapping = config.get_param(EXTENSIONS_CONFIG_KEY)?;
+    if extension_identity_key(&raw, &key).is_none() {
+        return Err(ExtensionUpdateError::NotFound { key });
+    }
+    Ok(())
+}
+
+pub fn validate_extension_update(
+    key: &str,
+    entry: &ExtensionEntry,
+) -> Result<(), ExtensionUpdateError> {
+    validate_extension_update_with_config(Config::global(), key, entry)
+}
+
+/// Replaces an existing extension without changing its canonical identity.
+pub fn update_extension(key: &str, entry: ExtensionEntry) -> Result<(), ExtensionUpdateError> {
+    update_extension_with_config(Config::global(), key, entry)
+}
+
+fn update_extension_with_config(
+    config: &Config,
+    key: &str,
+    entry: ExtensionEntry,
+) -> Result<(), ExtensionUpdateError> {
+    let key = name_to_key(key);
+    let new_key = entry.config.key();
+    if new_key != key {
+        return Err(ExtensionUpdateError::IdentityChanged { key, new_key });
+    }
+
+    let value = serde_yaml::to_value(entry).map_err(ConfigError::from)?;
+    let mut updated = false;
+    config.update_param::<Mapping, Mapping, _>(EXTENSIONS_CONFIG_KEY, |mut raw| {
+        if let Some(stored_key) = extension_identity_key(&raw, &key) {
+            raw.insert(stored_key, value);
+            updated = true;
+        }
+        raw
+    })?;
+
+    if !updated {
+        return Err(ExtensionUpdateError::NotFound { key });
     }
     Ok(())
 }
@@ -624,6 +702,54 @@ extensions:
 
         let saved = get_extension_by_name_with_config(&config, "replaceable").unwrap();
         assert_eq!(saved.name(), "Replaceable");
+    }
+
+    #[test]
+    fn test_update_extension_replaces_same_identity() {
+        let (config, _config_file, _secrets_file) = test_config("");
+        add_extension_with_config(&config, builtin_entry("replaceable", false)).unwrap();
+
+        update_extension_with_config(&config, "Replaceable", builtin_entry("Replaceable", true))
+            .unwrap();
+
+        let saved = get_extension_by_name_with_config(&config, "replaceable").unwrap();
+        assert_eq!(saved.name(), "Replaceable");
+        assert!(get_extensions_map_with_config(&config)["replaceable"].enabled);
+    }
+
+    #[test]
+    fn test_update_extension_rejects_identity_change() {
+        let (config, _config_file, _secrets_file) = test_config("");
+        add_extension_with_config(&config, builtin_entry("trusted", true)).unwrap();
+        let before = read_extensions(&config);
+
+        let error = update_extension_with_config(
+            &config,
+            "trusted",
+            builtin_entry("different extension", false),
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            error,
+            ExtensionUpdateError::IdentityChanged { key, new_key }
+                if key == "trusted" && new_key == "differentextension"
+        ));
+        assert_eq!(read_extensions(&config), before);
+    }
+
+    #[test]
+    fn test_update_extension_rejects_missing_identity() {
+        let (config, _config_file, _secrets_file) = test_config("");
+
+        let error =
+            update_extension_with_config(&config, "missing", builtin_entry("missing", false))
+                .unwrap_err();
+
+        assert!(matches!(
+            error,
+            ExtensionUpdateError::NotFound { key } if key == "missing"
+        ));
     }
 
     #[test]

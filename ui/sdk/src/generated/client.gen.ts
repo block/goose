@@ -184,6 +184,7 @@ import type {
   TruncateSessionConversationRequest_unstable,
   UnarchiveSessionRequest_unstable,
   UnpauseScheduleRequest_unstable,
+  UpdateConfigExtensionRequest_unstable,
   UpdateScheduleRequest_unstable,
   UpdateScheduleResponse_unstable,
   UpdateSessionProjectRequest_unstable,
@@ -477,6 +478,12 @@ export class GooseExtClient {
     params: AddConfigExtensionRequest_unstable,
   ): Promise<void> {
     await this.conn.request("_goose/unstable/config/extensions/add", params);
+  }
+
+  async configExtensionsUpdate_unstable(
+    params: UpdateConfigExtensionRequest_unstable,
+  ): Promise<void> {
+    await this.conn.request("_goose/unstable/config/extensions/update", params);
   }
 
   async configExtensionsRemove_unstable(
