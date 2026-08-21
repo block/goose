@@ -593,12 +593,15 @@ fn list_agent_sources(
             let Ok(relative_path) = canonical_path.strip_prefix(&canonical_root) else {
                 continue;
             };
+            let writable = root.writable
+                && resolve_agent_file_with_roots(&listed_path.to_string_lossy(), additional_roots)
+                    .is_ok();
             match listed_agent_source_entry(
                 &canonical_root,
                 relative_path,
                 &listed_path,
                 global,
-                root.writable,
+                writable,
             ) {
                 Ok(source) => {
                     let key = source.name.to_lowercase();
@@ -1353,7 +1356,76 @@ mod tests {
             .find(|source| source.name == "Contained")
             .unwrap();
         assert!(!contained.global);
+        assert!(!contained.writable);
         assert_eq!(contained.path, listed_path.to_string_lossy());
+        assert_eq!(contained.content, "Contained instructions");
+
+        let update_err = update_source_with_roots(
+            SourceType::Agent,
+            &contained.path,
+            "Contained",
+            "updated",
+            "updated instructions",
+            UpdateSourceOptions {
+                properties: None,
+                additional_roots: &[],
+            },
+        )
+        .unwrap_err();
+        assert!(format!("{update_err:?}").contains("not found"));
+
+        let export_err = export_source(SourceType::Agent, &contained.path).unwrap_err();
+        assert!(format!("{export_err:?}").contains("not found"));
+
+        let delete_err = delete_source(SourceType::Agent, &contained.path).unwrap_err();
+        assert!(format!("{delete_err:?}").contains("not found"));
+        assert!(listed_path.exists());
+        assert!(contained_agent.exists());
+        assert!(std::fs::read_to_string(contained_agent)
+            .unwrap()
+            .contains("contained agent"));
+    }
+
+    #[test]
+    fn project_agent_sources_keep_direct_files_writable() {
+        let tmp = TempDir::new().unwrap();
+        let project = tmp.path().join("project");
+        let agent_path = project.join(".agents").join("agents").join("direct.md");
+        write_agent(&agent_path, "Direct", "direct agent");
+
+        let listed = list_sources(
+            Some(SourceType::Agent),
+            Some(project.to_str().unwrap()),
+            false,
+        )
+        .unwrap();
+        let direct = listed
+            .iter()
+            .find(|source| source.name == "Direct")
+            .unwrap();
+        assert!(direct.writable);
+
+        let (exported, filename) = export_source(SourceType::Agent, &direct.path).unwrap();
+        assert_eq!(filename, "direct.agent.json");
+        assert!(exported.contains("\"name\": \"Direct\""));
+
+        let updated = update_source_with_roots(
+            SourceType::Agent,
+            &direct.path,
+            "Direct",
+            "updated direct agent",
+            "updated instructions",
+            UpdateSourceOptions {
+                properties: None,
+                additional_roots: &[],
+            },
+        )
+        .unwrap();
+        assert_eq!(updated.description, "updated direct agent");
+        assert_eq!(updated.content, "updated instructions");
+
+        delete_source(SourceType::Agent, &direct.path).unwrap();
+        assert!(!agent_path.exists());
     }
 
     #[test]
@@ -1453,6 +1525,40 @@ mod tests {
         )
         .unwrap_err();
         assert!(format!("{:?}", err).contains("read-only"));
+    }
+
+    #[test]
+    fn additional_writable_agent_roots_keep_crud_access() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().join("custom").join("agents");
+        let agent_path = root.join("solo.md");
+        write_agent(&agent_path, "Solo", "custom agent");
+        let roots = [SourceRoot {
+            path: root,
+            writable: true,
+        }];
+
+        let sources =
+            list_sources_with_roots(Some(SourceType::Agent), None, false, &roots).unwrap();
+        let solo = sources.iter().find(|source| source.name == "Solo").unwrap();
+        assert!(solo.writable);
+        assert!(solo.global);
+
+        export_source_with_roots(SourceType::Agent, &solo.path, &roots).unwrap();
+        update_source_with_roots(
+            SourceType::Agent,
+            &solo.path,
+            "Solo",
+            "updated custom agent",
+            "updated instructions",
+            UpdateSourceOptions {
+                properties: None,
+                additional_roots: &roots,
+            },
+        )
+        .unwrap();
+        delete_source_with_roots(SourceType::Agent, &solo.path, &roots).unwrap();
+        assert!(!agent_path.exists());
     }
 
     #[test]
