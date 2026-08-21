@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { acpAuthenticateProvider } from '../../acp/providers';
+import { useProviderDeviceCode } from '../../hooks/useProviderDeviceCode';
 import type { ProviderDetails } from '../../types/providers';
 import DefaultProviderSetupForm, {
   ConfigInput,
@@ -79,8 +80,6 @@ function parseLinks(text: string) {
   );
 }
 
-type DeviceCode = { userCode: string; verificationUri: string; expiresIn: number };
-
 function OAuthForm({
   provider,
   onConfigured,
@@ -92,17 +91,11 @@ function OAuthForm({
 }) {
   const intl = useIntl();
   const [isLoading, setIsLoading] = useState(false);
-  const [deviceCode, setDeviceCode] = useState<DeviceCode | null>(null);
-
-  useEffect(() => {
-    const handler = (e: Event) => setDeviceCode((e as CustomEvent<DeviceCode>).detail);
-    window.addEventListener('goose:device-code', handler);
-    return () => window.removeEventListener('goose:device-code', handler);
-  }, []);
+  const { deviceCode, clearDeviceCode } = useProviderDeviceCode(provider.name);
 
   const handleLogin = async () => {
     setIsLoading(true);
-    setDeviceCode(null);
+    clearDeviceCode();
     try {
       await acpAuthenticateProvider(provider.name);
       await onConfigured(provider.name);

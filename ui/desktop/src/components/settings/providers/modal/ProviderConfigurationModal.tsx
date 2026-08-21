@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, Fragment } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,7 @@ import { AlertTriangle, LogIn } from 'lucide-react';
 import type { ProviderDetails } from '../../../../types/providers';
 import { Button } from '../../../../components/ui/button';
 import { errorMessage } from '../../../../utils/conversionUtils';
+import { useProviderDeviceCode } from '../../../../hooks/useProviderDeviceCode';
 import AcpReadinessPanel from '../AcpReadinessPanel';
 import { defineMessages, useIntl } from '../../../../i18n';
 import HuggingFaceSignInPrompt from '../../auth/HuggingFaceSignInPrompt';
@@ -188,18 +189,7 @@ export default function ProviderConfigurationModal({
   const [isActiveProvider, setIsActiveProvider] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isOAuthLoading, setIsOAuthLoading] = useState(false);
-  const [deviceCode, setDeviceCode] = useState<{
-    userCode: string;
-    verificationUri: string;
-    expiresIn: number;
-  } | null>(null);
-
-  useEffect(() => {
-    const handler = (e: Event) =>
-      setDeviceCode((e as CustomEvent).detail as typeof deviceCode);
-    window.addEventListener('goose:device-code', handler);
-    return () => window.removeEventListener('goose:device-code', handler);
-  }, []);
+  const { deviceCode, clearDeviceCode } = useProviderDeviceCode(provider.name);
 
   let primaryParameters = provider.metadata.config_keys.filter((param) => param.primary);
   if (primaryParameters.length === 0) {
@@ -237,7 +227,7 @@ export default function ProviderConfigurationModal({
 
   const handleOAuthLogin = async () => {
     setIsOAuthLoading(true);
-    setDeviceCode(null);
+    clearDeviceCode();
     setError(null);
     try {
       if (hasConfig) {
