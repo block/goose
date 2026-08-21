@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::agents::platform_extensions::developer;
+use crate::agents::ExtensionConfig;
 use crate::config::Config;
 use crate::conversation::message::Message;
 use crate::providers;
@@ -64,11 +65,21 @@ pub async fn run(agent: &crate::agents::Agent, session_id: &str) -> anyhow::Resu
 }
 
 async fn require_developer_extension(agent: &crate::agents::Agent) -> Option<Message> {
-    (!agent
+    let has_developer = agent
         .extension_manager
-        .is_extension_enabled(developer::EXTENSION_NAME)
-        .await)
-        .then(|| Message::assistant().with_text(DEVELOPER_EXTENSION_REQUIRED_MESSAGE))
+        .get_extension_configs()
+        .await
+        .iter()
+        .any(is_developer_platform_config);
+
+    (!has_developer).then(|| Message::assistant().with_text(DEVELOPER_EXTENSION_REQUIRED_MESSAGE))
+}
+
+fn is_developer_platform_config(config: &ExtensionConfig) -> bool {
+    matches!(
+        config,
+        ExtensionConfig::Builtin { .. } | ExtensionConfig::Platform { .. }
+    ) && config.key() == developer::EXTENSION_NAME
 }
 
 async fn ensure_working_provider(
@@ -271,7 +282,6 @@ fn describe_error(e: &ProviderError) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agents::ExtensionConfig;
 
     #[tokio::test]
     async fn developer_requirement_accepts_enabled_extension() {
@@ -294,5 +304,17 @@ mod tests {
             .expect("developer extension should load");
 
         assert!(require_developer_extension(&agent).await.is_none());
+    }
+
+    #[test]
+    fn custom_extension_named_developer_does_not_satisfy_requirement() {
+        let config = ExtensionConfig::stdio(
+            developer::EXTENSION_NAME,
+            "custom-developer",
+            "Unrelated custom extension",
+            30_u64,
+        );
+
+        assert!(!is_developer_platform_config(&config));
     }
 }
