@@ -177,24 +177,18 @@ fn normalized_tool_alias(raw_tool_name: &str) -> String {
         .to_ascii_lowercase()
 }
 
-#[allow(clippy::string_slice)] // All markers/delimiters are ASCII; byte indexing is safe.
-fn extract_shell_command_from_execute_code(code: &str) -> Option<String> {
-    let marker = "command";
-    let marker_idx = code.find(marker)?;
-    let after_marker = &code[marker_idx + marker.len()..];
-    let colon_idx = after_marker.find(':')?;
-    let after_colon = after_marker[colon_idx + 1..].trim_start();
-
-    let quote = after_colon.chars().next()?;
-    if quote != '"' && quote != '\'' {
+fn decode_quoted_string(literal: &str) -> Option<String> {
+    let quote = literal.chars().next()?;
+    if !matches!(quote, '"' | '\'') || !literal.ends_with(quote) {
         return None;
     }
 
+    let body = literal.strip_prefix(quote)?.strip_suffix(quote)?;
     let mut escaped = false;
-    let mut command = String::new();
-    for ch in after_colon[1..].chars() {
+    let mut decoded = String::new();
+    for ch in body.chars() {
         if escaped {
-            command.push(ch);
+            decoded.push(ch);
             escaped = false;
             continue;
         }
@@ -204,14 +198,99 @@ fn extract_shell_command_from_execute_code(code: &str) -> Option<String> {
             continue;
         }
 
-        if ch == quote {
-            return Some(command);
-        }
-
-        command.push(ch);
+        decoded.push(ch);
     }
 
-    None
+    (!escaped).then_some(decoded)
+}
+
+fn node_text<'a>(node: tree_sitter::Node<'_>, source: &'a str) -> Option<&'a str> {
+    source.get(node.byte_range())
+}
+
+fn is_developer_shell_call(node: tree_sitter::Node<'_>, source: &str) -> bool {
+    let Some(function) = node.child_by_field_name("function") else {
+        return false;
+    };
+    if function.kind() != "member_expression" {
+        return false;
+    }
+
+    let Some(object) = function.child_by_field_name("object") else {
+        return false;
+    };
+    let Some(property) = function.child_by_field_name("property") else {
+        return false;
+    };
+
+    object.kind() == "identifier"
+        && property.kind() == "property_identifier"
+        && node_text(object, source) == Some("Developer")
+        && node_text(property, source) == Some("shell")
+}
+
+fn shell_command_from_call(node: tree_sitter::Node<'_>, source: &str) -> Option<String> {
+    let arguments = node.child_by_field_name("arguments")?;
+    if arguments.named_child_count() != 1 {
+        return None;
+    }
+
+    let object = arguments.named_child(0)?;
+    if object.kind() != "object" || object.named_child_count() != 1 {
+        return None;
+    }
+
+    let pair = object.named_child(0)?;
+    if pair.kind() != "pair" {
+        return None;
+    }
+
+    let key = pair.child_by_field_name("key")?;
+    let is_command_key = match key.kind() {
+        "property_identifier" => node_text(key, source) == Some("command"),
+        "string" => node_text(key, source)
+            .and_then(decode_quoted_string)
+            .is_some_and(|key| key == "command"),
+        _ => false,
+    };
+    if !is_command_key {
+        return None;
+    }
+
+    let value = pair.child_by_field_name("value")?;
+    if value.kind() != "string" {
+        return None;
+    }
+
+    node_text(value, source).and_then(decode_quoted_string)
+}
+
+fn extract_shell_command_from_execute_code(code: &str) -> Option<String> {
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(&tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into())
+        .ok()?;
+    let tree = parser.parse(code, None)?;
+    let root = tree.root_node();
+    if root.has_error() {
+        return None;
+    }
+
+    let mut command = None;
+    let mut nodes = vec![root];
+    while let Some(node) = nodes.pop() {
+        if node.kind() == "call_expression" && is_developer_shell_call(node, code) {
+            if command.is_some() {
+                return None;
+            }
+            command = Some(shell_command_from_call(node, code)?);
+        }
+
+        let mut cursor = node.walk();
+        nodes.extend(node.named_children(&mut cursor));
+    }
+
+    command
 }
 
 fn maybe_convert_execute_to_shell_tool_call(
@@ -1164,6 +1243,70 @@ mod tests {
                 .and_then(|v| v.as_str()),
             Some("cat Cargo.toml")
         );
+    }
+
+    #[test]
+    fn execute_marker_ignores_command_data_before_shell_call() {
+        let tools = vec![Tool::new(
+            "shell".to_string(),
+            "Shell command execution".to_string(),
+            serde_json::Map::new(),
+        )];
+
+        let content = "<|tool_calls_section_begin|> <|tool_call_begin|> functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"async function run() { const data = { command: \\\"cat /etc/shadow\\\" }; return await Developer.shell({ command: \\\"pwd\\\" }); }\"} <|tool_call_end|> <|tool_calls_section_end|>";
+
+        let calls = parse_tokenized_tool_calls(content, &tools);
+
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "shell");
+        assert_eq!(
+            calls[0]
+                .arguments
+                .as_ref()
+                .and_then(|a| a.get("command"))
+                .and_then(|v| v.as_str()),
+            Some("pwd")
+        );
+    }
+
+    #[test]
+    fn execute_code_only_extracts_real_developer_shell_call() {
+        let code = r#"
+            async function run() {
+                const object = { command: "object decoy" };
+                const text = 'Developer.shell({ command: "string decoy" })';
+                const pattern = /Developer\.shell\(\{ command: "regex decoy" \}\)/;
+                // Developer.shell({ command: "comment decoy" })
+                return await Developer.shell({ "command": 'printf \'safe\'' });
+            }
+        "#;
+
+        assert_eq!(
+            extract_shell_command_from_execute_code(code).as_deref(),
+            Some("printf 'safe'")
+        );
+    }
+
+    #[test]
+    fn execute_code_rejects_ambiguous_or_unsupported_shell_calls() {
+        let cases = [
+            "Developer.shell({ command: 'first' }); Developer.shell({ command: 'second' });",
+            "Developer.shell({ command: getCommand() });",
+            "Developer.shell({ command: 'pwd', timeout: 1000 });",
+            "Developer['shell']({ command: 'pwd' });",
+            "OtherDeveloper.shell({ command: 'pwd' });",
+            "Developer.shellish({ command: 'pwd' });",
+            "const text = 'Developer.shell({ command: \\\"pwd\\\" })';",
+            "Developer.shell({ command: 'pwd'",
+        ];
+
+        for code in cases {
+            assert_eq!(
+                extract_shell_command_from_execute_code(code),
+                None,
+                "unexpectedly extracted a command from {code:?}"
+            );
+        }
     }
 
     #[test]
