@@ -74,19 +74,15 @@ pub struct Check {
 impl Check {
     /// Read and parse a check file from disk.
     pub fn from_path(path: &Path) -> Result<Self> {
-        let content = Self::read_content(path)?;
-        Self::parse(&content, path)
-    }
-
-    fn read_content(path: &Path) -> Result<String> {
         let parent = path
             .parent()
             .ok_or_else(|| anyhow!("check {}: invalid path", path.display()))?;
         let file_name = path
             .file_name()
             .ok_or_else(|| anyhow!("check {}: invalid filename", path.display()))?;
-        crate::skills::read_source_file(parent, Path::new(file_name))
-            .with_context(|| format!("read check file: {}", path.display()))
+        let content = crate::skills::read_source_file(parent, Path::new(file_name))
+            .with_context(|| format!("read check file: {}", path.display()))?;
+        Self::parse(&content, path)
     }
 
     /// Parse a check from raw content. Reuses [`crate::sources::parse_frontmatter`]
@@ -358,7 +354,7 @@ pub fn discover_with_globals(
         let Ok(canonical_dir) = dir.canonicalize() else {
             continue;
         };
-        for mut check in read_checks_dir(&canonical_dir, "", LoadMode::Lenient)? {
+        for mut check in read_checks_dir(&canonical_dir, &canonical_dir, "", LoadMode::Lenient)? {
             if let Some(file_name) = check.path.file_name().map(ToOwned::to_owned) {
                 check.path = dir.join(file_name);
             }
@@ -367,7 +363,7 @@ pub fn discover_with_globals(
     }
 
     let root_dir = canonical_repo_root.join(".agents").join("checks");
-    for check in read_checks_dir(&root_dir, "", LoadMode::Strict)? {
+    for check in read_checks_dir(&canonical_repo_root, &root_dir, "", LoadMode::Strict)? {
         record(check, scope_priority(""));
     }
 
@@ -376,7 +372,7 @@ pub fn discover_with_globals(
             .join(scope)
             .join(".agents")
             .join("checks");
-        for check in read_checks_dir(&dir, scope, LoadMode::Strict)? {
+        for check in read_checks_dir(&canonical_repo_root, &dir, scope, LoadMode::Strict)? {
             let p = scope_priority(scope);
             record(check, p);
         }
@@ -412,7 +408,15 @@ enum LoadMode {
     Lenient,
 }
 
-fn read_checks_dir(dir: &Path, scope_dir: &str, mode: LoadMode) -> Result<Vec<Check>> {
+fn read_checks_dir(
+    scan_root: &Path,
+    dir: &Path,
+    scope_dir: &str,
+    mode: LoadMode,
+) -> Result<Vec<Check>> {
+    if !checks_dir_is_unlinked(scan_root, dir)? {
+        return Ok(Vec::new());
+    }
     match fs::symlink_metadata(dir) {
         Ok(metadata) if metadata.is_dir() => {}
         Ok(_) => return Ok(Vec::new()),
@@ -437,14 +441,7 @@ fn read_checks_dir(dir: &Path, scope_dir: &str, mode: LoadMode) -> Result<Vec<Ch
         if path.file_name().and_then(|s| s.to_str()) == Some("README.md") {
             continue;
         }
-        let content = match Check::read_content(&path) {
-            Ok(content) => content,
-            Err(error) => {
-                eprintln!("goose review: skipping {}: {error}", path.display());
-                continue;
-            }
-        };
-        let parsed = Check::parse(&content, &path).and_then(|mut check| {
+        let parsed = Check::from_path(&path).and_then(|mut check| {
             if mode == LoadMode::Strict {
                 check.validate_name_matches_filename()?;
             }
@@ -463,6 +460,30 @@ fn read_checks_dir(dir: &Path, scope_dir: &str, mode: LoadMode) -> Result<Vec<Ch
     }
     out.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(out)
+}
+
+fn checks_dir_is_unlinked(scan_root: &Path, dir: &Path) -> Result<bool> {
+    let relative = dir
+        .strip_prefix(scan_root)
+        .with_context(|| format!("checks dir {} is outside scan root", dir.display()))?;
+    let mut current = scan_root.to_path_buf();
+    for component in relative.components() {
+        let std::path::Component::Normal(component) = component else {
+            return Ok(false);
+        };
+        current.push(component);
+        match fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.file_type().is_symlink() => return Ok(false),
+            Ok(metadata) if metadata.is_dir() => {}
+            Ok(_) => return Ok(false),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+            Err(error) => {
+                return Err(error)
+                    .with_context(|| format!("inspect checks dir component {}", current.display()))
+            }
+        }
+    }
+    Ok(true)
 }
 
 /// Priority of a scope for shadowing checks/overrides. Higher = closer.
@@ -846,6 +867,19 @@ tools: [Bash, Read, Grep]
         let result = discover_with_globals(&root, &[], &[]).unwrap();
 
         assert!(result.checks.is_empty());
+    }
+
+    #[test]
+    fn strict_project_check_read_failures_are_not_skipped() {
+        let dir = tempdir().unwrap();
+        let root = dir.path().join("repo");
+        let check = root.join(".agents/checks/oversized.md");
+        let oversized = "x".repeat(crate::scheduler::MAX_SCHEDULE_RECIPE_BYTES as usize + 1);
+        write(&check, &oversized);
+
+        let error = discover_with_globals(&root, &[], &[]).unwrap_err();
+
+        assert!(error.to_string().contains("read check file"));
     }
 
     #[cfg(unix)]
