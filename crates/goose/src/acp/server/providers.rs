@@ -92,22 +92,15 @@ fn provider_config_key_to_dto(key: crate::providers::base::ConfigKey) -> Provide
 }
 
 const SECRET_MASK_PREFIX_LEN: usize = 4;
-const SECRET_MASK_SUFFIX_LEN: usize = 3;
 const SECRET_MASK_FALLBACK: &str = "***";
 
 fn mask_secret_value(value: &str) -> String {
-    let prefix: String = value.chars().take(SECRET_MASK_PREFIX_LEN).collect();
-    let suffix_chars: Vec<char> = value.chars().rev().take(SECRET_MASK_SUFFIX_LEN).collect();
-    let suffix: String = suffix_chars.into_iter().rev().collect();
-
-    if prefix.is_empty()
-        || suffix.is_empty()
-        || value.chars().count() <= SECRET_MASK_PREFIX_LEN + SECRET_MASK_SUFFIX_LEN
-    {
+    if value.chars().count() < SECRET_MASK_PREFIX_LEN * 2 {
         return SECRET_MASK_FALLBACK.to_string();
     }
 
-    format!("{prefix}...{suffix}")
+    let prefix: String = value.chars().take(SECRET_MASK_PREFIX_LEN).collect();
+    format!("{prefix}...")
 }
 
 fn config_value_to_string(value: &serde_json::Value) -> Option<String> {
@@ -1207,5 +1200,27 @@ impl GooseAcpAgent {
                 });
 
         Ok(CanonicalModelInfoResponse { model_info })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mask_secret_value;
+
+    #[test]
+    fn mask_secret_value_hides_suffix_and_never_reveals_majority() {
+        for (secret, expected) in [
+            ("", "***"),
+            ("abcdefg", "***"),
+            ("abcdefgh", "abcd..."),
+            ("abcdefghijkl", "abcd..."),
+        ] {
+            assert_eq!(mask_secret_value(secret), expected);
+        }
+    }
+
+    #[test]
+    fn mask_secret_value_counts_unicode_characters() {
+        assert_eq!(mask_secret_value("密碼安全令牌甲乙"), "密碼安全...");
     }
 }
