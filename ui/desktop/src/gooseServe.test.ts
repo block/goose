@@ -250,7 +250,7 @@ describe('startGooseServe', () => {
     }
   });
 
-  it.skipIf(process.platform === 'win32')('waits for TLS fingerprint after readiness succeeds', async () => {
+  it.skipIf(process.platform === 'win32')('pins the TLS fingerprint before checking readiness', async () => {
     const tempDir = makeTempDir();
     const goosePath = makeExecutable(
       path.join(tempDir, 'goose'),
@@ -264,13 +264,20 @@ describe('startGooseServe', () => {
     );
     vi.stubEnv('GOOSE_BINARY', goosePath);
 
-    const readinessFetch = vi.fn(async () => new Response(null, { status: 200 }));
+    let reportedFingerprint: string | null = null;
+    const readinessFetch = vi.fn(async () => {
+      expect(reportedFingerprint).toBe('11:22:33');
+      return new Response(null, { status: 200 });
+    });
 
     const result = await startGooseServe({
       serverSecret: 'test-secret',
       dir: tempDir,
       tls: true,
       readinessFetch,
+      onCertFingerprint: (fingerprint) => {
+        reportedFingerprint = fingerprint;
+      },
     });
 
     try {

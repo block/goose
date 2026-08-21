@@ -38,6 +38,7 @@ export interface StartGooseServeOptions extends FindGooseBinaryOptions {
   logger?: Logger;
   diagnosticsDir?: string;
   readinessFetch?: ReadinessFetch;
+  onCertFingerprint?: (fingerprint: string) => void;
 }
 
 export interface GooseServeResult {
@@ -333,6 +334,7 @@ export const startGooseServe = async ({
   logger = defaultLogger,
   diagnosticsDir,
   readinessFetch = fetch,
+  onCertFingerprint,
 }: StartGooseServeOptions): Promise<GooseServeResult> => {
   const workingDir = dir || process.cwd();
   const startupTrace = createGooseServeStartupDiagnostics(diagnosticsDir, workingDir);
@@ -441,6 +443,7 @@ export const startGooseServe = async ({
     certFingerprint = fingerprint;
     logger.info(`Pinned cert fingerprint: ${certFingerprint}`);
     startupTrace?.record('fingerprint_received', { certFingerprint });
+    onCertFingerprint?.(certFingerprint);
     resolveFingerprint(certFingerprint);
     stopStdoutCollection();
   };
@@ -536,32 +539,11 @@ export const startGooseServe = async ({
     });
   };
 
-  const ready = await waitForGooseServeReady(statusUrl, errorLog, () => exited || spawnFailed, {
-    healthUrl,
-    readinessFetch,
-    onEvent: startupTrace?.record,
-  });
-
   const stopOutputCollection = () => {
     stopStdoutCollection();
     gooseProcess.stderr?.off('data', onStderrData);
     gooseProcess.stderr?.resume();
   };
-
-  if (!ready) {
-    stopOutputCollection();
-    await cleanup();
-    const exitDetails = exited
-      ? ` Process exited with code ${exitCode} and signal ${exitSignal}.`
-      : '';
-    const stderrDetails = errorLog.length ? ` Stderr: ${errorLog.join('\n')}` : '';
-    throw new Error(
-      withStartupDiagnosticsPath(
-        `goose serve did not become ready on ${statusUrl}.${exitDetails}${stderrDetails}`,
-        startupDiagnosticsPath
-      )
-    );
-  }
 
   if (tls) {
     startupTrace?.record('fingerprint_wait_start', { timeoutMs: TLS_FINGERPRINT_TIMEOUT_MS });
@@ -586,6 +568,27 @@ export const startGooseServe = async ({
         )
       );
     }
+  }
+
+  const ready = await waitForGooseServeReady(statusUrl, errorLog, () => exited || spawnFailed, {
+    healthUrl,
+    readinessFetch,
+    onEvent: startupTrace?.record,
+  });
+
+  if (!ready) {
+    stopOutputCollection();
+    await cleanup();
+    const exitDetails = exited
+      ? ` Process exited with code ${exitCode} and signal ${exitSignal}.`
+      : '';
+    const stderrDetails = errorLog.length ? ` Stderr: ${errorLog.join('\n')}` : '';
+    throw new Error(
+      withStartupDiagnosticsPath(
+        `goose serve did not become ready on ${statusUrl}.${exitDetails}${stderrDetails}`,
+        startupDiagnosticsPath
+      )
+    );
   }
 
   stopOutputCollection();

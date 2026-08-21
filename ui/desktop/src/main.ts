@@ -1146,6 +1146,9 @@ const createChat = async (
         logger: log,
         diagnosticsDir: STARTUP_LOGS_DIR,
         readinessFetch: net.fetch as unknown as typeof globalThis.fetch,
+        onCertFingerprint: (fingerprint) => {
+          localCertificateTrust.trust.fingerprint = normalizeFingerprint(fingerprint);
+        },
       });
       if (!gooseServeResult.certFingerprint) {
         await gooseServeResult.cleanup();
