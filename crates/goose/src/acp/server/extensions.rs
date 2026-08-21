@@ -95,6 +95,7 @@ impl GooseAcpAgent {
         req: RemoveConfigExtensionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
         crate::config::extensions::remove_extension(&req.config_key);
+        self.permission_manager().remove_extension(&req.config_key);
         Ok(EmptyResponse {})
     }
 

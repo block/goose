@@ -12,6 +12,7 @@ use common_tests::fixtures::{
     TestConnectionConfig,
 };
 use goose::acp::server::AcpProviderFactory;
+use goose::config::{permission::PermissionLevel, PermissionManager};
 use goose::providers::base::{MessageStream, Provider};
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
@@ -193,31 +194,83 @@ fn test_custom_get_extensions() {
     let config_key = "test-stdio-acp-mutation-flow";
     let _guard = env_lock::lock_env([("EXTENSIONS", None::<&str>)]);
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+    let permission_root = tempfile::tempdir().unwrap();
+    let permission_dir = permission_root.path().to_path_buf();
+    let target_user_permissions = [
+        (
+            format!("{config_key}__write_file"),
+            PermissionLevel::AlwaysAllow,
+        ),
+        (
+            format!("{config_key}__tool__with__delimiter"),
+            PermissionLevel::AskBefore,
+        ),
+        (
+            format!("{config_key}__delete_file"),
+            PermissionLevel::NeverAllow,
+        ),
+    ];
+    let target_smart_approve_permissions = [
+        (
+            format!("{config_key}__smart_write"),
+            PermissionLevel::AlwaysAllow,
+        ),
+        (
+            format!("{config_key}__smart_prompt"),
+            PermissionLevel::AskBefore,
+        ),
+        (
+            format!("{config_key}__smart_deny"),
+            PermissionLevel::NeverAllow,
+        ),
+    ];
+    let user_sibling = format!("{config_key}-sibling__write_file");
+    let smart_approve_sibling = format!("{config_key}_sibling__read_file");
+    let permission_manager = PermissionManager::new(permission_dir.clone());
+    for (principal, level) in &target_user_permissions {
+        permission_manager.update_user_permission(principal, level.clone());
+    }
+    for (principal, level) in &target_smart_approve_permissions {
+        permission_manager.update_smart_approve_permission(principal, level.clone());
+    }
+    permission_manager.update_user_permission(&user_sibling, PermissionLevel::AlwaysAllow);
+    permission_manager
+        .update_smart_approve_permission(&smart_approve_sibling, PermissionLevel::AskBefore);
 
     run_test(async move {
+        let _permission_root = permission_root;
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
-        let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+        let conn = AcpServerConnection::new(
+            TestConnectionConfig {
+                data_root: permission_dir.clone(),
+                ..Default::default()
+            },
+            openai,
+        )
+        .await;
+
+        let extension = serde_json::json!({
+            "type": "mcp",
+            "description": "Test stdio",
+            "envKeys": ["SECRET_TOKEN"],
+            "timeout": 42,
+            "server": {
+                "type": "stdio",
+                "name": config_key,
+                "command": "test-command",
+                "args": ["--flag", "value"],
+                "env": [
+                    { "name": "INLINE_TOKEN", "value": "inline-secret" }
+                ]
+            }
+        });
 
         let add_result = send_custom(
             conn.cx(),
             "_goose/unstable/config/extensions/add",
             serde_json::json!({
                 "enabled": true,
-                "extension": {
-                    "type": "mcp",
-                    "description": "Test stdio",
-                    "envKeys": ["SECRET_TOKEN"],
-                    "timeout": 42,
-                    "server": {
-                        "type": "stdio",
-                        "name": config_key,
-                        "command": "test-command",
-                        "args": ["--flag", "value"],
-                        "env": [
-                            { "name": "INLINE_TOKEN", "value": "inline-secret" }
-                        ]
-                    }
-                }
+                "extension": extension.clone(),
             }),
         )
         .await;
@@ -310,6 +363,73 @@ fn test_custom_get_extensions() {
             list_extension().await.is_none(),
             "removed extension should not be listed"
         );
+
+        let persisted_permissions = PermissionManager::new(permission_dir.clone());
+        for (principal, _) in &target_user_permissions {
+            assert_eq!(
+                persisted_permissions.get_user_permission(principal),
+                None,
+                "removed extension retained user permission for {principal}"
+            );
+        }
+        for (principal, _) in &target_smart_approve_permissions {
+            assert_eq!(
+                persisted_permissions.get_smart_approve_permission(principal),
+                None,
+                "removed extension retained smart-approve permission for {principal}"
+            );
+        }
+        assert_eq!(
+            persisted_permissions.get_user_permission(&user_sibling),
+            Some(PermissionLevel::AlwaysAllow)
+        );
+        assert_eq!(
+            persisted_permissions.get_smart_approve_permission(&smart_approve_sibling),
+            Some(PermissionLevel::AskBefore)
+        );
+
+        let readd_result = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/extensions/add",
+            serde_json::json!({
+                "enabled": true,
+                "extension": extension,
+            }),
+        )
+        .await;
+        assert!(
+            readd_result.is_ok(),
+            "expected same-identity reinstall to succeed, got: {readd_result:?}"
+        );
+        assert!(
+            list_extension().await.is_some(),
+            "reinstalled extension should be listed"
+        );
+
+        let reinstalled_permissions = PermissionManager::new(permission_dir);
+        for (principal, _) in &target_user_permissions {
+            assert_eq!(reinstalled_permissions.get_user_permission(principal), None);
+        }
+        for (principal, _) in &target_smart_approve_permissions {
+            assert_eq!(
+                reinstalled_permissions.get_smart_approve_permission(principal),
+                None
+            );
+        }
+
+        let cleanup_result = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/extensions/remove",
+            serde_json::json!({
+                "configKey": config_key,
+            }),
+        )
+        .await;
+        assert!(
+            cleanup_result.is_ok(),
+            "expected cleanup removal to succeed, got: {cleanup_result:?}"
+        );
+        assert!(list_extension().await.is_none());
     });
 }
 
