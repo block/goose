@@ -89,16 +89,38 @@ pub fn maybe_get_canonical_model(provider: &str, model: &str) -> Option<Canonica
         return None;
     };
 
-    // A meta-provider model can infer to a first-party catalog entry that carries literal
-    // 0.0 prices (open-weights publishers such as meta-llama do). Reporting paid proxied
-    // inference as free is worse than reporting nothing, so treat zeroed pricing as absent.
-    if should_clear_catalog_pricing(provider)
-        || (name_builder::is_meta_provider(provider) && canonical.cost.is_zero())
-    {
+    if should_clear_catalog_pricing(provider) {
         canonical.cost = Pricing::default();
+    } else if name_builder::is_meta_provider(provider) && canonical.cost.has_no_usable_rate() {
+        // A meta-provider model can infer to a first-party catalog entry that carries literal
+        // 0.0 prices (open-weights publishers such as meta-llama do). The host's own catalog
+        // row carries the rate it actually charges to proxy that model, so prefer it. Where
+        // there is no such row, report nothing: billing paid proxied inference as free is
+        // worse than showing no estimate at all.
+        canonical.cost = host_catalog_pricing(provider, model, registry).unwrap_or_default();
     }
 
     Some(canonical)
+}
+
+/// Pricing from the meta-provider's own catalog rows (`azure/*`, `databricks/*`,
+/// `amazon-bedrock/*`), which price proxied inference directly rather than by inferring the
+/// upstream publisher. Only the rate is taken: model identity and capabilities stay on the
+/// canonical entry that `map_to_canonical_model` resolved.
+fn host_catalog_pricing(
+    provider: &str,
+    model: &str,
+    registry: &CanonicalModelRegistry,
+) -> Option<Pricing> {
+    let host = name_builder::map_provider_name(provider);
+    let stripped = name_builder::strip_version_suffix(model);
+    let cost = registry
+        .get(host, &stripped)
+        .or_else(|| registry.get(host, model))
+        .or_else(|| registry.get(host, &stripped.to_ascii_lowercase()))?
+        .cost
+        .clone();
+    (!cost.has_no_usable_rate()).then_some(cost)
 }
 
 #[cfg(test)]
@@ -124,21 +146,35 @@ mod tests {
         let canonical = maybe_get_canonical_model("azure_foundry", "gpt-5")
             .expect("gpt-5 should resolve through the Azure catalog");
         assert_eq!(canonical.limit.context, 400_000);
-        assert!(canonical.cost.input.is_some());
-        assert!(canonical.cost.output.is_some());
+        let openai = maybe_get_canonical_model("openai", "gpt-5")
+            .expect("gpt-5 should resolve for its first-party provider");
+        assert_eq!(canonical.cost.input, openai.cost.input);
+        assert_eq!(canonical.cost.output, openai.cost.output);
+        assert!(canonical.cost.input.is_some_and(|price| price > 0.0));
+        assert!(canonical.cost.output.is_some_and(|price| price > 0.0));
     }
 
     #[test]
-    fn meta_provider_zero_priced_inference_reports_no_cost() {
-        // "llama-3.3-70b-instruct" infers to meta-llama/llama-3.3-70b-instruct, whose catalog
-        // entry is priced 0.0/0.0 even though Azure Foundry and Databricks both bill for it.
-        for provider in ["azure_foundry", "databricks"] {
-            let canonical = maybe_get_canonical_model(provider, "llama-3.3-70b-instruct")
-                .expect("llama-3.3-70b-instruct should resolve");
-            assert_eq!(canonical.cost.input, None, "provider {provider}");
-            assert_eq!(canonical.cost.output, None, "provider {provider}");
-            assert!(canonical.limit.context > 0, "provider {provider}");
-        }
+    fn meta_provider_zero_priced_inference_prefers_the_host_catalog_rate() {
+        // "llama-3.3-70b-instruct" infers to meta-llama/llama-3.3-70b-instruct, priced 0.0/0.0
+        // because the weights are free to download — but Azure bills to serve them. The
+        // azure/llama-3.3-70b-instruct row carries the rate Azure actually charges.
+        let canonical = maybe_get_canonical_model("azure_foundry", "llama-3.3-70b-instruct")
+            .expect("llama-3.3-70b-instruct should resolve");
+        assert_eq!(canonical.cost.input, Some(0.71));
+        assert_eq!(canonical.cost.output, Some(0.71));
+        assert!(canonical.limit.context > 0);
+    }
+
+    #[test]
+    fn meta_provider_zero_priced_inference_reports_no_cost_without_a_host_rate() {
+        // Databricks bills for llama-3.3-70b-instruct but publishes no catalog row for it.
+        // Reporting nothing beats reporting the publisher's 0.0/0.0 as if it were free.
+        let canonical = maybe_get_canonical_model("databricks", "llama-3.3-70b-instruct")
+            .expect("llama-3.3-70b-instruct should resolve");
+        assert_eq!(canonical.cost.input, None);
+        assert_eq!(canonical.cost.output, None);
+        assert!(canonical.limit.context > 0);
     }
 
     #[test]
