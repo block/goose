@@ -49,6 +49,8 @@ pub struct ModelConfig {
     pub request_params: Option<HashMap<String, Value>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supports_vision: Option<bool>,
     /// Per-request HTTP headers attached to outgoing provider calls.
     /// Never serialized into request bodies.
     #[serde(skip)]
@@ -72,6 +74,8 @@ impl<'de> Deserialize<'de> for ModelConfig {
             request_params: Option<HashMap<String, Value>>,
             #[serde(default, skip_serializing_if = "Option::is_none")]
             reasoning: Option<bool>,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            supports_vision: Option<bool>,
         }
 
         let raw = RawModelConfig::deserialize(deserializer)?;
@@ -84,6 +88,7 @@ impl<'de> Deserialize<'de> for ModelConfig {
             toolshim_model: raw.toolshim_model,
             request_params: raw.request_params,
             reasoning: raw.reasoning,
+            supports_vision: raw.supports_vision,
             request_headers: None,
         };
         config.normalize_effort_suffix();
@@ -102,6 +107,7 @@ impl ModelConfig {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            supports_vision: None,
             request_headers: None,
         };
         config.normalize_effort_suffix();
@@ -137,6 +143,14 @@ impl ModelConfig {
             }
             if self.reasoning.is_none() {
                 self.reasoning = canonical.reasoning;
+            }
+            if self.supports_vision.is_none() {
+                self.supports_vision = Some(
+                    canonical
+                        .modalities
+                        .input
+                        .contains(&crate::canonical::Modality::Image),
+                )
             }
         }
 
@@ -221,6 +235,11 @@ impl ModelConfig {
                 self = self.with_thinking_effort(effort);
             }
         }
+        self
+    }
+
+    pub fn with_vision_support(mut self, supports_vision: bool) -> Self {
+        self.supports_vision = Some(supports_vision);
         self
     }
 
@@ -627,6 +646,46 @@ mod tests {
         }
     }
 
+    mod supports_vision {
+        use super::*;
+
+        #[test]
+        fn reads_supports_vision_from_config() {
+            let config: ModelConfig = serde_json::from_str(
+                r#"{"model_name":"gpt-4o","toolshim":false,"supports_vision":true}"#,
+            )
+            .unwrap();
+            assert_eq!(config.supports_vision, Some(true));
+
+            let config: ModelConfig = serde_json::from_str(
+                r#"{"model_name":"gpt-4o","toolshim":false,"supports_vision":false}"#,
+            )
+            .unwrap();
+            assert_eq!(config.supports_vision, Some(false));
+        }
+
+        #[test]
+        fn defaults_supports_vision_to_none_when_absent() {
+            let config: ModelConfig =
+                serde_json::from_str(r#"{"model_name":"deepseek-v4","toolshim":false}"#).unwrap();
+            assert_eq!(config.supports_vision, None);
+        }
+
+        #[test]
+        fn serializes_supports_vision_only_when_some() {
+            let config = ModelConfig::new("gpt-4o").with_vision_support(true);
+            let serialized = serde_json::to_value(&config).unwrap();
+            assert_eq!(
+                serialized.get("supports_vision"),
+                Some(&serde_json::Value::Bool(true))
+            );
+
+            let config = ModelConfig::new("deepseek-v4");
+            let serialized = serde_json::to_value(&config).unwrap();
+            assert!(serialized.get("supports_vision").is_none());
+        }
+    }
+
     mod with_canonical_limits {
         use super::*;
 
@@ -742,6 +801,29 @@ mod tests {
             // "gpt-5.4-nano-low" should resolve via "gpt-5.4-nano"
             let config = ModelConfig::new("gpt-5.4-nano-low").with_canonical_limits("openai");
             assert_eq!(config.context_limit, Some(400_000));
+        }
+
+        #[test]
+        fn fills_supports_vision_from_canonical_model() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ]);
+            // gpt-4o is a vision model in the canonical catalog (image input modality).
+            let config = ModelConfig::new("gpt-4o").with_canonical_limits("openai");
+            assert_eq!(config.supports_vision, Some(true));
+        }
+
+        #[test]
+        fn does_not_override_existing_supports_vision() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ]);
+            let config = ModelConfig::new("gpt-4o")
+                .with_vision_support(false)
+                .with_canonical_limits("openai");
+            assert_eq!(config.supports_vision, Some(false));
         }
     }
 
