@@ -142,6 +142,7 @@ enum SecretStorage {
     #[cfg(feature = "system-keyring")]
     Keyring {
         service: String,
+        fallback_path: PathBuf,
     },
     File {
         path: PathBuf,
@@ -405,6 +406,7 @@ fn secret_storage(config_dir: &Path, keyring_disabled: bool, service: &str) -> S
     } else {
         SecretStorage::Keyring {
             service: service.to_string(),
+            fallback_path: secrets_file_path_in(config_dir),
         }
     }
 }
@@ -923,7 +925,7 @@ impl Config {
     fn load_secrets_from_storage(&self) -> Result<HashMap<String, Value>, ConfigError> {
         match &self.secrets {
             #[cfg(feature = "system-keyring")]
-            SecretStorage::Keyring { service } => {
+            SecretStorage::Keyring { service, .. } => {
                 let result = match Self::read_keyring_password_with_timeout(service) {
                     Ok(content) => Ok(content),
                     // A timed-out read says nothing about whether secrets
@@ -941,7 +943,6 @@ impl Config {
                         self.handle_keyring_fallback_error(&keyring_err, None)
                     }
                 };
-
                 match result {
                     Ok(content) => Ok(serde_json::from_str(&content)?),
                     Err(ConfigError::FallbackToFileStorage) => self.fallback_to_file_storage(),
@@ -959,12 +960,17 @@ impl Config {
     }
 
     fn secrets_mutation_lock_path(&self) -> Result<PathBuf, ConfigError> {
-        let storage_path = match &self.secrets {
+        Ok(secrets_lock_path(&private_file_target_path(
+            self.secrets_file_path(),
+        )?))
+    }
+
+    fn secrets_file_path(&self) -> &Path {
+        match &self.secrets {
             #[cfg(feature = "system-keyring")]
-            SecretStorage::Keyring { .. } => Self::secrets_file_path(),
-            SecretStorage::File { path } => path.clone(),
-        };
-        Ok(secrets_lock_path(&private_file_target_path(&storage_path)?))
+            SecretStorage::Keyring { fallback_path, .. } => fallback_path,
+            SecretStorage::File { path } => path,
+        }
     }
 
     fn lock_secrets_for_mutation(&self) -> Result<std::fs::File, ConfigError> {
@@ -992,7 +998,7 @@ impl Config {
     fn write_all_secrets(&self, values: &HashMap<String, Value>) -> Result<(), ConfigError> {
         match &self.secrets {
             #[cfg(feature = "system-keyring")]
-            SecretStorage::Keyring { service } => {
+            SecretStorage::Keyring { service, .. } => {
                 let json_value = serde_json::to_string(values)?;
                 match self.handle_keyring_operation(
                     |entry| entry.set_password(&json_value),
@@ -1110,26 +1116,21 @@ impl Config {
         }
     }
 
-    /// Get the path to the secrets storage file
-    #[cfg(feature = "system-keyring")]
-    fn secrets_file_path() -> PathBuf {
-        secrets_file_path_in(&Paths::config_dir())
-    }
-
     /// Fall back to file storage when keyring is unavailable
     #[cfg(feature = "system-keyring")]
     fn fallback_to_file_storage(&self) -> Result<HashMap<String, Value>, ConfigError> {
-        let path = Self::secrets_file_path();
-        self.read_secrets_from_file(&path)
+        self.read_secrets_from_file(self.secrets_file_path())
     }
 
     /// Write secrets to file storage (used for fallback)
     #[cfg(feature = "system-keyring")]
     fn write_secrets_to_file(&self, values: &HashMap<String, Value>) -> Result<(), ConfigError> {
-        std::fs::create_dir_all(Paths::config_dir())?;
-        let path = Self::secrets_file_path();
+        let fallback_path = self.secrets_file_path();
+        if let Some(parent) = fallback_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
         let yaml_value = serde_yaml::to_string(values)?;
-        write_secrets_file(&path, &yaml_value)?;
+        write_secrets_file(fallback_path, &yaml_value)?;
         Ok(())
     }
 
@@ -2240,6 +2241,111 @@ mod tests {
         let config_file = NamedTempFile::new().unwrap();
         let secrets_file = NamedTempFile::new().unwrap();
         Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap()
+    }
+
+    #[cfg(feature = "system-keyring")]
+    #[test]
+    #[serial]
+    fn custom_config_keyring_fallback_stays_in_custom_directory() -> Result<(), ConfigError> {
+        let global_root = TempDir::new().unwrap();
+        let custom_dir = TempDir::new().unwrap();
+        let _env = env_lock::lock_env([
+            ("GOOSE_PATH_ROOT", global_root.path().to_str()),
+            ("GOOSE_DISABLE_KEYRING", None),
+        ]);
+
+        let global_secrets_path = Paths::config_dir().join("secrets.yaml");
+        std::fs::create_dir_all(global_secrets_path.parent().unwrap())?;
+        std::fs::write(&global_secrets_path, "GLOBAL_ONLY: global\n")?;
+
+        let custom_secrets_path = custom_dir.path().join("secrets.yaml");
+        std::fs::write(&custom_secrets_path, "CUSTOM_ONLY: custom\n")?;
+        let config = Config::new(custom_dir.path().join(CONFIG_YAML_NAME), "custom-service")?;
+
+        match &config.secrets {
+            SecretStorage::Keyring {
+                service,
+                fallback_path,
+            } => {
+                assert_eq!(service, "custom-service");
+                assert_eq!(fallback_path, &custom_secrets_path);
+            }
+            SecretStorage::File { .. } => panic!("keyring should remain enabled"),
+        }
+        assert_eq!(
+            config.handle_keyring_operation(
+                |_| Ok::<_, keyring::Error>("keyring-success"),
+                "custom-service",
+                None,
+            )?,
+            "keyring-success"
+        );
+        assert_eq!(
+            config.secrets_mutation_lock_path()?,
+            secrets_lock_path(&private_file_target_path(&custom_secrets_path)?)
+        );
+
+        let loaded = config.fallback_to_file_storage()?;
+        assert_eq!(
+            loaded.get("CUSTOM_ONLY"),
+            Some(&Value::String("custom".into()))
+        );
+        assert!(!loaded.contains_key("GLOBAL_ONLY"));
+
+        let updated = HashMap::from([("CUSTOM_ONLY".to_string(), Value::String("updated".into()))]);
+        config.write_secrets_to_file(&updated)?;
+
+        assert_eq!(
+            std::fs::read_to_string(&global_secrets_path)?,
+            "GLOBAL_ONLY: global\n"
+        );
+        assert_eq!(
+            config.read_secrets_from_file(&custom_secrets_path)?,
+            updated
+        );
+
+        let global_config =
+            Config::new(Paths::config_dir().join(CONFIG_YAML_NAME), "global-service")?;
+        match &global_config.secrets {
+            SecretStorage::Keyring {
+                service,
+                fallback_path,
+            } => {
+                assert_eq!(service, "global-service");
+                assert_eq!(fallback_path, &global_secrets_path);
+            }
+            SecretStorage::File { .. } => panic!("keyring should remain enabled"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    #[serial]
+    fn custom_config_with_disabled_keyring_uses_sibling_secret_file() -> Result<(), ConfigError> {
+        let global_root = TempDir::new().unwrap();
+        let custom_dir = TempDir::new().unwrap();
+        let _env = env_lock::lock_env([
+            ("GOOSE_PATH_ROOT", global_root.path().to_str()),
+            ("GOOSE_DISABLE_KEYRING", Some("1")),
+        ]);
+
+        let custom_secrets_path = custom_dir.path().join("secrets.yaml");
+        let config = Config::new(custom_dir.path().join(CONFIG_YAML_NAME), "unused-service")?;
+        match &config.secrets {
+            SecretStorage::File { path } => assert_eq!(path, &custom_secrets_path),
+            #[cfg(feature = "system-keyring")]
+            SecretStorage::Keyring { .. } => panic!("keyring should be disabled"),
+        }
+
+        config.set_secret("CUSTOM_ONLY", &"custom")?;
+        assert_eq!(
+            config.read_secrets_from_file(&custom_secrets_path)?,
+            HashMap::from([("CUSTOM_ONLY".to_string(), Value::String("custom".into()))])
+        );
+        assert!(!Paths::config_dir().join("secrets.yaml").exists());
+
+        Ok(())
     }
 
     /// Create a test config where `base_content` is a lower-priority layer
