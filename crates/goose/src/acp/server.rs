@@ -2,9 +2,10 @@ use crate::acp::custom_notifications::*;
 use crate::acp::custom_requests::*;
 use crate::acp::fs::AcpTools;
 pub(super) use crate::acp::response_builder::{
-    build_config_options, build_mode_state, build_model_state, build_provider_options,
-    build_session_info, build_session_setup_config, send_session_setup_notifications, session_meta,
-    session_provider_selection, session_response_meta, should_refresh_inventory_for_session_init,
+    agent_thinking_effort_support, build_config_options, build_mode_state, build_model_state,
+    build_provider_options, build_session_info, build_session_setup_config,
+    send_session_setup_notifications, session_meta, session_provider_selection,
+    session_response_meta, should_refresh_inventory_for_session_init,
 };
 use crate::acp::tool_call_notifier::ToolCallNotifier;
 use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
@@ -23,6 +24,7 @@ use crate::conversation::message::{
     ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
     ToolRequest, ToolResponse,
 };
+use crate::conversation::Conversation;
 use crate::execution::manager::{AgentManager, AgentManagerGetResult, RuntimeContext};
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
@@ -63,13 +65,17 @@ use anyhow::Result;
 use fs_err as fs;
 use futures::future::{BoxFuture, FutureExt};
 use futures::stream::{self, StreamExt};
-use rmcp::model::{Annotations as RmcpAnnotations, Role, TextContent as RmcpTextContent};
+use goose_providers::errors::ProviderError;
+use rmcp::model::{
+    Annotations as RmcpAnnotations, ImageContent as RmcpImageContent, Role,
+    TextContent as RmcpTextContent,
+};
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::sync::{Mutex, OnceCell};
+use tokio::sync::{mpsc, Mutex, OnceCell};
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
@@ -167,6 +173,41 @@ fn agent_creation_error(error: anyhow::Error, context: &str) -> agent_client_pro
     }
 }
 
+/// Only a value the client could usefully change is `invalid_params`; everything
+/// else (a dead agent subprocess, a failed persist, a failed provider respawn) is
+/// an operational failure the client cannot fix by picking differently.
+fn thinking_effort_error(error: anyhow::Error) -> agent_client_protocol::Error {
+    let base = match error.downcast_ref::<ProviderError>() {
+        Some(ProviderError::InvalidValue(_)) => agent_client_protocol::Error::invalid_params(),
+        _ => agent_client_protocol::Error::internal_error(),
+    };
+    // `{error:#}` rather than `{error}`: context layering hides the cause chain,
+    // including the variant this mapping branched on.
+    base.data(format!("Failed to update thinking effort: {error:#}"))
+}
+
+async fn resume_saved_provider_session(
+    provider: &Arc<dyn Provider>,
+    conversation: Option<&Conversation>,
+) {
+    let Some(conversation) = conversation else {
+        return;
+    };
+    let provider_name = provider.get_name();
+    let Some(session_id) =
+        crate::agents::latest_provider_session_id(conversation.messages(), provider_name)
+    else {
+        return;
+    };
+    if let Err(error) = provider.resume(session_id).await {
+        warn!(
+            provider = provider_name,
+            %error,
+            "Could not resume provider session during ACP session setup"
+        );
+    }
+}
+
 pub(super) const DEFAULT_PROVIDER_ID: &str = "goose";
 pub(super) const DEFAULT_PROVIDER_LABEL: &str = "Goose (Default)";
 const PROVIDER_CONFIG_STATUS_CHECK_CONCURRENCY: usize = 16;
@@ -197,6 +238,22 @@ pub struct AcpBuiltinSelection {
     pub explicit: Vec<String>,
 }
 
+impl AcpBuiltinSelection {
+    pub fn from_requested(builtins: Vec<String>) -> Self {
+        if builtins.is_empty() {
+            Self {
+                defaults: vec!["developer".to_string()],
+                explicit: Vec::new(),
+            }
+        } else {
+            Self {
+                defaults: Vec::new(),
+                explicit: builtins,
+            }
+        }
+    }
+}
+
 pub struct GooseAcpAgentOptions {
     pub provider_factory: AcpProviderFactory,
     pub builtin_selection: AcpBuiltinSelection,
@@ -224,6 +281,8 @@ pub struct GooseAcpAgent {
     client_requests_tool_call_label_enrichment: OnceCell<bool>,
     use_login_shell_path: OnceCell<bool>,
     client_cx: OnceCell<ConnectionTo<Client>>,
+    thinking_effort_update_tx: mpsc::UnboundedSender<String>,
+    thinking_effort_update_rx: Mutex<Option<mpsc::UnboundedReceiver<String>>>,
     config_dir: std::path::PathBuf,
     session_manager: Arc<SessionManager>,
     permission_manager: Arc<PermissionManager>,
@@ -410,6 +469,29 @@ fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConf
     }
 }
 
+fn add_mcp_servers(
+    extensions: &mut Vec<ExtensionConfig>,
+    mcp_servers: Vec<McpServer>,
+) -> Result<(), agent_client_protocol::Error> {
+    for mcp_server in mcp_servers {
+        let extension = mcp_server_to_extension_config(mcp_server)
+            .map_err(|message| agent_client_protocol::Error::invalid_params().data(message))?;
+        push_or_replace_extension(extensions, extension);
+    }
+    Ok(())
+}
+
+fn enabled_extensions_data(
+    session: &Session,
+    extensions: Vec<ExtensionConfig>,
+) -> Result<ExtensionData, agent_client_protocol::Error> {
+    let mut extension_data = session.extension_data.clone();
+    EnabledExtensionsState::new(extensions)
+        .to_extension_data(&mut extension_data)
+        .internal_err_ctx("Failed to initialize session extensions")?;
+    Ok(extension_data)
+}
+
 fn selected_builtin_extensions(
     config: &Config,
     builtin_selection: &AcpBuiltinSelection,
@@ -427,6 +509,38 @@ fn selected_builtin_extensions(
     }
 
     extensions
+}
+
+fn initial_session_extensions(
+    config: &Config,
+    builtin_selection: &AcpBuiltinSelection,
+    project_root: &Path,
+    mcp_servers: Vec<McpServer>,
+    goose_extensions: Option<Vec<GooseExtension>>,
+    recipe_extensions: Option<&[ExtensionConfig]>,
+) -> Result<Vec<ExtensionConfig>, agent_client_protocol::Error> {
+    let mut extensions = selected_builtin_extensions(config, builtin_selection);
+
+    if let Some(recipe_extensions) = recipe_extensions {
+        for extension in recipe_extensions {
+            push_or_replace_extension(&mut extensions, extension.clone());
+        }
+    } else if let Some(goose_extensions) = goose_extensions {
+        for extension in extensions::goose_extensions_to_configs(goose_extensions)? {
+            push_or_replace_extension(&mut extensions, extension);
+        }
+    } else {
+        for extension in get_enabled_extensions_with_config(config) {
+            push_or_replace_extension(&mut extensions, extension);
+        }
+        for extension in crate::plugins::mcp_servers::enabled_plugin_mcp_servers(Some(project_root))
+        {
+            push_or_replace_extension(&mut extensions, extension);
+        }
+        add_mcp_servers(&mut extensions, mcp_servers)?;
+    }
+
+    Ok(extensions)
 }
 
 fn push_or_replace_extension(extensions: &mut Vec<ExtensionConfig>, extension: ExtensionConfig) {
@@ -492,6 +606,29 @@ fn read_resource_link(link: ResourceLink) -> Option<String> {
         ))
     } else {
         None
+    }
+}
+
+fn rmcp_audience_annotations(annotations: Option<&Annotations>) -> Option<RmcpAnnotations> {
+    let audience = annotations?
+        .audience
+        .as_ref()?
+        .iter()
+        .filter_map(|role| match role {
+            agent_client_protocol::schema::v1::Role::Assistant => Some(Role::Assistant),
+            agent_client_protocol::schema::v1::Role::User => Some(Role::User),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    Some(RmcpAnnotations::default().with_audience(audience))
+}
+
+fn annotated_prompt_text(text: &str, annotations: Option<&Annotations>) -> RmcpTextContent {
+    let content = RmcpTextContent::new(sanitize_unicode_tags(text));
+    match rmcp_audience_annotations(annotations) {
+        Some(annotations) => content.with_annotations(annotations),
+        None => content,
     }
 }
 
@@ -682,6 +819,7 @@ impl GooseAcpAgent {
             options.goose_platform.clone(),
         );
         let agent_manager = Arc::new(AgentManager::new(agent_config, None).await?);
+        let (thinking_effort_update_tx, thinking_effort_update_rx) = mpsc::unbounded_channel();
 
         Ok(Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
@@ -699,6 +837,8 @@ impl GooseAcpAgent {
             client_requests_tool_call_label_enrichment: OnceCell::new(),
             use_login_shell_path: OnceCell::new(),
             client_cx: OnceCell::new(),
+            thinking_effort_update_tx,
+            thinking_effort_update_rx: Mutex::new(Some(thinking_effort_update_rx)),
             config_dir: options.config_dir,
             session_manager,
             permission_manager,
@@ -781,45 +921,6 @@ impl GooseAcpAgent {
             )
             .await
             .map_err(|error| agent_creation_error(error, "Failed to create agent"))
-    }
-
-    fn initial_session_extensions(
-        &self,
-        config: &Config,
-        project_root: &Path,
-        mcp_servers: Vec<McpServer>,
-        goose_extensions: Option<Vec<GooseExtension>>,
-        recipe_extensions: Option<&[ExtensionConfig]>,
-    ) -> Result<Vec<ExtensionConfig>, agent_client_protocol::Error> {
-        let mut extensions = selected_builtin_extensions(config, &self.builtin_selection);
-
-        if let Some(recipe_extensions) = recipe_extensions {
-            for extension in recipe_extensions {
-                push_or_replace_extension(&mut extensions, extension.clone());
-            }
-        } else if let Some(goose_extensions) = goose_extensions {
-            for extension in extensions::goose_extensions_to_configs(goose_extensions)? {
-                push_or_replace_extension(&mut extensions, extension);
-            }
-        } else if mcp_servers.is_empty() {
-            for extension in get_enabled_extensions_with_config(config) {
-                push_or_replace_extension(&mut extensions, extension);
-            }
-            for extension in
-                crate::plugins::mcp_servers::enabled_plugin_mcp_servers(Some(project_root))
-            {
-                push_or_replace_extension(&mut extensions, extension);
-            }
-        } else {
-            for mcp_server in mcp_servers {
-                let extension = mcp_server_to_extension_config(mcp_server).map_err(|message| {
-                    agent_client_protocol::Error::invalid_params().data(message)
-                })?;
-                push_or_replace_extension(&mut extensions, extension);
-            }
-        }
-
-        Ok(extensions)
     }
 
     async fn apply_acp_extension_overrides(
@@ -926,12 +1027,15 @@ impl GooseAcpAgent {
             session_needs_update = true;
         }
 
-        if !mcp_servers.is_empty()
-            || EnabledExtensionsState::from_extension_data(&session.extension_data).is_none()
-        {
-            let extension_data =
-                self.build_enabled_extensions_data(config, &session, mcp_servers, None, None)?;
-            builder = builder.extension_data(extension_data);
+        if !mcp_servers.is_empty() {
+            let mut stored_extensions =
+                EnabledExtensionsState::from_extension_data(&session.extension_data)
+                    .unwrap_or_else(|| EnabledExtensionsState::new(Vec::new()));
+            add_mcp_servers(&mut stored_extensions.extensions, mcp_servers)?;
+            builder = builder.extension_data(enabled_extensions_data(
+                &session,
+                stored_extensions.extensions,
+            )?);
             session_needs_update = true;
         }
 
@@ -965,23 +1069,82 @@ impl GooseAcpAgent {
         goose_extensions: Option<Vec<GooseExtension>>,
         recipe_extensions: Option<&[ExtensionConfig]>,
     ) -> Result<ExtensionData, agent_client_protocol::Error> {
-        let extensions = self.initial_session_extensions(
+        let extensions = initial_session_extensions(
             config,
+            &self.builtin_selection,
             &session.working_dir,
             mcp_servers,
             goose_extensions,
             recipe_extensions,
         )?;
-        let mut extension_data = session.extension_data.clone();
-        EnabledExtensionsState::new(extensions)
-            .to_extension_data(&mut extension_data)
-            .internal_err_ctx("Failed to initialize session extensions")?;
-        Ok(extension_data)
+        enabled_extensions_data(session, extensions)
     }
 
     async fn register_acp_session(&self, session_id: String, agent: Arc<Agent>) {
-        let acp_session = GooseAcpSession { agent };
-        self.sessions.lock().await.insert(session_id, acp_session);
+        let acp_session = GooseAcpSession {
+            agent: agent.clone(),
+        };
+        self.sessions
+            .lock()
+            .await
+            .insert(session_id.clone(), acp_session);
+        self.subscribe_thinking_effort_updates(&session_id, &agent)
+            .await;
+    }
+
+    async fn subscribe_thinking_effort_updates(&self, session_id: &str, agent: &Arc<Agent>) {
+        let Ok(provider) = agent.provider().await else {
+            return;
+        };
+        let Some(mut updates) = provider.subscribe_thinking_effort_support() else {
+            return;
+        };
+        let session_id = session_id.to_string();
+        let tx = self.thinking_effort_update_tx.clone();
+        tokio::spawn(async move {
+            while updates.changed().await.is_ok() {
+                if tx.send(session_id.clone()).is_err() {
+                    break;
+                }
+            }
+        });
+    }
+
+    async fn start_thinking_effort_update_forwarder(self: &Arc<Self>, cx: &ConnectionTo<Client>) {
+        let Some(mut updates) = self.thinking_effort_update_rx.lock().await.take() else {
+            return;
+        };
+        let agent = Arc::downgrade(self);
+        let cx = cx.clone();
+        tokio::spawn(async move {
+            while let Some(session_id) = updates.recv().await {
+                let Some(agent) = agent.upgrade() else {
+                    break;
+                };
+                if agent.closed_session_ids.lock().await.contains(&session_id) {
+                    continue;
+                }
+                let session_id = SessionId::new(session_id);
+                match agent.build_config_update(&session_id).await {
+                    Ok((notification, _)) => {
+                        if let Err(error) = cx.send_notification(notification) {
+                            warn!(
+                                session_id = %session_id,
+                                %error,
+                                "Failed to forward thinking-effort config update"
+                            );
+                        }
+                    }
+                    Err(error) => {
+                        warn!(
+                            session_id = %session_id,
+                            ?error,
+                            "Failed to build thinking-effort config update"
+                        );
+                    }
+                }
+            }
+        });
     }
 
     async fn activate_acp_session(
@@ -1001,45 +1164,21 @@ impl GooseAcpAgent {
     }
 
     /// Convert ACP prompt content blocks into a user message.
-    fn convert_acp_prompt_to_message(prompt: &[ContentBlock]) -> Message {
+    pub(crate) fn convert_acp_prompt_to_message(prompt: &[ContentBlock]) -> Message {
         let mut message = Message::user();
         for block in prompt {
             match block {
                 ContentBlock::Text(text) => {
-                    let annotated = if let Some(ref ann) = text.annotations {
-                        let audience: Vec<Role> = ann
-                            .audience
-                            .as_ref()
-                            .map(|roles| {
-                                roles
-                                    .iter()
-                                    .filter_map(|r| match r {
-                                        agent_client_protocol::schema::v1::Role::Assistant => {
-                                            Some(Role::Assistant)
-                                        }
-                                        agent_client_protocol::schema::v1::Role::User => {
-                                            Some(Role::User)
-                                        }
-                                        _ => None,
-                                    })
-                                    .collect()
-                            })
-                            .unwrap_or_default();
-                        let raw = RmcpTextContent::new(sanitize_unicode_tags(&text.text));
-                        if audience.is_empty() {
-                            raw
-                        } else {
-                            raw.with_annotations(RmcpAnnotations::default().with_audience(audience))
-                        }
-                    } else {
-                        // No annotations — regular user text.
-                        let sanitized = sanitize_unicode_tags(&text.text);
-                        RmcpTextContent::new(sanitized)
-                    };
+                    let annotated = annotated_prompt_text(&text.text, text.annotations.as_ref());
                     message = message.with_content(MessageContent::Text(annotated));
                 }
                 ContentBlock::Image(image) => {
-                    message = message.with_image(&image.data, &image.mime_type);
+                    let content = RmcpImageContent::new(&image.data, &image.mime_type);
+                    let content = match rmcp_audience_annotations(image.annotations.as_ref()) {
+                        Some(annotations) => content.with_annotations(annotations),
+                        None => content,
+                    };
+                    message = message.with_content(MessageContent::Image(content));
                 }
                 ContentBlock::Resource(resource) => {
                     if let EmbeddedResourceResource::TextResourceContents(text_resource) =
@@ -1047,12 +1186,16 @@ impl GooseAcpAgent {
                     {
                         let header = format!("--- Resource: {} ---\n", text_resource.uri);
                         let content = format!("{}{}\n---\n", header, text_resource.text);
-                        message = message.with_text(&content);
+                        message = message.with_content(MessageContent::Text(
+                            annotated_prompt_text(&content, resource.annotations.as_ref()),
+                        ));
                     }
                 }
                 ContentBlock::ResourceLink(link) => {
                     if let Some(text) = read_resource_link(link.clone()) {
-                        message = message.with_text(text);
+                        message = message.with_content(MessageContent::Text(
+                            annotated_prompt_text(&text, link.annotations.as_ref()),
+                        ));
                     }
                 }
                 ContentBlock::Audio(..) | _ => (),
@@ -1373,7 +1516,7 @@ fn prompt_error_from_message_content(
             let mut data = serde_json::Map::new();
             data.insert(
                 "reason".to_string(),
-                serde_json::Value::String("credits_exhausted".to_string()),
+                serde_json::Value::String(crate::acp::CREDITS_EXHAUSTED_REASON.to_string()),
             );
             Some(
                 agent_client_protocol::Error::new(-32603, error.message.clone())
@@ -1390,7 +1533,7 @@ fn credits_exhausted_prompt_error(
     let mut data = serde_json::Map::new();
     data.insert(
         "reason".to_string(),
-        serde_json::Value::String("credits_exhausted".to_string()),
+        serde_json::Value::String(crate::acp::CREDITS_EXHAUSTED_REASON.to_string()),
     );
 
     if let Some(url) = notification
@@ -2090,6 +2233,8 @@ impl GooseAcpAgent {
             .recreate_provider_for_session(session_id, &provider_name, model_config)
             .await
             .internal_err_ctx("Failed to recreate provider")?;
+        self.subscribe_thinking_effort_updates(session_id, &agent)
+            .await;
         // model_config is already updated on the session by the agent's update_provider call.
         Ok(())
     }
@@ -2133,6 +2278,7 @@ impl GooseAcpAgent {
             &current_model_config,
             session_provider_selection(&session),
             provider_options,
+            &provider.thinking_effort_support(),
         );
         let notification = SessionNotification::new(
             session_id.clone(),
@@ -2167,17 +2313,11 @@ impl GooseAcpAgent {
         session_id: &str,
         effort_id: &str,
     ) -> Result<(), agent_client_protocol::Error> {
-        let effort = effort_id
-            .parse::<goose_providers::thinking::ThinkingEffort>()
-            .map_err(|_| {
-                agent_client_protocol::Error::invalid_params()
-                    .data(format!("Invalid thinking effort: {}", effort_id))
-            })?;
         let agent = self.get_session_agent(session_id).await?;
         agent
-            .update_thinking_effort(session_id, effort)
+            .update_thinking_effort(session_id, effort_id)
             .await
-            .internal_err_ctx("Failed to update thinking effort")?;
+            .map_err(thinking_effort_error)?;
 
         Ok(())
     }
@@ -2241,6 +2381,8 @@ impl GooseAcpAgent {
             .recreate_provider_for_session(session_id, &resolved_provider_name, model_config)
             .await
             .internal_err_ctx("Failed to recreate provider")?;
+        self.subscribe_thinking_effort_updates(session_id, &agent)
+            .await;
 
         // provider_name is already updated on the session by the agent's update_provider call.
         Ok(())
@@ -2355,10 +2497,7 @@ pub async fn run(builtins: Vec<String>, enable_scheduler: bool) -> Result<()> {
 
     let server = crate::acp::server_factory::AcpServer::new(
         crate::acp::server_factory::AcpServerFactoryConfig {
-            builtins: AcpBuiltinSelection {
-                explicit: builtins,
-                ..Default::default()
-            },
+            builtins: AcpBuiltinSelection::from_requested(builtins),
             data_dir: Paths::data_dir(),
             config_dir: Paths::config_dir(),
             goose_platform: GoosePlatform::GooseCli,
@@ -2375,14 +2514,75 @@ mod tests {
     use super::*;
     use crate::session::session_manager::SessionType;
     use agent_client_protocol::schema::v1::{
-        EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse, McpServerStdio,
-        PermissionOptionId, ResourceLink, SelectedPermissionOutcome,
+        EmbeddedResource, EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse,
+        McpServerStdio, PermissionOptionId, ResourceLink, Role as AcpRole,
+        SelectedPermissionOutcome, TextResourceContents,
     };
     use goose_providers::conversation::token_usage::Usage as TokenUsage;
+    use goose_providers::thinking::{
+        ThinkingEffortCapability, ThinkingEffortOption, ThinkingEffortSupport,
+    };
     use std::io::Write;
     use std::path::PathBuf;
     use tempfile::NamedTempFile;
     use test_case::test_case;
+
+    #[derive(Debug)]
+    struct AsyncEffortProvider {
+        updates: tokio::sync::watch::Sender<ThinkingEffortSupport>,
+    }
+
+    impl AsyncEffortProvider {
+        fn new() -> Self {
+            let (updates, _) = tokio::sync::watch::channel(Self::support("low", &["low", "high"]));
+            Self { updates }
+        }
+
+        fn support(current: &str, values: &[&str]) -> ThinkingEffortSupport {
+            ThinkingEffortSupport::Options(ThinkingEffortCapability {
+                option_id: "effort".to_string(),
+                values: values
+                    .iter()
+                    .map(|value| ThinkingEffortOption {
+                        value: value.to_string(),
+                        label: value.to_string(),
+                    })
+                    .collect(),
+                current: Some(current.to_string()),
+            })
+        }
+
+        fn update(&self, current: &str, values: &[&str]) {
+            self.updates.send_replace(Self::support(current, values));
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl Provider for AsyncEffortProvider {
+        fn get_name(&self) -> &str {
+            "openai"
+        }
+
+        fn thinking_effort_support(&self) -> ThinkingEffortSupport {
+            self.updates.borrow().clone()
+        }
+
+        fn subscribe_thinking_effort_support(
+            &self,
+        ) -> Option<tokio::sync::watch::Receiver<ThinkingEffortSupport>> {
+            Some(self.updates.subscribe())
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[rmcp::model::Tool],
+        ) -> Result<crate::providers::base::MessageStream, ProviderError> {
+            Ok(Box::pin(futures::stream::empty()))
+        }
+    }
 
     #[test]
     fn agent_creation_auth_error_maps_to_auth_required() {
@@ -2432,6 +2632,131 @@ mod tests {
         AcpBuiltinSelection {
             explicit: vec![name.to_string()],
             ..Default::default()
+        }
+    }
+
+    #[test]
+    fn requested_builtins_default_to_developer() {
+        let selected = AcpBuiltinSelection::from_requested(Vec::new());
+        assert_eq!(selected.defaults, vec!["developer"]);
+        assert!(selected.explicit.is_empty());
+    }
+
+    #[test]
+    fn requested_builtins_replace_default_selection() {
+        let selected = AcpBuiltinSelection::from_requested(vec!["github".to_string()]);
+        assert!(selected.defaults.is_empty());
+        assert_eq!(selected.explicit, vec!["github"]);
+    }
+
+    #[test]
+    fn new_session_mcp_is_additive_to_enabled_config_extensions() {
+        let (config, _c, _s) = config_with_yaml(
+            r#"
+extensions:
+  developer:
+    enabled: true
+    type: builtin
+    name: developer
+"#,
+        );
+        let project_root = tempfile::tempdir().unwrap();
+        let extensions = initial_session_extensions(
+            &config,
+            &AcpBuiltinSelection::default(),
+            project_root.path(),
+            vec![McpServer::Http(McpServerHttp::new(
+                "zed-mcp",
+                "http://localhost/mcp",
+            ))],
+            None,
+            None,
+        )
+        .unwrap();
+
+        assert!(extensions
+            .iter()
+            .any(|extension| extension.name() == "developer"));
+        assert!(extensions
+            .iter()
+            .any(|extension| extension.name() == "zed-mcp"));
+    }
+
+    #[test]
+    fn new_session_mcp_does_not_enable_disabled_default_builtin() {
+        let (config, _c, _s) = config_with_yaml(
+            r#"
+extensions:
+  developer:
+    enabled: false
+    type: builtin
+    name: developer
+"#,
+        );
+        let project_root = tempfile::tempdir().unwrap();
+        let extensions = initial_session_extensions(
+            &config,
+            &AcpBuiltinSelection::from_requested(Vec::new()),
+            project_root.path(),
+            vec![McpServer::Http(McpServerHttp::new(
+                "zed-mcp",
+                "http://localhost/mcp",
+            ))],
+            None,
+            None,
+        )
+        .unwrap();
+
+        assert!(!has_developer(&extensions));
+        assert!(extensions
+            .iter()
+            .any(|extension| extension.name() == "zed-mcp"));
+    }
+
+    #[test]
+    fn acp_mcp_is_additive_to_stored_extensions() {
+        let mut stored_extensions = vec![builtin_to_extension_config("developer")];
+        add_mcp_servers(
+            &mut stored_extensions,
+            vec![McpServer::Http(McpServerHttp::new(
+                "zed-mcp",
+                "http://localhost/mcp",
+            ))],
+        )
+        .unwrap();
+
+        assert!(has_developer(&stored_extensions));
+        assert!(stored_extensions
+            .iter()
+            .any(|extension| extension.name() == "zed-mcp"));
+    }
+
+    #[test]
+    fn acp_mcp_replaces_same_named_extension() {
+        let mut extensions =
+            vec![
+                mcp_server_to_extension_config(McpServer::Http(McpServerHttp::new(
+                    "zed-mcp",
+                    "http://localhost/old",
+                )))
+                .unwrap(),
+            ];
+        add_mcp_servers(
+            &mut extensions,
+            vec![McpServer::Http(McpServerHttp::new(
+                "zed-mcp",
+                "http://localhost/new",
+            ))],
+        )
+        .unwrap();
+
+        assert_eq!(extensions.len(), 1);
+        match &extensions[0] {
+            ExtensionConfig::StreamableHttp { name, uri, .. } => {
+                assert_eq!(name, "zed-mcp");
+                assert_eq!(uri, "http://localhost/new");
+            }
+            extension => panic!("expected streamable HTTP extension, got {extension:?}"),
         }
     }
 
@@ -2594,6 +2919,111 @@ print(\"hello, world\")
         );
 
         assert_eq!(result, expected,)
+    }
+
+    #[test]
+    fn convert_acp_prompt_preserves_audience_for_converted_blocks() {
+        let assistant_only = || Annotations::new().audience(vec![AcpRole::Assistant]);
+        let user_only = || Annotations::new().audience(vec![AcpRole::User]);
+        let empty_audience = || Annotations::new().audience(Vec::new());
+        let (link, _file) = new_resource_link("assistant-only linked resource").unwrap();
+        let prompt = vec![
+            ContentBlock::Text(TextContent::new("visible text")),
+            ContentBlock::Text(
+                TextContent::new("visible text with audience omitted")
+                    .annotations(Annotations::new()),
+            ),
+            ContentBlock::Text(
+                TextContent::new("empty-audience text").annotations(empty_audience()),
+            ),
+            ContentBlock::Image(
+                ImageContent::new("image-data", "image/png").annotations(assistant_only()),
+            ),
+            ContentBlock::Resource(
+                EmbeddedResource::new(EmbeddedResourceResource::TextResourceContents(
+                    TextResourceContents::new(
+                        "assistant-only embedded resource",
+                        "file:///assistant-only.txt",
+                    ),
+                ))
+                .annotations(assistant_only()),
+            ),
+            ContentBlock::Resource(
+                EmbeddedResource::new(EmbeddedResourceResource::TextResourceContents(
+                    TextResourceContents::new(
+                        "user-visible embedded resource",
+                        "file:///user-visible.txt",
+                    ),
+                ))
+                .annotations(user_only()),
+            ),
+            ContentBlock::Resource(
+                EmbeddedResource::new(EmbeddedResourceResource::TextResourceContents(
+                    TextResourceContents::new(
+                        "empty-audience embedded resource",
+                        "file:///empty-audience.txt",
+                    ),
+                ))
+                .annotations(empty_audience()),
+            ),
+            ContentBlock::ResourceLink(link.annotations(assistant_only())),
+        ];
+
+        let message = GooseAcpAgent::convert_acp_prompt_to_message(&prompt);
+        let user_content = message.user_visible_content();
+        let agent_content = message.agent_visible_content();
+        let empty_audience_content = message
+            .content
+            .iter()
+            .filter_map(|content| match content {
+                MessageContent::Text(text) if text.text.contains("empty-audience") => Some(text),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let audience_omitted_content = message
+            .content
+            .iter()
+            .find_map(|content| match content {
+                MessageContent::Text(text)
+                    if text.text.contains("visible text with audience omitted") =>
+                {
+                    Some(text)
+                }
+                _ => None,
+            })
+            .unwrap();
+
+        assert_eq!(empty_audience_content.len(), 2);
+        assert!(empty_audience_content.iter().all(|text| text
+            .annotations
+            .as_ref()
+            .and_then(|annotations| annotations.audience.as_ref())
+            .is_some_and(Vec::is_empty)));
+        assert!(audience_omitted_content.annotations.is_none());
+        assert!(user_content.as_concat_text().contains("visible text"));
+        assert!(user_content
+            .as_concat_text()
+            .contains("visible text with audience omitted"));
+        assert!(user_content
+            .as_concat_text()
+            .contains("user-visible embedded resource"));
+        assert!(!user_content.as_concat_text().contains("assistant-only"));
+        assert!(!user_content.as_concat_text().contains("empty-audience"));
+        assert!(!user_content
+            .content
+            .iter()
+            .any(|content| matches!(content, MessageContent::Image(_))));
+        assert!(agent_content
+            .as_concat_text()
+            .contains("assistant-only embedded resource"));
+        assert!(agent_content
+            .as_concat_text()
+            .contains("assistant-only linked resource"));
+        assert!(!agent_content.as_concat_text().contains("empty-audience"));
+        assert!(agent_content
+            .content
+            .iter()
+            .any(|content| matches!(content, MessageContent::Image(_))));
     }
 
     #[test_case(
@@ -2876,5 +3306,159 @@ print(\"hello, world\")
         assert!(goose_client_capabilities
             .and_then(|goose| goose.tool_call_label_enrichment)
             .unwrap_or(false));
+    }
+
+    #[test]
+    fn thinking_effort_error_maps_a_rejected_value_to_invalid_params() {
+        let error = thinking_effort_error(
+            anyhow::Error::new(ProviderError::InvalidValue(
+                "Agent offers no thinking effort 'medium'".to_string(),
+            ))
+            .context("Provider rejected thinking effort update"),
+        );
+
+        assert_eq!(error.code, agent_client_protocol::ErrorCode::InvalidParams);
+        // The cause chain, not just the outermost context, reaches the client.
+        let data = error.data.unwrap().to_string();
+        assert!(data.contains("Provider rejected thinking effort update"));
+        assert!(data.contains("Agent offers no thinking effort 'medium'"));
+    }
+
+    #[test]
+    fn thinking_effort_error_maps_an_operational_failure_to_internal_error() {
+        let error = thinking_effort_error(
+            anyhow::Error::new(ProviderError::RequestFailed(
+                "Failed to set ACP effort option: agent is gone".to_string(),
+            ))
+            .context("Provider rejected thinking effort update"),
+        );
+
+        assert_eq!(error.code, agent_client_protocol::ErrorCode::InternalError);
+    }
+
+    #[test]
+    fn thinking_effort_error_maps_an_untyped_failure_to_internal_error() {
+        let error = thinking_effort_error(anyhow::anyhow!("Failed to persist thinking effort"));
+
+        assert_eq!(error.code, agent_client_protocol::ErrorCode::InternalError);
+    }
+
+    #[tokio::test]
+    async fn asynchronous_provider_effort_update_is_forwarded_to_client() {
+        let root = tempfile::tempdir().unwrap();
+        let provider_factory: AcpProviderFactory = Arc::new(
+            |_provider_name, _extensions, _working_dir, _use_default_model| {
+                Box::pin(async { Err(anyhow::anyhow!("unused provider factory")) })
+            },
+        );
+        let server = Arc::new(
+            GooseAcpAgent::new(GooseAcpAgentOptions {
+                provider_factory,
+                builtin_selection: AcpBuiltinSelection::default(),
+                data_dir: root.path().to_path_buf(),
+                config_dir: root.path().to_path_buf(),
+                disable_session_naming: true,
+                goose_platform: GoosePlatform::GooseCli,
+                additional_source_roots: Vec::new(),
+                scheduler: None,
+            })
+            .await
+            .unwrap(),
+        );
+        let session = server
+            .session_manager
+            .create_session(
+                root.path().to_path_buf(),
+                "Effort update test".to_string(),
+                SessionType::Acp,
+                GooseMode::Auto,
+            )
+            .await
+            .unwrap();
+        let session_agent = Arc::new(Agent::with_config(AgentConfig::new(
+            server.session_manager.clone(),
+            server.permission_manager.clone(),
+            None,
+            GooseMode::Auto,
+            true,
+            GoosePlatform::GooseCli,
+        )));
+        let provider = Arc::new(AsyncEffortProvider::new());
+        session_agent
+            .update_provider(
+                provider.clone(),
+                goose_providers::model::ModelConfig::new("gpt-4o").with_merged_request_params(
+                    HashMap::from([("thinking_effort".to_string(), serde_json::json!("xhigh"))]),
+                ),
+                &session.id,
+            )
+            .await
+            .unwrap();
+        server
+            .register_acp_session(session.id.clone(), session_agent)
+            .await;
+
+        let (client_read, server_write) = tokio::io::duplex(64 * 1024);
+        let (server_read, client_write) = tokio::io::duplex(64 * 1024);
+        let (notification_tx, mut notification_rx) =
+            mpsc::unbounded_channel::<SessionNotification>();
+        let client = tokio::spawn(async move {
+            Client
+                .builder()
+                .on_receive_notification(
+                    async move |notification: SessionNotification, _cx| {
+                        let _ = notification_tx.send(notification);
+                        Ok(())
+                    },
+                    agent_client_protocol::on_receive_notification!(),
+                )
+                .connect_to(ByteStreams::new(
+                    client_write.compat_write(),
+                    client_read.compat(),
+                ))
+                .await
+        });
+
+        let session_id = SessionId::new(session.id);
+        let server_for_connection = server.clone();
+        SacpAgent
+            .builder()
+            .name("effort-update-test")
+            .connect_with(
+                ByteStreams::new(server_write.compat_write(), server_read.compat()),
+                async move |cx: ConnectionTo<Client>| {
+                    server_for_connection
+                        .start_thinking_effort_update_forwarder(&cx)
+                        .await;
+                    provider.update("xhigh", &["default", "high", "xhigh"]);
+
+                    let notification = tokio::time::timeout(
+                        std::time::Duration::from_secs(1),
+                        notification_rx.recv(),
+                    )
+                    .await
+                    .expect("timed out waiting for effort update")
+                    .expect("client notification channel closed");
+                    assert_eq!(notification.session_id, session_id);
+                    let SessionUpdate::ConfigOptionUpdate(update) = notification.update else {
+                        panic!("expected config option update");
+                    };
+                    let option = update
+                        .config_options
+                        .iter()
+                        .find(|option| option.id.0.as_ref() == "thinking_effort")
+                        .expect("thinking_effort option");
+                    let agent_client_protocol::schema::v1::SessionConfigKind::Select(select) =
+                        &option.kind
+                    else {
+                        panic!("thinking_effort should be a select option");
+                    };
+                    assert_eq!(select.current_value.0.as_ref(), "xhigh");
+                    Ok(())
+                },
+            )
+            .await
+            .unwrap();
+        client.await.unwrap().unwrap();
     }
 }

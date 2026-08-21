@@ -327,6 +327,47 @@ pub async fn handle_session_import(input: String, nostr: bool) -> Result<()> {
     Ok(())
 }
 
+#[cfg(unix)]
+fn open_diagnostics_output(path: &Path) -> io::Result<fs::File> {
+    use std::os::unix::fs::OpenOptionsExt;
+
+    fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)
+}
+
+#[cfg(windows)]
+fn open_diagnostics_output(path: &Path) -> io::Result<fs::File> {
+    use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
+    use winapi::um::winbase::FILE_FLAG_OPEN_REPARSE_POINT;
+    use winapi::um::winnt::FILE_ATTRIBUTE_REPARSE_POINT;
+
+    let file = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+        .open(path)?;
+    if file.metadata()?.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "diagnostics output must be a regular file",
+        ));
+    }
+    file.set_len(0)?;
+    Ok(file)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn open_diagnostics_output(path: &Path) -> io::Result<fs::File> {
+    fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+}
+
 pub async fn handle_diagnostics(session_id: &str, output_path: Option<PathBuf>) -> Result<()> {
     println!(
         "Generating diagnostics report for session '{}'...",
@@ -352,7 +393,7 @@ pub async fn handle_diagnostics(session_id: &str, output_path: Option<PathBuf>) 
         PathBuf::from(format!("diagnostics_{}.json", session_id))
     };
 
-    let mut file = fs::File::create(&output_file).context(format!(
+    let mut file = open_diagnostics_output(&output_file).context(format!(
         "Failed to create output file: {}",
         output_file.display()
     ))?;
@@ -417,5 +458,82 @@ pub async fn prompt_interactive_session_selection(
         Ok(session.id.clone())
     } else {
         Err(anyhow::anyhow!("Invalid selection"))
+    }
+}
+
+#[cfg(test)]
+mod diagnostics_output_tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn creates_new_output_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let output = temp_dir.path().join("diagnostics.json");
+
+        let mut file = open_diagnostics_output(&output).unwrap();
+        file.write_all(b"diagnostics").unwrap();
+        drop(file);
+
+        assert_eq!(fs::read(&output).unwrap(), b"diagnostics");
+    }
+
+    #[test]
+    fn truncates_existing_regular_output_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let output = temp_dir.path().join("diagnostics.json");
+        fs::write(&output, "old diagnostics").unwrap();
+
+        let mut file = open_diagnostics_output(&output).unwrap();
+        file.write_all(b"new").unwrap();
+        drop(file);
+
+        assert_eq!(fs::read(&output).unwrap(), b"new");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_existing_symlink_output() {
+        use std::os::unix::fs::symlink;
+
+        let temp_dir = TempDir::new().unwrap();
+        let target = temp_dir.path().join("target.json");
+        let output = temp_dir.path().join("diagnostics.json");
+        fs::write(&target, "preserve").unwrap();
+        symlink(&target, &output).unwrap();
+
+        assert!(open_diagnostics_output(&output).is_err());
+        assert_eq!(fs::read_to_string(target).unwrap(), "preserve");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_dangling_symlink_output() {
+        use std::os::unix::fs::symlink;
+
+        let temp_dir = TempDir::new().unwrap();
+        let target = temp_dir.path().join("missing.json");
+        let output = temp_dir.path().join("diagnostics.json");
+        symlink(&target, &output).unwrap();
+
+        assert!(open_diagnostics_output(&output).is_err());
+        assert!(!target.exists());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn refuses_existing_symlink_output() {
+        use std::os::windows::fs::symlink_file;
+
+        let temp_dir = TempDir::new().unwrap();
+        let target = temp_dir.path().join("target.json");
+        let output = temp_dir.path().join("diagnostics.json");
+        fs::write(&target, "preserve").unwrap();
+        if symlink_file(&target, &output).is_err() {
+            return;
+        }
+
+        assert!(open_diagnostics_output(&output).is_err());
+        assert_eq!(fs::read_to_string(target).unwrap(), "preserve");
     }
 }

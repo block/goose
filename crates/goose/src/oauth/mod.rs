@@ -10,7 +10,7 @@ use minijinja::render;
 use oauth2::{Scope, TokenResponse};
 use rmcp::transport::auth::{
     AuthError, AuthorizationRequest, CredentialStore, OAuthClientConfig, OAuthState,
-    OAuthTokenResponse, StoredCredentials,
+    OAuthTokenResponse, StoredCredentials, WWWAuthenticateParams,
 };
 use rmcp::transport::AuthorizationManager;
 use serde::Deserialize;
@@ -26,9 +26,20 @@ const CLIENT_METADATA_URL: &str = "https://goose-docs.ai/oauth/client-metadata.j
 const DEFAULT_OAUTH_CALLBACK_TIMEOUT_SECS: u64 = 300;
 const OAUTH_CALLBACK_TIMEOUT_ENV: &str = "GOOSE_OAUTH_CALLBACK_TIMEOUT_SECONDS";
 
+/// Pre-registered OAuth client supplied by a probe script, for servers whose
+/// authorization server supports neither Dynamic Client Registration nor
+/// Client ID Metadata Documents.
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OAuthFlowConfig {
+    pub client_id: Option<String>,
+    pub client_secret: Option<String>,
+    pub client_metadata_url: Option<String>,
+}
+
 #[derive(Clone)]
 struct AppState {
-    code_receiver: Arc<Mutex<Option<oneshot::Sender<CallbackParams>>>>,
+    callback_receiver: Arc<Mutex<Option<oneshot::Sender<String>>>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,14 +73,45 @@ fn announce_authorization_url(name: &str, authorization_url: &str) {
     );
 }
 
+async fn complete_automatic_authorization(
+    authorization_url: &str,
+    redirect_uri: &str,
+) -> Result<Option<String>, anyhow::Error> {
+    if std::env::var_os("GOOSE_OAUTH_AUTOMATIC_CALLBACK").is_none() {
+        return Ok(None);
+    }
+
+    let response = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?
+        .get(authorization_url)
+        .send()
+        .await?;
+    let location = response
+        .headers()
+        .get(reqwest::header::LOCATION)
+        .ok_or_else(|| anyhow::anyhow!("authorization response did not include Location"))?
+        .to_str()?;
+    let callback_url = url::Url::parse(location)?;
+    let expected_redirect = url::Url::parse(redirect_uri)?;
+    if callback_url.scheme() != expected_redirect.scheme()
+        || callback_url.host_str() != expected_redirect.host_str()
+        || callback_url.port_or_known_default() != expected_redirect.port_or_known_default()
+        || callback_url.path() != expected_redirect.path()
+    {
+        anyhow::bail!("authorization response redirected to an unexpected callback URI");
+    }
+    Ok(Some(callback_url.to_string()))
+}
+
 async fn wait_for_callback(
-    code_receiver: oneshot::Receiver<CallbackParams>,
+    callback_receiver: oneshot::Receiver<String>,
     timeout_duration: Duration,
     name: &str,
     authorization_url: &str,
-) -> Result<CallbackParams, anyhow::Error> {
-    match tokio::time::timeout(timeout_duration, code_receiver).await {
-        Ok(Ok(params)) => Ok(params),
+) -> Result<String, anyhow::Error> {
+    match tokio::time::timeout(timeout_duration, callback_receiver).await {
+        Ok(Ok(callback_url)) => Ok(callback_url),
         Ok(Err(e)) => Err(anyhow::anyhow!(
             "OAuth authorization for {} ended before the callback was received: {}",
             name,
@@ -99,6 +141,22 @@ pub struct StaticOAuthClientConfig {
     /// Scopes to request. When empty, scopes are selected from server
     /// metadata, which may be broader than the extension needs.
     pub scopes: Vec<String>,
+}
+
+/// Pre-registered client supplied through the environment, used by tools that
+/// drive the flow without an extension config (`goose mcp-probe`, conformance
+/// driver).
+fn env_static_oauth_client() -> Option<StaticOAuthClientConfig> {
+    Some(StaticOAuthClientConfig {
+        client_id: std::env::var("GOOSE_MCP_OAUTH_CLIENT_ID").ok()?,
+        client_secret: std::env::var("GOOSE_MCP_OAUTH_CLIENT_SECRET").ok(),
+        scopes: Vec::new(),
+    })
+}
+
+fn client_metadata_url() -> String {
+    std::env::var("GOOSE_MCP_OAUTH_CLIENT_METADATA_URL")
+        .unwrap_or_else(|_| CLIENT_METADATA_URL.to_string())
 }
 
 fn scope_set(scopes: &[String]) -> BTreeSet<&str> {
@@ -167,6 +225,9 @@ fn restore_omitted_scopes(
 fn build_authorization_request(
     redirect_uri: String,
     static_client: Option<&StaticOAuthClientConfig>,
+    challenge: Option<String>,
+    mcp_server_url: &str,
+    previously_granted_scopes: &[String],
 ) -> AuthorizationRequest {
     let mut request = AuthorizationRequest::new(redirect_uri).with_client_name("goose");
     match static_client {
@@ -180,9 +241,34 @@ fn build_authorization_request(
             }
         }
         None => {
-            request = request.with_client_metadata_url(CLIENT_METADATA_URL);
+            request = request.with_client_metadata_url(client_metadata_url());
         }
     }
+
+    if let Some(challenge) = challenge {
+        // SEP-2350: a re-authorization triggered by a scope challenge requests
+        // the union of previously-granted scopes and the newly challenged
+        // scopes. The fresh AuthorizationManager has no scope memory, so seed
+        // the union from the stored grant.
+        let mut scopes = previously_granted_scopes.to_vec();
+        scopes.extend(
+            static_client
+                .into_iter()
+                .flat_map(|client| client.scopes.iter().cloned()),
+        );
+        if let Ok(base_url) = url::Url::parse(mcp_server_url) {
+            if let Some(challenged) = WWWAuthenticateParams::parse(&challenge, &base_url).scope {
+                scopes.extend(challenged.split_whitespace().map(str::to_string));
+            }
+        }
+        let mut seen = BTreeSet::new();
+        scopes.retain(|scope| seen.insert(scope.clone()));
+        if !scopes.is_empty() {
+            request = request.with_scopes(scopes);
+        }
+        request = request.with_challenge(challenge);
+    }
+
     request
 }
 
@@ -191,14 +277,33 @@ pub async fn oauth_flow(
     name: &String,
     static_client: Option<&StaticOAuthClientConfig>,
 ) -> Result<AuthorizationManager, anyhow::Error> {
+    oauth_flow_with_challenge(mcp_server_url, name, static_client, None).await
+}
+
+pub async fn oauth_flow_with_challenge(
+    mcp_server_url: &String,
+    name: &String,
+    static_client: Option<&StaticOAuthClientConfig>,
+    challenge: Option<String>,
+) -> Result<AuthorizationManager, anyhow::Error> {
+    let env_client = env_static_oauth_client();
+    let static_client = static_client.or(env_client.as_ref());
     let credential_store = GooseCredentialStore::new(name.clone());
     let mut auth_manager = AuthorizationManager::new(mcp_server_url).await?;
     auth_manager.set_credential_store(credential_store.clone());
 
     let stored_credentials = credential_store.load().await?;
     let previous_requested_scopes = credential_store.load_requested_scopes()?;
+    let previously_granted_scopes = stored_credentials
+        .as_ref()
+        .map(|stored| stored.granted_scopes.clone())
+        .unwrap_or_default();
 
-    if auth_manager.initialize_from_store().await? {
+    // With a challenge in hand (e.g. a 403 insufficient_scope after a
+    // previously successful authorization), a refresh cannot satisfy the new
+    // scope requirement: skip straight to a full re-authorization that
+    // requests the union of scopes.
+    if auth_manager.initialize_from_store().await? && challenge.is_none() {
         let stored_credentials = stored_credentials
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("OAuth credentials disappeared during startup"))?;
@@ -271,18 +376,26 @@ pub async fn oauth_flow(
         }
     }
 
-    // No existing credentials or they were invalid - need to do the full oauth flow
-    let (code_sender, code_receiver) = oneshot::channel::<CallbackParams>();
+    let (callback_sender, callback_receiver) = oneshot::channel::<String>();
     let app_state = AppState {
-        code_receiver: Arc::new(Mutex::new(Some(code_sender))),
+        callback_receiver: Arc::new(Mutex::new(Some(callback_sender))),
     };
-
     let rendered = render!(CALLBACK_TEMPLATE, name => name);
     let handler = move |Query(params): Query<CallbackParams>, State(state): State<AppState>| {
         let rendered = rendered.clone();
         async move {
-            if let Some(sender) = state.code_receiver.lock().await.take() {
-                let _ = sender.send(params);
+            if let Some(sender) = state.callback_receiver.lock().await.take() {
+                let query = serde_urlencoded::to_string([
+                    ("code", params.code.as_str()),
+                    ("state", params.state.as_str()),
+                ])
+                .unwrap_or_default();
+                let issuer = params
+                    .iss
+                    .as_deref()
+                    .map(|iss| format!("&iss={}", urlencoding::encode(iss)))
+                    .unwrap_or_default();
+                let _ = sender.send(format!("http://callback/oauth_callback?{query}{issuer}"));
             }
             Html(rendered)
         }
@@ -291,60 +404,66 @@ pub async fn oauth_flow(
         .route("/oauth_callback", get(handler))
         .with_state(app_state);
 
-    let port: u16 = std::env::var("GOOSE_OAUTH_CALLBACK_PORT")
+    let port = std::env::var("GOOSE_OAUTH_CALLBACK_PORT")
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(0);
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
-    let listener = tokio::net::TcpListener::bind(addr).await?;
+    let listener = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], port))).await?;
     let used_addr = listener.local_addr()?;
     let server_handle = tokio::spawn(async move {
-        let result = axum::serve(listener, app).await;
-        if let Err(e) = result {
+        if let Err(e) = axum::serve(listener, app).await {
             eprintln!("Callback server error: {}", e);
         }
     });
 
     let mut oauth_state = OAuthState::new(mcp_server_url, None).await?;
-
     let redirect_uri = format!("http://127.0.0.1:{}/oauth_callback", used_addr.port());
     oauth_state
-        .start_authorization(build_authorization_request(redirect_uri, static_client))
+        .start_authorization(build_authorization_request(
+            redirect_uri.clone(),
+            static_client,
+            challenge,
+            mcp_server_url,
+            &previously_granted_scopes,
+        ))
         .await?;
 
     let authorization_url = oauth_state.get_authorization_url().await?;
-    announce_authorization_url(name, authorization_url.as_str());
-    if let Err(e) = webbrowser::open(authorization_url.as_str()) {
-        warn!(
-            "[OAuth:{}] Failed to open browser automatically: {}",
-            name, e
-        );
+    let callback_url = async {
+        if let Some(callback_url) =
+            complete_automatic_authorization(authorization_url.as_str(), &redirect_uri).await?
+        {
+            Ok(callback_url)
+        } else {
+            announce_authorization_url(name, authorization_url.as_str());
+            if let Err(e) = webbrowser::open(authorization_url.as_str()) {
+                warn!(
+                    "[OAuth:{}] Failed to open browser automatically: {}",
+                    name, e
+                );
+            }
+            wait_for_callback(
+                callback_receiver,
+                oauth_callback_timeout(),
+                name,
+                authorization_url.as_str(),
+            )
+            .await
+        }
     }
-
-    let callback_params = wait_for_callback(
-        code_receiver,
-        oauth_callback_timeout(),
-        name,
-        authorization_url.as_str(),
-    )
     .await;
     server_handle.abort();
-    let CallbackParams {
-        code: auth_code,
-        state: csrf_token,
-        iss,
-    } = callback_params?;
-    oauth_state
-        .handle_callback_with_issuer(&auth_code, &csrf_token, iss.as_deref())
-        .await?;
+    oauth_state.handle_callback_url(&callback_url?).await?;
 
     let (client_id, token_response) = oauth_state.get_credentials().await?;
-
     let mut auth_manager = oauth_state
         .into_authorization_manager()
         .ok_or_else(|| anyhow::anyhow!("Failed to get authorization manager"))?;
 
-    let granted_scopes = auth_manager.get_current_scopes().await;
+    let granted_scopes = match token_response.as_ref().and_then(|tr| tr.scopes()) {
+        Some(scopes) => scopes.iter().map(|scope| scope.to_string()).collect(),
+        None => auth_manager.get_current_scopes().await,
+    };
     credential_store.save_with_requested_scopes(
         StoredCredentials::new(
             client_id,
@@ -394,17 +513,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn wait_for_callback_returns_received_callback_params() {
+    async fn wait_for_callback_returns_received_callback_url() {
         let (sender, receiver) = oneshot::channel();
-        sender
-            .send(CallbackParams {
-                code: "auth-code".to_string(),
-                state: "csrf-state".to_string(),
-                iss: Some("https://auth.example".to_string()),
-            })
-            .unwrap();
+        let expected = "http://callback/oauth_callback?code=auth-code&state=csrf-state";
+        sender.send(expected.to_string()).unwrap();
 
-        let params = wait_for_callback(
+        let callback_url = wait_for_callback(
             receiver,
             Duration::from_secs(1),
             "test-server",
@@ -413,9 +527,7 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(params.code, "auth-code");
-        assert_eq!(params.state, "csrf-state");
-        assert_eq!(params.iss.as_deref(), Some("https://auth.example"));
+        assert_eq!(callback_url, expected);
     }
 
     #[test]
@@ -557,8 +669,13 @@ mod tests {
 
     #[test]
     fn authorization_request_uses_client_metadata_url_without_static_client() {
-        let request =
-            build_authorization_request("http://127.0.0.1:1234/oauth_callback".to_string(), None);
+        let request = build_authorization_request(
+            "http://127.0.0.1:1234/oauth_callback".to_string(),
+            None,
+            None,
+            "https://mcp.example",
+            &[],
+        );
 
         assert_eq!(request.client_id, None);
         assert_eq!(request.client_secret, None);
@@ -580,6 +697,9 @@ mod tests {
         let request = build_authorization_request(
             "http://127.0.0.1:1234/oauth_callback".to_string(),
             Some(&static_client),
+            None,
+            "https://mcp.example",
+            &[],
         );
 
         assert_eq!(request.client_id.as_deref(), Some("registered-client"));
@@ -599,12 +719,54 @@ mod tests {
         let request = build_authorization_request(
             "http://127.0.0.1:1234/oauth_callback".to_string(),
             Some(&static_client),
+            None,
+            "https://mcp.example",
+            &[],
         );
 
         assert_eq!(request.client_id.as_deref(), Some("registered-client"));
         assert_eq!(request.client_secret, None);
         assert_eq!(request.client_metadata_url, None);
         assert!(request.scopes.is_empty());
+    }
+
+    #[test]
+    fn challenge_request_asks_for_the_union_of_granted_and_challenged_scopes() {
+        let request = build_authorization_request(
+            "http://127.0.0.1:1234/oauth_callback".to_string(),
+            None,
+            Some(
+                r#"Bearer error="insufficient_scope", scope="scope.write scope.admin""#.to_string(),
+            ),
+            "https://mcp.example",
+            &["scope.read".to_string(), "scope.write".to_string()],
+        );
+
+        assert_eq!(
+            request.scopes,
+            vec!["scope.read", "scope.write", "scope.admin"]
+        );
+        assert!(request.challenge.is_some());
+    }
+
+    #[test]
+    fn challenge_request_keeps_static_client_scopes() {
+        let static_client = StaticOAuthClientConfig {
+            client_id: "registered-client".to_string(),
+            client_secret: None,
+            scopes: vec!["scope.read".to_string()],
+        };
+
+        let request = build_authorization_request(
+            "http://127.0.0.1:1234/oauth_callback".to_string(),
+            Some(&static_client),
+            Some(r#"Bearer error="insufficient_scope", scope="scope.write""#.to_string()),
+            "https://mcp.example",
+            &[],
+        );
+
+        assert_eq!(request.client_id.as_deref(), Some("registered-client"));
+        assert_eq!(request.scopes, vec!["scope.read", "scope.write"]);
     }
 
     #[tokio::test]
