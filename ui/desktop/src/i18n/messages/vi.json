@@ -2742,7 +2742,7 @@
     "defaultMessage": "Tiếp tục"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Một cửa sổ trình duyệt sẽ mở ra và mã xác minh sẽ được sao chép vào bộ nhớ tạm của bạn. Dán mã vào trình duyệt để hoàn tất đăng nhập."
+    "defaultMessage": "Một cửa sổ trình duyệt sẽ mở ra. Mã xác minh sẽ xuất hiện tại đây để bạn nhập và hoàn tất đăng nhập."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Bạn chưa có khóa API?"
@@ -2781,7 +2781,7 @@
     "defaultMessage": "Thao tác này sẽ xóa vĩnh viễn cấu hình nhà cung cấp hiện tại."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Một cửa sổ trình duyệt sẽ mở ra và mã xác minh sẽ được sao chép vào bộ nhớ tạm của bạn. Dán mã vào trình duyệt để hoàn tất đăng nhập."
+    "defaultMessage": "Một cửa sổ trình duyệt sẽ mở ra. Mã xác minh sẽ xuất hiện tại đây để bạn nhập và hoàn tất đăng nhập."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "Đã xảy ra lỗi khi kiểm tra cấu hình nhà cung cấp này."

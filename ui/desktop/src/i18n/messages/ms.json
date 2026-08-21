@@ -2742,7 +2742,7 @@
     "defaultMessage": "Teruskan"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Tetingkap pelayar akan dibuka dan kod pengesahan akan disalin ke papan keratan anda. Tampalkannya dalam pelayar untuk melengkapkan log masuk."
+    "defaultMessage": "Tetingkap pelayar akan dibuka. Kod pengesahan akan dipaparkan di sini supaya anda boleh memasukkannya untuk melengkapkan log masuk."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Tidak mempunyai kunci API?"
@@ -2781,7 +2781,7 @@
     "defaultMessage": "Ini akan memadamkan konfigurasi penyedia semasa secara kekal."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Tetingkap pelayar akan dibuka dan kod pengesahan akan disalin ke papan keratan anda. Tampalkannya dalam pelayar untuk melengkapkan log masuk."
+    "defaultMessage": "Tetingkap pelayar akan dibuka. Kod pengesahan akan dipaparkan di sini supaya anda boleh memasukkannya untuk melengkapkan log masuk."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "Terdapat ralat semasa menyemak konfigurasi penyedia ini."

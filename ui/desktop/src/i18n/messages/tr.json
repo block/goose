@@ -2742,7 +2742,7 @@
     "defaultMessage": "Devam et"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Bir tarayıcı penceresi açılacak ve doğrulama kodu panonuza kopyalanacaktır. Oturum açmayı tamamlamak için tarayıcıya yapıştırın."
+    "defaultMessage": "Bir tarayıcı penceresi açılacak. Doğrulama kodu burada görünecek; oturum açmayı tamamlamak için kodu girin."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "API anahtarınız yok mu?"
@@ -2781,7 +2781,7 @@
     "defaultMessage": "Bu, mevcut sağlayıcı yapılandırmasını kalıcı olarak silecektir."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Bir tarayıcı penceresi açılacak ve doğrulama kodu panonuza kopyalanacaktır. Oturum açmayı tamamlamak için tarayıcıya yapıştırın."
+    "defaultMessage": "Bir tarayıcı penceresi açılacak. Doğrulama kodu burada görünecek; oturum açmayı tamamlamak için kodu girin."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "Bu sağlayıcı yapılandırması kontrol edilirken bir hata oluştu."

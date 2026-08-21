@@ -2742,7 +2742,7 @@
     "defaultMessage": "続行"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "ブラウザーウィンドウが開き、確認コードがクリップボードにコピーされます。ブラウザーに貼り付けてサインインを完了してください。"
+    "defaultMessage": "ブラウザーウィンドウが開きます。確認コードがここに表示されるので、入力してサインインを完了してください。"
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "APIキーをお持ちでないですか？"
@@ -2781,7 +2781,7 @@
     "defaultMessage": "現在のプロバイダー設定は完全に削除されます。"
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "ブラウザーウィンドウが開き、確認コードがクリップボードにコピーされます。ブラウザーに貼り付けてサインインを完了してください。"
+    "defaultMessage": "ブラウザーウィンドウが開きます。確認コードがここに表示されるので、入力してサインインを完了してください。"
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "このプロバイダー設定の確認中にエラーが発生しました。"

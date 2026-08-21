@@ -2742,7 +2742,7 @@
     "defaultMessage": "继续"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "将打开浏览器窗口，验证码将复制到剪贴板。把它粘贴到浏览器即可完成登录。"
+    "defaultMessage": "将打开浏览器窗口。验证码会显示在此处，输入验证码即可完成登录。"
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "没有 API 密钥？"
@@ -2781,7 +2781,7 @@
     "defaultMessage": "这将永久删除当前的提供商配置。"
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "将打开浏览器窗口，验证码将复制到剪贴板。把它粘贴到浏览器即可完成登录。"
+    "defaultMessage": "将打开浏览器窗口。验证码会显示在此处，输入验证码即可完成登录。"
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "检查此提供商配置时出错。"

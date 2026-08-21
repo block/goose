@@ -2742,7 +2742,7 @@
     "defaultMessage": "Continua"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Si aprirà una finestra del browser e il codice di verifica verrà copiato negli appunti. Incollalo nel browser per completare l'accesso."
+    "defaultMessage": "Si aprirà una finestra del browser. Il codice di verifica verrà visualizzato qui, così potrai inserirlo per completare l'accesso."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Non hai una chiave API?"
@@ -2781,7 +2781,7 @@
     "defaultMessage": "Questa operazione eliminerà definitivamente la configurazione attuale del provider."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Si aprirà una finestra del browser e il codice di verifica verrà copiato negli appunti. Incollalo nel browser per completare l'accesso."
+    "defaultMessage": "Si aprirà una finestra del browser. Il codice di verifica verrà visualizzato qui, così potrai inserirlo per completare l'accesso."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "Si è verificato un errore durante la verifica della configurazione di questo provider."

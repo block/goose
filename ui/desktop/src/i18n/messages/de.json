@@ -2742,7 +2742,7 @@
     "defaultMessage": "Weiter"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Es öffnet sich ein Browserfenster und der Bestätigungscode wird in Ihre Zwischenablage kopiert. Fügen Sie ihn im Browser ein, um die Anmeldung abzuschließen."
+    "defaultMessage": "Ein Browserfenster wird geöffnet. Der Bestätigungscode wird hier angezeigt, damit Sie ihn eingeben und die Anmeldung abschließen können."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Sie haben keinen API-Schlüssel?"
@@ -2781,7 +2781,7 @@
     "defaultMessage": "Dadurch wird die aktuelle Anbieterkonfiguration dauerhaft gelöscht."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Es öffnet sich ein Browserfenster und der Bestätigungscode wird in Ihre Zwischenablage kopiert. Fügen Sie ihn im Browser ein, um die Anmeldung abzuschließen."
+    "defaultMessage": "Ein Browserfenster wird geöffnet. Der Bestätigungscode wird hier angezeigt, damit Sie ihn eingeben und die Anmeldung abschließen können."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "Beim Überprüfen dieser Anbieterkonfiguration ist ein Fehler aufgetreten."

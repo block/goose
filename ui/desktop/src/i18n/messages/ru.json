@@ -2742,7 +2742,7 @@
     "defaultMessage": "Продолжить"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Откроется окно браузера, а код подтверждения будет скопирован в буфер обмена. Вставьте его в браузере, чтобы завершить вход."
+    "defaultMessage": "Откроется окно браузера. Код подтверждения появится здесь — введите его, чтобы завершить вход."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Нет API-ключа?"
@@ -2781,7 +2781,7 @@
     "defaultMessage": "Это навсегда удалит текущую конфигурацию провайдера."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Откроется окно браузера, а код подтверждения будет скопирован в буфер обмена. Вставьте его в браузере, чтобы завершить вход."
+    "defaultMessage": "Откроется окно браузера. Код подтверждения появится здесь — введите его, чтобы завершить вход."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "При проверке конфигурации этого провайдера произошла ошибка."

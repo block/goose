@@ -2742,7 +2742,7 @@
     "defaultMessage": "Lanjutkan"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Jendela browser akan terbuka dan kode verifikasi akan disalin ke clipboard Anda. Tempelkan di browser untuk menyelesaikan proses masuk."
+    "defaultMessage": "Jendela browser akan terbuka. Kode verifikasi akan muncul di sini agar Anda dapat memasukkannya untuk menyelesaikan proses masuk."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Tidak punya kunci API?"
@@ -2781,7 +2781,7 @@
     "defaultMessage": "Tindakan ini akan menghapus konfigurasi penyedia saat ini secara permanen."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Jendela browser akan terbuka dan kode verifikasi akan disalin ke clipboard Anda. Tempelkan di browser untuk menyelesaikan proses masuk."
+    "defaultMessage": "Jendela browser akan terbuka. Kode verifikasi akan muncul di sini agar Anda dapat memasukkannya untuk menyelesaikan proses masuk."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "Terjadi kesalahan saat memeriksa konfigurasi penyedia ini."

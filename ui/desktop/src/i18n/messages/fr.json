@@ -2742,7 +2742,7 @@
     "defaultMessage": "Continuer"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Une fenêtre de navigateur s'ouvrira et le code de vérification sera copié dans votre presse-papiers. Collez-le dans le navigateur pour terminer la connexion."
+    "defaultMessage": "Une fenêtre de navigateur s’ouvrira. Le code de vérification apparaîtra ici afin que vous puissiez le saisir pour terminer la connexion."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Vous n'avez pas de clé API ?"
@@ -2781,7 +2781,7 @@
     "defaultMessage": "Cette action supprimera définitivement la configuration actuelle du fournisseur."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Une fenêtre de navigateur s'ouvrira et le code de vérification sera copié dans votre presse-papiers. Collez-le dans le navigateur pour terminer la connexion."
+    "defaultMessage": "Une fenêtre de navigateur s’ouvrira. Le code de vérification apparaîtra ici afin que vous puissiez le saisir pour terminer la connexion."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "Une erreur s'est produite lors de la vérification de la configuration de ce fournisseur."

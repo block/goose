@@ -2742,7 +2742,7 @@
     "defaultMessage": "Continuar"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Será aberta uma janela do navegador e o código de verificação será copiado para a área de transferência. Cole-o no navegador para concluir o início de sessão."
+    "defaultMessage": "Será aberta uma janela do navegador. O código de verificação aparecerá aqui para que possa introduzi-lo e concluir o início de sessão."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Não tem uma chave de API?"
@@ -2781,7 +2781,7 @@
     "defaultMessage": "Isto irá eliminar permanentemente a configuração atual do fornecedor."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Será aberta uma janela do navegador e o código de verificação será copiado para a área de transferência. Cole-o no navegador para concluir o início de sessão."
+    "defaultMessage": "Será aberta uma janela do navegador. O código de verificação aparecerá aqui para que possa introduzi-lo e concluir o início de sessão."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "Ocorreu um erro ao verificar a configuração deste fornecedor."

@@ -2742,7 +2742,7 @@
     "defaultMessage": "계속"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "브라우저 창이 열리고 인증 코드가 클립보드에 복사됩니다. 로그인을 완료하려면 브라우저에 붙여넣으세요."
+    "defaultMessage": "브라우저 창이 열립니다. 인증 코드가 여기에 표시되면 입력하여 로그인을 완료하세요."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "API 키가 없나요?"
@@ -2781,7 +2781,7 @@
     "defaultMessage": "현재 제공업체 구성이 영구적으로 삭제됩니다."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "브라우저 창이 열리고 인증 코드가 클립보드에 복사됩니다. 로그인을 완료하려면 브라우저에 붙여넣으세요."
+    "defaultMessage": "브라우저 창이 열립니다. 인증 코드가 여기에 표시되면 입력하여 로그인을 완료하세요."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "이 제공업체 구성을 확인하는 동안 오류가 발생했습니다."

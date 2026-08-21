@@ -24,7 +24,7 @@ const i18n = defineMessages({
   deviceCodeFlowHint: {
     id: 'providerConfigForm.deviceCodeFlowHint',
     defaultMessage:
-      'A browser window will open and the verification code will be copied to your clipboard. Paste it in the browser to complete sign-in.',
+      'A browser window will open. The verification code will appear here so you can enter it to complete sign-in.',
   },
   signingIn: {
     id: 'providerConfigForm.signingIn',

@@ -2775,7 +2775,7 @@
     "defaultMessage": "Copy"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "A browser window will open and the verification code will be copied to your clipboard. Paste it in the browser to complete sign-in."
+    "defaultMessage": "A browser window will open. The verification code will appear here so you can enter it to complete sign-in."
   },
   "providerConfigForm.deviceCodeVisit": {
     "defaultMessage": "Visit"
@@ -2826,7 +2826,7 @@
     "defaultMessage": "Copy"
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "A browser window will open and the verification code will be copied to your clipboard. Paste it in the browser to complete sign-in."
+    "defaultMessage": "A browser window will open. The verification code will appear here so you can enter it to complete sign-in."
   },
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "Visit"

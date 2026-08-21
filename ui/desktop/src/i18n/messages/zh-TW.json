@@ -2742,7 +2742,7 @@
     "defaultMessage": "繼續"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "將開啟瀏覽器視窗，且驗證碼會複製到您的剪貼簿。將其貼到瀏覽器中以完成登入。"
+    "defaultMessage": "將開啟瀏覽器視窗。驗證碼會顯示在此處，輸入驗證碼即可完成登入。"
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "沒有 API 金鑰嗎？"
@@ -2781,7 +2781,7 @@
     "defaultMessage": "這將永久刪除目前的提供者組態。"
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "將開啟瀏覽器視窗，且驗證碼會複製到您的剪貼簿。將其貼到瀏覽器中以完成登入。"
+    "defaultMessage": "將開啟瀏覽器視窗。驗證碼會顯示在此處，輸入驗證碼即可完成登入。"
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "檢查此提供者組態時發生錯誤。"
