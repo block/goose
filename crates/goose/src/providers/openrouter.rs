@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use futures::future::BoxFuture;
 use goose_providers::images::ImageFormat;
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
 use super::api_client::{ApiClient, AuthMethod};
@@ -138,13 +138,32 @@ fn scan_schema_ref_tokens(content: &str) -> Vec<Range<usize>> {
             .and_then(|rest| rest.chars().next())
             .is_some_and(|c| c.is_ascii_alphanumeric() || c == '_');
 
-        if !continues_identifier {
+        if !continues_identifier && !starts_with_escaped_backslash(content, start) {
             spans.push(start..end);
         }
         cursor = end;
     }
 
     spans
+}
+
+/// An odd number of backslashes before `\u0024ref` means the leading backslash
+/// is itself escaped, so the text is the literal characters `\u0024ref` rather
+/// than an encoded `$ref`. Rewriting it would emit invalid JSON.
+fn starts_with_escaped_backslash(content: &str, start: usize) -> bool {
+    if !content
+        .get(start..)
+        .is_some_and(|token| token.starts_with('\\'))
+    {
+        return false;
+    }
+
+    let preceding_backslashes = content
+        .get(..start)
+        .map(|prefix| prefix.chars().rev().take_while(|c| *c == '\\').count())
+        .unwrap_or(0);
+
+    preceding_backslashes % 2 == 1
 }
 
 /// Decodes `\uXXXX` escapes so a candidate key spelled as an escape sequence
@@ -198,8 +217,15 @@ fn replace_spans(content: &str, spans: &[Range<usize>], replacement: &str) -> St
 
 /// The replacement must not already occur anywhere in the tool text, otherwise
 /// the rewrite would be ambiguous to the model reading the compatibility note.
+///
+/// Tool output is externally controlled, so occupied candidates are collected in
+/// a single pass rather than rescanning every result for each suffix.
 fn collision_free_gemini_schema_ref_key(contents: &[&str]) -> String {
-    let decoded: Vec<String> = contents.iter().map(|c| decoded_view(c)).collect();
+    let mut occupied = HashSet::new();
+    for content in contents {
+        collect_safe_key_candidates(content, &mut occupied);
+        collect_safe_key_candidates(&decoded_view(content), &mut occupied);
+    }
 
     (1..)
         .map(|suffix| {
@@ -209,11 +235,40 @@ fn collision_free_gemini_schema_ref_key(contents: &[&str]) -> String {
                 format!("{GEMINI_SAFE_SCHEMA_REF_KEY_BASE}_{suffix}")
             }
         })
-        .find(|candidate| {
-            !contents.iter().any(|content| content.contains(candidate))
-                && !decoded.iter().any(|content| content.contains(candidate))
-        })
+        .find(|candidate| !occupied.contains(candidate))
         .expect("an unbounded suffix sequence always yields an unused candidate")
+}
+
+/// Records every `dollar_ref`/`dollar_ref_N` occurrence in one scan.
+fn collect_safe_key_candidates(content: &str, occupied: &mut HashSet<String>) {
+    let mut cursor = 0;
+
+    while let Some(offset) = content
+        .get(cursor..)
+        .and_then(|tail| tail.find(GEMINI_SAFE_SCHEMA_REF_KEY_BASE))
+    {
+        let start = cursor + offset;
+        let end = start + GEMINI_SAFE_SCHEMA_REF_KEY_BASE.len();
+        let suffix_len = content
+            .get(end..)
+            .map(|rest| {
+                let digits = rest
+                    .strip_prefix('_')
+                    .map(|after| after.chars().take_while(char::is_ascii_digit).count())
+                    .unwrap_or(0);
+                if digits == 0 {
+                    0
+                } else {
+                    1 + digits
+                }
+            })
+            .unwrap_or(0);
+
+        if let Some(token) = content.get(start..end + suffix_len) {
+            occupied.insert(token.to_string());
+        }
+        cursor = end;
+    }
 }
 
 fn gemini_schema_ref_note(safe_key: &str) -> String {
@@ -702,6 +757,45 @@ mod tests {
             0
         );
         assert_eq!(payload, original);
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_preserves_literal_escaped_unicode_text() {
+        let original = r#"{"literal":"\\u0024ref"}"#;
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": original
+            }]
+        });
+        let untouched = payload.clone();
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            0
+        );
+        assert_eq!(payload, untouched);
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_rewrites_unicode_token_after_even_backslashes() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": r#"{"a":"x\\\\","\u0024ref":"A"}"#
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert!(payload["messages"][0]["content"]
+            .as_str()
+            .unwrap()
+            .contains(r#""dollar_ref":"A""#));
     }
 
     #[test]
