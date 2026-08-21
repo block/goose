@@ -139,12 +139,27 @@ impl PermissionManager {
         Ok(())
     }
 
+    fn refresh_permission_map(&self) -> Result<()> {
+        let _process_guard = self.state.file_lock.lock().unwrap();
+        let _file_guard = Self::lock_permission_file(&self.config_path)?;
+        let mut map = self.state.permission_map.write().unwrap();
+        if self.config_path.exists() {
+            *map = Self::try_load_permission_map(&self.config_path)?;
+        } else {
+            map.clear();
+        }
+        Ok(())
+    }
+
     pub fn instance() -> Arc<PermissionManager> {
         Arc::clone(&PERMISSION_MANAGER)
     }
 
     /// Returns a list of all the names (keys) in the permission map.
     pub fn get_permission_names(&self) -> Vec<String> {
+        if self.refresh_permission_map().is_err() {
+            return Vec::new();
+        }
         self.state
             .permission_map
             .read()
@@ -216,6 +231,9 @@ impl PermissionManager {
 
     /// Helper function to retrieve the permission level for a specific permission category and tool.
     fn get_permission(&self, name: &str, principal_name: &str) -> Option<PermissionLevel> {
+        if self.refresh_permission_map().is_err() {
+            return None;
+        }
         let map = self.state.permission_map.read().unwrap();
         // Check if the permission category exists in the map
         if let Some(permission_config) = map.get(name) {
@@ -556,6 +574,24 @@ mod tests {
         FileExt::unlock(&lock_file).unwrap();
         completed_rx.recv_timeout(Duration::from_secs(2)).unwrap();
         update.join().unwrap();
+    }
+
+    #[test]
+    fn test_reads_refresh_permissions_changed_by_another_process() {
+        let (manager, temp_dir) = create_test_permission_manager();
+        manager.update_user_permission("git__status", PermissionLevel::AlwaysAllow);
+        let lock_file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(temp_dir.path().join(PERMISSION_LOCK_FILE))
+            .unwrap();
+        lock_file.lock_exclusive().unwrap();
+        fs::write(manager.get_config_path(), "{}\n").unwrap();
+        FileExt::unlock(&lock_file).unwrap();
+
+        assert_eq!(manager.get_user_permission("git__status"), None);
     }
 
     #[test]
