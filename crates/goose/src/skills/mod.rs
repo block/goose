@@ -231,14 +231,14 @@ fn is_lexical_project_plugin_path(path: &Path) -> bool {
     })
 }
 
-fn inferred_discoverable_skill_root(path: &Path) -> Option<PathBuf> {
+fn inferred_discoverable_skill_root_with_config(path: &Path, config: &Config) -> Option<PathBuf> {
     let canonical_path = canonicalize_or_original(path);
 
     if is_project_plugin_skill_path(&canonical_path) {
         return None;
     }
 
-    if configured_project_plugin_skill_dirs(Config::global())
+    if configured_project_plugin_skill_dirs(config)
         .into_iter()
         .map(|root| canonicalize_or_original(&root))
         .any(|root| canonical_path.starts_with(root))
@@ -276,7 +276,10 @@ fn inferred_discoverable_skill_root(path: &Path) -> Option<PathBuf> {
     })
 }
 
-pub(crate) fn resolve_discoverable_skill_dir(path: &str) -> Result<PathBuf, Error> {
+fn resolve_discoverable_skill_dir_with_config(
+    path: &str,
+    config: &Config,
+) -> Result<PathBuf, Error> {
     if path.is_empty() {
         return Err(Error::invalid_params().data("Source path must not be empty"));
     }
@@ -289,7 +292,7 @@ pub(crate) fn resolve_discoverable_skill_dir(path: &str) -> Result<PathBuf, Erro
         .canonicalize()
         .map_err(|_| Error::invalid_params().data(format!("Source \"{}\" not found", path)))?;
 
-    if inferred_discoverable_skill_root(&canonical_dir).is_none()
+    if inferred_discoverable_skill_root_with_config(&canonical_dir, config).is_none()
         || !canonical_dir.is_dir()
         || !canonical_dir.join("SKILL.md").is_file()
     {
@@ -297,6 +300,10 @@ pub(crate) fn resolve_discoverable_skill_dir(path: &str) -> Result<PathBuf, Erro
     }
 
     Ok(canonical_dir)
+}
+
+pub(crate) fn resolve_discoverable_skill_dir(path: &str) -> Result<PathBuf, Error> {
+    resolve_discoverable_skill_dir_with_config(path, Config::global())
 }
 
 pub(crate) fn resolve_skill_dir(path: &str) -> Result<PathBuf, Error> {
@@ -928,6 +935,41 @@ mod tests {
             "plugin-owned",
             &skill_dir,
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn disabled_symlinked_project_plugin_canonical_path_is_rejected_before_discovery() {
+        let project = tempfile::tempdir().unwrap();
+        let path_root = tempfile::tempdir().unwrap();
+        let external_root = tempfile::tempdir().unwrap();
+        let plugin_link = project.path().join(".agents/plugins/project-plugin");
+        let skill_dir = external_root.path().join(".agents/skills/plugin-owned");
+        write_test_skill(&skill_dir, "plugin-owned", "plugin body");
+        std::fs::write(
+            external_root.path().join("plugin.json"),
+            r#"{"name":"project-plugin","skills":{"paths":["./.agents/skills"]}}"#,
+        )
+        .unwrap();
+        std::fs::create_dir_all(plugin_link.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(external_root.path(), &plugin_link).unwrap();
+
+        let config = Config::new(path_root.path().join("test-config.yaml"), "skills-test").unwrap();
+        config
+            .set_param(
+                "plugins",
+                HashMap::from([(
+                    plugin_link.to_string_lossy().into_owned(),
+                    HashMap::from([("enabled", false)]),
+                )]),
+            )
+            .unwrap();
+
+        let err = resolve_discoverable_skill_dir_with_config(skill_dir.to_str().unwrap(), &config)
+            .unwrap_err();
+
+        assert!(format!("{err:?}").contains("not found"));
+        assert!(skill_dir.join("SKILL.md").is_file());
     }
 
     #[test]

@@ -104,9 +104,8 @@ pub(crate) fn configured_project_plugin_skill_dirs(config: &Config) -> Vec<PathB
     let mut seen = HashSet::new();
 
     entries
-        .into_iter()
-        .filter(|(_, entry)| entry.enabled)
-        .map(|(path, _)| PathBuf::from(path))
+        .into_keys()
+        .map(PathBuf::from)
         .filter(|path| !path.starts_with(&user_plugins_dir))
         .flat_map(|path| formats::open_plugins::installed_skill_dirs(&path))
         .filter(|path| seen.insert(path.clone()))
