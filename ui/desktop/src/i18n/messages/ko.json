@@ -3425,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "일정 ID 보기: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (이미 예약됨)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "YAML 파일 찾아보기..."
   },
@@ -3449,6 +3452,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "일정 편집"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "레시피를 불러오지 못했습니다."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "파일에서 레시피를 구문 분석하지 못했습니다."
   },
@@ -3461,14 +3467,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "잘못된 파일 형식: YAML 파일(.yaml 또는 .yml)을 선택하세요."
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "레시피 불러오는 중..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "이름:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "예: daily-summary-job"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "저장된 레시피가 없습니다."
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "유효한 레시피 소스를 입력하세요."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "이 레시피에는 이미 일정이 있습니다. 레시피 목록에서 편집하세요."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "설명: {description}"
@@ -3479,11 +3494,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "제목: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "저장된 레시피"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "일정 ID가 필요합니다."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "일정:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "저장된 레시피 선택"
   },
   "scheduleModal.selected": {
     "defaultMessage": "선택됨: {path}"

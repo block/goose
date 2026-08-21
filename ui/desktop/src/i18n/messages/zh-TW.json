@@ -3425,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "正在檢視排程 ID：{id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title}（已排程）"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "瀏覽 YAML 檔案…"
   },
@@ -3449,6 +3452,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "編輯排程"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "載入方案失敗。"
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "無法從檔案剖析食譜。"
   },
@@ -3461,14 +3467,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "無效的檔案類型：請選擇 YAML 檔案（.yaml 或 .yml）"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "正在載入方案..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "名稱："
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "例如：daily-summary-job"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "找不到已儲存的方案。"
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "請提供有效的食譜來源。"
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "此配方已有排程。請從配方清單中編輯。"
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "描述：{description}"
@@ -3479,11 +3494,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "標題：{title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "已儲存的方案"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "排程 ID 為必填。"
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "排程："
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "選擇一個已儲存的方案"
   },
   "scheduleModal.selected": {
     "defaultMessage": "已選取：{path}"

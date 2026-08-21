@@ -3425,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Đang xem ID lịch trình: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (đã lên lịch)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "Duyệt tìm tệp YAML..."
   },
@@ -3449,6 +3452,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Sửa lịch trình"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Không thể tải công thức."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "Không thể phân tích công thức từ tệp."
   },
@@ -3461,14 +3467,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Loại tệp không hợp lệ: Vui lòng chọn tệp YAML (.yaml hoặc .yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Đang tải công thức..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "Tên:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "ví dụ: daily-summary-job"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "Không tìm thấy công thức đã lưu."
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Vui lòng cung cấp nguồn công thức hợp lệ."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "Công thức này đã có lịch. Chỉnh sửa từ danh sách Công thức."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Mô tả: {description}"
@@ -3479,11 +3494,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Tiêu đề: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Công thức đã lưu"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "Bắt buộc phải có ID lịch trình."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Lịch trình:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Chọn một công thức đã lưu"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Đã chọn: {path}"

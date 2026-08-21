@@ -3425,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Affichage de l'ID de planification : {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (déjà planifiée)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "Parcourir pour un fichier YAML..."
   },
@@ -3449,6 +3452,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Modifier la planification"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Échec du chargement des recettes."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "Échec de l'analyse de la recette à partir du fichier."
   },
@@ -3461,14 +3467,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Type de fichier invalide : veuillez sélectionner un fichier YAML (.yaml ou .yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Chargement des recettes..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "Nom :"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "p. ex. daily-summary-job"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "Aucune recette enregistrée trouvée."
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Veuillez fournir une source de recette valide."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "Cette recette a déjà une planification. Modifiez-la depuis la liste des Recettes."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Description : {description}"
@@ -3479,11 +3494,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Titre : {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Recettes enregistrées"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "L'ID de planification est requis."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Planification :"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Sélectionner une recette enregistrée"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Sélectionné : {path}"

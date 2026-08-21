@@ -1220,11 +1220,31 @@ enum LocalModelsCommand {
     #[command(about = "Search HuggingFace for local GGUF and MLX models")]
     Search {
         /// Search query
-        query: String,
+        query: Option<String>,
 
         /// Maximum number of results
         #[arg(short, long, default_value = "10")]
         limit: usize,
+
+        /// Only include repos whose id starts with this prefix
+        #[arg(long)]
+        repo_prefix: Option<String>,
+
+        /// Only include repos whose id ends with this suffix
+        #[arg(long)]
+        repo_suffix: Option<String>,
+
+        /// Only include variants whose quantization contains this text
+        #[arg(long)]
+        quant: Option<String>,
+
+        /// Override available memory used for recommendations, in GB
+        #[arg(long)]
+        ram_gb: Option<f64>,
+
+        /// Print results as JSON
+        #[arg(long)]
+        json: bool,
     },
 
     /// Download a model from HuggingFace
@@ -2273,6 +2293,104 @@ fn print_download_progress(manager: &goose::download_manager::DownloadManager) {
 }
 
 #[cfg(feature = "local-inference")]
+fn gb_to_bytes(gb: f64) -> Result<u64> {
+    if !gb.is_finite() || gb <= 0.0 {
+        anyhow::bail!("--ram-gb must be a positive number");
+    }
+    Ok((gb * 1024.0 * 1024.0 * 1024.0) as u64)
+}
+
+#[cfg(feature = "local-inference")]
+fn search_query_from_filters(
+    query: Option<String>,
+    repo_prefix: Option<&str>,
+    repo_suffix: Option<&str>,
+) -> String {
+    if let Some(query) = query {
+        return query;
+    }
+
+    if let Some(prefix) = repo_prefix {
+        let term = search_term_from_repo_filter(prefix);
+        if !term.is_empty() {
+            return term;
+        }
+    }
+
+    if let Some(suffix) = repo_suffix {
+        let term = search_term_from_repo_filter(suffix);
+        if !term.is_empty() {
+            return term;
+        }
+    }
+
+    String::new()
+}
+
+#[cfg(feature = "local-inference")]
+fn search_term_from_repo_filter(value: &str) -> String {
+    value
+        .trim_matches('/')
+        .rsplit('/')
+        .next()
+        .unwrap_or_default()
+        .trim_matches(|c| matches!(c, '-' | '_' | '.'))
+        .to_string()
+}
+
+#[cfg(feature = "local-inference")]
+fn local_search_memory_limit(ram_gb: Option<f64>) -> Result<u64> {
+    if let Some(gb) = ram_gb {
+        return gb_to_bytes(gb);
+    }
+
+    match goose::providers::local_inference::InferenceRuntime::get_or_init() {
+        Ok(runtime) => Ok(
+            goose::providers::local_inference::available_inference_memory_bytes(runtime.as_ref()),
+        ),
+        Err(_) => gb_to_bytes(16.0),
+    }
+}
+
+#[cfg(feature = "local-inference")]
+fn format_size(bytes: u64) -> String {
+    if bytes == 0 {
+        "unknown".to_string()
+    } else {
+        format!("{:.1}GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+    }
+}
+
+#[cfg(feature = "local-inference")]
+fn recommended_variant(
+    model: &goose::providers::local_inference::hf_models::HfModelInfo,
+    available_memory: u64,
+) -> Option<&goose::providers::local_inference::hf_models::HfModelVariant> {
+    use goose::providers::local_inference::hf_models::{recommend_variant, HfQuantVariant};
+
+    let mut variant_indexes = Vec::new();
+    let mut gguf_variants = Vec::new();
+    for (index, variant) in model.variants.iter().enumerate() {
+        if variant.backend_id != "llamacpp" || !variant.supported {
+            continue;
+        }
+        variant_indexes.push(index);
+        gguf_variants.push(HfQuantVariant {
+            quantization: variant.variant_id.clone(),
+            size_bytes: variant.size_bytes,
+            filename: variant.filename.clone().unwrap_or_default(),
+            download_url: variant.download_url.clone().unwrap_or_default(),
+            description: "",
+            quality_rank: variant.quality_rank,
+            sharded: variant.sharded,
+        });
+    }
+
+    recommend_variant(&gguf_variants, available_memory)
+        .map(|index| &model.variants[variant_indexes[index]])
+}
+
+#[cfg(feature = "local-inference")]
 async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> {
     use goose::providers::local_inference::hf_models;
     use goose::providers::local_inference::local_model_registry::get_registry;
@@ -2280,12 +2398,91 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
     goose::providers::local_inference::configure_huggingface_auth();
 
     match command {
-        LocalModelsCommand::Search { query, limit } => {
-            println!("Searching HuggingFace for '{}'...", query);
-            let results = hf_models::search_local_models(&query, limit).await?;
+        LocalModelsCommand::Search {
+            query,
+            limit,
+            repo_prefix,
+            repo_suffix,
+            quant,
+            ram_gb,
+            json,
+        } => {
+            let query =
+                search_query_from_filters(query, repo_prefix.as_deref(), repo_suffix.as_deref());
+            if !json {
+                if query.is_empty() {
+                    println!("Searching HuggingFace for local models...");
+                } else {
+                    println!("Searching HuggingFace for '{}'...", query);
+                }
+            }
+            let has_local_filter =
+                repo_prefix.is_some() || repo_suffix.is_some() || quant.is_some();
+            let fetch_limit = if has_local_filter {
+                limit.saturating_mul(5).max(limit).max(50)
+            } else {
+                limit
+            };
+            let mut results = hf_models::search_local_models(&query, fetch_limit).await?;
+            let quant = quant.map(|value| value.to_lowercase());
+            results.retain_mut(|model| {
+                if repo_prefix
+                    .as_deref()
+                    .is_some_and(|prefix| !model.repo_id.starts_with(prefix))
+                {
+                    return false;
+                }
+                if repo_suffix
+                    .as_deref()
+                    .is_some_and(|suffix| !model.repo_id.ends_with(suffix))
+                {
+                    return false;
+                }
+
+                if let Some(quant) = &quant {
+                    model
+                        .variants
+                        .retain(|variant| variant.variant_id.to_lowercase().contains(quant));
+                }
+
+                !model.variants.is_empty()
+            });
+            results.truncate(limit);
 
             if results.is_empty() {
-                println!("No compatible local models found.");
+                if json {
+                    println!("[]");
+                } else {
+                    println!("No compatible local models found.");
+                }
+                return Ok(());
+            }
+
+            let available_memory = local_search_memory_limit(ram_gb)?;
+
+            if json {
+                let output = results
+                    .iter()
+                    .map(|model| {
+                        let recommended_variant =
+                            recommended_variant(model, available_memory).map(|variant| {
+                                serde_json::json!({
+                                    "model_id": variant.model_id,
+                                    "download_id": variant.download_id,
+                                    "label": variant.label,
+                                    "size_bytes": variant.size_bytes,
+                                })
+                            });
+                        serde_json::json!({
+                            "repo_id": model.repo_id,
+                            "author": model.author,
+                            "model_name": model.model_name,
+                            "downloads": model.downloads,
+                            "recommended_variant": recommended_variant,
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                println!("{}", serde_json::to_string_pretty(&output)?);
                 return Ok(());
             }
 
@@ -2294,15 +2491,23 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                     "\n{} (by {}) — {} downloads",
                     model.model_name, model.author, model.downloads
                 );
+                if let Some(variant) = recommended_variant(model, available_memory) {
+                    println!(
+                        "  Recommended: {} — {}",
+                        variant.label,
+                        format_size(variant.size_bytes)
+                    );
+                    println!(
+                        "    Download: goose local-models download '{}'",
+                        variant.download_id
+                    );
+                } else {
+                    println!(
+                        "  Recommended: none fits in {}",
+                        format_size(available_memory)
+                    );
+                }
                 for variant in &model.variants {
-                    let size = if variant.size_bytes > 0 {
-                        format!(
-                            "{:.1}GB",
-                            variant.size_bytes as f64 / (1024.0 * 1024.0 * 1024.0)
-                        )
-                    } else {
-                        "unknown".to_string()
-                    };
                     let support = if variant.supported {
                         String::new()
                     } else {
@@ -2316,7 +2521,11 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                     };
                     println!(
                         "  [{}] {} — {} — {}{}",
-                        variant.format, variant.label, size, variant.description, support
+                        variant.format,
+                        variant.label,
+                        format_size(variant.size_bytes),
+                        variant.description,
+                        support
                     );
                     if variant.supported {
                         println!(
@@ -2855,6 +3064,69 @@ mod tests {
         match cli.command {
             Some(Command::Tui { args }) => assert_eq!(args, vec!["--theme", "dark"]),
             _ => panic!("expected tui command"),
+        }
+    }
+
+    #[cfg(feature = "local-inference")]
+    mod local_search {
+        use super::super::{
+            format_size, gb_to_bytes, search_query_from_filters, search_term_from_repo_filter,
+        };
+
+        #[test]
+        fn gb_to_bytes_converts_and_rejects_nonpositive() {
+            assert_eq!(gb_to_bytes(1.0).unwrap(), 1024 * 1024 * 1024);
+            assert_eq!(gb_to_bytes(0.5).unwrap(), 512 * 1024 * 1024);
+            assert!(gb_to_bytes(0.0).is_err());
+            assert!(gb_to_bytes(-4.0).is_err());
+            assert!(gb_to_bytes(f64::NAN).is_err());
+            assert!(gb_to_bytes(f64::INFINITY).is_err());
+        }
+
+        #[test]
+        fn explicit_query_wins_over_repo_filters() {
+            let query = search_query_from_filters(
+                Some("qwen".to_string()),
+                Some("unsloth/Llama-3.2"),
+                Some("-GGUF"),
+            );
+            assert_eq!(query, "qwen");
+        }
+
+        #[test]
+        fn repo_prefix_is_used_when_query_is_absent() {
+            let query = search_query_from_filters(None, Some("unsloth/Llama-3.2"), None);
+            assert_eq!(query, "Llama-3.2");
+        }
+
+        #[test]
+        fn repo_suffix_is_used_when_prefix_yields_nothing() {
+            let query = search_query_from_filters(None, Some("///"), Some("-Qwen3-GGUF"));
+            assert_eq!(query, "Qwen3-GGUF");
+        }
+
+        #[test]
+        fn empty_when_nothing_is_provided() {
+            assert_eq!(search_query_from_filters(None, None, None), "");
+        }
+
+        #[test]
+        fn repo_filter_takes_last_path_segment_and_trims_separators() {
+            assert_eq!(
+                search_term_from_repo_filter("unsloth/Llama-3.2"),
+                "Llama-3.2"
+            );
+            assert_eq!(search_term_from_repo_filter("-GGUF"), "GGUF");
+            assert_eq!(search_term_from_repo_filter("/bartowski/"), "bartowski");
+            assert_eq!(search_term_from_repo_filter("_model_."), "model");
+            assert_eq!(search_term_from_repo_filter(""), "");
+        }
+
+        #[test]
+        fn format_size_reports_unknown_for_zero() {
+            assert_eq!(format_size(0), "unknown");
+            assert_eq!(format_size(1024 * 1024 * 1024), "1.0GB");
+            assert_eq!(format_size(3 * 1024 * 1024 * 1024 / 2), "1.5GB");
         }
     }
 }

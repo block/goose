@@ -3425,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Visualizzazione ID pianificazione: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (già pianificata)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "Sfoglia file YAML..."
   },
@@ -3449,6 +3452,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Modifica pianificazione"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Caricamento delle ricette non riuscito."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "Impossibile analizzare la ricetta dal file."
   },
@@ -3461,14 +3467,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Tipo di file non valido: seleziona un file YAML (.yaml o .yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Caricamento ricette..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "Nome:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "es. daily-summary-job"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "Nessuna ricetta salvata trovata."
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Fornisci un'origine ricetta valida."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "Questa ricetta ha già una pianificazione. Modificala dall'elenco Ricette."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Descrizione: {description}"
@@ -3479,11 +3494,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Titolo: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Ricette salvate"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "L'ID pianificazione è obbligatorio."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Pianificazione:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Seleziona una ricetta salvata"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Selezionato: {path}"

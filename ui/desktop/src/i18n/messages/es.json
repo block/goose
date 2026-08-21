@@ -3425,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Viendo el ID de programación: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (ya programada)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "Buscar archivo YAML..."
   },
@@ -3449,6 +3452,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Editar programación"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Error al cargar las recetas."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "No se pudo analizar la receta del archivo."
   },
@@ -3461,14 +3467,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Tipo de archivo no válido: selecciona un archivo YAML (.yaml o .yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Cargando recetas..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "Nombre:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "p. ej., resumen-diario"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "No se encontraron recetas guardadas."
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Proporciona un origen de receta válido."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "Esta receta ya tiene una programación. Edítala desde la lista de Recetas."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Descripción: {description}"
@@ -3479,11 +3494,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Título: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Recetas guardadas"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "Se requiere el ID de la programación."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Programación:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Selecciona una receta guardada"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Seleccionado: {path}"
