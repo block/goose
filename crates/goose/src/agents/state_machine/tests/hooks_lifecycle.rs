@@ -417,9 +417,9 @@ const ABNORMAL_EXIT_AND_RECORD_SCRIPT: &str =
 /// both loops build it through `HookChainOutcome::denial`, so they cannot word
 /// it differently.
 const HOOK_FAILURE_REFUSAL: &str =
-    "Tool call blocked because policy hook `test-plugin` could not be evaluated: \
+    "Tool call blocked because policy hook `test-plugin` could not complete: \
      the hook exited with status 3 and no usable decision. \
-     That plugin is configured to block when its hook returns no decision.";
+     That hook is configured to block on failure.";
 
 /// deny-invisible: the tool never dispatches, neither post event fires, and a
 /// PreToolUseResult subscriber still sees the denial with blocked_by and reason.
@@ -1659,7 +1659,7 @@ async fn pre_tool_use_hook_failure_blocks_when_configured() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
     let pipeline = pipeline.with_hook_manager(env.hook_manager());
     api.on("add one").call(ADD, value(1));
-    api.on("could not be evaluated").reply("understood");
+    api.on("could not complete").reply("understood");
 
     let result = pipeline.run(["add one"]).await?;
 

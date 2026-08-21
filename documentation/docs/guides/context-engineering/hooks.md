@@ -124,7 +124,7 @@ Place the plugin under a discovered plugin location, such as `~/.agents/plugins/
 | `type` | No | Action type. goose currently supports `command`. If omitted, `command` is used. |
 | `command` | Yes for command hooks | Shell command to run. goose runs it with `sh -c`. |
 | `timeout` | No | Timeout in seconds for the command. Defaults to 30 seconds. |
-| `on_failure` | No | What to do when a `PreToolUse` hook returns no decision: `allow` (the default) ignores it, `block` denies the tool call. Ignored on every other event. See [Blocking a Tool Call](#blocking-a-tool-call). |
+| `on_failure` | No | What to do when a `PreToolUse` hook fails: it cannot be executed, times out, does not receive its payload, produces output goose cannot decode, or exits without a decision goose recognizes. `allow` (the default) continues the tool call, `block` denies it. Interpreted only for selected `PreToolUse` command actions and ignored for every other event. See [Blocking a Tool Call](#blocking-a-tool-call). |
 
 Use `${PLUGIN_ROOT}` in a command to reference the plugin directory. goose also sets `PLUGIN_ROOT` in the hook command's environment.
 
@@ -176,7 +176,7 @@ When a hook runs, goose writes a JSON payload to the command's stdin. Every payl
 | `policy_evaluated` | `true` when at least one matching `PreToolUse` hook exited 0 or returned an explicit decision (exit `2`, or `{"decision":"block"}` on stdout), on `PreToolUseResult`. A hook that exits non-zero without a decision, fails to spawn, times out, or whose payload could not be serialized does not count, and neither does the absence of a matching hook. It is an at-least-one value that stays `true` if a later hook fails. It reports that a hook ran to a conclusion, not that the conclusion was usable: read `cause` for that. |
 | `blocked_by` | Plugin whose hook denied the call, on `PreToolUseResult` when `decision` is `deny`. |
 | `reason` | Message for a denial, on `PreToolUseResult` when `decision` is `deny`. For an explicit policy denial, goose derives this from exit-2 stderr or the JSON `reason` field. Goose does not bound or redact hook-supplied reasons, so hooks must not include secrets. For a hook failure under `on_failure: block`, goose supplies a bounded framework-generated message that does not include command strings, plugin paths, or payload content. |
-| `cause` | Why the chain ended as it did, on `PreToolUseResult`. `policy_denial` means an explicit policy decision blocked the call. `hook_failure` means at least one hook returned no usable decision and that failure determined or qualified the reported result. Absent for a clean allow with no hook failure. |
+| `cause` | Why the chain ended as it did, on `PreToolUseResult`. `policy_denial` means an explicit policy decision blocked the call. `hook_failure` means at least one hook failed to execute, to receive its payload, to produce decodable output, or to answer the decision protocol, and that failure determined or qualified the reported result. Absent only for an allow with no hook failure. |
 
 Example payload for a tool event:
 
@@ -277,11 +277,13 @@ Two further cases read as no decision:
 
 Because the block signal is read independently of the exit code, a hook that prints `{"decision":"block"}` and *then* exits non-zero still blocks. Do not rely on a non-zero exit to cancel a block you have already printed.
 
-### Choose What Happens When a Hook Cannot Decide
+### Choose What Happens When a Hook Fails
 
-**By default a hook that returns no decision is ignored and the tool call proceeds.** That is the historical behavior and it stays the default, so a broken hook never wedges a session.
+A hook allows cleanly only when goose delivered the payload and the process exited 0 with either empty stdout or a valid allow decision. A failed delivery, output goose cannot use, or a non-zero exit without a denial is a hook failure, not an allow.
 
-For a policy you actually depend on, set `on_failure` to `block` on the action. goose then denies the tool call when that hook returns no decision:
+**By default a hook failure is logged and the tool call proceeds.** That is the historical behavior and it stays the default, so a broken hook never wedges a session.
+
+For a policy you actually depend on, set `on_failure` to `block` on the action. goose then denies the tool call when that hook fails:
 
 ```json title="hooks/hooks.json"
 {
@@ -305,14 +307,18 @@ For a policy you actually depend on, set `on_failure` to `block` on the action. 
 A denial caused by a failure is worded differently from a policy denial, so the model and your logs can tell them apart:
 
 ```text
-Tool call blocked because policy hook `<plugin>` could not be evaluated: <reason>. That plugin is configured to block when its hook returns no decision.
+Tool call blocked because policy hook `<plugin>` could not complete: <reason>. That hook is configured to block on failure.
 ```
 
 Three limits are worth knowing:
 
 - `on_failure` applies to `PreToolUse` only. A `Stop` hook stays fail-open even with `on_failure: block`, so a broken hook can never keep a finished turn from ending.
-- A hook that did return a decision is unaffected. `on_failure` changes nothing about how an allow or a block is handled.
-- Any value other than `allow` or `block` is a configuration error, and goose skips the whole `hooks.json` file with a warning rather than guessing a policy.
+- `on_failure` never overrides an explicit denial. A hook that explicitly blocks is honored in either mode. It also changes nothing about a clean allow, meaning one where the payload was delivered and the process exited 0 with empty stdout or a valid allow decision.
+- On a selected `PreToolUse` command action, any value other than `allow` or `block` is a configuration error, and goose skips that plugin's whole `hooks.json` file with a warning rather than guessing a policy. Other events do not interpret the field. `on_failure` governs what happens when a hook runs and fails, not how configuration load errors are handled.
+
+### What goose Validates in `hooks.json`
+
+Unknown event names and unsupported string action types are ignored without their payloads being interpreted, so a plugin can carry configuration for a newer goose without breaking on this one. Recognized event schemas and selected runnable command actions are validated. A malformed selected configuration skips that plugin's `hooks.json` with a warning, and an invalid matcher regex warns and skips only that rule. `on_failure` governs what happens when a hook fails at runtime; it does not make configuration-loading or matcher errors fail closed.
 
 The `PreToolUseResult` event reports the outcome through `cause`: `policy_denial` for an explicit block, `hook_failure` for an execution or protocol failure, and no `cause` for a clean allow.
 
@@ -320,7 +326,7 @@ The `PreToolUseResult` event reports the outcome through `cause`: `policy_denial
 
 `PreToolUseResult` carries the outcome of the `PreToolUse` chain. Its fields are defined once in [Hook Payload](#hook-payload); this section covers only what `on_failure` changes.
 
-`decision` is the result actually applied to the tool call, so under `on_failure: block` a hook failure shows as `deny`. `cause` is how a subscriber tells the two kinds of denial apart: `policy_denial` when a hook explicitly blocked, `hook_failure` when a hook returned no usable decision.
+`decision` is the result actually applied to the tool call, so under `on_failure: block` a hook failure shows as `deny`. `cause` is how a subscriber tells the two kinds of denial apart: `policy_denial` when a hook explicitly blocked, `hook_failure` when a hook could not be executed, did not receive its payload, produced output goose could not decode, or answered nothing the decision protocol recognizes.
 
 `policy_evaluated` answers a different question from `cause` and the two move independently. A hook that exits 0 while printing a stray log line has run to a conclusion, so `policy_evaluated` is `true`, but it produced no usable decision, so `cause` is `hook_failure`. A hook that fails to spawn never ran at all, so `policy_evaluated` stays `false`.
 
@@ -507,14 +513,14 @@ Check the following:
 
 ### My Hook Timed Out or Failed
 
-Hook failures are logged but do not crash goose or the tool that triggered the hook. By default, a hook that fails, exceeds its timeout, or returns no decision is logged and the tool call proceeds. To intentionally stop a tool call, a `PreToolUse` hook must emit a clean block signal, not just exit non-zero.
+Hook failures are logged but do not crash goose or the tool that triggered the hook. By default, a hook that fails to run, exceeds its timeout, never receives its payload, or exits without a decision goose recognizes is logged and the tool call proceeds. To intentionally stop a tool call, a `PreToolUse` hook must emit a clean block signal, not just exit non-zero.
 
 Two cases look like a failure but are not what people expect:
 
 - **The hook printed a log line to stdout.** goose reads stdout as the decision channel, so `echo "checking policy"` makes an otherwise healthy hook read as no decision. Send diagnostics to stderr instead.
 - **The hook printed `{"decision":"allow"}` and then exited non-zero.** The exit status contradicts the decision, so goose treats it as no decision. Exit `0` alongside an allow.
 
-If you would rather a hook that cannot decide stop the tool call instead of being ignored, set `on_failure` to `block` on that action. See [Choose What Happens When a Hook Cannot Decide](#choose-what-happens-when-a-hook-cannot-decide).
+If you would rather a failing hook stop the tool call instead of being ignored, set `on_failure` to `block` on that action. See [Choose What Happens When a Hook Fails](#choose-what-happens-when-a-hook-fails).
 
 Set a larger timeout for long-running hooks:
 

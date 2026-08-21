@@ -100,9 +100,7 @@ async fn emit_pre_tool_use_result(
         .with_tool_call_id(tool_call_id)
         .with_working_dir(session.working_dir.to_string_lossy().to_string())
         .with_pre_tool_use_outcome(outcome);
-    hook_manager
-        .emit(HookEvent::PreToolUseResult, context)
-        .await;
+    hook_manager.emit_pre_tool_use_result(context).await;
 }
 
 /// Runs the `PreToolUse` chain, emits `PreToolUseResult`, and reports a denial

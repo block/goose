@@ -688,9 +688,7 @@ impl Agent {
                 .with_tool_call_id(tool_call_id)
                 .with_working_dir(session.working_dir.to_string_lossy().to_string())
                 .with_pre_tool_use_outcome(outcome);
-        self.hook_manager
-            .emit(crate::hooks::HookEvent::PreToolUseResult, ctx)
-            .await;
+        self.hook_manager.emit_pre_tool_use_result(ctx).await;
     }
 
     fn with_post_tool_hook(
@@ -5751,9 +5749,9 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     /// The state-machine loop asserts this same string; both loops build it
     /// through `HookChainOutcome::denial`, so they cannot word it differently.
     const HOOK_FAILURE_REFUSAL: &str =
-        "Tool call blocked because policy hook `test-plugin` could not be evaluated: \
+        "Tool call blocked because policy hook `test-plugin` could not complete: \
          the hook exited with status 3 and no usable decision. \
-         That plugin is configured to block when its hook returns no decision.";
+         That hook is configured to block on failure.";
 
     async fn agent_with_hooks(
         hook_manager: crate::hooks::HookManager,
