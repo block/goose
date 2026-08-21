@@ -351,6 +351,7 @@ describe('Extension Utils', () => {
         args: ['script.py', '--arg1', '--arg2'],
         timeout: 300,
         env_keys: ['API_KEY'],
+        envs: { API_KEY: 'secret123' },
       });
     });
 
@@ -379,9 +380,31 @@ describe('Extension Utils', () => {
         timeout: 300,
         uri: 'http://api.example.com',
         env_keys: ['API_KEY'],
+        envs: { API_KEY: 'key123' },
         headers: {
           Authorization: 'Bearer token',
         },
+      });
+    });
+
+    it('should include only edited environment variable values', () => {
+      const config = createExtensionConfig({
+        name: 'test-stdio',
+        description: '',
+        type: 'stdio',
+        cmd: 'node server.js',
+        enabled: true,
+        timeout: 300,
+        envVars: [
+          { key: 'UNCHANGED', value: '••••••••', isEdited: false },
+          { key: 'EDITED', value: 'new-secret', isEdited: true },
+        ],
+        headers: [],
+      });
+
+      expect(config).toMatchObject({
+        env_keys: ['UNCHANGED', 'EDITED'],
+        envs: { EDITED: 'new-secret' },
       });
     });
 

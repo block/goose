@@ -134,8 +134,7 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
     envVars,
     headers,
     installation_notes: (extension as Record<string, unknown>)['installation_notes'] as
-      | string
-      | undefined,
+      string | undefined,
     ...(availableTools ? { available_tools: availableTools } : {}),
     ...(extension.type === 'streamable_http'
       ? {
@@ -160,6 +159,11 @@ function availableToolsConfig(availableTools?: string[] | null) {
 export function createExtensionConfig(formData: ExtensionFormData): ExtensionConfig {
   // Extract just the keys from env vars
   const env_keys = formData.envVars.map(({ key }) => key).filter((key) => key.length > 0);
+  const envs = Object.fromEntries(
+    formData.envVars
+      .filter(({ key, value, isEdited }) => isEdited && key.length > 0 && value.length > 0)
+      .map(({ key, value }) => [key, value])
+  );
 
   if (formData.type === 'stdio') {
     // we put the cmd + args all in the form cmd field but need to split out into cmd + args
@@ -173,6 +177,7 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
       args: args,
       timeout: formData.timeout,
       ...(env_keys.length > 0 ? { env_keys } : {}),
+      ...(Object.keys(envs).length > 0 ? { envs } : {}),
       ...availableToolsConfig(formData.available_tools),
     };
   } else if (formData.type === 'streamable_http') {
@@ -194,6 +199,7 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
       timeout: formData.timeout,
       uri: formData.endpoint || '',
       ...(env_keys.length > 0 ? { env_keys } : {}),
+      ...(Object.keys(envs).length > 0 ? { envs } : {}),
       headers,
       ...availableToolsConfig(formData.available_tools),
       ...(formData.socket != null ? { socket: formData.socket } : {}),

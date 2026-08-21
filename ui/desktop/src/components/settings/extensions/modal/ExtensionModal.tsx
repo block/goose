@@ -15,7 +15,6 @@ import ExtensionConfigFields from './ExtensionConfigFields';
 import { PlusIcon, Edit, Trash2, AlertTriangle, Info } from 'lucide-react';
 import ExtensionInfoFields from './ExtensionInfoFields';
 import ExtensionTimeoutField from './ExtensionTimeoutField';
-import { acpUpsertConfig } from '../../../../acp/config';
 import { ConfirmationModal } from '../../../ui/ConfirmationModal';
 import { defineMessages, useIntl } from '../../../../i18n';
 
@@ -50,7 +49,8 @@ const i18n = defineMessages({
   },
   unsavedChangesMessage: {
     id: 'extensionModal.unsavedChangesMessage',
-    defaultMessage: 'You have unsaved changes to the extension configuration. Are you sure you want to close without saving?',
+    defaultMessage:
+      'You have unsaved changes to the extension configuration. Are you sure you want to close without saving?',
   },
   closeWithoutSaving: {
     id: 'extensionModal.closeWithoutSaving',
@@ -62,7 +62,7 @@ interface ExtensionModalProps {
   title: string;
   initialData: ExtensionFormData;
   onClose: () => void;
-  onSubmit: (formData: ExtensionFormData) => void;
+  onSubmit: (formData: ExtensionFormData) => Promise<void> | void;
   onDelete?: (name: string) => void;
   submitLabel: string;
   modalType: 'add' | 'edit';
@@ -241,17 +241,6 @@ export default function ExtensionModal({
     []
   );
 
-  // Function to store a secret value
-  const storeSecret = async (key: string, value: string) => {
-    try {
-      await acpUpsertConfig(key, value, true);
-      return true;
-    } catch (error) {
-      console.error('Failed to store secret:', error);
-      return false;
-    }
-  };
-
   // Function to determine which icon to display with proper styling
   const getModalIcon = () => {
     if (showDeleteConfirmation) {
@@ -332,7 +321,7 @@ export default function ExtensionModal({
     );
   };
 
-  // Handle submit with validation and secret storage
+  // Handle submit with validation
   const handleSubmit = async () => {
     setSubmitAttempted(true);
 
@@ -343,29 +332,16 @@ export default function ExtensionModal({
         headers: getFinalHeaders(),
       };
 
-      // Only store env vars that have been edited (which includes new)
-      const secretPromises = finalFormData.envVars
-        .filter((envVar) => envVar.isEdited)
-        .map(({ key, value }) => storeSecret(key, value));
-
       try {
-        // Wait for all secrets to be stored
-        const results = await Promise.all(secretPromises);
-
-        if (results.every((success) => success)) {
-          // Convert timeout to number if needed
-          const dataToSubmit = {
-            ...finalFormData,
-            timeout:
-              typeof finalFormData.timeout === 'string'
-                ? Number(finalFormData.timeout)
-                : finalFormData.timeout,
-          };
-          onSubmit(dataToSubmit);
-          onClose();
-        } else {
-          console.error('Failed to store one or more secrets');
-        }
+        const dataToSubmit = {
+          ...finalFormData,
+          timeout:
+            typeof finalFormData.timeout === 'string'
+              ? Number(finalFormData.timeout)
+              : finalFormData.timeout,
+        };
+        await onSubmit(dataToSubmit);
+        onClose();
       } catch (error) {
         console.error('Error during submission:', error);
       }
@@ -373,7 +349,9 @@ export default function ExtensionModal({
   };
 
   // Update title based on current state
-  const modalTitle = showDeleteConfirmation ? intl.formatMessage(i18n.deleteExtensionTitle, { name: formData.name }) : title;
+  const modalTitle = showDeleteConfirmation
+    ? intl.formatMessage(i18n.deleteExtensionTitle, { name: formData.name })
+    : title;
 
   return (
     <>
@@ -385,17 +363,13 @@ export default function ExtensionModal({
               {modalTitle}
             </DialogTitle>
             {showDeleteConfirmation && (
-              <DialogDescription>
-                {intl.formatMessage(i18n.deleteDescription)}
-              </DialogDescription>
+              <DialogDescription>{intl.formatMessage(i18n.deleteDescription)}</DialogDescription>
             )}
           </DialogHeader>
 
           {showDeleteConfirmation ? (
             <div className="py-4">
-              <p className="text-text-primary">
-                {intl.formatMessage(i18n.deleteDescription)}
-              </p>
+              <p className="text-text-primary">{intl.formatMessage(i18n.deleteDescription)}</p>
             </div>
           ) : (
             <div className="py-4 space-y-6">

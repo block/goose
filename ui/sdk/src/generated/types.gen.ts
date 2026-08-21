@@ -769,6 +769,7 @@ export type GetAvailableExtensionsResponse_unstable = {
 export type AddConfigExtensionRequest_unstable = {
     extension: GooseExtension;
     enabled?: boolean;
+    env?: Array<EnvVariable>;
 };
 
 /**
@@ -778,6 +779,7 @@ export type UpdateConfigExtensionRequest_unstable = {
     configKey: string;
     extension: GooseExtension;
     enabled?: boolean;
+    env?: Array<EnvVariable>;
 };
 
 /**

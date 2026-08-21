@@ -1,21 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, type RenderOptions, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ExtensionModal from './ExtensionModal';
 import { ExtensionFormData } from '../utils';
 import { IntlTestWrapper } from '../../../../i18n/test-utils';
-import { acpUpsertConfig } from '../../../../acp/config';
-
-vi.mock('../../../../acp/config', async () => {
-  const actual =
-    await vi.importActual<typeof import('../../../../acp/config')>('../../../../acp/config');
-  return {
-    ...actual,
-    acpUpsertConfig: vi.fn().mockResolvedValue(undefined),
-  };
-});
-
-const mockedUpsertConfig = vi.mocked(acpUpsertConfig);
 
 const renderWithIntl = (ui: React.ReactElement, options?: RenderOptions) =>
   render(ui, { wrapper: IntlTestWrapper, ...options });
@@ -260,11 +248,6 @@ describe('ExtensionModal', () => {
   });
 
   describe('pending env var capture (fix for #8969)', () => {
-    beforeEach(() => {
-      mockedUpsertConfig.mockClear();
-      mockedUpsertConfig.mockResolvedValue(undefined);
-    });
-
     const emptyInitialData: ExtensionFormData = {
       name: '',
       description: '',
@@ -326,8 +309,6 @@ describe('ExtensionModal', () => {
         expect(mockOnSubmit).toHaveBeenCalled();
       });
 
-      expect(mockedUpsertConfig).toHaveBeenCalledWith('JWT_TOKEN', 'my_very_long_token', true);
-
       const submittedData = mockOnSubmit.mock.calls[0][0];
       expect(submittedData.envVars).toEqual(
         expect.arrayContaining([
@@ -368,12 +349,6 @@ describe('ExtensionModal', () => {
       await waitFor(() => {
         expect(mockOnSubmit).toHaveBeenCalled();
       });
-
-      expect(mockedUpsertConfig).not.toHaveBeenCalledWith(
-        'LONELY_KEY',
-        expect.anything(),
-        expect.anything()
-      );
 
       const submittedData = mockOnSubmit.mock.calls[0][0];
       expect(submittedData.envVars).not.toEqual(

@@ -507,7 +507,8 @@ export const zGetAvailableExtensionsResponse_unstable = z.object({
  */
 export const zAddConfigExtensionRequest_unstable = z.object({
     extension: zGooseExtension,
-    enabled: z.boolean().optional().default(false)
+    enabled: z.boolean().optional().default(false),
+    env: z.array(zEnvVariable).optional().default([])
 });
 
 /**
@@ -516,7 +517,8 @@ export const zAddConfigExtensionRequest_unstable = z.object({
 export const zUpdateConfigExtensionRequest_unstable = z.object({
     configKey: z.string(),
     extension: zGooseExtension,
-    enabled: z.boolean().optional().default(false)
+    enabled: z.boolean().optional().default(false),
+    env: z.array(zEnvVariable).optional().default([])
 });
 
 /**

@@ -21,6 +21,13 @@ function availableToolsOrUndefined(availableTools?: string[] | null): string[] |
   return availableTools?.length ? availableTools : undefined;
 }
 
+function inlineEnv(config: ExtensionConfig) {
+  if (!('envs' in config) || !config.envs) {
+    return [];
+  }
+  return Object.entries(config.envs).map(([name, value]) => ({ name, value }));
+}
+
 export function gooseExtensionToExtensionConfig(extension: GooseExtension): ExtensionConfig | null {
   switch (extension.type) {
     case 'builtin':
@@ -157,7 +164,7 @@ export async function addConfigExtension(config: ExtensionConfig, enabled: boole
     throw new Error(`Unsupported extension type for ACP: ${config.type}`);
   }
   const client = await getAcpClient();
-  await client.goose.configExtensionsAdd_unstable({ extension, enabled });
+  await client.goose.configExtensionsAdd_unstable({ extension, enabled, env: inlineEnv(config) });
 }
 
 export async function updateConfigExtension(
@@ -170,7 +177,12 @@ export async function updateConfigExtension(
     throw new Error(`Unsupported extension type for ACP: ${config.type}`);
   }
   const client = await getAcpClient();
-  await client.goose.configExtensionsUpdate_unstable({ configKey, extension, enabled });
+  await client.goose.configExtensionsUpdate_unstable({
+    configKey,
+    extension,
+    enabled,
+    env: inlineEnv(config),
+  });
 }
 
 export async function removeConfigExtension(configKey: string): Promise<void> {

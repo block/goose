@@ -1,4 +1,6 @@
-use agent_client_protocol::schema::v1::{AvailableCommand, ContentBlock, McpServer, SessionInfo};
+use agent_client_protocol::schema::v1::{
+    AvailableCommand, ContentBlock, EnvVariable, McpServer, SessionInfo,
+};
 use agent_client_protocol::{JsonRpcRequest, JsonRpcResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -446,6 +448,8 @@ pub struct AddConfigExtensionRequest {
     pub extension: GooseExtension,
     #[serde(default)]
     pub enabled: bool,
+    #[serde(default)]
+    pub env: Vec<EnvVariable>,
 }
 
 /// Replace a persisted extension without changing its canonical identity.
@@ -460,6 +464,8 @@ pub struct UpdateConfigExtensionRequest {
     pub extension: GooseExtension,
     #[serde(default)]
     pub enabled: bool,
+    #[serde(default)]
+    pub env: Vec<EnvVariable>,
 }
 
 /// Remove a persisted extension from the user's global goose config.

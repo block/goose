@@ -1,7 +1,35 @@
 use super::*;
 use crate::agents::extension::Envs;
 use crate::config::extensions::{ExtensionAddError, ExtensionEntry, ExtensionUpdateError};
-use agent_client_protocol::schema::v1::{HttpHeader, McpServer, McpServerHttp, McpServerStdio};
+use agent_client_protocol::schema::v1::{
+    EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerStdio,
+};
+
+fn include_request_env(
+    conversion: &mut ConfigExtensionConversion,
+    env: Vec<EnvVariable>,
+) -> Result<(), agent_client_protocol::Error> {
+    if env.is_empty() {
+        return Ok(());
+    }
+    let env_keys = match &mut conversion.config {
+        ExtensionConfig::Stdio { env_keys, .. }
+        | ExtensionConfig::StreamableHttp { env_keys, .. } => env_keys,
+        _ => {
+            return Err(agent_client_protocol::Error::invalid_params()
+                .data("environment values are only supported for MCP extensions"));
+        }
+    };
+    for env in env {
+        if !env_keys.contains(&env.name) {
+            env_keys.push(env.name.clone());
+        }
+        conversion
+            .secret_updates
+            .push((env.name, serde_json::Value::String(env.value)));
+    }
+    Ok(())
+}
 
 impl GooseAcpAgent {
     pub(super) async fn on_add_session_extension(
@@ -72,7 +100,8 @@ impl GooseAcpAgent {
         &self,
         req: AddConfigExtensionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        let conversion = goose_extension_to_config(req.extension)?;
+        let mut conversion = goose_extension_to_config(req.extension)?;
+        include_request_env(&mut conversion, req.env)?;
         let entry = ExtensionEntry {
             enabled: req.enabled,
             config: conversion.config,
@@ -87,7 +116,8 @@ impl GooseAcpAgent {
         &self,
         req: UpdateConfigExtensionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        let conversion = goose_extension_to_config(req.extension)?;
+        let mut conversion = goose_extension_to_config(req.extension)?;
+        include_request_env(&mut conversion, req.env)?;
         let entry = ExtensionEntry {
             enabled: req.enabled,
             config: conversion.config,
@@ -796,6 +826,44 @@ mod tests {
             "literal envs should not be persisted"
         );
         assert_eq!(env_keys, vec!["SECRET_TOKEN", "OTHER_TOKEN"]);
+    }
+
+    #[test]
+    fn config_request_env_is_bound_to_http_extension_persistence() {
+        let extension = GooseExtension::Mcp {
+            server: Box::new(McpServer::Http(McpServerHttp::new(
+                "test-http",
+                "https://example.com/mcp",
+            ))),
+            env_keys: Vec::new(),
+            description: None,
+            timeout: None,
+            socket: None,
+            client_id: None,
+            client_secret_key: None,
+            scopes: Vec::new(),
+            bundled: None,
+            available_tools: None,
+        };
+        let mut conversion = goose_extension_to_config(extension).unwrap();
+
+        include_request_env(
+            &mut conversion,
+            vec![EnvVariable::new("API_TOKEN", "edited-secret")],
+        )
+        .unwrap();
+
+        assert_eq!(
+            conversion.secret_updates,
+            vec![(
+                "API_TOKEN".to_string(),
+                serde_json::Value::String("edited-secret".to_string())
+            )]
+        );
+        let ExtensionConfig::StreamableHttp { env_keys, .. } = conversion.config else {
+            panic!("expected streamable HTTP extension");
+        };
+        assert_eq!(env_keys, vec!["API_TOKEN"]);
     }
 
     #[test]

@@ -1543,6 +1543,13 @@
         "enabled": {
           "type": "boolean",
           "default": false
+        },
+        "env": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnvVariable"
+          },
+          "default": []
         }
       },
       "required": [
@@ -1564,6 +1571,13 @@
         "enabled": {
           "type": "boolean",
           "default": false
+        },
+        "env": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnvVariable"
+          },
+          "default": []
         }
       },
       "required": [
