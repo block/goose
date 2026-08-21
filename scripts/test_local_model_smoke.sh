@@ -145,6 +145,47 @@ RESULTS_FILE="$OUTPUT_DIR/results.tsv"
 "$GOOSE_BIN" lm list | awk 'NR > 2 && $4 == "✓" { print $1 }' > "$EXISTING_MODELS_FILE"
 printf "status\tmodel_id\tdetail\n" > "$RESULTS_FILE"
 
+TEMP_HF_CACHE_ROOT=""
+TEMP_MODELS=()
+
+cleanup_temp_models() {
+  local model_id
+  local cleanup_failed=false
+
+  for model_id in "${TEMP_MODELS[@]}"; do
+    if ! "$GOOSE_BIN" lm delete "$model_id" >/dev/null 2>&1; then
+      cleanup_failed=true
+    fi
+  done
+
+  if [[ "$cleanup_failed" = true ]]; then
+    echo "Warning: could not unregister all temporary models; cache retained at $TEMP_HF_CACHE_ROOT" >&2
+    return
+  fi
+
+  if [[ -n "$TEMP_HF_CACHE_ROOT" && -d "$TEMP_HF_CACHE_ROOT" ]]; then
+    rm -rf -- "$TEMP_HF_CACHE_ROOT"
+  fi
+}
+
+untrack_temp_model() {
+  local target="$1"
+  local model_id
+  local remaining=()
+
+  for model_id in "${TEMP_MODELS[@]}"; do
+    if [[ "$model_id" != "$target" ]]; then
+      remaining+=("$model_id")
+    fi
+  done
+  TEMP_MODELS=("${remaining[@]}")
+}
+
+if [[ "$KEEP_DOWNLOADS" = false ]]; then
+  TEMP_HF_CACHE_ROOT=$(mktemp -d)
+fi
+trap cleanup_temp_models EXIT
+
 MODELS=()
 if [[ -n "$MODEL_LIST" ]]; then
   IFS=',' read -ra REQUESTED_MODELS <<< "$MODEL_LIST"
@@ -157,12 +198,8 @@ if [[ -n "$MODEL_LIST" ]]; then
     MODELS+=("$repo"$'\t'"$model"$'\t'"$model"$'\t'"$variant"$'\t'"0")
   done
 else
-  SEARCH_LIMIT=$((TOP_N * 20))
-  if [[ "$SEARCH_LIMIT" -lt 50 ]]; then
-    SEARCH_LIMIT=50
-  fi
   search_query="${REPO_PREFIX%/}"
-  SEARCH_ARGS=(lm search "$search_query" --limit "$SEARCH_LIMIT" --json)
+  SEARCH_ARGS=(lm search "$search_query" --limit "$TOP_N" --json)
   if [[ -n "$RAM_GB" ]]; then
     SEARCH_ARGS+=(--ram-gb "$RAM_GB")
   fi
@@ -214,15 +251,53 @@ record_result() {
   printf "%s\t%s\t%s\n" "$status" "$model_id" "$detail" >> "$RESULTS_FILE"
 }
 
+summarize_goose_error() {
+  awk '
+    /Ran into this error:/ {
+      sub(/^.*Ran into this error: /, "")
+      print
+      found = 1
+      exit
+    }
+    /Request failed:/ {
+      sub(/^.*Request failed: /, "Request failed: ")
+      print
+      found = 1
+      exit
+    }
+    /Provider error:/ {
+      sub(/^.*Provider error: /, "Provider error: ")
+      print
+      found = 1
+      exit
+    }
+    END { if (!found) exit 1 }
+  ' "$1"
+}
+
+download_once() {
+  local download_id="$1"
+  local cache_root="$2"
+
+  if [[ -n "$cache_root" ]]; then
+    HF_HUB_CACHE="$cache_root/hub" \
+      HF_XET_CACHE="$cache_root/xet" \
+      "$GOOSE_BIN" lm download "$download_id"
+  else
+    "$GOOSE_BIN" lm download "$download_id"
+  fi
+}
+
 download_model() {
   local download_id="$1"
   local log_file="$2"
+  local cache_root="$3"
   local attempt=1
   local delay="$RETRY_DELAY"
 
   while true; do
     : > "$log_file"
-    if "$GOOSE_BIN" lm download "$download_id" 2>&1 | tee "$log_file"; then
+    if download_once "$download_id" "$cache_root" 2>&1 | tee "$log_file"; then
       return 0
     fi
 
@@ -296,21 +371,34 @@ for row in "${MODELS[@]}"; do
   echo "Variant:  $label (${size_gb}GB)"
   echo "=========================================================="
 
+  existed_before=false
+  if grep -Fxq "$model_id" "$EXISTING_MODELS_FILE"; then
+    existed_before=true
+  fi
+
   downloaded=false
-  set +e
-  download_model "$download_id" "$download_log"
-  download_status=$?
-  set -e
-  if [[ "$download_status" -eq 0 ]]; then
+  if [[ "$existed_before" = true ]]; then
+    echo "Using pre-existing download for $model_id"
     downloaded=true
-  elif [[ "$download_status" -eq 2 ]]; then
-    echo "Download rate limited for $model_id"
-    record_result "FAIL" "$model_id" "Hugging Face rate limited"
-    OVERALL_SUCCESS=false
   else
-    echo "Download failed for $model_id"
-    record_result "FAIL" "$model_id" "download failed"
-    OVERALL_SUCCESS=false
+    if [[ -n "$TEMP_HF_CACHE_ROOT" ]]; then
+      TEMP_MODELS+=("$model_id")
+    fi
+    set +e
+    download_model "$download_id" "$download_log" "$TEMP_HF_CACHE_ROOT"
+    download_status=$?
+    set -e
+    if [[ "$download_status" -eq 0 ]]; then
+      downloaded=true
+    elif [[ "$download_status" -eq 2 ]]; then
+      echo "Download rate limited for $model_id"
+      record_result "FAIL" "$model_id" "Hugging Face rate limited"
+      OVERALL_SUCCESS=false
+    else
+      echo "Download failed for $model_id"
+      record_result "FAIL" "$model_id" "download failed"
+      OVERALL_SUCCESS=false
+    fi
   fi
 
   if [[ "$downloaded" = true ]]; then
@@ -327,6 +415,11 @@ for row in "${MODELS[@]}"; do
       echo "Run timed out after ${RUN_TIMEOUT}s for $model_id"
       record_result "FAIL" "$model_id" "run timed out"
       OVERALL_SUCCESS=false
+    elif error_summary=$(summarize_goose_error "$run_log"); then
+      echo "Goose reported an error for $model_id"
+      echo "  $error_summary"
+      record_result "FAIL" "$model_id" "$error_summary"
+      OVERALL_SUCCESS=false
     elif [[ "$run_status" -eq 0 ]]; then
       echo "Run passed for $model_id"
       record_result "PASS" "$model_id" ""
@@ -337,14 +430,10 @@ for row in "${MODELS[@]}"; do
     fi
   fi
 
-  existed_before=false
-  if grep -Fxq "$model_id" "$EXISTING_MODELS_FILE"; then
-    existed_before=true
-  fi
-
   if [[ "$KEEP_DOWNLOADS" = false && "$downloaded" = true && "$existed_before" = false ]]; then
     if "$GOOSE_BIN" lm delete "$model_id" 2>&1 | tee "$delete_log"; then
-      echo "Deleted $model_id"
+      untrack_temp_model "$model_id"
+      echo "Unregistered $model_id; its temporary cache will be removed at exit"
     else
       echo "Delete failed for $model_id"
       record_result "FAIL" "$model_id" "delete failed"

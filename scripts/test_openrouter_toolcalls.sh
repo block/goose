@@ -137,7 +137,7 @@ def get_weather(
     location: Annotated[str, "City or place to check"],
 ) -> Annotated[str, "Weather report"]:
     """Get the current weather for a location."""
-    return f"The weather in {location} is 68 F and clear."
+    return f"GOOSE_TOOL_CALL_OK: The weather in {location} is 68 F and clear."
 EOF
 
 cat > "$TESTDIR/recipe.yaml" << 'EOF'
@@ -150,7 +150,7 @@ extensions:
     args:
       - run
       - --with
-      - fastmcp
+      - fastmcp==2.14.4
       - fastmcp
       - run
       - weather.py
@@ -236,9 +236,14 @@ for model in "${MODELS[@]}"; do
       echo "  $error_summary"
       RESULTS+=("✗ $model - $error_summary")
       OVERALL_SUCCESS=false
-    elif grep -qE "(get_weather \| weather)|(▸.*get_weather.*weather)" "$log_file"; then
+    elif grep -qE "(get_weather \| weather)|(▸.*get_weather.*weather)" "$log_file" && \
+      grep -Fq "GOOSE_TOOL_CALL_OK:" "$log_file"; then
       echo "✓ Tool call passed for $model"
       RESULTS+=("✓ $model")
+    elif grep -qE "(get_weather \| weather)|(▸.*get_weather.*weather)" "$log_file"; then
+      echo "✗ Tool call did not return a successful result for $model"
+      RESULTS+=("✗ $model - no successful get_weather result found")
+      OVERALL_SUCCESS=false
     else
       echo "✗ Tool call not found for $model"
       RESULTS+=("✗ $model - no get_weather call found")
