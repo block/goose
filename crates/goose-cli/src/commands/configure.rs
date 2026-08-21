@@ -9,8 +9,8 @@ use goose::config::declarative_providers::{
     create_custom_provider, remove_custom_provider, CreateCustomProviderParams,
 };
 use goose::config::extensions::{
-    get_all_extension_names, get_all_extensions, get_enabled_extensions, get_extension_by_name,
-    name_to_key, remove_extension, set_extension, set_extension_enabled,
+    add_extension, get_all_extension_names, get_all_extensions, get_enabled_extensions,
+    get_extension_by_name, name_to_key, remove_extension, set_extension, set_extension_enabled,
 };
 use goose::config::paths::Paths;
 use goose::config::permission::PermissionLevel;
@@ -1100,17 +1100,23 @@ fn prompt_extension_name(placeholder: &str) -> anyhow::Result<String> {
     Ok(
         cliclack::input("What would you like to call this extension?")
             .placeholder(placeholder)
-            .validate(move |input: &String| {
-                if input.is_empty() {
-                    Err("Please enter a name")
-                } else if extensions.contains(input) {
-                    Err("An extension with this name already exists")
-                } else {
-                    Ok(())
-                }
-            })
+            .validate(move |input: &String| validate_new_extension_name(input, &extensions))
             .interact()?,
     )
+}
+
+fn validate_new_extension_name(input: &str, extensions: &[String]) -> Result<(), &'static str> {
+    if input.is_empty() {
+        return Err("Please enter a name");
+    }
+    let key = name_to_key(input);
+    if extensions
+        .iter()
+        .any(|existing| name_to_key(existing) == key)
+    {
+        return Err("An extension with this name already exists");
+    }
+    Ok(())
 }
 
 fn collect_env_vars() -> anyhow::Result<(HashMap<String, String>, Vec<String>)> {
@@ -1230,10 +1236,10 @@ fn configure_builtin_extension() -> anyhow::Result<()> {
         }
     };
 
-    set_extension(ExtensionEntry {
+    add_extension(ExtensionEntry {
         enabled: true,
         config,
-    });
+    })?;
 
     cliclack::outro(format!("Enabled {} extension", style(extension).green()))?;
     Ok(())
@@ -1266,7 +1272,7 @@ fn configure_stdio_extension() -> anyhow::Result<()> {
     let description = prompt_extension_description()?;
     let (envs, env_keys) = collect_env_vars()?;
 
-    set_extension(ExtensionEntry {
+    add_extension(ExtensionEntry {
         enabled: true,
         config: ExtensionConfig::Stdio {
             name: name.clone(),
@@ -1280,7 +1286,7 @@ fn configure_stdio_extension() -> anyhow::Result<()> {
             bundled: None,
             available_tools: Vec::new(),
         },
-    });
+    })?;
 
     cliclack::outro(format!("Added {} extension", style(name).green()))?;
     Ok(())
@@ -1310,7 +1316,7 @@ fn configure_streamable_http_extension() -> anyhow::Result<()> {
     let envs = HashMap::new();
     let env_keys = Vec::new();
 
-    set_extension(ExtensionEntry {
+    add_extension(ExtensionEntry {
         enabled: true,
         config: ExtensionConfig::StreamableHttp {
             name: name.clone(),
@@ -1327,7 +1333,7 @@ fn configure_streamable_http_extension() -> anyhow::Result<()> {
             bundled: None,
             available_tools: Vec::new(),
         },
-    });
+    })?;
 
     cliclack::outro(format!("Added {} extension", style(name).green()))?;
     Ok(())
@@ -2341,6 +2347,21 @@ fn print_config_file_saved() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn new_extension_names_reject_canonical_aliases() {
+        let extensions = vec!["github".to_string(), "Existing Tool".to_string()];
+
+        assert_eq!(
+            validate_new_extension_name("Git Hub", &extensions),
+            Err("An extension with this name already exists")
+        );
+        assert_eq!(
+            validate_new_extension_name("EXISTINGTOOL", &extensions),
+            Err("An extension with this name already exists")
+        );
+        assert!(validate_new_extension_name("gitlab", &extensions).is_ok());
+    }
 
     #[test]
     fn selected_item_inside_visible_window_keeps_order() {

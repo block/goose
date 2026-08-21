@@ -1,6 +1,6 @@
 use super::*;
 use crate::agents::extension::Envs;
-use crate::config::extensions::ExtensionEntry;
+use crate::config::extensions::{ExtensionAddError, ExtensionEntry};
 use agent_client_protocol::schema::v1::{HttpHeader, McpServer, McpServerHttp, McpServerStdio};
 
 impl GooseAcpAgent {
@@ -73,15 +73,19 @@ impl GooseAcpAgent {
         req: AddConfigExtensionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
         let conversion = goose_extension_to_config(req.extension)?;
+        let entry = ExtensionEntry {
+            enabled: req.enabled,
+            config: conversion.config,
+        };
+
+        crate::config::extensions::validate_extension_add(&entry)
+            .map_err(config_extension_add_error)?;
 
         Config::global()
             .set_secret_values(&conversion.secret_updates)
             .internal_err_ctx("Failed to save extension env secrets")?;
 
-        crate::config::extensions::set_extension(ExtensionEntry {
-            enabled: req.enabled,
-            config: conversion.config,
-        });
+        crate::config::extensions::add_extension(entry).map_err(config_extension_add_error)?;
         Ok(EmptyResponse {})
     }
 
@@ -132,6 +136,15 @@ impl GooseAcpAgent {
             .collect::<Vec<_>>();
 
         Ok(GetSessionExtensionsResponse { extensions })
+    }
+}
+
+fn config_extension_add_error(error: ExtensionAddError) -> agent_client_protocol::Error {
+    match error {
+        ExtensionAddError::AlreadyExists { key } => agent_client_protocol::Error::invalid_params()
+            .data(format!("Extension '{key}' already exists")),
+        ExtensionAddError::Config(error) => agent_client_protocol::Error::internal_error()
+            .data(format!("Failed to save extension: {error}")),
     }
 }
 

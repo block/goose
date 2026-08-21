@@ -1,9 +1,10 @@
-use super::base::Config;
+use super::base::{Config, ConfigError};
 use crate::agents::extension::PLATFORM_EXTENSIONS;
 use crate::agents::ExtensionConfig;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_yaml::Mapping;
+use thiserror::Error;
 use tracing::{info, warn};
 
 pub const DEFAULT_EXTENSION: &str = "developer";
@@ -17,6 +18,14 @@ pub struct ExtensionEntry {
     pub enabled: bool,
     #[serde(flatten)]
     pub config: ExtensionConfig,
+}
+
+#[derive(Debug, Error)]
+pub enum ExtensionAddError {
+    #[error("An extension with key '{key}' already exists")]
+    AlreadyExists { key: String },
+    #[error(transparent)]
+    Config(#[from] ConfigError),
 }
 
 pub fn name_to_key(name: &str) -> String {
@@ -99,6 +108,37 @@ fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
     get_extensions_map_with_config(Config::global())
 }
 
+fn extension_identity_exists(raw: &Mapping, key: &str) -> bool {
+    raw.keys()
+        .filter_map(serde_yaml::Value::as_str)
+        .any(|stored_key| name_to_key(stored_key) == key)
+        || parse_extensions_map(raw)
+            .values()
+            .any(|entry| entry.config.key() == key)
+}
+
+fn validate_extension_add_with_config(
+    config: &Config,
+    entry: &ExtensionEntry,
+) -> Result<(), ExtensionAddError> {
+    let raw: Mapping = match config.get_param(EXTENSIONS_CONFIG_KEY) {
+        Ok(raw) => raw,
+        Err(ConfigError::NotFound(_)) => Mapping::default(),
+        Err(err) => return Err(err.into()),
+    };
+    let key = entry.config.key();
+    if extension_identity_exists(&raw, &key) {
+        return Err(ExtensionAddError::AlreadyExists { key });
+    }
+    Ok(())
+}
+
+/// Checks a prospective add without mutating configuration.
+/// [`add_extension`] repeats this check while writing.
+pub fn validate_extension_add(entry: &ExtensionEntry) -> Result<(), ExtensionAddError> {
+    validate_extension_add_with_config(Config::global(), entry)
+}
+
 enum ExtensionMutation {
     Upsert(String, Box<ExtensionEntry>),
     Remove(String),
@@ -159,6 +199,7 @@ fn get_extension_by_name_with_config(config: &Config, name: &str) -> Option<Exte
         .find(|config| config.name() == name || config.key() == key)
 }
 
+/// Inserts or replaces an extension. Add flows should use [`add_extension`].
 pub fn set_extension(entry: ExtensionEntry) {
     set_extension_with_config(Config::global(), entry);
 }
@@ -166,6 +207,35 @@ pub fn set_extension(entry: ExtensionEntry) {
 fn set_extension_with_config(config: &Config, entry: ExtensionEntry) {
     let key = entry.config.key();
     with_raw_extensions_mapping(config, |_| ExtensionMutation::Upsert(key, Box::new(entry)));
+}
+
+/// Adds an extension only when its canonical identity is absent.
+pub fn add_extension(entry: ExtensionEntry) -> Result<(), ExtensionAddError> {
+    add_extension_with_config(Config::global(), entry)
+}
+
+fn add_extension_with_config(
+    config: &Config,
+    entry: ExtensionEntry,
+) -> Result<(), ExtensionAddError> {
+    validate_extension_add_with_config(config, &entry)?;
+
+    let key = entry.config.key();
+    let value = serde_yaml::to_value(entry).map_err(ConfigError::from)?;
+    let mut collision = false;
+    config.update_param::<Mapping, Mapping, _>(EXTENSIONS_CONFIG_KEY, |mut raw| {
+        if extension_identity_exists(&raw, &key) {
+            collision = true;
+        } else {
+            raw.insert(serde_yaml::Value::String(key.clone()), value);
+        }
+        raw
+    })?;
+
+    if collision {
+        return Err(ExtensionAddError::AlreadyExists { key });
+    }
+    Ok(())
 }
 
 pub fn remove_extension(key: &str) {
@@ -478,6 +548,82 @@ extensions:
         let extensions = read_extensions(&config);
         assert_eq!(extensions.get("broken").unwrap(), &broken_before);
         assert!(extensions.contains_key("newextension"));
+    }
+
+    #[test]
+    fn test_normalized_alias_cannot_replace_existing_extension() {
+        let (config, _config_file, _secrets_file) = test_config("");
+        let trusted = ExtensionEntry {
+            enabled: true,
+            config: ExtensionConfig::streamable_http(
+                "github",
+                "https://trusted.example/mcp",
+                "trusted",
+                30u64,
+            ),
+        };
+        let replacement = ExtensionEntry {
+            enabled: true,
+            config: ExtensionConfig::streamable_http(
+                "Git Hub",
+                "https://replacement.example/mcp",
+                "replacement",
+                30u64,
+            ),
+        };
+        let permission_dir = tempfile::TempDir::new().unwrap();
+        let permission_manager =
+            crate::config::PermissionManager::new(permission_dir.path().into());
+        let principal = format!("{}__run", trusted.config.key());
+        permission_manager.update_user_permission(
+            &principal,
+            crate::config::permission::PermissionLevel::AlwaysAllow,
+        );
+
+        add_extension_with_config(&config, trusted).unwrap();
+        let before = read_extensions(&config);
+        let replacement_key = replacement.config.key();
+        let error = add_extension_with_config(&config, replacement).unwrap_err();
+
+        assert!(matches!(
+            error,
+            ExtensionAddError::AlreadyExists { key } if key == replacement_key
+        ));
+        assert_eq!(read_extensions(&config), before);
+        assert_eq!(
+            permission_manager.get_user_permission(&principal),
+            Some(crate::config::permission::PermissionLevel::AlwaysAllow)
+        );
+
+        let saved = get_extension_by_name_with_config(&config, "github").unwrap();
+        let ExtensionConfig::StreamableHttp { name, uri, .. } = saved else {
+            panic!("expected streamable HTTP extension");
+        };
+        assert_eq!(name, "github");
+        assert_eq!(uri, "https://trusted.example/mcp");
+    }
+
+    #[test]
+    fn test_add_extension_accepts_unique_names() {
+        let (config, _config_file, _secrets_file) = test_config("");
+
+        add_extension_with_config(&config, builtin_entry("first extension", true)).unwrap();
+        add_extension_with_config(&config, builtin_entry("second extension", true)).unwrap();
+
+        let extensions = read_extensions(&config);
+        assert!(extensions.contains_key("firstextension"));
+        assert!(extensions.contains_key("secondextension"));
+    }
+
+    #[test]
+    fn test_set_extension_remains_explicit_replacement() {
+        let (config, _config_file, _secrets_file) = test_config("");
+
+        set_extension_with_config(&config, builtin_entry("replaceable", false));
+        set_extension_with_config(&config, builtin_entry("Replaceable", true));
+
+        let saved = get_extension_by_name_with_config(&config, "replaceable").unwrap();
+        assert_eq!(saved.name(), "Replaceable");
     }
 
     #[test]

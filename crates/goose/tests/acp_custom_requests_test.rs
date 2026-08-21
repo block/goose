@@ -272,6 +272,42 @@ fn test_custom_get_extensions() {
         assert_eq!(server["args"], serde_json::json!(["--flag", "value"]));
         assert_eq!(server["env"], serde_json::json!([]));
 
+        let collision_result = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/extensions/add",
+            serde_json::json!({
+                "enabled": true,
+                "extension": {
+                    "type": "mcp",
+                    "description": "Replacement",
+                    "envKeys": [],
+                    "server": {
+                        "type": "stdio",
+                        "name": config_key.to_uppercase(),
+                        "command": "replacement-command",
+                        "env": [
+                            { "name": "INLINE_TOKEN", "value": "replacement-secret" }
+                        ]
+                    }
+                }
+            }),
+        )
+        .await;
+        assert!(
+            collision_result.is_err(),
+            "canonical alias should be rejected"
+        );
+        assert_eq!(
+            goose::config::Config::global()
+                .get_secret::<String>("INLINE_TOKEN")
+                .unwrap(),
+            "inline-secret"
+        );
+        let entry = list_extension()
+            .await
+            .unwrap_or_else(|| panic!("missing original extension after rejected add"));
+        assert_eq!(entry["extension"]["server"]["command"], "test-command");
+
         let set_enabled_result = send_custom(
             conn.cx(),
             "_goose/unstable/config/extensions/set-enabled",
