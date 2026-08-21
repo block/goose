@@ -12,7 +12,10 @@ pub(crate) use supporting_files::{load_supporting_file, read_source_file};
 
 use crate::config::{paths::Paths, Config};
 use crate::plugins::discovery::PluginScope;
-use crate::plugins::{enabled_plugin_skill_dirs_with_config, installed_plugin_skill_dirs};
+use crate::plugins::{
+    configured_project_plugin_skill_dirs, enabled_plugin_skill_dirs_with_config,
+    installed_plugin_skill_dirs,
+};
 use crate::sources::parse_frontmatter;
 use agent_client_protocol::Error;
 use anyhow::Result;
@@ -241,7 +244,10 @@ fn inferred_discoverable_skill_root(path: &Path) -> Option<PathBuf> {
     })
 }
 
-pub(crate) fn resolve_discoverable_skill_dir(path: &str) -> Result<PathBuf, Error> {
+fn resolve_discoverable_skill_dir_with_config(
+    path: &str,
+    config: &Config,
+) -> Result<PathBuf, Error> {
     if path.is_empty() {
         return Err(Error::invalid_params().data("Source path must not be empty"));
     }
@@ -254,7 +260,14 @@ pub(crate) fn resolve_discoverable_skill_dir(path: &str) -> Result<PathBuf, Erro
         .canonicalize()
         .map_err(|_| Error::invalid_params().data(format!("Source \"{}\" not found", path)))?;
 
-    if inferred_discoverable_skill_root(&canonical_dir).is_none()
+    let configured_project_plugin_path = !Path::new(path).starts_with(Paths::plugins_dir())
+        && configured_project_plugin_skill_dirs(config)
+            .into_iter()
+            .map(|root| canonicalize_or_original(&root))
+            .any(|root| canonical_dir.starts_with(root));
+
+    if configured_project_plugin_path
+        || inferred_discoverable_skill_root(&canonical_dir).is_none()
         || !canonical_dir.is_dir()
         || !canonical_dir.join("SKILL.md").is_file()
     {
@@ -262,6 +275,10 @@ pub(crate) fn resolve_discoverable_skill_dir(path: &str) -> Result<PathBuf, Erro
     }
 
     Ok(canonical_dir)
+}
+
+pub(crate) fn resolve_discoverable_skill_dir(path: &str) -> Result<PathBuf, Error> {
+    resolve_discoverable_skill_dir_with_config(path, Config::global())
 }
 
 pub(crate) fn resolve_skill_dir(path: &str) -> Result<PathBuf, Error> {
@@ -908,6 +925,44 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn configured_disabled_project_plugin_canonical_path_is_rejected() {
+        let project = tempfile::tempdir().unwrap();
+        let path_root = tempfile::tempdir().unwrap();
+        let external_root = tempfile::tempdir().unwrap();
+        let plugin_link = project.path().join(".agents/plugins/project-plugin");
+        let skill_dir = external_root.path().join(".agents/skills/plugin-owned");
+        write_test_skill(&skill_dir, "plugin-owned", "plugin body");
+        std::fs::write(
+            external_root.path().join("plugin.json"),
+            r#"{"name":"project-plugin","skills":{"paths":["./.agents/skills"]}}"#,
+        )
+        .unwrap();
+        std::fs::create_dir_all(plugin_link.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(external_root.path(), &plugin_link).unwrap();
+        let config = Config::new(path_root.path().join("test-config.yaml"), "skills-test").unwrap();
+        config
+            .set_param(
+                "plugins",
+                HashMap::from([(
+                    plugin_link.to_string_lossy().into_owned(),
+                    HashMap::from([("enabled", false)]),
+                )]),
+            )
+            .unwrap();
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PATH_ROOT", path_root.path().to_str()),
+            ("PLUGINS", None),
+        ]);
+
+        let err = resolve_discoverable_skill_dir_with_config(skill_dir.to_str().unwrap(), &config)
+            .unwrap_err();
+
+        assert!(format!("{err:?}").contains("not found"));
+        assert!(skill_dir.join("SKILL.md").is_file());
+    }
+
     #[test]
     fn nested_project_plugin_skill_is_listed_read_only_and_rejected_by_source_crud() {
         let project = tempfile::tempdir().unwrap();
@@ -1055,6 +1110,7 @@ mod tests {
         assert!(skill.global);
         assert!(skill.writable);
         assert!(Path::new(&skill.path).starts_with(&plugin_link));
+        assert!(resolve_discoverable_skill_dir_with_config(&skill.path, &project_config).is_ok());
 
         let updated = crate::sources::update_source_with_roots(
             SourceType::Skill,

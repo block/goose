@@ -10,7 +10,7 @@ use anyhow::{anyhow, bail, Result};
 use chrono::{DateTime, Duration, Utc};
 use fs_err as fs;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use tracing::warn;
 
@@ -94,6 +94,33 @@ pub(crate) fn enabled_plugin_skill_dirs(
     project_root: Option<&Path>,
 ) -> Vec<(PathBuf, PluginScope)> {
     enabled_plugin_skill_dirs_with_config(project_root, Config::global())
+}
+
+fn is_project_plugin_install_dir(path: &Path) -> bool {
+    path.parent().is_some_and(|parent| {
+        parent.file_name().and_then(|name| name.to_str()) == Some("plugins")
+            && parent
+                .parent()
+                .and_then(|grandparent| grandparent.file_name())
+                .and_then(|name| name.to_str())
+                == Some(".agents")
+    })
+}
+
+pub(crate) fn configured_project_plugin_skill_dirs(config: &Config) -> Vec<PathBuf> {
+    let entries: HashMap<String, discovery::PluginConfigEntry> = config
+        .get_param(discovery::PLUGINS_CONFIG_KEY)
+        .unwrap_or_default();
+    let user_plugins_dir = plugin_install_dir();
+    let mut seen = HashSet::new();
+
+    entries
+        .into_keys()
+        .map(PathBuf::from)
+        .filter(|path| is_project_plugin_install_dir(path) && !path.starts_with(&user_plugins_dir))
+        .flat_map(|path| formats::open_plugins::installed_skill_dirs(&path))
+        .filter(|path| seen.insert(path.clone()))
+        .collect()
 }
 
 pub(crate) fn enabled_plugin_skill_dirs_with_config(

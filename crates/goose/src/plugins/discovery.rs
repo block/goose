@@ -6,13 +6,13 @@ use serde::{Deserialize, Serialize};
 use crate::config::{paths::Paths, Config};
 use crate::plugins::plugin_install_dir;
 
-const PLUGINS_CONFIG_KEY: &str = "plugins";
+pub(in crate::plugins) const PLUGINS_CONFIG_KEY: &str = "plugins";
 
 /// Per-plugin entry stored under the `plugins` map in `config.yaml`, keyed by
 /// the plugin's filesystem path.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct PluginConfigEntry {
-    enabled: bool,
+pub(in crate::plugins) struct PluginConfigEntry {
+    pub enabled: bool,
 }
 
 /// A plugin found on disk and not disabled by any settings file.
