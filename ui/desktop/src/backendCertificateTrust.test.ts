@@ -30,14 +30,16 @@ describe('BackendCertificateTrustStore', () => {
     expect(store.verify(HOSTNAME, CERTIFICATE_B)).toBe(false);
   });
 
-  it('binds an unpinned hostname TOFU registration on an exact match', () => {
+  it('does not bind hostname TOFU from a lease-scoped exact match', () => {
     const store = new BackendCertificateTrustStore();
     store.register(HOSTNAME, CERTIFICATE_A);
     const tofu = store.register(HOSTNAME, null, 'hostname-tofu');
 
     expect(store.verify(HOSTNAME, CERTIFICATE_A)).toBe(true);
-    expect(tofu.trust.fingerprint).toBe(CERTIFICATE_A);
-    expect(store.verify(HOSTNAME, CERTIFICATE_B)).toBe(false);
+    expect(tofu.trust.fingerprint).toBeNull();
+    expect(store.verify(HOSTNAME, CERTIFICATE_B)).toBe(true);
+    expect(tofu.trust.fingerprint).toBe(CERTIFICATE_B);
+    expect(store.verify(HOSTNAME, CERTIFICATE_C)).toBe(false);
   });
 
   it.each(['first', 'second'] as const)(

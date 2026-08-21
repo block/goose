@@ -68,8 +68,11 @@ export class BackendCertificateTrustStore {
     const unpinnedHostnameTofuTrusts = trusts.filter(
       (trust) => trust.pinScope === 'hostname-tofu' && trust.fingerprint === null
     );
-    if (trusts.some((trust) => trust.fingerprint === normalizedFingerprint)) {
-      this.bindAll(unpinnedHostnameTofuTrusts, normalizedFingerprint);
+    const exactMatches = trusts.filter((trust) => trust.fingerprint === normalizedFingerprint);
+    if (exactMatches.length > 0) {
+      if (exactMatches.some((trust) => trust.pinScope === 'hostname-tofu')) {
+        this.bindAll(unpinnedHostnameTofuTrusts, normalizedFingerprint);
+      }
       return true;
     }
 
