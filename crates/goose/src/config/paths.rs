@@ -53,8 +53,9 @@ impl Paths {
         Self::get_dir(DirType::Config)
     }
 
-    pub(crate) fn default_config_dir() -> PathBuf {
-        Self::app_strategy().config_dir()
+    #[cfg(feature = "system-keyring")]
+    pub(crate) fn default_home_dir() -> PathBuf {
+        Self::app_strategy().home_dir().to_path_buf()
     }
 
     pub fn data_dir() -> PathBuf {

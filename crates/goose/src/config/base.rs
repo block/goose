@@ -34,7 +34,10 @@ fn secrets_lock_path(path: &Path) -> PathBuf {
 #[cfg(feature = "system-keyring")]
 fn keyring_lock_path(service: &str) -> PathBuf {
     let service_hash = URL_SAFE_NO_PAD.encode(Sha256::digest(service.as_bytes()));
-    Paths::default_config_dir().join(format!("keyring-{service_hash}.lock"))
+    Paths::default_home_dir()
+        .join(".goose")
+        .join("locks")
+        .join(format!("keyring-{service_hash}.lock"))
 }
 
 #[cfg(feature = "system-keyring")]
@@ -2365,19 +2368,21 @@ mod tests {
     #[cfg(feature = "system-keyring")]
     #[test]
     #[serial]
-    fn keyring_service_lock_is_independent_of_path_root() {
+    fn keyring_service_lock_is_independent_of_config_roots() {
         let first_root = TempDir::new().unwrap();
         let second_root = TempDir::new().unwrap();
-        let _env = env_lock::lock_env([("GOOSE_PATH_ROOT", first_root.path().to_str())]);
+        let _env = env_lock::lock_env([
+            ("GOOSE_PATH_ROOT", first_root.path().to_str()),
+            ("XDG_CONFIG_HOME", first_root.path().to_str()),
+        ]);
 
         let first_lock = keyring_lock_path("shared-service");
         std::env::set_var("GOOSE_PATH_ROOT", second_root.path());
+        std::env::set_var("XDG_CONFIG_HOME", second_root.path());
 
         assert_eq!(first_lock, keyring_lock_path("shared-service"));
-        assert_eq!(
-            first_lock.parent(),
-            Some(Paths::default_config_dir().as_path())
-        );
+        let expected_lock_dir = Paths::default_home_dir().join(".goose").join("locks");
+        assert_eq!(first_lock.parent(), Some(expected_lock_dir.as_path()));
     }
 
     #[test]
