@@ -553,7 +553,6 @@ impl OrchestratorClient {
             schedule_id: None,
             max_turns: None,
             retry_config: None,
-            use_state_machine: None,
         };
 
         let mut stream = agent

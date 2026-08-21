@@ -535,7 +535,6 @@ async fn test_auto_compaction_during_reply() -> Result<()> {
         schedule_id: None,
         max_turns: None,
         retry_config: None,
-        use_state_machine: None,
     };
 
     let reply_stream = agent.reply(user_message, session_config, None).await?;
@@ -689,7 +688,6 @@ async fn test_context_limit_recovery_compaction() -> Result<()> {
         schedule_id: None,
         max_turns: None,
         retry_config: None,
-        use_state_machine: None,
     };
 
     let reply_stream = agent

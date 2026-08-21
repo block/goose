@@ -609,7 +609,6 @@ mod tests {
                 schedule_id: None,
                 max_turns: Some(1),
                 retry_config: None,
-                use_state_machine: None,
             };
 
             let reply_stream = agent.reply(user_message, session_config, None).await?;
@@ -802,7 +801,6 @@ mod tests {
                 schedule_id: None,
                 max_turns: Some(5),
                 retry_config: None,
-                use_state_machine: None,
             };
 
             let reply_stream = agent
@@ -1020,7 +1018,6 @@ mod tests {
                 schedule_id: None,
                 max_turns: Some(1),
                 retry_config: None,
-                use_state_machine: None,
             };
 
             let reply_stream = agent.reply(user_message, session_config, None).await?;
@@ -1381,7 +1378,6 @@ mod tests {
                 schedule_id: None,
                 max_turns: Some(2),
                 retry_config: None,
-                use_state_machine: None,
             };
 
             let reply_stream = agent
@@ -1436,7 +1432,6 @@ mod tests {
                 schedule_id: None,
                 max_turns: Some(2),
                 retry_config: None,
-                use_state_machine: None,
             };
 
             let reply_stream2 = agent
@@ -1629,7 +1624,6 @@ mod tests {
                 schedule_id: None,
                 max_turns: Some(2),
                 retry_config: None,
-                use_state_machine: None,
             };
 
             let reply_stream = agent
@@ -1831,7 +1825,6 @@ mod tests {
                 schedule_id: None,
                 max_turns: Some(2),
                 retry_config: None,
-                use_state_machine: None,
             };
 
             let reply_stream = agent
@@ -1993,7 +1986,6 @@ mod tests {
                 schedule_id: None,
                 max_turns: Some(2),
                 retry_config: None,
-                use_state_machine: None,
             };
 
             let reply_stream = agent
@@ -2146,7 +2138,6 @@ mod tests {
                 schedule_id: None,
                 max_turns: Some(2),
                 retry_config: None,
-                use_state_machine: None,
             };
 
             let reply_stream = agent
@@ -2337,7 +2328,6 @@ mod tests {
                 schedule_id: None,
                 max_turns: Some(10),
                 retry_config: None,
-                use_state_machine: None,
             };
 
             let reply_stream = agent
@@ -2417,7 +2407,6 @@ mod tests {
                 schedule_id: None,
                 max_turns: Some(10),
                 retry_config: None,
-                use_state_machine: None,
             };
 
             let reply_stream = agent
@@ -2514,7 +2503,6 @@ mod tests {
                 schedule_id: None,
                 max_turns: Some(10),
                 retry_config: None,
-                use_state_machine: None,
             };
 
             let reply_stream = agent
@@ -2579,7 +2567,6 @@ mod tests {
                 schedule_id: None,
                 max_turns: Some(10),
                 retry_config: None,
-                use_state_machine: None,
             };
 
             let reply_stream = agent
@@ -2704,7 +2691,6 @@ mod tests {
                 schedule_id: None,
                 max_turns: Some(1),
                 retry_config: None,
-                use_state_machine: None,
             };
             let stream = agent
                 .reply(Message::user().with_text(text), session_config, None)
@@ -3116,7 +3102,6 @@ mod tests {
                         schedule_id: None,
                         max_turns: Some(3),
                         retry_config: None,
-                        use_state_machine: None,
                     },
                     None,
                 )
@@ -3398,7 +3383,6 @@ mod tests {
                 schedule_id: None,
                 max_turns: Some(50),
                 retry_config: None,
-                use_state_machine: None,
             };
 
             let reply_stream = agent
@@ -3583,7 +3567,6 @@ mod tests {
                 schedule_id: None,
                 max_turns: Some(50),
                 retry_config: None,
-                use_state_machine: None,
             };
 
             let reply_stream = agent
@@ -3736,7 +3719,6 @@ mod tests {
                 schedule_id: None,
                 max_turns: Some(3),
                 retry_config: None,
-                use_state_machine: None,
             };
 
             let reply_stream = agent
@@ -3855,7 +3837,6 @@ mod tests {
                 schedule_id: None,
                 max_turns: Some(5),
                 retry_config: None,
-                use_state_machine: None,
             };
 
             let reply_stream = agent
@@ -3945,7 +3926,6 @@ mod tests {
                     timeout_seconds: Some(30),
                     on_failure_timeout_seconds: None,
                 }),
-                use_state_machine: None,
             };
 
             let reply_stream = agent
@@ -4008,7 +3988,6 @@ mod tests {
                     timeout_seconds: Some(30),
                     on_failure_timeout_seconds: None,
                 }),
-                use_state_machine: None,
             };
 
             let reply_stream = agent

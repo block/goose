@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use futures::stream::BoxStream;
-use futures::{stream, FutureExt, StreamExt, TryStreamExt};
+use futures::{FutureExt, StreamExt, TryStreamExt, stream};
 use tracing_futures::Instrument;
 
 use super::container::Container;
@@ -17,13 +17,14 @@ use super::tool_confirmation_coordinator::{
 };
 use super::tool_confirmation_router::ToolConfirmationRouter;
 use super::tool_execution::{
-    tool_stream, ToolCallResult, ToolStream, ToolStreamItem, CHAT_MODE_TOOL_SKIPPED_RESPONSE,
-    DECLINED_RESPONSE,
+    CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE, ToolCallResult, ToolStream, ToolStreamItem,
+    tool_stream,
 };
 use crate::action_required_manager::ElicitationOutcome;
+use crate::agents::AgentEvent;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{
-    get_parameter_names, ExtensionManager, ExtensionManagerCapabilities,
+    ExtensionManager, ExtensionManagerCapabilities, get_parameter_names,
 };
 use crate::agents::final_output_tool::{
     structured_output_unsupported_message, FINAL_OUTPUT_CONTINUATION_MESSAGE,
@@ -43,23 +44,23 @@ use crate::agents::state_machine::{
     UnknownToolOperation, MAX_TURNS_MESSAGE,
 };
 use crate::agents::types::{
-    SessionConfig, SharedProvider, DEFAULT_ON_FAILURE_TIMEOUT_SECONDS,
-    DEFAULT_RETRY_TIMEOUT_SECONDS,
+    DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS, FrontendTool, SessionConfig,
+    SharedProvider, ToolResultReceiver,
 };
-use crate::agents::AgentEvent;
 use crate::config::extensions::name_to_key;
 use crate::config::permission::PermissionManager;
-use crate::config::{get_enabled_extensions, Config, GooseMode};
+use crate::config::{Config, GooseMode, get_enabled_extensions};
 use crate::context_mgmt::{
-    check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
+    DEFAULT_COMPACTION_THRESHOLD, check_if_compaction_needed, compact_messages,
 };
 use crate::conversation::message::{
     ActionRequiredData, InferenceMetadata, Message, MessageContent, MessageUsage, ProviderMetadata,
     SystemNotificationType,
 };
 use crate::conversation::{
-    debug_conversation_fix, fix_conversation, merge_consecutive_messages_for_request, Conversation,
+    Conversation, debug_conversation_fix, fix_conversation, merge_consecutive_messages_for_request,
 };
+use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
 use crate::permission::{Permission, PermissionConfirmation};
@@ -83,7 +84,7 @@ use rmcp::model::{
     GetPromptResult, Prompt, ProtocolVersion, Tool,
 };
 use serde_json::Value;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{Mutex, mpsc};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, warn};
 
@@ -2023,9 +2024,20 @@ impl Agent {
         session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        self.reply_with_loop_override(user_message, session_config, None, cancel_token)
+            .await
+    }
+
+    pub(crate) async fn reply_with_loop_override(
+        &self,
+        user_message: Message,
+        session_config: SessionConfig,
+        loop_override: Option<bool>,
+        cancel_token: Option<CancellationToken>,
+    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let reply_span = tracing::Span::current();
         let events = self
-            .reply_impl(user_message, session_config, cancel_token)
+            .reply_impl(user_message, session_config, loop_override, cancel_token)
             .await?;
 
         // This is the single live-event identity boundary. Callers that intentionally stream
@@ -2041,6 +2053,7 @@ impl Agent {
         &self,
         user_message: Message,
         session_config: SessionConfig,
+        loop_override: Option<bool>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let user_message = user_message.with_generated_id_if_missing();
@@ -2093,9 +2106,7 @@ impl Agent {
             }
         }
 
-        let use_state_machine = session_config
-            .use_state_machine
-            .unwrap_or_else(super::state_machine::enabled);
+        let use_state_machine = loop_override.unwrap_or_else(super::state_machine::enabled);
         if use_state_machine {
             tracing::info!("dispatching reply via experimental state machine");
             return self
@@ -4224,7 +4235,7 @@ mod tests {
     use super::*;
     use crate::agents::gen_ai_telemetry::{self, test_support::SpanFieldCapture};
     use crate::plugins::discovery::{DiscoveredPlugin, PluginScope};
-    use crate::providers::base::{stream_from_single_message, MessageStream, PermissionRouting};
+    use crate::providers::base::{MessageStream, PermissionRouting, stream_from_single_message};
     use crate::recipe::Response;
     use crate::session::session_manager::SessionType;
     use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
@@ -5242,7 +5253,6 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 timeout_seconds: None,
                 on_failure_timeout_seconds: None,
             }),
-            use_state_machine: None,
         };
 
         let reply_stream = agent
@@ -5437,7 +5447,6 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             schedule_id: None,
             max_turns: Some(10),
             retry_config: None,
-            use_state_machine: None,
         };
         let reply_stream = agent
             .reply(Message::user().with_text(text), session_config, None)
@@ -5529,10 +5538,12 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         assert!(persisted.metadata.user_visible);
         assert!(!persisted.metadata.agent_visible);
         assert!(persisted.metadata.output_token_limit_reached);
-        assert!(conversation
-            .agent_visible_messages()
-            .iter()
-            .all(|message| message.id.as_deref() != Some("provider-output-limit")));
+        assert!(
+            conversation
+                .agent_visible_messages()
+                .iter()
+                .all(|message| message.id.as_deref() != Some("provider-output-limit"))
+        );
 
         Ok(())
     }
@@ -5566,7 +5577,6 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             schedule_id: None,
             max_turns: Some(10),
             retry_config: None,
-            use_state_machine: None,
         };
         let user_only_content = MessageContent::Text(
             TextContent::new("user-only")
@@ -5598,7 +5608,6 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             schedule_id: None,
             max_turns: Some(10),
             retry_config: None,
-            use_state_machine: None,
         };
         let mut visible_stream = agent
             .reply(
@@ -5618,7 +5627,6 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             schedule_id: None,
             max_turns: Some(10),
             retry_config: None,
-            use_state_machine: None,
         };
         let mut final_stream = agent
             .reply(

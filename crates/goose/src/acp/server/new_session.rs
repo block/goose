@@ -1,5 +1,5 @@
 use crate::acp::custom_requests::GooseExtension;
-use crate::acp::server::{meta_string, validate_absolute_cwd, ResultExt};
+use crate::acp::server::{ResultExt, meta_string, validate_absolute_cwd};
 use crate::agents::ExtensionLoadResult;
 use crate::config::{Config, GooseMode};
 use crate::recipe::{Recipe, Settings};

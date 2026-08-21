@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use agent_client_protocol::schema::v1::{
-    CreateElicitationRequest, CreateElicitationResponse, ElicitationAction as AcpElicitationAction,
-    ElicitationFormMode, ElicitationSchema, ElicitationSessionScope, Meta, SessionId,
-    CLIENT_METHOD_NAMES,
+    CLIENT_METHOD_NAMES, CreateElicitationRequest, CreateElicitationResponse,
+    ElicitationAction as AcpElicitationAction, ElicitationFormMode, ElicitationSchema,
+    ElicitationSessionScope, Meta, SessionId,
 };
 use agent_client_protocol::{
     Client, ConnectionTo, JsonRpcMessage, JsonRpcRequest, JsonRpcResponse, UntypedMessage,

@@ -7,7 +7,7 @@ use rmcp::model::{ProgressNotificationParam, ServerNotification};
 use serde::Serialize;
 
 use crate::agents::platform_extensions::developer::shell::{
-    parse_shell_output_notification, ShellOutputNotificationParams,
+    ShellOutputNotificationParams, parse_shell_output_notification,
 };
 
 #[expect(deprecated)]

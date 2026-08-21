@@ -1,7 +1,10 @@
 use crate::providers::base::Provider;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, mpsc};
+
+/// Type alias for the tool result channel receiver
+pub type ToolResultReceiver = Arc<Mutex<mpsc::Receiver<(String, ToolResult<CallToolResult>)>>>;
 
 // We use double Arc here to allow easy provider swaps while sharing concurrent access
 pub type SharedProvider = Arc<Mutex<Option<Arc<dyn Provider>>>>;
@@ -79,11 +82,6 @@ pub struct SessionConfig {
     /// Retry configuration for automated validation and recovery
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry_config: Option<RetryConfig>,
-    /// Override the GOOSE_STATE_MACHINE env-var to force a specific agent loop.
-    /// `Some(true)` forces the state-machine path; `Some(false)` forces the legacy path.
-    /// `None` defers to the env-var.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub use_state_machine: Option<bool>,
 }
 
 #[cfg(test)]

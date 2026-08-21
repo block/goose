@@ -8,7 +8,7 @@ pub(super) use crate::acp::response_builder::{
     session_response_meta, should_refresh_inventory_for_session_init,
 };
 use crate::acp::tool_call_notifier::ToolCallNotifier;
-use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
+use crate::acp::{ACP_CURRENT_MODEL, PermissionDecision};
 use crate::agents::extension::{Envs, PLATFORM_EXTENSIONS};
 use crate::agents::mcp_client::{GooseMcpHostInfo, McpClientTrait};
 use crate::agents::platform_extensions::developer::DeveloperClient;
@@ -88,7 +88,7 @@ use uuid::Uuid;
 use self::message_meta::{
     content_chunk_for_message, message_meta_without_steer, populate_output_token_limit_content,
 };
-use self::tool_calls::chain::{breaks_consecutive_tool_calls, ReadyToolChain, ToolChainTracker};
+use self::tool_calls::chain::{ReadyToolChain, ToolChainTracker, breaks_consecutive_tool_calls};
 use self::tool_calls::conversion::{
     build_initial_tool_call_with_message_meta, build_permission_tool_call_update,
     tool_call_update_fields_from_response, trusted_update_meta,
@@ -2304,7 +2304,7 @@ impl GooseAcpAgent {
 
         let user_message = Self::convert_acp_prompt_to_message(&args.prompt);
 
-        let use_state_machine = args
+        let loop_override = args
             .meta
             .as_ref()
             .and_then(|m| m.get("goose"))
@@ -2315,11 +2315,15 @@ impl GooseAcpAgent {
             schedule_id: None,
             max_turns: None,
             retry_config: None,
-            use_state_machine,
         };
 
-        let stream = match agent
-            .reply(user_message, session_config, Some(cancel_token.clone()))
+        let mut stream = match agent
+            .reply_with_loop_override(
+                user_message,
+                session_config,
+                loop_override,
+                Some(cancel_token.clone()),
+            )
             .await
         {
             Ok(stream) => stream,
@@ -3525,9 +3529,11 @@ print(\"hello, world\")
         let request = InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::V1);
         let goose_client_capabilities =
             extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
-        assert!(!goose_client_capabilities
-            .and_then(|goose| goose.tool_call_label_enrichment)
-            .unwrap_or(false));
+        assert!(
+            !goose_client_capabilities
+                .and_then(|goose| goose.tool_call_label_enrichment)
+                .unwrap_or(false)
+        );
 
         let mut goose_meta = serde_json::Map::new();
         goose_meta.insert(
@@ -3542,9 +3548,11 @@ print(\"hello, world\")
             );
         let goose_client_capabilities =
             extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
-        assert!(goose_client_capabilities
-            .and_then(|goose| goose.tool_call_label_enrichment)
-            .unwrap_or(false));
+        assert!(
+            goose_client_capabilities
+                .and_then(|goose| goose.tool_call_label_enrichment)
+                .unwrap_or(false)
+        );
     }
 
     #[test]

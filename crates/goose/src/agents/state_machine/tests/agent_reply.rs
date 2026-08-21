@@ -19,8 +19,8 @@ use crate::acp::server::GooseAcpAgent;
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::mcp_client::McpClientTrait;
 use crate::agents::{Agent, AgentConfig, AgentEvent, GoosePlatform, SessionConfig};
-use crate::config::permission::PermissionManager;
 use crate::config::GooseMode;
+use crate::config::permission::PermissionManager;
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent};
 use crate::permission::Permission;
 use crate::providers::base::Provider;
@@ -294,7 +294,6 @@ async fn reply_streams_the_turn_and_ends() -> Result<()> {
         schedule_id: None,
         max_turns: Some(2),
         retry_config: None,
-        use_state_machine: None,
     };
     let stream = agent
         .reply_with_state_machine(
@@ -333,12 +332,12 @@ async fn bang_shell_uses_state_machine_when_explicitly_enabled() -> Result<()> {
         schedule_id: None,
         max_turns: Some(2),
         retry_config: None,
-        use_state_machine: Some(true),
     };
     let stream = agent
-        .reply(
+        .reply_with_loop_override(
             Message::user().with_text("!echo hello"),
             session_config,
+            Some(true),
             Some(CancellationToken::new()),
         )
         .await?;
