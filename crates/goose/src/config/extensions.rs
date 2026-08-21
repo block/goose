@@ -180,13 +180,26 @@ fn remove_extension_with_config_cleanup(
     key: &str,
     cleanup: impl FnOnce() -> anyhow::Result<()>,
 ) -> anyhow::Result<bool> {
-    let raw: Mapping = config.get_param(EXTENSIONS_CONFIG_KEY)?;
-    if !raw.contains_key(serde_yaml::Value::String(key.to_string())) {
-        return Ok(false);
-    }
+    let mut cleanup = Some(cleanup);
+    let mut cleanup_error = None;
+    let mut removed = false;
+    let key = serde_yaml::Value::String(key.to_string());
+    let update_result =
+        config.update_param::<Mapping, Mapping, _>(EXTENSIONS_CONFIG_KEY, |mut raw| {
+            if raw.contains_key(&key) {
+                match cleanup.take().unwrap()() {
+                    Ok(()) => removed = raw.shift_remove(&key).is_some(),
+                    Err(error) => cleanup_error = Some(error),
+                }
+            }
+            raw
+        });
 
-    cleanup()?;
-    Ok(remove_extension_with_config(config, key)?)
+    if let Some(error) = cleanup_error {
+        return Err(error);
+    }
+    update_result?;
+    Ok(removed)
 }
 
 fn remove_extension_with_config(config: &Config, key: &str) -> Result<bool, ConfigError> {
@@ -618,6 +631,37 @@ extensions:
 
         assert!(result.is_err());
         assert!(read_extensions(&config).contains_key("valid"));
+    }
+
+    #[test]
+    fn test_cleanup_only_runs_for_extension_in_writable_layer() {
+        let base_file = NamedTempFile::new().unwrap();
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        std::fs::write(
+            base_file.path(),
+            "extensions:\n  inherited:\n    enabled: true\n    type: builtin\n    name: inherited\n",
+        )
+        .unwrap();
+        let config = Config::new_with_config_paths(
+            vec![
+                base_file.path().to_path_buf(),
+                config_file.path().to_path_buf(),
+            ],
+            secrets_file.path(),
+        )
+        .unwrap();
+        let cleanup_called = std::cell::Cell::new(false);
+
+        let removed = remove_extension_with_config_cleanup(&config, "inherited", || {
+            cleanup_called.set(true);
+            Ok(())
+        })
+        .unwrap();
+
+        assert!(!removed);
+        assert!(!cleanup_called.get());
+        assert!(get_extensions_map_with_config(&config).contains_key("inherited"));
     }
 
     #[derive(Clone, Default)]
