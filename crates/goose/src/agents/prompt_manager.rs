@@ -7,6 +7,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::agents::{extension::ExtensionInfo, moim};
+use crate::conversation::message::{Message, MessageContent};
 use crate::hints::load_hints::build_gitignore;
 use crate::hints::{get_context_filenames, load_hint_files, SubdirectoryHintTracker};
 use crate::{
@@ -234,6 +235,30 @@ impl PromptManager {
             .record_tool_arguments(arguments, working_dir);
     }
 
+    /// Re-derive subdirectory hints from a conversation's tool-call history.
+    ///
+    /// The tracker lives in memory, so a resumed session starts with no record
+    /// of the directories the conversation already touched and silently drops
+    /// the hints that applied before the resume (#10330). Replaying the
+    /// history's tool requests rebuilds that state from the conversation
+    /// itself, which is already the source of truth and is already how the
+    /// state-machine loop derives hints (`ops_toolcalling::prompt_parts`).
+    ///
+    /// Idempotent: the tracker skips directories it has already loaded, so
+    /// calling this on every reply does not re-inject hints mid-session.
+    pub fn record_tool_arguments_from_history(&mut self, messages: &[Message], working_dir: &Path) {
+        for message in messages {
+            for content in &message.content {
+                if let MessageContent::ToolRequest(request) = content {
+                    if let Ok(tool_call) = &request.tool_call {
+                        self.subdirectory_hint_tracker
+                            .record_tool_arguments(&tool_call.arguments, working_dir);
+                    }
+                }
+            }
+        }
+    }
+
     pub fn load_subdirectory_hints(&mut self, working_dir: &Path) -> bool {
         let new_hints = self.subdirectory_hint_tracker.load_new_hints(working_dir);
         let has_new = !new_hints.is_empty();
@@ -446,6 +471,76 @@ mod tests {
         assert!(!result.contains('\u{E0043}'));
         assert!(result.contains("Extension help"));
         assert!(result.contains("hidden instructions"));
+    }
+
+    /// The #10330 regression: a resumed session has an in-memory tracker that
+    /// never saw the earlier tool calls, so replaying the conversation's tool
+    /// requests has to bring the subdirectory hints back.
+    #[test]
+    fn hints_from_a_resumed_conversation_survive_a_fresh_prompt_manager() {
+        use rmcp::{model::CallToolRequestParams, object};
+
+        let working_dir = tempfile::tempdir().unwrap();
+        let subdir = working_dir.path().join("sub");
+        std::fs::create_dir(&subdir).unwrap();
+        std::fs::write(subdir.join(".goosehints"), "hint from the subdirectory").unwrap();
+
+        // A conversation that already read a file under `sub/`, as it would
+        // look when loaded back off disk.
+        let history = vec![Message::assistant().with_tool_request(
+            "1",
+            Ok(CallToolRequestParams::new("developer__text_editor")
+                .with_arguments(object!({ "path": subdir.join("file.txt").to_str().unwrap() }))),
+        )];
+
+        // Before: a fresh manager (i.e. a resumed session) knows nothing.
+        let mut resumed = PromptManager::new();
+        let without_replay =
+            resumed.build_system_prompt(working_dir.path(), vec![], GooseMode::Auto);
+        assert!(
+            !without_replay.contains("hint from the subdirectory"),
+            "precondition: a fresh manager should not have the hint yet"
+        );
+
+        // After: replaying the history restores it.
+        let mut resumed = PromptManager::new();
+        resumed.record_tool_arguments_from_history(&history, working_dir.path());
+        let with_replay = resumed.build_system_prompt(working_dir.path(), vec![], GooseMode::Auto);
+        assert!(
+            with_replay.contains("hint from the subdirectory"),
+            "resumed session should recover the subdirectory hint from tool history"
+        );
+    }
+
+    /// Replay runs on every reply, so it must not re-inject hints that the
+    /// live session already loaded.
+    #[test]
+    fn replaying_history_twice_does_not_duplicate_hints() {
+        use rmcp::{model::CallToolRequestParams, object};
+
+        let working_dir = tempfile::tempdir().unwrap();
+        let subdir = working_dir.path().join("sub");
+        std::fs::create_dir(&subdir).unwrap();
+        std::fs::write(subdir.join(".goosehints"), "hint from the subdirectory").unwrap();
+
+        let history = vec![Message::assistant().with_tool_request(
+            "1",
+            Ok(CallToolRequestParams::new("developer__text_editor")
+                .with_arguments(object!({ "path": subdir.join("file.txt").to_str().unwrap() }))),
+        )];
+
+        let mut manager = PromptManager::new();
+        manager.record_tool_arguments_from_history(&history, working_dir.path());
+        let first = manager.build_system_prompt(working_dir.path(), vec![], GooseMode::Auto);
+        assert_eq!(first.matches("hint from the subdirectory").count(), 1);
+
+        manager.record_tool_arguments_from_history(&history, working_dir.path());
+        let second = manager.build_system_prompt(working_dir.path(), vec![], GooseMode::Auto);
+        assert_eq!(
+            second.matches("hint from the subdirectory").count(),
+            1,
+            "replaying the same history must not add the hint twice"
+        );
     }
 
     #[test]
