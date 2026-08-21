@@ -168,6 +168,27 @@ pub fn remove_extension(key: &str) -> Result<bool, ConfigError> {
     remove_extension_with_config(Config::global(), key)
 }
 
+pub fn remove_extension_with_cleanup(
+    key: &str,
+    cleanup: impl FnOnce() -> anyhow::Result<()>,
+) -> anyhow::Result<bool> {
+    remove_extension_with_config_cleanup(Config::global(), key, cleanup)
+}
+
+fn remove_extension_with_config_cleanup(
+    config: &Config,
+    key: &str,
+    cleanup: impl FnOnce() -> anyhow::Result<()>,
+) -> anyhow::Result<bool> {
+    let raw: Mapping = config.get_param(EXTENSIONS_CONFIG_KEY)?;
+    if !raw.contains_key(serde_yaml::Value::String(key.to_string())) {
+        return Ok(false);
+    }
+
+    cleanup()?;
+    Ok(remove_extension_with_config(config, key)?)
+}
+
 fn remove_extension_with_config(config: &Config, key: &str) -> Result<bool, ConfigError> {
     let mut removed = false;
     config.update_param::<Mapping, Mapping, _>(EXTENSIONS_CONFIG_KEY, |mut raw| {
@@ -583,6 +604,20 @@ extensions:
         std::fs::create_dir(&config_path).unwrap();
 
         assert!(remove_extension_with_config(&config, "valid").is_err());
+    }
+
+    #[test]
+    fn test_cleanup_failure_preserves_extension() {
+        let (config, _config_file, _secrets_file) = test_config(
+            "extensions:\n  valid:\n    enabled: true\n    type: builtin\n    name: valid\n",
+        );
+
+        let result = remove_extension_with_config_cleanup(&config, "valid", || {
+            Err(anyhow::anyhow!("permission cleanup failed"))
+        });
+
+        assert!(result.is_err());
+        assert!(read_extensions(&config).contains_key("valid"));
     }
 
     #[derive(Clone, Default)]

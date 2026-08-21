@@ -10,7 +10,7 @@ use goose::config::declarative_providers::{
 };
 use goose::config::extensions::{
     get_all_extension_names, get_all_extensions, get_enabled_extensions, get_extension_by_name,
-    name_to_key, remove_extension, set_extension, set_extension_enabled,
+    name_to_key, remove_extension_with_cleanup, set_extension, set_extension_enabled,
 };
 use goose::config::paths::Paths;
 use goose::config::permission::PermissionLevel;
@@ -1414,8 +1414,10 @@ pub fn remove_extension_dialog() -> anyhow::Result<()> {
         .interact()?;
 
     for name in selected {
-        if remove_extension(&name_to_key(name))? {
-            PermissionManager::instance().remove_extension(&name_to_key(name));
+        let key = name_to_key(name);
+        if remove_extension_with_cleanup(&key, || {
+            PermissionManager::instance().remove_extension(&key)
+        })? {
             cliclack::outro(format!("Removed {} extension", style(name).green()))?;
         }
     }

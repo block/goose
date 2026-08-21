@@ -1,4 +1,5 @@
 use crate::config::paths::Paths;
+use anyhow::{Context, Result};
 use fs2::FileExt;
 use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
@@ -61,14 +62,17 @@ impl PermissionManager {
     }
 
     fn shared_state(config_dir: &Path, config_path: &Path) -> Arc<SharedPermissionState> {
-        let mut states = PERMISSION_STATES.lock().unwrap();
+        let mut states = PERMISSION_STATES
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         states.retain(|_, state| state.strong_count() > 0);
         if let Some(state) = states.get(config_path).and_then(Weak::upgrade) {
             return state;
         }
 
         let permission_map = if config_path.exists() {
-            let _file_guard = Self::lock_permission_file(config_path);
+            let _file_guard = Self::lock_permission_file(config_path)
+                .expect("Failed to lock permission file while loading permissions");
             Self::load_permission_map(config_path)
         } else {
             // Consolidate directory creation for re-use in global singleton or ACP.
@@ -83,24 +87,22 @@ impl PermissionManager {
         state
     }
 
-    fn lock_permission_file(config_path: &Path) -> File {
+    fn lock_permission_file(config_path: &Path) -> Result<File> {
         let lock_file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .truncate(false)
             .open(config_path.with_file_name(PERMISSION_LOCK_FILE))
-            .expect("Failed to open permission lock file");
+            .context("Failed to open permission lock file")?;
         lock_file
             .lock_exclusive()
-            .expect("Failed to lock permission file");
-        lock_file
+            .context("Failed to lock permission file")?;
+        Ok(lock_file)
     }
 
     fn load_permission_map(config_path: &Path) -> HashMap<String, PermissionConfig> {
-        let file_contents =
-            fs::read_to_string(config_path).expect("Failed to read permission.yaml");
-        serde_yaml::from_str(&file_contents).unwrap_or_else(|error| {
+        Self::try_load_permission_map(config_path).unwrap_or_else(|error| {
             tracing::error!(
                 "Failed to parse {}: {}. Refusing to start with corrupted permission config.",
                 config_path.display(),
@@ -113,17 +115,28 @@ impl PermissionManager {
         })
     }
 
-    fn modify_permission_map(&self, modify: impl FnOnce(&mut HashMap<String, PermissionConfig>)) {
+    fn try_load_permission_map(config_path: &Path) -> Result<HashMap<String, PermissionConfig>> {
+        let file_contents = fs::read_to_string(config_path)
+            .with_context(|| format!("Failed to read {}", config_path.display()))?;
+        serde_yaml::from_str(&file_contents)
+            .with_context(|| format!("Failed to parse {}", config_path.display()))
+    }
+
+    fn modify_permission_map(
+        &self,
+        modify: impl FnOnce(&mut HashMap<String, PermissionConfig>),
+    ) -> Result<()> {
         let _process_guard = self.state.file_lock.lock().unwrap();
-        let _file_guard = Self::lock_permission_file(&self.config_path);
+        let _file_guard = Self::lock_permission_file(&self.config_path)?;
         let mut map = self.state.permission_map.write().unwrap();
         if self.config_path.exists() {
-            *map = Self::load_permission_map(&self.config_path);
+            *map = Self::try_load_permission_map(&self.config_path)?;
         }
         modify(&mut map);
-        let yaml_content =
-            serde_yaml::to_string(&*map).expect("Failed to serialize permission config");
-        fs::write(&self.config_path, yaml_content).expect("Failed to write to permission.yaml");
+        let yaml_content = serde_yaml::to_string(&*map)?;
+        fs::write(&self.config_path, yaml_content)
+            .with_context(|| format!("Failed to write {}", self.config_path.display()))?;
+        Ok(())
     }
 
     pub fn instance() -> Arc<PermissionManager> {
@@ -197,7 +210,8 @@ impl PermissionManager {
                     }
                 }
             }
-        });
+        })
+        .expect("Failed to update smart-approve permissions");
     }
 
     /// Helper function to retrieve the permission level for a specific permission category and tool.
@@ -263,10 +277,11 @@ impl PermissionManager {
                     .never_allow
                     .push(principal_name.to_string()),
             }
-        });
+        })
+        .expect("Failed to update user permissions");
     }
 
-    pub fn remove_extension(&self, extension_name: &str) {
+    pub fn remove_extension(&self, extension_name: &str) -> Result<()> {
         self.modify_permission_map(|map| {
             for permission_config in map.values_mut() {
                 permission_config
@@ -279,11 +294,12 @@ impl PermissionManager {
                     .never_allow
                     .retain(|p| !Self::belongs_to_extension(p, extension_name));
             }
-        });
+        })
     }
 
     pub fn clear_permissions(&self) {
-        self.modify_permission_map(HashMap::clear);
+        self.modify_permission_map(HashMap::clear)
+            .expect("Failed to clear permissions");
     }
 
     fn belongs_to_extension(principal_name: &str, extension_name: &str) -> bool {
@@ -448,7 +464,7 @@ mod tests {
         manager.update_user_permission("gitlab__deploy", PermissionLevel::AskBefore);
         manager.update_user_permission("__cli__ent____tool", PermissionLevel::NeverAllow);
 
-        manager.remove_extension("git");
+        manager.remove_extension("git").unwrap();
 
         assert_eq!(manager.get_user_permission("git__status"), None);
         assert_eq!(
@@ -464,10 +480,10 @@ mod tests {
             Some(PermissionLevel::AskBefore)
         );
 
-        manager.remove_extension("__cli__ent__");
+        manager.remove_extension("__cli__ent__").unwrap();
         assert_eq!(manager.get_user_permission("__cli__ent____tool"), None);
 
-        manager.remove_extension("");
+        manager.remove_extension("").unwrap();
         assert_eq!(
             manager.get_user_permission("github__delete_repo"),
             Some(PermissionLevel::NeverAllow)
@@ -486,7 +502,7 @@ mod tests {
         let newer_manager = PermissionManager::new(temp_dir.path().to_path_buf());
         newer_manager.update_user_permission("github__status", PermissionLevel::AskBefore);
 
-        deleting_manager.remove_extension("git");
+        deleting_manager.remove_extension("git").unwrap();
 
         let persisted_manager = PermissionManager::new(temp_dir.path().to_path_buf());
         assert_eq!(persisted_manager.get_user_permission("git__status"), None);
@@ -503,7 +519,7 @@ mod tests {
         deleting_manager.update_user_permission("git__status", PermissionLevel::AlwaysAllow);
         let stale_manager = PermissionManager::new(temp_dir.path().to_path_buf());
 
-        deleting_manager.remove_extension("git");
+        deleting_manager.remove_extension("git").unwrap();
         assert_eq!(stale_manager.get_user_permission("git__status"), None);
         stale_manager.update_user_permission("github__status", PermissionLevel::AskBefore);
 
