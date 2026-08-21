@@ -1,6 +1,7 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::extension_manager::{get_tool_owner, get_tool_resource_uri};
 use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::reply_parts::is_tool_visible_to_model;
 use crate::agents::tool_execution::ToolCallContext;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -88,7 +89,7 @@ impl CodeExecutionClient {
 
         let mut cfgs = vec![];
         for tool in tools {
-            if get_tool_resource_uri(&tool).is_some() {
+            if get_tool_resource_uri(&tool).is_some() || !is_tool_visible_to_model(&tool) {
                 continue;
             }
 
@@ -657,9 +658,18 @@ impl CodeModeState {
     fn new(cfgs: Vec<CallbackConfig>) -> Result<Self, String> {
         let hash = Self::hash(&cfgs);
 
-        let code_mode = CodeMode::default()
-            .with_callbacks(&cfgs)
-            .map_err(|e| format!("failed adding callback configs to CodeMode: {e}"))?;
+        let (code_mode, report) = CodeMode::default().with_callbacks(&cfgs);
+        if !report.failed.is_empty() {
+            let failures = report
+                .failed
+                .iter()
+                .map(|failure| format!("{}: {}", failure.id, failure.reason))
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(format!(
+                "failed adding callback configs to CodeMode: {failures}"
+            ));
+        }
 
         Ok(Self { code_mode, hash })
     }
@@ -683,7 +693,106 @@ impl CodeModeState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents::extension::ExtensionConfig;
+    use crate::agents::extension_manager::ExtensionManager;
     use pctx_code_mode::model::FunctionId;
+    use rmcp::model::MetaObject;
+
+    struct VisibilityClient;
+
+    #[async_trait]
+    impl McpClientTrait for VisibilityClient {
+        async fn list_tools(
+            &self,
+            _session_id: &str,
+            _next_cursor: Option<String>,
+            _cancellation_token: CancellationToken,
+        ) -> Result<ListToolsResult, Error> {
+            let app_only = McpTool::new(
+                "app_only".to_string(),
+                "App-only tool".to_string(),
+                JsonObject::new(),
+            )
+            .with_meta(MetaObject(
+                json!({ "ui": { "visibility": ["app"] } })
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            ));
+            let model_visible = McpTool::new(
+                "model_visible".to_string(),
+                "Model-visible tool".to_string(),
+                JsonObject::new(),
+            )
+            .with_meta(MetaObject(
+                json!({ "ui": { "visibility": ["model"] } })
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            ));
+            let ordinary = McpTool::new(
+                "ordinary".to_string(),
+                "Ordinary tool".to_string(),
+                JsonObject::new(),
+            );
+
+            Ok(ListToolsResult {
+                tools: vec![app_only, model_visible, ordinary],
+                ..Default::default()
+            })
+        }
+
+        async fn call_tool(
+            &self,
+            _ctx: &ToolCallContext,
+            _name: &str,
+            _arguments: Option<JsonObject>,
+            _cancellation_token: CancellationToken,
+        ) -> Result<CallToolResult, Error> {
+            Err(Error::TransportClosed)
+        }
+
+        fn get_info(&self) -> Option<&InitializeResult> {
+            None
+        }
+    }
+
+    #[tokio::test]
+    async fn callback_configs_exclude_tools_hidden_from_model() {
+        let temp = tempfile::tempdir().unwrap();
+        let manager = Arc::new(ExtensionManager::new_without_provider(
+            temp.path().join("manager"),
+        ));
+        manager
+            .add_client(
+                "visibility".to_string(),
+                ExtensionConfig::Builtin {
+                    name: "visibility".to_string(),
+                    description: "Visibility test tools".to_string(),
+                    display_name: None,
+                    timeout: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+                Arc::new(VisibilityClient),
+                None,
+                None,
+            )
+            .await;
+
+        let mut context = manager.get_context().clone();
+        context.extension_manager = Some(Arc::downgrade(&manager));
+        let client = CodeExecutionClient::new(context, ToolDisclosure::Catalog).unwrap();
+        let configs = client.load_callback_configs("test-session").await.unwrap();
+        let names = configs
+            .iter()
+            .map(|config| config.name.as_str())
+            .collect::<Vec<_>>();
+
+        assert!(!names.contains(&"app_only"));
+        assert!(names.contains(&"model_visible"));
+        assert!(names.contains(&"ordinary"));
+    }
 
     #[tokio::test]
     async fn run_in_deno_runtime_times_out_on_hung_execution() {

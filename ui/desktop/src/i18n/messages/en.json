@@ -1259,6 +1259,18 @@
   "externalBackendSection.workingDirPlaceholder": {
     "defaultMessage": "/home/goose/workspace"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "Failed to switch to {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "No branches found"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "Search branches…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "You may have uncommitted changes."
+  },
   "goosehintsModal.close": {
     "defaultMessage": "Close"
   },
@@ -1910,9 +1922,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "Use {modelId}"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "Cancel"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "Copy code"
   },
@@ -1922,23 +1931,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "No application found to open this link."
   },
-  "markdownContent.open": {
-    "defaultMessage": "Open"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "Open External Link"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "Open {protocol} link?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "This will open: {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "App"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "Cancel"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "Close"
@@ -1963,18 +1957,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "Move Picture-in-Picture window (use arrow keys)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "Open"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Open External Link"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "This will open: {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "Open {protocol} link?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Picture-in-Picture"
@@ -2786,8 +2768,17 @@
   "providerConfigForm.continue": {
     "defaultMessage": "Continue"
   },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "and enter:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "Copy"
+  },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "A browser window will open and the verification code will be copied to your clipboard. Paste it in the browser to complete sign-in."
+    "defaultMessage": "A browser window will open. The verification code will appear here so you can enter it to complete sign-in."
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "Visit"
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Don't have an API key?"
@@ -2828,8 +2819,17 @@
   "providerConfigurationModal.deleteConfirmation": {
     "defaultMessage": "This will permanently delete the current provider configuration."
   },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "and enter:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "Copy"
+  },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "A browser window will open and the verification code will be copied to your clipboard. Paste it in the browser to complete sign-in."
+    "defaultMessage": "A browser window will open. The verification code will appear here so you can enter it to complete sign-in."
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "Visit"
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "There was an error checking this provider configuration."
@@ -3473,6 +3473,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Viewing Schedule ID: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (already scheduled)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "Browse for YAML file..."
   },
@@ -3497,6 +3500,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Edit Schedule"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Failed to load recipes."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "Failed to parse recipe from file."
   },
@@ -3509,14 +3515,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Invalid file type: Please select a YAML file (.yaml or .yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Loading recipes..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "Name:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "e.g., daily-summary-job"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "No saved recipes found."
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Please provide a valid recipe source."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "This recipe already has a schedule. Edit it from the Recipes list."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Description: {description}"
@@ -3527,11 +3542,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Title: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Saved recipes"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "Schedule ID is required."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Schedule:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Select a saved recipe"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Selected: {path}"
@@ -3886,6 +3907,12 @@
   },
   "sessions.saving": {
     "defaultMessage": "Saving..."
+  },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count,plural,one{{count} job} other{{count} jobs}}"
   },
   "sessions.search.noResults": {
     "defaultMessage": "No matching sessions found"
@@ -4456,6 +4483,9 @@
   },
   "telemetrySettings.updateError": {
     "defaultMessage": "Failed to update telemetry settings."
+  },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
   },
   "themeSelector.dark": {
     "defaultMessage": "Dark"

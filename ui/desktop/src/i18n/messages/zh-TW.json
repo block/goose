@@ -932,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "最近的目錄"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "無法切換至 {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "找不到分支"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "搜尋分支…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "你可能有尚未提交的變更。"
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "接受"
   },
@@ -1889,9 +1901,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "使用 {modelId}"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "取消"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "複製程式碼"
   },
@@ -1901,23 +1910,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "找不到可開啟此連結的應用程式。"
   },
-  "markdownContent.open": {
-    "defaultMessage": "開啟"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "開啟外部連結"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "要開啟 {protocol} 連結嗎？"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "這會開啟：{href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "應用程式"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "取消"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "關閉"
@@ -1942,18 +1936,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "移動子母畫面視窗（使用方向鍵）"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "開啟"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "開啟外部連結"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "這會開啟：{url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "要開啟 {protocol} 連結嗎？"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "子母畫面"
@@ -2760,7 +2742,7 @@
     "defaultMessage": "繼續"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "將開啟瀏覽器視窗，且驗證碼會複製到您的剪貼簿。將其貼到瀏覽器中以完成登入。"
+    "defaultMessage": "將開啟瀏覽器視窗。驗證碼會顯示在此處，輸入驗證碼即可完成登入。"
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "沒有 API 金鑰嗎？"
@@ -2799,7 +2781,7 @@
     "defaultMessage": "這將永久刪除目前的提供者組態。"
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "將開啟瀏覽器視窗，且驗證碼會複製到您的剪貼簿。將其貼到瀏覽器中以完成登入。"
+    "defaultMessage": "將開啟瀏覽器視窗。驗證碼會顯示在此處，輸入驗證碼即可完成登入。"
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "檢查此提供者組態時發生錯誤。"
@@ -3443,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "正在檢視排程 ID：{id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title}（已排程）"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "瀏覽 YAML 檔案…"
   },
@@ -3467,6 +3452,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "編輯排程"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "載入方案失敗。"
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "無法從檔案剖析食譜。"
   },
@@ -3479,14 +3467,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "無效的檔案類型：請選擇 YAML 檔案（.yaml 或 .yml）"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "正在載入方案..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "名稱："
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "例如：daily-summary-job"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "找不到已儲存的方案。"
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "請提供有效的食譜來源。"
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "此配方已有排程。請從配方清單中編輯。"
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "描述：{description}"
@@ -3497,11 +3494,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "標題：{title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "已儲存的方案"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "排程 ID 為必填。"
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "排程："
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "選擇一個已儲存的方案"
   },
   "scheduleModal.selected": {
     "defaultMessage": "已選取：{path}"
@@ -3856,6 +3859,12 @@
   },
   "sessions.saving": {
     "defaultMessage": "正在儲存…"
+  },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count,plural,one{{count} job} other{{count} jobs}}"
   },
   "sessions.search.noResults": {
     "defaultMessage": "找不到符合的工作階段"
@@ -4427,6 +4436,9 @@
   "telemetrySettings.updateError": {
     "defaultMessage": "無法更新遙測設定。"
   },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
+  },
   "themeSelector.dark": {
     "defaultMessage": "深色"
   },
@@ -4654,5 +4666,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "請先檢查帳戶連線，然後再繼續。"
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "並輸入："
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "複製"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "前往"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "並輸入："
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "複製"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "前往"
   }
 }

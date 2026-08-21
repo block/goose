@@ -9,6 +9,7 @@ use super::GooseAcpAgent;
 use agent_client_protocol::schema::v1::{Meta, NewSessionRequest, NewSessionResponse, SessionId};
 use agent_client_protocol::{Client, ConnectionTo};
 use goose_providers::model::ModelConfig;
+use goose_providers::thinking::ThinkingEffortSupport;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::warn;
@@ -86,7 +87,11 @@ impl GooseAcpAgent {
 
         let reloaded_session = self.reload_session(&session.id).await?;
         let response = self
-            .build_new_session_response(&reloaded_session, &extension_results)
+            .build_new_session_response(
+                &reloaded_session,
+                &extension_results,
+                &super::agent_thinking_effort_support(&agent).await,
+            )
             .await?;
         Ok(response)
     }
@@ -243,9 +248,11 @@ impl GooseAcpAgent {
         &self,
         session: &Session,
         extension_results: &[ExtensionLoadResult],
+        effort_support: &ThinkingEffortSupport,
     ) -> Result<NewSessionResponse, agent_client_protocol::Error> {
         let (mode_state, config_options) =
-            super::build_session_setup_config(&self.provider_inventory, session).await?;
+            super::build_session_setup_config(&self.provider_inventory, session, effort_support)
+                .await?;
 
         let mut response =
             NewSessionResponse::new(SessionId::new(session.id.clone())).modes(mode_state);

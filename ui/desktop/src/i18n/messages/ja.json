@@ -932,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "最近のディレクトリ"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "{branch} への切り替えに失敗しました"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "ブランチが見つかりません"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "ブランチを検索…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "コミットされていない変更がある可能性があります。"
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "承諾"
   },
@@ -1889,9 +1901,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "{modelId}を使用"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "キャンセル"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "コードをコピー"
   },
@@ -1901,23 +1910,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "このリンクを開くアプリケーションが見つかりません。"
   },
-  "markdownContent.open": {
-    "defaultMessage": "開く"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "外部リンクを開く"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "{protocol}リンクを開きますか？"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "次を開きます: {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "アプリ"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "キャンセル"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "閉じる"
@@ -1942,18 +1936,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "ピクチャ・イン・ピクチャウィンドウを移動（矢印キーを使用）"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "開く"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "外部リンクを開く"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "次を開きます: {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "{protocol}リンクを開きますか？"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "ピクチャ・イン・ピクチャ"
@@ -2760,7 +2742,7 @@
     "defaultMessage": "続行"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "ブラウザーウィンドウが開き、確認コードがクリップボードにコピーされます。ブラウザーに貼り付けてサインインを完了してください。"
+    "defaultMessage": "ブラウザーウィンドウが開きます。確認コードがここに表示されるので、入力してサインインを完了してください。"
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "APIキーをお持ちでないですか？"
@@ -2799,7 +2781,7 @@
     "defaultMessage": "現在のプロバイダー設定は完全に削除されます。"
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "ブラウザーウィンドウが開き、確認コードがクリップボードにコピーされます。ブラウザーに貼り付けてサインインを完了してください。"
+    "defaultMessage": "ブラウザーウィンドウが開きます。確認コードがここに表示されるので、入力してサインインを完了してください。"
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "このプロバイダー設定の確認中にエラーが発生しました。"
@@ -3443,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "表示中のスケジュールID: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title}（スケジュール済み）"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "YAMLファイルを選択..."
   },
@@ -3467,6 +3452,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "スケジュールを編集"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "レシピの読み込みに失敗しました。"
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "ファイルからレシピを解析できませんでした。"
   },
@@ -3479,14 +3467,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "無効なファイル形式です。YAMLファイル（.yaml または .yml）を選択してください"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "レシピを読み込み中..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "名前:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "例: daily-summary-job"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "保存したレシピが見つかりません。"
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "有効なレシピソースを指定してください。"
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "このレシピには既にスケジュールがあります。レシピ一覧から編集してください。"
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "説明: {description}"
@@ -3497,11 +3494,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "タイトル: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "保存したレシピ"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "スケジュールIDは必須です。"
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "スケジュール:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "保存したレシピを選択"
   },
   "scheduleModal.selected": {
     "defaultMessage": "選択済み: {path}"
@@ -3856,6 +3859,12 @@
   },
   "sessions.saving": {
     "defaultMessage": "保存中..."
+  },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count,plural,one{{count} job} other{{count} jobs}}"
   },
   "sessions.search.noResults": {
     "defaultMessage": "一致するセッションが見つかりません"
@@ -4427,6 +4436,9 @@
   "telemetrySettings.updateError": {
     "defaultMessage": "テレメトリ設定を更新できませんでした。"
   },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
+  },
   "themeSelector.dark": {
     "defaultMessage": "ダーク"
   },
@@ -4654,5 +4666,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "続行する前にアカウントの接続を確認してください。"
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "コードを入力してください："
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "コピー"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "次のURLにアクセスし、"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "コードを入力してください："
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "コピー"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "次のURLにアクセスし、"
   }
 }

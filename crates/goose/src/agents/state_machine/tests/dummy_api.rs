@@ -31,6 +31,7 @@ impl Default for ProviderFeatures {
 #[derive(Clone)]
 enum ApiResponse {
     Reply(String),
+    ReplyWithDistinctIds(Vec<String>),
     ToolCall {
         name: String,
         arguments: String,
@@ -262,6 +263,15 @@ impl<'a> ApiRuleBuilder<'a> {
         self.configured(ApiResponse::Reply(text.into()))
     }
 
+    pub(super) fn reply_with_distinct_ids<const N: usize>(
+        self,
+        chunks: [&str; N],
+    ) -> ConfiguredResponse<'a> {
+        self.configured(ApiResponse::ReplyWithDistinctIds(
+            chunks.into_iter().map(str::to_string).collect(),
+        ))
+    }
+
     pub(super) fn hold_reply(self, text: impl Into<String>) -> ResponseGate {
         let gate = ResponseGate::new();
         self.api
@@ -470,6 +480,13 @@ impl DummyApiState {
                 &text,
                 None,
             )),
+            ApiResponse::ReplyWithDistinctIds(chunks) => {
+                let output_tokens: usize = chunks.iter().map(|chunk| chunk.chars().count()).sum();
+                sse_response(reply_events_with_distinct_ids(
+                    &meta(output_tokens as i32),
+                    &chunks,
+                ))
+            }
             ApiResponse::ToolCall {
                 name,
                 arguments,
@@ -659,6 +676,43 @@ fn reply_events(meta: &ResponseMeta, text: &str, error: Option<&str>) -> String 
     } else {
         events.push_str("data: [DONE]\n\n");
     }
+    events
+}
+
+fn reply_events_with_distinct_ids(meta: &ResponseMeta, chunks: &[String]) -> String {
+    let mut events = String::new();
+    for (index, chunk) in chunks.iter().enumerate() {
+        push_event(
+            &mut events,
+            json!({
+                "id": format!("{}-{index}", meta.id),
+                "object": "chat.completion.chunk",
+                "model": meta.model,
+                "choices": [{
+                    "index": 0,
+                    "delta": { "content": chunk },
+                    "finish_reason": null
+                }]
+            }),
+        );
+    }
+    push_event(
+        &mut events,
+        json!({
+            "id": format!("{}-{}", meta.id, chunks.len().saturating_sub(1)),
+            "object": "chat.completion.chunk",
+            "model": meta.model,
+            "choices": [{
+                "index": 0,
+                "delta": {},
+                "finish_reason": "stop"
+            }]
+        }),
+    );
+    if meta.include_usage {
+        push_event(&mut events, usage_event(meta));
+    }
+    events.push_str("data: [DONE]\n\n");
     events
 }
 

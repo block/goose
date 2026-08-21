@@ -932,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Directorios recientes"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "No se pudo cambiar a {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "No se encontraron ramas"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "Buscar ramas…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "Puede que tengas cambios sin confirmar."
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Aceptar"
   },
@@ -1889,9 +1901,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "Usar {modelId}"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "Cancelar"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "Copiar código"
   },
@@ -1901,23 +1910,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "No se encontró ninguna aplicación para abrir este enlace."
   },
-  "markdownContent.open": {
-    "defaultMessage": "Abrir"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "Abrir enlace externo"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "¿Abrir enlace {protocol}?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "Esto abrirá: {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "App"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "Cancelar"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "Cerrar"
@@ -1942,18 +1936,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "Mover la ventana de imagen en imagen (usa las teclas de flecha)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "Abrir"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Abrir enlace externo"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "Esto abrirá: {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "¿Abrir enlace {protocol}?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Imagen en imagen"
@@ -2760,7 +2742,7 @@
     "defaultMessage": "Continuar"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Se abrirá una ventana del navegador y el código de verificación se copiará en tu portapapeles. Pégalo en el navegador para completar el inicio de sesión."
+    "defaultMessage": "Se abrirá una ventana del navegador. El código de verificación aparecerá aquí para que puedas introducirlo y completar el inicio de sesión."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "¿No tienes una clave de API?"
@@ -2799,7 +2781,7 @@
     "defaultMessage": "Esto eliminará permanentemente la configuración actual del proveedor."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Se abrirá una ventana del navegador y el código de verificación se copiará en tu portapapeles. Pégalo en el navegador para completar el inicio de sesión."
+    "defaultMessage": "Se abrirá una ventana del navegador. El código de verificación aparecerá aquí para que puedas introducirlo y completar el inicio de sesión."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "Hubo un error al comprobar la configuración de este proveedor."
@@ -3443,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Viendo el ID de programación: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (ya programada)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "Buscar archivo YAML..."
   },
@@ -3467,6 +3452,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Editar programación"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Error al cargar las recetas."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "No se pudo analizar la receta del archivo."
   },
@@ -3479,14 +3467,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Tipo de archivo no válido: selecciona un archivo YAML (.yaml o .yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Cargando recetas..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "Nombre:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "p. ej., resumen-diario"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "No se encontraron recetas guardadas."
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Proporciona un origen de receta válido."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "Esta receta ya tiene una programación. Edítala desde la lista de Recetas."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Descripción: {description}"
@@ -3497,11 +3494,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Título: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Recetas guardadas"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "Se requiere el ID de la programación."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Programación:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Selecciona una receta guardada"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Seleccionado: {path}"
@@ -3856,6 +3859,12 @@
   },
   "sessions.saving": {
     "defaultMessage": "Guardando..."
+  },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count,plural,one{{count} job} other{{count} jobs}}"
   },
   "sessions.search.noResults": {
     "defaultMessage": "No se encontraron sesiones que coincidan"
@@ -4427,6 +4436,9 @@
   "telemetrySettings.updateError": {
     "defaultMessage": "No se pudieron actualizar los ajustes de telemetría."
   },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
+  },
   "themeSelector.dark": {
     "defaultMessage": "Oscuro"
   },
@@ -4654,5 +4666,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "Comprueba la conexión de tu cuenta antes de continuar."
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "e ingresa:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "Copiar"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "Visita"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "e ingresa:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "Copiar"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "Visita"
   }
 }

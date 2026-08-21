@@ -4,10 +4,10 @@ use agent_client_protocol::schema::v1::{
     LoadSessionRequest, McpCapabilities, McpServer, McpServerHttp, McpServerStdio,
     NewSessionRequest, NewSessionResponse, PromptRequest, PromptResponse, RequestPermissionOutcome,
     RequestPermissionRequest, RequestPermissionResponse, Role as AcpRole, SessionConfigKind,
-    SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOptions, SessionId,
-    SessionModeState, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
-    SetSessionModeRequest, SetSessionModeResponse, StopReason, TextContent, ToolCallContent,
-    ToolCallStatus, ToolKind,
+    SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOption,
+    SessionConfigSelectOptions, SessionId, SessionModeState, SessionNotification, SessionUpdate,
+    SetSessionConfigOptionRequest, SetSessionModeRequest, SetSessionModeResponse, StopReason,
+    TextContent, ToolCallContent, ToolCallStatus, ToolKind,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
@@ -29,24 +29,34 @@ use std::sync::{
 use std::thread::JoinHandle;
 use tokio::io::AsyncReadExt;
 use tokio::process::{Child, Command};
-use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex};
+use tokio::sync::{mpsc, oneshot, watch, Mutex as TokioMutex};
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 
+use crate::acp::handoff::{build_handoff_context_memo, memo_token_budget, prompt_token_cost};
 use crate::acp::{map_permission_response, PermissionDecision};
-use crate::config::{ExtensionConfig, GooseMode};
-use crate::context_mgmt::format_message_for_compacting;
+use crate::config::{Config, ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
-use crate::conversation::Conversation;
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::{MessageStream, PermissionRouting, Provider};
 use crate::subprocess::configure_subprocess;
+use crate::token_counter::create_token_counter;
 use crate::utils::sanitize_unicode_tags;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
+use goose_providers::thinking::{
+    ThinkingEffortCapability, ThinkingEffortOption, ThinkingEffortSupport,
+};
 
 /// Sentinel: resolved to the actual model name during connect().
 pub const ACP_CURRENT_MODEL: &str = "current";
+
+/// Config option id used by agents that advertise a thinking-effort selector
+/// without categorizing it as `thought_level`.
+const EFFORT_CONFIG_OPTION_ID: &str = "effort";
+
+/// Session request param holding the selected thinking effort.
+pub(super) const THINKING_EFFORT_PARAM: &str = "thinking_effort";
 
 pub struct AcpProviderConfig {
     pub command: PathBuf,
@@ -152,6 +162,23 @@ enum AcpUpdate {
     Error(agent_client_protocol::Error),
 }
 
+/// Whether dropping the handoff memo could plausibly change the outcome. An agent that
+/// rejected the very first update has told us nothing except that it disliked the prompt,
+/// and the memo is the only part we added — but a spent account or a missing credential
+/// says nothing about the prompt at all, so retrying would burn the single fallback the
+/// session gets and consume a memo the agent never actually refused.
+fn retry_without_memo_could_help(error: &agent_client_protocol::Error) -> bool {
+    if error.code == agent_client_protocol::schema::v1::ErrorCode::AuthRequired {
+        return false;
+    }
+    error
+        .data
+        .as_ref()
+        .and_then(|data| data.get("reason"))
+        .and_then(serde_json::Value::as_str)
+        != Some(crate::acp::CREDITS_EXHAUSTED_REASON)
+}
+
 fn provider_error_from_acp(error: agent_client_protocol::Error) -> ProviderError {
     if error.code == agent_client_protocol::schema::v1::ErrorCode::AuthRequired {
         ProviderError::Authentication(error.to_string())
@@ -213,6 +240,37 @@ impl Drop for HandoffContextClaimGuard {
     }
 }
 
+#[derive(Clone)]
+struct AcpEffortState {
+    capability: Arc<Mutex<Option<ThinkingEffortCapability>>>,
+    updates: watch::Sender<ThinkingEffortSupport>,
+}
+
+impl AcpEffortState {
+    fn new() -> Self {
+        let (updates, _) = watch::channel(ThinkingEffortSupport::Unsupported);
+        Self {
+            capability: Arc::new(Mutex::new(None)),
+            updates,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct AcpSessionState {
+    active_id: Arc<Mutex<Option<SessionId>>>,
+    effort: AcpEffortState,
+}
+
+impl AcpSessionState {
+    fn new(effort: AcpEffortState) -> Self {
+        Self {
+            active_id: Arc::new(Mutex::new(None)),
+            effort,
+        }
+    }
+}
+
 pub struct AcpProvider {
     name: String,
     goose_mode: Arc<Mutex<GooseMode>>,
@@ -237,6 +295,14 @@ pub struct AcpProvider {
     /// Model currently applied via `model_config_option_id`, used to avoid
     /// redundant `SetConfigOption` calls.
     applied_model: Arc<Mutex<Option<String>>>,
+
+    /// The agent's thinking-effort config option, mirrored from every
+    /// config-options payload it sends. `None` means the agent offers no effort
+    /// selector for its current model. Its `current` value doubles as the
+    /// redundant-send guard: unlike a goose-side cache of the last applied
+    /// value, it tracks the agent resetting its own effort (e.g. on a model
+    /// switch), so the persisted value is re-applied when that happens.
+    effort: AcpEffortState,
 
     tx: Option<mpsc::Sender<ClientRequest>>,
     cancel_tx: Option<oneshot::Sender<()>>,
@@ -333,11 +399,13 @@ impl AcpProvider {
         let pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>> =
             Arc::new(Mutex::new(HashMap::new()));
         let context_size = Arc::new(AtomicU64::new(0));
+        let effort = AcpEffortState::new();
         let client_loop = AcpClientLoop::new(
             config,
             goose_mode_shared.clone(),
             pending_tool_updates.clone(),
             context_size.clone(),
+            effort.clone(),
         );
         let (cancel_tx, cancel_rx) = oneshot::channel();
         let loop_thread = spawn_client_loop(run(client_loop, rx, init_tx, cancel_rx));
@@ -382,6 +450,7 @@ impl AcpProvider {
             context_size,
             model_config_option_id,
             applied_model: Arc::new(Mutex::new(applied_model)),
+            effort,
             tx: client_loop_guard.tx.take(),
             cancel_tx: client_loop_guard.cancel_tx.take(),
             loop_thread: client_loop_guard.thread.take(),
@@ -481,6 +550,61 @@ impl AcpProvider {
         Ok(())
     }
 
+    fn effort_capability(&self) -> Result<Option<ThinkingEffortCapability>> {
+        Ok(self
+            .effort
+            .capability
+            .lock()
+            .map_err(|_| anyhow::anyhow!("effort_state lock poisoned"))?
+            .clone())
+    }
+
+    /// The redundant-send guard is the mirrored capability's `current`, not a
+    /// goose-side record of the last sent value: the agent's `SetConfigOption`
+    /// response refreshes `effort_state` before this call returns, and later
+    /// refreshes track the agent resetting its own effort.
+    async fn set_effort_option(
+        &self,
+        goose_id: &str,
+        option_id: &str,
+        value: String,
+    ) -> Result<()> {
+        {
+            let state = self
+                .effort
+                .capability
+                .lock()
+                .map_err(|_| anyhow::anyhow!("effort_state lock poisoned"))?;
+            let current = state
+                .as_ref()
+                .and_then(|capability| capability.current.as_deref());
+            if current == Some(value.as_str()) {
+                return Ok(());
+            }
+        }
+
+        self.send_set_config_option(goose_id, option_id.to_string(), value)
+            .await
+    }
+
+    /// Forward the session's thinking effort to the agent when it differs from
+    /// the agent's mirrored current value. A recreated provider (model switch,
+    /// provider switch, session reload) starts from the agent's own default, so
+    /// the value has to be re-applied rather than assumed. It comes from
+    /// `resolve_effort_value`, the same resolver the config menu advertises
+    /// from, so the selection ACP clients see is the one that gets sent.
+    async fn apply_effort_if_changed(&self, model_config: &ModelConfig) -> Result<()> {
+        let Some(capability) = self.effort_capability()? else {
+            return Ok(());
+        };
+        let Some(mapped) = resolve_effort_value(&capability, model_config) else {
+            return Ok(());
+        };
+
+        self.set_effort_option("", &capability.option_id, mapped)
+            .await
+    }
+
     async fn prompt(
         &self,
         session_id: SessionId,
@@ -516,6 +640,29 @@ impl AcpProvider {
             first_prompt,
             include_context: first_prompt && has_handoff_context(messages),
         }
+    }
+
+    /// Prior conversation, bounded against the agent's context window. The agent's own
+    /// system prompt and tool schemas are invisible to us, hence the conservative share.
+    async fn bounded_handoff_memo(
+        &self,
+        model_config: &ModelConfig,
+        messages: &[Message],
+        current_prompt: &[ContentBlock],
+    ) -> Option<String> {
+        let last_user_index = last_user_message_index(messages)?;
+        let counter = match create_token_counter().await {
+            Ok(counter) => counter,
+            Err(error) => {
+                tracing::error!(%error, "no token counter, dropping ACP handoff context");
+                return None;
+            }
+        };
+
+        let context_limit = self.get_context_limit(model_config).await.ok()?;
+        let budget = memo_token_budget(context_limit, prompt_token_cost(current_prompt, &counter));
+
+        build_handoff_context_memo(&messages[..last_user_index], budget, &counter)
     }
 }
 
@@ -598,6 +745,56 @@ impl Provider for AcpProvider {
         Ok(())
     }
 
+    fn thinking_effort_support(&self) -> ThinkingEffortSupport {
+        match self.effort_capability().ok().flatten() {
+            Some(capability) => ThinkingEffortSupport::Options(capability),
+            None => ThinkingEffortSupport::Unsupported,
+        }
+    }
+
+    fn subscribe_thinking_effort_support(&self) -> Option<watch::Receiver<ThinkingEffortSupport>> {
+        Some(self.effort.updates.subscribe())
+    }
+
+    async fn set_thinking_effort(
+        &self,
+        session_id: &str,
+        value: &str,
+    ) -> Result<bool, ProviderError> {
+        let capability = self
+            .effort_capability()
+            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+        // No effort selector: the only advertised choice is `off`, which is a
+        // no-op. Falling back to the caller's legacy path would respawn the
+        // agent, while accepting any other value would persist a setting that
+        // was never applied.
+        let Some(capability) = capability else {
+            return if value.eq_ignore_ascii_case("off") {
+                Ok(true)
+            } else {
+                Err(ProviderError::InvalidValue(format!(
+                    "Agent offers no thinking effort '{value}'"
+                )))
+            };
+        };
+        let mapped = map_effort_value(&capability, value).ok_or_else(|| {
+            ProviderError::InvalidValue(format!("Agent offers no thinking effort '{value}'"))
+        })?;
+
+        self.set_effort_option(session_id, &capability.option_id, mapped)
+            .await
+            .map_err(|e| effort_option_error(value, e))?;
+        Ok(true)
+    }
+
+    async fn apply_model_selection(&self, model_config: &ModelConfig) -> Result<(), ProviderError> {
+        self.apply_model_if_changed(&model_config.model_name)
+            .await
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to set ACP model option: {e}"))
+            })
+    }
+
     fn permission_routing(&self) -> PermissionRouting {
         PermissionRouting::ActionRequired
     }
@@ -634,7 +831,13 @@ impl Provider for AcpProvider {
                 ProviderError::RequestFailed(format!("Failed to set ACP model option: {e}"))
             })?;
 
-        let current_prompt_blocks = messages_to_prompt(messages, false);
+        self.apply_effort_if_changed(model_config)
+            .await
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to set ACP effort option: {e}"))
+            })?;
+
+        let current_prompt_blocks = messages_to_prompt(messages, None);
         if current_prompt_blocks.is_empty() {
             return Ok(Box::pin(futures::stream::empty()));
         }
@@ -642,24 +845,59 @@ impl Provider for AcpProvider {
         let claim = self.claim_handoff_context(messages);
         let mut handoff_claim_guard =
             HandoffContextClaimGuard::new(self.handoff_context_sent.clone(), claim.first_prompt);
-        let prompt_blocks = if claim.include_context {
-            messages_to_prompt(messages, true)
+        let memo = if claim.include_context {
+            self.bounded_handoff_memo(model_config, messages, &current_prompt_blocks)
+                .await
         } else {
-            current_prompt_blocks
+            None
+        };
+        if claim.include_context && memo.is_none() {
+            // Nothing fit beside this turn's prompt, so the context never left goose. Give
+            // it back rather than marking a handoff that never happened as done — a single
+            // oversized turn would otherwise cost the session its whole history.
+            handoff_claim_guard.rollback();
+        }
+        // A memo is only ever an estimate of what the agent will accept, so keep the bare
+        // prompt to retry with. Without it a bad estimate leaves the session unresumable.
+        let (prompt_blocks, mut bare_retry_blocks) = match memo {
+            Some(memo) => (
+                messages_to_prompt(messages, Some(memo)),
+                Some(current_prompt_blocks),
+            ),
+            None => (current_prompt_blocks, None),
         };
         // Drop any tool-call buffer state left over from a prior prompt
         // (e.g. cancelled or interrupted before its terminal status arrived).
         if let Ok(mut buffer) = self.pending_tool_updates.lock() {
             buffer.clear();
         }
-        let mut rx = match self.prompt(session_id, prompt_blocks).await {
+        let mut rx = match self.prompt(session_id.clone(), prompt_blocks).await {
             Ok(rx) => rx,
-            Err(e) => {
-                return Err(ProviderError::RequestFailed(format!(
-                    "Failed to send ACP prompt: {e}"
-                )));
-            }
+            Err(e) => match bare_retry_blocks.take() {
+                Some(blocks) => {
+                    // Consume the handoff before retrying. The memo is the only thing this
+                    // attempt added, so rebuilding it next time would reproduce the same
+                    // rejection and leave the session permanently unresumable.
+                    handoff_claim_guard.commit();
+                    self.prompt(session_id.clone(), blocks)
+                        .await
+                        .map_err(|retry_error| {
+                            ProviderError::RequestFailed(format!(
+                                "Failed to send ACP prompt: {retry_error}"
+                            ))
+                        })?
+                }
+                // Nothing was added to this prompt, so the guard rolls the claim back as
+                // it drops and the next attempt can still carry the context.
+                None => {
+                    return Err(ProviderError::RequestFailed(format!(
+                        "Failed to send ACP prompt: {e}"
+                    )));
+                }
+            },
         };
+        let bare_retry =
+            bare_retry_blocks.map(|blocks| (self.tx.as_ref().unwrap().clone(), session_id, blocks));
 
         let pending_confirmations = self.pending_confirmations.clone();
         let goose_mode = *self
@@ -672,12 +910,15 @@ impl Provider for AcpProvider {
 
         Ok(Box::pin(try_stream! {
             let mut suppress_text = false;
+            let mut bare_retry = bare_retry;
+            let mut updates_seen = 0usize;
             let mut rejected_tool_calls: HashSet<String> = HashSet::new();
             // Stable id+timestamp per contiguous run so Desktop coalesces chunks into one bubble.
             let mut text_run: Option<(String, i64)> = None;
             let mut thought_run: Option<(String, i64)> = None;
 
             while let Some(update) = rx.recv().await {
+                updates_seen += 1;
                 match update {
                     AcpUpdate::Text(text) => {
                         if !suppress_text {
@@ -822,10 +1063,35 @@ impl Provider for AcpProvider {
                         break;
                     }
                     AcpUpdate::Error(e) => {
+                        let retry_could_help = retry_without_memo_could_help(&e);
+                        let error = provider_error_from_acp(e);
+                        if updates_seen == 1 && retry_could_help {
+                            if let Some((tx, session_id, blocks)) = bare_retry.take() {
+                                // Consume the handoff before retrying. The agent has already
+                                // seen and rejected this memo, so rebuilding it on a later
+                                // turn would reproduce the rejection forever.
+                                handoff_claim_guard.commit();
+                                let (response_tx, response_rx) = mpsc::channel(64);
+                                let request = ClientRequest::Prompt {
+                                    session_id,
+                                    content: blocks,
+                                    response_tx,
+                                };
+                                if tx.send(request).await.is_ok() {
+                                    tracing::error!(
+                                        %error,
+                                        "ACP prompt with handoff context rejected, retrying without it"
+                                    );
+                                    rx = response_rx;
+                                    updates_seen = 0;
+                                    continue;
+                                }
+                            }
+                        }
                         // Reset before yielding so an immediate retry can include the handoff even
                         // while the failed stream value is still alive.
                         handoff_claim_guard.rollback();
-                        Err(provider_error_from_acp(e))?;
+                        Err(error)?;
                     }
                 }
             }
@@ -857,6 +1123,7 @@ struct AcpClientLoop {
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
     context_size: Arc<AtomicU64>,
+    effort: AcpEffortState,
 }
 
 impl AcpClientLoop {
@@ -865,6 +1132,7 @@ impl AcpClientLoop {
         goose_mode: Arc<Mutex<GooseMode>>,
         pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
         context_size: Arc<AtomicU64>,
+        effort: AcpEffortState,
     ) -> Self {
         Self {
             config,
@@ -872,6 +1140,7 @@ impl AcpClientLoop {
             prompt_response_tx: Arc::new(Mutex::new(None)),
             pending_tool_updates,
             context_size,
+            effort,
         }
     }
 
@@ -926,9 +1195,11 @@ impl AcpClientLoop {
             prompt_response_tx,
             pending_tool_updates,
             context_size,
+            effort,
         } = self;
         let notification_callback = config.notification_callback.clone();
         let reverse_modes = reverse_mode_mapping(&config.mode_mapping);
+        let session_state = AcpSessionState::new(effort);
 
         Client
             .builder()
@@ -939,7 +1210,17 @@ impl AcpClientLoop {
                     let goose_mode = goose_mode.clone();
                     let pending_tool_updates = pending_tool_updates.clone();
                     let context_size = context_size.clone();
+                    let session_state = session_state.clone();
                     async move |notification: SessionNotification, _cx| {
+                        let is_active_session =
+                            session_state.active_id.lock().is_ok_and(|active| {
+                                active
+                                    .as_ref()
+                                    .is_none_or(|id| id == &notification.session_id)
+                            });
+                        if !is_active_session {
+                            return Ok(());
+                        }
                         if let Some(ref cb) = notification_callback {
                             cb(notification.clone());
                         }
@@ -956,6 +1237,7 @@ impl AcpClientLoop {
                                 }
                             }
                             SessionUpdate::ConfigOptionUpdate(update) => {
+                                publish_effort_state(&session_state.effort, &update.config_options);
                                 for opt in &update.config_options {
                                     if opt.category == Some(SessionConfigOptionCategory::Mode) {
                                         if let SessionConfigKind::Select(sel) = &opt.kind {
@@ -1133,7 +1415,16 @@ impl AcpClientLoop {
                 agent_client_protocol::on_receive_request!(),
             )
             .connect_with(transport, async move |cx: ConnectionTo<Agent>| {
-                handle_requests(config, goose_mode, cx, rx, prompt_response_tx, init_tx).await
+                handle_requests(
+                    config,
+                    goose_mode,
+                    cx,
+                    rx,
+                    prompt_response_tx,
+                    session_state,
+                    init_tx,
+                )
+                .await
             })
             .await?;
 
@@ -1236,6 +1527,7 @@ async fn handle_requests(
     cx: ConnectionTo<Agent>,
     rx: &mut mpsc::Receiver<ClientRequest>,
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
+    session_state: AcpSessionState,
     init_tx: oneshot::Sender<Result<InitializeResponse>>,
 ) -> Result<(), agent_client_protocol::Error> {
     let mut init_tx = Some(init_tx);
@@ -1243,8 +1535,7 @@ async fn handle_requests(
     let client_capabilities = ClientCapabilities::new();
     let init_response: InitializeResponse = cx
         .send_request(
-            InitializeRequest::new(ProtocolVersion::LATEST)
-                .client_capabilities(client_capabilities),
+            InitializeRequest::new(ProtocolVersion::V1).client_capabilities(client_capabilities),
         )
         .block_task()
         .await
@@ -1281,9 +1572,18 @@ async fn handle_requests(
                     .await;
                 let result = match session {
                     Ok(session) => {
+                        *session_state.active_id.lock().unwrap() = Some(session.session_id.clone());
                         session_ids.push(session.session_id.clone());
-                        apply_session_config_options(&config, &cx, session.session_id.clone())
-                            .await?;
+                        if let Some(config_options) = session.config_options.as_deref() {
+                            publish_effort_state(&session_state.effort, config_options);
+                        }
+                        apply_session_config_options(
+                            &config,
+                            &cx,
+                            session.session_id.clone(),
+                            &session_state.effort,
+                        )
+                        .await?;
                         apply_session_mode(&config, &goose_mode, &cx, session).await
                     }
                     Err(error) => Err(acp_method_error(AGENT_METHOD_NAMES.session_new, error)),
@@ -1294,6 +1594,12 @@ async fn handle_requests(
                 session_id,
                 response_tx,
             } => {
+                let previous_session_id = session_state
+                    .active_id
+                    .lock()
+                    .unwrap()
+                    .replace(session_id.clone());
+                let previous_effort_state = replace_effort_state(&session_state.effort, None);
                 let result = if supports_load {
                     let mcp_servers =
                         filter_supported_servers(&config.mcp_servers, &mcp_capabilities);
@@ -1316,11 +1622,23 @@ async fn handle_requests(
                 let result = match result {
                     Ok(session) => {
                         session_ids.push(session.session_id.clone());
-                        apply_session_config_options(&config, &cx, session.session_id.clone())
-                            .await?;
+                        if let Some(config_options) = session.config_options.as_deref() {
+                            publish_effort_state(&session_state.effort, config_options);
+                        }
+                        apply_session_config_options(
+                            &config,
+                            &cx,
+                            session.session_id.clone(),
+                            &session_state.effort,
+                        )
+                        .await?;
                         apply_session_mode(&config, &goose_mode, &cx, session).await
                     }
-                    Err(error) => Err(error),
+                    Err(error) => {
+                        *session_state.active_id.lock().unwrap() = previous_session_id;
+                        replace_effort_state(&session_state.effort, previous_effort_state);
+                        Err(error)
+                    }
                 };
                 log_undelivered(response_tx.send(result), AGENT_METHOD_NAMES.session_load);
             }
@@ -1360,11 +1678,15 @@ async fn handle_requests(
             } => {
                 let value_id = agent_client_protocol::schema::v1::SessionConfigValueId::new(value);
                 let req = SetSessionConfigOptionRequest::new(session_id, config_id, value_id);
+                // The agent rebuilds per-model effort levels in this response,
+                // so it is the freshest source after a goose-initiated switch.
                 let result: Result<()> = cx
                     .send_request(req)
                     .block_task()
                     .await
-                    .map(|_| ())
+                    .map(|response| {
+                        publish_effort_state(&session_state.effort, &response.config_options)
+                    })
                     .map_err(anyhow::Error::from);
                 log_undelivered(
                     response_tx.send(result),
@@ -1422,23 +1744,28 @@ async fn apply_session_config_options(
     config: &AcpProviderConfig,
     cx: &ConnectionTo<Agent>,
     session_id: SessionId,
+    effort: &AcpEffortState,
 ) -> Result<()> {
     for (config_id, value) in &config.session_config_options {
         let value_id = agent_client_protocol::schema::v1::SessionConfigValueId::new(value.clone());
-        cx.send_request(SetSessionConfigOptionRequest::new(
-            session_id.clone(),
-            config_id.clone(),
-            value_id,
-        ))
-        .block_task()
-        .await
-        .map_err(|err| {
-            anyhow::anyhow!(
-                "ACP agent rejected {} for '{}': {err}",
-                AGENT_METHOD_NAMES.session_set_config_option,
-                config_id
-            )
-        })?;
+        let response = cx
+            .send_request(SetSessionConfigOptionRequest::new(
+                session_id.clone(),
+                config_id.clone(),
+                value_id,
+            ))
+            .block_task()
+            .await
+            .map_err(|err| {
+                anyhow::anyhow!(
+                    "ACP agent rejected {} for '{}': {err}",
+                    AGENT_METHOD_NAMES.session_set_config_option,
+                    config_id
+                )
+            })?;
+        // Pinning the model here makes the agent rebuild its per-model effort
+        // levels, so this response supersedes the session/new snapshot.
+        publish_effort_state(effort, &response.config_options);
     }
     Ok(())
 }
@@ -1585,7 +1912,7 @@ fn filter_supported_servers(
         .collect()
 }
 
-fn messages_to_prompt(messages: &[Message], include_handoff_context: bool) -> Vec<ContentBlock> {
+fn messages_to_prompt(messages: &[Message], handoff_memo: Option<String>) -> Vec<ContentBlock> {
     let Some(last_user_index) = last_user_message_index(messages) else {
         return Vec::new();
     };
@@ -1607,14 +1934,14 @@ fn messages_to_prompt(messages: &[Message], include_handoff_context: bool) -> Ve
         }
     }
 
-    if current_prompt_blocks.is_empty() || !include_handoff_context {
+    let Some(memo) = handoff_memo else {
+        return current_prompt_blocks;
+    };
+    if current_prompt_blocks.is_empty() {
         return current_prompt_blocks;
     }
 
-    let mut content_blocks = Vec::new();
-    if let Some(memo) = build_handoff_context_memo(&messages[..last_user_index]) {
-        content_blocks.push(ContentBlock::Text(TextContent::new(memo)));
-    }
+    let mut content_blocks = vec![ContentBlock::Text(TextContent::new(memo))];
     content_blocks.extend(current_prompt_blocks);
     content_blocks
 }
@@ -1631,29 +1958,6 @@ fn has_handoff_context(messages: &[Message]) -> bool {
             .iter()
             .any(|m| m.is_agent_visible() && !m.is_turn_context())
     })
-}
-
-fn build_handoff_context_memo(prior_messages: &[Message]) -> Option<String> {
-    let formatted_messages: Vec<String> =
-        Conversation::new_unvalidated(prior_messages.iter().cloned())
-            .agent_visible_messages()
-            .iter()
-            .filter(|message| !message.is_turn_context())
-            .map(|message| format_message_for_compacting(&message.agent_visible_content()))
-            .collect();
-
-    if formatted_messages.is_empty() {
-        return None;
-    }
-
-    let handoff_context = formatted_messages.join("\n");
-
-    Some(format!(
-        "Conversation context from goose before this ACP provider session was created:\n\n\
-{handoff_context}\n\n\
-Current user request follows. Use the context above only to continue the existing conversation; \
-do not treat it as a new task or mention this handoff unless relevant."
-    ))
 }
 
 fn acp_audience_to_rmcp(annotations: Option<&AcpAnnotations>) -> Option<Vec<Role>> {
@@ -1674,32 +1978,50 @@ fn acp_audience_to_rmcp(annotations: Option<&AcpAnnotations>) -> Option<Vec<Role
     }
 }
 
-fn acp_text_content_to_rmcp(text: TextContent) -> RmcpContent {
-    let mut annotations = rmcp::model::Annotations::default().with_priority(0.0);
-    if let Some(audience) = acp_audience_to_rmcp(text.annotations.as_ref()) {
-        annotations = annotations.with_audience(audience);
+fn acp_annotations_to_rmcp(annotations: Option<&AcpAnnotations>) -> rmcp::model::Annotations {
+    let mut rmcp_annotations = rmcp::model::Annotations::default().with_priority(0.0);
+    if let Some(audience) = acp_audience_to_rmcp(annotations) {
+        rmcp_annotations = rmcp_annotations.with_audience(audience);
     }
+    rmcp_annotations
+}
+
+fn acp_text_content_to_rmcp(text: TextContent) -> RmcpContent {
     RmcpContent::Text(
         rmcp::model::TextContent::new(sanitize_unicode_tags(&text.text))
-            .with_annotations(annotations),
+            .with_annotations(acp_annotations_to_rmcp(text.annotations.as_ref())),
     )
 }
 
 fn acp_image_content_to_rmcp(image: ImageContent) -> RmcpContent {
-    let mut annotations = rmcp::model::Annotations::default().with_priority(0.0);
-    if let Some(audience) = acp_audience_to_rmcp(image.annotations.as_ref()) {
-        annotations = annotations.with_audience(audience);
-    }
     RmcpContent::Image(
-        rmcp::model::ImageContent::new(image.data, image.mime_type).with_annotations(annotations),
+        rmcp::model::ImageContent::new(image.data, image.mime_type)
+            .with_annotations(acp_annotations_to_rmcp(image.annotations.as_ref())),
     )
 }
 
 fn visible_rmcp_text(text: impl Into<String>) -> RmcpContent {
+    visible_rmcp_text_with_annotations(text, None)
+}
+
+fn visible_rmcp_text_with_annotations(
+    text: impl Into<String>,
+    annotations: Option<&AcpAnnotations>,
+) -> RmcpContent {
     RmcpContent::Text(
-        rmcp::model::TextContent::new(text)
-            .with_annotations(rmcp::model::Annotations::default().with_priority(0.0)),
+        rmcp::model::TextContent::new(text).with_annotations(acp_annotations_to_rmcp(annotations)),
     )
+}
+
+fn acp_content_annotations(content: &ContentBlock) -> Option<&AcpAnnotations> {
+    match content {
+        ContentBlock::Text(content) => content.annotations.as_ref(),
+        ContentBlock::Image(content) => content.annotations.as_ref(),
+        ContentBlock::Audio(content) => content.annotations.as_ref(),
+        ContentBlock::ResourceLink(content) => content.annotations.as_ref(),
+        ContentBlock::Resource(content) => content.annotations.as_ref(),
+        _ => None,
+    }
 }
 
 fn acp_text_update_message(text: TextContent, id: String, created: i64) -> Message {
@@ -1729,7 +2051,10 @@ fn acp_tool_call_content_to_rmcp(
                     }
                     other => {
                         if let Ok(json) = serde_json::to_string(&other) {
-                            out.push(visible_rmcp_text(json));
+                            out.push(visible_rmcp_text_with_annotations(
+                                json,
+                                acp_content_annotations(&other),
+                            ));
                         }
                     }
                 },
@@ -1817,22 +2142,10 @@ fn extract_model_info_from_config_options(
     })?;
 
     let current = select.current_value.0.to_string();
-    let available = match &select.options {
-        SessionConfigSelectOptions::Ungrouped(options) => options
-            .iter()
-            .map(|option| option.value.0.to_string())
-            .collect(),
-        SessionConfigSelectOptions::Grouped(groups) => groups
-            .iter()
-            .flat_map(|group| {
-                group
-                    .options
-                    .iter()
-                    .map(|option| option.value.0.to_string())
-            })
-            .collect(),
-        _ => Vec::new(),
-    };
+    let available = select_option_values(&select.options)
+        .into_iter()
+        .map(|option| option.value)
+        .collect();
     Some((current, available))
 }
 
@@ -1849,6 +2162,166 @@ fn resolve_model_info(
     Err(ProviderError::RequestFailed(format!(
         "{provider_name}: agent returned no model config_options"
     )))
+}
+
+fn select_option_values(options: &SessionConfigSelectOptions) -> Vec<ThinkingEffortOption> {
+    let effort_option = |option: &SessionConfigSelectOption| ThinkingEffortOption {
+        value: option.value.0.to_string(),
+        label: option.name.clone(),
+    };
+    match options {
+        SessionConfigSelectOptions::Ungrouped(options) => {
+            options.iter().map(effort_option).collect()
+        }
+        SessionConfigSelectOptions::Grouped(groups) => groups
+            .iter()
+            .flat_map(|group| group.options.iter().map(effort_option))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Find the agent's thinking-effort selector. Detection is by category so any
+/// ACP agent advertising `thought_level` is supported without per-provider
+/// config, with the well-known option id as a fallback.
+fn extract_effort_capability(
+    config_options: &[SessionConfigOption],
+) -> Option<ThinkingEffortCapability> {
+    let option = config_options
+        .iter()
+        .find(|opt| opt.category.as_ref() == Some(&SessionConfigOptionCategory::ThoughtLevel))
+        .or_else(|| {
+            config_options
+                .iter()
+                .find(|opt| opt.id.0.as_ref() == EFFORT_CONFIG_OPTION_ID)
+        })?;
+    let SessionConfigKind::Select(select) = &option.kind else {
+        return None;
+    };
+
+    let values = select_option_values(&select.options);
+    if values.is_empty() {
+        return None;
+    }
+    Some(ThinkingEffortCapability {
+        option_id: option.id.0.to_string(),
+        values,
+        current: Some(select.current_value.0.to_string()),
+    })
+}
+
+/// Config-options payloads carry the agent's full set, so a payload without an
+/// effort selector means the current model has none and the mirrored capability
+/// must be dropped.
+#[cfg(test)]
+fn refresh_effort_state(
+    effort_state: &Arc<Mutex<Option<ThinkingEffortCapability>>>,
+    config_options: &[SessionConfigOption],
+) {
+    if let Ok(mut state) = effort_state.lock() {
+        *state = extract_effort_capability(config_options);
+    }
+}
+
+fn publish_effort_support(
+    effort_updates: &watch::Sender<ThinkingEffortSupport>,
+    support: ThinkingEffortSupport,
+) {
+    effort_updates.send_if_modified(|current| {
+        if *current == support {
+            false
+        } else {
+            *current = support;
+            true
+        }
+    });
+}
+
+fn publish_effort_state(effort: &AcpEffortState, config_options: &[SessionConfigOption]) {
+    let capability = extract_effort_capability(config_options);
+    replace_effort_state(effort, capability);
+}
+
+fn replace_effort_state(
+    effort: &AcpEffortState,
+    capability: Option<ThinkingEffortCapability>,
+) -> Option<ThinkingEffortCapability> {
+    let mut state = effort.capability.lock().unwrap();
+    let previous = std::mem::replace(&mut *state, capability.clone());
+    publish_effort_support(
+        &effort.updates,
+        capability.map_or(
+            ThinkingEffortSupport::Unsupported,
+            ThinkingEffortSupport::Options,
+        ),
+    );
+    previous
+}
+
+/// Map a goose effort value onto the agent's advertised vocabulary. Values goose
+/// and the agent share pass through; goose's own enum values map onto their
+/// closest agent equivalent. Anything else yields `None` so we never send a
+/// value the agent would reject.
+pub(super) fn map_effort_value(
+    capability: &ThinkingEffortCapability,
+    value: &str,
+) -> Option<String> {
+    let offered = |candidate: &str| {
+        capability
+            .values
+            .iter()
+            .find(|option| option.value.eq_ignore_ascii_case(candidate))
+            .map(|option| option.value.clone())
+    };
+
+    offered(value).or_else(|| {
+        let synonyms: &[&str] = match value.to_lowercase().as_str() {
+            // Harnesses that always reason have no "off"; their default is the
+            // closest thing to not forcing an effort level.
+            "off" => &["default"],
+            "max" => &["xhigh"],
+            "xhigh" => &["max"],
+            _ => &[],
+        };
+        synonyms.iter().find_map(|candidate| offered(candidate))
+    })
+}
+
+/// Resolve the goose-side thinking effort to send to the agent: the session's
+/// persisted pick wins, then the global default, each mapped into the agent's
+/// vocabulary. `None` leaves the agent on its own current value. Shared with the
+/// config menu so the advertised selection is the applied one — a persisted pick
+/// the agent no longer offers (its selector was rebuilt by a model switch) falls
+/// back to the global on both sides. The unmappable pick is deliberately left
+/// persisted: it becomes honorable again if the user switches back.
+pub(super) fn resolve_effort_value(
+    capability: &ThinkingEffortCapability,
+    model_config: &ModelConfig,
+) -> Option<String> {
+    model_config
+        .request_param::<String>(THINKING_EFFORT_PARAM)
+        .and_then(|value| map_effort_value(capability, &value))
+        .or_else(|| {
+            Config::global()
+                .get_goose_thinking_effort()
+                .and_then(|effort| map_effort_value(capability, &effort.to_string()))
+        })
+}
+
+/// Separate a value the agent evaluated and refused from an operational failure.
+/// Only an agent that actually processed the request answers with the JSON-RPC
+/// `invalid_params` code; the client library synthesizes `internal_error` for a
+/// dead subprocess or dropped connection, and goose's own send failures carry no
+/// ACP error at all.
+fn effort_option_error(value: &str, error: anyhow::Error) -> ProviderError {
+    match error.downcast_ref::<agent_client_protocol::Error>() {
+        Some(acp_error) if acp_error.code == agent_client_protocol::ErrorCode::InvalidParams => {
+            ProviderError::InvalidValue(format!(
+                "Agent rejected thinking effort '{value}': {acp_error}"
+            ))
+        }
+        _ => ProviderError::RequestFailed(format!("Failed to set ACP effort option: {error}")),
+    }
 }
 
 fn reverse_mode_mapping(
@@ -1893,7 +2366,8 @@ mod tests {
     use super::*;
     use crate::agents::extension::Envs;
     use agent_client_protocol::schema::v1::{
-        ErrorCode, SessionConfigSelectOption, SessionMode, SessionModeId,
+        ConfigOptionUpdate, ErrorCode, SessionConfigSelectGroup, SessionConfigSelectOption,
+        SessionMode, SessionModeId,
     };
 
     use test_case::test_case;
@@ -1911,6 +2385,15 @@ mod tests {
                 .downcast_ref::<agent_client_protocol::Error>()
                 .map(|error| error.code)
         })
+    }
+
+    /// The prompt as `stream` builds it on a first prompt, with a budget generous
+    /// enough that nothing is dropped. Memo bounding is covered in `acp::handoff`.
+    async fn prompt_with_handoff(messages: &[Message]) -> Vec<ContentBlock> {
+        let counter = crate::token_counter::create_token_counter().await.unwrap();
+        let memo = last_user_message_index(messages)
+            .and_then(|index| build_handoff_context_memo(&messages[..index], 50_000, &counter));
+        messages_to_prompt(messages, memo)
     }
 
     #[test]
@@ -2036,6 +2519,7 @@ mod tests {
                 context_size: Arc::new(AtomicU64::new(0)),
                 model_config_option_id: None,
                 applied_model: Arc::new(Mutex::new(None)),
+                effort: AcpEffortState::new(),
                 tx,
                 cancel_tx: None,
                 loop_thread: None,
@@ -2044,18 +2528,18 @@ mod tests {
         )
     }
 
-    #[test]
-    fn messages_to_prompt_without_prior_history_preserves_current_prompt() {
+    #[tokio::test]
+    async fn messages_to_prompt_without_prior_history_preserves_current_prompt() {
         let messages = vec![Message::user().with_text("current request")];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages).await;
 
         assert_eq!(blocks.len(), 1);
         assert_eq!(prompt_text(&blocks[0]), "current request");
     }
 
-    #[test]
-    fn messages_to_prompt_prepends_handoff_context_before_latest_user() {
+    #[tokio::test]
+    async fn messages_to_prompt_prepends_handoff_context_before_latest_user() {
         let messages = vec![
             Message::user().with_text("inspect src/lib.rs"),
             Message::assistant()
@@ -2070,7 +2554,7 @@ mod tests {
             Message::user().with_text("continue from there"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages).await;
 
         assert_eq!(blocks.len(), 2);
         let memo = prompt_text(&blocks[0]);
@@ -2085,8 +2569,8 @@ mod tests {
         assert_eq!(prompt_text(&blocks[1]), "continue from there");
     }
 
-    #[test]
-    fn messages_to_prompt_skips_turn_context_events() {
+    #[tokio::test]
+    async fn messages_to_prompt_skips_turn_context_events() {
         use crate::conversation::message::MessageMetadata;
 
         let turn_context = |text: &str| {
@@ -2102,7 +2586,7 @@ mod tests {
             turn_context("<turn-context>new cwd /repo</turn-context>"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages).await;
 
         assert_eq!(blocks.len(), 2);
         assert!(
@@ -2116,8 +2600,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn messages_to_prompt_drops_user_only_acp_rows_from_handoff() {
+    #[tokio::test]
+    async fn messages_to_prompt_drops_user_only_acp_rows_from_handoff() {
         let user_only = TextContent::new("SECRET_USER_ONLY")
             .annotations(AcpAnnotations::new().audience(vec![AcpRole::User]));
         let messages = vec![
@@ -2126,7 +2610,7 @@ mod tests {
             Message::user().with_text("current request"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages).await;
 
         assert_eq!(blocks.len(), 2);
         let memo = prompt_text(&blocks[0]);
@@ -2136,8 +2620,8 @@ mod tests {
         assert_eq!(prompt_text(&blocks[1]), "current request");
     }
 
-    #[test]
-    fn messages_to_prompt_keeps_latest_user_images_after_handoff_memo() {
+    #[tokio::test]
+    async fn messages_to_prompt_keeps_latest_user_images_after_handoff_memo() {
         let messages = vec![
             Message::assistant().with_text("prior answer"),
             Message::user()
@@ -2145,7 +2629,7 @@ mod tests {
                 .with_text("describe this"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages).await;
 
         assert_eq!(blocks.len(), 3);
         assert!(prompt_text(&blocks[0]).contains("[assistant]: prior answer"));
@@ -2159,8 +2643,8 @@ mod tests {
         assert_eq!(prompt_text(&blocks[2]), "describe this");
     }
 
-    #[test]
-    fn messages_to_prompt_excludes_user_only_current_and_handoff_content() {
+    #[tokio::test]
+    async fn messages_to_prompt_excludes_user_only_current_and_handoff_content() {
         use rmcp::model::{Annotations, TextContent};
 
         fn user_only_text(text: &str) -> MessageContent {
@@ -2179,7 +2663,8 @@ mod tests {
                 .with_content(user_only_text("SECRET_CURRENT")),
         ];
 
-        let rendered = messages_to_prompt(&messages, true)
+        let rendered = prompt_with_handoff(&messages)
+            .await
             .iter()
             .filter_map(|block| match block {
                 ContentBlock::Text(text) => Some(text.text.as_str()),
@@ -2194,8 +2679,8 @@ mod tests {
         assert!(!rendered.contains("SECRET_CURRENT"));
     }
 
-    #[test]
-    fn messages_to_prompt_drops_handoff_when_current_content_is_user_only() {
+    #[tokio::test]
+    async fn messages_to_prompt_drops_handoff_when_current_content_is_user_only() {
         use rmcp::model::{Annotations, TextContent};
 
         let current = MessageContent::Text(
@@ -2207,7 +2692,7 @@ mod tests {
             Message::user().with_content(current),
         ];
 
-        assert!(messages_to_prompt(&messages, true).is_empty());
+        assert!(prompt_with_handoff(&messages).await.is_empty());
     }
 
     #[tokio::test]
@@ -2412,7 +2897,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn streamed_error_on_first_prompt_resends_handoff_context() {
+    async fn streamed_error_after_bare_retry_consumes_handoff_context() {
         use futures::StreamExt;
 
         let (tx, mut rx) = mpsc::channel(1);
@@ -2421,18 +2906,19 @@ mod tests {
             Message::assistant().with_text("prior answer"),
             Message::user().with_text("current request"),
         ];
-        let (retry_content_tx, retry_content_rx) = oneshot::channel();
+        let (next_content_tx, next_content_rx) = oneshot::channel();
 
-        // Serve the first prompt like a harness that accepts the request but
-        // fails while processing it (e.g. because the prompt is too large),
-        // then capture the retry.
+        // Serve the first prompt and its memo-free retry like a harness that accepts the
+        // request but fails while processing it, then capture the following turn.
         let server = tokio::spawn(async move {
-            if let Some(ClientRequest::Prompt { response_tx, .. }) = rx.recv().await {
-                let _ = response_tx
-                    .send(AcpUpdate::Error(
-                        agent_client_protocol::Error::internal_error().data("prompt too large"),
-                    ))
-                    .await;
+            for _ in 0..2 {
+                if let Some(ClientRequest::Prompt { response_tx, .. }) = rx.recv().await {
+                    let _ = response_tx
+                        .send(AcpUpdate::Error(
+                            agent_client_protocol::Error::internal_error().data("prompt too large"),
+                        ))
+                        .await;
+                }
             }
             if let Some(ClientRequest::Prompt {
                 content,
@@ -2440,7 +2926,7 @@ mod tests {
                 ..
             }) = rx.recv().await
             {
-                let _ = retry_content_tx.send(content);
+                let _ = next_content_tx.send(content);
                 let _ = response_tx
                     .send(AcpUpdate::Complete(StopReason::EndTurn, None))
                     .await;
@@ -2454,12 +2940,15 @@ mod tests {
             "expected streamed error, got {first:?}"
         );
 
-        let mut retry_stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
-        let retry_content = retry_content_rx.await.unwrap();
-        assert_eq!(retry_content.len(), 2);
-        assert!(prompt_text(&retry_content[0]).contains("[assistant]: prior answer"));
-        assert_eq!(prompt_text(&retry_content[1]), "current request");
-        assert!(retry_stream.next().await.is_none());
+        let mut next_stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        let next_content = next_content_rx.await.unwrap();
+        assert_eq!(
+            next_content.len(),
+            1,
+            "a rejected memo must not be rebuilt on the next turn"
+        );
+        assert_eq!(prompt_text(&next_content[0]), "current request");
+        assert!(next_stream.next().await.is_none());
         server.await.unwrap();
     }
 
@@ -2560,7 +3049,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn failed_first_prompt_send_rolls_back_handoff_context_claim() {
+    async fn failed_first_prompt_send_without_handoff_rolls_back_claim() {
+        let (tx, rx) = mpsc::channel(1);
+        drop(rx);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![Message::user().with_text("current request")];
+
+        let result = provider.stream(&model, "", &messages, &[]).await;
+
+        assert!(matches!(result, Err(ProviderError::RequestFailed(_))));
+        let next_claim = provider.claim_handoff_context(&messages);
+        assert!(next_claim.first_prompt);
+    }
+
+    #[tokio::test]
+    async fn failed_handoff_send_consumes_the_claim() {
         let (tx, rx) = mpsc::channel(1);
         drop(rx);
         let (provider, model) = test_provider_with_tx(Some(tx));
@@ -2573,8 +3076,231 @@ mod tests {
 
         assert!(matches!(result, Err(ProviderError::RequestFailed(_))));
         let next_claim = provider.claim_handoff_context(&messages);
-        assert!(next_claim.first_prompt);
-        assert!(next_claim.include_context);
+        assert!(
+            !next_claim.include_context,
+            "a memo that already failed to send must not be rebuilt"
+        );
+    }
+
+    fn expect_prompt(request: ClientRequest) -> (Vec<ContentBlock>, mpsc::Sender<AcpUpdate>) {
+        match request {
+            ClientRequest::Prompt {
+                content,
+                response_tx,
+                ..
+            } => (content, response_tx),
+            _ => panic!("expected ACP prompt request"),
+        }
+    }
+
+    #[tokio::test]
+    async fn rejected_handoff_prompt_retries_once_without_the_memo() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(2);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+
+        let handle = tokio::spawn(async move {
+            let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+            let mut results = Vec::new();
+            while let Some(item) = stream.next().await {
+                results.push(item);
+            }
+            results
+        });
+
+        let (content, response_tx) = expect_prompt(rx.recv().await.unwrap());
+        assert_eq!(content.len(), 2, "memo precedes the current prompt");
+        response_tx
+            .send(AcpUpdate::Error(
+                agent_client_protocol::Error::invalid_request().data("Prompt is too long"),
+            ))
+            .await
+            .unwrap();
+
+        let (content, response_tx) = expect_prompt(rx.recv().await.unwrap());
+        assert_eq!(content.len(), 1, "retry carries the current prompt only");
+        assert_eq!(prompt_text(&content[0]), "current request");
+        response_tx
+            .send(AcpUpdate::Complete(StopReason::EndTurn, None))
+            .await
+            .unwrap();
+
+        let results = handle.await.unwrap();
+        assert!(results.iter().all(|item| item.is_ok()));
+    }
+
+    #[tokio::test]
+    async fn rejected_retry_surfaces_the_error() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(2);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+
+        let handle = tokio::spawn(async move {
+            let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+            let mut results = Vec::new();
+            while let Some(item) = stream.next().await {
+                results.push(item);
+            }
+            results
+        });
+
+        for _ in 0..2 {
+            let (_, response_tx) = expect_prompt(rx.recv().await.unwrap());
+            response_tx
+                .send(AcpUpdate::Error(
+                    agent_client_protocol::Error::invalid_request().data("Prompt is too long"),
+                ))
+                .await
+                .unwrap();
+        }
+
+        let results = handle.await.unwrap();
+        assert!(matches!(
+            results.as_slice(),
+            [Err(ProviderError::RequestFailed(_))]
+        ));
+        assert!(rx.try_recv().is_err(), "exactly one retry");
+    }
+
+    #[tokio::test]
+    async fn auth_failure_surfaces_instead_of_retrying_without_the_memo() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(2);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+
+        let handle = tokio::spawn(async move {
+            let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+            let mut results = Vec::new();
+            while let Some(item) = stream.next().await {
+                results.push(item);
+            }
+            results
+        });
+
+        let (_, response_tx) = expect_prompt(rx.recv().await.unwrap());
+        response_tx
+            .send(AcpUpdate::Error(
+                agent_client_protocol::Error::auth_required(),
+            ))
+            .await
+            .unwrap();
+
+        // As above: a retry would leave the stream waiting on a prompt nothing serves.
+        let results = tokio::time::timeout(std::time::Duration::from_secs(10), handle)
+            .await
+            .expect("stream ended without retrying")
+            .unwrap();
+        assert!(matches!(
+            results.as_slice(),
+            [Err(ProviderError::Authentication(_))]
+        ));
+        assert!(rx.try_recv().is_err(), "no retry on an auth failure");
+    }
+
+    #[tokio::test]
+    async fn a_budget_too_small_for_a_memo_keeps_the_claim() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        // A window this small leaves no room for a memo beside the current prompt.
+        provider.context_size.store(64, Ordering::Relaxed);
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        let server = tokio::spawn(async move {
+            let Some(ClientRequest::Prompt {
+                content,
+                response_tx,
+                ..
+            }) = rx.recv().await
+            else {
+                return Vec::new();
+            };
+            let _ = response_tx
+                .send(AcpUpdate::Complete(StopReason::EndTurn, None))
+                .await;
+            content
+        });
+
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        assert!(stream.next().await.is_none());
+        let content = server.await.unwrap();
+        assert_eq!(content.len(), 1, "no memo fit beside the prompt");
+
+        assert!(
+            provider.claim_handoff_context(&messages).include_context,
+            "context that never left goose must still be handed off later"
+        );
+    }
+
+    #[tokio::test]
+    async fn exhausted_credits_surface_without_spending_the_handoff() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(2);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+
+        let handle = tokio::spawn(async move {
+            let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+            let mut results = Vec::new();
+            while let Some(item) = stream.next().await {
+                results.push(item);
+            }
+            (provider, results)
+        });
+
+        let (_, response_tx) = expect_prompt(rx.recv().await.unwrap());
+        response_tx
+            .send(AcpUpdate::Error(
+                agent_client_protocol::Error::internal_error()
+                    .data(serde_json::json!({ "reason": crate::acp::CREDITS_EXHAUSTED_REASON })),
+            ))
+            .await
+            .unwrap();
+
+        // A retry here would leave the stream waiting on a prompt nothing serves, so bound
+        // the wait rather than hanging the suite on a regression.
+        let (provider, results) = tokio::time::timeout(std::time::Duration::from_secs(10), handle)
+            .await
+            .expect("stream ended without retrying")
+            .unwrap();
+        assert!(matches!(
+            results.as_slice(),
+            [Err(ProviderError::RequestFailed(_))]
+        ));
+        assert!(
+            rx.try_recv().is_err(),
+            "a spent account is not a prompt the agent refused"
+        );
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        assert!(
+            provider.claim_handoff_context(&messages).include_context,
+            "the memo survives so a topped-up account still resumes the conversation"
+        );
     }
 
     fn test_provider_with_model_option(
@@ -2639,6 +3365,581 @@ mod tests {
 
         provider
             .apply_model_if_changed(ACP_CURRENT_MODEL)
+            .await
+            .unwrap();
+
+        assert!(rx.try_recv().is_err());
+    }
+
+    fn effort_select_options(values: &[&str]) -> Vec<SessionConfigSelectOption> {
+        values
+            .iter()
+            .map(|value| SessionConfigSelectOption::new(value.to_string(), *value))
+            .collect()
+    }
+
+    fn effort_capability(values: &[&str], current: &str) -> ThinkingEffortCapability {
+        ThinkingEffortCapability {
+            option_id: EFFORT_CONFIG_OPTION_ID.to_string(),
+            values: values
+                .iter()
+                .map(|value| ThinkingEffortOption {
+                    value: value.to_string(),
+                    label: value.to_string(),
+                })
+                .collect(),
+            current: Some(current.to_string()),
+        }
+    }
+
+    fn test_provider_with_effort(
+        tx: mpsc::Sender<ClientRequest>,
+        capability: Option<ThinkingEffortCapability>,
+    ) -> AcpProvider {
+        let (provider, _) = test_provider_with_tx(Some(tx));
+        *provider.effort.capability.lock().unwrap() = capability;
+        provider
+    }
+
+    fn model_with_effort(value: &str) -> ModelConfig {
+        ModelConfig::new(ACP_CURRENT_MODEL).with_merged_request_params(HashMap::from([(
+            THINKING_EFFORT_PARAM.to_string(),
+            serde_json::json!(value),
+        )]))
+    }
+
+    async fn expect_set_config_option(rx: &mut mpsc::Receiver<ClientRequest>) -> (String, String) {
+        match rx.recv().await.expect("expected a SetConfigOption request") {
+            ClientRequest::SetConfigOption {
+                config_id,
+                value,
+                response_tx,
+                ..
+            } => {
+                let _ = response_tx.send(Ok(()));
+                (config_id, value)
+            }
+            _ => panic!("unexpected request kind"),
+        }
+    }
+
+    async fn fail_set_config_option(
+        rx: &mut mpsc::Receiver<ClientRequest>,
+        error: agent_client_protocol::Error,
+    ) {
+        match rx.recv().await.expect("expected a SetConfigOption request") {
+            ClientRequest::SetConfigOption { response_tx, .. } => {
+                let _ = response_tx.send(Err(anyhow::Error::from(error)));
+            }
+            _ => panic!("unexpected request kind"),
+        }
+    }
+
+    #[test]
+    fn extract_effort_capability_reads_thought_level_option() {
+        let options = vec![
+            SessionConfigOption::select(
+                "model",
+                "Model",
+                "sonnet",
+                effort_select_options(&["sonnet"]),
+            )
+            .category(SessionConfigOptionCategory::Model),
+            SessionConfigOption::select(
+                "effort",
+                "Thinking",
+                "high",
+                effort_select_options(&["default", "low", "high", "xhigh"]),
+            )
+            .category(SessionConfigOptionCategory::ThoughtLevel),
+        ];
+
+        let capability =
+            extract_effort_capability(&options).expect("effort option should be found");
+
+        assert_eq!(capability.option_id, "effort");
+        assert_eq!(capability.current.as_deref(), Some("high"));
+        assert_eq!(
+            capability
+                .values
+                .iter()
+                .map(|option| option.value.as_str())
+                .collect::<Vec<_>>(),
+            vec!["default", "low", "high", "xhigh"]
+        );
+    }
+
+    #[test]
+    fn extract_effort_capability_falls_back_to_effort_option_id() {
+        let options = vec![SessionConfigOption::select(
+            "effort",
+            "Reasoning",
+            "low",
+            effort_select_options(&["low", "high"]),
+        )];
+
+        let capability =
+            extract_effort_capability(&options).expect("effort option should be found");
+
+        assert_eq!(capability.option_id, "effort");
+        assert_eq!(capability.current.as_deref(), Some("low"));
+    }
+
+    #[test]
+    fn extract_effort_capability_keeps_agent_labels() {
+        let options = vec![SessionConfigOption::select(
+            "effort",
+            "Thinking",
+            "default",
+            vec![
+                SessionConfigSelectOption::new("default", "Default"),
+                SessionConfigSelectOption::new("xhigh", "Extra high"),
+            ],
+        )
+        .category(SessionConfigOptionCategory::ThoughtLevel)];
+
+        let capability =
+            extract_effort_capability(&options).expect("effort option should be found");
+
+        assert_eq!(
+            capability
+                .values
+                .iter()
+                .map(|option| (option.value.as_str(), option.label.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("default", "Default"), ("xhigh", "Extra high")]
+        );
+    }
+
+    #[test]
+    fn extract_effort_capability_flattens_grouped_values() {
+        let options = vec![SessionConfigOption::select(
+            "effort",
+            "Thinking",
+            "medium",
+            vec![
+                SessionConfigSelectGroup::new(
+                    "standard",
+                    "Standard",
+                    effort_select_options(&["low", "medium"]),
+                ),
+                SessionConfigSelectGroup::new(
+                    "extended",
+                    "Extended",
+                    effort_select_options(&["high", "max"]),
+                ),
+            ],
+        )
+        .category(SessionConfigOptionCategory::ThoughtLevel)];
+
+        let capability =
+            extract_effort_capability(&options).expect("effort option should be found");
+
+        assert_eq!(
+            capability
+                .values
+                .iter()
+                .map(|option| option.value.as_str())
+                .collect::<Vec<_>>(),
+            vec!["low", "medium", "high", "max"]
+        );
+    }
+
+    #[test]
+    fn extract_effort_capability_returns_none_without_effort_option() {
+        let options = vec![SessionConfigOption::select(
+            "model",
+            "Model",
+            "sonnet",
+            effort_select_options(&["sonnet"]),
+        )
+        .category(SessionConfigOptionCategory::Model)];
+
+        assert!(extract_effort_capability(&options).is_none());
+    }
+
+    #[test]
+    fn config_option_update_replaces_effort_state() {
+        let effort_state = Arc::new(Mutex::new(Some(effort_capability(&["low"], "low"))));
+        let update = ConfigOptionUpdate::new(vec![SessionConfigOption::select(
+            "effort",
+            "Thinking",
+            "xhigh",
+            effort_select_options(&["default", "xhigh"]),
+        )
+        .category(SessionConfigOptionCategory::ThoughtLevel)]);
+
+        refresh_effort_state(&effort_state, &update.config_options);
+
+        let state = effort_state
+            .lock()
+            .unwrap()
+            .clone()
+            .expect("state replaced");
+        assert_eq!(state.current.as_deref(), Some("xhigh"));
+        assert_eq!(
+            state
+                .values
+                .iter()
+                .map(|option| option.value.as_str())
+                .collect::<Vec<_>>(),
+            vec!["default", "xhigh"]
+        );
+    }
+
+    #[test]
+    fn refresh_effort_state_clears_when_agent_drops_the_option() {
+        let effort_state = Arc::new(Mutex::new(Some(effort_capability(&["low", "high"], "low"))));
+
+        refresh_effort_state(
+            &effort_state,
+            &[SessionConfigOption::select(
+                "model",
+                "Model",
+                "sonnet",
+                effort_select_options(&["sonnet"]),
+            )
+            .category(SessionConfigOptionCategory::Model)],
+        );
+
+        assert!(effort_state.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn publish_effort_state_notifies_subscribers() {
+        let effort = AcpEffortState::new();
+        let mut subscriber = effort.updates.subscribe();
+
+        publish_effort_state(
+            &effort,
+            &[SessionConfigOption::select(
+                "effort",
+                "Thinking",
+                "high",
+                effort_select_options(&["default", "high"]),
+            )
+            .category(SessionConfigOptionCategory::ThoughtLevel)],
+        );
+
+        assert!(subscriber.has_changed().unwrap());
+        assert_eq!(
+            subscriber.borrow_and_update().clone(),
+            ThinkingEffortSupport::Options(effort_capability(&["default", "high"], "high"))
+        );
+    }
+
+    #[test]
+    fn clearing_effort_state_allows_same_options_to_be_republished() {
+        let effort = AcpEffortState::new();
+        let mut subscriber = effort.updates.subscribe();
+        let capability = effort_capability(&["default", "high"], "high");
+
+        replace_effort_state(&effort, Some(capability.clone()));
+        assert!(subscriber.has_changed().unwrap());
+        subscriber.borrow_and_update();
+
+        assert_eq!(
+            replace_effort_state(&effort, None),
+            Some(capability.clone())
+        );
+        assert!(subscriber.has_changed().unwrap());
+        assert_eq!(
+            subscriber.borrow_and_update().clone(),
+            ThinkingEffortSupport::Unsupported
+        );
+
+        replace_effort_state(&effort, Some(capability.clone()));
+        assert!(subscriber.has_changed().unwrap());
+        assert_eq!(
+            subscriber.borrow_and_update().clone(),
+            ThinkingEffortSupport::Options(capability)
+        );
+    }
+
+    #[test_case("high" => Some("high".to_string()) ; "exact match passes through")]
+    #[test_case("HIGH" => Some("high".to_string()) ; "match ignores case")]
+    #[test_case("off" => Some("default".to_string()) ; "off maps to the agent default")]
+    #[test_case("max" => Some("xhigh".to_string()) ; "max maps to xhigh")]
+    #[test_case("medium" => None ; "value the agent does not offer is not forwarded")]
+    fn map_effort_value_maps_goose_values_onto_agent_values(value: &str) -> Option<String> {
+        map_effort_value(
+            &effort_capability(&["default", "low", "high", "xhigh"], "default"),
+            value,
+        )
+    }
+
+    #[test]
+    fn map_effort_value_prefers_max_when_agent_offers_it() {
+        let capability = effort_capability(&["default", "max", "xhigh"], "default");
+
+        assert_eq!(
+            map_effort_value(&capability, "max"),
+            Some("max".to_string())
+        );
+        assert_eq!(
+            map_effort_value(&capability, "xhigh"),
+            Some("xhigh".to_string())
+        );
+    }
+
+    #[test]
+    fn thinking_effort_support_reports_agent_options() {
+        let (tx, _rx) = mpsc::channel(1);
+        let capability = effort_capability(&["default", "high"], "default");
+        let provider = test_provider_with_effort(tx, Some(capability.clone()));
+
+        assert_eq!(
+            provider.thinking_effort_support(),
+            ThinkingEffortSupport::Options(capability)
+        );
+    }
+
+    #[test]
+    fn thinking_effort_support_is_unsupported_without_an_effort_option() {
+        let (provider, _) = test_provider();
+
+        assert_eq!(
+            provider.thinking_effort_support(),
+            ThinkingEffortSupport::Unsupported
+        );
+    }
+
+    #[tokio::test]
+    async fn set_thinking_effort_forwards_the_pick_to_the_agent() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider =
+            test_provider_with_effort(tx, Some(effort_capability(&["default", "high"], "default")));
+
+        let handle = tokio::spawn(async move {
+            provider
+                .set_thinking_effort("session", "high")
+                .await
+                .unwrap()
+        });
+
+        assert_eq!(
+            expect_set_config_option(&mut rx).await,
+            ("effort".to_string(), "high".to_string())
+        );
+
+        assert!(handle.await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn set_thinking_effort_is_applied_as_a_no_op_without_an_effort_option() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_effort(tx, None);
+
+        assert!(provider
+            .set_thinking_effort("session", "off")
+            .await
+            .unwrap());
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_thinking_effort_rejects_non_off_value_without_an_effort_option() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_effort(tx, None);
+
+        let result = provider.set_thinking_effort("session", "high").await;
+
+        assert!(matches!(result, Err(ProviderError::InvalidValue(_))));
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_thinking_effort_rejects_values_the_agent_does_not_offer() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider =
+            test_provider_with_effort(tx, Some(effort_capability(&["default", "high"], "default")));
+
+        let result = provider.set_thinking_effort("session", "medium").await;
+
+        assert!(matches!(result, Err(ProviderError::InvalidValue(_))));
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_thinking_effort_reports_an_agent_value_rejection_as_invalid() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider =
+            test_provider_with_effort(tx, Some(effort_capability(&["default", "high"], "default")));
+
+        let handle =
+            tokio::spawn(async move { provider.set_thinking_effort("session", "high").await });
+        fail_set_config_option(&mut rx, agent_client_protocol::Error::invalid_params()).await;
+
+        assert!(matches!(
+            handle.await.unwrap(),
+            Err(ProviderError::InvalidValue(_))
+        ));
+    }
+
+    /// A dead subprocess or dropped connection surfaces as `internal_error` from
+    /// the client library, which says nothing about the value the client picked.
+    #[tokio::test]
+    async fn set_thinking_effort_reports_a_transport_failure_as_a_request_failure() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider =
+            test_provider_with_effort(tx, Some(effort_capability(&["default", "high"], "default")));
+
+        let handle =
+            tokio::spawn(async move { provider.set_thinking_effort("session", "high").await });
+        fail_set_config_option(&mut rx, agent_client_protocol::Error::internal_error()).await;
+
+        assert!(matches!(
+            handle.await.unwrap(),
+            Err(ProviderError::RequestFailed(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn set_thinking_effort_reports_a_dropped_response_as_a_request_failure() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider =
+            test_provider_with_effort(tx, Some(effort_capability(&["default", "high"], "default")));
+
+        let handle =
+            tokio::spawn(async move { provider.set_thinking_effort("session", "high").await });
+        drop(rx.recv().await.expect("expected a SetConfigOption request"));
+
+        assert!(matches!(
+            handle.await.unwrap(),
+            Err(ProviderError::RequestFailed(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn apply_effort_if_changed_forwards_the_persisted_value() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_effort(
+            tx,
+            Some(effort_capability(&["default", "low", "xhigh"], "default")),
+        );
+        let model = model_with_effort("max");
+
+        let handle =
+            tokio::spawn(async move { provider.apply_effort_if_changed(&model).await.unwrap() });
+
+        assert_eq!(
+            expect_set_config_option(&mut rx).await,
+            ("effort".to_string(), "xhigh".to_string())
+        );
+
+        handle.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn apply_effort_if_changed_skips_when_agent_already_has_the_value() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider =
+            test_provider_with_effort(tx, Some(effort_capability(&["default", "high"], "high")));
+
+        provider
+            .apply_effort_if_changed(&model_with_effort("high"))
+            .await
+            .unwrap();
+
+        assert!(rx.try_recv().is_err());
+    }
+
+    /// A refresh that reverts the agent's own effort (e.g. a model switch
+    /// rebuilding per-model levels) must not be masked by a stale record of
+    /// what goose last sent: the persisted value gets re-applied.
+    #[tokio::test]
+    async fn apply_effort_if_changed_resends_after_the_agent_resets_its_effort() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider =
+            test_provider_with_effort(tx, Some(effort_capability(&["default", "high"], "high")));
+        refresh_effort_state(
+            &provider.effort.capability,
+            &[SessionConfigOption::select(
+                "effort",
+                "Thinking",
+                "default",
+                effort_select_options(&["default", "high"]),
+            )
+            .category(SessionConfigOptionCategory::ThoughtLevel)],
+        );
+
+        let handle = tokio::spawn(async move {
+            provider
+                .apply_effort_if_changed(&model_with_effort("high"))
+                .await
+                .unwrap()
+        });
+
+        assert_eq!(
+            expect_set_config_option(&mut rx).await,
+            ("effort".to_string(), "high".to_string())
+        );
+
+        handle.await.unwrap();
+    }
+
+    /// The menu advertises the global default once the persisted pick stops
+    /// being offered (a model switch rebuilt the agent's selector), so the send
+    /// path has to apply it too — otherwise the agent silently runs at its own
+    /// current while the client shows the global.
+    #[tokio::test]
+    async fn apply_effort_if_changed_falls_back_to_the_global_default() {
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("high"))]);
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider =
+            test_provider_with_effort(tx, Some(effort_capability(&["default", "high"], "default")));
+        let model = model_with_effort("medium");
+
+        let handle =
+            tokio::spawn(async move { provider.apply_effort_if_changed(&model).await.unwrap() });
+
+        assert_eq!(
+            expect_set_config_option(&mut rx).await,
+            ("effort".to_string(), "high".to_string())
+        );
+
+        handle.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn apply_effort_if_changed_skips_unmapped_value() {
+        // Unoffered by the capability below, so the global default never wins
+        // and the test doesn't depend on the machine's configured value.
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("medium"))]);
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider =
+            test_provider_with_effort(tx, Some(effort_capability(&["default", "high"], "default")));
+
+        provider
+            .apply_effort_if_changed(&model_with_effort("medium"))
+            .await
+            .unwrap();
+
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn apply_effort_if_changed_skips_without_an_effort_option() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_effort(tx, None);
+
+        provider
+            .apply_effort_if_changed(&model_with_effort("high"))
+            .await
+            .unwrap();
+
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn apply_effort_if_changed_skips_session_without_a_persisted_value() {
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("medium"))]);
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider =
+            test_provider_with_effort(tx, Some(effort_capability(&["default", "high"], "default")));
+
+        provider
+            .apply_effort_if_changed(&ModelConfig::new(ACP_CURRENT_MODEL))
             .await
             .unwrap();
 
@@ -2864,8 +4165,8 @@ mod tests {
         assert_eq!(*provider.goose_mode.lock().unwrap(), GooseMode::Auto);
     }
 
-    #[test]
-    fn messages_to_prompt_includes_all_prior_handoff_context() {
+    #[tokio::test]
+    async fn messages_to_prompt_includes_all_prior_handoff_context() {
         let messages = vec![
             Message::user().with_text("older context that should be retained"),
             Message::assistant().with_text("middle context"),
@@ -2873,7 +4174,7 @@ mod tests {
             Message::user().with_text("current request"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages).await;
 
         assert_eq!(blocks.len(), 2);
         let memo = prompt_text(&blocks[0]);
@@ -3247,6 +4548,70 @@ mod tests {
                 .and_then(|annotations| annotations.priority),
             Some(0.0)
         );
+    }
+
+    #[test]
+    fn acp_tool_call_fallback_content_preserves_audience_annotations() {
+        use agent_client_protocol::schema::v1::{
+            AudioContent, EmbeddedResource, EmbeddedResourceResource, ResourceLink,
+            TextResourceContents,
+        };
+
+        let blocks = [
+            ContentBlock::Audio(
+                AudioContent::new("audio-user", "audio/wav")
+                    .annotations(AcpAnnotations::new().audience(vec![AcpRole::User])),
+            ),
+            ContentBlock::Audio(
+                AudioContent::new("audio-assistant", "audio/wav")
+                    .annotations(AcpAnnotations::new().audience(vec![AcpRole::Assistant])),
+            ),
+            ContentBlock::ResourceLink(
+                ResourceLink::new("user resource", "file:///user")
+                    .annotations(AcpAnnotations::new().audience(vec![AcpRole::User])),
+            ),
+            ContentBlock::ResourceLink(
+                ResourceLink::new("assistant resource", "file:///assistant")
+                    .annotations(AcpAnnotations::new().audience(vec![AcpRole::Assistant])),
+            ),
+            ContentBlock::Resource(
+                EmbeddedResource::new(EmbeddedResourceResource::TextResourceContents(
+                    TextResourceContents::new("user body", "file:///user-body"),
+                ))
+                .annotations(AcpAnnotations::new().audience(vec![AcpRole::User])),
+            ),
+            ContentBlock::Resource(
+                EmbeddedResource::new(EmbeddedResourceResource::TextResourceContents(
+                    TextResourceContents::new("assistant body", "file:///assistant-body"),
+                ))
+                .annotations(AcpAnnotations::new().audience(vec![AcpRole::Assistant])),
+            ),
+        ];
+        let content = blocks
+            .into_iter()
+            .map(|block| {
+                ToolCallContent::Content(agent_client_protocol::schema::v1::Content::new(block))
+            })
+            .collect();
+
+        let out = acp_tool_call_content_to_rmcp(Some(content), None);
+
+        assert_eq!(out.len(), 6);
+        for (content, expected_role) in out.iter().zip([
+            Role::User,
+            Role::Assistant,
+            Role::User,
+            Role::Assistant,
+            Role::User,
+            Role::Assistant,
+        ]) {
+            let annotations = content
+                .as_text()
+                .and_then(|text| text.annotations.as_ref())
+                .expect("fallback content should carry annotations");
+            assert_eq!(annotations.audience.as_deref(), Some(&[expected_role][..]));
+            assert_eq!(annotations.priority, Some(0.0));
+        }
     }
 
     #[test]

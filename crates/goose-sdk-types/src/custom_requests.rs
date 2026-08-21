@@ -323,14 +323,6 @@ pub struct PromptOperationResponse {
     pub message: String,
 }
 
-/// Delete a session.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
-#[request(method = "session/delete", response = EmptyResponse)]
-#[serde(rename_all = "camelCase")]
-pub struct DeleteSessionRequest {
-    pub session_id: String,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum GooseExtension {

@@ -5,6 +5,7 @@ import packageJson from '../../package.json';
 import { GOOSE_SERVE_EXITED_USER_MESSAGE } from '../gooseServeLeaseRegistry';
 import {
   handleAcpGooseSessionNotification,
+  handleAcpProviderDeviceCodeNotification,
   handleAcpSessionNotification,
 } from './chatNotifications';
 import { requestAcpElicitation } from './elicitationRequests';
@@ -26,6 +27,7 @@ type AcpRecoveryListener = (recovering: boolean) => void;
 const ACP_INITIALIZE_TIMEOUT_MS = 10_000;
 const ACP_RECONNECT_BASE_DELAY_MS = 500;
 const ACP_RECONNECT_MAX_DELAY_MS = 30_000;
+const ACP_V1_PROTOCOL_VERSION: 1 = PROTOCOL_VERSION;
 
 let currentConnection: AcpConnection | null = null;
 let pendingConnection: Promise<AcpConnection> | null = null;
@@ -139,7 +141,7 @@ async function openConnection(generation: number): Promise<AcpConnection> {
   try {
     const initializeResponse = await withTimeout(
       client.connection.agent.request(methods.agent.initialize, {
-        protocolVersion: PROTOCOL_VERSION,
+        protocolVersion: ACP_V1_PROTOCOL_VERSION,
         _meta: {
           'goose/useLoginShellPath': true,
         },
@@ -220,6 +222,7 @@ function createClientCallbacks(): GooseAcpCallbacks {
     unstable_sessionRecipeRequestParams: requestAcpRecipeParams,
     sessionUpdate: handleAcpSessionNotification,
     unstable_sessionUpdate: handleAcpGooseSessionNotification,
+    unstable_providerDeviceCode: handleAcpProviderDeviceCodeNotification,
   };
 }
 

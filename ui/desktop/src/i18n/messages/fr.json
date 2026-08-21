@@ -932,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Répertoires récents"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "Impossible de basculer vers {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "Aucune branche trouvée"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "Rechercher des branches…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "Vous avez peut-être des modifications non validées."
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Accepter"
   },
@@ -1889,9 +1901,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "Utiliser {modelId}"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "Annuler"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "Copier le code"
   },
@@ -1901,23 +1910,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "Aucune application trouvée pour ouvrir ce lien."
   },
-  "markdownContent.open": {
-    "defaultMessage": "Ouvrir"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "Ouvrir le lien externe"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "Ouvrir le lien {protocol} ?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "Cela ouvrira : {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "Application"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "Annuler"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "Fermer"
@@ -1942,18 +1936,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "Déplacer la fenêtre Picture-in-Picture (utilisez les touches fléchées)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "Ouvrir"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Ouvrir le lien externe"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "Cela ouvrira : {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "Ouvrir le lien {protocol} ?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Picture-in-Picture"
@@ -2760,7 +2742,7 @@
     "defaultMessage": "Continuer"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Une fenêtre de navigateur s'ouvrira et le code de vérification sera copié dans votre presse-papiers. Collez-le dans le navigateur pour terminer la connexion."
+    "defaultMessage": "Une fenêtre de navigateur s’ouvrira. Le code de vérification apparaîtra ici afin que vous puissiez le saisir pour terminer la connexion."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Vous n'avez pas de clé API ?"
@@ -2799,7 +2781,7 @@
     "defaultMessage": "Cette action supprimera définitivement la configuration actuelle du fournisseur."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Une fenêtre de navigateur s'ouvrira et le code de vérification sera copié dans votre presse-papiers. Collez-le dans le navigateur pour terminer la connexion."
+    "defaultMessage": "Une fenêtre de navigateur s’ouvrira. Le code de vérification apparaîtra ici afin que vous puissiez le saisir pour terminer la connexion."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "Une erreur s'est produite lors de la vérification de la configuration de ce fournisseur."
@@ -3443,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Affichage de l'ID de planification : {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (déjà planifiée)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "Parcourir pour un fichier YAML..."
   },
@@ -3467,6 +3452,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Modifier la planification"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Échec du chargement des recettes."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "Échec de l'analyse de la recette à partir du fichier."
   },
@@ -3479,14 +3467,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Type de fichier invalide : veuillez sélectionner un fichier YAML (.yaml ou .yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Chargement des recettes..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "Nom :"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "p. ex. daily-summary-job"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "Aucune recette enregistrée trouvée."
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Veuillez fournir une source de recette valide."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "Cette recette a déjà une planification. Modifiez-la depuis la liste des Recettes."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Description : {description}"
@@ -3497,11 +3494,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Titre : {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Recettes enregistrées"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "L'ID de planification est requis."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Planification :"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Sélectionner une recette enregistrée"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Sélectionné : {path}"
@@ -3856,6 +3859,12 @@
   },
   "sessions.saving": {
     "defaultMessage": "Enregistrement..."
+  },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count,plural,one{{count} job} other{{count} jobs}}"
   },
   "sessions.search.noResults": {
     "defaultMessage": "Aucune session correspondante trouvée"
@@ -4427,6 +4436,9 @@
   "telemetrySettings.updateError": {
     "defaultMessage": "Échec de la mise à jour des paramètres de télémétrie."
   },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
+  },
   "themeSelector.dark": {
     "defaultMessage": "Sombre"
   },
@@ -4654,5 +4666,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "Vérifiez la connexion de votre compte avant de continuer."
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "et entrez :"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "Copier"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "Visitez"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "et entrez :"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "Copier"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "Visitez"
   }
 }

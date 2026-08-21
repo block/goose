@@ -149,14 +149,17 @@ impl TestPipeline {
             )),
             Arc::new(DoctorOperation),
             Arc::new(ProjectOperation),
-            Arc::new(SkillOperation),
-            Arc::new(RecipeOperation::new(provider.clone())),
+            Arc::new(SkillOperation::new(self.hook_manager.clone())),
+            Arc::new(RecipeOperation::new(
+                provider.clone(),
+                self.hook_manager.clone(),
+            )),
             Arc::new(ToolExecutionOperation::new(
                 &self.goose_mode,
                 self.extension_manager.clone(),
                 self.hook_manager.clone(),
             )),
-            Arc::new(UnknownToolOperation),
+            Arc::new(UnknownToolOperation::new(self.hook_manager.clone())),
             Arc::new(RetryOperation::new(
                 &self.goal,
                 &self.grind,
@@ -771,6 +774,8 @@ async fn build_test_pipeline(
         ExtensionManagerCapabilities {
             mcpui: false,
             host_info: None,
+            elicitation_handler: None,
+            protocol_version: None,
         },
         false,
     ));

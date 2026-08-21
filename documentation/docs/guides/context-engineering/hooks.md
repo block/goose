@@ -136,6 +136,7 @@ Use `${PLUGIN_ROOT}` in a command to reference the plugin directory. goose also 
 | `Stop` | goose finishes a turn or receives a stop event | None |
 | `UserPromptSubmit` | The user submits a prompt | Prompt text |
 | `PreToolUse` | Before goose runs a tool | Tool name |
+| `PreToolUseResult` | After the `PreToolUse` chain resolves, for allowed and denied calls alike, before the tool runs or the denial is returned. Observation only | Tool name |
 | `PostToolUse` | After a tool succeeds | Tool name |
 | `PostToolUseFailure` | After a tool fails | Tool name |
 | `BeforeReadFile` | Before goose reads a file | File path |
@@ -153,6 +154,8 @@ The matcher is a regular expression, not a glob. A bare `"*"` is an invalid rege
 `AfterFileEdit` and `AfterShellExecution` only run after successful tool calls. To react to failed edits, failed shell commands, or other failed tool calls, use `PostToolUseFailure`.
 :::
 
+`PreToolUseResult` is observation only in authority, not asynchronous in delivery. Matching hooks are run and awaited before goose continues to the tool or returns the denial, so a slow subscriber adds its runtime, up to its timeout, to the tool call. Delivery is best effort and not durable: a subscriber that fails or is absent changes nothing about the decision, and no record is kept if the hook does not run.
+
 ## Hook Payload
 
 When a hook runs, goose writes a JSON payload to the command's stdin. Every payload includes the event name and session ID. The remaining fields are only present when they apply to the event, so a hook should treat them as optional.
@@ -167,6 +170,11 @@ When a hook runs, goose writes a JSON payload to the command's stdin. Every payl
 | `message` | Prompt text the user submitted, on `UserPromptSubmit`. |
 | `last_assistant_message` | Final assistant text for the turn, on `Stop` when there is assistant output. |
 | `working_dir` | Working directory of the session, on tool events. |
+| `tool_call_id` | Stable identifier for one tool call, on `PreToolUse`, `PreToolUseResult`, `PostToolUse`, and `PostToolUseFailure`. Correlates the events of a single call, which tool name plus input cannot do when the same call repeats. |
+| `decision` | `allow` or `deny`, on `PreToolUseResult`. There is no third value. |
+| `policy_evaluated` | `true` when at least one matching `PreToolUse` hook exited 0 or returned a decision (exit `2`, or `{"decision":"block"}` on stdout), on `PreToolUseResult`. A hook that exits non-zero without a decision, fails to spawn, or times out does not count, and neither does the absence of a matching hook. It is an at-least-one value: a hook that evaluated keeps it `true` even if a later hook fails. |
+| `blocked_by` | Plugin whose hook denied the call, on `PreToolUseResult` when `decision` is `deny`. |
+| `reason` | Reason the denying hook gave, on `PreToolUseResult` when `decision` is `deny`. |
 
 Example payload for a tool event:
 
