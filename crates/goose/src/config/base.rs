@@ -60,6 +60,18 @@ pub enum ConfigError {
     LockError(String),
     #[error("Secret stored using file-based fallback")]
     FallbackToFileStorage,
+    #[error("Timed out reading the system keyring")]
+    KeyringTimeout,
+}
+
+/// Outcome of a bounded keyring read.
+///
+/// A timeout is kept separate from a keyring error so callers never confuse
+/// "the read did not finish" with "there is no entry".
+#[cfg(feature = "system-keyring")]
+enum KeyringReadError {
+    Keyring(keyring::Error),
+    TimedOut,
 }
 
 impl From<serde_json::Error> for ConfigError {
@@ -632,7 +644,20 @@ impl Config {
                 SecretStorage::Keyring { service } => {
                     let result = match Self::read_keyring_password_with_timeout(service) {
                         Ok(content) => Ok(content),
-                        Err(keyring_err) => self.handle_keyring_fallback_error(&keyring_err, None),
+                        // A timed-out read says nothing about whether secrets
+                        // exist. Surface it instead of falling back, so the
+                        // empty file store is never cached as authoritative and
+                        // a later mutation cannot overwrite the real keyring.
+                        Err(KeyringReadError::TimedOut) => {
+                            tracing::warn!(
+                                "keyring read timed out after 3s; not falling back to file \
+                                 storage (set GOOSE_DISABLE_KEYRING=1 to skip the keyring)"
+                            );
+                            Err(ConfigError::KeyringTimeout)
+                        }
+                        Err(KeyringReadError::Keyring(keyring_err)) => {
+                            self.handle_keyring_fallback_error(&keyring_err, None)
+                        }
                     };
 
                     match result {
@@ -1059,9 +1084,15 @@ impl Config {
     /// binary triggers a macOS keychain ACL prompt that can't be answered when
     /// running headless or over piped stdio (as with `goose acp`). Because this
     /// read sits on the `session/new` critical path, a block there hangs the
-    /// whole async runtime. Bounding it lets callers fall back to file storage.
+    /// whole async runtime. Bounding it keeps the runtime responsive.
+    ///
+    /// A timeout is reported distinctly from a keyring error. It must never be
+    /// mistaken for "this user has no secrets": the entry may hold every
+    /// configured credential and simply be waiting on an ACL prompt, so
+    /// treating it as absent would cache an empty secret map and let the next
+    /// mutation overwrite the real keyring contents.
     #[cfg(feature = "system-keyring")]
-    fn read_keyring_password_with_timeout(service: &str) -> Result<String, keyring::Error> {
+    fn read_keyring_password_with_timeout(service: &str) -> Result<String, KeyringReadError> {
         use std::sync::mpsc;
         use std::time::Duration;
 
@@ -1073,14 +1104,9 @@ impl Config {
         });
 
         match rx.recv_timeout(Duration::from_secs(3)) {
-            Ok(result) => result,
-            Err(_) => {
-                tracing::warn!(
-                    "keyring read timed out after 3s; falling back to file storage \
-                     (set GOOSE_DISABLE_KEYRING=1 to skip the keyring entirely)"
-                );
-                Err(keyring::Error::NoEntry)
-            }
+            Ok(Ok(password)) => Ok(password),
+            Ok(Err(err)) => Err(KeyringReadError::Keyring(err)),
+            Err(_) => Err(KeyringReadError::TimedOut),
         }
     }
 
