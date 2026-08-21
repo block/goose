@@ -103,6 +103,64 @@ fn is_gemini_model(model_name: &str) -> bool {
     model_name.starts_with("google/")
 }
 
+/// Literal token Google's Gemini backend misreads inside a `function_response`.
+const GEMINI_REF_TOKEN: &str = "$ref";
+const GEMINI_REF_REPLACEMENT: &str = "dollar_ref";
+const GEMINI_REF_NOTE: &str = "[goose compatibility note] In the tool output below, every JSON Schema reference key was rewritten to \"dollar_ref\". The original key is a dollar sign followed by \"ref\", and the referenced values are unchanged.\n\n";
+
+/// Rewrite `$ref` only where it stands as a complete token. Tool output is
+/// usually file contents or command output, so a bare substring replace would
+/// also corrupt legitimate identifiers such as `$refs` or `$refresh_token`.
+fn rewrite_ref_tokens(text: &str) -> Option<String> {
+    let is_identifier_char = |c: char| c.is_ascii_alphanumeric() || c == '_';
+
+    let mut segments = text.split(GEMINI_REF_TOKEN);
+    let mut out = String::with_capacity(text.len());
+    out.push_str(segments.next()?);
+    let mut replaced = false;
+
+    for segment in segments {
+        if segment.starts_with(is_identifier_char) {
+            out.push_str(GEMINI_REF_TOKEN);
+        } else {
+            out.push_str(GEMINI_REF_REPLACEMENT);
+            replaced = true;
+        }
+        out.push_str(segment);
+    }
+
+    replaced.then_some(out)
+}
+
+/// Google rejects OpenAI `role: "tool"` content containing the literal `$ref`
+/// key: it reads the key as Gemini `function_response` metadata and returns
+/// `400 INVALID_ARGUMENT`. Because Goose replays persisted history, one such
+/// tool result breaks every later turn in the session.
+///
+/// Tool output is treated as opaque text; it is not required to parse as JSON.
+fn rewrite_gemini_ref_token_in_tool_content(payload: &mut Value, model_name: &str) {
+    if !is_gemini_model(model_name) {
+        return;
+    }
+
+    let Some(messages) = payload.get_mut("messages").and_then(Value::as_array_mut) else {
+        return;
+    };
+
+    for message in messages {
+        if message.get("role").and_then(Value::as_str) != Some("tool") {
+            continue;
+        }
+        let Some(content) = message.get_mut("content") else {
+            continue;
+        };
+        let Some(rewritten) = content.as_str().and_then(rewrite_ref_tokens) else {
+            continue;
+        };
+        *content = Value::String(format!("{GEMINI_REF_NOTE}{rewritten}"));
+    }
+}
+
 fn parse_openrouter_parameters(raw: Value) -> Result<HashMap<String, Value>> {
     match raw {
         Value::Object(params) => Ok(params.into_iter().collect()),
@@ -297,6 +355,7 @@ impl Provider for OpenRouterProvider {
         if is_gemini_model(&model_config.model_name) {
             openrouter_format::add_reasoning_details_to_request(&mut payload, messages);
         }
+        rewrite_gemini_ref_token_in_tool_content(&mut payload, &model_config.model_name);
         let sent_reasoning_disable =
             openrouter_format::apply_reasoning_config(&mut payload, model_config);
 
@@ -459,5 +518,163 @@ mod tests {
             .stream(&config, "system", &[Message::user().with_text("hi")], &[])
             .await
             .unwrap();
+    }
+
+    fn tool_payload(content: &str) -> Value {
+        json!({
+            "messages": [
+                { "role": "system", "content": "sys $ref" },
+                { "role": "user", "content": "user $ref" },
+                { "role": "assistant", "content": "assistant $ref" },
+                { "role": "tool", "content": content, "tool_call_id": "call_1" }
+            ]
+        })
+    }
+
+    fn tool_content(payload: &Value) -> &str {
+        payload["messages"][3]["content"].as_str().unwrap()
+    }
+
+    #[test]
+    fn gemini_tool_content_ref_key_is_rewritten_and_value_preserved() {
+        let mut payload =
+            tool_payload("{'properties': {'image': {'$ref': '#/components/schemas/Example'}}}");
+
+        rewrite_gemini_ref_token_in_tool_content(&mut payload, "google/gemini-3.7-flash");
+
+        let content = tool_content(&payload);
+        assert!(content.starts_with(GEMINI_REF_NOTE));
+        assert!(content.ends_with(
+            "{'properties': {'image': {'dollar_ref': '#/components/schemas/Example'}}}"
+        ));
+    }
+
+    #[test]
+    fn gemini_tool_content_rewrites_every_occurrence() {
+        let mut payload = tool_payload("{'a': {'$ref': '#/x'}, 'b': {'$ref': '#/y'}}");
+
+        rewrite_gemini_ref_token_in_tool_content(&mut payload, "google/gemini-2.5-pro");
+
+        assert!(tool_content(&payload)
+            .ends_with("{'a': {'dollar_ref': '#/x'}, 'b': {'dollar_ref': '#/y'}}"));
+    }
+
+    #[test]
+    fn identifiers_that_merely_start_with_the_token_are_preserved() {
+        let source = "this.$refs.input; const $refresh_token = 1; $ref_count += $refs.len();";
+        let mut payload = tool_payload(source);
+
+        rewrite_gemini_ref_token_in_tool_content(&mut payload, "google/gemini-3.7-flash");
+
+        assert_eq!(tool_content(&payload), source);
+    }
+
+    #[test]
+    fn token_is_rewritten_when_followed_by_a_non_identifier_char() {
+        for (input, expected) in [
+            ("\"$ref\":", "\"dollar_ref\":"),
+            ("'$ref' =>", "'dollar_ref' =>"),
+            ("trailing $ref", "trailing dollar_ref"),
+            ("$ref.path", "dollar_ref.path"),
+            ("$ref-dash", "dollar_ref-dash"),
+        ] {
+            let mut payload = tool_payload(input);
+            rewrite_gemini_ref_token_in_tool_content(&mut payload, "google/gemini-3.7-flash");
+            assert!(
+                tool_content(&payload).ends_with(expected),
+                "{input} should rewrite to {expected}"
+            );
+        }
+    }
+
+    #[test]
+    fn mixed_content_rewrites_only_the_standalone_token() {
+        let mut payload = tool_payload("$refs and {'$ref': '#/a'} and $refresh");
+
+        rewrite_gemini_ref_token_in_tool_content(&mut payload, "google/gemini-3.7-flash");
+
+        assert!(tool_content(&payload).ends_with("$refs and {'dollar_ref': '#/a'} and $refresh"));
+    }
+
+    #[test]
+    fn gemini_guard_leaves_other_roles_untouched() {
+        let mut payload = tool_payload("{'$ref': '#/a'}");
+
+        rewrite_gemini_ref_token_in_tool_content(&mut payload, "google/gemini-2.5-flash");
+
+        assert_eq!(payload["messages"][0]["content"], json!("sys $ref"));
+        assert_eq!(payload["messages"][1]["content"], json!("user $ref"));
+        assert_eq!(payload["messages"][2]["content"], json!("assistant $ref"));
+    }
+
+    #[test]
+    fn non_google_models_are_untouched() {
+        let original = tool_payload("{'$ref': '#/a'}");
+        let mut payload = original.clone();
+
+        rewrite_gemini_ref_token_in_tool_content(&mut payload, "anthropic/claude-sonnet-4");
+
+        assert_eq!(payload, original);
+    }
+
+    #[test]
+    fn tool_content_without_the_token_is_unchanged() {
+        for content in ["plain tool output", "this.$refs.input only"] {
+            let original = tool_payload(content);
+            let mut payload = original.clone();
+
+            rewrite_gemini_ref_token_in_tool_content(&mut payload, "google/gemini-3.7-flash");
+
+            assert_eq!(payload, original, "{content} should be untouched");
+        }
+    }
+
+    #[test]
+    fn note_is_added_once_per_affected_tool_message_only() {
+        let mut payload = json!({
+            "messages": [
+                { "role": "tool", "content": "{'$ref': '#/a'}", "tool_call_id": "a" },
+                { "role": "tool", "content": "no marker here", "tool_call_id": "b" },
+                { "role": "tool", "content": "{'$ref': '#/c'}", "tool_call_id": "c" }
+            ]
+        });
+
+        rewrite_gemini_ref_token_in_tool_content(&mut payload, "google/gemini-3.7-flash");
+
+        let messages = payload["messages"].as_array().unwrap();
+        for index in [0, 2] {
+            let content = messages[index]["content"].as_str().unwrap();
+            assert!(content.starts_with(GEMINI_REF_NOTE));
+            assert_eq!(content.matches(GEMINI_REF_NOTE).count(), 1);
+        }
+        assert_eq!(messages[1]["content"], json!("no marker here"));
+    }
+
+    #[test]
+    fn payloads_without_string_tool_content_are_untouched() {
+        for original in [
+            json!({}),
+            json!({ "messages": "not an array" }),
+            json!({ "messages": [{ "role": "tool", "tool_call_id": "a" }] }),
+            json!({
+                "messages": [{
+                    "role": "tool",
+                    "content": [{ "type": "text", "text": "$ref" }],
+                    "tool_call_id": "a"
+                }]
+            }),
+        ] {
+            let mut payload = original.clone();
+
+            rewrite_gemini_ref_token_in_tool_content(&mut payload, "google/gemini-3.7-flash");
+
+            assert_eq!(payload, original);
+        }
+    }
+
+    #[test]
+    fn compatibility_note_matches_the_tokens_it_describes() {
+        assert!(GEMINI_REF_NOTE.contains(GEMINI_REF_REPLACEMENT));
+        assert!(!GEMINI_REF_NOTE.contains(GEMINI_REF_TOKEN));
     }
 }
