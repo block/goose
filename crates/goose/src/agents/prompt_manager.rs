@@ -473,6 +473,50 @@ mod tests {
         assert!(result.contains("hidden instructions"));
     }
 
+    /// The case @michaelneale flagged as untested on the exemplar: does replay
+    /// still work after the conversation has been compacted?
+    ///
+    /// It does, and the reason is structural. `compact_messages` does not
+    /// delete the pre-compaction messages -- it flips them to
+    /// `agent_invisible` and appends an agent-only summary. The tool requests
+    /// therefore remain in the stored conversation, and
+    /// `record_tool_arguments_from_history` walks `conversation.messages()`,
+    /// which is every message regardless of visibility. Replay is blind to
+    /// the agent/user projection, so compaction cannot starve it.
+    #[test]
+    fn replay_survives_compaction() {
+        use rmcp::{model::CallToolRequestParams, object};
+
+        let working_dir = tempfile::tempdir().unwrap();
+        let subdir = working_dir.path().join("sub");
+        std::fs::create_dir(&subdir).unwrap();
+        std::fs::write(subdir.join(".goosehints"), "hint from the subdirectory").unwrap();
+
+        let mut params = CallToolRequestParams::new("text_editor");
+        params.arguments = Some(object!({"path": subdir.join("file.rs").to_string_lossy()}));
+        let tool_request = Message::assistant().with_tool_request("call-1", Ok(params));
+
+        // Exactly the shape compact_messages leaves behind: the originals
+        // demoted to agent-invisible, plus an agent-only summary that never
+        // mentions the path.
+        let compacted = vec![
+            tool_request.with_metadata(
+                crate::conversation::message::MessageMetadata::default().with_agent_invisible(),
+            ),
+            Message::assistant()
+                .with_text("Summary: the user asked about some code.")
+                .with_visibility(false, true),
+        ];
+
+        let mut resumed = PromptManager::new();
+        resumed.record_tool_arguments_from_history(&compacted, working_dir.path());
+
+        assert!(
+            resumed.load_subdirectory_hints(working_dir.path()),
+            "a compacted conversation must still yield its subdirectory hints"
+        );
+    }
+
     /// The #10330 regression: a resumed session has an in-memory tracker that
     /// never saw the earlier tool calls, so replaying the conversation's tool
     /// requests has to bring the subdirectory hints back.
