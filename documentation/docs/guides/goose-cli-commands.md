@@ -64,6 +64,16 @@ goose info
 
 ---
 
+#### restart
+Restart goose with the current configuration. This validates your config file and relaunches goose with the same arguments, providing a supported flow for applying configuration changes without manually stopping and starting goose.
+
+**Usage:**
+```bash
+goose restart
+```
+
+---
+
 #### version
 Check the current goose version you have installed.
 

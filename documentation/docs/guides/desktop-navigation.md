@@ -73,3 +73,17 @@ Show or hide the sidebar without opening Settings:
 - **Keyboard shortcut:** The shortcut is shown next to the menu item and can be customized in `Settings` > `Keyboard`
 
 The sidebar's open/closed state is remembered across sessions.
+
+---
+
+## File Menu
+
+The File menu in goose Desktop provides application-level actions.
+
+### Restart Goose
+
+Restart the goose Desktop application to apply configuration changes without manually quitting and reopening.
+
+- **Menu bar:** Go to **File → Restart Goose**
+
+This is useful when you've modified your `config.yaml` file and want to apply the changes immediately.
