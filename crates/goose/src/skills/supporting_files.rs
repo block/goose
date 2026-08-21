@@ -338,17 +338,33 @@ fn write_confined_file_with_hook(
         libc::O_WRONLY | libc::O_CREAT | libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC;
     if create_new {
         flags |= libc::O_EXCL;
-    } else {
-        flags |= libc::O_TRUNC;
     }
     let mut file = open_at_with_mode(&directory, file_name, flags, 0o666)?;
-    if !file.metadata()?.is_file() {
+    let metadata = file.metadata()?;
+    if !metadata.is_file() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "source path is not a regular file",
         ));
     }
+    ensure_source_file_has_single_link(&file, &metadata)?;
+    if !create_new {
+        file.set_len(0)?;
+    }
     file.write_all(content)
+}
+
+#[cfg(unix)]
+fn ensure_source_file_has_single_link(_file: &fs::File, metadata: &fs::Metadata) -> io::Result<()> {
+    use std::os::unix::fs::MetadataExt;
+
+    if metadata.nlink() != 1 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "source path must have exactly one hard link",
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -549,10 +565,31 @@ fn write_confined_file_with_hook(
             "source path is not a regular file",
         ));
     }
+    ensure_source_file_has_single_link(&file, &metadata)?;
     if !create_new {
         file.set_len(0)?;
     }
     file.write_all(content)
+}
+
+#[cfg(windows)]
+fn ensure_source_file_has_single_link(file: &fs::File, _metadata: &fs::Metadata) -> io::Result<()> {
+    use std::os::windows::io::AsRawHandle;
+    use winapi::um::fileapi::{GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION};
+
+    // SAFETY: BY_HANDLE_FILE_INFORMATION is a plain C data structure initialized before the call.
+    let mut information: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+    // SAFETY: the file owns a valid handle and information points to writable initialized storage.
+    if unsafe { GetFileInformationByHandle(file.as_raw_handle(), &mut information) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if information.nNumberOfLinks != 1 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "source path must have exactly one hard link",
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(windows)]

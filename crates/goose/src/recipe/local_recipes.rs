@@ -262,6 +262,29 @@ mod tests {
         assert_eq!(fs::read_to_string(outside_path).unwrap(), outside_content);
     }
 
+    #[test]
+    fn listed_recipe_replaced_by_hard_link_is_not_saved() {
+        let root = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let recipe_root = root.path().canonicalize().unwrap();
+        let recipe_path = recipe_root.join("listed.yaml");
+        let outside_path = outside.path().join("outside.yaml");
+        write_recipe(&recipe_path, "Listed", "original");
+        write_recipe(&outside_path, "Outside", "must stay unchanged");
+        let outside_content = fs::read_to_string(&outside_path).unwrap();
+
+        let listed_path = scan_directory_for_recipes(&recipe_root).unwrap()[0]
+            .0
+            .clone();
+        fs::remove_file(&recipe_path).unwrap();
+        fs::hard_link(&outside_path, &recipe_path).unwrap();
+
+        let result = save_recipe_to_file(recipe("Listed", "updated"), Some(listed_path));
+
+        assert!(result.is_err());
+        assert_eq!(fs::read_to_string(outside_path).unwrap(), outside_content);
+    }
+
     #[cfg(unix)]
     #[test]
     fn listed_recipe_with_replaced_ancestor_is_not_saved() {
