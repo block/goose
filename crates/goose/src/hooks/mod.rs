@@ -1703,6 +1703,25 @@ mod tests {
         assert_eq!(reason, STDIN_DELIVERY_FAILED_REASON);
         assert_eq!(closed.cause, Some(HookOutcomeCause::HookFailure));
 
+        // delivery failure plus an explicit allow the hook printed anyway. It
+        // answered a question it never received, so under block that allow does
+        // not save the call. Only a denial survives a failed delivery.
+        let printed_allow = run_chain_with(
+            event,
+            vec![blocking_action(r#"printf '%s' '{"decision":"allow"}'"#)],
+            oversized_context(event),
+        )
+        .await;
+        let HookDecision::Deny { reason, .. } = &printed_allow.decision else {
+            panic!(
+                "an allow from a hook that never saw the request must not stand under block, got {:?}",
+                printed_allow.decision
+            );
+        };
+        assert_eq!(reason, STDIN_DELIVERY_FAILED_REASON);
+        assert_eq!(printed_allow.cause, Some(HookOutcomeCause::HookFailure));
+        assert!(printed_allow.policy_evaluated, "it did exit 0");
+
         // an explicit denial outranks the delivery failure, in either mode
         for command in [
             "echo refused by policy >&2; exit 2",
@@ -1796,9 +1815,12 @@ mod tests {
             assert!(outcome.policy_evaluated);
         }
 
+        // Drain stdin first. Without it the child can exit before the payload
+        // write completes, which is a real delivery failure and correctly reads
+        // as hook_failure, so the fixture would be testing the wrong thing.
         for spec in [
-            action("exit 0"),
-            blocking_action(r#"printf '%s' '{"decision":"allow"}'"#),
+            action("cat >/dev/null 2>&1; exit 0"),
+            blocking_action(r#"cat >/dev/null 2>&1; printf '%s' '{"decision":"allow"}'"#),
         ] {
             let outcome = run_chain(HookEvent::PreToolUse, vec![spec]).await;
             assert_eq!(outcome.decision, HookDecision::Allow);
