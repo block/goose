@@ -83,6 +83,25 @@ interface ActivateExtensionDefaultProps {
   extensionConfig: ExtensionConfig;
 }
 
+interface RenameExtensionDefaultProps {
+  originalName: string;
+  extensionConfig: ExtensionConfig;
+  enabled: boolean;
+  addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
+  removeFromConfig: (name: string) => Promise<void>;
+}
+
+export async function renameExtensionDefault({
+  originalName,
+  extensionConfig,
+  enabled,
+  addToConfig,
+  removeFromConfig,
+}: RenameExtensionDefaultProps): Promise<void> {
+  await addToConfig(extensionConfig.name, extensionConfig, enabled);
+  await removeFromConfig(originalName);
+}
+
 export async function activateExtensionDefault({
   addToConfig,
   extensionConfig,

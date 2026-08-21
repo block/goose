@@ -4,6 +4,7 @@ export {
   activateExtensionDefault,
   toggleExtensionDefault,
   deleteExtension,
+  renameExtensionDefault,
 } from './extension-manager';
 
 export { pruneDeprecatedBundledExtensions, syncBundledExtensions } from './bundled-extensions';

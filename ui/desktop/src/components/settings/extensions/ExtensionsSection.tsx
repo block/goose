@@ -14,7 +14,12 @@ import {
   nameToKey,
 } from './utils';
 
-import { activateExtensionDefault, deleteExtension, toggleExtensionDefault } from './index';
+import {
+  activateExtensionDefault,
+  deleteExtension,
+  renameExtensionDefault,
+  toggleExtensionDefault,
+} from './index';
 import type { ExtensionConfig } from '../../../types/extensions';
 
 const i18n = defineMessages({
@@ -174,8 +179,13 @@ export default function ExtensionsSection({
 
     try {
       if (originalName !== extensionConfig.name) {
-        await removeExtension(originalName);
-        await addExtension(extensionConfig.name, extensionConfig, formData.enabled);
+        await renameExtensionDefault({
+          originalName,
+          extensionConfig,
+          enabled: formData.enabled,
+          addToConfig: addExtension,
+          removeFromConfig: removeExtension,
+        });
       } else {
         const configKey = selectedExtension.configKey ?? nameToKey(originalName);
         await updateExtension(configKey, extensionConfig, formData.enabled);
