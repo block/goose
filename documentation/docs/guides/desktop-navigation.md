@@ -80,10 +80,10 @@ The sidebar's open/closed state is remembered across sessions.
 
 The File menu in goose Desktop provides application-level actions.
 
-### Restart Goose
+### Restart goose
 
 Restart the goose Desktop application to apply configuration changes without manually quitting and reopening.
 
-- **Menu bar:** Go to **File → Restart Goose**
+- **Menu bar:** Go to **File → Restart goose**
 
 This is useful when you've modified your `config.yaml` file and want to apply the changes immediately.
