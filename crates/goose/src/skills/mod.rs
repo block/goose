@@ -193,6 +193,17 @@ fn canonicalize_or_original(path: &Path) -> PathBuf {
     path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
 }
 
+fn is_plugin_owned_path(path: &Path) -> bool {
+    path.ancestors().any(|ancestor| {
+        ancestor.file_name().and_then(|name| name.to_str()) == Some("plugins")
+            && ancestor
+                .parent()
+                .and_then(|parent| parent.file_name())
+                .and_then(|name| name.to_str())
+                == Some(".agents")
+    })
+}
+
 fn inferred_discoverable_skill_root(path: &Path) -> Option<PathBuf> {
     let canonical_path = canonicalize_or_original(path);
 
@@ -222,7 +233,7 @@ fn inferred_discoverable_skill_root(path: &Path) -> Option<PathBuf> {
                 parent.file_name().and_then(|name| name.to_str()),
                 Some(".goose") | Some(".claude") | Some(".agents")
             );
-        is_project_skills_root.then(|| ancestor.to_path_buf())
+        (is_project_skills_root && !is_plugin_owned_path(ancestor)).then(|| ancestor.to_path_buf())
     })
 }
 
@@ -742,15 +753,15 @@ mod tests {
     }
 
     #[test]
-    fn project_plugin_skill_is_listed_read_only_and_rejected_by_source_crud() {
+    fn nested_project_plugin_skill_is_listed_read_only_and_rejected_by_source_crud() {
         let project = tempfile::tempdir().unwrap();
         let path_root = tempfile::tempdir().unwrap();
         let plugin_root = project.path().join(".agents/plugins/project-plugin");
-        let skill_dir = plugin_root.join("custom-skills/plugin-owned");
+        let skill_dir = plugin_root.join(".agents/skills/plugin-owned");
         write_test_skill(&skill_dir, "plugin-owned", "plugin body");
         std::fs::write(
             plugin_root.join("plugin.json"),
-            r#"{"name":"project-plugin","skills":{"paths":["./custom-skills"]}}"#,
+            r#"{"name":"project-plugin","skills":{"paths":["./.agents/skills"]}}"#,
         )
         .unwrap();
 
