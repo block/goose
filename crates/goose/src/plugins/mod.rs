@@ -115,17 +115,9 @@ pub(crate) fn enabled_plugin_skill_dirs_with_config(
         .into_iter()
         .flat_map(|plugin| {
             let plugin_dir = plugin.root;
-            let default_skills_dir = plugin_dir.join("skills");
-            let mut skill_dirs = Vec::new();
-            if default_skills_dir.is_dir() {
-                skill_dirs.push((default_skills_dir, plugin.scope));
-            }
-            skill_dirs.extend(
-                formats::open_plugins::installed_skill_dirs(&plugin_dir)
-                    .into_iter()
-                    .map(|dir| (dir, plugin.scope)),
-            );
-            skill_dirs
+            formats::open_plugins::installed_skill_dirs(&plugin_dir)
+                .into_iter()
+                .map(move |dir| (dir, plugin.scope))
         })
         .filter(|(path, _)| seen.insert(path.clone()))
         .collect()

@@ -753,6 +753,48 @@ mod tests {
     }
 
     #[test]
+    fn exclusive_project_plugin_manifest_omits_default_skill_root() {
+        let project = tempfile::tempdir().unwrap();
+        let path_root = tempfile::tempdir().unwrap();
+        let plugin_root = project.path().join(".agents/plugins/project-plugin");
+        write_test_skill(
+            &plugin_root.join("skills/excluded"),
+            "excluded",
+            "excluded body",
+        );
+        write_test_skill(
+            &plugin_root.join("custom-skills/included"),
+            "included",
+            "included body",
+        );
+        std::fs::write(
+            plugin_root.join("plugin.json"),
+            r#"{"name":"project-plugin","skills":{"exclusive":true,"paths":["./custom-skills"]}}"#,
+        )
+        .unwrap();
+
+        let config = Config::new(path_root.path().join("test-config.yaml"), "skills-test").unwrap();
+        config
+            .set_param(
+                "plugins",
+                HashMap::from([(
+                    plugin_root.to_string_lossy().into_owned(),
+                    HashMap::from([("enabled", true)]),
+                )]),
+            )
+            .unwrap();
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PATH_ROOT", path_root.path().to_str()),
+            ("PLUGINS", None),
+        ]);
+
+        let skills = discover_skills_with_config(Some(project.path()), &config);
+
+        assert!(skills.iter().any(|skill| skill.name == "included"));
+        assert!(!skills.iter().any(|skill| skill.name == "excluded"));
+    }
+
+    #[test]
     fn nested_project_plugin_skill_is_listed_read_only_and_rejected_by_source_crud() {
         let project = tempfile::tempdir().unwrap();
         let path_root = tempfile::tempdir().unwrap();
