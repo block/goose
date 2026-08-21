@@ -186,8 +186,8 @@ or pipe the text with `--summary-file -`.
 The command prints the issue, channel, message, and participant details as JSON.
 Channel names use `#<issue-number> <issue-title>` in the Buzz UI. The script
 refuses to create a duplicate when an active or archived channel already
-matches the issue number. If `--owner` is supplied for an existing channel, the
-script promotes that person to owner without posting the summary a second time.
+matches the issue number. For an existing channel, explicitly supplied owners,
+people, and bots are added without posting the summary a second time.
 
 Adding a bot does not trigger it. After the channel is created, Github Manager
 must send a new message with an explicit bot mention:
@@ -301,8 +301,9 @@ This Goose recipe manages the full Inbox loop:
    issues, adjusting only for the person's configured capacity.
 4. Assign the issue to that person's GitHub handle.
 5. Create a focused Buzz channel, or promote the owner when the channel already
-   exists. Permanent owners, the issue owner, queue requesters, existing
-   core-team assignees, and at most one complementary specialist are added.
+   exists. Start with Douwe and the issue owner, then add relevant people until
+   the channel has at least three distinct humans. If Douwe owns the issue, two
+   others are required. A fourth person may be added when useful.
 6. Run `syncissues`.
 
 Issue bodies and comments are treated as untrusted data. The recipe is allowed

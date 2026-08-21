@@ -37,6 +37,8 @@ const buzzEnvironment = {
 const issue = getIssue();
 const coreTeam = readCoreTeam();
 const requestedOwners = resolveParticipants(options.owners, "owner");
+const requestedPeople = resolveParticipants(options.people, "member");
+const requestedBots = resolveParticipants(options.bots, "bot");
 const owners = mergeParticipants(
   options.coreTeam ? coreTeam.owners : [],
   requestedOwners,
@@ -44,15 +46,16 @@ const owners = mergeParticipants(
 const ownerPubkeys = new Set(owners.map((owner) => owner.pubkey));
 const people = mergeParticipants(
   options.coreTeam ? coreTeam.members : [],
-  resolveParticipants(options.people, "member"),
+  requestedPeople,
 ).filter((person) => !ownerPubkeys.has(person.pubkey));
 const associatedBots = [...owners, ...people].flatMap(
   (participant) => coreTeam.botsByPerson.get(participant.pubkey) || [],
 );
-const bots = mergeParticipants(
-  associatedBots,
-  resolveParticipants(options.bots, "bot"),
+const bots = mergeParticipants(associatedBots, requestedBots);
+const requestedAssociatedBots = [...requestedOwners, ...requestedPeople].flatMap(
+  (participant) => coreTeam.botsByPerson.get(participant.pubkey) || [],
 );
+const existingBots = mergeParticipants(requestedAssociatedBots, requestedBots);
 rejectRoleConflicts(owners, people, bots);
 
 const channelPrefix = `${issue.number}`;
@@ -76,9 +79,13 @@ if (matchingChannels.length > 1) {
 }
 
 if (matchingChannels.length === 1) {
-  if (requestedOwners.length === 0) {
+  if (
+    requestedOwners.length === 0 &&
+    requestedPeople.length === 0 &&
+    existingBots.length === 0
+  ) {
     fail(
-      `A channel already matches ${JSON.stringify(channelPrefix)}. Pass --owner to promote its issue owner.`,
+      `A channel already matches ${JSON.stringify(channelPrefix)}. Pass participants to update its roster.`,
     );
   }
   const existingChannel = matchingChannels[0];
@@ -94,6 +101,33 @@ if (matchingChannels.length === 1) {
       "owner",
     ]);
   }
+  for (const person of requestedPeople.filter(
+    (participant) =>
+      !requestedOwners.some((owner) => owner.pubkey === participant.pubkey),
+  )) {
+    runBuzz([
+      "channels",
+      "add-member",
+      "--channel",
+      existingChannel.channel_id,
+      "--pubkey",
+      person.pubkey,
+      "--role",
+      "member",
+    ]);
+  }
+  for (const bot of existingBots) {
+    runBuzz([
+      "channels",
+      "add-member",
+      "--channel",
+      existingChannel.channel_id,
+      "--pubkey",
+      bot.pubkey,
+      "--role",
+      "bot",
+    ]);
+  }
   console.log(
     JSON.stringify(
       {
@@ -105,6 +139,8 @@ if (matchingChannels.length === 1) {
           existing: true,
         },
         owners_promoted: requestedOwners,
+        people_added: requestedPeople,
+        bots_added: existingBots,
       },
       null,
       2,
@@ -528,7 +564,7 @@ Owners and members from ${coreTeamPath} are added by default, along with their
 associated bots. Set BUZZ_CORE_TEAM_FILE to use another file. Names passed on
 the command line must exactly match a Buzz display name. Public keys must be
 64-character hex.
-If a matching channel already exists, passing --owner promotes that identity
-instead of creating a duplicate or posting the summary again. The script reads
-the issue from GitHub but never changes it.`);
+If a matching channel already exists, explicitly supplied participants update
+its roster instead of creating a duplicate or posting the summary again. The
+script reads the issue from GitHub but never changes it.`);
 }

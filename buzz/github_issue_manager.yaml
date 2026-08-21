@@ -93,11 +93,15 @@ prompt: |
        `create_issue_channel` with `--no-core-team`. Pass the selected person's
        hexadecimal Buzz pubkey as `--owner`, and also pass every core-team entry
        whose role is `owner` as `--owner`. Add other existing core-team GitHub
-       assignees and queue requesters as `--person`. You may add at most one other
-       core-team person as `--person` when their interests are directly relevant
-       and complementary. Explicitly selected people bring their configured bots.
-       If the channel already exists, promote the selected owner without posting
-       another summary.
+       assignees and queue requesters as `--person`. Deduplicate those identities,
+       then add the best-matching core-team people as `--person` until the channel
+       contains at least three distinct humans in total. Douwe and the selected
+       issue owner count toward that total. If Douwe is the selected owner, that
+       is one distinct human, so add at least two others. Add one optional fourth
+       person only when the issue is tricky, cross-cutting, or their expertise is
+       clearly useful. Explicitly selected people bring their configured bots. If
+       the channel already exists, update its roster and promote the selected
+       owner without posting another summary.
      - Never create a second channel. Continue with the remaining issues if one
        issue fails, and retain enough detail to report the failure.
 
