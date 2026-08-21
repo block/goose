@@ -5,8 +5,24 @@ import type { ExtensionConfig } from '../../../types/extensions';
 // TODO: keep in sync with rust better
 
 export const DEFAULT_EXTENSION_TIMEOUT = 300;
-const RUST_WHITESPACE =
-  /[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]/u;
+
+function isRustWhitespace(char: string): boolean {
+  const codePoint = char.codePointAt(0);
+  return (
+    codePoint !== undefined &&
+    ((codePoint >= 0x0009 && codePoint <= 0x000d) ||
+      codePoint === 0x0020 ||
+      codePoint === 0x0085 ||
+      codePoint === 0x00a0 ||
+      codePoint === 0x1680 ||
+      (codePoint >= 0x2000 && codePoint <= 0x200a) ||
+      codePoint === 0x2028 ||
+      codePoint === 0x2029 ||
+      codePoint === 0x202f ||
+      codePoint === 0x205f ||
+      codePoint === 0x3000)
+  );
+}
 
 /**
  * Converts an extension name to a key format
@@ -18,7 +34,7 @@ export function nameToKey(name: string): string {
       if (/[A-Za-z0-9_-]/.test(char)) {
         return char;
       }
-      return RUST_WHITESPACE.test(char) ? '' : '_';
+      return isRustWhitespace(char) ? '' : '_';
     })
     .join('')
     .toLowerCase();
