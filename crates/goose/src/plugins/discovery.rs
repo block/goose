@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -58,27 +58,31 @@ pub(crate) fn discover_enabled_plugins_with_config(
     config: &Config,
 ) -> Vec<DiscoveredPlugin> {
     let scoped_settings = load_all_settings(project_root);
-    let mut found: HashMap<String, DiscoveredPlugin> = HashMap::new();
+    let user_plugins_dir = plugin_install_dir();
+    let mut found = Vec::new();
 
     if let Some(root) = project_root {
-        for (name, root) in list_dir_children(&project_plugin_dir(root)) {
-            found.entry(name.clone()).or_insert(DiscoveredPlugin {
+        let project_plugins_dir = project_plugin_dir(root);
+        found.extend(list_dir_children(&project_plugins_dir).into_iter().map(
+            |(name, root)| DiscoveredPlugin {
                 name,
                 root,
                 scope: PluginScope::Project,
-            });
-        }
+            },
+        ));
     }
-    for (name, root) in list_dir_children(&plugin_install_dir()) {
-        found.entry(name.clone()).or_insert(DiscoveredPlugin {
-            name,
-            root,
-            scope: PluginScope::User,
-        });
-    }
+    found.extend(
+        list_dir_children(&user_plugins_dir)
+            .into_iter()
+            .map(|(name, root)| DiscoveredPlugin {
+                name,
+                root,
+                scope: PluginScope::User,
+            }),
+    );
 
     let mut enabled_by_settings: Vec<DiscoveredPlugin> = found
-        .into_values()
+        .into_iter()
         .filter(|plugin| is_enabled(&plugin.name, &scoped_settings))
         .collect();
     enabled_by_settings.sort_by(|left, right| {
@@ -88,7 +92,11 @@ pub(crate) fn discover_enabled_plugins_with_config(
             .then_with(|| left.root.cmp(&right.root))
     });
 
+    let mut seen_names = HashSet::new();
     filter_by_config(enabled_by_settings, config)
+        .into_iter()
+        .filter(|plugin| seen_names.insert(plugin.name.clone()))
+        .collect()
 }
 
 fn plugin_scope_rank(scope: PluginScope) -> u8 {
@@ -375,6 +383,48 @@ mod tests {
             "project scope should win over user; got: {:?}",
             found.iter().map(|p| &p.name).collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn disabled_project_plugin_falls_back_to_enabled_user_plugin_with_same_name() {
+        let project = tempfile::tempdir().unwrap();
+        let project_plugins = project.path().join(".agents/plugins");
+        write_plugin_dir(&project_plugins, "demo");
+
+        let path_root = tempfile::tempdir().unwrap();
+        let user_plugins = path_root.path().join(".agents/plugins");
+        write_plugin_dir(&user_plugins, "demo");
+        let config_dir = tempfile::tempdir().unwrap();
+        let config = test_config(config_dir.path());
+        config
+            .set_param(
+                PLUGINS_CONFIG_KEY,
+                HashMap::from([
+                    (
+                        project_plugins.join("demo").to_string_lossy().into_owned(),
+                        PluginConfigEntry { enabled: false },
+                    ),
+                    (
+                        user_plugins.join("demo").to_string_lossy().into_owned(),
+                        PluginConfigEntry { enabled: true },
+                    ),
+                ]),
+            )
+            .unwrap();
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PATH_ROOT", path_root.path().to_str()),
+            ("PLUGINS", None),
+        ]);
+
+        let found = discover_enabled_plugins_with_config(Some(project.path()), &config);
+        let demo: Vec<_> = found
+            .into_iter()
+            .filter(|plugin| plugin.name == "demo")
+            .collect();
+
+        assert_eq!(demo.len(), 1);
+        assert_eq!(demo[0].scope, PluginScope::User);
+        assert_eq!(demo[0].root, user_plugins.join("demo"));
     }
 
     #[test]
