@@ -198,6 +198,7 @@ fn canonicalize_or_original(path: &Path) -> PathBuf {
 }
 
 static PROJECT_PLUGIN_SKILL_ROOTS: OnceLock<RwLock<HashSet<PathBuf>>> = OnceLock::new();
+static USER_PLUGIN_SKILL_ROOTS: OnceLock<RwLock<HashSet<PathBuf>>> = OnceLock::new();
 
 fn register_project_plugin_skill_root(path: &Path) {
     PROJECT_PLUGIN_SKILL_ROOTS
@@ -216,8 +217,27 @@ fn is_project_plugin_skill_path(path: &Path) -> bool {
         .any(|root| path.starts_with(root))
 }
 
+fn register_user_plugin_skill_root(path: &Path) {
+    USER_PLUGIN_SKILL_ROOTS
+        .get_or_init(|| RwLock::new(HashSet::new()))
+        .write()
+        .expect("user plugin skill roots lock poisoned")
+        .insert(canonicalize_or_original(path));
+}
+
+fn is_user_plugin_skill_path(path: &Path) -> bool {
+    USER_PLUGIN_SKILL_ROOTS
+        .get_or_init(|| RwLock::new(HashSet::new()))
+        .read()
+        .expect("user plugin skill roots lock poisoned")
+        .iter()
+        .any(|root| path.starts_with(root))
+}
+
 fn is_lexical_project_plugin_path(path: &Path) -> bool {
-    if path.starts_with(Paths::plugins_dir()) {
+    if path.starts_with(Paths::plugins_dir())
+        || is_user_plugin_skill_path(&canonicalize_or_original(path))
+    {
         return false;
     }
 
@@ -395,8 +415,9 @@ fn all_skill_dirs_with_config(working_dir: Option<&Path>, config: &Config) -> Ve
     let plugin_dirs = enabled_plugin_skill_dirs_with_config(working_dir, config);
 
     for (path, scope) in &plugin_dirs {
-        if *scope == PluginScope::Project {
-            register_project_plugin_skill_root(path);
+        match scope {
+            PluginScope::Project => register_project_plugin_skill_root(path),
+            PluginScope::User => register_user_plugin_skill_root(path),
         }
     }
 
@@ -1046,5 +1067,65 @@ mod tests {
 
         assert!(Path::new(&skill.path).starts_with(external_root.path().canonicalize().unwrap()));
         assert_read_only_and_rejected_by_source_crud(&skill, &skill_dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_user_plugin_skill_remains_writable_for_source_crud() {
+        let path_root = tempfile::tempdir().unwrap();
+        let external_parent = tempfile::tempdir().unwrap();
+        let external_root = external_parent.path().join(".agents/plugins/user-plugin");
+        let plugin_link = path_root.path().join(".agents/plugins/user-plugin");
+        let skill_dir = external_root.join(".agents/skills/user-owned");
+        write_test_skill(&skill_dir, "user-owned", "user body");
+        std::fs::write(
+            external_root.join("plugin.json"),
+            r#"{"name":"user-plugin","skills":{"paths":["./.agents/skills"]}}"#,
+        )
+        .unwrap();
+        std::fs::create_dir_all(plugin_link.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(&external_root, &plugin_link).unwrap();
+
+        let config = Config::new(path_root.path().join("test-config.yaml"), "skills-test").unwrap();
+        config
+            .set_param(
+                "plugins",
+                HashMap::from([(
+                    plugin_link.to_string_lossy().into_owned(),
+                    HashMap::from([("enabled", true)]),
+                )]),
+            )
+            .unwrap();
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PATH_ROOT", path_root.path().to_str()),
+            ("PLUGINS", None),
+        ]);
+
+        let skill = discover_skills_with_config(None, &config)
+            .into_iter()
+            .find(|skill| skill.name == "user-owned")
+            .unwrap();
+        assert!(skill.global);
+        assert!(skill.writable);
+
+        let updated = crate::sources::update_source_with_roots(
+            SourceType::Skill,
+            &skill.path,
+            "user-owned",
+            "updated",
+            "updated body",
+            crate::sources::UpdateSourceOptions {
+                properties: Some(HashMap::new()),
+                additional_roots: &[],
+            },
+        )
+        .unwrap();
+        assert_eq!(updated.content, "updated body");
+
+        let (exported, _) = crate::sources::export_source(SourceType::Skill, &skill.path).unwrap();
+        assert!(exported.contains("updated body"));
+
+        crate::sources::delete_source(SourceType::Skill, &skill.path).unwrap();
+        assert!(!skill_dir.exists());
     }
 }
