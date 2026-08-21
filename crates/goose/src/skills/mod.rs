@@ -319,44 +319,79 @@ pub(crate) fn parse_skill_frontmatter(raw: &str) -> (String, String) {
 pub fn all_skill_dirs(working_dir: Option<&Path>) -> Vec<(PathBuf, bool)> {
     all_skill_dirs_with_config(working_dir, Config::global())
         .into_iter()
-        .map(|(path, global, _)| (path, global))
+        .map(|dir| (dir.path, dir.is_global))
         .collect()
 }
 
-fn all_skill_dirs_with_config(
-    working_dir: Option<&Path>,
-    config: &Config,
-) -> Vec<(PathBuf, bool, bool)> {
+struct SkillDirectory {
+    path: PathBuf,
+    is_global: bool,
+    writable: bool,
+}
+
+fn all_skill_dirs_with_config(working_dir: Option<&Path>, config: &Config) -> Vec<SkillDirectory> {
     let mut dirs = Vec::new();
     let plugin_dirs = enabled_plugin_skill_dirs_with_config(working_dir, config);
 
     if let Some(wd) = working_dir {
-        dirs.push((wd.join(".agents").join("skills"), false, true));
-        dirs.push((wd.join(".goose").join("skills"), false, true));
-        dirs.push((wd.join(".claude").join("skills"), false, true));
+        for path in [
+            wd.join(".agents").join("skills"),
+            wd.join(".goose").join("skills"),
+            wd.join(".claude").join("skills"),
+        ] {
+            dirs.push(SkillDirectory {
+                path,
+                is_global: false,
+                writable: true,
+            });
+        }
     }
     dirs.extend(
         plugin_dirs
             .iter()
             .filter(|(_, scope)| *scope == PluginScope::Project)
-            .map(|(dir, _)| (dir.clone(), false, false)),
+            .map(|(path, _)| SkillDirectory {
+                path: path.clone(),
+                is_global: false,
+                writable: false,
+            }),
     );
 
     let home = dirs::home_dir();
     if let Some(h) = home.as_ref() {
-        dirs.push((h.join(".agents").join("skills"), true, true));
+        dirs.push(SkillDirectory {
+            path: h.join(".agents").join("skills"),
+            is_global: true,
+            writable: true,
+        });
     }
-    dirs.push((Paths::config_dir().join("skills"), true, true));
+    dirs.push(SkillDirectory {
+        path: Paths::config_dir().join("skills"),
+        is_global: true,
+        writable: true,
+    });
     if let Some(h) = home.as_ref() {
-        dirs.push((h.join(".claude").join("skills"), true, true));
-        dirs.push((h.join(".config").join("agents").join("skills"), true, true));
+        for path in [
+            h.join(".claude").join("skills"),
+            h.join(".config").join("agents").join("skills"),
+        ] {
+            dirs.push(SkillDirectory {
+                path,
+                is_global: true,
+                writable: true,
+            });
+        }
     }
 
     dirs.extend(
         plugin_dirs
             .into_iter()
             .filter(|(_, scope)| *scope == PluginScope::User)
-            .map(|(dir, _)| (dir, true, true)),
+            .map(|(path, _)| SkillDirectory {
+                path,
+                is_global: true,
+                writable: true,
+            }),
     );
 
     dirs
@@ -528,8 +563,8 @@ fn discover_skills_with_config(working_dir: Option<&Path>, config: &Config) -> V
     let mut sources: Vec<SourceEntry> = Vec::new();
     let mut seen = HashSet::new();
 
-    for (dir, is_global, writable) in all_skill_dirs_with_config(working_dir, config) {
-        for source in scan_skills_from_dir(&dir, is_global, writable, &mut seen) {
+    for dir in all_skill_dirs_with_config(working_dir, config) {
+        for source in scan_skills_from_dir(&dir.path, dir.is_global, dir.writable, &mut seen) {
             sources.push(source);
         }
     }
