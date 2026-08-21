@@ -249,6 +249,33 @@ fn test_custom_get_extensions() {
         )
         .await;
 
+        let missing_remove_result = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/extensions/remove",
+            serde_json::json!({
+                "configKey": config_key,
+            }),
+        )
+        .await;
+        assert_eq!(
+            missing_remove_result.unwrap_err(),
+            agent_client_protocol::Error::invalid_params()
+                .data(format!("Extension '{config_key}' not found"))
+        );
+        let permissions_after_missing_remove = PermissionManager::new(permission_dir.clone());
+        for (principal, level) in &target_user_permissions {
+            assert_eq!(
+                permissions_after_missing_remove.get_user_permission(principal),
+                Some(level.clone())
+            );
+        }
+        for (principal, level) in &target_smart_approve_permissions {
+            assert_eq!(
+                permissions_after_missing_remove.get_smart_approve_permission(principal),
+                Some(level.clone())
+            );
+        }
+
         let extension = serde_json::json!({
             "type": "mcp",
             "description": "Test stdio",

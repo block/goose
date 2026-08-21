@@ -1414,9 +1414,10 @@ pub fn remove_extension_dialog() -> anyhow::Result<()> {
         .interact()?;
 
     for name in selected {
-        remove_extension(&name_to_key(name));
-        PermissionManager::instance().remove_extension(&name_to_key(name));
-        cliclack::outro(format!("Removed {} extension", style(name).green()))?;
+        if remove_extension(&name_to_key(name))? {
+            PermissionManager::instance().remove_extension(&name_to_key(name));
+            cliclack::outro(format!("Removed {} extension", style(name).green()))?;
+        }
     }
 
     print_config_file_saved()?;

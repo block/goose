@@ -1,4 +1,4 @@
-use super::base::Config;
+use super::base::{Config, ConfigError};
 use crate::agents::extension::PLATFORM_EXTENSIONS;
 use crate::agents::ExtensionConfig;
 use indexmap::IndexMap;
@@ -101,7 +101,6 @@ fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
 
 enum ExtensionMutation {
     Upsert(String, Box<ExtensionEntry>),
-    Remove(String),
     Noop,
 }
 
@@ -122,9 +121,6 @@ where
                     serialize_error = Some(err);
                 }
             },
-            ExtensionMutation::Remove(key) => {
-                raw.shift_remove(key.as_str());
-            }
             ExtensionMutation::Noop => {}
         }
 
@@ -168,12 +164,17 @@ fn set_extension_with_config(config: &Config, entry: ExtensionEntry) {
     with_raw_extensions_mapping(config, |_| ExtensionMutation::Upsert(key, Box::new(entry)));
 }
 
-pub fn remove_extension(key: &str) {
-    remove_extension_with_config(Config::global(), key);
+pub fn remove_extension(key: &str) -> Result<bool, ConfigError> {
+    remove_extension_with_config(Config::global(), key)
 }
 
-fn remove_extension_with_config(config: &Config, key: &str) {
-    with_raw_extensions_mapping(config, |_| ExtensionMutation::Remove(key.to_string()));
+fn remove_extension_with_config(config: &Config, key: &str) -> Result<bool, ConfigError> {
+    let mut removed = false;
+    config.update_param::<Mapping, Mapping, _>(EXTENSIONS_CONFIG_KEY, |mut raw| {
+        removed = raw.shift_remove(key).is_some();
+        raw
+    })?;
+    Ok(removed)
 }
 
 /// Returns true when an existing extension was updated, false when the key was missing.
@@ -553,11 +554,35 @@ extensions:
         let before = read_extensions(&config);
         let broken_before = before.get("broken").unwrap().clone();
 
-        remove_extension_with_config(&config, "valid");
+        assert!(remove_extension_with_config(&config, "valid").unwrap());
 
         let extensions = read_extensions(&config);
         assert!(!extensions.contains_key("valid"));
         assert_eq!(extensions.get("broken").unwrap(), &broken_before);
+    }
+
+    #[test]
+    fn test_remove_extension_reports_missing_entry() {
+        let (config, _config_file, _secrets_file) = test_config("extensions: {}\n");
+
+        assert!(!remove_extension_with_config(&config, "missing").unwrap());
+    }
+
+    #[test]
+    fn test_remove_extension_reports_config_failure() {
+        let root = tempfile::tempdir().unwrap();
+        let config_path = root.path().join("config.yaml");
+        let secrets_path = root.path().join("secrets.yaml");
+        std::fs::write(
+            &config_path,
+            "extensions:\n  valid:\n    enabled: true\n    type: builtin\n    name: valid\n",
+        )
+        .unwrap();
+        let config = Config::new_with_file_secrets(&config_path, secrets_path).unwrap();
+        std::fs::remove_file(&config_path).unwrap();
+        std::fs::create_dir(&config_path).unwrap();
+
+        assert!(remove_extension_with_config(&config, "valid").is_err());
     }
 
     #[derive(Clone, Default)]
