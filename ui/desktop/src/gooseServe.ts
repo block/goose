@@ -501,6 +501,7 @@ export const startGooseServe = async ({
     errorLog.push(error.message);
     logger.error(`Failed to start goose serve on port ${port} and dir ${workingDir}`, error);
     startupTrace?.record('spawn_error', { message: error.message, name: error.name });
+    resolveFingerprint(null);
   });
 
   const cleanup = async (): Promise<void> => {

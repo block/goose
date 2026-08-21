@@ -158,6 +158,22 @@ describe('startGooseServe', () => {
     }
   });
 
+  it.skipIf(process.platform === 'win32')('reports TLS spawn failures promptly', async () => {
+    const tempDir = makeTempDir();
+    const goosePath = path.join(tempDir, 'goose');
+    fs.writeFileSync(goosePath, '#!/usr/bin/env sh\n');
+    fs.chmodSync(goosePath, 0o644);
+    vi.stubEnv('GOOSE_BINARY', goosePath);
+
+    await expect(
+      startGooseServe({
+        serverSecret: 'test-secret',
+        dir: tempDir,
+        tls: true,
+      })
+    ).rejects.toThrow('goose serve did not emit TLS certificate fingerprint');
+  }, 2_000);
+
   it.skipIf(process.platform === 'win32')('captures the TLS fingerprint from stdout', async () => {
     const tempDir = makeTempDir();
     const goosePath = makeExecutable(
