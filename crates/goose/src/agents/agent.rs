@@ -1999,8 +1999,18 @@ impl Agent {
         ))
     }
 
+    pub async fn reply(
+        &self,
+        user_message: Message,
+        session_config: SessionConfig,
+        cancel_token: Option<CancellationToken>,
+    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        self.reply_with_loop_override(user_message, session_config, None, cancel_token)
+            .await
+    }
+
     #[instrument(
-        skip(self, user_message, session_config, cancel_token),
+        skip(self, user_message, session_config, loop_override, cancel_token),
         fields(
             user_message,
             trace_input,
@@ -2014,16 +2024,6 @@ impl Agent {
             gen_ai.usage.output_tokens = tracing::field::Empty,
         )
     )]
-    pub async fn reply(
-        &self,
-        user_message: Message,
-        session_config: SessionConfig,
-        cancel_token: Option<CancellationToken>,
-    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        self.reply_with_loop_override(user_message, session_config, None, cancel_token)
-            .await
-    }
-
     pub(crate) async fn reply_with_loop_override(
         &self,
         user_message: Message,
