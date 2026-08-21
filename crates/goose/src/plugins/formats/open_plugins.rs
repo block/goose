@@ -152,10 +152,6 @@ pub(in crate::plugins) fn installed_skill_dirs(plugin_dir: &Path) -> Vec<PathBuf
     dedupe_paths(dirs)
 }
 
-pub(in crate::plugins) fn has_manifest(plugin_dir: &Path) -> bool {
-    manifest_path(plugin_dir).is_some()
-}
-
 pub(in crate::plugins) fn read_manifest(
     plugin_dir: &Path,
     source: &str,

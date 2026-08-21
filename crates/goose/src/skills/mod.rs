@@ -12,10 +12,7 @@ pub(crate) use supporting_files::{load_supporting_file, read_source_file};
 
 use crate::config::{paths::Paths, Config};
 use crate::plugins::discovery::PluginScope;
-use crate::plugins::{
-    enabled_plugin_skill_dirs_with_config, installed_plugin_skill_dirs,
-    is_manifest_owned_skill_path,
-};
+use crate::plugins::{enabled_plugin_skill_dirs_with_config, installed_plugin_skill_dirs};
 use crate::sources::parse_frontmatter;
 use agent_client_protocol::Error;
 use anyhow::Result;
@@ -257,9 +254,7 @@ pub(crate) fn resolve_discoverable_skill_dir(path: &str) -> Result<PathBuf, Erro
         .canonicalize()
         .map_err(|_| Error::invalid_params().data(format!("Source \"{}\" not found", path)))?;
 
-    if (!Path::new(path).starts_with(Paths::plugins_dir())
-        && is_manifest_owned_skill_path(&canonical_dir))
-        || inferred_discoverable_skill_root(&canonical_dir).is_none()
+    if inferred_discoverable_skill_root(&canonical_dir).is_none()
         || !canonical_dir.is_dir()
         || !canonical_dir.join("SKILL.md").is_file()
     {
@@ -913,35 +908,6 @@ mod tests {
         );
     }
 
-    #[cfg(unix)]
-    #[test]
-    fn disabled_symlinked_project_plugin_canonical_path_is_rejected_before_discovery() {
-        let project = tempfile::tempdir().unwrap();
-        let external_root = tempfile::tempdir().unwrap();
-        let plugin_link = project.path().join(".agents/plugins/project-plugin");
-        let skill_dir = external_root.path().join(".agents/skills/plugin-owned");
-        write_test_skill(&skill_dir, "plugin-owned", "plugin body");
-        std::fs::write(
-            external_root.path().join("plugin.json"),
-            r#"{"name":"project-plugin","skills":{"paths":["./.agents/skills"]}}"#,
-        )
-        .unwrap();
-        std::fs::create_dir_all(plugin_link.parent().unwrap()).unwrap();
-        std::os::unix::fs::symlink(external_root.path(), &plugin_link).unwrap();
-        let settings_dir = project.path().join(".config/goose");
-        std::fs::create_dir_all(&settings_dir).unwrap();
-        std::fs::write(
-            settings_dir.join("settings.json"),
-            r#"{"disabledPlugins":["project-plugin"]}"#,
-        )
-        .unwrap();
-
-        let err = resolve_discoverable_skill_dir(skill_dir.to_str().unwrap()).unwrap_err();
-
-        assert!(format!("{err:?}").contains("not found"));
-        assert!(skill_dir.join("SKILL.md").is_file());
-    }
-
     #[test]
     fn nested_project_plugin_skill_is_listed_read_only_and_rejected_by_source_crud() {
         let project = tempfile::tempdir().unwrap();
@@ -1094,6 +1060,50 @@ mod tests {
             SourceType::Skill,
             &skill.path,
             "user-owned",
+            "updated",
+            "updated body",
+            crate::sources::UpdateSourceOptions {
+                properties: Some(HashMap::new()),
+                additional_roots: &[],
+            },
+        )
+        .unwrap();
+        assert_eq!(updated.content, "updated body");
+
+        let (exported, _) = crate::sources::export_source(SourceType::Skill, &skill.path).unwrap();
+        assert!(exported.contains("updated body"));
+
+        crate::sources::delete_source(SourceType::Skill, &skill.path).unwrap();
+        assert!(!skill_dir.exists());
+    }
+
+    #[test]
+    fn ordinary_project_skill_under_plugin_manifest_remains_writable() {
+        let project = tempfile::tempdir().unwrap();
+        let path_root = tempfile::tempdir().unwrap();
+        let skill_dir = project.path().join(".agents/skills/project-owned");
+        write_test_skill(&skill_dir, "project-owned", "project body");
+        std::fs::write(
+            project.path().join("plugin.json"),
+            r#"{"name":"ordinary-project","skills":{"paths":["./.agents/skills"]}}"#,
+        )
+        .unwrap();
+        let config = Config::new(path_root.path().join("test-config.yaml"), "skills-test").unwrap();
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PATH_ROOT", path_root.path().to_str()),
+            ("PLUGINS", None),
+        ]);
+
+        let skill = discover_skills_with_config(Some(project.path()), &config)
+            .into_iter()
+            .find(|skill| skill.name == "project-owned")
+            .unwrap();
+        assert!(skill.writable);
+
+        let updated = crate::sources::update_source_with_roots(
+            SourceType::Skill,
+            &skill.path,
+            "project-owned",
             "updated",
             "updated body",
             crate::sources::UpdateSourceOptions {

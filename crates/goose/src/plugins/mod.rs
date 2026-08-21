@@ -96,23 +96,6 @@ pub(crate) fn enabled_plugin_skill_dirs(
     enabled_plugin_skill_dirs_with_config(project_root, Config::global())
 }
 
-pub(crate) fn is_manifest_owned_skill_path(path: &Path) -> bool {
-    let Ok(canonical_path) = path.canonicalize() else {
-        return false;
-    };
-
-    canonical_path.ancestors().skip(2).any(|ancestor| {
-        if !formats::open_plugins::has_manifest(ancestor) {
-            return false;
-        }
-
-        formats::open_plugins::installed_skill_dirs(ancestor)
-            .into_iter()
-            .filter_map(|root| root.canonicalize().ok())
-            .any(|root| canonical_path.starts_with(root))
-    })
-}
-
 pub(crate) fn enabled_plugin_skill_dirs_with_config(
     project_root: Option<&Path>,
     config: &Config,
