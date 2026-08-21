@@ -157,6 +157,15 @@ export default function BaseChat({
     },
     [recipeAccepted, submitMessage]
   );
+  const handleSteerQueuedMessage = useCallback(
+    (input: UserInput) => {
+      if (!recipeAccepted || !onSteerQueuedMessage) {
+        return Promise.resolve(false);
+      }
+      return onSteerQueuedMessage(input);
+    },
+    [recipeAccepted, onSteerQueuedMessage]
+  );
 
   const resolvedInitialMessage = useMemo((): UserInput | undefined => {
     if (!initialMessage) return undefined;
@@ -538,7 +547,7 @@ export default function BaseChat({
             handleSubmit={chatInputSubmit}
             chatState={chatState}
             onStop={stopStreaming}
-            onSteerQueuedMessage={onSteerQueuedMessage}
+            onSteerQueuedMessage={handleSteerQueuedMessage}
             pauseQueueOnStop={pauseQueueOnStop}
             queueProcessingBlocked={queueProcessingBlocked || acpRecovering}
             commandHistory={commandHistory}

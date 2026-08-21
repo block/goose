@@ -10,6 +10,7 @@ import BaseChat from './BaseChat';
 const mocks = vi.hoisted(() => ({
   session: {} as Session,
   submitMessage: vi.fn(),
+  steerMessage: vi.fn(),
   hasAcceptedRecipeBefore: vi.fn(),
   recordRecipeHash: vi.fn(),
   autoSubmit: undefined as undefined | ((input: UserInput) => void),
@@ -23,7 +24,7 @@ vi.mock('../hooks/useChatSession', () => ({
     progressMessage: undefined,
     updateSession: vi.fn(),
     handleSubmit: mocks.submitMessage,
-    onSteerQueuedMessage: vi.fn(),
+    onSteerQueuedMessage: mocks.steerMessage,
     submitElicitationResponse: vi.fn(),
     stopStreaming: vi.fn(),
     retrySessionLoad: vi.fn(),
@@ -71,22 +72,32 @@ vi.mock('../acp/acpConnection', () => ({
 vi.mock('./ChatInput', () => ({
   default: ({
     handleSubmit,
+    onSteerQueuedMessage,
     initialValue,
     recipeAccepted,
   }: {
     handleSubmit: (input: UserInput) => void;
+    onSteerQueuedMessage?: (input: UserInput) => Promise<boolean>;
     initialValue?: string;
     recipeAccepted?: boolean;
   }) => (
-    <button
-      type="button"
-      data-testid="chat-input"
-      data-initial-value={initialValue ?? ''}
-      data-recipe-accepted={String(recipeAccepted)}
-      onClick={() => handleSubmit({ msg: 'chat input', images: [] })}
-    >
-      chat input
-    </button>
+    <>
+      <button
+        type="button"
+        data-testid="chat-input"
+        data-initial-value={initialValue ?? ''}
+        data-recipe-accepted={String(recipeAccepted)}
+        onClick={() => handleSubmit({ msg: 'chat input', images: [] })}
+      >
+        chat input
+      </button>
+      <button
+        type="button"
+        onClick={() => void onSteerQueuedMessage?.({ msg: 'steer queued message', images: [] })}
+      >
+        steer queued message
+      </button>
+    </>
   ),
 }));
 vi.mock('./recipes/RecipeActivities', () => ({
@@ -170,6 +181,7 @@ function invokeAllSubmissionPaths() {
   fireEvent.click(screen.getByRole('button', { name: 'recipe activity' }));
   fireEvent.click(screen.getByRole('button', { name: 'progressive descendant' }));
   fireEvent.click(screen.getByRole('button', { name: 'mcp ui message' }));
+  fireEvent.click(screen.getByRole('button', { name: 'steer queued message' }));
   act(() => mocks.autoSubmit?.({ msg: 'programmatic submit', images: [] }));
 }
 
@@ -178,6 +190,7 @@ describe('BaseChat recipe trust gate', () => {
     vi.clearAllMocks();
     mocks.autoSubmit = undefined;
     mocks.session = makeSession();
+    mocks.steerMessage.mockResolvedValue(true);
     Object.assign(window.electron, {
       hasAcceptedRecipeBefore: mocks.hasAcceptedRecipeBefore,
       recordRecipeHash: mocks.recordRecipeHash,
@@ -199,6 +212,7 @@ describe('BaseChat recipe trust gate', () => {
     expect(screen.getByTestId('recipe-warning')).toHaveAttribute('data-open', 'false');
     invokeAllSubmissionPaths();
     expect(mocks.submitMessage).not.toHaveBeenCalled();
+    expect(mocks.steerMessage).not.toHaveBeenCalled();
 
     await act(async () => resolveAcceptance?.(false));
     await waitFor(() =>
@@ -209,6 +223,7 @@ describe('BaseChat recipe trust gate', () => {
     expect(screen.getByTestId('chat-input')).toHaveAttribute('data-recipe-accepted', 'false');
     invokeAllSubmissionPaths();
     expect(mocks.submitMessage).not.toHaveBeenCalled();
+    expect(mocks.steerMessage).not.toHaveBeenCalled();
   });
 
   it('allows every submission path after trust is affirmatively accepted', async () => {
@@ -223,6 +238,7 @@ describe('BaseChat recipe trust gate', () => {
     invokeAllSubmissionPaths();
 
     expect(mocks.submitMessage).toHaveBeenCalledTimes(5);
+    expect(mocks.steerMessage).toHaveBeenCalledTimes(1);
   });
 
   it('returns to pending before a different recipe in the same session can submit', async () => {
@@ -250,6 +266,7 @@ describe('BaseChat recipe trust gate', () => {
     expect(screen.getByTestId('chat-input')).toHaveAttribute('data-initial-value', '');
     invokeAllSubmissionPaths();
     expect(mocks.submitMessage).not.toHaveBeenCalled();
+    expect(mocks.steerMessage).not.toHaveBeenCalled();
   });
 
   it('keeps scheduled recipe submissions exempt from the interactive trust gate', () => {
@@ -261,6 +278,7 @@ describe('BaseChat recipe trust gate', () => {
     expect(screen.getByTestId('chat-input')).toHaveAttribute('data-initial-value', 'RUN_RECIPE');
     invokeAllSubmissionPaths();
     expect(mocks.submitMessage).toHaveBeenCalledTimes(5);
+    expect(mocks.steerMessage).toHaveBeenCalledTimes(1);
   });
 
   it('keeps non-recipe submissions enabled', () => {
@@ -269,7 +287,9 @@ describe('BaseChat recipe trust gate', () => {
 
     expect(screen.getByTestId('chat-input')).toHaveAttribute('data-recipe-accepted', 'true');
     fireEvent.click(screen.getByRole('button', { name: 'chat input' }));
+    fireEvent.click(screen.getByRole('button', { name: 'steer queued message' }));
     act(() => mocks.autoSubmit?.({ msg: 'programmatic submit', images: [] }));
     expect(mocks.submitMessage).toHaveBeenCalledTimes(2);
+    expect(mocks.steerMessage).toHaveBeenCalledTimes(1);
   });
 });
