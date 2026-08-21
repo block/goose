@@ -6,7 +6,7 @@ use crate::tool_call_labels::{generate_tool_chain_summary, generate_tool_title};
 use agent_client_protocol::schema::v1::{
     Meta, SessionId, ToolCallId, ToolCallUpdate, ToolCallUpdateFields,
 };
-use serde_json::{Map, Value, json};
+use serde_json::{json, Map, Value};
 use std::sync::Arc;
 use tokio::spawn;
 

@@ -1,7 +1,7 @@
 use crate::providers::base::Provider;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::{Mutex, mpsc};
+use tokio::sync::{mpsc, Mutex};
 
 /// Type alias for the tool result channel receiver
 pub type ToolResultReceiver = Arc<Mutex<mpsc::Receiver<(String, ToolResult<CallToolResult>)>>>;

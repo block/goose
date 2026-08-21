@@ -8,7 +8,7 @@
 //! it, then add one line to [`agent_request_schemas`].
 
 use goose_sdk_types::custom_requests::{
-    REQUEST_RECIPE_PARAMS_METHOD, RecipeParamsResponse, RequestRecipeParams,
+    RecipeParamsResponse, RequestRecipeParams, REQUEST_RECIPE_PARAMS_METHOD,
 };
 use schemars::{JsonSchema, SchemaGenerator};
 

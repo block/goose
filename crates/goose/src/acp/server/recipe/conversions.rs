@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use goose_sdk_types::custom_requests::{
     RecipeAuthorDto, RecipeDto, RecipeExtensionDto, RecipeParameterDto,
     RecipeParameterInputTypeDto, RecipeParameterRequirementDto, RecipeResponseDto,

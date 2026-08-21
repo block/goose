@@ -1,5 +1,5 @@
 use super::*;
-use crate::session::{DiagnosticsLevel, generate_diagnostics};
+use crate::session::{generate_diagnostics, DiagnosticsLevel};
 
 impl GooseAcpAgent {
     pub(super) async fn on_get_diagnostics(

@@ -1,6 +1,6 @@
 use super::*;
 use crate::config::paths::Paths;
-use crate::goose_apps::{GooseApp, McpAppCache, fetch_mcp_apps, mark_deletable_apps};
+use crate::goose_apps::{fetch_mcp_apps, mark_deletable_apps, GooseApp, McpAppCache};
 
 const APPS_EXTENSION_NAME: &str = "apps";
 
