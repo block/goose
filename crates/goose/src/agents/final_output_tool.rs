@@ -16,8 +16,8 @@ pub(crate) fn structured_output_unsupported_message(provider_name: &str) -> Stri
     format!(
         "This recipe declares a structured `response`, but provider `{provider_name}` can't \
          support it because it never receives goose's built-in `final_output` tool, so the \
-         model can never satisfy this recipe. Remove \
-         `response.json_schema` from the recipe or run it with a different provider."
+         model can never satisfy this recipe. Remove the entire `response` block from the recipe \
+         or run it with a different provider."
     )
 }
 
