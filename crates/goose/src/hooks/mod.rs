@@ -154,8 +154,12 @@ struct RawHookAction {
     command: Option<String>,
     #[serde(default)]
     timeout: Option<u64>,
+    /// Held as raw JSON, not as [`OnFailure`], so that an unrecognized value on
+    /// an entry this loader ignores cannot fail the whole-file parse and take
+    /// every valid hook in the file down with it. It is parsed once a supported
+    /// command action with a command has been selected.
     #[serde(default)]
-    on_failure: OnFailure,
+    on_failure: Option<serde_json::Value>,
 }
 
 /// What a `PreToolUse` action does when its hook cannot produce a decision.
@@ -1019,10 +1023,21 @@ fn load_hooks_file(
                             let timeout = Duration::from_secs(
                                 raw_action.timeout.unwrap_or(DEFAULT_HOOK_TIMEOUT_SECS),
                             );
+                            // Only here does on_failure mean anything: this is an
+                            // action we will actually run. An unrecognized value on
+                            // it stays a configuration error that rejects the file,
+                            // exactly as before.
+                            let on_failure = match raw_action.on_failure {
+                                None => OnFailure::Allow,
+                                Some(value) => serde_json::from_value::<OnFailure>(value)
+                                    .with_context(|| {
+                                        format!("reading on_failure in {}", path.display())
+                                    })?,
+                            };
                             actions.push(LoadedAction::Command {
                                 command: cmd,
                                 timeout,
-                                on_failure: raw_action.on_failure,
+                                on_failure,
                             });
                         }
                     }
@@ -1968,6 +1983,67 @@ mod tests {
             scope: PluginScope::User,
         }]);
         assert!(!mgr.has_hooks(HookEvent::PreToolUse));
+    }
+
+    /// R1. The reported scenario. An unrecognized `on_failure` on an entry under
+    /// an event this loader ignores must not fail the whole-file parse, which
+    /// silently dropped every working hook in the plugin.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn an_unknown_event_with_an_unrecognized_on_failure_keeps_the_file() {
+        let hooks = r#"{"hooks":{
+            "SomeFutureEvent":[{"hooks":[{"type":"command","command":"echo","on_failure":"retry"}]}],
+            "PreToolUse":[{"hooks":[{"type":"command","command":"echo refused by policy >&2; exit 2"}]}]
+        }}"#;
+        let tmp = tempfile::tempdir().unwrap();
+        let root = write_plugin(tmp.path(), "p", hooks);
+
+        let loaded = load_hooks_file(&root.join("hooks").join("hooks.json"), "p", &root)
+            .expect("an ignored event must not reject the file");
+        assert_eq!(loaded[&HookEvent::PreToolUse].len(), 1);
+
+        // Present is not enough: the surviving hook has to actually run.
+        let mgr = make_manager(vec![DiscoveredPlugin {
+            name: "p".into(),
+            root,
+            scope: PluginScope::User,
+        }]);
+        assert!(mgr.has_hooks(HookEvent::PreToolUse));
+        let outcome = mgr
+            .emit_blocking_with_outcome(
+                HookEvent::PreToolUse,
+                blocking_context(HookEvent::PreToolUse),
+            )
+            .await;
+        let HookDecision::Deny { reason, .. } = &outcome.decision else {
+            panic!("the surviving hook must run, got {:?}", outcome.decision);
+        };
+        assert_eq!(reason, "refused by policy");
+    }
+
+    /// R2. `on_failure` is meaningless on an entry the loader ignores, so its
+    /// value is never looked at there, whatever shape it has. Covers both
+    /// remaining ignore paths, an unsupported action type and a command action
+    /// with no command, and pins that a valid sibling still loads.
+    #[test]
+    fn an_ignored_action_with_a_non_string_on_failure_keeps_its_siblings() {
+        let hooks = r#"{"hooks":{"PreToolUse":[{"hooks":[
+            {"type":"webhook","url":"https://example.invalid","on_failure":true},
+            {"type":"command","on_failure":{"mode":"retry"}},
+            {"type":"command","command":"echo","on_failure":"block"}
+        ]}]}}"#;
+        let tmp = tempfile::tempdir().unwrap();
+        let root = write_plugin(tmp.path(), "p", hooks);
+
+        let loaded = load_hooks_file(&root.join("hooks").join("hooks.json"), "p", &root)
+            .expect("an ignored action must not reject the file");
+        let actions = &loaded[&HookEvent::PreToolUse][0].actions;
+        assert_eq!(actions.len(), 1, "only the supported command action loads");
+        assert_eq!(
+            actions[0].on_failure(),
+            OnFailure::Block,
+            "the sibling's own on_failure is still honoured"
+        );
     }
 
     /// Both agent loops call this, so a denial reads the same either way, and a
