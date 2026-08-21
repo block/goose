@@ -1,6 +1,56 @@
 use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
+#[cfg(all(feature = "system-keyring", unix, not(target_os = "redox")))]
+use std::ffi::CStr;
 use std::ffi::OsString;
+#[cfg(all(feature = "system-keyring", unix, not(target_os = "redox")))]
+use std::mem::MaybeUninit;
+#[cfg(all(feature = "system-keyring", unix, not(target_os = "redox")))]
+use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
+#[cfg(all(feature = "system-keyring", unix, not(target_os = "redox")))]
+use std::ptr;
+
+#[cfg(all(feature = "system-keyring", unix, not(target_os = "redox")))]
+fn os_user_home_dir() -> Option<PathBuf> {
+    // SAFETY: sysconf reads a process-global constant and does not dereference pointers.
+    let buffer_size = unsafe { libc::sysconf(libc::_SC_GETPW_R_SIZE_MAX) };
+    let buffer_size = if buffer_size < 0 {
+        512
+    } else {
+        buffer_size as usize
+    };
+    let mut buffer = vec![0_u8; buffer_size];
+    let mut passwd = MaybeUninit::<libc::passwd>::uninit();
+    let mut result = ptr::null_mut();
+
+    // SAFETY: passwd and buffer are valid writable allocations for the duration of the call.
+    let status = unsafe {
+        libc::getpwuid_r(
+            libc::getuid(),
+            passwd.as_mut_ptr(),
+            buffer.as_mut_ptr().cast(),
+            buffer.len(),
+            &mut result,
+        )
+    };
+    if status != 0 || result.is_null() {
+        return None;
+    }
+
+    // SAFETY: a successful getpwuid_r initialized passwd.
+    let passwd = unsafe { passwd.assume_init() };
+    if passwd.pw_dir.is_null() {
+        return None;
+    }
+    // SAFETY: pw_dir is a non-null, null-terminated string owned by passwd's buffer.
+    let bytes = unsafe { CStr::from_ptr(passwd.pw_dir) }.to_bytes();
+    (!bytes.is_empty()).then(|| PathBuf::from(OsString::from_vec(bytes.to_vec())))
+}
+
+#[cfg(all(feature = "system-keyring", any(not(unix), target_os = "redox")))]
+fn os_user_home_dir() -> Option<PathBuf> {
+    dirs::home_dir()
+}
 
 pub struct Paths;
 
@@ -54,8 +104,8 @@ impl Paths {
     }
 
     #[cfg(feature = "system-keyring")]
-    pub(crate) fn default_home_dir() -> PathBuf {
-        Self::app_strategy().home_dir().to_path_buf()
+    pub(crate) fn os_user_home_dir() -> PathBuf {
+        os_user_home_dir().expect("goose requires an OS user home dir")
     }
 
     pub fn data_dir() -> PathBuf {
