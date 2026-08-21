@@ -171,6 +171,14 @@ fn with_raw_extensions_mapping<F>(config: &Config, mutate: F)
 where
     F: FnOnce(&mut IndexMap<String, ExtensionEntry>) -> ExtensionMutation,
 {
+    let _guard = EXTENSION_MUTATION_GUARD.lock().unwrap();
+    let _file_guard = match config.lock_extension_mutation() {
+        Ok(guard) => guard,
+        Err(e) => {
+            warn!("Failed to lock extensions config: {}", e);
+            return;
+        }
+    };
     let mut serialize_error = None;
     let result = config.update_param::<Mapping, Mapping, _>(EXTENSIONS_CONFIG_KEY, |mut raw| {
         let mut extensions = parse_extensions_map(&raw);
@@ -988,6 +996,87 @@ extensions:
             (description.as_str(), secret.as_str()),
             ("first description", "first-secret") | ("second description", "second-secret")
         ));
+    }
+
+    #[test]
+    fn extension_mutation_subprocess() {
+        let Ok(config_path) = std::env::var("GOOSE_TEST_EXTENSION_CONFIG_PATH") else {
+            return;
+        };
+        let secrets_path = std::env::var("GOOSE_TEST_EXTENSION_SECRETS_PATH").unwrap();
+        let ready_path = std::env::var("GOOSE_TEST_EXTENSION_READY_PATH").unwrap();
+        let operation = std::env::var("GOOSE_TEST_EXTENSION_OPERATION").unwrap();
+        let config = Config::new_with_file_secrets(config_path, secrets_path).unwrap();
+        std::fs::write(ready_path, "ready").unwrap();
+
+        match operation.as_str() {
+            "set" => set_extension_with_config(&config, builtin_entry("independent", true)),
+            "remove" => remove_extension_with_config(&config, "initial"),
+            "enable" => assert!(set_extension_enabled_with_config(&config, "initial", false)),
+            other => panic!("unknown operation {other}"),
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_all_persistent_mutations_share_add_transaction_lock() {
+        for operation in ["set", "remove", "enable"] {
+            let directory = tempfile::tempdir().unwrap();
+            let config_path = directory.path().join("config.yaml");
+            let secrets_path = directory.path().join("secrets.yaml");
+            let ready_path = directory.path().join("ready");
+            std::fs::write(&config_path, "").unwrap();
+            std::fs::write(&secrets_path, "{}\n").unwrap();
+            let config = Config::new_with_file_secrets(&config_path, &secrets_path).unwrap();
+            add_extension_with_config(&config, builtin_entry("initial", true)).unwrap();
+
+            let file_guard = config.lock_extension_mutation().unwrap();
+            let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+                .arg("--exact")
+                .arg("config::extensions::tests::extension_mutation_subprocess")
+                .arg("--nocapture")
+                .env("GOOSE_TEST_EXTENSION_CONFIG_PATH", &config_path)
+                .env("GOOSE_TEST_EXTENSION_SECRETS_PATH", &secrets_path)
+                .env("GOOSE_TEST_EXTENSION_READY_PATH", &ready_path)
+                .env("GOOSE_TEST_EXTENSION_OPERATION", operation)
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .unwrap();
+
+            for _ in 0..500 {
+                if ready_path.exists() {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            assert!(ready_path.exists(), "{operation} subprocess did not start");
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            assert!(
+                child.try_wait().unwrap().is_none(),
+                "{operation} mutation bypassed the transaction lock"
+            );
+
+            add_extension_with_config_locked(&config, builtin_entry("transactional", true))
+                .unwrap();
+            drop(file_guard);
+            let output = child.wait_with_output().unwrap();
+            assert!(
+                output.status.success(),
+                "{operation} subprocess failed:\nstdout: {}\nstderr: {}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+
+            let extensions = get_extensions_map_with_config(&config);
+            assert!(extensions.contains_key("transactional"));
+            match operation {
+                "set" => assert!(extensions.contains_key("independent")),
+                "remove" => assert!(!extensions.contains_key("initial")),
+                "enable" => assert!(!extensions["initial"].enabled),
+                _ => unreachable!(),
+            }
+        }
     }
 
     #[test]
