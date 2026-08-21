@@ -1151,9 +1151,6 @@ impl Config {
     #[cfg(feature = "system-keyring")]
     fn write_secrets_to_file(&self, values: &HashMap<String, Value>) -> Result<(), ConfigError> {
         let fallback_path = self.secrets_file_path();
-        if let Some(parent) = fallback_path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
         let yaml_value = serde_yaml::to_string(values)?;
         write_secrets_file(fallback_path, &yaml_value)?;
         Ok(())
