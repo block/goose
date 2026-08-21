@@ -5,6 +5,18 @@ use std::path::PathBuf;
 pub struct Paths;
 
 impl Paths {
+    fn app_strategy() -> impl AppStrategy {
+        // NOTE: "Block" is kept here for backwards compatibility with existing
+        // user config/data directories (e.g. ~/Library/Application Support/Block/goose/).
+        // Changing this would orphan existing installations.
+        choose_app_strategy(AppStrategyArgs {
+            top_level_domain: "Block".to_string(),
+            author: "Block".to_string(),
+            app_name: "goose".to_string(),
+        })
+        .expect("goose requires a home dir")
+    }
+
     fn get_dir(dir_type: DirType) -> PathBuf {
         if let Some(base) = Self::path_root() {
             match dir_type {
@@ -16,15 +28,7 @@ impl Paths {
                 DirType::AgentsHome => base.join(".agents"),
             }
         } else {
-            // NOTE: "Block" is kept here for backwards compatibility with existing
-            // user config/data directories (e.g. ~/Library/Application Support/Block/goose/).
-            // Changing this would orphan existing installations.
-            let strategy = choose_app_strategy(AppStrategyArgs {
-                top_level_domain: "Block".to_string(),
-                author: "Block".to_string(),
-                app_name: "goose".to_string(),
-            })
-            .expect("goose requires a home dir");
+            let strategy = Self::app_strategy();
 
             match dir_type {
                 DirType::Config => strategy.config_dir(),
@@ -47,6 +51,10 @@ impl Paths {
 
     pub fn config_dir() -> PathBuf {
         Self::get_dir(DirType::Config)
+    }
+
+    pub(crate) fn default_config_dir() -> PathBuf {
+        Self::app_strategy().config_dir()
     }
 
     pub fn data_dir() -> PathBuf {
