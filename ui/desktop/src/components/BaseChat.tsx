@@ -90,7 +90,10 @@ export default function BaseChat({
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const disableAnimation = location.state?.disableAnimation || false;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
-  const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>();
+  const [recipeTrust, setRecipeTrust] = useState<{
+    identity: string;
+    accepted: boolean;
+  }>();
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
   const [acpRecovering, setAcpRecovering] = useState(isAcpRecovering);
   const isMobile = useIsMobile();
@@ -109,7 +112,7 @@ export default function BaseChat({
     chatState,
     progressMessage,
     updateSession,
-    handleSubmit,
+    handleSubmit: submitMessage,
     onSteerQueuedMessage,
     submitElicitationResponse,
     stopStreaming,
@@ -141,6 +144,19 @@ export default function BaseChat({
   );
 
   const recipe = session?.recipe as Recipe | null | undefined;
+  const recipeIdentity = recipe ? JSON.stringify(recipe) : undefined;
+  const acceptedCurrentRecipe =
+    recipeTrust && recipeTrust.identity === recipeIdentity ? recipeTrust.accepted : undefined;
+  const recipeAccepted =
+    session?.session_type === 'scheduled' || !recipe || acceptedCurrentRecipe === true;
+  const handleSubmit = useCallback(
+    (input: UserInput) => {
+      if (recipeAccepted) {
+        submitMessage(input);
+      }
+    },
+    [recipeAccepted, submitMessage]
+  );
 
   const resolvedInitialMessage = useMemo((): UserInput | undefined => {
     if (!initialMessage) return undefined;
@@ -157,10 +173,7 @@ export default function BaseChat({
   // (goose://new-session?prompt=...). Once the conversation has messages, later flows
   // such as forks or resumes should auto-submit normally.
   const suppressInitialAutoSubmit = noAutoSubmit && messages.length === 0;
-  const canAutoSubmit =
-    !acpRecovering &&
-    !suppressInitialAutoSubmit &&
-    (session?.session_type === 'scheduled' || !recipe || hasNotAcceptedRecipe === false);
+  const canAutoSubmit = !acpRecovering && !suppressInitialAutoSubmit && recipeAccepted;
 
   useAutoSubmit({
     sessionId,
@@ -237,23 +250,33 @@ export default function BaseChat({
   }, [messages]);
 
   useEffect(() => {
-    if (!recipe || !isActiveSession || session?.session_type === 'scheduled') return;
+    setRecipeTrust(undefined);
+    setHasRecipeSecurityWarnings(false);
 
-    (async () => {
+    if (!recipe || !recipeIdentity || !isActiveSession || session?.session_type === 'scheduled')
+      return;
+    let cancelled = false;
+
+    void (async () => {
       const accepted = await window.electron.hasAcceptedRecipeBefore(recipe);
-      setHasNotAcceptedRecipe(!accepted);
+      if (cancelled) return;
+      setRecipeTrust({ identity: recipeIdentity, accepted });
 
       if (!accepted) {
         const scanResult = await scanRecipe(recipe);
-        setHasRecipeSecurityWarnings(scanResult.has_security_warnings);
+        if (!cancelled) setHasRecipeSecurityWarnings(scanResult.has_security_warnings);
       }
     })();
-  }, [recipe, isActiveSession, session?.session_type]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [recipe, recipeIdentity, isActiveSession, session?.session_type]);
 
   const handleRecipeAccept = async (accept: boolean) => {
     if (recipe && accept) {
       await window.electron.recordRecipeHash(recipe);
-      setHasNotAcceptedRecipe(false);
+      if (recipeIdentity) setRecipeTrust({ identity: recipeIdentity, accepted: true });
       return;
     }
 
@@ -519,7 +542,7 @@ export default function BaseChat({
             pauseQueueOnStop={pauseQueueOnStop}
             queueProcessingBlocked={queueProcessingBlocked || acpRecovering}
             commandHistory={commandHistory}
-            initialValue={initialPrompt}
+            initialValue={recipeAccepted ? initialPrompt : ''}
             setView={setView}
             totalTokens={tokenState?.totalTokens ?? session?.usage?.total_tokens ?? undefined}
             contextLimit={tokenState?.contextLimit}
@@ -539,7 +562,7 @@ export default function BaseChat({
             messages={messages}
             disableAnimation={disableAnimation}
             recipe={recipe}
-            recipeAccepted={!hasNotAcceptedRecipe}
+            recipeAccepted={recipeAccepted}
             initialPrompt={initialPrompt}
             sessionModel={sessionModel}
             sessionProvider={sessionProvider}
@@ -554,7 +577,7 @@ export default function BaseChat({
 
       {recipe && isActiveSession && session?.session_type !== 'scheduled' && (
         <RecipeWarningModal
-          isOpen={!!hasNotAcceptedRecipe}
+          isOpen={acceptedCurrentRecipe === false}
           onConfirm={() => handleRecipeAccept(true)}
           onCancel={() => handleRecipeAccept(false)}
           recipeDetails={{
