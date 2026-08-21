@@ -258,8 +258,35 @@ fn add_extension_with_secrets_with_config(
 ) -> Result<(), ExtensionAddError> {
     let _guard = EXTENSION_MUTATION_GUARD.lock().unwrap();
     validate_extension_add_with_config(config, &entry)?;
-    config.set_secret_values(secret_updates)?;
-    add_extension_with_config_locked(config, entry)
+    persist_with_secret_updates(config, secret_updates, || {
+        add_extension_with_config_locked(config, entry)
+    })
+}
+
+fn persist_with_secret_updates<E>(
+    config: &Config,
+    secret_updates: &[(String, serde_json::Value)],
+    persist: impl FnOnce() -> Result<(), E>,
+) -> Result<(), E>
+where
+    E: From<ConfigError>,
+{
+    if secret_updates.is_empty() {
+        return persist();
+    }
+
+    let existing = config.all_secrets().map_err(E::from)?;
+    let snapshot = secret_updates
+        .iter()
+        .map(|(key, _)| (key.clone(), existing.get(key).cloned()))
+        .collect::<Vec<_>>();
+    config.set_secret_values(secret_updates).map_err(E::from)?;
+
+    if let Err(error) = persist() {
+        config.restore_secret_values(&snapshot).map_err(E::from)?;
+        return Err(error);
+    }
+    Ok(())
 }
 
 fn add_extension_with_config_locked(
@@ -337,8 +364,9 @@ fn update_extension_with_secrets_with_config(
 ) -> Result<(), ExtensionUpdateError> {
     let _guard = EXTENSION_MUTATION_GUARD.lock().unwrap();
     validate_extension_update_with_config(config, key, &entry)?;
-    config.set_secret_values(secret_updates)?;
-    update_extension_with_config_locked(config, key, entry)
+    persist_with_secret_updates(config, secret_updates, || {
+        update_extension_with_config_locked(config, key, entry)
+    })
 }
 
 fn update_extension_with_config_locked(
@@ -956,6 +984,55 @@ extensions:
             (description.as_str(), secret.as_str()),
             ("first description", "first-secret") | ("second description", "second-secret")
         ));
+    }
+
+    #[test]
+    fn test_update_restores_secrets_when_config_write_fails() {
+        let base_file = NamedTempFile::new().unwrap();
+        let invalid_write_path = tempfile::tempdir().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        std::fs::write(
+            base_file.path(),
+            r#"
+extensions:
+  shared:
+    enabled: true
+    type: builtin
+    name: shared
+    description: original description
+    display_name: Shared
+"#,
+        )
+        .unwrap();
+        let config = Config::new_with_config_paths(
+            vec![
+                base_file.path().to_path_buf(),
+                invalid_write_path.path().to_path_buf(),
+            ],
+            secrets_file.path(),
+        )
+        .unwrap();
+        config
+            .set_secret("SHARED_TOKEN", &"original-secret")
+            .unwrap();
+        let updates = [(
+            "SHARED_TOKEN".to_string(),
+            serde_json::Value::String("rejected-secret".to_string()),
+        )];
+
+        let error = update_extension_with_secrets_with_config(
+            &config,
+            "shared",
+            builtin_entry("shared", false),
+            &updates,
+        )
+        .unwrap_err();
+
+        assert!(matches!(error, ExtensionUpdateError::Config(_)));
+        assert_eq!(
+            config.get_secret::<String>("SHARED_TOKEN").unwrap(),
+            "original-secret"
+        );
     }
 
     #[test]

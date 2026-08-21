@@ -1039,6 +1039,21 @@ impl Config {
         })
     }
 
+    pub(crate) fn restore_secret_values(
+        &self,
+        snapshot: &[(String, Option<Value>)],
+    ) -> Result<(), ConfigError> {
+        self.mutate_secrets(|values| {
+            for (key, value) in snapshot {
+                if let Some(value) = value {
+                    values.insert(key.clone(), value.clone());
+                } else {
+                    values.remove(key);
+                }
+            }
+        })
+    }
+
     /// Delete a secret from the system keyring.
     ///
     /// This will remove the specified key from the JSON object in the system keyring.
