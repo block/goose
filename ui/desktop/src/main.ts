@@ -106,6 +106,7 @@ const MENU_TRANSLATIONS_ZH_CN: Record<string, string> = {
   'Recent Directories': '最近的目录',
   'Focus Goose Window': '聚焦 Goose 窗口',
   'Quick Launcher': '快速启动器',
+  'Restart Goose': '重新启动 Goose',
   'Always on Top': '窗口置顶',
   'Toggle Navigation': '切换导航',
   'About Goose': '关于 Goose',
@@ -2709,6 +2710,16 @@ async function appMain() {
         })
       );
     }
+
+    fileMenu.submenu.append(
+      new MenuItem({
+        label: menuT('Restart Goose'),
+        click() {
+          app.relaunch();
+          app.exit(0);
+        },
+      })
+    );
   }
 
   if (menu) {
