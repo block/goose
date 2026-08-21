@@ -75,11 +75,13 @@ vi.mock('./ChatInput', () => ({
     onSteerQueuedMessage,
     initialValue,
     recipeAccepted,
+    queueProcessingBlocked,
   }: {
     handleSubmit: (input: UserInput) => void;
     onSteerQueuedMessage?: (input: UserInput) => Promise<boolean>;
     initialValue?: string;
     recipeAccepted?: boolean;
+    queueProcessingBlocked?: boolean;
   }) => (
     <>
       <button
@@ -87,6 +89,7 @@ vi.mock('./ChatInput', () => ({
         data-testid="chat-input"
         data-initial-value={initialValue ?? ''}
         data-recipe-accepted={String(recipeAccepted)}
+        data-queue-processing-blocked={String(queueProcessingBlocked)}
         onClick={() => handleSubmit({ msg: 'chat input', images: [] })}
       >
         chat input
@@ -209,6 +212,10 @@ describe('BaseChat recipe trust gate', () => {
 
     expect(screen.getByTestId('chat-input')).toHaveAttribute('data-initial-value', '');
     expect(screen.getByTestId('chat-input')).toHaveAttribute('data-recipe-accepted', 'false');
+    expect(screen.getByTestId('chat-input')).toHaveAttribute(
+      'data-queue-processing-blocked',
+      'true'
+    );
     expect(screen.getByTestId('recipe-warning')).toHaveAttribute('data-open', 'false');
     invokeAllSubmissionPaths();
     expect(mocks.submitMessage).not.toHaveBeenCalled();
@@ -221,6 +228,10 @@ describe('BaseChat recipe trust gate', () => {
 
     expect(screen.getByTestId('chat-input')).toHaveAttribute('data-initial-value', '');
     expect(screen.getByTestId('chat-input')).toHaveAttribute('data-recipe-accepted', 'false');
+    expect(screen.getByTestId('chat-input')).toHaveAttribute(
+      'data-queue-processing-blocked',
+      'true'
+    );
     invokeAllSubmissionPaths();
     expect(mocks.submitMessage).not.toHaveBeenCalled();
     expect(mocks.steerMessage).not.toHaveBeenCalled();
@@ -234,6 +245,10 @@ describe('BaseChat recipe trust gate', () => {
       expect(screen.getByTestId('chat-input')).toHaveAttribute('data-recipe-accepted', 'true')
     );
     expect(screen.getByTestId('chat-input')).toHaveAttribute('data-initial-value', 'RUN_RECIPE');
+    expect(screen.getByTestId('chat-input')).toHaveAttribute(
+      'data-queue-processing-blocked',
+      'false'
+    );
 
     invokeAllSubmissionPaths();
 
@@ -263,6 +278,10 @@ describe('BaseChat recipe trust gate', () => {
     );
 
     expect(screen.getByTestId('chat-input')).toHaveAttribute('data-recipe-accepted', 'false');
+    expect(screen.getByTestId('chat-input')).toHaveAttribute(
+      'data-queue-processing-blocked',
+      'true'
+    );
     expect(screen.getByTestId('chat-input')).toHaveAttribute('data-initial-value', '');
     invokeAllSubmissionPaths();
     expect(mocks.submitMessage).not.toHaveBeenCalled();
@@ -276,6 +295,10 @@ describe('BaseChat recipe trust gate', () => {
     expect(mocks.hasAcceptedRecipeBefore).not.toHaveBeenCalled();
     expect(screen.getByTestId('chat-input')).toHaveAttribute('data-recipe-accepted', 'true');
     expect(screen.getByTestId('chat-input')).toHaveAttribute('data-initial-value', 'RUN_RECIPE');
+    expect(screen.getByTestId('chat-input')).toHaveAttribute(
+      'data-queue-processing-blocked',
+      'false'
+    );
     invokeAllSubmissionPaths();
     expect(mocks.submitMessage).toHaveBeenCalledTimes(5);
     expect(mocks.steerMessage).toHaveBeenCalledTimes(1);
@@ -286,6 +309,10 @@ describe('BaseChat recipe trust gate', () => {
     renderBaseChat();
 
     expect(screen.getByTestId('chat-input')).toHaveAttribute('data-recipe-accepted', 'true');
+    expect(screen.getByTestId('chat-input')).toHaveAttribute(
+      'data-queue-processing-blocked',
+      'false'
+    );
     fireEvent.click(screen.getByRole('button', { name: 'chat input' }));
     fireEvent.click(screen.getByRole('button', { name: 'steer queued message' }));
     act(() => mocks.autoSubmit?.({ msg: 'programmatic submit', images: [] }));

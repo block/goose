@@ -549,7 +549,7 @@ export default function BaseChat({
             onStop={stopStreaming}
             onSteerQueuedMessage={handleSteerQueuedMessage}
             pauseQueueOnStop={pauseQueueOnStop}
-            queueProcessingBlocked={queueProcessingBlocked || acpRecovering}
+            queueProcessingBlocked={queueProcessingBlocked || acpRecovering || !recipeAccepted}
             commandHistory={commandHistory}
             initialValue={recipeAccepted ? initialPrompt : ''}
             setView={setView}
