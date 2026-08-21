@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import {
-  channelMatchesIssue,
+  bestMatchingIssueChannels,
   readCoreTeam,
   repositoryFromIssueUrl,
 } from "./github_manager.mjs";
@@ -83,9 +83,7 @@ if (existingChannels.length >= options.channelLimit) {
       "--channel-limit boundary. Raise the limit.",
   );
 }
-const matchingChannels = existingChannels.filter((channel) =>
-  channelMatchesIssue(channel, issue),
-);
+const matchingChannels = bestMatchingIssueChannels(existingChannels, issue);
 if (matchingChannels.length > 1) {
   fail(
     `More than one channel matches ${JSON.stringify(channelPrefix)}. Refusing to choose one.`,
@@ -368,7 +366,10 @@ function getIssue() {
   }
 
   const issue = runJson(gh, arguments_);
-  const repository = repositoryFromIssueUrl(issue.url) || options.repository;
+  const repository = repositoryFromIssueUrl(issue.url);
+  if (!repository) {
+    fail(`${issue.url || options.issue} is not a GitHub issue.`);
+  }
   return { ...issue, repository };
 }
 

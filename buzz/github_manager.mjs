@@ -1,5 +1,106 @@
 import { readFileSync } from "node:fs";
 
+export function getProjectIssues(
+  runJson,
+  { command, projectNumber, projectOwner, projectLimit, repository },
+) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const project = runJson(command, [
+      "project",
+      "item-list",
+      String(projectNumber),
+      "--owner",
+      projectOwner,
+      "--limit",
+      String(projectLimit),
+      "--format",
+      "json",
+    ]);
+    if (!Number.isSafeInteger(project.totalCount) || !Array.isArray(project.items)) {
+      throw new Error("GitHub returned an invalid project item list.");
+    }
+    if (project.totalCount > projectLimit) {
+      throw new Error(
+        `GitHub reports ${project.totalCount} project items. Raise --project-limit.`,
+      );
+    }
+    if (project.items.length === project.totalCount) {
+      return {
+        project,
+        byNumber: new Map(
+          project.items
+            .filter(
+              (item) =>
+                item.content?.type === "Issue" &&
+                item.content.repository === repository,
+            )
+            .map((item) => [item.content.number, item]),
+        ),
+      };
+    }
+    if (attempt === 1) {
+      throw new Error(
+        `Expected ${project.totalCount} project items but received ${project.items.length}.`,
+      );
+    }
+  }
+}
+
+export function getOpenIssues(runJson, { command, repository }) {
+  const pages = runJson(command, [
+    "api",
+    "--paginate",
+    "--slurp",
+    `repos/${repository}/issues?state=open&per_page=100`,
+  ]);
+  if (!Array.isArray(pages) || pages.some((page) => !Array.isArray(page))) {
+    throw new Error("GitHub returned an invalid paginated issue response.");
+  }
+  return pages
+    .flat()
+    .filter((issue) => !issue.pull_request)
+    .map((issue) => ({
+      number: issue.number,
+      title: issue.title,
+      url: issue.html_url,
+      repository,
+      assignees: (issue.assignees || []).map((assignee) => ({
+        login: assignee.login,
+      })),
+    }));
+}
+
+export function selectRecentQueueEntries(messages, count, linksFromMessage) {
+  const ignored = messages
+    .filter((message) => !Number.isSafeInteger(message.created_at))
+    .map((message) => ({
+      message_id: message.id || null,
+      reason: "invalid-created-at",
+    }));
+  const allEntries = messages
+    .filter((message) => Number.isSafeInteger(message.created_at))
+    .sort(
+      (left, right) =>
+        left.created_at - right.created_at ||
+        String(left.id || "").localeCompare(String(right.id || "")),
+    )
+    .flatMap((message) =>
+      linksFromMessage(message).map((link) => ({ message, link })),
+    );
+  const deferredCount = Math.max(0, allEntries.length - count);
+  ignored.push(
+    ...allEntries.slice(0, deferredCount).map(({ message, link }) => ({
+      message_id: message.id,
+      link,
+      reason: "outside-recent-window",
+    })),
+  );
+  return {
+    entries: allEntries.slice(deferredCount),
+    ignored,
+  };
+}
+
 export function readCoreTeam(path) {
   let document;
   try {
@@ -103,14 +204,17 @@ function person(entry, role, path) {
 }
 
 export function issueReferenceFromChannel(channel) {
-  const description = channel.about || channel.description || "";
+  const description = [channel.about, channel.description]
+    .filter((value) => typeof value === "string" && value)
+    .join("\n");
   const url = description.match(
-    /https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/issues\/([1-9]\d*)/i,
+    /https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/(issues|pull)\/([1-9]\d*)/i,
   );
   if (url) {
     return {
       repository: `${url[1]}/${url[2]}`,
-      number: Number.parseInt(url[3], 10),
+      number: Number.parseInt(url[4], 10),
+      kind: url[3].toLowerCase() === "issues" ? "issue" : "pull-request",
       source: "description",
     };
   }
@@ -121,6 +225,7 @@ export function issueReferenceFromChannel(channel) {
     return {
       repository: legacy[1],
       number: Number.parseInt(legacy[2], 10),
+      kind: null,
       source: "legacy-name",
     };
   }
@@ -130,6 +235,7 @@ export function issueReferenceFromChannel(channel) {
     ? {
         repository: null,
         number: Number.parseInt(canonical[1], 10),
+        kind: null,
         source: "name",
       }
     : null;
@@ -137,13 +243,40 @@ export function issueReferenceFromChannel(channel) {
 
 export function channelMatchesIssue(channel, issue) {
   const reference = issueReferenceFromChannel(channel);
-  if (!reference || reference.number !== issue.number) {
+  if (
+    !reference ||
+    reference.kind === "pull-request" ||
+    reference.number !== issue.number
+  ) {
     return false;
   }
   return (
     !reference.repository ||
     reference.repository.toLowerCase() === issue.repository.toLowerCase()
   );
+}
+
+export function bestMatchingIssueChannels(channels, issue) {
+  const matches = channels
+    .filter((channel) => channelMatchesIssue(channel, issue))
+    .map((channel) => ({
+      channel,
+      rank: issueReferenceRank(issueReferenceFromChannel(channel)),
+    }));
+  const bestRank = Math.max(0, ...matches.map((match) => match.rank));
+  return matches
+    .filter((match) => match.rank === bestRank)
+    .map((match) => match.channel);
+}
+
+export function issueReferenceRank(reference) {
+  if (reference?.source === "description") {
+    return 3;
+  }
+  if (reference?.source === "legacy-name") {
+    return 2;
+  }
+  return reference ? 1 : 0;
 }
 
 export function repositoryFromIssueUrl(url) {

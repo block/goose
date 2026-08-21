@@ -207,8 +207,8 @@ Lists unassigned issues in the project's Inbox and open issues linked from the
 Buzz `issues to add` channel. A queue entry can contain a Goose issue or pull
 request URL, or just `#<issue number>`. Queue entries with an existing issue
 channel are treated as processed. Pull request links resolve to their issue when
-GitHub reports exactly one closing issue. The JSON also includes the core team, GitHub
-handles, Buzz public keys, interests, and assignment capacity so a Goose recipe
+GitHub reports exactly one closing issue. The JSON also includes the core team,
+GitHub handles, Buzz public keys, interests, and assignment capacity so a Goose recipe
 can select an owner. `recent_assignment_load` counts core-team assignees across
 the 100 most recently created issues, including closed issues. Phase and issue
 age do not affect the count. It does not change GitHub or Buzz.
@@ -227,7 +227,9 @@ recipe.
 
 Only the 20 most recent issue or pull-request links in the queue are considered.
 Conversation without GitHub links does not consume that limit. Use
-`--queue-count` to change it.
+`--queue-count` to change it. Older links are reported with
+`outside-recent-window`; messages without a valid timestamp are reported with
+`invalid-created-at`.
 
 Queue authors are only returned as `queue_requesters` when their public key is
 present in `core-team.json`. Other authors are reported as
@@ -240,7 +242,8 @@ the GitHub URL in their description, and synchronizes the project phase and
 assignees to the channel topic. Active and archived channels use the same
 matching rules. Legacy number-only channels are checked against GitHub so pull
 request channels are reported and skipped instead of being treated as closed
-issues:
+issues. When more than one name points at an issue, an explicit GitHub issue URL
+in the channel description wins over a legacy or bare numeric name:
 
 | GitHub phase | Buzz topic marker |
 | --- | --- |
@@ -283,6 +286,9 @@ to the Github Manager key as
 `issue-comment-sync-<owner>-<repository>.json`, with mode `0600`. A dry run reads
 the cursor and reports `would-notify` actions without posting messages or
 advancing it.
+
+Run the local Buzz checks with `just test-buzz`. The same checks run in GitHub
+Actions when the Buzz automation changes.
 
 Snooze notifications have a separate
 `issue-snooze-sync-<owner>-<repository>.json` state file in the same directory.

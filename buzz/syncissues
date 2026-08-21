@@ -15,7 +15,10 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import {
+  getOpenIssues,
+  getProjectIssues,
   issueReferenceFromChannel,
+  issueReferenceRank,
   readCoreTeam,
 } from "./github_manager.mjs";
 
@@ -75,8 +78,8 @@ const buzzEnvironment = {
 };
 const coreTeam = readCoreTeamOrFail();
 const coreTeamByGithub = coreTeam.byGithub;
-const projectItemsByIssueNumber = getProjectItems();
-const openIssues = getOpenIssues();
+const { byNumber: projectItemsByIssueNumber } = getProjectIssuesOrFail();
+const openIssues = getOpenIssuesOrFail();
 const openIssueCount = openIssues.length;
 
 const openIssuesByNumber = new Map(
@@ -88,6 +91,7 @@ const results = [];
 const channelsByIssueNumber = new Map();
 const channelOwnership = new Map();
 const githubItemKinds = new Map();
+const selectedChannels = new Map();
 
 for (const channel of channels) {
   const resolved = resolveChannel(channel);
@@ -104,11 +108,31 @@ for (const channel of channels) {
     });
     continue;
   }
-  const issueNumber = resolved.number;
-
-  if (channelsByIssueNumber.has(issueNumber)) {
-    fail(`More than one Buzz channel matches GitHub issue #${issueNumber}.`);
+  const selected = selectedChannels.get(resolved.number);
+  if (!selected) {
+    selectedChannels.set(resolved.number, { channel, resolved });
+    continue;
   }
+  if (selected.resolved.rank === resolved.rank) {
+    fail(`More than one Buzz channel matches GitHub issue #${resolved.number}.`);
+  }
+  const ignored =
+    selected.resolved.rank > resolved.rank ? channel : selected.channel;
+  results.push({
+    channel_id: ignored.channel_id,
+    channel: ignored.name,
+    issue: resolved.number,
+    state: "IGNORED",
+    actions: ["skipped"],
+    reason: "A more specific issue channel exists",
+  });
+  if (resolved.rank > selected.resolved.rank) {
+    selectedChannels.set(resolved.number, { channel, resolved });
+  }
+}
+
+for (const { channel, resolved } of selectedChannels.values()) {
+  const issueNumber = resolved.number;
   channelsByIssueNumber.set(issueNumber, channel);
 
   const details = detailsByChannelId.get(channel.channel_id);
@@ -351,66 +375,29 @@ function positiveInteger(value, option) {
   return parsed;
 }
 
-function getProjectItems() {
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const project = runJson(gh, [
-      "project",
-      "item-list",
-      String(options.projectNumber),
-      "--owner",
-      options.projectOwner,
-      "--limit",
-      String(options.projectLimit),
-      "--format",
-      "json",
-    ]);
-    if (!Number.isSafeInteger(project.totalCount) || !Array.isArray(project.items)) {
-      fail("GitHub returned an invalid project item list.");
-    }
-    if (project.totalCount > options.projectLimit) {
-      fail(
-        `GitHub reports ${project.totalCount} project items. Raise --project-limit.`,
-      );
-    }
-    if (project.items.length === project.totalCount) {
-      return new Map(
-        project.items
-          .filter(
-            (item) =>
-              item.content?.type === "Issue" &&
-              item.content.repository === options.repository,
-          )
-          .map((item) => [item.content.number, item]),
-      );
-    }
-    if (attempt === 1) {
-      fail(
-        `Expected ${project.totalCount} project items but received ${project.items.length}.`,
-      );
-    }
+function getProjectIssuesOrFail() {
+  try {
+    return getProjectIssues(runJson, {
+      command: gh,
+      projectNumber: options.projectNumber,
+      projectOwner: options.projectOwner,
+      projectLimit: options.projectLimit,
+      repository: options.repository,
+    });
+  } catch (error) {
+    fail(error.message);
   }
 }
 
-function getOpenIssues() {
-  const pages = runJson(gh, [
-    "api",
-    "--paginate",
-    "--slurp",
-    `repos/${options.repository}/issues?state=open&per_page=100`,
-  ]);
-  if (!Array.isArray(pages) || pages.some((page) => !Array.isArray(page))) {
-    fail("GitHub returned an invalid paginated issue response.");
-  }
-  return pages
-    .flat()
-    .filter((issue) => !issue.pull_request)
-    .map((issue) => ({
-      number: issue.number,
-      title: issue.title,
-      url: issue.html_url,
+function getOpenIssuesOrFail() {
+  try {
+    return getOpenIssues(runJson, {
+      command: gh,
       repository: options.repository,
-      assignees: issue.assignees || [],
-    }));
+    });
+  } catch (error) {
+    fail(error.message);
+  }
 }
 
 function readCoreTeamOrFail() {
@@ -477,17 +464,21 @@ function resolveChannel(channel) {
       reason: `Channel belongs to ${reference.repository}#${reference.number}`,
     };
   }
+  if (reference.kind === "pull-request") {
+    return { reason: `#${reference.number} is a pull request, not an issue` };
+  }
+  const rank = issueReferenceRank(reference);
   if (
     reference.source === "description" ||
     projectItemsByIssueNumber.has(reference.number) ||
     openIssuesByNumber.has(reference.number)
   ) {
-    return { number: reference.number };
+    return { number: reference.number, rank };
   }
 
   const kind = githubItemKind(reference.number);
   return kind === "issue"
-    ? { number: reference.number }
+    ? { number: reference.number, rank }
     : {
         reason:
           kind === "pull-request"
