@@ -74,15 +74,19 @@ pub struct Check {
 impl Check {
     /// Read and parse a check file from disk.
     pub fn from_path(path: &Path) -> Result<Self> {
+        let content = Self::read_content(path)?;
+        Self::parse(&content, path)
+    }
+
+    fn read_content(path: &Path) -> Result<String> {
         let parent = path
             .parent()
             .ok_or_else(|| anyhow!("check {}: invalid path", path.display()))?;
         let file_name = path
             .file_name()
             .ok_or_else(|| anyhow!("check {}: invalid filename", path.display()))?;
-        let content = crate::skills::read_source_file(parent, Path::new(file_name))
-            .with_context(|| format!("read check file: {}", path.display()))?;
-        Self::parse(&content, path)
+        crate::skills::read_source_file(parent, Path::new(file_name))
+            .with_context(|| format!("read check file: {}", path.display()))
     }
 
     /// Parse a check from raw content. Reuses [`crate::sources::parse_frontmatter`]
@@ -433,7 +437,14 @@ fn read_checks_dir(dir: &Path, scope_dir: &str, mode: LoadMode) -> Result<Vec<Ch
         if path.file_name().and_then(|s| s.to_str()) == Some("README.md") {
             continue;
         }
-        let parsed = Check::from_path(&path).and_then(|mut check| {
+        let content = match Check::read_content(&path) {
+            Ok(content) => content,
+            Err(error) => {
+                eprintln!("goose review: skipping {}: {error}", path.display());
+                continue;
+            }
+        };
+        let parsed = Check::parse(&content, &path).and_then(|mut check| {
             if mode == LoadMode::Strict {
                 check.validate_name_matches_filename()?;
             }
@@ -811,6 +822,26 @@ tools: [Bash, Read, Grep]
         );
         fs::create_dir_all(root.join(".agents")).unwrap();
         symlink(&external_checks, root.join(".agents/checks")).unwrap();
+
+        let result = discover_with_globals(&root, &[], &[]).unwrap();
+
+        assert!(result.checks.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn skips_checks_behind_symlinked_agent_directory() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().unwrap();
+        let root = dir.path().join("repo");
+        let external_agents = dir.path().join("external-agents");
+        write(
+            &external_agents.join("checks/secret.md"),
+            "---\nname: secret\n---\nexternal body",
+        );
+        fs::create_dir_all(&root).unwrap();
+        symlink(&external_agents, root.join(".agents")).unwrap();
 
         let result = discover_with_globals(&root, &[], &[]).unwrap();
 
