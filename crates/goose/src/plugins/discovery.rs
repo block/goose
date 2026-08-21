@@ -53,7 +53,7 @@ pub fn discover_enabled_plugins(project_root: Option<&Path>) -> Vec<DiscoveredPl
     discover_enabled_plugins_with_config(project_root, Config::global())
 }
 
-fn discover_enabled_plugins_with_config(
+pub(crate) fn discover_enabled_plugins_with_config(
     project_root: Option<&Path>,
     config: &Config,
 ) -> Vec<DiscoveredPlugin> {

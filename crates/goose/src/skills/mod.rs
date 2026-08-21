@@ -11,7 +11,8 @@ pub use client::{SkillsClient, EXTENSION_NAME};
 pub(crate) use supporting_files::{load_supporting_file, read_source_file};
 
 use crate::config::{paths::Paths, Config};
-use crate::plugins::installed_plugin_skill_dirs;
+use crate::plugins::discovery::PluginScope;
+use crate::plugins::{enabled_plugin_skill_dirs_with_config, installed_plugin_skill_dirs};
 use crate::sources::parse_frontmatter;
 use agent_client_protocol::Error;
 use anyhow::Result;
@@ -316,6 +317,10 @@ pub(crate) fn parse_skill_frontmatter(raw: &str) -> (String, String) {
 /// global (home-rooted) location. Order matches discovery precedence: project
 /// dirs first, then global dirs.
 pub fn all_skill_dirs(working_dir: Option<&Path>) -> Vec<(PathBuf, bool)> {
+    all_skill_dirs_with_config(working_dir, Config::global())
+}
+
+fn all_skill_dirs_with_config(working_dir: Option<&Path>, config: &Config) -> Vec<(PathBuf, bool)> {
     let mut dirs: Vec<(PathBuf, bool)> = Vec::new();
 
     if let Some(wd) = working_dir {
@@ -335,9 +340,9 @@ pub fn all_skill_dirs(working_dir: Option<&Path>) -> Vec<(PathBuf, bool)> {
     }
 
     dirs.extend(
-        installed_plugin_skill_dirs()
+        enabled_plugin_skill_dirs_with_config(working_dir, config)
             .into_iter()
-            .map(|dir| (dir, true)),
+            .map(|(dir, scope)| (dir, scope == PluginScope::User)),
     );
 
     dirs
@@ -490,10 +495,14 @@ fn scan_skills_from_dir(dir: &Path, global: bool, seen: &mut HashSet<String>) ->
 /// Each returned entry has `global` set according to the directory it was
 /// found in (or `true` for built-ins).
 pub fn discover_skills(working_dir: Option<&Path>) -> Vec<SourceEntry> {
+    discover_skills_with_config(working_dir, Config::global())
+}
+
+fn discover_skills_with_config(working_dir: Option<&Path>, config: &Config) -> Vec<SourceEntry> {
     let mut sources: Vec<SourceEntry> = Vec::new();
     let mut seen = HashSet::new();
 
-    for (dir, is_global) in all_skill_dirs(working_dir) {
+    for (dir, is_global) in all_skill_dirs_with_config(working_dir, config) {
         for source in scan_skills_from_dir(&dir, is_global, &mut seen) {
             sources.push(source);
         }

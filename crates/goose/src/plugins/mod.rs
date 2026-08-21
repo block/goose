@@ -3,6 +3,8 @@ pub mod formats;
 pub mod mcp_servers;
 
 use crate::config::paths::Paths;
+use crate::config::Config;
+use crate::plugins::discovery::PluginScope;
 use crate::subprocess::{git_command, SubprocessExt};
 use anyhow::{anyhow, bail, Result};
 use chrono::{DateTime, Duration, Utc};
@@ -82,6 +84,22 @@ struct InstallMetadata {
 }
 
 pub fn installed_plugin_skill_dirs() -> Vec<PathBuf> {
+    enabled_plugin_skill_dirs(None)
+        .into_iter()
+        .map(|(path, _)| path)
+        .collect()
+}
+
+pub(crate) fn enabled_plugin_skill_dirs(
+    project_root: Option<&Path>,
+) -> Vec<(PathBuf, PluginScope)> {
+    enabled_plugin_skill_dirs_with_config(project_root, Config::global())
+}
+
+pub(crate) fn enabled_plugin_skill_dirs_with_config(
+    project_root: Option<&Path>,
+    config: &Config,
+) -> Vec<(PathBuf, PluginScope)> {
     let plugins_dir = plugin_install_dir();
     for update in auto_update_plugins_at_root(Utc::now(), &plugins_dir) {
         if let Err(err) = update.result {
@@ -92,25 +110,24 @@ pub fn installed_plugin_skill_dirs() -> Vec<PathBuf> {
         }
     }
 
-    let entries = match fs::read_dir(plugins_dir) {
-        Ok(entries) => entries,
-        Err(_) => return Vec::new(),
-    };
-
     let mut seen = HashSet::new();
-    entries
-        .flatten()
-        .flat_map(|entry| {
-            let plugin_dir = entry.path();
+    discovery::discover_enabled_plugins_with_config(project_root, config)
+        .into_iter()
+        .flat_map(|plugin| {
+            let plugin_dir = plugin.root;
             let default_skills_dir = plugin_dir.join("skills");
             let mut skill_dirs = Vec::new();
             if default_skills_dir.is_dir() {
-                skill_dirs.push(default_skills_dir);
+                skill_dirs.push((default_skills_dir, plugin.scope));
             }
-            skill_dirs.extend(formats::open_plugins::installed_skill_dirs(&plugin_dir));
+            skill_dirs.extend(
+                formats::open_plugins::installed_skill_dirs(&plugin_dir)
+                    .into_iter()
+                    .map(|dir| (dir, plugin.scope)),
+            );
             skill_dirs
         })
-        .filter(|path| seen.insert(path.clone()))
+        .filter(|(path, _)| seen.insert(path.clone()))
         .collect()
 }
 
