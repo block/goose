@@ -96,6 +96,18 @@ fn same_memory_file(left: &cap_std::fs::Metadata, right: &cap_std::fs::Metadata)
     left.dev() == right.dev() && left.ino() == right.ino()
 }
 
+#[cfg(unix)]
+fn restrict_memory_temp_file(file: &fs::File) -> io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    file.set_permissions(fs::Permissions::from_mode(0o600))
+}
+
+#[cfg(not(unix))]
+fn restrict_memory_temp_file(_file: &fs::File) -> io::Result<()> {
+    Ok(())
+}
+
 fn open_memory_file_at(
     directory: &Dir,
     name: &OsStr,
@@ -425,6 +437,7 @@ impl MemoryServer {
         };
 
         let result = (|| {
+            restrict_memory_temp_file(&temp_file)?;
             temp_file.write_all(content)?;
             temp_file.set_permissions(permissions)?;
             temp_file.sync_all()?;
@@ -916,6 +929,17 @@ mod tests {
             .unwrap();
         assert_eq!(memories.len(), 1);
 
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            fs::set_permissions(
+                working_dir.join(".goose/memory/category.txt"),
+                fs::Permissions::from_mode(0o600),
+            )
+            .unwrap();
+        }
+
         router
             .remove_specific_memory_internal("category", "remove_this", false, Some(&working_dir))
             .unwrap();
@@ -935,6 +959,16 @@ mod tests {
 
         let memory_dir = working_dir.join(".goose/memory");
         assert_eq!(fs::read_dir(memory_dir).unwrap().count(), 1);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            let mode = fs::metadata(working_dir.join(".goose/memory/category.txt"))
+                .unwrap()
+                .permissions()
+                .mode();
+            assert_eq!(mode & 0o777, 0o600);
+        }
     }
 
     #[cfg(unix)]
