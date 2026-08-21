@@ -83,11 +83,11 @@ pub(crate) fn discover_enabled_plugins_with_config(
             }),
     );
 
-    let mut enabled_by_settings: Vec<DiscoveredPlugin> = found
+    let mut enabled_plugins: Vec<DiscoveredPlugin> = filter_by_config(found, config)
         .into_iter()
         .filter(|plugin| is_enabled(&plugin.name, &scoped_settings))
         .collect();
-    enabled_by_settings.sort_by(|left, right| {
+    enabled_plugins.sort_by(|left, right| {
         plugin_scope_rank(left.scope)
             .cmp(&plugin_scope_rank(right.scope))
             .then_with(|| left.name.cmp(&right.name))
@@ -95,7 +95,7 @@ pub(crate) fn discover_enabled_plugins_with_config(
     });
 
     let mut seen_names = HashSet::new();
-    filter_by_config(enabled_by_settings, config)
+    enabled_plugins
         .into_iter()
         .filter(|plugin| seen_names.insert(plugin.name.clone()))
         .collect()
@@ -313,6 +313,7 @@ mod tests {
     fn disabled_in_project_settings_drops_plugin() {
         let tmp = tempfile::tempdir().unwrap();
         let project = tmp.path();
+        let plugin_root = project.join(".agents/plugins/demo");
         write_plugin_dir(&project.join(".agents").join("plugins"), "demo");
 
         write_settings(
@@ -320,8 +321,16 @@ mod tests {
             r#"{"disabledPlugins":["demo"]}"#,
         );
 
-        let found = discover(project);
+        let cfg_dir = tempfile::tempdir().unwrap();
+        let config = test_config(cfg_dir.path());
+        let found = discover_with_config(project, &config);
         assert!(found.iter().all(|p| p.name != "demo"));
+
+        let entries: HashMap<String, PluginConfigEntry> =
+            config.get_param(PLUGINS_CONFIG_KEY).unwrap();
+        assert!(entries
+            .get(&plugin_root.to_string_lossy().into_owned())
+            .is_some_and(|entry| entry.enabled));
     }
 
     #[test]

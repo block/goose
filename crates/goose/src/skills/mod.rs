@@ -963,6 +963,47 @@ mod tests {
         assert!(skill_dir.join("SKILL.md").is_file());
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn settings_disabled_project_plugin_canonical_path_is_rejected() {
+        let project = tempfile::tempdir().unwrap();
+        let path_root = tempfile::tempdir().unwrap();
+        let external_root = tempfile::tempdir().unwrap();
+        let plugin_link = project.path().join(".agents/plugins/project-plugin");
+        let skill_dir = external_root.path().join(".agents/skills/plugin-owned");
+        write_test_skill(&skill_dir, "plugin-owned", "plugin body");
+        std::fs::write(
+            external_root.path().join("plugin.json"),
+            r#"{"name":"project-plugin","skills":{"paths":["./.agents/skills"]}}"#,
+        )
+        .unwrap();
+        std::fs::create_dir_all(plugin_link.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(external_root.path(), &plugin_link).unwrap();
+        let settings_dir = project.path().join(".config/goose");
+        std::fs::create_dir_all(&settings_dir).unwrap();
+        std::fs::write(
+            settings_dir.join("settings.json"),
+            r#"{"disabledPlugins":["project-plugin"]}"#,
+        )
+        .unwrap();
+        let config = Config::new(path_root.path().join("test-config.yaml"), "skills-test").unwrap();
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PATH_ROOT", path_root.path().to_str()),
+            ("PLUGINS", None),
+        ]);
+
+        let plugins = crate::plugins::discovery::discover_enabled_plugins_with_config(
+            Some(project.path()),
+            &config,
+        );
+        assert!(plugins.iter().all(|plugin| plugin.name != "project-plugin"));
+
+        let err = resolve_discoverable_skill_dir_with_config(skill_dir.to_str().unwrap(), &config)
+            .unwrap_err();
+        assert!(format!("{err:?}").contains("not found"));
+        assert!(skill_dir.join("SKILL.md").is_file());
+    }
+
     #[test]
     fn nested_project_plugin_skill_is_listed_read_only_and_rejected_by_source_crud() {
         let project = tempfile::tempdir().unwrap();
