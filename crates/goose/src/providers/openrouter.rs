@@ -40,8 +40,6 @@ pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
 pub const OPENROUTER_DOC_URL: &str = "https://openrouter.ai/models";
 
 const GEMINI_SCHEMA_REF_KEY: &str = "$ref";
-/// JSON `\uXXXX` spelling of `$ref`, which decodes to the same key.
-const GEMINI_SCHEMA_REF_KEY_ESCAPED: &str = "\\u0024ref";
 const GEMINI_SAFE_SCHEMA_REF_KEY_BASE: &str = "dollar_ref";
 
 #[derive(serde::Serialize)]
@@ -120,31 +118,63 @@ fn scan_schema_ref_tokens(content: &str) -> Vec<Range<usize>> {
     let mut spans = Vec::new();
     let mut cursor = 0;
 
-    while let Some(tail) = content.get(cursor..) {
-        let Some((start, token_len)) = [GEMINI_SCHEMA_REF_KEY, GEMINI_SCHEMA_REF_KEY_ESCAPED]
-            .iter()
-            .filter_map(|token| {
-                tail.find(token)
-                    .map(|offset| (cursor + offset, token.len()))
-            })
-            .min()
-        else {
-            break;
-        };
-
-        let end = start + token_len;
-        let continues_identifier = content
-            .get(end..)
-            .and_then(|rest| rest.chars().next())
-            .is_some_and(|c| c.is_ascii_alphanumeric() || c == '_');
-
-        if !continues_identifier && !starts_with_escaped_backslash(content, start) {
-            spans.push(start..end);
+    while cursor < content.len() {
+        if !content.is_char_boundary(cursor) {
+            cursor += 1;
+            continue;
         }
-        cursor = end;
+
+        match match_schema_ref_at(content, cursor) {
+            Some(end)
+                if !starts_with_escaped_backslash(content, cursor)
+                    && !continues_identifier(content, end) =>
+            {
+                spans.push(cursor..end);
+                cursor = end;
+            }
+            _ => {
+                cursor += content
+                    .get(cursor..)
+                    .and_then(|rest| rest.chars().next())
+                    .map_or(1, char::len_utf8);
+            }
+        }
     }
 
     spans
+}
+
+/// Decodes one character: either a literal one or a `\uXXXX` escape. JSON lets
+/// any character of a key be escaped, so `$\u0072ef` and `\u0024\u0072\u0065\u0066`
+/// both decode to `$ref` and would otherwise reach Gemini unrewritten.
+fn decode_unit(content: &str, index: usize) -> Option<(char, usize)> {
+    let rest = content.get(index..)?;
+
+    if let Some(after_prefix) = rest.strip_prefix("\\u") {
+        let character = after_prefix
+            .get(..4)
+            .and_then(|hex| u32::from_str_radix(hex, 16).ok())
+            .and_then(char::from_u32)?;
+        return Some((character, index + "\\u".len() + 4));
+    }
+
+    let character = rest.chars().next()?;
+    Some((character, index + character.len_utf8()))
+}
+
+/// Returns the end offset when the text at `start` decodes to `$ref`.
+fn match_schema_ref_at(content: &str, start: usize) -> Option<usize> {
+    let mut cursor = start;
+
+    for expected in GEMINI_SCHEMA_REF_KEY.chars() {
+        let (character, next) = decode_unit(content, cursor)?;
+        if character != expected {
+            return None;
+        }
+        cursor = next;
+    }
+
+    Some(cursor)
 }
 
 /// An odd number of backslashes before `\u0024ref` means the leading backslash
@@ -164,6 +194,13 @@ fn starts_with_escaped_backslash(content: &str, start: usize) -> bool {
         .unwrap_or(0);
 
     preceding_backslashes % 2 == 1
+}
+
+/// A trailing identifier character means the token is part of a longer name
+/// such as `$refs` or `$refresh_token`, which must be left alone.
+fn continues_identifier(content: &str, end: usize) -> bool {
+    decode_unit(content, end)
+        .is_some_and(|(character, _)| character.is_ascii_alphanumeric() || character == '_')
 }
 
 /// Decodes `\uXXXX` escapes so a candidate key spelled as an escape sequence
@@ -796,6 +833,65 @@ mod tests {
             .as_str()
             .unwrap()
             .contains(r#""dollar_ref":"A""#));
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_matches_partially_escaped_keys() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": r#"{"$\u0072ef":"A"}"#
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert!(payload["messages"][0]["content"]
+            .as_str()
+            .unwrap()
+            .contains(r#""dollar_ref":"A""#));
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_matches_fully_escaped_keys() {
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": r#"{"\u0024\u0072\u0065\u0066":"A"}"#
+            }]
+        });
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            1
+        );
+        assert!(payload["messages"][0]["content"]
+            .as_str()
+            .unwrap()
+            .contains(r#""dollar_ref":"A""#));
+    }
+
+    #[test]
+    fn gemini_schema_ref_escape_preserves_escaped_longer_identifiers() {
+        let original = r#"{"$\u0072efresh_token":"A"}"#;
+        let mut payload = json!({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": original
+            }]
+        });
+        let untouched = payload.clone();
+
+        assert_eq!(
+            escape_gemini_schema_ref_keys_in_tool_responses(&mut payload),
+            0
+        );
+        assert_eq!(payload, untouched);
     }
 
     #[test]
