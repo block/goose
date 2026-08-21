@@ -1121,23 +1121,58 @@ impl GooseAcpAgent {
     ) -> Result<CanonicalModelInfoResponse, agent_client_protocol::Error> {
         use goose_providers::model::ModelConfig;
 
+        let config_info =
+            crate::providers::canonical_cost::configured_model_info(&req.provider, &req.model);
+        // Config-declared prices carry the config's currency; without them the
+        // response reports registry rates, which are USD.
+        let currency = crate::providers::canonical_cost::display_currency(config_info.as_ref());
         let model_info =
-            crate::providers::canonical::maybe_get_canonical_model(&req.provider, &req.model).map(
-                |canonical_model| CanonicalModelInfoDto {
-                    provider: req.provider.clone(),
-                    model: req.model.clone(),
-                    context_limit: canonical_model.limit.context,
-                    max_output_tokens: canonical_model.limit.output,
-                    reasoning: canonical_model
-                        .reasoning
-                        .unwrap_or_else(|| ModelConfig::new(&req.model).is_reasoning_model()),
-                    input_token_cost: canonical_model.cost.input,
-                    output_token_cost: canonical_model.cost.output,
-                    cache_read_token_cost: canonical_model.cost.cache_read,
-                    cache_write_token_cost: canonical_model.cost.cache_write,
-                    currency: "$".to_string(),
-                },
-            );
+            crate::providers::canonical::maybe_get_canonical_model(&req.provider, &req.model)
+                .map(|canonical_model| {
+                    // Config-declared prices outrank the registry's catalog rates;
+                    // registry cache rates survive, so tooltip math matches
+                    // estimate_model_cost exactly.
+                    let pricing = crate::providers::canonical_cost::resolve_pricing(
+                        &req.provider,
+                        &req.model,
+                    )
+                    .unwrap_or_else(|| canonical_model.cost.clone());
+                    CanonicalModelInfoDto {
+                        provider: req.provider.clone(),
+                        model: req.model.clone(),
+                        context_limit: canonical_model.limit.context,
+                        max_output_tokens: canonical_model.limit.output,
+                        reasoning: canonical_model
+                            .reasoning
+                            .unwrap_or_else(|| ModelConfig::new(&req.model).is_reasoning_model()),
+                        input_token_cost: pricing.input,
+                        output_token_cost: pricing.output,
+                        cache_read_token_cost: pricing.cache_read,
+                        cache_write_token_cost: pricing.cache_write,
+                        currency: currency.clone(),
+                    }
+                })
+                .or_else(|| {
+                    crate::providers::canonical_cost::resolve_pricing(&req.provider, &req.model)
+                        .and_then(|pricing| {
+                            config_info.map(|info| CanonicalModelInfoDto {
+                                provider: req.provider.clone(),
+                                model: req.model.clone(),
+                                context_limit: info.context_limit,
+                                // ModelInfo carries no max-output limit.
+                                max_output_tokens: None,
+                                // Configs deserialize a missing `reasoning` as false; keep
+                                // name-based detection for accustomed reasoning models.
+                                reasoning: info.reasoning
+                                    || ModelConfig::new(&req.model).is_reasoning_model(),
+                                input_token_cost: pricing.input,
+                                output_token_cost: pricing.output,
+                                cache_read_token_cost: pricing.cache_read,
+                                cache_write_token_cost: pricing.cache_write,
+                                currency: currency.clone(),
+                            })
+                        })
+                });
 
         Ok(CanonicalModelInfoResponse { model_info })
     }

@@ -86,7 +86,7 @@ export async function parseRecipeFromFile(fileContent: string): Promise<Recipe> 
     if (typeof error === 'object' && error !== null && 'message' in error) {
       errorMessage = error.message as string;
     }
-    throw new Error(errorMessage);
+    throw new Error(errorMessage, { cause: error });
   }
 }
 

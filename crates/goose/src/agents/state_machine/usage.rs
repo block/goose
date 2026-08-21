@@ -32,14 +32,13 @@ pub(super) fn enrich(session: &Session, effects: &mut [GooseEffect]) {
         let (cost, cost_source) = if let Some(cost) = usage.cost {
             (Some(cost), Some(CostSource::ProviderReported))
         } else {
-            match session
-                .provider_name
-                .as_deref()
-                .and_then(|provider| {
-                    crate::providers::canonical::maybe_get_canonical_model(provider, &usage.model)
-                })
-                .and_then(|canonical| canonical.cost.estimate_cost(&usage.usage))
-            {
+            match session.provider_name.as_deref().and_then(|provider| {
+                crate::providers::canonical_cost::estimate_model_cost(
+                    provider,
+                    &usage.model,
+                    &usage.usage,
+                )
+            }) {
                 Some(cost) => (Some(cost), Some(CostSource::Estimated)),
                 None => (None, None),
             }

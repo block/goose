@@ -70,6 +70,59 @@ const SHELL_STATUS_FALLBACK_WIDTH: usize = 120;
 const SHELL_STATUS_MAX_LINES: usize = 3;
 const SHELL_STATUS_RESERVED_WIDTH: usize = 2;
 
+/// Upper bound on a *derived* extension name. Tools are exposed to the model as
+/// `{extension}__{tool}`, and several providers cap tool name length, so a name
+/// built out of a whole command line has to be clipped.
+const DERIVED_EXTENSION_NAME_MAX_LEN: usize = 32;
+
+pub(crate) fn split_extension_name_prefix(extension_command: &str) -> (Option<String>, &str) {
+    let Some((candidate, rest)) = extension_command.split_once(':') else {
+        return (None, extension_command);
+    };
+    let looks_like_name = candidate.chars().count() >= 2
+        && candidate
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
+    if !looks_like_name || rest.trim().is_empty() || rest.starts_with("//") {
+        return (None, extension_command);
+    }
+    (Some(name_to_key(candidate)), rest)
+}
+
+pub(crate) fn derive_extension_name_from_command(cmd: &str, args: &[String]) -> String {
+    let basename = std::path::Path::new(cmd)
+        .file_name()
+        .and_then(|f| f.to_str())
+        .unwrap_or(cmd);
+    let joined = std::iter::once(basename)
+        .chain(args.iter().map(String::as_str))
+        .map(|token| token.trim_start_matches('-'))
+        .collect::<Vec<_>>()
+        .join("_");
+
+    let mut key = String::with_capacity(joined.len());
+    for c in name_to_key(&joined).chars() {
+        if c == '_' && key.ends_with('_') {
+            continue;
+        }
+        key.push(c);
+    }
+    let key = key.trim_matches('_');
+
+    if key.chars().count() <= DERIVED_EXTENSION_NAME_MAX_LEN {
+        return key.to_string();
+    }
+    let tail: String = key
+        .chars()
+        .skip(key.chars().count() - DERIVED_EXTENSION_NAME_MAX_LEN)
+        .collect();
+    // Drop the leading fragment of whatever token the clip landed inside.
+    match tail.split_once('_') {
+        Some((_, rest)) if !rest.is_empty() => rest.to_string(),
+        _ => tail,
+    }
+}
+
 fn planner_provider_messages(plan_messages: &Conversation) -> Conversation {
     // The planner prompt has no turn-context instructions; drop the blocks.
     let projected_messages: Vec<Message> = plan_messages
@@ -337,9 +390,14 @@ impl CliSession {
     }
 
     /// Parse a stdio extension command string into an ExtensionConfig
-    /// Format: "ENV1=val1 ENV2=val2 command args..."
+    /// Format: "[name:]ENV1=val1 ENV2=val2 command args..."
+    ///
+    /// Without the optional `name:` prefix the extension is named after the
+    /// basename of the command, which is the launcher rather than the server
+    /// whenever one is used (`npx`, `python -m ...`, `uvx`, ...).
     pub fn parse_stdio_extension(extension_command: &str) -> Result<ExtensionConfig> {
-        let mut parts = goose::utils::split_command_args(extension_command)?;
+        let (explicit_name, command) = split_extension_name_prefix(extension_command);
+        let mut parts = goose::utils::split_command_args(command)?;
         let mut envs = HashMap::new();
 
         while let Some(part) = parts.first() {
@@ -356,11 +414,13 @@ impl CliSession {
         }
 
         let cmd = parts.remove(0);
-        let name = std::path::Path::new(&cmd)
-            .file_name()
-            .and_then(|f| f.to_str())
-            .unwrap_or("unnamed")
-            .to_string();
+        let name = explicit_name.unwrap_or_else(|| {
+            std::path::Path::new(&cmd)
+                .file_name()
+                .and_then(|f| f.to_str())
+                .unwrap_or("unnamed")
+                .to_string()
+        });
 
         Ok(ExtensionConfig::Stdio {
             name,
@@ -1251,7 +1311,7 @@ impl CliSession {
 
         let mut table = Table::new();
         table.set_content_arrangement(ContentArrangement::Dynamic);
-        table.load_preset(presets::ASCII_FULL);
+        table.load_style(presets::ASCII_FULL);
         table.set_header(vec!["Skill", "Location", "Description"]);
 
         let mut sorted_skills = skills;
@@ -2961,6 +3021,69 @@ mod tests {
     #[test]
     fn test_parse_stdio_extension_no_command() {
         assert!(CliSession::parse_stdio_extension("").is_err());
+    }
+
+    fn stdio_name(input: &str) -> String {
+        CliSession::parse_stdio_extension(input).unwrap().name()
+    }
+
+    #[test]
+    fn test_parse_stdio_extension_explicit_name() {
+        assert_eq!(stdio_name("word:python -m word_mcp"), "word");
+        assert_eq!(stdio_name("Word-One:python -m word_mcp"), "word-one");
+        let absolute = CliSession::parse_stdio_extension("memory:/usr/local/bin/mcp").unwrap();
+        assert_eq!(absolute.name(), "memory");
+        assert!(matches!(
+            absolute,
+            ExtensionConfig::Stdio { cmd, .. } if cmd == "/usr/local/bin/mcp"
+        ));
+        let config = CliSession::parse_stdio_extension("memory:API_KEY=k npx -y srv").unwrap();
+        let ExtensionConfig::Stdio {
+            name,
+            cmd,
+            args,
+            envs,
+            ..
+        } = config
+        else {
+            panic!("expected a stdio extension");
+        };
+        assert_eq!(name, "memory");
+        assert_eq!(cmd, "npx");
+        assert_eq!(args, vec!["-y".to_string(), "srv".to_string()]);
+        assert_eq!(envs.get_env().get("API_KEY").map(String::as_str), Some("k"));
+    }
+
+    #[test_case("C:\\Program Files\\srv.exe --stdio" ; "windows_drive_letter")]
+    #[test_case("srv://not-a-name" ; "url_like_command")]
+    #[test_case("npx -y pkg:latest" ; "colon_after_a_space")]
+    #[test_case("word:" ; "empty_command")]
+    fn test_split_extension_name_prefix_leaves_command_alone(input: &str) {
+        let (name, rest) = split_extension_name_prefix(input);
+        assert_eq!(name, None);
+        assert_eq!(rest, input);
+    }
+
+    #[test]
+    fn test_derive_extension_name_from_command() {
+        assert_eq!(
+            derive_extension_name_from_command("python", &["-m".into(), "word_mcp".into()]),
+            "python_m_word_mcp"
+        );
+        assert_eq!(
+            derive_extension_name_from_command(
+                "npx",
+                &[
+                    "-y".into(),
+                    "@modelcontextprotocol/server-filesystem".into()
+                ],
+            ),
+            "server-filesystem"
+        );
+        assert_eq!(
+            derive_extension_name_from_command("/usr/local/bin/srv", &[]),
+            "srv"
+        );
     }
 
     #[test]

@@ -40,6 +40,7 @@ export interface SessionListItem {
   modelId?: string;
   userSetName?: boolean;
   hasRecipe?: boolean;
+  sessionType?: Session['session_type'];
 }
 
 export interface SessionListPage {
@@ -128,6 +129,7 @@ function sessionInfoToListItem(s: SessionInfo): SessionListItem {
     modelId: meta.modelId,
     userSetName: meta.userSetName,
     hasRecipe: meta.hasRecipe,
+    sessionType: meta.sessionType,
   };
 }
 
