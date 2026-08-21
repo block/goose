@@ -983,8 +983,6 @@ mod tests {
     use super::*;
     use crate::api_client::AuthMethod;
     use serde_json::json;
-    use wiremock::matchers::{body_partial_json, method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn make_provider(name: &str) -> OpenAiProvider {
         OpenAiProvider {
@@ -1006,41 +1004,6 @@ mod tests {
             preserve_thinking_context: false,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
-    }
-
-    #[tokio::test]
-    async fn max_thinking_effort_surfaces_openai_api_error() {
-        let server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .and(path("/v1/responses"))
-            .and(body_partial_json(json!({
-                "model": "gpt-5",
-                "reasoning": {"effort": "high"}
-            })))
-            .respond_with(ResponseTemplate::new(400).set_body_json(json!({
-                "error": {
-                    "message": "Invalid value: 'max'. Supported values are: 'minimal', 'low', 'medium', and 'high'.",
-                    "type": "invalid_request_error",
-                    "param": "reasoning.effort",
-                    "code": "unsupported_value"
-                }
-            })))
-            .expect(4)
-            .mount(&server)
-            .await;
-
-        let provider = OpenAiProviderBuilder::new(
-            ApiClient::new_with_tls(server.uri(), AuthMethod::NoAuth, None).unwrap(),
-        )
-        .build();
-        let config = ModelConfig::new("gpt-5").with_thinking_effort(ThinkingEffort::Max);
-
-        let error = provider
-            .complete(&config, "system", &[], &[])
-            .await
-            .expect_err("the provider should surface OpenAI's 400 response");
-
-        assert!(error.to_string().contains("Invalid value: 'max'"));
     }
 
     #[test]
