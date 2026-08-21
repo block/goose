@@ -44,19 +44,7 @@ impl PermissionManager {
     pub fn new(config_dir: PathBuf) -> Self {
         let permission_path = config_dir.join(PERMISSION_FILE);
         let permission_map = if permission_path.exists() {
-            let file_contents =
-                fs::read_to_string(&permission_path).expect("Failed to read permission.yaml");
-            serde_yaml::from_str(&file_contents).unwrap_or_else(|e| {
-                tracing::error!(
-                    "Failed to parse {}: {}. Refusing to start with corrupted permission config.",
-                    permission_path.display(),
-                    e,
-                );
-                panic!(
-                    "Corrupted permission config at {}. Fix or remove the file to continue.",
-                    permission_path.display(),
-                );
-            })
+            Self::load_permission_map(&permission_path)
         } else {
             // Consolidate directory creation for re-use in global singleton or ACP.
             fs::create_dir_all(&config_dir).expect("Failed to create config directory");
@@ -66,6 +54,22 @@ impl PermissionManager {
             config_path: permission_path,
             permission_map: RwLock::new(permission_map),
         }
+    }
+
+    fn load_permission_map(config_path: &Path) -> HashMap<String, PermissionConfig> {
+        let file_contents =
+            fs::read_to_string(config_path).expect("Failed to read permission.yaml");
+        serde_yaml::from_str(&file_contents).unwrap_or_else(|error| {
+            tracing::error!(
+                "Failed to parse {}: {}. Refusing to start with corrupted permission config.",
+                config_path.display(),
+                error,
+            );
+            panic!(
+                "Corrupted permission config at {}. Fix or remove the file to continue.",
+                config_path.display(),
+            );
+        })
     }
 
     pub fn instance() -> Arc<PermissionManager> {
@@ -214,6 +218,9 @@ impl PermissionManager {
 
     pub fn remove_extension(&self, extension_name: &str) {
         let mut map = self.permission_map.write().unwrap();
+        if self.config_path.exists() {
+            *map = Self::load_permission_map(&self.config_path);
+        }
         for permission_config in map.values_mut() {
             permission_config
                 .always_allow
@@ -425,6 +432,25 @@ mod tests {
 
         manager.clear_permissions();
         assert!(manager.get_permission_names().is_empty());
+    }
+
+    #[test]
+    fn test_remove_extension_preserves_newer_permissions() {
+        let temp_dir = TempDir::new().unwrap();
+        let deleting_manager = PermissionManager::new(temp_dir.path().to_path_buf());
+        deleting_manager.update_user_permission("git__status", PermissionLevel::AlwaysAllow);
+
+        let newer_manager = PermissionManager::new(temp_dir.path().to_path_buf());
+        newer_manager.update_user_permission("github__status", PermissionLevel::AskBefore);
+
+        deleting_manager.remove_extension("git");
+
+        let persisted_manager = PermissionManager::new(temp_dir.path().to_path_buf());
+        assert_eq!(persisted_manager.get_user_permission("git__status"), None);
+        assert_eq!(
+            persisted_manager.get_user_permission("github__status"),
+            Some(PermissionLevel::AskBefore)
+        );
     }
 
     #[test]
