@@ -199,7 +199,11 @@ if [[ -n "$MODEL_LIST" ]]; then
   done
 else
   search_query="${REPO_PREFIX%/}"
-  SEARCH_ARGS=(lm search "$search_query" --limit "$TOP_N" --json)
+  SEARCH_ARGS=(lm search)
+  if [[ -n "$search_query" ]]; then
+    SEARCH_ARGS+=("$search_query")
+  fi
+  SEARCH_ARGS+=(--limit "$TOP_N" --json)
   if [[ -n "$RAM_GB" ]]; then
     SEARCH_ARGS+=(--ram-gb "$RAM_GB")
   fi
