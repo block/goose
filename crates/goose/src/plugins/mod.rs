@@ -10,7 +10,7 @@ use anyhow::{anyhow, bail, Result};
 use chrono::{DateTime, Duration, Utc};
 use fs_err as fs;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use tracing::warn;
 
@@ -96,20 +96,21 @@ pub(crate) fn enabled_plugin_skill_dirs(
     enabled_plugin_skill_dirs_with_config(project_root, Config::global())
 }
 
-pub(crate) fn configured_project_plugin_skill_dirs(config: &Config) -> Vec<PathBuf> {
-    let entries: HashMap<String, discovery::PluginConfigEntry> = config
-        .get_param(discovery::PLUGINS_CONFIG_KEY)
-        .unwrap_or_default();
-    let user_plugins_dir = plugin_install_dir();
-    let mut seen = HashSet::new();
+pub(crate) fn is_manifest_owned_skill_path(path: &Path) -> bool {
+    let Ok(canonical_path) = path.canonicalize() else {
+        return false;
+    };
 
-    entries
-        .into_keys()
-        .map(PathBuf::from)
-        .filter(|path| !path.starts_with(&user_plugins_dir))
-        .flat_map(|path| formats::open_plugins::installed_skill_dirs(&path))
-        .filter(|path| seen.insert(path.clone()))
-        .collect()
+    canonical_path.ancestors().skip(2).any(|ancestor| {
+        if !formats::open_plugins::has_manifest(ancestor) {
+            return false;
+        }
+
+        formats::open_plugins::installed_skill_dirs(ancestor)
+            .into_iter()
+            .filter_map(|root| root.canonicalize().ok())
+            .any(|root| canonical_path.starts_with(root))
+    })
 }
 
 pub(crate) fn enabled_plugin_skill_dirs_with_config(
