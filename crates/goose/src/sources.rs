@@ -4,9 +4,9 @@
 
 use crate::config::paths::Paths;
 use crate::skills::{
-    build_skill_md, discover_skills, infer_skill_name, is_global_skill_dir,
-    parse_skill_frontmatter, resolve_discoverable_skill_dir, resolve_skill_dir, skill_base_dir,
-    validate_skill_name,
+    build_skill_md, create_project_skill_file, discover_skills, infer_skill_name,
+    is_global_skill_dir, parse_skill_frontmatter, resolve_discoverable_skill_dir,
+    resolve_skill_dir, skill_base_dir, validate_skill_name,
 };
 use crate::source_roots::SourceRoot;
 use agent_client_protocol::Error;
@@ -660,20 +660,32 @@ pub fn create_source(
         SourceType::Skill => {
             validate_skill_name(name)?;
             let dir = skill_base_dir(global, project_dir)?.join(name);
-
-            if dir.exists() {
-                return Err(Error::invalid_params()
-                    .data(format!("A source named \"{}\" already exists", name)));
-            }
-
-            fs::create_dir_all(&dir).map_err(|e| {
-                Error::internal_error().data(format!("Failed to create source directory: {e}"))
-            })?;
-            let file_path = dir.join("SKILL.md");
             let md = build_skill_md(name, description, content, &properties);
-            fs::write(&file_path, md).map_err(|e| {
-                Error::internal_error().data(format!("Failed to write SKILL.md: {e}"))
-            })?;
+
+            if global {
+                if dir.exists() {
+                    return Err(Error::invalid_params()
+                        .data(format!("A source named \"{}\" already exists", name)));
+                }
+                fs::create_dir_all(&dir).map_err(|e| {
+                    Error::internal_error().data(format!("Failed to create source directory: {e}"))
+                })?;
+                fs::write(dir.join("SKILL.md"), md).map_err(|e| {
+                    Error::internal_error().data(format!("Failed to write SKILL.md: {e}"))
+                })?;
+            } else {
+                let project_dir = project_dir.ok_or_else(|| {
+                    Error::invalid_params().data("projectDir is required when global is false")
+                })?;
+                create_project_skill_file(Path::new(project_dir), name, &md).map_err(|e| {
+                    if e.kind() == std::io::ErrorKind::AlreadyExists {
+                        Error::invalid_params()
+                            .data(format!("A source named \"{}\" already exists", name))
+                    } else {
+                        Error::internal_error().data(format!("Failed to create project skill: {e}"))
+                    }
+                })?;
+            }
 
             Ok(skill_source_entry(
                 name,
@@ -1363,6 +1375,31 @@ mod tests {
         assert!(format!("{:?}", err).contains("already exists"));
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn create_skill_rejects_symlinked_project_skill_root() {
+        let tmp = TempDir::new().unwrap();
+        let project = tmp.path().join("project");
+        let agents = project.join(".agents");
+        let outside = tmp.path().join("outside-skills");
+        std::fs::create_dir_all(&agents).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        std::os::unix::fs::symlink(&outside, agents.join("skills")).unwrap();
+
+        let result = create_source(
+            SourceType::Skill,
+            "redirected",
+            "description",
+            "body",
+            false,
+            Some(project.to_str().unwrap()),
+            HashMap::new(),
+        );
+
+        assert!(result.is_err());
+        assert!(!outside.join("redirected").exists());
+    }
+
     #[test]
     fn project_scope_requires_project_dir() {
         let err = create_source(
@@ -1407,6 +1444,31 @@ mod tests {
         assert_eq!(imported[0].name, "portable");
         assert_eq!(imported[0].description, "describes itself");
         assert_eq!(imported[0].content, "body goes here");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn import_skill_rejects_symlinked_project_agents_root() {
+        let tmp = TempDir::new().unwrap();
+        let project = tmp.path().join("project");
+        let outside_agents = tmp.path().join("outside-agents");
+        let outside_skills = outside_agents.join("skills");
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::create_dir_all(&outside_skills).unwrap();
+        std::os::unix::fs::symlink(&outside_agents, project.join(".agents")).unwrap();
+        let payload = serde_json::json!({
+            "version": 1,
+            "type": "skill",
+            "name": "redirected-import",
+            "description": "description",
+            "content": "body",
+        })
+        .to_string();
+
+        let result = import_sources(&payload, false, Some(project.to_str().unwrap()));
+
+        assert!(result.is_err());
+        assert!(!outside_skills.join("redirected-import").exists());
     }
 
     #[test]

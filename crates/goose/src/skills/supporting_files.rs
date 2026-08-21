@@ -1,4 +1,6 @@
 use std::fs;
+#[cfg(any(unix, windows))]
+use std::io::Write;
 use std::io::{self, Read};
 use std::path::{Component, Path};
 
@@ -67,6 +69,68 @@ pub(crate) fn read_source_file(source_dir: &Path, relative: &Path) -> io::Result
         ReadLimit::Bytes(MAX_SOURCE_FILE_BYTES),
         |_| {},
     )
+}
+
+pub(crate) fn create_project_skill_file(
+    project_dir: &Path,
+    skill_name: &str,
+    content: &str,
+) -> io::Result<()> {
+    create_project_skill_file_with_hook(project_dir, skill_name, content, |_| {})
+}
+
+#[cfg(any(unix, windows))]
+fn create_project_skill_file_with_hook(
+    project_dir: &Path,
+    skill_name: &str,
+    content: &str,
+    mut after_opened_component: impl FnMut(&Path),
+) -> io::Result<()> {
+    let project_dir = canonical_project_dir(project_dir)?;
+    let project = open_skill_root(&project_dir, &mut after_opened_component)
+        .map_err(|error| project_skill_io_error("open project directory", error))?;
+    let agents = open_or_create_directory_at(&project, ".agents".as_ref(), true)
+        .map_err(|error| project_skill_io_error("open .agents directory", error))?;
+    after_opened_component(Path::new(".agents"));
+    let skills = open_or_create_directory_at(&agents, "skills".as_ref(), true)
+        .map_err(|error| project_skill_io_error("open skills directory", error))?;
+    after_opened_component(Path::new(".agents/skills"));
+    let skill = open_or_create_directory_at(&skills, skill_name.as_ref(), false)
+        .map_err(|error| project_skill_io_error("create skill directory", error))?;
+    after_opened_component(Path::new(".agents/skills").join(skill_name).as_path());
+
+    let mut file = create_file_at(&skill, "SKILL.md".as_ref())
+        .map_err(|error| project_skill_io_error("create SKILL.md", error))?;
+    file.write_all(content.as_bytes())
+        .map_err(|error| project_skill_io_error("write SKILL.md", error))?;
+
+    verify_opened_directory(&project, ".agents".as_ref(), &agents)?;
+    verify_opened_directory(&agents, "skills".as_ref(), &skills)?;
+    verify_opened_directory(&skills, skill_name.as_ref(), &skill)?;
+    Ok(())
+}
+
+#[cfg(any(unix, windows))]
+fn project_skill_io_error(operation: &str, error: io::Error) -> io::Error {
+    io::Error::new(error.kind(), format!("{operation}: {error}"))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn create_project_skill_file_with_hook(
+    _project_dir: &Path,
+    _skill_name: &str,
+    _content: &str,
+    _after_opened_component: impl FnMut(&Path),
+) -> io::Result<()> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "secure project skill creation is not supported on this platform",
+    ))
+}
+
+#[cfg(any(unix, windows))]
+fn canonical_project_dir(project_dir: &Path) -> io::Result<std::path::PathBuf> {
+    fs::canonicalize(project_dir)
 }
 
 fn read_supporting_file_with_hook(
@@ -324,6 +388,89 @@ fn open_at(
     Ok(unsafe { fs::File::from_raw_fd(descriptor) })
 }
 
+#[cfg(unix)]
+fn open_or_create_directory_at(
+    directory: &fs::File,
+    name: &std::ffi::OsStr,
+    allow_existing: bool,
+) -> io::Result<fs::File> {
+    match mkdir_at(directory, name) {
+        Ok(()) => {}
+        Err(error) if allow_existing && error.kind() == io::ErrorKind::AlreadyExists => {}
+        Err(error) => return Err(error),
+    }
+    open_at(directory, name, directory_traversal_flags())
+}
+
+#[cfg(unix)]
+fn mkdir_at(directory: &fs::File, name: &std::ffi::OsStr) -> io::Result<()> {
+    use std::ffi::CString;
+    use std::os::fd::AsRawFd;
+    use std::os::unix::ffi::OsStrExt;
+
+    let name = CString::new(name.as_bytes()).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "project skill path contains a NUL byte",
+        )
+    })?;
+    // SAFETY: mkdirat does not retain the name pointer.
+    let result = unsafe { libc::mkdirat(directory.as_raw_fd(), name.as_ptr(), 0o777) };
+    if result < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn create_file_at(directory: &fs::File, name: &std::ffi::OsStr) -> io::Result<fs::File> {
+    use std::ffi::CString;
+    use std::os::fd::{AsRawFd, FromRawFd};
+    use std::os::unix::ffi::OsStrExt;
+
+    let name = CString::new(name.as_bytes()).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "project skill path contains a NUL byte",
+        )
+    })?;
+    let flags = libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW | libc::O_CLOEXEC;
+    // SAFETY: openat does not retain the name pointer and receives the required creation mode.
+    let descriptor = unsafe {
+        libc::openat(
+            directory.as_raw_fd(),
+            name.as_ptr(),
+            flags,
+            0o666 as libc::c_uint,
+        )
+    };
+    if descriptor < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: openat returned a new owned descriptor on success.
+    Ok(unsafe { fs::File::from_raw_fd(descriptor) })
+}
+
+#[cfg(unix)]
+fn verify_opened_directory(
+    parent: &fs::File,
+    name: &std::ffi::OsStr,
+    opened: &fs::File,
+) -> io::Result<()> {
+    use std::os::unix::fs::MetadataExt;
+
+    let current = open_at(parent, name, directory_traversal_flags())?;
+    let current = current.metadata()?;
+    let opened = opened.metadata()?;
+    if current.dev() != opened.dev() || current.ino() != opened.ino() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "project skill directory changed during creation",
+        ));
+    }
+    Ok(())
+}
+
 #[cfg(windows)]
 fn open_skill_root(
     skill_dir: &Path,
@@ -507,6 +654,159 @@ fn windows_open_at(
     }
     // SAFETY: NtCreateFile returned a new owned handle on success.
     Ok(unsafe { fs::File::from_raw_handle(handle.cast()) })
+}
+
+#[cfg(windows)]
+fn open_or_create_directory_at(
+    directory: &fs::File,
+    name: &std::ffi::OsStr,
+    allow_existing: bool,
+) -> io::Result<fs::File> {
+    match windows_create_at(directory, name, true) {
+        Ok(created) => Ok(created),
+        Err(error) if allow_existing && error.kind() == io::ErrorKind::AlreadyExists => {
+            let existing = windows_open_at(directory, name, true)?;
+            validate_windows_directory(&existing)?;
+            Ok(existing)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+#[cfg(windows)]
+fn validate_windows_directory(directory: &fs::File) -> io::Result<()> {
+    let metadata = directory.metadata()?;
+    if windows_metadata_is_reparse_point(&metadata) || !metadata.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "project skill path ancestor is not a regular directory",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn create_file_at(directory: &fs::File, name: &std::ffi::OsStr) -> io::Result<fs::File> {
+    windows_create_at(directory, name, false)
+}
+
+#[cfg(windows)]
+fn windows_create_at(
+    directory: &fs::File,
+    name: &std::ffi::OsStr,
+    directory_only: bool,
+) -> io::Result<fs::File> {
+    use ntapi::ntioapi::{
+        NtCreateFile, FILE_CREATE, FILE_DIRECTORY_FILE, FILE_NON_DIRECTORY_FILE,
+        FILE_OPEN_REPARSE_POINT, FILE_SYNCHRONOUS_IO_NONALERT, IO_STATUS_BLOCK,
+    };
+    use std::os::windows::ffi::OsStrExt;
+    use std::os::windows::io::{AsRawHandle, FromRawHandle};
+    use winapi::shared::ntdef::{
+        HANDLE, NT_SUCCESS, OBJECT_ATTRIBUTES, OBJ_CASE_INSENSITIVE, UNICODE_STRING,
+    };
+    use winapi::um::winnt::{
+        FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
+        FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, SYNCHRONIZE,
+    };
+
+    let mut name: Vec<u16> = name.encode_wide().collect();
+    let name_bytes = name
+        .len()
+        .checked_mul(std::mem::size_of::<u16>())
+        .and_then(|length| u16::try_from(length).ok())
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "project skill path component is too long",
+            )
+        })?;
+    let mut unicode_name = UNICODE_STRING {
+        Length: name_bytes,
+        MaximumLength: name_bytes,
+        Buffer: name.as_mut_ptr(),
+    };
+    let mut attributes = OBJECT_ATTRIBUTES {
+        Length: std::mem::size_of::<OBJECT_ATTRIBUTES>() as u32,
+        RootDirectory: directory.as_raw_handle() as HANDLE,
+        ObjectName: &mut unicode_name,
+        Attributes: OBJ_CASE_INSENSITIVE,
+        SecurityDescriptor: std::ptr::null_mut(),
+        SecurityQualityOfService: std::ptr::null_mut(),
+    };
+    let mut handle: HANDLE = std::ptr::null_mut();
+    // SAFETY: IO_STATUS_BLOCK is a plain C data structure initialized before the synchronous call.
+    let mut io_status: IO_STATUS_BLOCK = unsafe { std::mem::zeroed() };
+    let create_options = FILE_OPEN_REPARSE_POINT
+        | FILE_SYNCHRONOUS_IO_NONALERT
+        | if directory_only {
+            FILE_DIRECTORY_FILE
+        } else {
+            FILE_NON_DIRECTORY_FILE
+        };
+    let file_attributes = if directory_only {
+        FILE_ATTRIBUTE_DIRECTORY
+    } else {
+        FILE_ATTRIBUTE_NORMAL
+    };
+    // SAFETY: all pointers reference initialized values for the duration of the synchronous call.
+    let status = unsafe {
+        NtCreateFile(
+            &mut handle,
+            FILE_GENERIC_READ | FILE_GENERIC_WRITE | SYNCHRONIZE,
+            &mut attributes,
+            &mut io_status,
+            std::ptr::null_mut(),
+            file_attributes,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            FILE_CREATE,
+            create_options,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if !NT_SUCCESS(status) {
+        return Err(windows_nt_status_error(status));
+    }
+    // SAFETY: NtCreateFile returned a new owned handle on success.
+    Ok(unsafe { fs::File::from_raw_handle(handle.cast()) })
+}
+
+#[cfg(windows)]
+fn verify_opened_directory(
+    parent: &fs::File,
+    name: &std::ffi::OsStr,
+    opened: &fs::File,
+) -> io::Result<()> {
+    let current = windows_open_at(parent, name, true)?;
+    validate_windows_directory(&current)?;
+    if windows_file_id(&current)? != windows_file_id(opened)? {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "project skill directory changed during creation",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn windows_file_id(file: &fs::File) -> io::Result<(u32, u32, u32)> {
+    use std::os::windows::io::AsRawHandle;
+    use winapi::um::fileapi::{GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION};
+
+    // SAFETY: BY_HANDLE_FILE_INFORMATION is a plain C data structure initialized before the call.
+    let mut information: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+    // SAFETY: the handle is valid and information points to writable storage.
+    let result =
+        unsafe { GetFileInformationByHandle(file.as_raw_handle().cast(), &mut information) };
+    if result == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok((
+        information.dwVolumeSerialNumber,
+        information.nFileIndexHigh,
+        information.nFileIndexLow,
+    ))
 }
 
 #[cfg(windows)]
@@ -761,6 +1061,37 @@ mod tests {
 
         assert_eq!(content, "safe content");
         assert!(!content.contains("outside secret"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn project_skill_create_rejects_agents_swap_without_writing_outside() {
+        let root = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let project = root.path().join("project");
+        let agents = project.join(".agents");
+        let moved_agents = project.join("moved-agents");
+        fs::create_dir(&project).unwrap();
+        fs::create_dir(outside.path().join("skills")).unwrap();
+
+        let result = create_project_skill_file_with_hook(
+            &project,
+            "race-safe",
+            "skill contents",
+            |opened_path| {
+                if opened_path == Path::new(".agents") {
+                    fs::rename(&agents, &moved_agents).unwrap();
+                    std::os::unix::fs::symlink(outside.path(), &agents).unwrap();
+                }
+            },
+        );
+
+        assert!(result.is_err());
+        assert!(!outside.path().join("skills/race-safe").exists());
+        assert_eq!(
+            fs::read_to_string(moved_agents.join("skills/race-safe/SKILL.md")).unwrap(),
+            "skill contents"
+        );
     }
 
     #[cfg(unix)]
