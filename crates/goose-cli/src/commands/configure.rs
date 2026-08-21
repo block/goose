@@ -1198,20 +1198,25 @@ fn collect_headers() -> anyhow::Result<HashMap<String, String>> {
 fn extension_activation(
     config: ExtensionConfig,
     configured: &[ExtensionEntry],
-) -> (Option<String>, ExtensionEntry) {
+) -> anyhow::Result<(Option<String>, ExtensionEntry)> {
     let key = config.key();
     if let Some(existing) = configured.iter().find(|entry| entry.config.key() == key) {
+        if std::mem::discriminant(&existing.config) != std::mem::discriminant(&config) {
+            anyhow::bail!(
+                "An extension with identity '{key}' already exists with a different type"
+            );
+        }
         let mut entry = existing.clone();
         entry.enabled = true;
-        (Some(key), entry)
+        Ok((Some(key), entry))
     } else {
-        (
+        Ok((
             None,
             ExtensionEntry {
                 enabled: true,
                 config,
             },
-        )
+        ))
     }
 }
 
@@ -1275,7 +1280,7 @@ fn configure_builtin_extension() -> anyhow::Result<()> {
         }
     };
 
-    let (existing_key, entry) = extension_activation(config, &get_all_extensions());
+    let (existing_key, entry) = extension_activation(config, &get_all_extensions())?;
     if let Some(key) = existing_key {
         update_extension(&key, entry)?;
     } else {
@@ -2456,7 +2461,7 @@ mod tests {
             available_tools: Vec::new(),
         };
 
-        let (key, activated) = extension_activation(selected, &[existing]);
+        let (key, activated) = extension_activation(selected, &[existing]).unwrap();
 
         assert_eq!(key.as_deref(), Some("developer"));
         assert!(activated.enabled);
@@ -2472,6 +2477,26 @@ mod tests {
         assert_eq!(description, "preserved");
         assert_eq!(timeout, Some(42));
         assert_eq!(available_tools, vec!["shell"]);
+    }
+
+    #[test]
+    fn builtin_activation_rejects_cross_type_canonical_identity() {
+        let existing = ExtensionEntry {
+            enabled: false,
+            config: ExtensionConfig::stdio("developer", "arbitrary-command", "custom", 300_u64),
+        };
+        let selected = ExtensionConfig::Builtin {
+            name: "Developer".to_string(),
+            description: "bundled".to_string(),
+            display_name: None,
+            timeout: Some(300),
+            bundled: Some(true),
+            available_tools: Vec::new(),
+        };
+
+        let error = extension_activation(selected, &[existing]).unwrap_err();
+
+        assert!(error.to_string().contains("different type"));
     }
 
     #[test]
