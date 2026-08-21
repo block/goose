@@ -158,8 +158,24 @@ struct RawHookAction {
     /// an entry this loader ignores cannot fail the whole-file parse and take
     /// every valid hook in the file down with it. It is parsed once a supported
     /// command action with a command has been selected.
-    #[serde(default)]
+    ///
+    /// `None` means the key was absent. An explicit `null` is preserved as
+    /// `Some(Value::Null)` and rejected at selection like any other value that
+    /// is not `allow` or `block`, because a malformed fail-closed policy must
+    /// not quietly load as fail-open.
+    #[serde(default, deserialize_with = "deserialize_present_on_failure")]
     on_failure: Option<serde_json::Value>,
+}
+
+/// Distinguishes an absent `on_failure` from an explicit `null`. Serde folds
+/// both into `None` for an `Option`; `deserialize_with` runs only when the key
+/// is present, so anything it sees, `null` included, is a value the author
+/// wrote and must be validated rather than defaulted away.
+fn deserialize_present_on_failure<'de, D>(d: D) -> Result<Option<serde_json::Value>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    serde_json::Value::deserialize(d).map(Some)
 }
 
 /// What a `PreToolUse` action does when its hook cannot produce a decision.
@@ -2044,6 +2060,62 @@ mod tests {
             OnFailure::Block,
             "the sibling's own on_failure is still honoured"
         );
+    }
+
+    /// RN. An explicit `null` is not an absent field. Serde folds both into
+    /// `None` for an `Option`, which would load a malformed fail-closed policy
+    /// as fail-open. Field presence is preserved so `null` reaches validation
+    /// and rejects the file like any other value that is not allow or block.
+    #[test]
+    fn an_explicit_null_on_failure_rejects_the_file() {
+        let hooks = r#"{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"echo","on_failure":null}]}]}}"#;
+        let err = loaded_on_failure(hooks).unwrap_err();
+        assert!(
+            format!("{err:#}").contains("reading on_failure"),
+            "expected the on_failure configuration error, got {err:#}"
+        );
+
+        let tmp = tempfile::tempdir().unwrap();
+        let root = write_plugin(tmp.path(), "p", hooks);
+        let mgr = make_manager(vec![DiscoveredPlugin {
+            name: "p".into(),
+            root,
+            scope: PluginScope::User,
+        }]);
+        assert!(!mgr.has_hooks(HookEvent::PreToolUse));
+    }
+
+    /// RU. Preservation. On an entry this loader ignores, `null` is still just a
+    /// raw value it never looks at, so the file loads and the valid sibling runs.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn an_unknown_event_with_a_null_on_failure_keeps_the_file() {
+        let hooks = r#"{"hooks":{
+            "SomeFutureEvent":[{"hooks":[{"type":"command","command":"echo","on_failure":null}]}],
+            "PreToolUse":[{"hooks":[{"type":"command","command":"echo refused by policy >&2; exit 2"}]}]
+        }}"#;
+        let tmp = tempfile::tempdir().unwrap();
+        let root = write_plugin(tmp.path(), "p", hooks);
+
+        let loaded = load_hooks_file(&root.join("hooks").join("hooks.json"), "p", &root)
+            .expect("an ignored event must not reject the file");
+        assert_eq!(loaded[&HookEvent::PreToolUse].len(), 1);
+
+        let mgr = make_manager(vec![DiscoveredPlugin {
+            name: "p".into(),
+            root,
+            scope: PluginScope::User,
+        }]);
+        let outcome = mgr
+            .emit_blocking_with_outcome(
+                HookEvent::PreToolUse,
+                blocking_context(HookEvent::PreToolUse),
+            )
+            .await;
+        let HookDecision::Deny { reason, .. } = &outcome.decision else {
+            panic!("the valid sibling must run, got {:?}", outcome.decision);
+        };
+        assert_eq!(reason, "refused by policy");
     }
 
     /// Both agent loops call this, so a denial reads the same either way, and a
