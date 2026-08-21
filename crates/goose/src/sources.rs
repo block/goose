@@ -1835,6 +1835,37 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn list_agent_sources_rejects_symlinked_review_check_outside_project() {
+        use std::os::unix::fs::symlink;
+
+        let tmp = TempDir::new().unwrap();
+        let project = tmp.path().join("project");
+        let checks_dir = project.join(".agents").join("checks");
+        std::fs::create_dir_all(&checks_dir).unwrap();
+
+        let private_check = tmp.path().join("private").join("secret-check.md");
+        std::fs::create_dir_all(private_check.parent().unwrap()).unwrap();
+        std::fs::write(
+            &private_check,
+            "---\nname: secret-check\ndescription: hidden\n---\nTOP_SECRET_CHECK",
+        )
+        .unwrap();
+        symlink(&private_check, checks_dir.join("secret-check.md")).unwrap();
+
+        let listed = list_sources(
+            Some(SourceType::Agent),
+            Some(project.to_str().unwrap()),
+            false,
+        )
+        .unwrap();
+
+        assert!(!listed.iter().any(|source| {
+            source.name == "secret-check" && source.content.contains("TOP_SECRET_CHECK")
+        }));
+    }
+
     #[test]
     fn update_rejects_path_traversal() {
         let tmp = TempDir::new().unwrap();

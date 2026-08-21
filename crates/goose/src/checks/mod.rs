@@ -74,7 +74,13 @@ pub struct Check {
 impl Check {
     /// Read and parse a check file from disk.
     pub fn from_path(path: &Path) -> Result<Self> {
-        let content = fs::read_to_string(path)
+        let parent = path
+            .parent()
+            .ok_or_else(|| anyhow!("check {}: invalid path", path.display()))?;
+        let file_name = path
+            .file_name()
+            .ok_or_else(|| anyhow!("check {}: invalid filename", path.display()))?;
+        let content = crate::skills::read_source_file(parent, Path::new(file_name))
             .with_context(|| format!("read check file: {}", path.display()))?;
         Self::parse(&content, path)
     }
@@ -345,18 +351,27 @@ pub fn discover_with_globals(
     };
 
     for dir in global_dirs {
-        for check in read_checks_dir(dir, "", LoadMode::Lenient)? {
+        let Ok(canonical_dir) = dir.canonicalize() else {
+            continue;
+        };
+        for mut check in read_checks_dir(&canonical_dir, "", LoadMode::Lenient)? {
+            if let Some(file_name) = check.path.file_name().map(ToOwned::to_owned) {
+                check.path = dir.join(file_name);
+            }
             record(check, 0);
         }
     }
 
-    let root_dir = repo_root.join(".agents").join("checks");
+    let root_dir = canonical_repo_root.join(".agents").join("checks");
     for check in read_checks_dir(&root_dir, "", LoadMode::Strict)? {
         record(check, scope_priority(""));
     }
 
     for scope in &scope_dirs {
-        let dir = repo_root.join(scope).join(".agents").join("checks");
+        let dir = canonical_repo_root
+            .join(scope)
+            .join(".agents")
+            .join("checks");
         for check in read_checks_dir(&dir, scope, LoadMode::Strict)? {
             let p = scope_priority(scope);
             record(check, p);
@@ -394,8 +409,13 @@ enum LoadMode {
 }
 
 fn read_checks_dir(dir: &Path, scope_dir: &str, mode: LoadMode) -> Result<Vec<Check>> {
-    if !dir.is_dir() {
-        return Ok(Vec::new());
+    match fs::symlink_metadata(dir) {
+        Ok(metadata) if metadata.is_dir() => {}
+        Ok(_) => return Ok(Vec::new()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => {
+            return Err(error).with_context(|| format!("inspect checks dir {}", dir.display()))
+        }
     }
     let mut out = Vec::new();
     let entries =
@@ -403,7 +423,7 @@ fn read_checks_dir(dir: &Path, scope_dir: &str, mode: LoadMode) -> Result<Vec<Ch
     for entry in entries {
         let entry = entry?;
         let path = entry.path();
-        if !path.is_file() {
+        if !entry.file_type()?.is_file() {
             continue;
         }
         if path.extension().and_then(|s| s.to_str()) != Some("md") {
@@ -722,6 +742,29 @@ tools: [Bash, Read, Grep]
         assert_eq!(result.checks[0].description.as_deref(), Some("repo"));
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn allows_symlinked_global_check_directories() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().unwrap();
+        let root = dir.path().join("repo");
+        fs::create_dir_all(&root).unwrap();
+        let global = dir.path().join("global");
+        write(
+            &global.join("perf.md"),
+            "---\nname: perf\ndescription: global\n---\nglobal body",
+        );
+        let global_link = dir.path().join("global-link");
+        symlink(&global, &global_link).unwrap();
+
+        let result = discover_with_globals(&root, &[], std::slice::from_ref(&global_link)).unwrap();
+
+        assert_eq!(result.checks.len(), 1);
+        assert_eq!(result.checks[0].body, "global body");
+        assert_eq!(result.checks[0].path, global_link.join("perf.md"));
+    }
+
     #[test]
     fn user_check_named_repo_rules_is_not_overwritten_by_root_review_md() {
         let dir = tempdir().unwrap();
@@ -752,6 +795,26 @@ tools: [Bash, Read, Grep]
         );
         let result = discover_with_globals(root, &[], &[]).unwrap();
         assert_eq!(result.checks.len(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn skips_symlinked_check_directories() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().unwrap();
+        let root = dir.path().join("repo");
+        let external_checks = dir.path().join("external-checks");
+        write(
+            &external_checks.join("secret.md"),
+            "---\nname: secret\n---\nexternal body",
+        );
+        fs::create_dir_all(root.join(".agents")).unwrap();
+        symlink(&external_checks, root.join(".agents/checks")).unwrap();
+
+        let result = discover_with_globals(&root, &[], &[]).unwrap();
+
+        assert!(result.checks.is_empty());
     }
 
     #[cfg(unix)]
