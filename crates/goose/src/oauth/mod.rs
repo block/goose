@@ -6,7 +6,7 @@ use axum::extract::{Query, State};
 use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
-use minijinja::render;
+use minijinja::{context, Environment};
 use oauth2::{Scope, TokenResponse};
 use rmcp::transport::auth::{
     AuthError, AuthorizationRequest, CredentialStore, OAuthClientConfig, OAuthState,
@@ -60,6 +60,16 @@ fn resolve_oauth_callback_timeout(value: Option<&str>) -> Duration {
 fn oauth_callback_timeout() -> Duration {
     let timeout = std::env::var(OAUTH_CALLBACK_TIMEOUT_ENV).ok();
     resolve_oauth_callback_timeout(timeout.as_deref())
+}
+
+fn render_oauth_callback(name: &str) -> String {
+    Environment::new()
+        .render_named_str(
+            "oauth_callback.html",
+            CALLBACK_TEMPLATE,
+            context! { name => name },
+        )
+        .expect("failed to render OAuth callback")
 }
 
 fn announce_authorization_url(name: &str, authorization_url: &str) {
@@ -380,7 +390,7 @@ pub async fn oauth_flow_with_challenge(
     let app_state = AppState {
         callback_receiver: Arc::new(Mutex::new(Some(callback_sender))),
     };
-    let rendered = render!(CALLBACK_TEMPLATE, name => name);
+    let rendered = render_oauth_callback(name);
     let handler = move |Query(params): Query<CallbackParams>, State(state): State<AppState>| {
         let rendered = rendered.clone();
         async move {
@@ -510,6 +520,24 @@ mod tests {
             resolve_oauth_callback_timeout(Some("42")),
             Duration::from_secs(42)
         );
+    }
+
+    #[test]
+    fn oauth_callback_escapes_extension_name() {
+        let payload = r#"<script>alert("xss")</script>&"#;
+        let rendered = render_oauth_callback(payload);
+
+        assert!(!rendered.contains(payload));
+        assert!(rendered.contains("&lt;script&gt;"));
+        assert!(rendered.contains("&amp;"));
+    }
+
+    #[test]
+    fn oauth_callback_preserves_plain_extension_name() {
+        let rendered = render_oauth_callback("Example MCP");
+
+        assert!(rendered.contains("Example MCP OAuth Success"));
+        assert!(rendered.contains(">Example MCP</span>"));
     }
 
     #[tokio::test]
