@@ -263,7 +263,7 @@ fn validate_extension_update_with_config(
     config: &Config,
     key: &str,
     entry: &ExtensionEntry,
-) -> Result<(), ExtensionUpdateError> {
+) -> Result<serde_yaml::Value, ExtensionUpdateError> {
     let key = name_to_key(key);
     let new_key = entry.config.key();
     if new_key != key {
@@ -271,17 +271,14 @@ fn validate_extension_update_with_config(
     }
 
     let raw: Mapping = config.get_param(EXTENSIONS_CONFIG_KEY)?;
-    if extension_identity_key(&raw, &key).is_none() {
-        return Err(ExtensionUpdateError::NotFound { key });
-    }
-    Ok(())
+    extension_identity_key(&raw, &key).ok_or(ExtensionUpdateError::NotFound { key })
 }
 
 pub fn validate_extension_update(
     key: &str,
     entry: &ExtensionEntry,
 ) -> Result<(), ExtensionUpdateError> {
-    validate_extension_update_with_config(Config::global(), key, entry)
+    validate_extension_update_with_config(Config::global(), key, entry).map(|_| ())
 }
 
 /// Replaces an existing extension without changing its canonical identity.
@@ -294,25 +291,12 @@ fn update_extension_with_config(
     key: &str,
     entry: ExtensionEntry,
 ) -> Result<(), ExtensionUpdateError> {
-    let key = name_to_key(key);
-    let new_key = entry.config.key();
-    if new_key != key {
-        return Err(ExtensionUpdateError::IdentityChanged { key, new_key });
-    }
-
+    let stored_key = validate_extension_update_with_config(config, key, &entry)?;
     let value = serde_yaml::to_value(entry).map_err(ConfigError::from)?;
-    let mut updated = false;
     config.update_param::<Mapping, Mapping, _>(EXTENSIONS_CONFIG_KEY, |mut raw| {
-        if let Some(stored_key) = extension_identity_key(&raw, &key) {
-            raw.insert(stored_key, value);
-            updated = true;
-        }
+        raw.insert(stored_key, value);
         raw
     })?;
-
-    if !updated {
-        return Err(ExtensionUpdateError::NotFound { key });
-    }
     Ok(())
 }
 
@@ -475,6 +459,26 @@ mod tests {
         let config =
             Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap();
         (config, config_file, secrets_file)
+    }
+
+    fn test_config_with_base(
+        base_content: &str,
+        user_content: &str,
+    ) -> (Config, NamedTempFile, NamedTempFile, NamedTempFile) {
+        let base_file = NamedTempFile::new().unwrap();
+        let user_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        std::fs::write(base_file.path(), base_content).unwrap();
+        std::fs::write(user_file.path(), user_content).unwrap();
+        let config = Config::new_with_config_paths(
+            vec![
+                base_file.path().to_path_buf(),
+                user_file.path().to_path_buf(),
+            ],
+            secrets_file.path(),
+        )
+        .unwrap();
+        (config, base_file, user_file, secrets_file)
     }
 
     fn read_extensions(config: &Config) -> Mapping {
@@ -750,6 +754,64 @@ extensions:
             error,
             ExtensionUpdateError::NotFound { key } if key == "missing"
         ));
+    }
+
+    #[test]
+    fn test_update_extension_creates_override_for_inherited_identity() {
+        let (config, base_file, _user_file, _secrets_file) = test_config_with_base(
+            r#"
+extensions:
+  inherited-alias:
+    enabled: false
+    type: builtin
+    name: Inherited
+    description: inherited description
+    display_name: Inherited
+"#,
+            "",
+        );
+        let base_before = std::fs::read_to_string(base_file.path()).unwrap();
+
+        update_extension_with_config(&config, "Inherited", builtin_entry("Inherited", true))
+            .unwrap();
+
+        let user_extensions = read_extensions(&config);
+        assert!(user_extensions.contains_key("inherited-alias"));
+        assert!(!user_extensions.contains_key("inherited"));
+        assert!(get_extensions_map_with_config(&config)["inherited-alias"].enabled);
+        assert_eq!(
+            std::fs::read_to_string(base_file.path()).unwrap(),
+            base_before
+        );
+    }
+
+    #[test]
+    fn test_update_extension_replaces_partial_user_override() {
+        let (config, _base_file, _user_file, _secrets_file) = test_config_with_base(
+            r#"
+extensions:
+  inherited:
+    enabled: true
+    type: builtin
+    name: Inherited
+    description: inherited description
+    display_name: Inherited
+"#,
+            r#"
+extensions:
+  inherited:
+    enabled: false
+"#,
+        );
+
+        update_extension_with_config(&config, "Inherited", builtin_entry("Inherited", true))
+            .unwrap();
+
+        let user_extensions = read_extensions(&config);
+        let entry: ExtensionEntry =
+            serde_yaml::from_value(user_extensions["inherited"].clone()).unwrap();
+        assert!(entry.enabled);
+        assert_eq!(entry.config.name(), "Inherited");
     }
 
     #[test]
