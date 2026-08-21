@@ -26,6 +26,7 @@ pub struct ScanResult {
 
 struct DetailedScanResult {
     confidence: f32,
+    pattern_confidence: f32,
     pattern_matches: Vec<PatternMatch>,
     ml_confidence: Option<f32>,
     used_pattern_detection: bool,
@@ -166,8 +167,9 @@ impl PromptInjectionScanner {
             threshold
         );
 
-        let final_confidence =
-            self.combine_confidences(tool_result.confidence, context_result.ml_confidence);
+        let final_confidence = self
+            .combine_confidences(tool_result.confidence, context_result.ml_confidence)
+            .max(tool_result.pattern_confidence);
 
         tracing::info!(
             security.event_type = "prompt_injection_scan",
@@ -184,6 +186,7 @@ impl PromptInjectionScanner {
 
         let final_result = DetailedScanResult {
             confidence: final_confidence,
+            pattern_confidence: tool_result.pattern_confidence,
             pattern_matches: tool_result.pattern_matches,
             ml_confidence: tool_result.ml_confidence,
             used_pattern_detection: tool_result.used_pattern_detection,
@@ -208,6 +211,7 @@ impl PromptInjectionScanner {
 
         Ok(DetailedScanResult {
             confidence: ml_confidence.map_or(pattern_confidence, |ml| ml.max(pattern_confidence)),
+            pattern_confidence,
             pattern_matches,
             ml_confidence,
             used_pattern_detection: true,
@@ -220,6 +224,7 @@ impl PromptInjectionScanner {
         let Some(classifier) = self.prompt_classifier.as_ref() else {
             return Ok(DetailedScanResult {
                 confidence: 0.0,
+                pattern_confidence: 0.0,
                 pattern_matches: Vec::new(),
                 ml_confidence: None,
                 used_pattern_detection: false,
@@ -229,6 +234,7 @@ impl PromptInjectionScanner {
         if user_messages.is_empty() {
             return Ok(DetailedScanResult {
                 confidence: 0.0,
+                pattern_confidence: 0.0,
                 pattern_matches: Vec::new(),
                 ml_confidence: None,
                 used_pattern_detection: false,
@@ -248,6 +254,7 @@ impl PromptInjectionScanner {
 
         Ok(DetailedScanResult {
             confidence: max_confidence,
+            pattern_confidence: 0.0,
             pattern_matches: Vec::new(),
             ml_confidence: Some(max_confidence),
             used_pattern_detection: false,
@@ -404,9 +411,9 @@ mod tests {
     use wiremock::matchers::method;
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    async fn scanner_with_command_confidence(
+    async fn classifier_with_confidence(
         injection_confidence: f32,
-    ) -> (MockServer, PromptInjectionScanner) {
+    ) -> (MockServer, ClassificationClient) {
         let mock_server = MockServer::start().await;
         Mock::given(method("POST"))
             .respond_with(
@@ -421,15 +428,43 @@ mod tests {
             .mount(&mock_server)
             .await;
 
+        let classifier =
+            ClassificationClient::from_endpoint(mock_server.uri(), None, None).unwrap();
+
+        (mock_server, classifier)
+    }
+
+    async fn scanner_with_command_confidence(
+        injection_confidence: f32,
+    ) -> (MockServer, PromptInjectionScanner) {
+        let (mock_server, command_classifier) =
+            classifier_with_confidence(injection_confidence).await;
+
         let scanner = PromptInjectionScanner {
             pattern_matcher: PatternMatcher::new(),
-            command_classifier: Some(
-                ClassificationClient::from_endpoint(mock_server.uri(), None, None).unwrap(),
-            ),
+            command_classifier: Some(command_classifier),
             prompt_classifier: None,
         };
 
         (mock_server, scanner)
+    }
+
+    async fn scanner_with_classifier_confidences(
+        command_confidence: f32,
+        prompt_confidence: f32,
+    ) -> (MockServer, MockServer, PromptInjectionScanner) {
+        let (command_server, command_classifier) =
+            classifier_with_confidence(command_confidence).await;
+        let (prompt_server, prompt_classifier) =
+            classifier_with_confidence(prompt_confidence).await;
+
+        let scanner = PromptInjectionScanner {
+            pattern_matcher: PatternMatcher::new(),
+            command_classifier: Some(command_classifier),
+            prompt_classifier: Some(prompt_classifier),
+        };
+
+        (command_server, prompt_server, scanner)
     }
 
     #[tokio::test]
@@ -478,6 +513,45 @@ mod tests {
             result.pattern_matches[0].threat.name,
             "suid_binary_creation"
         );
+    }
+
+    #[tokio::test]
+    async fn context_fusion_preserves_pattern_confidence_floor() {
+        let _env = env_lock::lock_env([("SECURITY_PROMPT_THRESHOLD", Some("0.9"))]);
+        let (_command_server, _prompt_server, scanner) =
+            scanner_with_classifier_confidences(0.0, 0.0).await;
+        let tool_call = CallToolRequestParams::new("shell").with_arguments(object!({
+            "command": "rm -rf /"
+        }));
+        let messages = vec![Message::user().with_text("Please clean the build directory")];
+
+        let result = scanner
+            .analyze_tool_call_with_context(&tool_call, &messages)
+            .await
+            .unwrap();
+
+        assert_eq!(result.confidence, 0.95);
+        assert!(result.is_malicious);
+        assert!(result.explanation.contains("Pattern-based detection"));
+    }
+
+    #[tokio::test]
+    async fn context_fusion_keeps_legitimate_command_safe() {
+        let (_command_server, _prompt_server, scanner) =
+            scanner_with_classifier_confidences(0.0, 0.0).await;
+        let tool_call = CallToolRequestParams::new("shell").with_arguments(object!({
+            "command": "printf 'hello\\n'"
+        }));
+        let messages = vec![Message::user().with_text("Print a greeting")];
+
+        let result = scanner
+            .analyze_tool_call_with_context(&tool_call, &messages)
+            .await
+            .unwrap();
+
+        assert_eq!(result.confidence, 0.0);
+        assert!(!result.is_malicious);
+        assert_eq!(result.explanation, "No security threats detected");
     }
 
     #[tokio::test]
