@@ -302,8 +302,12 @@ export default function BaseChat({
 
   const handleRecipeAccept = async (accept: boolean) => {
     if (recipe && accept) {
-      await window.electron.recordRecipeHash(recipe);
       if (recipeIdentity) setRecipeTrust({ identity: recipeIdentity, accepted: true });
+      try {
+        await window.electron.recordRecipeHash(recipe);
+      } catch (error) {
+        console.error('Failed to persist recipe trust:', error);
+      }
       return;
     }
 

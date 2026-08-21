@@ -141,8 +141,14 @@ vi.mock('./ProgressiveMessageList', () => ({
   ),
 }));
 vi.mock('./ui/RecipeWarningModal', () => ({
-  RecipeWarningModal: ({ isOpen }: { isOpen: boolean }) => (
-    <div data-testid="recipe-warning" data-open={String(isOpen)} />
+  RecipeWarningModal: ({ isOpen, onConfirm }: { isOpen: boolean; onConfirm: () => void }) => (
+    <div data-testid="recipe-warning" data-open={String(isOpen)}>
+      {isOpen && (
+        <button type="button" onClick={onConfirm}>
+          accept recipe
+        </button>
+      )}
+    </div>
   ),
 }));
 vi.mock('./Layout/MainPanelLayout', () => ({
@@ -346,10 +352,11 @@ describe('BaseChat recipe trust gate', () => {
     expect(mocks.updateMessage).toHaveBeenCalledTimes(1);
   });
 
-  it('fails closed and opens the warning modal when the trust lookup fails', async () => {
+  it('fails closed on lookup failure and accepts only the current recipe when persistence fails', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     mocks.hasAcceptedRecipeBefore.mockRejectedValue(new Error('trust lookup failed'));
-    renderBaseChat();
+    mocks.recordRecipeHash.mockRejectedValue(new Error('trust persistence failed'));
+    const { rerender } = renderBaseChat();
 
     await waitFor(() =>
       expect(screen.getByTestId('recipe-warning')).toHaveAttribute('data-open', 'true')
@@ -359,7 +366,40 @@ describe('BaseChat recipe trust gate', () => {
     expect(mocks.submitMessage).not.toHaveBeenCalled();
     expect(mocks.steerMessage).not.toHaveBeenCalled();
     expect(mocks.updateMessage).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'accept recipe' }));
+    await waitFor(() =>
+      expect(screen.getByTestId('chat-input')).toHaveAttribute('data-recipe-accepted', 'true')
+    );
+    invokeAllSubmissionPaths();
+
+    expect(mocks.recordRecipeHash).toHaveBeenCalledWith(mocks.session.recipe);
+    expect(mocks.submitMessage).toHaveBeenCalledTimes(5);
+    expect(mocks.steerMessage).toHaveBeenCalledTimes(1);
+    expect(mocks.updateMessage).toHaveBeenCalledTimes(1);
     expect(consoleError).toHaveBeenCalledWith('Failed to check recipe trust:', expect.any(Error));
+    expect(consoleError).toHaveBeenCalledWith('Failed to persist recipe trust:', expect.any(Error));
+
+    mocks.submitMessage.mockClear();
+    mocks.steerMessage.mockClear();
+    mocks.updateMessage.mockClear();
+    mocks.hasAcceptedRecipeBefore.mockReturnValue(new Promise<boolean>(() => undefined));
+    mocks.session = makeSession({
+      recipe: {
+        title: 'Different recipe',
+        description: 'Runs a different prompt',
+        prompt: 'RUN_DIFFERENT_RECIPE',
+      },
+    });
+    rerender(
+      <BaseChat setChat={vi.fn()} sessionId="sess-1" suppressEmptyState={false} isActiveSession />
+    );
+
+    expect(screen.getByTestId('chat-input')).toHaveAttribute('data-recipe-accepted', 'false');
+    invokeAllSubmissionPaths();
+    expect(mocks.submitMessage).not.toHaveBeenCalled();
+    expect(mocks.steerMessage).not.toHaveBeenCalled();
+    expect(mocks.updateMessage).not.toHaveBeenCalled();
     consoleError.mockRestore();
   });
 
