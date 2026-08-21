@@ -283,7 +283,7 @@ extensions:
 
 #### Extension environment variables
 
-Extensions can declare the names of required environment variables in `env_keys`. Goose resolves these values when the extension starts, using an environment variable first and then Goose secret storage (the system keyring, or `secrets.yaml` when the keyring is disabled).
+Extensions can declare the names of required environment variables in `env_keys`. goose resolves these values when the extension starts, using an environment variable first and then goose secret storage (the system keyring, or `secrets.yaml` when the keyring is disabled).
 
 Recipe loading does not prompt for missing values. Configure them before starting the recipe; if a required value is unavailable, the extension reports an initialization error.
 
