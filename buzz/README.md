@@ -202,8 +202,9 @@ must send a new message with an explicit bot mention:
 ### `list_issue_work`
 
 Lists unassigned issues in the project's Inbox and open issues linked from the
-Buzz `issues to add` channel. Queue entries with an existing issue channel are
-treated as processed. Pull request links resolve to their issue when GitHub
+Buzz `issues to add` channel. A queue entry can contain a Goose issue or pull
+request URL, or just `#<issue number>`. Queue entries with an existing issue
+channel are treated as processed. Pull request links resolve to their issue when GitHub
 reports exactly one closing issue. The JSON also includes the core team, GitHub
 handles, Buzz public keys, interests, and assignment capacity so a Goose recipe
 can select an owner. `recent_assignment_load` counts core-team assignees across

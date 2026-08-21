@@ -434,7 +434,7 @@ function readIssueQueue() {
         left.created_at - right.created_at || left.id.localeCompare(right.id),
     )
     .flatMap((message) =>
-      githubLinks(message.content || "").map((link) => ({ message, link })),
+      queueLinks(message.content || "").map((link) => ({ message, link })),
     )
     .slice(-options.queueCount);
   const queuedByIssue = new Map();
@@ -477,6 +477,15 @@ function readIssueQueue() {
     ignored: [],
     unresolved,
   };
+}
+
+function queueLinks(content) {
+  const links = githubLinks(content);
+  const issueNumber = content.trim().match(/^#([1-9]\d*)$/)?.[1];
+  if (issueNumber) {
+    links.push(`https://github.com/${options.repository}/issues/${issueNumber}`);
+  }
+  return [...new Set(links)];
 }
 
 function githubLinks(content) {

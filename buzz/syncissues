@@ -41,6 +41,7 @@ const buzzHome =
   process.env.GOOSE_BUZZ_HOME || join(configHome, "goose", "buzz");
 const identityDirectory = join(buzzHome, "github-manager");
 const privateKeyPath = join(identityDirectory, "private-key.nsec");
+const publicKeyPath = join(identityDirectory, "public-key.hex");
 const commentStatePath = join(
   identityDirectory,
   `issue-comment-sync-${options.repository
@@ -56,6 +57,10 @@ const snoozeStatePath = join(
 const coreTeamPath =
   process.env.BUZZ_CORE_TEAM_FILE || join(scriptDirectory, "core-team.json");
 const privateKey = readRequiredFile(privateKeyPath);
+const publicKey = readRequiredFile(publicKeyPath).toLowerCase();
+if (!/^[0-9a-f]{64}$/.test(publicKey)) {
+  fail(`Invalid GitHub Manager public key in ${publicKeyPath}.`);
+}
 const buzz = findBuzz();
 const gh = process.env.GH_BIN || "gh";
 const buzzEnvironment = {
@@ -118,6 +123,7 @@ if (channels.length >= options.limit) {
 const detailsByChannelId = getChannelDetails();
 const results = [];
 const channelsByIssueNumber = new Map();
+const channelOwnership = new Map();
 
 for (const channel of channels) {
   const issueNumber = issueNumberFromChannel(channel, options.repository);
@@ -142,6 +148,18 @@ for (const channel of channels) {
   if (!issue) {
     const topic = "✅ GitHub issue: Closed";
     if (!details.archived) {
+      if (!canManageChannel(channel.channel_id)) {
+        results.push({
+          channel_id: channel.channel_id,
+          channel: channel.name,
+          issue: issueNumber,
+          state: "CLOSED",
+          topic: currentTopic,
+          actions: ["skipped-not-owner"],
+          reason: "GitHub Manager is not a channel owner",
+        });
+        continue;
+      }
       if (!options.dryRun && currentTopic !== topic) {
         runBuzz([
           "channels",
@@ -172,13 +190,6 @@ for (const channel of channels) {
     continue;
   }
 
-  if (details.archived) {
-    if (!options.dryRun) {
-      runBuzz(["channels", "unarchive", "--channel", channel.channel_id]);
-    }
-    actions.push(options.dryRun ? "would-unarchive" : "unarchived");
-  }
-
   const projectItem = projectItemsByIssueNumber.get(issue.number);
   const phase = projectItem?.status;
   if (!phase) {
@@ -202,6 +213,32 @@ for (const channel of channels) {
       ? assignees.map((login) => `@${login}`).join(", ")
       : "unassigned";
   const topic = `${marker ? `${marker} ` : ""}${phase} -- assigned to: ${assignment}`;
+
+  if (
+    (details.archived || currentTopic !== topic) &&
+    !canManageChannel(channel.channel_id)
+  ) {
+    results.push({
+      channel_id: channel.channel_id,
+      channel: channel.name,
+      issue: issue.number,
+      state: "OPEN",
+      phase,
+      assignees,
+      topic: currentTopic,
+      desired_topic: topic,
+      actions: ["skipped-not-owner"],
+      reason: "GitHub Manager is not a channel owner",
+    });
+    continue;
+  }
+
+  if (details.archived) {
+    if (!options.dryRun) {
+      runBuzz(["channels", "unarchive", "--channel", channel.channel_id]);
+    }
+    actions.push(options.dryRun ? "would-unarchive" : "unarchived");
+  }
 
   if (currentTopic !== topic) {
     if (!options.dryRun) {
@@ -432,6 +469,25 @@ function getChannelDetails() {
     }
   }
   return details;
+}
+
+function canManageChannel(channelId) {
+  if (!channelOwnership.has(channelId)) {
+    const members = runBuzz([
+      "channels",
+      "members",
+      "--channel",
+      channelId,
+    ]);
+    channelOwnership.set(
+      channelId,
+      members.some(
+        (member) =>
+          member.pubkey?.toLowerCase() === publicKey && member.role === "owner",
+      ),
+    );
+  }
+  return channelOwnership.get(channelId);
 }
 
 function issueNumberFromChannel(channel, repository) {
