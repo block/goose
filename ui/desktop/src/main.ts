@@ -18,7 +18,6 @@ import {
   Tray,
 } from 'electron';
 import { pathToFileURL, format as formatUrl, URLSearchParams } from 'node:url';
-import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
@@ -27,6 +26,11 @@ import os from 'node:os';
 import { execFileSync, spawn, execFile } from 'child_process';
 import 'dotenv/config';
 import { checkBackendStatus } from './backendStatus';
+import {
+  BackendCertificateTrustStore,
+  normalizeFingerprint,
+  type BackendCertificateTrustRegistration,
+} from './backendCertificateTrust';
 import { startGooseServe } from './gooseServe';
 import { getLoginShellPath } from './loginShellPath';
 import { GooseServeLeaseRegistry, type GooseServeLease } from './gooseServeLeaseRegistry';
@@ -311,94 +315,18 @@ async function configureProxy() {
 
 if (started) app.quit();
 
-// Certificate trust for active backend leases. Renderer requests and
-// main-process net.fetch both pin to the exact cert fingerprint. Each backend
-// lease owns a trust record so old windows keep working after settings change.
-interface BackendCertificateTrust {
-  hostname: string;
-  fingerprint: string | null;
-}
-
-interface BackendCertificateTrustRegistration {
-  trust: BackendCertificateTrust;
-  release: () => void;
-}
-
-const trustedBackendCertificates = new Set<BackendCertificateTrust>();
-
-function normalizeHostname(hostname: string): string {
-  return hostname.toLowerCase();
-}
-
-function normalizeFingerprint(fp: string): string {
-  if (fp.startsWith('sha256/')) {
-    const b64 = fp.slice('sha256/'.length);
-    const buf = Buffer.from(b64, 'base64');
-    return Array.from(buf)
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join(':')
-      .toUpperCase();
-  }
-  return fp.toUpperCase();
-}
-
-function trustBackendCertificate(
-  hostname: string,
-  fingerprint: string | null
-): BackendCertificateTrustRegistration {
-  const trust: BackendCertificateTrust = {
-    hostname: normalizeHostname(hostname),
-    fingerprint: fingerprint ? normalizeFingerprint(fingerprint) : null,
-  };
-  trustedBackendCertificates.add(trust);
-  return {
-    trust,
-    release: () => {
-      trustedBackendCertificates.delete(trust);
-    },
-  };
-}
-
-function getBackendCertificateTrusts(hostname: string): BackendCertificateTrust[] {
-  const normalizedHostname = normalizeHostname(hostname);
-  return [...trustedBackendCertificates].filter((trust) => trust.hostname === normalizedHostname);
-}
-
-function verifyBackendCertificate(hostname: string, fingerprint: string): boolean {
-  const normalizedFingerprint = normalizeFingerprint(fingerprint);
-  const trusts = getBackendCertificateTrusts(hostname);
-  if (trusts.length === 0) {
-    return false;
-  }
-
-  if (trusts.some((trust) => trust.fingerprint === normalizedFingerprint)) {
-    return true;
-  }
-
-  const tofuTrust = trusts.find((trust) => trust.fingerprint === null);
-  if (tofuTrust) {
-    // TOFU: pin the certificate from the first successful handshake.
-    tofuTrust.fingerprint = normalizedFingerprint;
-    return true;
-  }
-
-  return false;
-}
-
-function isTrustedHost(hostname: string): boolean {
-  return getBackendCertificateTrusts(hostname).length > 0;
-}
+const backendCertificateTrust = new BackendCertificateTrustStore();
 
 // Renderer requests: pin to the exact cert once known.
 app.on('certificate-error', (event, _webContents, url, _error, certificate, callback) => {
   const parsed = new URL(url);
-  if (!isTrustedHost(parsed.hostname)) {
+  if (!backendCertificateTrust.has(parsed.hostname)) {
     callback(false);
     return;
   }
 
   event.preventDefault();
-  callback(verifyBackendCertificate(parsed.hostname, certificate.fingerprint));
+  callback(backendCertificateTrust.verify(parsed.hostname, certificate.fingerprint));
 });
 
 app.whenReady().then(() => {
@@ -408,12 +336,12 @@ app.whenReady().then(() => {
 // Main-process net.fetch: pin to the exact cert once known.
 app.whenReady().then(() => {
   session.defaultSession.setCertificateVerifyProc((request, callback) => {
-    if (!isTrustedHost(request.hostname)) {
+    if (!backendCertificateTrust.has(request.hostname)) {
       callback(-3);
       return;
     }
 
-    const match = verifyBackendCertificate(request.hostname, request.certificate.fingerprint);
+    const match = backendCertificateTrust.verify(request.hostname, request.certificate.fingerprint);
     callback(match ? 0 : -2);
   });
 });
@@ -1122,9 +1050,10 @@ const createChat = async (
       const externalBaseUrl = normalizeAcpHttpBaseUrl(externalBackend.url);
       const externalBase = new URL(externalBaseUrl);
       if (externalBase.protocol === 'https:') {
-        externalCertificateTrust = trustBackendCertificate(
+        externalCertificateTrust = backendCertificateTrust.register(
           externalBase.hostname,
-          externalBackend.certFingerprint ?? null
+          externalBackend.certFingerprint ?? null,
+          externalBackend.certFingerprint ? 'lease' : 'hostname-tofu'
         );
       }
 
@@ -1198,7 +1127,7 @@ const createChat = async (
       return;
     }
   } else {
-    const localCertificateTrust = trustBackendCertificate('127.0.0.1', null);
+    const localCertificateTrust = backendCertificateTrust.register('127.0.0.1', null);
 
     const loginShellPath = await getLoginShellPath(log);
 
