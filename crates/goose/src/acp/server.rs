@@ -12,9 +12,7 @@ use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
 use crate::agents::extension::{Envs, PLATFORM_EXTENSIONS};
 use crate::agents::mcp_client::{GooseMcpHostInfo, McpClientTrait};
 use crate::agents::platform_extensions::developer::DeveloperClient;
-use crate::agents::{
-    Agent, AgentConfig, ExtensionConfig, ExtensionLoadResult, GoosePlatform, SessionConfig,
-};
+use crate::agents::{Agent, ExtensionConfig, ExtensionLoadResult, GoosePlatform, SessionConfig};
 use crate::config::base::CONFIG_YAML_NAME;
 use crate::config::extensions::{configured_enabled_state, get_enabled_extensions_with_config};
 use crate::config::paths::Paths;
@@ -241,6 +239,7 @@ struct ActiveRunGuard {
     session_id: String,
     run_id: String,
     agent: Arc<Agent>,
+    agent_manager: Arc<AgentManager>,
 }
 
 impl Drop for ActiveRunGuard {
@@ -250,6 +249,7 @@ impl Drop for ActiveRunGuard {
         };
         let runs = Arc::clone(&self.active_prompt_runs);
         let agent = Arc::clone(&self.agent);
+        let agent_manager = Arc::clone(&self.agent_manager);
         let session_id = self.session_id.clone();
         let run_id = self.run_id.clone();
         runtime.spawn(async move {
@@ -267,10 +267,16 @@ impl Drop for ActiveRunGuard {
                 return;
             }
             agent.discard_pending_steers(&session_id).await;
-            if let Ok(mut runs) = runs.lock() {
+            let removed_entry = runs.lock().is_ok_and(|mut runs| {
                 if matches!(runs.get(&session_id), Some(run) if run.run_id == run_id) {
                     runs.remove(&session_id);
+                    true
+                } else {
+                    false
                 }
+            });
+            if removed_entry {
+                agent_manager.unpin_session(&session_id).await;
             }
         });
     }
@@ -450,6 +456,12 @@ fn extract_client_capabilities_meta(args: &InitializeRequest) -> Option<ClientCa
         .meta
         .as_ref()
         .and_then(|meta| serde_json::from_value(serde_json::Value::Object(meta.clone())).ok())
+}
+
+fn active_run_error(session_id: &str) -> agent_client_protocol::Error {
+    agent_client_protocol::Error::invalid_params().data(format!(
+        "session `{session_id}` has an active run; retry after it completes"
+    ))
 }
 
 fn extract_client_mcp_host_info(
@@ -960,13 +972,15 @@ impl GooseAcpAgent {
     }
 
     /// Rebind a shared agent's connection-scoped runtime context — the
-    /// session-name notifier, advertised MCP host capabilities, and
-    /// login-shell behavior — to this connection.
+    /// session-name notifier and login-shell behavior — to this connection.
+    /// MCP host identity/capabilities are deliberately NOT rebound: running
+    /// MCP servers capture them at client construction, so the agent keeps
+    /// the stable identity it was created with instead of drifting per
+    /// connection.
     fn rebind_connection_context(&self, cx: &ConnectionTo<Client>, agent: &Arc<Agent>) {
         if !self.disable_session_naming {
             agent.set_session_name_update_tx(spawn_session_name_update_notifier(cx.clone()));
         }
-        agent.set_mcp_host_info(self.client_mcp_host_info.get().cloned());
         if let Some(use_login_shell_path) = self.use_login_shell_path.get().copied() {
             agent.set_use_login_shell_path(use_login_shell_path);
         }
@@ -990,18 +1004,6 @@ impl GooseAcpAgent {
             )
             .await
             .map_err(|error| agent_creation_error(error, "Failed to create agent"))?;
-        if !result.agent_created
-            && !self
-                .active_prompt_runs
-                .lock()
-                .unwrap()
-                .contains_key(&session_id)
-        {
-            // Cached agent activated by this connection while no run owns the
-            // session: rebind the connection-scoped runtime context from the
-            // creator's connection to this one.
-            self.rebind_connection_context(cx, &result.agent);
-        }
         Ok(result)
     }
 
@@ -1071,17 +1073,13 @@ impl GooseAcpAgent {
             .await;
     }
 
+    /// Create or fetch the session agent, then bind it to this connection.
+    /// Agent creation — including extension initialization — runs outside
+    /// `run_registration_lock` (it is serialized per session inside
+    /// `AgentManager`), so a slow extension init cannot stall prompt
+    /// registration; only the ownership check and connection rebinding
+    /// happen under the lock.
     async fn prepare_acp_session_agent(
-        &self,
-        cx: &ConnectionTo<Client>,
-        session: &Session,
-    ) -> Result<(Arc<Agent>, Vec<ExtensionLoadResult>), agent_client_protocol::Error> {
-        let _registration = self.run_registration_lock.lock().await;
-        self.prepare_acp_session_agent_locked(cx, session).await
-    }
-
-    /// Caller must hold `run_registration_lock`.
-    async fn prepare_acp_session_agent_locked(
         &self,
         cx: &ConnectionTo<Client>,
         session: &Session,
@@ -1090,21 +1088,42 @@ impl GooseAcpAgent {
             .get_or_create_session_agent_with_results(cx, session.id.clone())
             .await?;
         let agent = agent_result.agent.clone();
-        // Skip rebinding while a run owns the session: the running connection
-        // rebound the tool clients at prompt start.
-        if !self
+        let registration = self.run_registration_lock.lock().await;
+        self.bind_agent_to_connection(cx, &agent, session, agent_result.agent_created)
+            .await;
+        drop(registration);
+        self.maybe_refresh_provider_inventory_with_agent(session, &agent)
+            .await;
+
+        Ok((agent, agent_result.extension_results))
+    }
+
+    /// Rebind the shared agent's connection-scoped state to this connection.
+    /// Caller must hold `run_registration_lock`. Skips rebinding while a run
+    /// owns the session: the running connection rebound the tool clients at
+    /// prompt start.
+    async fn bind_agent_to_connection(
+        &self,
+        cx: &ConnectionTo<Client>,
+        agent: &Arc<Agent>,
+        session: &Session,
+        agent_created: bool,
+    ) {
+        if self
             .active_prompt_runs
             .lock()
             .unwrap()
             .contains_key(&session.id)
         {
-            self.apply_acp_extension_overrides(cx, &agent, session)
-                .await;
+            return;
         }
-        self.maybe_refresh_provider_inventory_with_agent(session, &agent)
-            .await;
-
-        Ok((agent, agent_result.extension_results))
+        if !agent_created {
+            // Cached agent activated by this connection: rebind the
+            // connection-scoped runtime context from the creator's
+            // connection to this one.
+            self.rebind_connection_context(cx, agent);
+        }
+        self.apply_acp_extension_overrides(cx, agent, session).await;
     }
 
     async fn prepare_session_for_activation(
@@ -1881,18 +1900,36 @@ impl GooseAcpAgent {
         Ok(())
     }
 
-    async fn clear_active_run(&self, session_id: &str, run_id: &str) {
+    /// Reject a session mutation while a prompt run owns the session. The
+    /// returned guard holds `run_registration_lock`, so the caller's mutation
+    /// is atomic against a run registering concurrently; drop it as soon as
+    /// the mutation is done.
+    async fn ensure_session_not_running(
+        &self,
+        session_id: &str,
+    ) -> Result<tokio::sync::MutexGuard<'_, ()>, agent_client_protocol::Error> {
+        let registration = self.run_registration_lock.lock().await;
+        if self
+            .active_prompt_runs
+            .lock()
+            .unwrap()
+            .contains_key(session_id)
         {
-            let mut active_prompt_runs = self.active_prompt_runs.lock().unwrap();
-            let Some(active_run) = active_prompt_runs.get(session_id) else {
-                return;
-            };
+            return Err(active_run_error(session_id));
+        }
+        Ok(registration)
+    }
 
-            if active_run.run_id != run_id {
-                return;
-            }
-
-            active_prompt_runs.remove(session_id);
+    async fn clear_active_run(&self, session_id: &str, run_id: &str) {
+        // Discard steers BEFORE removing the registry entry: while the entry
+        // stands, `start_active_run` rejects new runs, so the discard cannot
+        // wipe a queue a successor run enqueued into during the gap.
+        let owns_entry = {
+            let active_prompt_runs = self.active_prompt_runs.lock().unwrap();
+            matches!(active_prompt_runs.get(session_id), Some(run) if run.run_id == run_id)
+        };
+        if !owns_entry {
+            return;
         }
 
         let agent = {
@@ -1903,6 +1940,19 @@ impl GooseAcpAgent {
         };
         if let Some(agent) = agent {
             agent.discard_pending_steers(session_id).await;
+        }
+
+        let removed_entry = {
+            let mut active_prompt_runs = self.active_prompt_runs.lock().unwrap();
+            if matches!(active_prompt_runs.get(session_id), Some(run) if run.run_id == run_id) {
+                active_prompt_runs.remove(session_id);
+                true
+            } else {
+                false
+            }
+        };
+        if removed_entry {
+            self.agent_manager.unpin_session(session_id).await;
         }
 
         if self.closed_session_ids.lock().await.contains(session_id) {
@@ -2067,11 +2117,17 @@ impl GooseAcpAgent {
         let _registration = self.run_registration_lock.lock().await;
         self.start_active_run(&session_id, run_id.clone(), cancel_token.clone())
             .await?;
+        // Pin the agent for the duration of the run so LRU pressure on the
+        // shared manager cannot evict (and later rebuild) it mid-turn.
+        self.agent_manager
+            .pin_session(&session_id, Arc::clone(&agent))
+            .await;
         let _run_guard = ActiveRunGuard {
             active_prompt_runs: Arc::clone(&self.active_prompt_runs),
             session_id: session_id.clone(),
             run_id: run_id.clone(),
             agent: Arc::clone(&agent),
+            agent_manager: Arc::clone(&self.agent_manager),
         };
 
         // Prompt ownership: refresh every connection-scoped field on the
@@ -2644,6 +2700,7 @@ pub async fn run(builtins: Vec<String>, enable_scheduler: bool) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents::AgentConfig;
     use crate::session::session_manager::SessionType;
     use agent_client_protocol::schema::v1::{
         EmbeddedResource, EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse,
@@ -3511,7 +3568,8 @@ print(\"hello, world\")
                 agent_manager,
                 session_manager,
                 permission_manager,
-                active_prompt_runs: Arc::new(Mutex::new(HashMap::new())),
+                active_prompt_runs: Arc::new(std::sync::Mutex::new(HashMap::new())),
+                run_registration_lock: Arc::new(Mutex::new(())),
             })
             .await
             .unwrap(),
@@ -3526,14 +3584,14 @@ print(\"hello, world\")
             )
             .await
             .unwrap();
-        let session_agent = Arc::new(Agent::with_config(AgentConfig::new(
-            server.session_manager.clone(),
-            server.permission_manager.clone(),
-            None,
-            GooseMode::Auto,
-            true,
-            GoosePlatform::GooseCli,
-        )));
+        // Create the agent through the shared manager: `get_session_agent`
+        // treats an agent the manager doesn't know about as stale and
+        // re-activates it, which would detach the subscription under test.
+        let session_agent = server
+            .agent_manager
+            .get_or_create_agent(session.id.clone())
+            .await
+            .unwrap();
         let provider = Arc::new(AsyncEffortProvider::new());
         session_agent
             .update_provider(

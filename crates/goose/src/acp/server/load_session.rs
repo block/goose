@@ -287,21 +287,20 @@ impl GooseAcpAgent {
         // A prompt in flight (possibly on another connection) owns the
         // session's shared agent: loading now would evict or rebind it
         // mid-run. Reject before touching any shared state.
-        let _registration = self.run_registration_lock.lock().await;
+        let registration = self.run_registration_lock.lock().await;
         if self
             .active_prompt_runs
             .lock()
             .unwrap()
             .contains_key(&session_id_str)
         {
-            return Err(agent_client_protocol::Error::invalid_params().data(format!(
-                "session `{session_id_str}` has an active run; retry after it completes"
-            )));
+            return Err(active_run_error(&session_id_str));
         }
 
         session = self
             .prepare_session_for_activation(session, args.cwd.clone(), args.mcp_servers, true)
             .await?;
+        drop(registration);
 
         replay_conversation_to_client(
             cx,
@@ -309,9 +308,32 @@ impl GooseAcpAgent {
             self.supports_goose_custom_notifications(),
             self.requests_tool_call_label_enrichment(),
         )?;
-        let (agent, extension_results) =
-            self.prepare_acp_session_agent_locked(cx, &session).await?;
-        drop(_registration);
+
+        // Agent creation — including extension init — runs outside the
+        // registration lock; AgentManager serializes it per session.
+        let agent_result = self
+            .get_or_create_session_agent_with_results(cx, session.id.clone())
+            .await?;
+        let agent = agent_result.agent.clone();
+        let extension_results = agent_result.extension_results;
+
+        // Re-check under the lock: a run may have registered while the
+        // extensions were initializing. Rebinding now would yank the tool
+        // clients out from under it, so reject the load instead.
+        let registration = self.run_registration_lock.lock().await;
+        if self
+            .active_prompt_runs
+            .lock()
+            .unwrap()
+            .contains_key(&session_id_str)
+        {
+            return Err(active_run_error(&session_id_str));
+        }
+        self.bind_agent_to_connection(cx, &agent, &session, agent_result.agent_created)
+            .await;
+        drop(registration);
+        self.maybe_refresh_provider_inventory_with_agent(&session, &agent)
+            .await;
         self.apply_session_recipe(&agent, &session).await?;
         self.register_acp_session(session_id_str.clone(), agent.clone())
             .await;

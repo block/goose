@@ -27,6 +27,12 @@ impl GooseAcpAgent {
             return Ok(EmptyResponse {});
         }
 
+        // Fetch the agent before taking the ownership guard:
+        // `get_session_agent` may re-activate a stale agent, which takes
+        // `run_registration_lock` itself.
+        let agent = self.get_session_agent(session_id).await?;
+        let _ownership = self.ensure_session_not_running(session_id).await?;
+
         self.session_manager
             .update(session_id)
             .working_dir(path)
@@ -40,7 +46,6 @@ impl GooseAcpAgent {
             .await
             .internal_err_ctx("Failed to reload session")?;
 
-        let agent = self.get_session_agent(session_id).await?;
         agent
             .restore_provider_from_session(&session)
             .await
@@ -66,6 +71,7 @@ impl GooseAcpAgent {
         }
 
         let agent = self.get_session_agent(session_id).await?;
+        let _ownership = self.ensure_session_not_running(session_id).await?;
         match req.mode {
             SessionSystemPromptMode::Set => {
                 if req.text.trim().is_empty() {
@@ -100,6 +106,7 @@ impl GooseAcpAgent {
         req: DeleteSessionRequest,
     ) -> Result<DeleteSessionResponse, agent_client_protocol::Error> {
         let session_id = req.session_id.0.to_string();
+        let _ownership = self.ensure_session_not_running(&session_id).await?;
         self.session_manager
             .delete_session(&session_id)
             .await
@@ -218,6 +225,7 @@ impl GooseAcpAgent {
             );
         }
 
+        let _ownership = self.ensure_session_not_running(session_id).await?;
         self.session_manager
             .truncate_conversation(session_id, req.truncate_from)
             .await
@@ -255,6 +263,7 @@ impl GooseAcpAgent {
         &self,
         req: ArchiveSessionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        let _ownership = self.ensure_session_not_running(&req.session_id).await?;
         self.session_manager
             .update(&req.session_id)
             .archived_at(Some(chrono::Utc::now()))

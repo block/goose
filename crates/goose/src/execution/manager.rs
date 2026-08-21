@@ -30,8 +30,17 @@ pub struct AgentManagerGetResult {
     pub extension_results: Vec<ExtensionLoadResult>,
 }
 
+struct PinnedAgent {
+    agent: Arc<Agent>,
+    pin_count: usize,
+}
+
 pub struct AgentManager {
     sessions: Arc<RwLock<LruCache<String, Arc<Agent>>>>,
+    /// Agents with an in-flight turn. LRU eviction must not drop these, and
+    /// `get_or_create_agent` must return the same `Arc` rather than building a
+    /// second agent for the session.
+    pinned: Arc<RwLock<HashMap<String, PinnedAgent>>>,
     agent_config: AgentConfig,
     default_provider: Arc<RwLock<Option<Arc<dyn crate::providers::base::Provider>>>>,
     cancel_tokens: Arc<RwLock<HashMap<String, CancellationToken>>>,
@@ -53,6 +62,7 @@ impl AgentManager {
 
         let manager = Self {
             sessions: Arc::new(RwLock::new(LruCache::new(capacity))),
+            pinned: Arc::new(RwLock::new(HashMap::new())),
             agent_config,
             default_provider: Arc::new(RwLock::new(None)),
             cancel_tokens: Arc::new(RwLock::new(HashMap::new())),
@@ -124,6 +134,14 @@ impl AgentManager {
             }
         }
 
+        if let Some(pinned) = self.pinned.read().await.get(&session_id) {
+            return Ok(AgentManagerGetResult {
+                agent: Arc::clone(&pinned.agent),
+                agent_created: false,
+                extension_results: Vec::new(),
+            });
+        }
+
         // Slow path: serialize creation per session so concurrent callers
         // (e.g. start_agent's background extension-loading task and a
         // resume_agent request racing through the frontend) cannot each
@@ -182,6 +200,13 @@ impl AgentManager {
                     extension_results: Vec::new(),
                 });
             }
+        }
+        if let Some(pinned) = self.pinned.read().await.get(session_id) {
+            return Ok(AgentManagerGetResult {
+                agent: Arc::clone(&pinned.agent),
+                agent_created: false,
+                extension_results: Vec::new(),
+            });
         }
 
         let mut mode = self.agent_config.goose_mode;
@@ -309,15 +334,60 @@ impl AgentManager {
         }
     }
 
+    /// Keep `session_id`'s agent alive across LRU pressure for the duration of
+    /// a turn. Nested pins are counted so overlapping holders cannot unpin
+    /// each other.
+    pub async fn pin_session(&self, session_id: &str, agent: Arc<Agent>) {
+        let mut pinned = self.pinned.write().await;
+        pinned
+            .entry(session_id.to_string())
+            .and_modify(|entry| {
+                entry.agent = Arc::clone(&agent);
+                entry.pin_count += 1;
+            })
+            .or_insert(PinnedAgent {
+                agent,
+                pin_count: 1,
+            });
+    }
+
+    pub async fn unpin_session(&self, session_id: &str) {
+        let agent = {
+            let mut pinned = self.pinned.write().await;
+            let Some(entry) = pinned.get_mut(session_id) else {
+                return;
+            };
+            entry.pin_count -= 1;
+            if entry.pin_count > 0 {
+                return;
+            }
+            pinned.remove(session_id).map(|entry| entry.agent)
+        };
+        let Some(agent) = agent else {
+            return;
+        };
+        let mut sessions = self.sessions.write().await;
+        if sessions.contains(session_id) {
+            return;
+        }
+        let evicted = sessions.push(session_id.to_string(), agent).map(|(k, _)| k);
+        drop(sessions);
+        if let Some(evicted_id) = evicted {
+            self.prune_creation_lock(&evicted_id).await;
+        }
+    }
+
     pub async fn remove_session(&self, session_id: &str) -> Result<()> {
         if let Some(token) = self.cancel_tokens.write().await.remove(session_id) {
             token.cancel();
         }
+        let was_pinned = self.pinned.write().await.remove(session_id).is_some();
         let mut sessions = self.sessions.write().await;
-        sessions
-            .pop(session_id)
-            .ok_or_else(|| anyhow::anyhow!("Session {} not found", session_id))?;
+        let was_cached = sessions.pop(session_id).is_some();
         drop(sessions);
+        if !was_pinned && !was_cached {
+            return Err(anyhow::anyhow!("Session {} not found", session_id));
+        }
         // Best-effort prune of the per-session creation lock so the
         // HashMap doesn't grow unbounded.  Any caller still holding a
         // clone of the Arc keeps the underlying Mutex alive until it
@@ -332,6 +402,7 @@ impl AgentManager {
         if let Some(token) = self.cancel_tokens.write().await.remove(session_id) {
             token.cancel();
         }
+        self.pinned.write().await.remove(session_id);
         let mut sessions = self.sessions.write().await;
         if sessions.pop(session_id).is_none() {
             return Ok(());
@@ -344,11 +415,19 @@ impl AgentManager {
 
     pub async fn has_session(&self, session_id: &str) -> bool {
         self.sessions.read().await.contains(session_id)
+            || self.pinned.read().await.contains_key(session_id)
     }
 
     /// Look up a cached agent without promoting it in the LRU or creating it.
     pub async fn peek_agent(&self, session_id: &str) -> Option<Arc<Agent>> {
-        self.sessions.read().await.peek(session_id).map(Arc::clone)
+        if let Some(agent) = self.sessions.read().await.peek(session_id) {
+            return Some(Arc::clone(agent));
+        }
+        self.pinned
+            .read()
+            .await
+            .get(session_id)
+            .map(|pinned| Arc::clone(&pinned.agent))
     }
 
     pub async fn session_count(&self) -> usize {
@@ -417,6 +496,13 @@ mod tests {
     use super::AgentManager;
 
     async fn create_test_manager(temp_dir: &TempDir) -> AgentManager {
+        create_test_manager_with_capacity(temp_dir, 100).await
+    }
+
+    async fn create_test_manager_with_capacity(
+        temp_dir: &TempDir,
+        capacity: usize,
+    ) -> AgentManager {
         let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
         let agent_config = AgentConfig::new(
             session_manager,
@@ -426,7 +512,9 @@ mod tests {
             false,
             GoosePlatform::GooseDesktop,
         );
-        AgentManager::new(agent_config, Some(100)).await.unwrap()
+        AgentManager::new(agent_config, Some(capacity))
+            .await
+            .unwrap()
     }
 
     #[test]
@@ -515,6 +603,90 @@ mod tests {
         manager.remove_session_if_loaded(&session).await.unwrap();
         assert!(!manager.has_session(&session).await);
         manager.remove_session_if_loaded(&session).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn pinned_session_survives_lru_eviction() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = create_test_manager_with_capacity(&temp_dir, 1).await;
+
+        let pinned_id = "pinned-session".to_string();
+        let agent = manager
+            .get_or_create_agent(pinned_id.clone())
+            .await
+            .unwrap();
+        manager.pin_session(&pinned_id, Arc::clone(&agent)).await;
+
+        // Evict the pinned session from the LRU cache.
+        manager
+            .get_or_create_agent("other-session".to_string())
+            .await
+            .unwrap();
+
+        assert!(manager.has_session(&pinned_id).await);
+        let same = manager
+            .get_or_create_agent(pinned_id.clone())
+            .await
+            .unwrap();
+        assert!(
+            Arc::ptr_eq(&agent, &same),
+            "pinned session must not be rebuilt under LRU pressure"
+        );
+        assert!(manager
+            .peek_agent(&pinned_id)
+            .await
+            .is_some_and(|peeked| Arc::ptr_eq(&peeked, &agent)));
+
+        // Unpinning returns the agent to the LRU cache.
+        manager.unpin_session(&pinned_id).await;
+        let after_unpin = manager
+            .get_or_create_agent(pinned_id.clone())
+            .await
+            .unwrap();
+        assert!(Arc::ptr_eq(&agent, &after_unpin));
+    }
+
+    #[tokio::test]
+    async fn nested_pins_unpin_independently() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = create_test_manager_with_capacity(&temp_dir, 1).await;
+
+        let session = "nested-pin".to_string();
+        let agent = manager.get_or_create_agent(session.clone()).await.unwrap();
+        manager.pin_session(&session, Arc::clone(&agent)).await;
+        manager.pin_session(&session, Arc::clone(&agent)).await;
+
+        manager
+            .get_or_create_agent("evictor".to_string())
+            .await
+            .unwrap();
+
+        manager.unpin_session(&session).await;
+        let still_pinned = manager.get_or_create_agent(session.clone()).await.unwrap();
+        assert!(
+            Arc::ptr_eq(&agent, &still_pinned),
+            "one unpin must not release a doubly-pinned session"
+        );
+
+        manager.unpin_session(&session).await;
+        assert!(manager.has_session(&session).await);
+    }
+
+    #[tokio::test]
+    async fn remove_session_clears_pin() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = create_test_manager(&temp_dir).await;
+
+        let session = "pinned-removed".to_string();
+        let agent = manager.get_or_create_agent(session.clone()).await.unwrap();
+        manager.pin_session(&session, Arc::clone(&agent)).await;
+
+        manager.remove_session(&session).await.unwrap();
+        assert!(!manager.has_session(&session).await);
+
+        // A stale unpin after removal is a no-op.
+        manager.unpin_session(&session).await;
+        assert!(!manager.has_session(&session).await);
     }
 
     #[tokio::test]

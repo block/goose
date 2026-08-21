@@ -335,7 +335,7 @@ mod tests {
             session_manager: Arc::new(crate::session::SessionManager::instance()),
             scheduler: None,
             session: Some(session),
-            use_login_shell_path: false,
+            use_login_shell_path: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
         .unwrap()
         .with_builtin_skills(false)

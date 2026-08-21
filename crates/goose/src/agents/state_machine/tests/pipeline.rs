@@ -773,7 +773,6 @@ async fn build_test_pipeline(
         "pipeline-test".to_string(),
         ExtensionManagerCapabilities {
             mcpui: false,
-            mcpui_default: false,
             host_info: None,
             elicitation_handler: None,
             protocol_version: None,

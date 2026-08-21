@@ -419,7 +419,6 @@ impl Agent {
             });
         let capabilities = ExtensionManagerCapabilities {
             mcpui,
-            mcpui_default: matches!(config.goose_platform, GoosePlatform::GooseDesktop),
             host_info: explicit_mcp_host_info.clone(),
             elicitation_handler: config.elicitation_handler.clone(),
             protocol_version: config.mcp_protocol_version.clone(),
@@ -3551,12 +3550,6 @@ impl Agent {
     /// the old connection's notifier task.
     pub fn set_session_name_update_tx(&self, tx: mpsc::UnboundedSender<SessionNameUpdate>) {
         *self.config.session_name_update_tx.lock().unwrap() = Some(tx);
-    }
-
-    /// Refresh the ACP host identity/capabilities when a cached agent is
-    /// activated by a connection that advertised different MCP UI support.
-    pub fn set_mcp_host_info(&self, host_info: Option<GooseMcpHostInfo>) {
-        self.extension_manager.set_mcp_host_info(host_info);
     }
 
     /// Refresh the login-shell PATH behavior when a cached agent is activated
