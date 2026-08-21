@@ -11,6 +11,7 @@ use goose::config::declarative_providers::{
 use goose::config::extensions::{
     add_extension, add_extension_with_secrets, get_all_extensions, get_enabled_extensions,
     get_extension_by_name, name_to_key, remove_extension, set_extension, set_extension_enabled,
+    update_extension,
 };
 use goose::config::paths::Paths;
 use goose::config::permission::PermissionLevel;
@@ -1194,6 +1195,26 @@ fn collect_headers() -> anyhow::Result<HashMap<String, String>> {
     Ok(headers)
 }
 
+fn extension_activation(
+    config: ExtensionConfig,
+    configured: &[ExtensionEntry],
+) -> (Option<String>, ExtensionEntry) {
+    let key = config.key();
+    if let Some(existing) = configured.iter().find(|entry| entry.config.key() == key) {
+        let mut entry = existing.clone();
+        entry.enabled = true;
+        (Some(key), entry)
+    } else {
+        (
+            None,
+            ExtensionEntry {
+                enabled: true,
+                config,
+            },
+        )
+    }
+}
+
 fn configure_builtin_extension() -> anyhow::Result<()> {
     let extensions = vec![
         (
@@ -1254,10 +1275,12 @@ fn configure_builtin_extension() -> anyhow::Result<()> {
         }
     };
 
-    add_extension(ExtensionEntry {
-        enabled: true,
-        config,
-    })?;
+    let (existing_key, entry) = extension_activation(config, &get_all_extensions());
+    if let Some(key) = existing_key {
+        update_extension(&key, entry)?;
+    } else {
+        add_extension(entry)?;
+    }
 
     cliclack::outro(format!("Enabled {} extension", style(extension).green()))?;
     Ok(())
@@ -2409,6 +2432,46 @@ mod tests {
             validate_new_extension_name("Git Hub", &extension_identities),
             Err("An extension with this name already exists")
         );
+    }
+
+    #[test]
+    fn builtin_activation_enables_existing_canonical_identity() {
+        let existing = ExtensionEntry {
+            enabled: false,
+            config: ExtensionConfig::Builtin {
+                name: "developer".to_string(),
+                description: "preserved".to_string(),
+                display_name: None,
+                timeout: Some(42),
+                bundled: None,
+                available_tools: vec!["shell".to_string()],
+            },
+        };
+        let selected = ExtensionConfig::Builtin {
+            name: "Developer".to_string(),
+            description: "replacement".to_string(),
+            display_name: None,
+            timeout: Some(300),
+            bundled: Some(true),
+            available_tools: Vec::new(),
+        };
+
+        let (key, activated) = extension_activation(selected, &[existing]);
+
+        assert_eq!(key.as_deref(), Some("developer"));
+        assert!(activated.enabled);
+        let ExtensionConfig::Builtin {
+            description,
+            timeout,
+            available_tools,
+            ..
+        } = activated.config
+        else {
+            panic!("expected builtin extension");
+        };
+        assert_eq!(description, "preserved");
+        assert_eq!(timeout, Some(42));
+        assert_eq!(available_tools, vec!["shell"]);
     }
 
     #[test]
