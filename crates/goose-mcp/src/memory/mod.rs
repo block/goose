@@ -353,7 +353,8 @@ impl MemoryServer {
                 .parent()
                 .filter(|parent| !parent.as_os_str().is_empty())
                 .map(Path::to_path_buf)
-                .unwrap_or(std::env::current_dir()?);
+                .map(Ok)
+                .unwrap_or_else(std::env::current_dir)?;
             Ok(MemoryLocation {
                 anchor: parent,
                 components: vec![component],
