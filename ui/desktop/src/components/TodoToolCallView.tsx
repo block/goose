@@ -1,5 +1,5 @@
 import { ChevronDown } from 'lucide-react';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { defineMessages, useIntl } from '../i18n';
 import { cn } from '../utils';
 import { completedTodoCount, parseTodoMarkdown } from '../utils/todoPlan';

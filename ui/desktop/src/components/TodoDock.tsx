@@ -1,6 +1,6 @@
 import type { PlanEntry } from '@agentclientprotocol/sdk';
 import { ChevronDown } from 'lucide-react';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { defineMessages, useIntl } from '../i18n';
 import { cn } from '../utils';
 import { completedTodoCount, currentTodo } from '../utils/todoPlan';
