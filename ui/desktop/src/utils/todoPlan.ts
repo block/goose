@@ -8,7 +8,7 @@ export function parseTodoMarkdown(content: string): PlanEntry[] {
   const entries = content
     .split(/\r?\n/)
     .map((line): PlanEntry | undefined => {
-      const match = /^(\s*)[-*+]\s+\[([ xX>\/-])\]\s+(.+?)\s*$/.exec(line);
+      const match = /^(\s*)[-*+]\s+\[([ xX>/-])\]\s+(.+?)\s*$/.exec(line);
       if (!match) return undefined;
       const marker = match[2];
       const status =
