@@ -969,17 +969,21 @@ impl Config {
         }
     }
 
-    fn secrets_mutation_lock_path(&self) -> Result<PathBuf, ConfigError> {
-        match &self.secrets {
+    fn secrets_mutation_lock_paths(&self) -> Result<Vec<PathBuf>, ConfigError> {
+        let fallback_lock = secrets_lock_path(&private_file_target_path(self.secrets_file_path())?);
+        let mut lock_paths = match &self.secrets {
             #[cfg(feature = "system-keyring")]
-            SecretStorage::Keyring { service, .. } => {
-                Ok(private_file_target_path(&keyring_lock_path(service))?)
-            }
-            SecretStorage::File { path } => Ok(secrets_lock_path(&private_file_target_path(path)?)),
-        }
+            SecretStorage::Keyring { service, .. } => vec![
+                private_file_target_path(&keyring_lock_path(service))?,
+                fallback_lock,
+            ],
+            SecretStorage::File { .. } => vec![fallback_lock],
+        };
+        lock_paths.sort_unstable();
+        lock_paths.dedup();
+        Ok(lock_paths)
     }
 
-    #[cfg(feature = "system-keyring")]
     fn secrets_file_path(&self) -> &Path {
         match &self.secrets {
             #[cfg(feature = "system-keyring")]
@@ -988,26 +992,29 @@ impl Config {
         }
     }
 
-    fn lock_secrets_for_mutation(&self) -> Result<std::fs::File, ConfigError> {
-        let lock_path = self.secrets_mutation_lock_path()?;
-        if let Some(parent) = lock_path
-            .parent()
-            .filter(|parent| !parent.as_os_str().is_empty())
-        {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| ConfigError::DirectoryError(e.to_string()))?;
-        }
+    fn lock_secrets_for_mutation(&self) -> Result<Vec<std::fs::File>, ConfigError> {
+        let mut lock_files = Vec::new();
+        for lock_path in self.secrets_mutation_lock_paths()? {
+            if let Some(parent) = lock_path
+                .parent()
+                .filter(|parent| !parent.as_os_str().is_empty())
+            {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| ConfigError::DirectoryError(e.to_string()))?;
+            }
 
-        let lock_file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(lock_path)?;
-        lock_file
-            .lock_exclusive()
-            .map_err(|e| ConfigError::LockError(e.to_string()))?;
-        Ok(lock_file)
+            let lock_file = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .truncate(false)
+                .open(lock_path)?;
+            lock_file
+                .lock_exclusive()
+                .map_err(|e| ConfigError::LockError(e.to_string()))?;
+            lock_files.push(lock_file);
+        }
+        Ok(lock_files)
     }
 
     fn write_all_secrets(&self, values: &HashMap<String, Value>) -> Result<(), ConfigError> {
@@ -1739,8 +1746,8 @@ mod tests {
         let aliased = Config::new_with_file_secrets(&config_path, &secrets_alias)?;
 
         assert_eq!(
-            direct.secrets_mutation_lock_path()?,
-            aliased.secrets_mutation_lock_path()?
+            direct.secrets_mutation_lock_paths()?,
+            aliased.secrets_mutation_lock_paths()?
         );
 
         Ok(())
@@ -2295,9 +2302,19 @@ mod tests {
             )?,
             "keyring-success"
         );
+        let service_lock = private_file_target_path(&keyring_lock_path("custom-service"))?;
+        let fallback_lock = secrets_lock_path(&private_file_target_path(&custom_secrets_path)?);
+        let config_locks = config.secrets_mutation_lock_paths()?;
+        assert!(config_locks.contains(&service_lock));
+        assert!(config_locks.contains(&fallback_lock));
+
+        let file_config = Config::new_with_file_secrets(
+            custom_dir.path().join("file-config.yaml"),
+            &custom_secrets_path,
+        )?;
         assert_eq!(
-            config.secrets_mutation_lock_path()?,
-            private_file_target_path(&keyring_lock_path("custom-service"))?
+            file_config.secrets_mutation_lock_paths()?,
+            vec![fallback_lock]
         );
 
         let second_custom_dir = TempDir::new().unwrap();
@@ -2306,10 +2323,9 @@ mod tests {
             "custom-service",
         )?;
         assert_ne!(config.secrets_file_path(), same_service.secrets_file_path());
-        assert_eq!(
-            config.secrets_mutation_lock_path()?,
-            same_service.secrets_mutation_lock_path()?
-        );
+        assert!(same_service
+            .secrets_mutation_lock_paths()?
+            .contains(&service_lock));
 
         let loaded = config.fallback_to_file_storage()?;
         assert_eq!(
