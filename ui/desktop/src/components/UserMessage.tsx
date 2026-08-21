@@ -101,6 +101,8 @@ function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const isSavingRef = useRef(false);
   const [editContent, setEditContent] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -163,6 +165,8 @@ function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
 
   const handleSave = useCallback(
     async (editType: 'fork' | 'edit') => {
+      if (isSavingRef.current) return;
+
       const retainedImages = messageImages.filter((_, index) => !removedImageIndices.has(index));
 
       if (editContent.trim().length === 0 && retainedImages.length === 0) {
@@ -180,7 +184,15 @@ function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
       }
 
       if (onMessageUpdate && message.id) {
-        const updated = await onMessageUpdate(message.id, editContent, editType, retainedImages);
+        isSavingRef.current = true;
+        setIsSaving(true);
+        let updated: boolean;
+        try {
+          updated = await onMessageUpdate(message.id, editContent, editType, retainedImages);
+        } finally {
+          isSavingRef.current = false;
+          setIsSaving(false);
+        }
         if (!updated) return;
       }
       setIsEditing(false);
@@ -303,6 +315,7 @@ function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
                 </Button>
                 <Button
                   onClick={() => void handleSave('edit')}
+                  disabled={isSaving}
                   variant="secondary"
                   aria-label={intl.formatMessage(i18n.editInPlaceAriaLabel)}
                   title={intl.formatMessage(i18n.editInPlaceTitle)}
@@ -311,6 +324,7 @@ function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
                 </Button>
                 <Button
                   onClick={() => void handleSave('fork')}
+                  disabled={isSaving}
                   aria-label={intl.formatMessage(i18n.forkSessionAriaLabel)}
                   title={intl.formatMessage(i18n.forkSessionTitle)}
                 >

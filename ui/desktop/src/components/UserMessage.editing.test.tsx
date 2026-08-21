@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { IntlTestWrapper } from '../i18n/test-utils';
 import type { Message } from '../types/message';
@@ -15,7 +15,12 @@ const message: Message = {
 describe('UserMessage editing', () => {
   it('keeps the editor and draft open when an update is rejected', async () => {
     Object.assign(window.electron, { logInfo: vi.fn() });
-    const onMessageUpdate = vi.fn().mockResolvedValue(false);
+    let resolveUpdate: ((updated: boolean) => void) | undefined;
+    const onMessageUpdate = vi.fn().mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        resolveUpdate = resolve;
+      })
+    );
 
     render(<UserMessage message={message} onMessageUpdate={onMessageUpdate} />, {
       wrapper: IntlTestWrapper,
@@ -25,9 +30,14 @@ describe('UserMessage editing', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Edit message content' }), {
       target: { value: 'Keep this edited draft' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Edit message in place' }));
+    const saveButton = screen.getByRole('button', { name: 'Edit message in place' });
+    fireEvent.click(saveButton);
+    fireEvent.click(saveButton);
 
-    await waitFor(() => expect(onMessageUpdate).toHaveBeenCalledTimes(1));
+    expect(onMessageUpdate).toHaveBeenCalledTimes(1);
+    expect(saveButton).toBeDisabled();
+    await act(async () => resolveUpdate?.(false));
+    await waitFor(() => expect(saveButton).toBeEnabled());
     expect(screen.getByRole('textbox', { name: 'Edit message content' })).toHaveValue(
       'Keep this edited draft'
     );
