@@ -1,9 +1,13 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { IntlTestWrapper } from '../i18n/test-utils';
 import { ChatState } from '../types/chatState';
 import ChatInput from './ChatInput';
+
+const mocks = vi.hoisted(() => ({
+  onTranscription: undefined as undefined | ((text: string) => void),
+}));
 
 vi.stubGlobal(
   'ResizeObserver',
@@ -22,14 +26,17 @@ vi.mock('./ModelAndProviderContext', () => ({
   }),
 }));
 vi.mock('../hooks/useAudioRecorder', () => ({
-  useAudioRecorder: () => ({
-    isEnabled: false,
-    dictationProvider: null,
-    isRecording: false,
-    isTranscribing: false,
-    startRecording: vi.fn(),
-    stopRecording: vi.fn(),
-  }),
+  useAudioRecorder: ({ onTranscription }: { onTranscription: (text: string) => void }) => {
+    mocks.onTranscription = onTranscription;
+    return {
+      isEnabled: false,
+      dictationProvider: null,
+      isRecording: false,
+      isTranscribing: false,
+      startRecording: vi.fn(),
+      stopRecording: vi.fn(),
+    };
+  },
 }));
 vi.mock('./bottom_menu/BottomMenuExtensionSelection', () => ({
   BottomMenuExtensionSelection: () => null,
@@ -116,5 +123,30 @@ describe('ChatInput initial value updates', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Remove image' })).toBeInTheDocument();
+  });
+
+  it('preserves dictated text when auto-submit is blocked', () => {
+    vi.useFakeTimers();
+    const handleSubmit = vi.fn();
+    render(
+      <MemoryRouter>
+        <IntlTestWrapper>
+          <ChatInput
+            sessionId="sess-1"
+            handleSubmit={handleSubmit}
+            chatState={ChatState.Idle}
+            setView={vi.fn()}
+            queueProcessingBlocked
+          />
+        </IntlTestWrapper>
+      </MemoryRouter>
+    );
+
+    act(() => mocks.onTranscription?.('Keep this message submit'));
+    act(() => vi.advanceTimersByTime(100));
+
+    expect(screen.getByTestId('chat-input')).toHaveValue('Keep this message');
+    expect(handleSubmit).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 });

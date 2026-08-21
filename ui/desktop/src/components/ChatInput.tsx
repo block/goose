@@ -498,10 +498,12 @@ export default function ChatInput({
       setDisplayValue(newValue);
       setValue(newValue);
 
-      if (shouldAutoSubmit && newValue.trim()) {
+      if (shouldAutoSubmit && newValue.trim() && !queueProcessingBlocked) {
         trackVoiceDictation('auto_submit');
         setTimeout(() => {
-          performSubmit(newValue);
+          if (!queueProcessingBlockedRef.current) {
+            performSubmit(newValue);
+          }
         }, 100);
       } else {
         textAreaRef.current?.focus();
