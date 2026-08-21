@@ -77,12 +77,25 @@ pub(crate) fn discover_enabled_plugins_with_config(
         });
     }
 
-    let enabled_by_settings: Vec<DiscoveredPlugin> = found
+    let mut enabled_by_settings: Vec<DiscoveredPlugin> = found
         .into_values()
         .filter(|plugin| is_enabled(&plugin.name, &scoped_settings))
         .collect();
+    enabled_by_settings.sort_by(|left, right| {
+        plugin_scope_rank(left.scope)
+            .cmp(&plugin_scope_rank(right.scope))
+            .then_with(|| left.name.cmp(&right.name))
+            .then_with(|| left.root.cmp(&right.root))
+    });
 
     filter_by_config(enabled_by_settings, config)
+}
+
+fn plugin_scope_rank(scope: PluginScope) -> u8 {
+    match scope {
+        PluginScope::Project => 0,
+        PluginScope::User => 1,
+    }
 }
 
 /// Apply the `plugins` map in `config.yaml`. Newly discovered plugins are added
@@ -438,5 +451,38 @@ mod tests {
         let entries: HashMap<String, PluginConfigEntry> =
             config.get_param(PLUGINS_CONFIG_KEY).unwrap();
         assert!(entries.get(&key).is_some_and(|e| e.enabled));
+    }
+
+    #[test]
+    fn orders_plugins_by_scope_then_name() {
+        let project = tempfile::tempdir().unwrap();
+        write_plugin_dir(&project.path().join(".agents/plugins"), "z-project-plugin");
+        write_plugin_dir(&project.path().join(".agents/plugins"), "a-project-plugin");
+
+        let path_root = tempfile::tempdir().unwrap();
+        write_plugin_dir(&path_root.path().join(".agents/plugins"), "z-user-plugin");
+        write_plugin_dir(&path_root.path().join(".agents/plugins"), "a-user-plugin");
+        let config_dir = tempfile::tempdir().unwrap();
+        let config = test_config(config_dir.path());
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PATH_ROOT", path_root.path().to_str()),
+            ("PLUGINS", None),
+        ]);
+
+        let found = discover_enabled_plugins_with_config(Some(project.path()), &config);
+        let ordered: Vec<_> = found
+            .into_iter()
+            .map(|plugin| (plugin.name, plugin.scope))
+            .collect();
+
+        assert_eq!(
+            ordered,
+            vec![
+                ("a-project-plugin".to_string(), PluginScope::Project),
+                ("z-project-plugin".to_string(), PluginScope::Project),
+                ("a-user-plugin".to_string(), PluginScope::User),
+                ("z-user-plugin".to_string(), PluginScope::User),
+            ]
+        );
     }
 }
