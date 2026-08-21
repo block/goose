@@ -16,6 +16,7 @@ import {
 
 import {
   activateExtensionDefault,
+  changesExtensionIdentity,
   deleteExtension,
   renameExtensionDefault,
   toggleExtensionDefault,
@@ -178,7 +179,7 @@ export default function ExtensionsSection({
     const originalName = selectedExtension.name;
 
     try {
-      if (originalName !== extensionConfig.name) {
+      if (changesExtensionIdentity(originalName, extensionConfig.name)) {
         await renameExtensionDefault({
           originalName,
           extensionConfig,

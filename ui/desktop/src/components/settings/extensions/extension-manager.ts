@@ -1,5 +1,6 @@
 import type { ExtensionConfig } from '../../../types/extensions';
 import { toastService } from '../../../toasts';
+import { nameToKey } from './utils';
 import {
   trackExtensionAdded,
   trackExtensionEnabled,
@@ -89,6 +90,10 @@ interface RenameExtensionDefaultProps {
   enabled: boolean;
   addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
   removeFromConfig: (name: string) => Promise<void>;
+}
+
+export function changesExtensionIdentity(originalName: string, nextName: string): boolean {
+  return nameToKey(originalName) !== nameToKey(nextName);
 }
 
 export async function renameExtensionDefault({

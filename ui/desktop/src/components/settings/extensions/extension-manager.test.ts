@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ExtensionConfig } from '../../../types/extensions';
-import { renameExtensionDefault } from './extension-manager';
+import { changesExtensionIdentity, renameExtensionDefault } from './extension-manager';
 
 const renamedExtension: ExtensionConfig = {
   type: 'builtin',
@@ -47,5 +47,12 @@ describe('renameExtensionDefault', () => {
     expect(operations).toEqual(['add', 'remove']);
     expect(addToConfig).toHaveBeenCalledWith('Renamed', renamedExtension, false);
     expect(removeFromConfig).toHaveBeenCalledWith('Original');
+  });
+});
+
+describe('changesExtensionIdentity', () => {
+  it('treats capitalization and whitespace aliases as the same identity', () => {
+    expect(changesExtensionIdentity('github', 'Git Hub')).toBe(false);
+    expect(changesExtensionIdentity('github', 'gitlab')).toBe(true);
   });
 });

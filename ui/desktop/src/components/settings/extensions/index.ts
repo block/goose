@@ -4,6 +4,7 @@ export {
   activateExtensionDefault,
   toggleExtensionDefault,
   deleteExtension,
+  changesExtensionIdentity,
   renameExtensionDefault,
 } from './extension-manager';
 
