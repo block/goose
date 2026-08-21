@@ -12,6 +12,7 @@ pub const DEFAULT_EXTENSION_TIMEOUT: u64 = 300;
 pub const DEFAULT_EXTENSION_DESCRIPTION: &str = "";
 pub const DEFAULT_DISPLAY_NAME: &str = "Developer";
 const EXTENSIONS_CONFIG_KEY: &str = "extensions";
+static EXTENSION_ADD_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ExtensionEntry {
@@ -239,8 +240,33 @@ fn add_extension_with_config(
     config: &Config,
     entry: ExtensionEntry,
 ) -> Result<(), ExtensionAddError> {
-    validate_extension_add_with_config(config, &entry)?;
+    let _guard = EXTENSION_ADD_GUARD.lock().unwrap();
+    add_extension_with_config_locked(config, entry)
+}
 
+pub fn add_extension_with_secrets(
+    entry: ExtensionEntry,
+    secret_updates: &[(String, serde_json::Value)],
+) -> Result<(), ExtensionAddError> {
+    add_extension_with_secrets_with_config(Config::global(), entry, secret_updates)
+}
+
+fn add_extension_with_secrets_with_config(
+    config: &Config,
+    entry: ExtensionEntry,
+    secret_updates: &[(String, serde_json::Value)],
+) -> Result<(), ExtensionAddError> {
+    let _guard = EXTENSION_ADD_GUARD.lock().unwrap();
+    validate_extension_add_with_config(config, &entry)?;
+    config.set_secret_values(secret_updates)?;
+    add_extension_with_config_locked(config, entry)
+}
+
+fn add_extension_with_config_locked(
+    config: &Config,
+    entry: ExtensionEntry,
+) -> Result<(), ExtensionAddError> {
+    validate_extension_add_with_config(config, &entry)?;
     let key = entry.config.key();
     let value = serde_yaml::to_value(entry).map_err(ConfigError::from)?;
     let mut collision = false;
@@ -447,7 +473,7 @@ pub fn resolve_extensions_for_new_session(
 mod tests {
     use super::*;
     use std::fmt;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, Barrier, Mutex};
     use tempfile::NamedTempFile;
     use tracing::{Event, Level, Subscriber};
     use tracing_subscriber::layer::SubscriberExt;
@@ -695,6 +721,48 @@ extensions:
         let extensions = read_extensions(&config);
         assert!(extensions.contains_key("firstextension"));
         assert!(extensions.contains_key("secondextension"));
+    }
+
+    #[test]
+    fn test_concurrent_alias_add_does_not_overwrite_winner_secret() {
+        let (config, _config_file, _secrets_file) = test_config("");
+        let config = Arc::new(config);
+        let barrier = Arc::new(Barrier::new(2));
+        let attempts =
+            [("Git Hub", "first-secret"), ("github", "second-secret")].map(|(name, secret)| {
+                let config = Arc::clone(&config);
+                let barrier = Arc::clone(&barrier);
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    let updates = [(
+                        "SHARED_TOKEN".to_string(),
+                        serde_json::Value::String(secret.to_string()),
+                    )];
+                    let result = add_extension_with_secrets_with_config(
+                        &config,
+                        builtin_entry(name, true),
+                        &updates,
+                    );
+                    (result, secret)
+                })
+            });
+
+        let results = attempts.map(|attempt| attempt.join().unwrap());
+        let winner = results
+            .iter()
+            .find_map(|(result, secret)| result.is_ok().then_some(*secret))
+            .unwrap();
+        let rejected = results
+            .iter()
+            .find_map(|(result, secret)| result.is_err().then_some(*secret))
+            .unwrap();
+
+        assert_ne!(winner, rejected);
+        assert!(results.iter().any(|(result, _)| matches!(
+            result,
+            Err(ExtensionAddError::AlreadyExists { key }) if key == "github"
+        )));
+        assert_eq!(config.get_secret::<String>("SHARED_TOKEN").unwrap(), winner);
     }
 
     #[test]
