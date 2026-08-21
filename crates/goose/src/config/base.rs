@@ -974,17 +974,18 @@ impl Config {
 
     fn secrets_mutation_lock_paths(&self) -> Result<Vec<PathBuf>, ConfigError> {
         let fallback_lock = secrets_lock_path(&private_file_target_path(self.secrets_file_path())?);
-        let mut lock_paths = match &self.secrets {
+        match &self.secrets {
             #[cfg(feature = "system-keyring")]
-            SecretStorage::Keyring { service, .. } => vec![
-                private_file_target_path(&keyring_lock_path(service))?,
-                fallback_lock,
-            ],
-            SecretStorage::File { .. } => vec![fallback_lock],
-        };
-        lock_paths.sort_unstable();
-        lock_paths.dedup();
-        Ok(lock_paths)
+            SecretStorage::Keyring { service, .. } => {
+                let service_lock = private_file_target_path(&keyring_lock_path(service))?;
+                if service_lock == fallback_lock {
+                    Ok(vec![service_lock])
+                } else {
+                    Ok(vec![service_lock, fallback_lock])
+                }
+            }
+            SecretStorage::File { .. } => Ok(vec![fallback_lock]),
+        }
     }
 
     fn secrets_file_path(&self) -> &Path {
@@ -2382,6 +2383,31 @@ mod tests {
         assert_eq!(first_lock, keyring_lock_path("shared-service"));
         let expected_lock_dir = Paths::os_user_home_dir().join(".goose").join("locks");
         assert_eq!(first_lock.parent(), Some(expected_lock_dir.as_path()));
+    }
+
+    #[cfg(all(feature = "system-keyring", unix))]
+    #[test]
+    #[serial]
+    fn keyring_lock_order_is_independent_of_fallback_parent_aliases() -> Result<(), ConfigError> {
+        use std::os::unix::fs::symlink;
+
+        let directory = TempDir::new().unwrap();
+        let real_parent = directory.path().join("real");
+        let alias_parent = directory.path().join("alias");
+        std::fs::create_dir(&real_parent)?;
+        symlink(&real_parent, &alias_parent)?;
+        let _env = env_lock::lock_env([("GOOSE_DISABLE_KEYRING", None::<&str>)]);
+
+        let direct = Config::new(real_parent.join(CONFIG_YAML_NAME), "shared-service")?;
+        let aliased = Config::new(alias_parent.join(CONFIG_YAML_NAME), "shared-service")?;
+        let direct_locks = direct.secrets_mutation_lock_paths()?;
+        let aliased_locks = aliased.secrets_mutation_lock_paths()?;
+
+        assert_eq!(direct_locks[0], aliased_locks[0]);
+        assert_ne!(direct_locks[1], aliased_locks[1]);
+        assert_eq!(direct_locks[0], keyring_lock_path("shared-service"));
+
+        Ok(())
     }
 
     #[test]
