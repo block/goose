@@ -27,6 +27,12 @@ fn secrets_lock_path(path: &Path) -> PathBuf {
     PathBuf::from(lock_path)
 }
 
+fn extension_mutation_lock_path(path: &Path) -> PathBuf {
+    let mut lock_path = path.as_os_str().to_os_string();
+    lock_path.push(".extensions.lock");
+    PathBuf::from(lock_path)
+}
+
 #[cfg(feature = "system-keyring")]
 const KEYRING_SERVICE: &str = "goose";
 #[cfg(feature = "system-keyring")]
@@ -617,6 +623,35 @@ impl Config {
                 Err(e) => return Err(e.into()),
             }
         }
+    }
+
+    fn extension_mutation_lock_path(&self) -> Result<PathBuf, ConfigError> {
+        Ok(extension_mutation_lock_path(
+            &self.config_write_target_path()?,
+        ))
+    }
+
+    pub(crate) fn lock_extension_mutation(&self) -> Result<std::fs::File, ConfigError> {
+        let lock_path = self.extension_mutation_lock_path()?;
+        if let Some(parent) = lock_path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+        {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| ConfigError::DirectoryError(e.to_string()))?;
+        }
+
+        let lock_file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(lock_path)?;
+        lock_file
+            .lock_exclusive()
+            .map_err(|e| ConfigError::LockError(e.to_string()))?;
+        self.invalidate_secrets_cache();
+        Ok(lock_file)
     }
 
     fn save_values(&self, values: &Mapping) -> Result<(), ConfigError> {
@@ -1657,6 +1692,31 @@ mod tests {
             aliased.secrets_mutation_lock_path()?
         );
 
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_extension_mutation_lock_is_shared_across_config_instances() -> Result<(), ConfigError> {
+        let directory = TempDir::new().unwrap();
+        let config_path = directory.path().join("config.yaml");
+        let secrets_path = directory.path().join("secrets.yaml");
+        let first = Config::new_with_file_secrets(&config_path, &secrets_path)?;
+        let second = Config::new_with_file_secrets(&config_path, &secrets_path)?;
+        let first_lock = first.lock_extension_mutation()?;
+        let second_lock_path = second.extension_mutation_lock_path()?;
+        let second_lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(second_lock_path)?;
+
+        let error = second_lock.try_lock_exclusive().unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::WouldBlock);
+
+        drop(first_lock);
+        second_lock.try_lock_exclusive()?;
         Ok(())
     }
 

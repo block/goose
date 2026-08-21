@@ -241,6 +241,7 @@ fn add_extension_with_config(
     entry: ExtensionEntry,
 ) -> Result<(), ExtensionAddError> {
     let _guard = EXTENSION_MUTATION_GUARD.lock().unwrap();
+    let _file_guard = config.lock_extension_mutation()?;
     add_extension_with_config_locked(config, entry)
 }
 
@@ -257,6 +258,7 @@ fn add_extension_with_secrets_with_config(
     secret_updates: &[(String, serde_json::Value)],
 ) -> Result<(), ExtensionAddError> {
     let _guard = EXTENSION_MUTATION_GUARD.lock().unwrap();
+    let _file_guard = config.lock_extension_mutation()?;
     validate_extension_add_with_config(config, &entry)?;
     persist_with_secret_updates(config, secret_updates, || {
         add_extension_with_config_locked(config, entry)
@@ -345,6 +347,7 @@ fn update_extension_with_config(
     entry: ExtensionEntry,
 ) -> Result<(), ExtensionUpdateError> {
     let _guard = EXTENSION_MUTATION_GUARD.lock().unwrap();
+    let _file_guard = config.lock_extension_mutation()?;
     update_extension_with_config_locked(config, key, entry)
 }
 
@@ -363,6 +366,7 @@ fn update_extension_with_secrets_with_config(
     secret_updates: &[(String, serde_json::Value)],
 ) -> Result<(), ExtensionUpdateError> {
     let _guard = EXTENSION_MUTATION_GUARD.lock().unwrap();
+    let _file_guard = config.lock_extension_mutation()?;
     validate_extension_update_with_config(config, key, &entry)?;
     persist_with_secret_updates(config, secret_updates, || {
         update_extension_with_config_locked(config, key, entry)
