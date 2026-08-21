@@ -56,13 +56,17 @@ impl ProviderEntry {
         (self.inventory_configured)()
     }
 
+    pub(crate) fn toolshim_enabled(&self, fallback: bool) -> bool {
+        self.toolshim || fallback
+    }
+
     /// Apply provider-specific normalization to a model config: materialize
     /// global defaults and backfill `context_limit` from the provider's known
     /// models when the canonical registry didn't already resolve one. Used by
     /// the agent/session layer to resolve effective limits (e.g. for custom
     /// providers that declare explicit context limits in their config).
     pub fn normalize_model_config(&self, mut model: ModelConfig) -> Result<ModelConfig> {
-        if self.toolshim {
+        if self.toolshim_enabled(model.toolshim) {
             model = model.with_toolshim(true);
         }
         model = crate::model_config::materialize_model_config(&self.metadata.name, model)?;
@@ -460,5 +464,8 @@ mod tests {
         assert!(toolshim.toolshim);
         assert!(fallback_enabled.toolshim);
         assert!(!fallback_disabled.toolshim);
+        assert!(registry.entries["custom_toolshim"].toolshim_enabled(false));
+        assert!(registry.entries["custom_default"].toolshim_enabled(true));
+        assert!(!registry.entries["custom_default"].toolshim_enabled(false));
     }
 }

@@ -2590,8 +2590,7 @@
           ]
         },
         "toolshim": {
-          "type": "boolean",
-          "default": false
+          "type": "boolean"
         }
       },
       "required": [
@@ -2599,7 +2598,8 @@
         "engine",
         "displayName",
         "apiUrl",
-        "requiresAuth"
+        "requiresAuth",
+        "toolshim"
       ],
       "description": "Update a custom provider backed by Goose's declarative provider store.",
       "x-side": "agent",

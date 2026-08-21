@@ -1165,7 +1165,7 @@ export type CustomProviderUpdateRequest_unstable = {
     catalogProviderId?: string | null;
     basePath?: string | null;
     preservesThinking?: boolean | null;
-    toolshim?: boolean;
+    toolshim: boolean;
 };
 
 export type CustomProviderUpdateResponse_unstable = {

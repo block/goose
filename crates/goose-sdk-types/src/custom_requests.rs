@@ -1318,7 +1318,6 @@ pub struct CustomProviderUpdateRequest {
     pub provider_id: String,
     #[serde(flatten)]
     pub provider: CustomProviderUpsertDto,
-    #[serde(default)]
     pub toolshim: bool,
 }
 

@@ -490,7 +490,8 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "supportsStreaming": false,
                 "headers": {},
                 "requiresAuth": true,
-                "catalogProviderId": "zai"
+                "catalogProviderId": "zai",
+                "toolshim": false
             }),
         )
         .await
@@ -673,7 +674,8 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "apiUrl": "https://api.example.test/v1",
                 "models": ["model-a"],
                 "headers": {},
-                "requiresAuth": false
+                "requiresAuth": false,
+                "toolshim": false
             }),
         )
         .await
