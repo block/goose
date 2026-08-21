@@ -540,11 +540,32 @@ impl<'a> ApiRequestBuilder<'a> {
     }
 
     async fn send_bounded(&self, request: reqwest::RequestBuilder) -> Result<Response> {
-        if self.streaming {
-            Ok(crate::http_status::send_bounded(request, self.client.timeout).await?)
+        let method = request
+            .try_clone()
+            .and_then(|request| request.build().ok())
+            .map(|request| request.method().clone());
+        let url = request
+            .try_clone()
+            .and_then(|request| request.build().ok())
+            .map(|request| request.url().clone());
+        eprintln!(
+            "HTTP request: {} {}",
+            method.as_ref().map_or("?", |method| method.as_str()),
+            url.as_ref().map_or("?", |url| url.as_str())
+        );
+
+        let response = if self.streaming {
+            crate::http_status::send_bounded(request, self.client.timeout).await?
         } else {
-            Ok(request.send().await?)
-        }
+            request.send().await?
+        };
+        eprintln!(
+            "HTTP response: {} {} {}",
+            response.status(),
+            response.url(),
+            response.status().canonical_reason().unwrap_or("")
+        );
+        Ok(response)
     }
 
     pub async fn response_post(self, payload: &Value) -> Result<Response> {
