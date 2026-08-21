@@ -1,6 +1,8 @@
 use crate::config::paths::Paths;
 use crate::config::GooseMode;
 use crate::providers::private_file::{private_file_target_path, write_private_file};
+#[cfg(feature = "system-keyring")]
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use fs2::FileExt;
 use goose_providers::thinking::ThinkingEffort;
 #[cfg(feature = "system-keyring")]
@@ -9,6 +11,8 @@ use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_yaml::Mapping;
+#[cfg(feature = "system-keyring")]
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::env;
 use std::fs::OpenOptions;
@@ -25,6 +29,12 @@ fn secrets_lock_path(path: &Path) -> PathBuf {
     let mut lock_path = path.as_os_str().to_os_string();
     lock_path.push(".lock");
     PathBuf::from(lock_path)
+}
+
+#[cfg(feature = "system-keyring")]
+fn keyring_lock_path(service: &str) -> PathBuf {
+    let service_hash = URL_SAFE_NO_PAD.encode(Sha256::digest(service.as_bytes()));
+    Paths::config_dir().join(format!("keyring-{service_hash}.lock"))
 }
 
 #[cfg(feature = "system-keyring")]
@@ -960,11 +970,16 @@ impl Config {
     }
 
     fn secrets_mutation_lock_path(&self) -> Result<PathBuf, ConfigError> {
-        Ok(secrets_lock_path(&private_file_target_path(
-            self.secrets_file_path(),
-        )?))
+        match &self.secrets {
+            #[cfg(feature = "system-keyring")]
+            SecretStorage::Keyring { service, .. } => {
+                Ok(private_file_target_path(&keyring_lock_path(service))?)
+            }
+            SecretStorage::File { path } => Ok(secrets_lock_path(&private_file_target_path(path)?)),
+        }
     }
 
+    #[cfg(feature = "system-keyring")]
     fn secrets_file_path(&self) -> &Path {
         match &self.secrets {
             #[cfg(feature = "system-keyring")]
@@ -2282,7 +2297,18 @@ mod tests {
         );
         assert_eq!(
             config.secrets_mutation_lock_path()?,
-            secrets_lock_path(&private_file_target_path(&custom_secrets_path)?)
+            private_file_target_path(&keyring_lock_path("custom-service"))?
+        );
+
+        let second_custom_dir = TempDir::new().unwrap();
+        let same_service = Config::new(
+            second_custom_dir.path().join(CONFIG_YAML_NAME),
+            "custom-service",
+        )?;
+        assert_ne!(config.secrets_file_path(), same_service.secrets_file_path());
+        assert_eq!(
+            config.secrets_mutation_lock_path()?,
+            same_service.secrets_mutation_lock_path()?
         );
 
         let loaded = config.fallback_to_file_storage()?;
