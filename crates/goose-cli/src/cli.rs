@@ -2654,25 +2654,18 @@ async fn handle_default_session() -> Result<()> {
     session.interactive(None).await
 }
 
-fn validate_restart_config(path: &std::path::Path) -> anyhow::Result<()> {
-    if !path.exists() {
-        return Ok(());
-    }
-
-    let contents = std::fs::read_to_string(path)?;
-    serde_yaml::from_str::<serde_yaml::Value>(&contents)?;
-    Ok(())
-}
-
 async fn handle_restart_command() -> anyhow::Result<()> {
     let config_path = std::path::PathBuf::from(Config::global().path());
-    validate_restart_config(&config_path).map_err(|e| {
-        anyhow::anyhow!(
-            "Config validation failed for {}: {}. Fix the file and try again.",
-            config_path.display(),
-            e
-        )
-    })?;
+    if config_path.exists() {
+        let contents = std::fs::read_to_string(&config_path)?;
+        serde_yaml::from_str::<serde_yaml::Mapping>(&contents).map_err(|e| {
+            anyhow::anyhow!(
+                "Config validation failed for {}: {}. Fix the file and try again.",
+                config_path.display(),
+                e
+            )
+        })?;
+    };
 
     let exe = std::env::current_exe()?;
     let args: Vec<_> = std::env::args_os()
