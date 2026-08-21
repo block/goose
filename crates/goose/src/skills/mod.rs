@@ -22,6 +22,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::{OnceLock, RwLock};
 use tracing::warn;
 
 #[derive(Debug, Deserialize)]
@@ -193,19 +194,31 @@ fn canonicalize_or_original(path: &Path) -> PathBuf {
     path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
 }
 
-fn is_plugin_owned_path(path: &Path) -> bool {
-    path.ancestors().any(|ancestor| {
-        ancestor.file_name().and_then(|name| name.to_str()) == Some("plugins")
-            && ancestor
-                .parent()
-                .and_then(|parent| parent.file_name())
-                .and_then(|name| name.to_str())
-                == Some(".agents")
-    })
+static PROJECT_PLUGIN_SKILL_ROOTS: OnceLock<RwLock<HashSet<PathBuf>>> = OnceLock::new();
+
+fn register_project_plugin_skill_root(path: &Path) {
+    PROJECT_PLUGIN_SKILL_ROOTS
+        .get_or_init(|| RwLock::new(HashSet::new()))
+        .write()
+        .expect("project plugin skill roots lock poisoned")
+        .insert(canonicalize_or_original(path));
+}
+
+fn is_project_plugin_skill_path(path: &Path) -> bool {
+    PROJECT_PLUGIN_SKILL_ROOTS
+        .get_or_init(|| RwLock::new(HashSet::new()))
+        .read()
+        .expect("project plugin skill roots lock poisoned")
+        .iter()
+        .any(|root| path.starts_with(root))
 }
 
 fn inferred_discoverable_skill_root(path: &Path) -> Option<PathBuf> {
     let canonical_path = canonicalize_or_original(path);
+
+    if is_project_plugin_skill_path(&canonical_path) {
+        return None;
+    }
 
     let mut global_roots = Vec::new();
     if let Some(global_root) = global_skills_dir() {
@@ -233,7 +246,7 @@ fn inferred_discoverable_skill_root(path: &Path) -> Option<PathBuf> {
                 parent.file_name().and_then(|name| name.to_str()),
                 Some(".goose") | Some(".claude") | Some(".agents")
             );
-        (is_project_skills_root && !is_plugin_owned_path(ancestor)).then(|| ancestor.to_path_buf())
+        is_project_skills_root.then(|| ancestor.to_path_buf())
     })
 }
 
@@ -343,6 +356,12 @@ struct SkillDirectory {
 fn all_skill_dirs_with_config(working_dir: Option<&Path>, config: &Config) -> Vec<SkillDirectory> {
     let mut dirs = Vec::new();
     let plugin_dirs = enabled_plugin_skill_dirs_with_config(working_dir, config);
+
+    for (path, scope) in &plugin_dirs {
+        if *scope == PluginScope::Project {
+            register_project_plugin_skill_root(path);
+        }
+    }
 
     if let Some(wd) = working_dir {
         for path in [
@@ -623,6 +642,32 @@ mod tests {
         .unwrap();
     }
 
+    fn assert_read_only_and_rejected_by_source_crud(skill: &SourceEntry, skill_dir: &Path) {
+        assert!(!skill.global);
+        assert!(!skill.writable);
+
+        let update_err = crate::sources::update_source_with_roots(
+            SourceType::Skill,
+            &skill.path,
+            &skill.name,
+            "updated",
+            "updated body",
+            crate::sources::UpdateSourceOptions {
+                properties: Some(HashMap::new()),
+                additional_roots: &[],
+            },
+        )
+        .unwrap_err();
+        assert!(format!("{update_err:?}").contains("not found"));
+
+        let delete_err = crate::sources::delete_source(SourceType::Skill, &skill.path).unwrap_err();
+        assert!(format!("{delete_err:?}").contains("not found"));
+
+        let export_err = crate::sources::export_source(SourceType::Skill, &skill.path).unwrap_err();
+        assert!(format!("{export_err:?}").contains("not found"));
+        assert!(skill_dir.join("SKILL.md").is_file());
+    }
+
     fn skill_with_content(content: &str) -> SourceEntry {
         SourceEntry {
             source_type: SourceType::Skill,
@@ -826,28 +871,47 @@ mod tests {
             .into_iter()
             .find(|skill| skill.name == "plugin-owned")
             .unwrap();
-        assert!(!skill.global);
-        assert!(!skill.writable);
+        assert_read_only_and_rejected_by_source_crud(&skill, &skill_dir);
+    }
 
-        let update_err = crate::sources::update_source_with_roots(
-            SourceType::Skill,
-            &skill.path,
-            "plugin-owned",
-            "updated",
-            "updated body",
-            crate::sources::UpdateSourceOptions {
-                properties: Some(HashMap::new()),
-                additional_roots: &[],
-            },
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_project_plugin_skill_is_rejected_by_source_crud() {
+        let project = tempfile::tempdir().unwrap();
+        let path_root = tempfile::tempdir().unwrap();
+        let external_root = tempfile::tempdir().unwrap();
+        let plugin_link = project.path().join(".agents/plugins/project-plugin");
+        let skill_dir = external_root.path().join(".agents/skills/plugin-owned");
+        write_test_skill(&skill_dir, "plugin-owned", "plugin body");
+        std::fs::write(
+            external_root.path().join("plugin.json"),
+            r#"{"name":"project-plugin","skills":{"paths":["./.agents/skills"]}}"#,
         )
-        .unwrap_err();
-        assert!(format!("{update_err:?}").contains("not found"));
+        .unwrap();
+        std::fs::create_dir_all(plugin_link.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(external_root.path(), &plugin_link).unwrap();
 
-        let delete_err = crate::sources::delete_source(SourceType::Skill, &skill.path).unwrap_err();
-        assert!(format!("{delete_err:?}").contains("not found"));
+        let config = Config::new(path_root.path().join("test-config.yaml"), "skills-test").unwrap();
+        config
+            .set_param(
+                "plugins",
+                HashMap::from([(
+                    plugin_link.to_string_lossy().into_owned(),
+                    HashMap::from([("enabled", true)]),
+                )]),
+            )
+            .unwrap();
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PATH_ROOT", path_root.path().to_str()),
+            ("PLUGINS", None),
+        ]);
 
-        let export_err = crate::sources::export_source(SourceType::Skill, &skill.path).unwrap_err();
-        assert!(format!("{export_err:?}").contains("not found"));
-        assert!(skill_dir.join("SKILL.md").is_file());
+        let skill = discover_skills_with_config(Some(project.path()), &config)
+            .into_iter()
+            .find(|skill| skill.name == "plugin-owned")
+            .unwrap();
+
+        assert!(Path::new(&skill.path).starts_with(external_root.path().canonicalize().unwrap()));
+        assert_read_only_and_rejected_by_source_crud(&skill, &skill_dir);
     }
 }
