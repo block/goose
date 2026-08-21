@@ -55,6 +55,12 @@ pub struct Pricing {
 }
 
 impl Pricing {
+    pub fn is_zero(&self) -> bool {
+        [self.input, self.output, self.cache_read, self.cache_write]
+            .iter()
+            .all(|price| price.unwrap_or(0.0) == 0.0)
+    }
+
     pub fn estimate_cost(&self, usage: &Usage) -> Option<f64> {
         let input_price = self.input?;
         let output_price = self.output?;

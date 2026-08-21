@@ -89,7 +89,12 @@ pub fn maybe_get_canonical_model(provider: &str, model: &str) -> Option<Canonica
         return None;
     };
 
-    if should_clear_catalog_pricing(provider) {
+    // A meta-provider model can infer to a first-party catalog entry that carries literal
+    // 0.0 prices (open-weights publishers such as meta-llama do). Reporting paid proxied
+    // inference as free is worse than reporting nothing, so treat zeroed pricing as absent.
+    if should_clear_catalog_pricing(provider)
+        || (name_builder::is_meta_provider(provider) && canonical.cost.is_zero())
+    {
         canonical.cost = Pricing::default();
     }
 
@@ -121,6 +126,19 @@ mod tests {
         assert_eq!(canonical.limit.context, 400_000);
         assert!(canonical.cost.input.is_some());
         assert!(canonical.cost.output.is_some());
+    }
+
+    #[test]
+    fn meta_provider_zero_priced_inference_reports_no_cost() {
+        // "llama-3.3-70b-instruct" infers to meta-llama/llama-3.3-70b-instruct, whose catalog
+        // entry is priced 0.0/0.0 even though Azure Foundry and Databricks both bill for it.
+        for provider in ["azure_foundry", "databricks"] {
+            let canonical = maybe_get_canonical_model(provider, "llama-3.3-70b-instruct")
+                .expect("llama-3.3-70b-instruct should resolve");
+            assert_eq!(canonical.cost.input, None, "provider {provider}");
+            assert_eq!(canonical.cost.output, None, "provider {provider}");
+            assert!(canonical.limit.context > 0, "provider {provider}");
+        }
     }
 
     #[test]
