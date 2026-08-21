@@ -1313,7 +1313,7 @@ async fn chat_mode_skips_unknown_tool_without_tool_hooks() -> Result<()> {
 }
 
 #[tokio::test]
-async fn denied_unknown_tool_reports_policy_decline_without_tool_hooks() -> Result<()> {
+async fn unadvertised_unknown_tool_ignores_permission_and_retains_hooks() -> Result<()> {
     let env = RecordingHookEnv::new(&[
         ("PreToolUse", "", "pre.sh", RECORD_PRE_SCRIPT),
         ("PreToolUseResult", "", "result.sh", RECORD_RESULT_SCRIPT),
@@ -1333,15 +1333,21 @@ async fn denied_unknown_tool_reports_policy_decline_without_tool_hooks() -> Resu
     pipeline.set_permission("missing__tool", PermissionLevel::NeverAllow);
     api.on("try the missing tool")
         .unadvertised_call("missing__tool", serde_json::json!({}));
-    api.on(DECLINED_RESPONSE).reply("understood");
+    api.on("not available").reply("understood");
 
     let result = pipeline.run(["try the missing tool"]).await?;
 
-    result.assert_message(-2, ToolResponse, DECLINED_RESPONSE);
-    assert!(env.payloads("pre.log").is_empty());
-    assert!(env.payloads("result.log").is_empty());
+    result.assert_message(-2, ToolResponse, "Tool 'missing__tool' is not available.");
+    let pres = env.payloads("pre.log");
+    let results = env.payloads("result.log");
+    let post_failures = env.payloads("postfail.log");
+    assert_eq!(pres.len(), 1);
+    assert_eq!(results.len(), 1);
+    assert_eq!(post_failures.len(), 1);
+    assert_eq!(pres[0]["tool_name"], "missing__tool");
+    assert_eq!(results[0]["decision"], "allow");
+    assert_eq!(post_failures[0]["tool_name"], "missing__tool");
     assert!(env.payloads("post.log").is_empty());
-    assert!(env.payloads("postfail.log").is_empty());
     Ok(())
 }
 
