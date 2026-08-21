@@ -288,7 +288,7 @@ impl Operation<Session, GooseEffect> for RecipeOperation {
             return not_applicable();
         };
 
-        if self.provider.manages_own_context() {
+        if !self.provider.supports_builtin_tools() {
             return self
                 .command_error(
                     conversation,

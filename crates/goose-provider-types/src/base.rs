@@ -646,6 +646,10 @@ pub trait Provider: Send + Sync {
         false
     }
 
+    fn supports_builtin_tools(&self) -> bool {
+        !self.manages_own_context()
+    }
+
     /// Configure OAuth authentication for this provider
     ///
     /// This method is called when a provider has configuration keys marked with oauth_flow = true.

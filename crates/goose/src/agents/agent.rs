@@ -2152,6 +2152,30 @@ impl Agent {
             .clone()
             .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
+        if self.final_output_tool.lock().await.is_some() {
+            let provider = self.provider().await?;
+            if !provider.supports_builtin_tools() {
+                let provider_name = provider.get_name();
+                warn!(
+                    provider = %provider_name,
+                    "Recipe declares structured response, but this provider can't receive the final_output tool; failing before inference"
+                );
+                let message = Message::assistant()
+                    .with_text(structured_output_unsupported_message(provider_name))
+                    .with_generated_id_if_missing();
+                session_manager
+                    .add_message(&session_config.id, &message)
+                    .await?;
+
+                return Ok(Box::pin(async_stream::try_stream! {
+                    for event in command_preamble {
+                        yield event;
+                    }
+                    yield AgentEvent::Message(message);
+                }));
+            }
+        }
+
         let needs_auto_compact = check_if_compaction_needed(
             self.provider().await?.as_ref(),
             &conversation,
@@ -3241,19 +3265,6 @@ impl Agent {
                     };
 
                     match final_output {
-                        Some(None) if provider.manages_own_context() => {
-                            warn!(
-                                provider = %provider_name,
-                                "Recipe declares structured response, but this provider can't receive the final_output tool; failing fast instead of looping"
-                            );
-                            let message = push_message_with_id(
-                                &mut messages_to_add,
-                                Message::assistant()
-                                    .with_text(structured_output_unsupported_message(&provider_name)),
-                            );
-                            yield AgentEvent::Message(message);
-                            exit_chat = true;
-                        }
                         Some(None) => {
                             warn!("Final output tool has not been called yet. Continuing agent loop.");
                             let message = push_message_with_id(
