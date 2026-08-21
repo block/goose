@@ -557,7 +557,8 @@ function ToolCallView({
   if (isTodoWriteToolName(toolCall.name)) {
     const content =
       typeof toolCall.arguments?.content === 'string' ? toolCall.arguments.content : '';
-    return <TodoToolCallView content={content} status={loadingStatus} />;
+    const todoStatus = isCancelledMessage && !toolResponse ? 'error' : loadingStatus;
+    return <TodoToolCallView content={content} status={todoStatus} />;
   }
 
   const toolResults =

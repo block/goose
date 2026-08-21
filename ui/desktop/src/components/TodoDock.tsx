@@ -13,7 +13,7 @@ const i18n = defineMessages({
   collapse: { id: 'todoDock.collapse', defaultMessage: 'Collapse task list' },
 });
 
-export default function TodoDock({ entries, active }: { entries: PlanEntry[]; active: boolean }) {
+export default function TodoDock({ entries }: { entries: PlanEntry[] }) {
   const intl = useIntl();
   const [collapsed, setCollapsed] = useState(true);
   const [visible, setVisible] = useState(false);
@@ -34,16 +34,12 @@ export default function TodoDock({ entries, active }: { entries: PlanEntry[]; ac
       return;
     }
 
-    const complete = entries.every((entry) => entry.status === 'completed');
-    if (!active) {
-      setVisible(false);
-      return;
-    }
     setVisible(true);
+    const complete = entries.every((entry) => entry.status === 'completed');
     if (complete && entriesChanged) {
       closeTimer.current = setTimeout(() => setVisible(false), 650);
     }
-  }, [active, entries, signature]);
+  }, [entries, signature]);
 
   useEffect(
     () => () => {
@@ -63,6 +59,7 @@ export default function TodoDock({ entries, active }: { entries: PlanEntry[]; ac
   return (
     <div
       aria-hidden={!visible}
+      inert={!visible}
       className={cn(
         'grid transition-[grid-template-rows,opacity,transform,margin] duration-200 ease-out motion-reduce:transition-none',
         visible

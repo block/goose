@@ -500,10 +500,7 @@ export default function BaseChat({
         )}
 
         <div className="mx-4">
-          <TodoDock
-            entries={plan}
-            active={chatState !== ChatState.Idle && chatState !== ChatState.LoadingConversation}
-          />
+          <TodoDock entries={plan} />
         </div>
 
         <ChatInputCard
