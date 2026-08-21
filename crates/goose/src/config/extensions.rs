@@ -301,12 +301,9 @@ where
         return persist();
     }
 
-    let existing = config.all_secrets().map_err(E::from)?;
-    let snapshot = secret_updates
-        .iter()
-        .map(|(key, _)| (key.clone(), existing.get(key).cloned()))
-        .collect::<Vec<_>>();
-    config.set_secret_values(secret_updates).map_err(E::from)?;
+    let snapshot = config
+        .set_secret_values_with_snapshot(secret_updates)
+        .map_err(E::from)?;
 
     if let Err(error) = persist() {
         config
@@ -1264,6 +1261,37 @@ extensions:
 
         let result: Result<(), ConfigError> = persist_with_secret_updates(&first, &updates, || {
             second.set_secret("SHARED_TOKEN", &"newer-secret")?;
+            Err(ConfigError::NotFound("forced failure".to_string()))
+        });
+
+        assert!(matches!(result, Err(ConfigError::NotFound(_))));
+        assert_eq!(
+            first.get_secret::<String>("SHARED_TOKEN").unwrap(),
+            "newer-secret"
+        );
+    }
+
+    #[test]
+    fn test_secret_snapshot_and_update_use_current_locked_value() {
+        let directory = tempfile::tempdir().unwrap();
+        let config_path = directory.path().join("config.yaml");
+        let secrets_path = directory.path().join("secrets.yaml");
+        let first = Config::new_with_file_secrets(&config_path, &secrets_path).unwrap();
+        let second = Config::new_with_file_secrets(&config_path, &secrets_path).unwrap();
+        first
+            .set_secret("SHARED_TOKEN", &"original-secret")
+            .unwrap();
+        assert_eq!(
+            first.get_secret::<String>("SHARED_TOKEN").unwrap(),
+            "original-secret"
+        );
+        second.set_secret("SHARED_TOKEN", &"newer-secret").unwrap();
+        let updates = [(
+            "SHARED_TOKEN".to_string(),
+            serde_json::Value::String("rejected-secret".to_string()),
+        )];
+
+        let result: Result<(), ConfigError> = persist_with_secret_updates(&first, &updates, || {
             Err(ConfigError::NotFound("forced failure".to_string()))
         });
 

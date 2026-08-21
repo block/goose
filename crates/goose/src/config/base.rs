@@ -1074,6 +1074,28 @@ impl Config {
         })
     }
 
+    pub(crate) fn set_secret_values_with_snapshot(
+        &self,
+        updates: &[(String, Value)],
+    ) -> Result<Vec<(String, Option<Value>)>, ConfigError> {
+        if updates.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut snapshot = Vec::with_capacity(updates.len());
+        self.mutate_secrets(|values| {
+            snapshot.extend(
+                updates
+                    .iter()
+                    .map(|(key, _)| (key.clone(), values.get(key).cloned())),
+            );
+            for (key, value) in updates {
+                values.insert(key.clone(), value.clone());
+            }
+        })?;
+        Ok(snapshot)
+    }
+
     pub(crate) fn restore_secret_values_if_unchanged(
         &self,
         snapshot: &[(String, Option<Value>)],
