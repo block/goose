@@ -427,7 +427,9 @@ fn validate_extension_rename_with_config(
     let raw: Mapping = config.get_param(EXTENSIONS_CONFIG_KEY)?;
     let stored_key = extension_identity_key(&raw, &key)
         .ok_or_else(|| ExtensionRenameError::NotFound { key: key.clone() })?;
-    if extension_identity_exists(&raw, &new_key) {
+    let mut other_entries = raw.clone();
+    other_entries.remove(&stored_key);
+    if extension_identity_exists(&other_entries, &new_key) {
         return Err(ExtensionRenameError::AlreadyExists { key: new_key });
     }
     Ok(stored_key)
@@ -1086,6 +1088,35 @@ extensions:
             config.get_secret::<String>("SHARED_TOKEN").unwrap(),
             "original-secret"
         );
+    }
+
+    #[test]
+    fn test_rename_to_source_stored_key_does_not_self_collide() {
+        let (config, _config_file, _secrets_file) = test_config(
+            r#"
+extensions:
+  originalalias:
+    enabled: true
+    type: builtin
+    name: Original
+    description: original description
+    display_name: Original
+"#,
+        );
+
+        rename_extension_with_secrets_with_config(
+            &config,
+            "Original",
+            builtin_entry("Original Alias", false),
+            &[],
+        )
+        .unwrap();
+
+        let extensions = read_extensions(&config);
+        let entry: ExtensionEntry =
+            serde_yaml::from_value(extensions["originalalias"].clone()).unwrap();
+        assert!(!entry.enabled);
+        assert_eq!(entry.config.name(), "Original Alias");
     }
 
     #[test]
