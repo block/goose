@@ -831,6 +831,40 @@ mod tests {
     }
 
     #[test]
+    fn user_plugin_skill_remains_writable_when_project_root_is_path_root() {
+        let path_root = tempfile::tempdir().unwrap();
+        let plugin_root = path_root.path().join(".agents/plugins/user-plugin");
+        write_test_skill(
+            &plugin_root.join("skills/user-owned"),
+            "user-owned",
+            "user body",
+        );
+
+        let config = Config::new(path_root.path().join("test-config.yaml"), "skills-test").unwrap();
+        config
+            .set_param(
+                "plugins",
+                HashMap::from([(
+                    plugin_root.to_string_lossy().into_owned(),
+                    HashMap::from([("enabled", true)]),
+                )]),
+            )
+            .unwrap();
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PATH_ROOT", path_root.path().to_str()),
+            ("PLUGINS", None),
+        ]);
+
+        let skill = discover_skills_with_config(Some(path_root.path()), &config)
+            .into_iter()
+            .find(|skill| skill.name == "user-owned")
+            .unwrap();
+
+        assert!(skill.global);
+        assert!(skill.writable);
+    }
+
+    #[test]
     fn exclusive_project_plugin_manifest_omits_default_skill_root() {
         let project = tempfile::tempdir().unwrap();
         let path_root = tempfile::tempdir().unwrap();

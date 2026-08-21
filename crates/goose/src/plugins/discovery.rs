@@ -63,13 +63,15 @@ pub(crate) fn discover_enabled_plugins_with_config(
 
     if let Some(root) = project_root {
         let project_plugins_dir = project_plugin_dir(root);
-        found.extend(list_dir_children(&project_plugins_dir).into_iter().map(
-            |(name, root)| DiscoveredPlugin {
-                name,
-                root,
-                scope: PluginScope::Project,
-            },
-        ));
+        if !equivalent_paths(&project_plugins_dir, &user_plugins_dir) {
+            found.extend(list_dir_children(&project_plugins_dir).into_iter().map(
+                |(name, root)| DiscoveredPlugin {
+                    name,
+                    root,
+                    scope: PluginScope::Project,
+                },
+            ));
+        }
     }
     found.extend(
         list_dir_children(&user_plugins_dir)
@@ -97,6 +99,15 @@ pub(crate) fn discover_enabled_plugins_with_config(
         .into_iter()
         .filter(|plugin| seen_names.insert(plugin.name.clone()))
         .collect()
+}
+
+fn equivalent_paths(left: &Path, right: &Path) -> bool {
+    left == right
+        || left
+            .canonicalize()
+            .ok()
+            .zip(right.canonicalize().ok())
+            .is_some_and(|(left, right)| left == right)
 }
 
 fn plugin_scope_rank(scope: PluginScope) -> u8 {
