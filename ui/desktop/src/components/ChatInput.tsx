@@ -231,6 +231,9 @@ export default function ChatInput({
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
+  const previousInitialValueRef = useRef(initialValue);
+  const displayValueRef = useRef(displayValue);
+  displayValueRef.current = displayValue;
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
   const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
@@ -518,20 +521,20 @@ export default function ChatInput({
   const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   useEffect(() => {
+    const previousInitialValue = previousInitialValueRef.current;
+    previousInitialValueRef.current = initialValue;
+
+    if (displayValueRef.current !== previousInitialValue) return;
+
     setValue(initialValue);
     setDisplayValue(initialValue);
-    setPastedImages([]);
     setHistoryIndex(-1);
     setIsInGlobalHistory(false);
     setHasUserTyped(false);
   }, [initialValue]);
 
-  // Handle recipe prompt updates
   useEffect(() => {
-    // If recipe is accepted and we have an initial prompt, and no messages yet, and we haven't set it before
     if (recipeAccepted && initialPrompt && messages.length === 0) {
-      setDisplayValue(initialPrompt);
-      setValue(initialPrompt);
       setTimeout(() => {
         textAreaRef.current?.focus();
       }, 0);

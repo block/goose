@@ -259,11 +259,12 @@ export default function BaseChat({
   }, [messages]);
 
   useEffect(() => {
+    if (!isActiveSession) return;
+
     setRecipeTrust(undefined);
     setHasRecipeSecurityWarnings(false);
 
-    if (!recipe || !recipeIdentity || !isActiveSession || session?.session_type === 'scheduled')
-      return;
+    if (!recipe || !recipeIdentity || session?.session_type === 'scheduled') return;
     let cancelled = false;
 
     void (async () => {

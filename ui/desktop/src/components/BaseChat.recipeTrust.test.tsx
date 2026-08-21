@@ -172,9 +172,14 @@ function Wrapper({ children }: { children: ReactNode }) {
   );
 }
 
-function renderBaseChat() {
+function renderBaseChat(isActiveSession = true) {
   return render(
-    <BaseChat setChat={vi.fn()} sessionId="sess-1" suppressEmptyState={false} isActiveSession />,
+    <BaseChat
+      setChat={vi.fn()}
+      sessionId="sess-1"
+      suppressEmptyState={false}
+      isActiveSession={isActiveSession}
+    />,
     { wrapper: Wrapper }
   );
 }
@@ -286,6 +291,35 @@ describe('BaseChat recipe trust gate', () => {
     invokeAllSubmissionPaths();
     expect(mocks.submitMessage).not.toHaveBeenCalled();
     expect(mocks.steerMessage).not.toHaveBeenCalled();
+  });
+
+  it('retains accepted trust for background work while the same recipe session is inactive', async () => {
+    mocks.hasAcceptedRecipeBefore.mockResolvedValue(true);
+    const { rerender } = renderBaseChat();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('chat-input')).toHaveAttribute('data-recipe-accepted', 'true')
+    );
+
+    mocks.submitMessage.mockClear();
+    mocks.steerMessage.mockClear();
+    rerender(
+      <BaseChat
+        setChat={vi.fn()}
+        sessionId="sess-1"
+        suppressEmptyState={false}
+        isActiveSession={false}
+      />
+    );
+
+    expect(screen.getByTestId('chat-input')).toHaveAttribute('data-recipe-accepted', 'true');
+    expect(screen.getByTestId('chat-input')).toHaveAttribute(
+      'data-queue-processing-blocked',
+      'false'
+    );
+    invokeAllSubmissionPaths();
+    expect(mocks.submitMessage).toHaveBeenCalledTimes(5);
+    expect(mocks.steerMessage).toHaveBeenCalledTimes(1);
   });
 
   it('keeps scheduled recipe submissions exempt from the interactive trust gate', () => {
