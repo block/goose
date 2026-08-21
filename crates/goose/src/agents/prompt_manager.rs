@@ -512,6 +512,46 @@ mod tests {
         );
     }
 
+    /// Compaction marks the original messages agent-invisible and keeps them
+    /// in the conversation. Replay must still see their tool requests, or a
+    /// compacted-then-resumed session would silently lose its hints.
+    #[test]
+    fn hints_survive_replay_over_a_compacted_conversation() {
+        use rmcp::{model::CallToolRequestParams, object};
+
+        let working_dir = tempfile::tempdir().unwrap();
+        let subdir = working_dir.path().join("sub");
+        std::fs::create_dir(&subdir).unwrap();
+        std::fs::write(subdir.join(".goosehints"), "hint from the subdirectory").unwrap();
+
+        // As compaction leaves it: the tool request is still present, but
+        // flagged agent-invisible.
+        let compacted = Message::assistant()
+            .with_tool_request(
+                "1",
+                Ok(
+                    CallToolRequestParams::new("developer__text_editor").with_arguments(
+                        object!({ "path": subdir.join("file.txt").to_str().unwrap() }),
+                    ),
+                ),
+            )
+            .with_metadata(
+                crate::conversation::message::MessageMetadata::default().with_agent_invisible(),
+            );
+        assert!(
+            !compacted.is_agent_visible(),
+            "precondition: this models a post-compaction message"
+        );
+
+        let mut resumed = PromptManager::new();
+        resumed.record_tool_arguments_from_history(&[compacted], working_dir.path());
+        let prompt = resumed.build_system_prompt(working_dir.path(), vec![], GooseMode::Auto);
+        assert!(
+            prompt.contains("hint from the subdirectory"),
+            "replay must read tool requests regardless of agent visibility"
+        );
+    }
+
     /// Replay runs on every reply, so it must not re-inject hints that the
     /// live session already loaded.
     #[test]
