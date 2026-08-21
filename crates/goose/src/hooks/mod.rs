@@ -1039,16 +1039,22 @@ fn load_hooks_file(
                             let timeout = Duration::from_secs(
                                 raw_action.timeout.unwrap_or(DEFAULT_HOOK_TIMEOUT_SECS),
                             );
-                            // Only here does on_failure mean anything: this is an
-                            // action we will actually run. An unrecognized value on
-                            // it stays a configuration error that rejects the file,
-                            // exactly as before.
-                            let on_failure = match raw_action.on_failure {
-                                None => OnFailure::Allow,
-                                Some(value) => serde_json::from_value::<OnFailure>(value)
-                                    .with_context(|| {
-                                        format!("reading on_failure in {}", path.display())
-                                    })?,
+                            // on_failure is resolved only where it has meaning.
+                            // On PreToolUse an unrecognized value is a
+                            // configuration error that rejects the file. Every
+                            // other event ignores the raw value entirely, which
+                            // is what the documentation promises: "Ignored on
+                            // every other event."
+                            let on_failure = if event == HookEvent::PreToolUse {
+                                match raw_action.on_failure {
+                                    None => OnFailure::Allow,
+                                    Some(value) => serde_json::from_value::<OnFailure>(value)
+                                        .with_context(|| {
+                                            format!("reading on_failure in {}", path.display())
+                                        })?,
+                                }
+                            } else {
+                                OnFailure::Allow
                             };
                             actions.push(LoadedAction::Command {
                                 command: cmd,
@@ -2138,6 +2144,62 @@ mod tests {
             panic!("the valid sibling must run, got {:?}", outcome.decision);
         };
         assert_eq!(reason, "refused by policy");
+    }
+
+    /// RE. `on_failure` is documented as ignored outside `PreToolUse`, so an
+    /// unrecognized value on a `Stop` action must not reject the file. The
+    /// `PreToolUse` action in the same file keeps its own `on_failure`, and the
+    /// `Stop` action loads with the default.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn on_failure_outside_pre_tool_use_is_ignored_not_validated() {
+        for ignored in [r#""retry""#, "null"] {
+            let hooks = format!(
+                r#"{{"hooks":{{
+                    "Stop":[{{"hooks":[{{"type":"command","command":"echo","on_failure":{ignored}}}]}}],
+                    "PreToolUse":[{{"hooks":[{{"type":"command","command":"echo refused by policy >&2; exit 2","on_failure":"block"}}]}}]
+                }}}}"#
+            );
+            let tmp = tempfile::tempdir().unwrap();
+            let root = write_plugin(tmp.path(), "p", &hooks);
+
+            let loaded = load_hooks_file(&root.join("hooks").join("hooks.json"), "p", &root)
+                .unwrap_or_else(|err| {
+                    panic!("on_failure {ignored} on Stop must not reject the file: {err:#}")
+                });
+
+            let stop = &loaded[&HookEvent::Stop][0].actions;
+            assert_eq!(stop.len(), 1, "on_failure {ignored}");
+            assert_eq!(
+                stop[0].on_failure(),
+                OnFailure::Allow,
+                "a Stop action loads with the default: {ignored}"
+            );
+
+            let pre = &loaded[&HookEvent::PreToolUse][0].actions;
+            assert_eq!(
+                pre[0].on_failure(),
+                OnFailure::Block,
+                "the PreToolUse action keeps its own on_failure: {ignored}"
+            );
+
+            let mgr = make_manager(vec![DiscoveredPlugin {
+                name: "p".into(),
+                root,
+                scope: PluginScope::User,
+            }]);
+            assert!(mgr.has_hooks(HookEvent::PreToolUse));
+            let outcome = mgr
+                .emit_blocking_with_outcome(
+                    HookEvent::PreToolUse,
+                    blocking_context(HookEvent::PreToolUse),
+                )
+                .await;
+            let HookDecision::Deny { reason, .. } = &outcome.decision else {
+                panic!("the PreToolUse hook must run, got {:?}", outcome.decision);
+            };
+            assert_eq!(reason, "refused by policy", "on_failure {ignored}");
+        }
     }
 
     /// Both agent loops call this, so a denial reads the same either way, and a
