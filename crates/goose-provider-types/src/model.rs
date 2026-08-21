@@ -30,6 +30,7 @@ pub fn is_goose_internal_request_param(key: &str) -> bool {
         key,
         "thinking_effort"
             | "disable_prompt_cache"
+            | "emit_clear_thinking"
             | "preserve_thinking_context"
             | "preserve_unsigned_thinking"
     )
@@ -212,7 +213,10 @@ impl ModelConfig {
     }
 
     pub fn with_default_thinking_effort(mut self, effort: Option<ThinkingEffort>) -> Self {
-        if self.thinking_effort().is_none() {
+        // Guard on raw-param presence rather than parseability: a persisted
+        // harness value like "default" doesn't parse into ThinkingEffort but
+        // is still an explicit user pick that must not be overwritten.
+        if self.request_param::<String>("thinking_effort").is_none() {
             if let Some(effort) = effort {
                 self = self.with_thinking_effort(effort);
             }
@@ -384,6 +388,31 @@ mod tests {
                     .and_then(|params| params.get("thinking_effort")),
                 Some(&serde_json::json!("high"))
             );
+        }
+
+        #[test]
+        fn with_default_thinking_effort_preserves_unparseable_raw_param() {
+            let config = config_with_params(
+                "test",
+                HashMap::from([("thinking_effort".to_string(), serde_json::json!("default"))]),
+            )
+            .with_default_thinking_effort(Some(ThinkingEffort::High));
+
+            assert_eq!(
+                config
+                    .request_params
+                    .as_ref()
+                    .and_then(|params| params.get("thinking_effort")),
+                Some(&serde_json::json!("default"))
+            );
+        }
+
+        #[test]
+        fn with_default_thinking_effort_applies_when_absent() {
+            let config =
+                ModelConfig::new("test").with_default_thinking_effort(Some(ThinkingEffort::High));
+
+            assert_eq!(config.thinking_effort(), Some(ThinkingEffort::High));
         }
 
         #[test]

@@ -113,7 +113,7 @@ pub fn validate_provider_id(id: &str) -> Result<()> {
     }
 }
 
-fn custom_provider_file_path(id: &str) -> Result<PathBuf> {
+pub(crate) fn custom_provider_file_path(id: &str) -> Result<PathBuf> {
     if id.is_empty()
         || id
             .chars()
@@ -215,6 +215,7 @@ pub fn create_custom_provider(
         setup_steps: vec![],
         fast_model: None,
         preserves_thinking,
+        emit_clear_thinking: false,
         setup: None,
     };
 
@@ -259,7 +260,14 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
         let model_infos: Vec<ModelInfo> = params
             .models
             .into_iter()
-            .map(|name| ModelInfo::new(name, 128000))
+            .map(|name| {
+                existing_config
+                    .models
+                    .iter()
+                    .find(|existing| existing.name == name)
+                    .cloned()
+                    .unwrap_or_else(|| ModelInfo::new(name, 128000))
+            })
             .collect();
 
         let engine = ProviderEngine::from_str(&params.engine)?;
@@ -296,6 +304,7 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             setup_steps: existing_config.setup_steps,
             fast_model: existing_config.fast_model.clone(),
             preserves_thinking,
+            emit_clear_thinking: existing_config.emit_clear_thinking,
             setup: existing_config.setup,
         };
 
@@ -567,6 +576,7 @@ mod tests {
             setup_steps: Vec::new(),
             fast_model: None,
             preserves_thinking: true,
+            emit_clear_thinking: false,
             setup: None,
         }
     }
@@ -888,5 +898,64 @@ mod tests {
 
         let result = expand_env_vars("${TEST_EXPAND_OVERRIDE}/path", &env_vars).unwrap();
         assert_eq!(result, "https://from-env.com/path");
+    }
+
+    #[test]
+    fn test_update_custom_provider_preserves_model_pricing_and_context_limits() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_root = temp_dir.path().display().to_string();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(temp_root.as_str()))]);
+
+        let custom_dir = custom_providers_dir();
+        std::fs::create_dir_all(&custom_dir).unwrap();
+        std::fs::write(
+            custom_dir.join("priced_provider.json"),
+            r#"{
+                "name": "priced_provider",
+                "engine": "openai",
+                "display_name": "Priced",
+                "description": null,
+                "api_key_env": "",
+                "base_url": "https://example.invalid/v1",
+                "models": [
+                    {
+                        "name": "kept-model",
+                        "context_limit": 262144,
+                        "input_token_cost": 0.000002,
+                        "output_token_cost": 0.000006
+                    }
+                ],
+                "requires_auth": false
+            }"#,
+        )
+        .unwrap();
+
+        update_custom_provider(UpdateCustomProviderParams {
+            id: "priced_provider".to_string(),
+            engine: "openai".to_string(),
+            display_name: "Renamed".to_string(),
+            api_url: "https://example.invalid/v1".to_string(),
+            api_key: None,
+            models: vec!["kept-model".to_string()],
+            supports_streaming: None,
+            headers: None,
+            requires_auth: false,
+            catalog_provider_id: None,
+            base_path: None,
+            preserves_thinking: None,
+        })
+        .unwrap();
+
+        let loaded = load_provider("priced_provider").unwrap();
+        let model = loaded
+            .config
+            .models
+            .iter()
+            .find(|m| m.name == "kept-model")
+            .expect("model survives update");
+        assert_eq!(loaded.config.display_name, "Renamed");
+        assert_eq!(model.context_limit, 262144);
+        assert_eq!(model.input_token_cost, Some(0.000002));
+        assert_eq!(model.output_token_cost, Some(0.000006));
     }
 }

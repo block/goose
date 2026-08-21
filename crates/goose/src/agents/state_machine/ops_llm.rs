@@ -86,29 +86,29 @@ pub(super) fn chat_span(
     session_id: &str,
     purpose: &'static str,
 ) -> tracing::Span {
-    tracing::info_span!(
+    let span = tracing::info_span!(
         target: "goose::state_machine",
         "chat",
         "gen_ai.operation.name" = "chat",
         "gen_ai.provider.name" = %provider.get_name(),
         "gen_ai.request.model" = %model_config.model_name,
+        "gen_ai.request.temperature" = tracing::field::Empty,
+        "gen_ai.request.max_tokens" = tracing::field::Empty,
         "gen_ai.response.model" = tracing::field::Empty,
+        "gen_ai.response.finish_reasons" = tracing::field::Empty,
+        "gen_ai.response.id" = tracing::field::Empty,
         "gen_ai.usage.input_tokens" = tracing::field::Empty,
         "gen_ai.usage.output_tokens" = tracing::field::Empty,
         "goose.chat.purpose" = purpose,
         "error.type" = tracing::field::Empty,
         session.id = %session_id,
-    )
+    );
+    super::super::gen_ai_telemetry::record_request_params(&span, model_config);
+    span
 }
 
 pub(super) fn record_chat_usage(span: &tracing::Span, usage: &ProviderUsage) {
-    span.record("gen_ai.response.model", usage.model.as_str());
-    if let Some(tokens) = usage.usage.input_tokens {
-        span.record("gen_ai.usage.input_tokens", tokens);
-    }
-    if let Some(tokens) = usage.usage.output_tokens {
-        span.record("gen_ai.usage.output_tokens", tokens);
-    }
+    super::super::gen_ai_telemetry::record_provider_usage(span, usage);
 }
 
 pub struct InferenceRunner<'a> {
@@ -575,10 +575,16 @@ impl Inference<Session, GooseEffect> for InferenceRunner<'_> {
                 return yielded_with(usage_effects);
             }
 
-            let has_recorded_usage = usage_effects
-                .iter()
-                .any(|effect| matches!(effect, GooseEffect::RecordUsage(_)));
-            if !has_recorded_usage {
+            let has_recorded_tokens = usage_effects.iter().any(|effect| {
+                matches!(
+                    effect,
+                    GooseEffect::RecordUsage(usage)
+                        if usage.usage.input_tokens.is_some()
+                            || usage.usage.output_tokens.is_some()
+                            || usage.usage.total_tokens.is_some()
+                )
+            });
+            if !has_recorded_tokens {
                 let mut usage = ProviderUsage::new(
                     self.model_config.model_name.clone(),
                     goose_providers::conversation::token_usage::Usage::default(),

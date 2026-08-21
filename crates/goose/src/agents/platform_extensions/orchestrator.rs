@@ -362,6 +362,7 @@ impl OrchestratorClient {
             system,
             &[user_message],
             &[],
+            true,
         )
         .await
         .map_err(|e| format!("LLM summarization failed: {}", e))?;

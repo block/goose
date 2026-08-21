@@ -371,10 +371,14 @@ impl Provider for AnthropicProvider {
     }
 }
 
-fn format_options_for_provider(preserves_thinking: bool) -> AnthropicFormatOptions {
+fn format_options_for_provider(
+    preserves_thinking: bool,
+    emit_clear_thinking: bool,
+) -> AnthropicFormatOptions {
     AnthropicFormatOptions {
         preserve_unsigned_thinking: preserves_thinking,
         preserve_thinking_context: preserves_thinking,
+        emit_clear_thinking,
         ..Default::default()
     }
 }
@@ -426,7 +430,8 @@ pub fn from_declarative_config(
         _ => AuthMethod::NoAuth,
     };
 
-    let format_options = format_options_for_provider(config.preserves_thinking);
+    let format_options =
+        format_options_for_provider(config.preserves_thinking, config.emit_clear_thinking);
 
     let timeout_secs = config
         .timeout_seconds
@@ -476,7 +481,45 @@ pub fn from_declarative_config(
 mod tests {
     use super::*;
     use crate::api_client::AuthMethod;
+    use crate::conversation::message::MessageContent;
     use serde_json::json;
+
+    struct StubKeyResolver;
+
+    impl crate::declarative::KeyResolver for StubKeyResolver {
+        type Error = std::convert::Infallible;
+
+        fn resolve_key(&self, _key: &str) -> Result<String, Self::Error> {
+            Ok("test-key".to_string())
+        }
+    }
+
+    #[test]
+    fn zai_provider_config_emits_clear_thinking() {
+        let configs = crate::declarative::fixed_provider_configs().unwrap();
+        let zai = configs.iter().find(|c| c.name == "zai").cloned().unwrap();
+        let builder = from_declarative_config(zai, None, StubKeyResolver).unwrap();
+
+        let mut model = ModelConfig::new("glm-4.7");
+        model.max_tokens = Some(64_000);
+        let messages = vec![
+            Message::assistant().with_content(MessageContent::thinking("internal", "")),
+            Message::user().with_text("Continue"),
+        ];
+
+        let payload = create_request_for_model(
+            "zai",
+            &model,
+            "glm-4.7",
+            "system",
+            &messages,
+            &[],
+            builder.format_options,
+        )
+        .unwrap();
+
+        assert_eq!(payload["thinking"]["clear_thinking"], false);
+    }
 
     fn make_provider_with_custom_models(
         host: &str,
