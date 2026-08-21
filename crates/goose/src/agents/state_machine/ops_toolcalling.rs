@@ -335,7 +335,6 @@ impl<'a> ToolExecutionOperation<'a> {
         }
     }
 
-
     async fn dispatch_tool_call(
         &self,
         tool_call: CallToolRequestParams,
