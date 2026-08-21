@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IntlTestWrapper } from '../i18n/test-utils';
-import type { UserInput } from '../types/message';
+import type { ImageData, UserInput } from '../types/message';
 import type { Session } from '../types/session';
 import BaseChat from './BaseChat';
 
@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   session: {} as Session,
   submitMessage: vi.fn(),
   steerMessage: vi.fn(),
+  updateMessage: vi.fn(),
   hasAcceptedRecipeBefore: vi.fn(),
   recordRecipeHash: vi.fn(),
   autoSubmit: undefined as undefined | ((input: UserInput) => void),
@@ -33,7 +34,7 @@ vi.mock('../hooks/useChatSession', () => ({
     notifications: [],
     pauseQueueOnStop: false,
     queueProcessingBlocked: false,
-    onMessageUpdate: vi.fn(),
+    onMessageUpdate: mocks.updateMessage,
   }),
 }));
 
@@ -111,13 +112,30 @@ vi.mock('./recipes/RecipeActivities', () => ({
   ),
 }));
 vi.mock('./ProgressiveMessageList', () => ({
-  default: ({ append }: { append: (text: string) => void }) => (
+  default: ({
+    append,
+    onMessageUpdate,
+  }: {
+    append: (text: string) => void;
+    onMessageUpdate?: (
+      messageId: string,
+      newContent: string,
+      editType: 'fork' | 'edit',
+      retainedImages: ImageData[]
+    ) => void;
+  }) => (
     <>
       <button type="button" onClick={() => append('progressive descendant')}>
         progressive descendant
       </button>
       <button type="button" onClick={() => append('mcp ui message')}>
         mcp ui message
+      </button>
+      <button
+        type="button"
+        onClick={() => onMessageUpdate?.('message-1', 'edited message', 'edit', [])}
+      >
+        edit message
       </button>
     </>
   ),
@@ -189,6 +207,7 @@ function invokeAllSubmissionPaths() {
   fireEvent.click(screen.getByRole('button', { name: 'recipe activity' }));
   fireEvent.click(screen.getByRole('button', { name: 'progressive descendant' }));
   fireEvent.click(screen.getByRole('button', { name: 'mcp ui message' }));
+  fireEvent.click(screen.getByRole('button', { name: 'edit message' }));
   fireEvent.click(screen.getByRole('button', { name: 'steer queued message' }));
   act(() => mocks.autoSubmit?.({ msg: 'programmatic submit', images: [] }));
 }
@@ -225,6 +244,7 @@ describe('BaseChat recipe trust gate', () => {
     invokeAllSubmissionPaths();
     expect(mocks.submitMessage).not.toHaveBeenCalled();
     expect(mocks.steerMessage).not.toHaveBeenCalled();
+    expect(mocks.updateMessage).not.toHaveBeenCalled();
 
     await act(async () => resolveAcceptance?.(false));
     await waitFor(() =>
@@ -240,6 +260,7 @@ describe('BaseChat recipe trust gate', () => {
     invokeAllSubmissionPaths();
     expect(mocks.submitMessage).not.toHaveBeenCalled();
     expect(mocks.steerMessage).not.toHaveBeenCalled();
+    expect(mocks.updateMessage).not.toHaveBeenCalled();
   });
 
   it('allows every submission path after trust is affirmatively accepted', async () => {
@@ -259,6 +280,7 @@ describe('BaseChat recipe trust gate', () => {
 
     expect(mocks.submitMessage).toHaveBeenCalledTimes(5);
     expect(mocks.steerMessage).toHaveBeenCalledTimes(1);
+    expect(mocks.updateMessage).toHaveBeenCalledTimes(1);
   });
 
   it('returns to pending before a different recipe in the same session can submit', async () => {
@@ -291,6 +313,7 @@ describe('BaseChat recipe trust gate', () => {
     invokeAllSubmissionPaths();
     expect(mocks.submitMessage).not.toHaveBeenCalled();
     expect(mocks.steerMessage).not.toHaveBeenCalled();
+    expect(mocks.updateMessage).not.toHaveBeenCalled();
   });
 
   it('retains accepted trust for background work while the same recipe session is inactive', async () => {
@@ -320,6 +343,24 @@ describe('BaseChat recipe trust gate', () => {
     invokeAllSubmissionPaths();
     expect(mocks.submitMessage).toHaveBeenCalledTimes(5);
     expect(mocks.steerMessage).toHaveBeenCalledTimes(1);
+    expect(mocks.updateMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed and opens the warning modal when the trust lookup fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mocks.hasAcceptedRecipeBefore.mockRejectedValue(new Error('trust lookup failed'));
+    renderBaseChat();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('recipe-warning')).toHaveAttribute('data-open', 'true')
+    );
+    invokeAllSubmissionPaths();
+
+    expect(mocks.submitMessage).not.toHaveBeenCalled();
+    expect(mocks.steerMessage).not.toHaveBeenCalled();
+    expect(mocks.updateMessage).not.toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalledWith('Failed to check recipe trust:', expect.any(Error));
+    consoleError.mockRestore();
   });
 
   it('keeps scheduled recipe submissions exempt from the interactive trust gate', () => {
@@ -336,6 +377,7 @@ describe('BaseChat recipe trust gate', () => {
     invokeAllSubmissionPaths();
     expect(mocks.submitMessage).toHaveBeenCalledTimes(5);
     expect(mocks.steerMessage).toHaveBeenCalledTimes(1);
+    expect(mocks.updateMessage).toHaveBeenCalledTimes(1);
   });
 
   it('keeps non-recipe submissions enabled', () => {
