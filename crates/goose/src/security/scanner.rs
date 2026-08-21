@@ -329,12 +329,34 @@ impl PromptInjectionScanner {
             .map_or(tool_content, |(_, args)| args);
         let command_preview = safe_truncate(text_to_preview, 300);
 
-        if let Some(top_match) = result.pattern_matches.first() {
-            let preview = safe_truncate(&top_match.matched_text, 50);
-            return format!(
+        let decisive_ml = result
+            .ml_confidence
+            .filter(|confidence| *confidence >= threshold);
+        let top_match = result
+            .pattern_matches
+            .iter()
+            .max_by_key(|pattern_match| &pattern_match.threat.risk_level);
+        let decisive_pattern_match = top_match.filter(|_| result.pattern_confidence >= threshold);
+        let pattern_explanation = |pattern_match: &PatternMatch| {
+            let preview = safe_truncate(&pattern_match.matched_text, 50);
+            format!(
                 "Pattern-based detection: {} (Risk: {:?})\nFound: '{}'\n\nCommand:\n{}",
-                top_match.threat.description, top_match.threat.risk_level, preview, command_preview
-            );
+                pattern_match.threat.description,
+                pattern_match.threat.risk_level,
+                preview,
+                command_preview
+            )
+        };
+
+        if let Some(decisive_pattern_match) = decisive_pattern_match {
+            let mut explanation = pattern_explanation(decisive_pattern_match);
+            if let Some(ml_confidence) = decisive_ml {
+                explanation.push_str(&format!(
+                    "\n\nClassifier detection confidence: {:.1}%",
+                    ml_confidence * 100.0
+                ));
+            }
+            return explanation;
         }
 
         if let Some(ml_conf) = result.ml_confidence {
@@ -343,6 +365,8 @@ impl PromptInjectionScanner {
                 ml_conf * 100.0,
                 command_preview
             )
+        } else if let Some(top_match) = top_match {
+            pattern_explanation(top_match)
         } else {
             format!("Security threat detected\n\nCommand:\n{}", command_preview)
         }
@@ -513,6 +537,71 @@ mod tests {
             result.pattern_matches[0].threat.name,
             "suid_binary_creation"
         );
+    }
+
+    #[tokio::test]
+    async fn classifier_explanation_wins_when_low_pattern_is_not_decisive() {
+        let (_mock_server, scanner) = scanner_with_command_confidence(0.9).await;
+        let command = "echo $(printf $(date))";
+        let tool_call = CallToolRequestParams::new("shell").with_arguments(object!({
+            "command": command
+        }));
+
+        let detailed = scanner.analyze_text(command).await.unwrap();
+        assert_eq!(detailed.pattern_confidence, 0.45);
+        assert_eq!(
+            detailed.pattern_matches[0].threat.name,
+            "indirect_command_execution"
+        );
+
+        let result = scanner
+            .analyze_tool_call_with_context(&tool_call, &[])
+            .await
+            .unwrap();
+
+        assert_eq!(result.confidence, 0.9);
+        assert!(result.is_malicious);
+        assert!(result.explanation.contains("confidence: 90.0%"));
+        assert!(!result.explanation.contains("Pattern-based detection"));
+        assert!(!result.explanation.contains("Risk: Low"));
+    }
+
+    #[tokio::test]
+    async fn decisive_pattern_explanation_keeps_classifier_evidence() {
+        let (_mock_server, scanner) = scanner_with_command_confidence(0.9).await;
+        let tool_call = CallToolRequestParams::new("shell").with_arguments(object!({
+            "command": "rm -rf /"
+        }));
+
+        let result = scanner
+            .analyze_tool_call_with_context(&tool_call, &[])
+            .await
+            .unwrap();
+
+        assert_eq!(result.confidence, 0.95);
+        assert!(result.is_malicious);
+        assert!(result.explanation.contains("Pattern-based detection"));
+        assert!(result.explanation.contains("Risk: Critical"));
+        assert!(result
+            .explanation
+            .contains("Classifier detection confidence: 90.0%"));
+    }
+
+    #[tokio::test]
+    async fn low_pattern_and_low_classifier_remain_safe() {
+        let (_mock_server, scanner) = scanner_with_command_confidence(0.2).await;
+        let tool_call = CallToolRequestParams::new("shell").with_arguments(object!({
+            "command": "echo $(printf $(date))"
+        }));
+
+        let result = scanner
+            .analyze_tool_call_with_context(&tool_call, &[])
+            .await
+            .unwrap();
+
+        assert_eq!(result.confidence, 0.45);
+        assert!(!result.is_malicious);
+        assert_eq!(result.explanation, "No security threats detected");
     }
 
     #[tokio::test]
