@@ -42,6 +42,7 @@ pub mod githubcopilot;
 pub mod google {
     pub use goose_providers::google::*;
 }
+pub mod gondola;
 pub mod google_def;
 pub mod http_status {
     pub use goose_providers::http_status::*;

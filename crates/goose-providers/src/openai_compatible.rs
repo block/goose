@@ -19,7 +19,8 @@ use crate::conversation::message::Message;
 use crate::errors::ProviderError;
 use crate::formats::openai::{
     create_request, create_request_for_model_with_options, get_cost, get_usage,
-    response_to_message, response_to_streaming_message, OpenAiFormatOptions,
+    record_response_metadata, response_to_message, response_to_streaming_message,
+    OpenAiFormatOptions,
 };
 use crate::formats::openai_responses::responses_api_to_streaming_message;
 use crate::model::ModelConfig;
@@ -134,6 +135,7 @@ impl OpenAiCompatibleProvider {
             let usage_json = json.get("usage").unwrap_or(&Value::Null);
             let usage_data = get_usage(usage_json);
             let mut usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
+            record_response_metadata(&mut usage, &json);
             if let Some(cost) = get_cost(usage_json) {
                 usage = usage.with_cost(cost, CostSource::ProviderReported);
             }

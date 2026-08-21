@@ -1095,7 +1095,9 @@ where
                             let category = str_field("category");
                             // The refusal delta carries the request's usage;
                             // flush it so refused turns are still accounted.
-                            if let Some(usage) = final_usage.take() {
+                            if let Some(mut usage) = final_usage.take() {
+                                usage.finish_reasons = Some(vec![STOP_REASON_REFUSAL.to_string()]);
+                                usage.response_id = message_id.clone();
                                 yield (None, Some(usage));
                             }
                             Err(ProviderError::Refusal { details, category })?;
@@ -1165,12 +1167,18 @@ where
 
         if stop_reason.as_deref() == Some("max_tokens") {
             let mut message = Message::assistant();
-            message.id = message_id;
+            message.id = message_id.clone();
             message.metadata.output_token_limit_reached = true;
             yield (Some(message), None);
         }
 
-        if let Some(usage) = final_usage {
+        if let Some(mut usage) = final_usage {
+            if let Some(reason) = stop_reason {
+                usage.finish_reasons = Some(vec![reason]);
+            }
+            if let Some(id) = message_id {
+                usage.response_id = Some(id);
+            }
             yield (None, Some(usage));
         }
     }
@@ -2441,6 +2449,11 @@ mod tests {
         assert_eq!(usage.usage.output_tokens, Some(25));
         assert_eq!(usage.usage.cache_read_input_tokens, Some(5000));
         assert_eq!(usage.usage.cache_write_input_tokens, Some(10000));
+        assert_eq!(
+            usage.finish_reasons.as_deref(),
+            Some(&["end_turn".to_string()][..])
+        );
+        assert_eq!(usage.response_id.as_deref(), Some("msg_1"));
     }
 
     #[tokio::test]
@@ -2550,6 +2563,8 @@ mod tests {
             .expect("a refused request should still yield its usage");
         assert_eq!(usage.usage.input_tokens, Some(10));
         assert_eq!(usage.usage.output_tokens, Some(5));
+        assert_eq!(usage.finish_reasons, Some(vec!["refusal".to_string()]));
+        assert_eq!(usage.response_id.as_deref(), Some("msg_1"));
 
         let (details, category) = expect_refusal(results);
         assert_eq!(details, "This request violates the usage policy.");
