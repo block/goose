@@ -1,13 +1,15 @@
 use crate::config::paths::Paths;
+use fs2::FileExt;
 use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs;
+use std::fs::{self, File, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock, Mutex, RwLock, Weak};
 use tracing;
 
 const PERMISSION_FILE: &str = "permission.yaml";
+const PERMISSION_LOCK_FILE: &str = "permission.lock";
 
 static PERMISSION_MANAGER: LazyLock<Arc<PermissionManager>> =
     LazyLock::new(|| Arc::new(PermissionManager::new(Paths::config_dir())));
@@ -66,6 +68,7 @@ impl PermissionManager {
         }
 
         let permission_map = if config_path.exists() {
+            let _file_guard = Self::lock_permission_file(config_path);
             Self::load_permission_map(config_path)
         } else {
             // Consolidate directory creation for re-use in global singleton or ACP.
@@ -78,6 +81,20 @@ impl PermissionManager {
         });
         states.insert(config_path.to_path_buf(), Arc::downgrade(&state));
         state
+    }
+
+    fn lock_permission_file(config_path: &Path) -> File {
+        let lock_file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(config_path.with_file_name(PERMISSION_LOCK_FILE))
+            .expect("Failed to open permission lock file");
+        lock_file
+            .lock_exclusive()
+            .expect("Failed to lock permission file");
+        lock_file
     }
 
     fn load_permission_map(config_path: &Path) -> HashMap<String, PermissionConfig> {
@@ -97,7 +114,8 @@ impl PermissionManager {
     }
 
     fn modify_permission_map(&self, modify: impl FnOnce(&mut HashMap<String, PermissionConfig>)) {
-        let _file_guard = self.state.file_lock.lock().unwrap();
+        let _process_guard = self.state.file_lock.lock().unwrap();
+        let _file_guard = Self::lock_permission_file(&self.config_path);
         let mut map = self.state.permission_map.write().unwrap();
         if self.config_path.exists() {
             *map = Self::load_permission_map(&self.config_path);
@@ -281,6 +299,10 @@ mod tests {
     use super::*;
     use rmcp::model::ToolAnnotations;
     use rmcp::object;
+    use std::fs::OpenOptions;
+    use std::sync::mpsc;
+    use std::thread;
+    use std::time::Duration;
     use tempfile::TempDir;
 
     // Helper function to create a test instance of PermissionManager with a temp dir
@@ -491,6 +513,33 @@ mod tests {
             persisted_manager.get_user_permission("github__status"),
             Some(PermissionLevel::AskBefore)
         );
+    }
+
+    #[test]
+    fn test_permission_updates_wait_for_process_lock() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = PermissionManager::new(temp_dir.path().to_path_buf());
+        let lock_file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(temp_dir.path().join(PERMISSION_LOCK_FILE))
+            .unwrap();
+        lock_file.lock_exclusive().unwrap();
+        let (completed_tx, completed_rx) = mpsc::channel();
+
+        let update = thread::spawn(move || {
+            manager.update_user_permission("github__status", PermissionLevel::AskBefore);
+            completed_tx.send(()).unwrap();
+        });
+
+        assert!(completed_rx
+            .recv_timeout(Duration::from_millis(100))
+            .is_err());
+        FileExt::unlock(&lock_file).unwrap();
+        completed_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        update.join().unwrap();
     }
 
     #[test]
