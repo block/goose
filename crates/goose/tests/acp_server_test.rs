@@ -566,6 +566,66 @@ fn test_update_session_project_rejects_hidden_session_types() {
 }
 
 #[test]
+fn test_update_session_project_rejects_unknown_persisted_session_type() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let working_dir = tempfile::tempdir().unwrap();
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                working_dir.path().to_path_buf(),
+                "Future session".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        let db_path = data_root
+            .path()
+            .join(goose::session::session_manager::SESSIONS_FOLDER)
+            .join(goose::session::session_manager::DB_NAME);
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .connect_with(sqlx::sqlite::SqliteConnectOptions::new().filename(db_path))
+            .await
+            .unwrap();
+        sqlx::query("UPDATE sessions SET session_type = 'future_type' WHERE id = ?")
+            .bind(&session.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            session_manager
+                .get_session(&session.id, false)
+                .await
+                .unwrap()
+                .session_type,
+            SessionType::User
+        );
+
+        let conn = new_connection(data_root.path()).await;
+        let error = conn
+            .cx()
+            .send_request(UpdateSessionProjectRequest {
+                session_id: session.id.clone(),
+                project_id: Some("untrusted-project".to_string()),
+            })
+            .block_task()
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::ResourceNotFound);
+
+        let project_id =
+            sqlx::query_scalar::<_, Option<String>>("SELECT project_id FROM sessions WHERE id = ?")
+                .bind(&session.id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(project_id, None);
+    });
+}
+
+#[test]
 fn test_update_session_project_allows_visible_session_types() {
     run_test(async {
         let data_root = tempfile::tempdir().unwrap();

@@ -436,6 +436,17 @@ impl SessionManager {
         SessionUpdateBuilder::new(self, id.to_string())
     }
 
+    pub(crate) async fn update_project_for_session_types(
+        &self,
+        id: &str,
+        project_id: Option<String>,
+        session_types: &[SessionType],
+    ) -> Result<bool> {
+        self.storage
+            .update_project_for_session_types(id, project_id, session_types)
+            .await
+    }
+
     async fn apply_update_inner(&self, builder: SessionUpdateBuilder<'_>) -> Result<()> {
         self.storage.apply_update(builder).await
     }
@@ -1796,6 +1807,34 @@ impl SessionStorage {
 
         tx.commit().await?;
         Ok(())
+    }
+
+    async fn update_project_for_session_types(
+        &self,
+        id: &str,
+        project_id: Option<String>,
+        session_types: &[SessionType],
+    ) -> Result<bool> {
+        if session_types.is_empty() {
+            return Ok(false);
+        }
+
+        let placeholders = session_types
+            .iter()
+            .map(|_| "?")
+            .collect::<Vec<_>>()
+            .join(", ");
+        let query = format!(
+            "UPDATE sessions SET project_id = ?, updated_at = datetime('now') \
+             WHERE id = ? AND session_type IN ({placeholders})"
+        );
+        let pool = self.pool().await?;
+        let mut query = sqlx::query(AssertSqlSafe(query)).bind(project_id).bind(id);
+        for session_type in session_types {
+            query = query.bind(session_type.to_string());
+        }
+
+        Ok(query.execute(pool).await?.rows_affected() == 1)
     }
 
     async fn get_conversation(&self, session_id: &str) -> Result<Conversation> {

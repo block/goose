@@ -234,21 +234,18 @@ impl GooseAcpAgent {
             agent_client_protocol::Error::resource_not_found(Some(session_id.to_string()))
                 .data(format!("Session not found: {session_id}"))
         };
-        let session = self
+        let updated = self
             .session_manager
-            .get_session(session_id, false)
-            .await
-            .map_err(|_| session_not_found())?;
-        if !is_acp_visible_session_type(&session.session_type) {
-            return Err(session_not_found());
-        }
-
-        self.session_manager
-            .update(session_id)
-            .project_id(req.project_id)
-            .apply()
+            .update_project_for_session_types(
+                session_id,
+                req.project_id,
+                &ACP_VISIBLE_SESSION_TYPES,
+            )
             .await
             .internal_err()?;
+        if !updated {
+            return Err(session_not_found());
+        }
         Ok(EmptyResponse {})
     }
 
