@@ -127,6 +127,8 @@ function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
   }, [textContent]);
 
   const handleRemoveImage = useCallback((index: number) => {
+    if (isSavingRef.current) return;
+
     setRemovedImageIndices((prev) => {
       const next = new Set(prev);
       next.add(index);
@@ -157,6 +159,8 @@ function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
   }, [isEditing, initializeEditMode, message.id]);
 
   const handleContentChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (isSavingRef.current) return;
+
     const newContent = e.target.value;
     setEditContent(newContent);
     setError(null);
@@ -209,6 +213,8 @@ function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
   );
 
   const handleCancel = useCallback(() => {
+    if (isSavingRef.current) return;
+
     window.electron.logInfo('Cancel clicked - reverting to original content');
     setIsEditing(false);
     setEditContent(textContent);
@@ -263,6 +269,7 @@ function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
               placeholder={intl.formatMessage(i18n.editPlaceholder)}
               aria-label={intl.formatMessage(i18n.editAriaLabel)}
               aria-describedby={error ? `error-${message.id}` : undefined}
+              disabled={isSaving}
             />
             {messageImages.length > 0 && (
               <div className="mt-3">
@@ -278,6 +285,7 @@ function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
                         <ImagePreview src={dataUrl} />
                         <button
                           onClick={() => handleRemoveImage(index)}
+                          disabled={isSaving}
                           className="absolute -top-1.5 -right-1.5 bg-text-primary text-background-primary rounded-full p-0.5 transition-opacity hover:cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
                           aria-label={intl.formatMessage(i18n.removeImageFromEdit)}
                         >
@@ -308,6 +316,7 @@ function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
               <div className="flex gap-3">
                 <Button
                   onClick={handleCancel}
+                  disabled={isSaving}
                   variant="ghost"
                   aria-label={intl.formatMessage(i18n.cancelAriaLabel)}
                 >

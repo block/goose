@@ -94,6 +94,8 @@ export default function BaseChat({
     identity: string;
     accepted: boolean;
   }>();
+  const recipeTrustRef = useRef(recipeTrust);
+  recipeTrustRef.current = recipeTrust;
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
   const [acpRecovering, setAcpRecovering] = useState(isAcpRecovering);
   const isMobile = useIsMobile();
@@ -279,6 +281,12 @@ export default function BaseChat({
 
   useEffect(() => {
     if (!isActiveSession) return;
+    if (
+      recipeTrustRef.current?.accepted === true &&
+      recipeTrustRef.current.identity === recipeIdentity
+    ) {
+      return;
+    }
 
     setRecipeTrust(undefined);
     setHasRecipeSecurityWarnings(false);

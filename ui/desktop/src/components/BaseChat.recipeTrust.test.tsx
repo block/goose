@@ -378,6 +378,14 @@ describe('BaseChat recipe trust gate', () => {
     expect(mocks.steerMessage).toHaveBeenCalledTimes(1);
     expect(mocks.updateMessage).toHaveBeenCalledTimes(1);
     expect(mocks.elicitationResponse).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <BaseChat setChat={vi.fn()} sessionId="sess-1" suppressEmptyState={false} isActiveSession />
+    );
+
+    expect(screen.getByTestId('chat-input')).toHaveAttribute('data-recipe-accepted', 'true');
+    expect(screen.getByTestId('tool-approval')).toHaveAttribute('data-disabled', 'false');
+    expect(mocks.hasAcceptedRecipeBefore).toHaveBeenCalledTimes(1);
   });
 
   it('fails closed on lookup failure and accepts only the current recipe when persistence fails', async () => {
@@ -409,6 +417,20 @@ describe('BaseChat recipe trust gate', () => {
     expect(mocks.elicitationResponse).toHaveBeenCalledTimes(1);
     expect(consoleError).toHaveBeenCalledWith('Failed to check recipe trust:', expect.any(Error));
     expect(consoleError).toHaveBeenCalledWith('Failed to persist recipe trust:', expect.any(Error));
+
+    rerender(
+      <BaseChat
+        setChat={vi.fn()}
+        sessionId="sess-1"
+        suppressEmptyState={false}
+        isActiveSession={false}
+      />
+    );
+    rerender(
+      <BaseChat setChat={vi.fn()} sessionId="sess-1" suppressEmptyState={false} isActiveSession />
+    );
+    expect(screen.getByTestId('chat-input')).toHaveAttribute('data-recipe-accepted', 'true');
+    expect(mocks.hasAcceptedRecipeBefore).toHaveBeenCalledTimes(1);
 
     mocks.submitMessage.mockClear();
     mocks.steerMessage.mockClear();

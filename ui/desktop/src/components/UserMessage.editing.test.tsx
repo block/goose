@@ -12,6 +12,11 @@ const message: Message = {
   metadata: { agentVisible: true, userVisible: true },
 };
 
+const messageWithImage: Message = {
+  ...message,
+  content: [...message.content, { type: 'image', data: 'base64-image', mimeType: 'image/png' }],
+};
+
 describe('UserMessage editing', () => {
   it('keeps the editor and draft open when an update is rejected', async () => {
     Object.assign(window.electron, { logInfo: vi.fn() });
@@ -22,7 +27,7 @@ describe('UserMessage editing', () => {
       })
     );
 
-    render(<UserMessage message={message} onMessageUpdate={onMessageUpdate} />, {
+    render(<UserMessage message={messageWithImage} onMessageUpdate={onMessageUpdate} />, {
       wrapper: IntlTestWrapper,
     });
 
@@ -36,11 +41,21 @@ describe('UserMessage editing', () => {
 
     expect(onMessageUpdate).toHaveBeenCalledTimes(1);
     expect(saveButton).toBeDisabled();
+    const textarea = screen.getByRole('textbox', { name: 'Edit message content' });
+    const cancelButton = screen.getByRole('button', { name: 'Cancel editing' });
+    const removeImageButton = screen.getByRole('button', { name: 'Remove image from message' });
+    expect(textarea).toBeDisabled();
+    expect(cancelButton).toBeDisabled();
+    expect(removeImageButton).toBeDisabled();
+    fireEvent.change(textarea, { target: { value: 'Discard this later change' } });
+    fireEvent.keyDown(textarea, { key: 'Escape' });
+    expect(textarea).toHaveValue('Keep this edited draft');
     await act(async () => resolveUpdate?.(false));
     await waitFor(() => expect(saveButton).toBeEnabled());
-    expect(screen.getByRole('textbox', { name: 'Edit message content' })).toHaveValue(
-      'Keep this edited draft'
-    );
+    expect(textarea).toBeEnabled();
+    expect(cancelButton).toBeEnabled();
+    expect(removeImageButton).toBeEnabled();
+    expect(textarea).toHaveValue('Keep this edited draft');
   });
 
   it('closes the editor when an update succeeds', async () => {
