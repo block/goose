@@ -1140,25 +1140,28 @@ impl Agent {
         extension_configs
     }
 
-    pub async fn add_final_output_tool(&self, response: Response) {
+    pub async fn add_final_output_tool(&self, response: Response) -> Result<()> {
         let mut final_output_tool = self.final_output_tool.lock().await;
-        let created_final_output_tool = FinalOutputTool::new(response);
+        let created_final_output_tool =
+            FinalOutputTool::try_new(response).map_err(anyhow::Error::msg)?;
         let final_output_system_prompt = created_final_output_tool.system_prompt();
         *final_output_tool = Some(created_final_output_tool);
         self.extend_system_prompt("final_output".to_string(), final_output_system_prompt)
             .await;
+        Ok(())
     }
 
     pub async fn apply_recipe_components(
         &self,
         response: Option<Response>,
         include_final_output: bool,
-    ) {
+    ) -> Result<()> {
         if include_final_output {
             if let Some(response) = response {
-                self.add_final_output_tool(response).await;
+                self.add_final_output_tool(response).await?;
             }
         }
+        Ok(())
     }
 
     /// Dispatch a single tool call to the appropriate client
@@ -5520,7 +5523,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             })),
         };
 
-        agent.add_final_output_tool(response).await;
+        agent.add_final_output_tool(response).await?;
 
         let tools = agent.list_tools("test-session-id", None).await;
         let final_output_tool = tools
@@ -5543,6 +5546,24 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             final_output_tool_ref.as_ref().unwrap().system_prompt();
         assert!(system_prompt.contains(&final_output_tool_system_prompt));
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn boolean_final_output_schema_returns_error() {
+        let agent = Agent::new();
+
+        let error = agent
+            .apply_recipe_components(
+                Some(Response {
+                    json_schema: Some(serde_json::json!(true)),
+                }),
+                true,
+            )
+            .await
+            .unwrap_err();
+
+        assert_eq!(error.to_string(), "json_schema must be an object");
+        assert!(agent.final_output_tool.lock().await.is_none());
     }
 
     #[tokio::test]

@@ -384,3 +384,27 @@ async fn invalid_final_output_schema_stops_before_inference() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn boolean_final_output_schema_stops_before_inference() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    let recipe = Recipe::builder()
+        .title("Boolean output schema")
+        .description("Boolean output schema")
+        .instructions("This must not reach inference")
+        .response(Response {
+            json_schema: Some(json!(true)),
+        })
+        .build()
+        .expect("recipe shape is otherwise valid");
+    pipeline.set_recipe(recipe).await?;
+
+    let error = match pipeline.run(["start"]).await {
+        Ok(_) => panic!("boolean schema must be rejected"),
+        Err(error) => error,
+    };
+    assert!(error.to_string().contains("json_schema must be an object"));
+    assert_eq!(api.call_count(), 0);
+
+    Ok(())
+}

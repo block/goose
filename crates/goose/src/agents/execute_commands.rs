@@ -467,7 +467,7 @@ impl Agent {
             Ok(None) => Ok(None),
             Ok(Some((recipe, prompt))) => {
                 self.apply_recipe_components(recipe.response.clone(), true)
-                    .await;
+                    .await?;
                 self.config
                     .session_manager
                     .update(session_id)
