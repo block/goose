@@ -198,25 +198,18 @@ impl PromptInjectionScanner {
     }
 
     async fn analyze_text(&self, text: &str) -> Result<DetailedScanResult> {
-        if let Some(classifier) = self.command_classifier.as_ref() {
-            if let Some(ml_confidence) = self
-                .scan_with_classifier(text, classifier, ClassifierType::Command)
-                .await
-            {
-                return Ok(DetailedScanResult {
-                    confidence: ml_confidence,
-                    pattern_matches: Vec::new(),
-                    ml_confidence: Some(ml_confidence),
-                    used_pattern_detection: false,
-                });
-            }
-        }
-
         let (pattern_confidence, pattern_matches) = self.pattern_based_scanning(text);
+        let ml_confidence = if let Some(classifier) = self.command_classifier.as_ref() {
+            self.scan_with_classifier(text, classifier, ClassifierType::Command)
+                .await
+        } else {
+            None
+        };
+
         Ok(DetailedScanResult {
-            confidence: pattern_confidence,
+            confidence: ml_confidence.map_or(pattern_confidence, |ml| ml.max(pattern_confidence)),
             pattern_matches,
-            ml_confidence: None,
+            ml_confidence,
             used_pattern_detection: true,
         })
     }
@@ -408,6 +401,36 @@ impl Default for PromptInjectionScanner {
 mod tests {
     use super::*;
     use rmcp::object;
+    use wiremock::matchers::method;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    async fn scanner_with_command_confidence(
+        injection_confidence: f32,
+    ) -> (MockServer, PromptInjectionScanner) {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!([[{
+                    "label": "INJECTION",
+                    "score": injection_confidence
+                }, {
+                    "label": "SAFE",
+                    "score": 1.0 - injection_confidence
+                }]])),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let scanner = PromptInjectionScanner {
+            pattern_matcher: PatternMatcher::new(),
+            command_classifier: Some(
+                ClassificationClient::from_endpoint(mock_server.uri(), None, None).unwrap(),
+            ),
+            prompt_classifier: None,
+        };
+
+        (mock_server, scanner)
+    }
 
     #[tokio::test]
     async fn test_text_pattern_detection() {
@@ -416,6 +439,45 @@ mod tests {
 
         assert!(result.confidence >= 0.75);
         assert!(!result.pattern_matches.is_empty());
+    }
+
+    #[tokio::test]
+    async fn command_classifier_false_negative_preserves_pattern_detection() {
+        let (_mock_server, scanner) = scanner_with_command_confidence(0.0).await;
+
+        let result = scanner.analyze_text("rm -rf /").await.unwrap();
+
+        assert_eq!(result.confidence, 0.95);
+        assert_eq!(result.ml_confidence, Some(0.0));
+        assert!(result.used_pattern_detection);
+        assert_eq!(result.pattern_matches[0].threat.name, "rm_rf_root_bare");
+    }
+
+    #[tokio::test]
+    async fn command_classifier_legitimate_result_remains_safe() {
+        let (_mock_server, scanner) = scanner_with_command_confidence(0.0).await;
+
+        let result = scanner.analyze_text("printf 'hello\\n'").await.unwrap();
+
+        assert_eq!(result.confidence, 0.0);
+        assert_eq!(result.ml_confidence, Some(0.0));
+        assert!(result.used_pattern_detection);
+        assert!(result.pattern_matches.is_empty());
+    }
+
+    #[tokio::test]
+    async fn command_classifier_stronger_signal_preserves_pattern_evidence() {
+        let (_mock_server, scanner) = scanner_with_command_confidence(0.9).await;
+
+        let result = scanner.analyze_text("chmod +s /tmp/tool").await.unwrap();
+
+        assert_eq!(result.confidence, 0.9);
+        assert_eq!(result.ml_confidence, Some(0.9));
+        assert!(result.used_pattern_detection);
+        assert_eq!(
+            result.pattern_matches[0].threat.name,
+            "suid_binary_creation"
+        );
     }
 
     #[tokio::test]
