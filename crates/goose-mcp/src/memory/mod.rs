@@ -1,3 +1,8 @@
+use cap_fs_ext::{DirExt, MetadataExt};
+use cap_std::{
+    ambient_authority,
+    fs::{Dir, OpenOptions},
+};
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::formatdoc;
 use rmcp::{
@@ -13,12 +18,146 @@ use rmcp::{
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
+    ffi::{OsStr, OsString},
     fs,
     io::{self, Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 const WORKING_DIR_HEADER: &str = "agent-working-dir";
+static NEXT_MEMORY_TEMP_FILE: AtomicU64 = AtomicU64::new(0);
+
+enum MemoryFileOpen {
+    Read,
+    AppendOrCreate,
+    CreateNew,
+}
+
+struct MemoryLocation {
+    anchor: PathBuf,
+    components: Vec<OsString>,
+}
+
+impl MemoryLocation {
+    fn open(&self, create: bool) -> io::Result<Option<Dir>> {
+        if create {
+            fs::create_dir_all(&self.anchor)?;
+        }
+
+        let mut directory = match Dir::open_ambient_dir(&self.anchor, ambient_authority()) {
+            Ok(directory) => directory,
+            Err(error) if !create && error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error),
+        };
+
+        for component in &self.components {
+            directory = match directory.open_dir_nofollow(component) {
+                Ok(directory) => directory,
+                Err(error) if create && error.kind() == io::ErrorKind::NotFound => {
+                    match directory.create_dir(component) {
+                        Ok(()) => {}
+                        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+                        Err(error) => return Err(error),
+                    }
+                    directory.open_dir_nofollow(component)?
+                }
+                Err(error) if !create && error.kind() == io::ErrorKind::NotFound => {
+                    return Ok(None)
+                }
+                Err(error) => return Err(error),
+            };
+        }
+
+        Ok(Some(directory))
+    }
+}
+
+fn validate_memory_category(category: &str) -> io::Result<OsString> {
+    if category.is_empty()
+        || category == "*"
+        || category == "."
+        || category == ".."
+        || category.contains('/')
+        || category.contains('\\')
+        || category.contains(':')
+        || is_reserved_windows_category(category)
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "memory category must be a single filename component",
+        ));
+    }
+
+    Ok(OsString::from(format!("{category}.txt")))
+}
+
+fn same_memory_file(left: &cap_std::fs::Metadata, right: &cap_std::fs::Metadata) -> bool {
+    left.dev() == right.dev() && left.ino() == right.ino()
+}
+
+fn open_memory_file_at(
+    directory: &Dir,
+    name: &OsStr,
+    intent: MemoryFileOpen,
+) -> io::Result<fs::File> {
+    let before_open = if !matches!(intent, MemoryFileOpen::CreateNew) {
+        match directory.symlink_metadata(Path::new(name)) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "memory category must not be a symbolic link",
+                ));
+            }
+            Ok(metadata) => Some(metadata),
+            Err(error)
+                if matches!(intent, MemoryFileOpen::AppendOrCreate)
+                    && error.kind() == io::ErrorKind::NotFound =>
+            {
+                None
+            }
+            Err(error) => return Err(error),
+        }
+    } else {
+        None
+    };
+
+    let mut options = OpenOptions::new();
+    match intent {
+        MemoryFileOpen::Read => {
+            options.read(true);
+        }
+        MemoryFileOpen::AppendOrCreate => {
+            options.append(true).create(true);
+        }
+        MemoryFileOpen::CreateNew => {
+            options.write(true).create_new(true);
+        }
+    }
+    // Capability-relative resolution confines any swap that lands during open, while the
+    // identity checks reject observing a different in-tree file through the race window.
+    let file = directory.open_with(Path::new(name), &options)?;
+    let opened_metadata = file.metadata()?;
+    let current_metadata = directory.symlink_metadata(Path::new(name))?;
+    if current_metadata.file_type().is_symlink()
+        || !same_memory_file(&opened_metadata, &current_metadata)
+        || before_open
+            .as_ref()
+            .is_some_and(|metadata| !same_memory_file(metadata, &opened_metadata))
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "memory category changed while it was being opened",
+        ));
+    }
+    if !opened_metadata.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "memory category must be a regular file",
+        ));
+    }
+    Ok(file.into_std())
+}
 
 fn is_reserved_windows_category(category: &str) -> bool {
     let basename = category
@@ -181,121 +320,64 @@ impl MemoryServer {
         &self.instructions
     }
 
-    fn get_memory_file(
+    fn memory_location(
         &self,
-        category: &str,
         is_global: bool,
         working_dir: Option<&PathBuf>,
-    ) -> io::Result<PathBuf> {
-        if category.is_empty()
-            || category == "*"
-            || category == "."
-            || category == ".."
-            || category.contains('/')
-            || category.contains('\\')
-            || category.contains(':')
-            || is_reserved_windows_category(category)
-        {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "memory category must be a single filename component",
-            ));
-        }
-
-        let base_dir = if is_global {
-            self.global_memory_dir.clone()
+    ) -> io::Result<MemoryLocation> {
+        if is_global {
+            let component = self
+                .global_memory_dir
+                .file_name()
+                .ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "global memory path must name a directory",
+                    )
+                })?
+                .to_os_string();
+            let parent = self
+                .global_memory_dir
+                .parent()
+                .filter(|parent| !parent.as_os_str().is_empty())
+                .map(Path::to_path_buf)
+                .unwrap_or(std::env::current_dir()?);
+            Ok(MemoryLocation {
+                anchor: parent,
+                components: vec![component],
+            })
         } else {
-            let local_base = working_dir
+            let anchor = working_dir
                 .cloned()
-                .or_else(|| std::env::current_dir().ok())
-                .unwrap_or_else(|| PathBuf::from("."));
-            local_base.join(".goose").join("memory")
-        };
-        Ok(base_dir.join(format!("{}.txt", category)))
+                .map(Ok)
+                .unwrap_or_else(std::env::current_dir)?;
+            Ok(MemoryLocation {
+                anchor,
+                components: vec![OsString::from(".goose"), OsString::from("memory")],
+            })
+        }
     }
 
-    pub fn retrieve_all(
+    fn open_memory_directory(
         &self,
         is_global: bool,
         working_dir: Option<&PathBuf>,
-    ) -> io::Result<HashMap<String, Vec<String>>> {
-        let base_dir = if is_global {
-            self.global_memory_dir.clone()
-        } else {
-            let local_base = working_dir
-                .cloned()
-                .or_else(|| std::env::current_dir().ok())
-                .unwrap_or_else(|| PathBuf::from("."));
-            local_base.join(".goose").join("memory")
-        };
-        let mut memories = HashMap::new();
-        if base_dir.exists() {
-            for entry in fs::read_dir(&base_dir)? {
-                let entry = entry?;
-                if entry.file_type()?.is_file() {
-                    let file_name = entry.file_name();
-                    let Some(category) = file_name
-                        .to_str()
-                        .and_then(|name| name.strip_suffix(".txt"))
-                    else {
-                        continue;
-                    };
-                    if self
-                        .get_memory_file(category, is_global, working_dir)
-                        .is_err()
-                    {
-                        continue;
-                    }
-                    let category_memories = self.retrieve(category, is_global, working_dir)?;
-                    memories.insert(
-                        category.to_string(),
-                        category_memories.into_values().flatten().collect(),
-                    );
-                }
-            }
-        }
-        Ok(memories)
+        create: bool,
+    ) -> io::Result<Option<Dir>> {
+        self.memory_location(is_global, working_dir)?.open(create)
     }
 
-    pub fn remember(
+    fn retrieve_from_directory(
         &self,
-        _context: &str,
+        directory: &Dir,
         category: &str,
-        data: &str,
-        tags: &[&str],
-        is_global: bool,
-        working_dir: Option<&PathBuf>,
-    ) -> io::Result<()> {
-        let memory_file_path = self.get_memory_file(category, is_global, working_dir)?;
-
-        if let Some(parent) = memory_file_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-
-        let mut file = fs::OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(&memory_file_path)?;
-        if !tags.is_empty() {
-            writeln!(file, "# {}", tags.join(" "))?;
-        }
-        writeln!(file, "{}\n", data)?;
-
-        Ok(())
-    }
-
-    pub fn retrieve(
-        &self,
-        category: &str,
-        is_global: bool,
-        working_dir: Option<&PathBuf>,
     ) -> io::Result<HashMap<String, Vec<String>>> {
-        let memory_file_path = self.get_memory_file(category, is_global, working_dir)?;
-        if !memory_file_path.exists() {
-            return Ok(HashMap::new());
-        }
-
-        let mut file = fs::File::open(memory_file_path)?;
+        let file_name = validate_memory_category(category)?;
+        let mut file = match open_memory_file_at(directory, &file_name, MemoryFileOpen::Read) {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(HashMap::new()),
+            Err(error) => return Err(error),
+        };
         let mut content = String::new();
         file.read_to_string(&mut content)?;
 
@@ -324,6 +406,104 @@ impl MemoryServer {
         Ok(memories)
     }
 
+    fn replace_memory_file(
+        &self,
+        directory: &Dir,
+        file_name: &OsStr,
+        content: &[u8],
+        permissions: fs::Permissions,
+    ) -> io::Result<()> {
+        let process_id = std::process::id();
+        let (temp_name, mut temp_file) = loop {
+            let sequence = NEXT_MEMORY_TEMP_FILE.fetch_add(1, Ordering::Relaxed);
+            let temp_name = OsString::from(format!(".goose-memory-{process_id}-{sequence}.tmp"));
+            match open_memory_file_at(directory, &temp_name, MemoryFileOpen::CreateNew) {
+                Ok(file) => break (temp_name, file),
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error),
+            }
+        };
+
+        let result = (|| {
+            temp_file.write_all(content)?;
+            temp_file.set_permissions(permissions)?;
+            temp_file.sync_all()?;
+            drop(temp_file);
+            directory.rename(Path::new(&temp_name), directory, Path::new(file_name))
+        })();
+        if result.is_err() {
+            let _ = directory.remove_file_or_symlink(Path::new(&temp_name));
+        }
+        result
+    }
+
+    pub fn retrieve_all(
+        &self,
+        is_global: bool,
+        working_dir: Option<&PathBuf>,
+    ) -> io::Result<HashMap<String, Vec<String>>> {
+        let Some(directory) = self.open_memory_directory(is_global, working_dir, false)? else {
+            return Ok(HashMap::new());
+        };
+        let mut memories = HashMap::new();
+        for entry in directory.entries()? {
+            let entry = entry?;
+            if entry.file_type()?.is_file() {
+                let file_name = entry.file_name();
+                let Some(category) = file_name
+                    .to_str()
+                    .and_then(|name| name.strip_suffix(".txt"))
+                else {
+                    continue;
+                };
+                if validate_memory_category(category).is_err() {
+                    continue;
+                }
+                let category_memories = self.retrieve_from_directory(&directory, category)?;
+                memories.insert(
+                    category.to_string(),
+                    category_memories.into_values().flatten().collect(),
+                );
+            }
+        }
+        Ok(memories)
+    }
+
+    pub fn remember(
+        &self,
+        _context: &str,
+        category: &str,
+        data: &str,
+        tags: &[&str],
+        is_global: bool,
+        working_dir: Option<&PathBuf>,
+    ) -> io::Result<()> {
+        let file_name = validate_memory_category(category)?;
+        let directory = self
+            .open_memory_directory(is_global, working_dir, true)?
+            .expect("creating a memory directory returns an open directory");
+        let mut file = open_memory_file_at(&directory, &file_name, MemoryFileOpen::AppendOrCreate)?;
+        if !tags.is_empty() {
+            writeln!(file, "# {}", tags.join(" "))?;
+        }
+        writeln!(file, "{}\n", data)?;
+
+        Ok(())
+    }
+
+    pub fn retrieve(
+        &self,
+        category: &str,
+        is_global: bool,
+        working_dir: Option<&PathBuf>,
+    ) -> io::Result<HashMap<String, Vec<String>>> {
+        validate_memory_category(category)?;
+        let Some(directory) = self.open_memory_directory(is_global, working_dir, false)? else {
+            return Ok(HashMap::new());
+        };
+        self.retrieve_from_directory(&directory, category)
+    }
+
     pub fn remove_specific_memory_internal(
         &self,
         category: &str,
@@ -331,12 +511,16 @@ impl MemoryServer {
         is_global: bool,
         working_dir: Option<&PathBuf>,
     ) -> io::Result<()> {
-        let memory_file_path = self.get_memory_file(category, is_global, working_dir)?;
-        if !memory_file_path.exists() {
+        let file_name = validate_memory_category(category)?;
+        let Some(directory) = self.open_memory_directory(is_global, working_dir, false)? else {
             return Ok(());
-        }
-
-        let mut file = fs::File::open(&memory_file_path)?;
+        };
+        let mut file = match open_memory_file_at(&directory, &file_name, MemoryFileOpen::Read) {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(error),
+        };
+        let permissions = file.metadata()?.permissions();
         let mut content = String::new();
         file.read_to_string(&mut content)?;
 
@@ -347,9 +531,12 @@ impl MemoryServer {
             .map(|s| s.to_string())
             .collect();
 
-        fs::write(memory_file_path, new_content.join("\n\n"))?;
-
-        Ok(())
+        self.replace_memory_file(
+            &directory,
+            &file_name,
+            new_content.join("\n\n").as_bytes(),
+            permissions,
+        )
     }
 
     pub fn clear_memory(
@@ -358,12 +545,15 @@ impl MemoryServer {
         is_global: bool,
         working_dir: Option<&PathBuf>,
     ) -> io::Result<()> {
-        let memory_file_path = self.get_memory_file(category, is_global, working_dir)?;
-        if memory_file_path.exists() {
-            fs::remove_file(memory_file_path)?;
+        let file_name = validate_memory_category(category)?;
+        let Some(directory) = self.open_memory_directory(is_global, working_dir, false)? else {
+            return Ok(());
+        };
+        match directory.remove_file_or_symlink(Path::new(&file_name)) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error),
         }
-
-        Ok(())
     }
 
     pub fn clear_all_global_or_local_memories(
@@ -371,19 +561,10 @@ impl MemoryServer {
         is_global: bool,
         working_dir: Option<&PathBuf>,
     ) -> io::Result<()> {
-        let base_dir = if is_global {
-            self.global_memory_dir.clone()
-        } else {
-            let local_base = working_dir
-                .cloned()
-                .or_else(|| std::env::current_dir().ok())
-                .unwrap_or_else(|| PathBuf::from("."));
-            local_base.join(".goose").join("memory")
+        let Some(directory) = self.open_memory_directory(is_global, working_dir, false)? else {
+            return Ok(());
         };
-        if base_dir.exists() {
-            fs::remove_dir_all(&base_dir)?;
-        }
-        Ok(())
+        directory.remove_open_dir_all()
     }
 
     /// Stores a memory with optional tags in a specified category
@@ -525,6 +706,38 @@ impl ServerHandler for MemoryServer {
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[cfg(unix)]
+    fn assert_category_operations_reject_link(
+        router: &MemoryServer,
+        working_dir: &PathBuf,
+        outside_file: &Path,
+    ) {
+        assert!(router
+            .retrieve("category", false, Some(working_dir))
+            .is_err());
+        assert!(router
+            .remember(
+                "context",
+                "category",
+                "malicious append",
+                &[],
+                false,
+                Some(working_dir),
+            )
+            .is_err());
+        assert!(
+            router
+                .remove_specific_memory_internal(
+                    "category",
+                    "outside secret",
+                    false,
+                    Some(working_dir),
+                )
+                .is_err()
+        );
+        assert_eq!(fs::read_to_string(outside_file).unwrap(), "outside secret");
+    }
 
     #[test]
     fn test_lazy_directory_creation() {
@@ -719,6 +932,83 @@ mod tests {
             .values()
             .any(|v| v.iter().any(|content| content.contains("keep_this")));
         assert!(has_kept);
+
+        let memory_dir = working_dir.join(".goose/memory");
+        assert_eq!(fs::read_dir(memory_dir).unwrap().count(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_category_operations_do_not_follow_file_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let temp_dir = tempdir().unwrap();
+        let working_dir = temp_dir.path().join("working");
+        let memory_dir = working_dir.join(".goose/memory");
+        let outside_file = temp_dir.path().join("outside.txt");
+        fs::create_dir_all(&memory_dir).unwrap();
+        fs::write(&outside_file, "outside secret").unwrap();
+        symlink(&outside_file, memory_dir.join("category.txt")).unwrap();
+
+        let router = MemoryServer {
+            tool_router: ToolRouter::new(),
+            instructions: String::new(),
+            global_memory_dir: temp_dir.path().join("global"),
+        };
+
+        assert_category_operations_reject_link(&router, &working_dir, &outside_file);
+        assert!(fs::symlink_metadata(memory_dir.join("category.txt"))
+            .unwrap()
+            .file_type()
+            .is_symlink());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_category_operations_do_not_follow_memory_directory_symlink() {
+        use std::os::unix::fs::symlink;
+
+        let temp_dir = tempdir().unwrap();
+        let working_dir = temp_dir.path().join("working");
+        let goose_dir = working_dir.join(".goose");
+        let outside_dir = temp_dir.path().join("outside-memory");
+        let outside_file = outside_dir.join("category.txt");
+        fs::create_dir_all(&goose_dir).unwrap();
+        fs::create_dir(&outside_dir).unwrap();
+        fs::write(&outside_file, "outside secret").unwrap();
+        symlink(&outside_dir, goose_dir.join("memory")).unwrap();
+
+        let router = MemoryServer {
+            tool_router: ToolRouter::new(),
+            instructions: String::new(),
+            global_memory_dir: temp_dir.path().join("global"),
+        };
+
+        assert_category_operations_reject_link(&router, &working_dir, &outside_file);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_category_operations_do_not_follow_goose_directory_symlink() {
+        use std::os::unix::fs::symlink;
+
+        let temp_dir = tempdir().unwrap();
+        let working_dir = temp_dir.path().join("working");
+        let outside_dir = temp_dir.path().join("outside-goose");
+        let outside_memory_dir = outside_dir.join("memory");
+        let outside_file = outside_memory_dir.join("category.txt");
+        fs::create_dir(&working_dir).unwrap();
+        fs::create_dir_all(&outside_memory_dir).unwrap();
+        fs::write(&outside_file, "outside secret").unwrap();
+        symlink(&outside_dir, working_dir.join(".goose")).unwrap();
+
+        let router = MemoryServer {
+            tool_router: ToolRouter::new(),
+            instructions: String::new(),
+            global_memory_dir: temp_dir.path().join("global"),
+        };
+
+        assert_category_operations_reject_link(&router, &working_dir, &outside_file);
     }
 
     #[test]

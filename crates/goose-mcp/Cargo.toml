@@ -39,3 +39,5 @@ image = { version = "0.24.4", default-features = false, features = ["bmp", "dds"
 umya-spreadsheet = { version = "3", default-features = false }
 shell-words = { workspace = true }
 process-wrap = { version = "9", default-features = false, features = ["std", "process-session"] }
+cap-std = "4.0.3"
+cap-fs-ext = "4.0.3"
