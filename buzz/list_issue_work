@@ -6,6 +6,12 @@ import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import {
+  channelMatchesIssue,
+  issueReferenceFromChannel,
+  readCoreTeam,
+} from "./github_manager.mjs";
+
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const options = parseArguments(process.argv.slice(2));
 if (options.help) {
@@ -22,7 +28,7 @@ const privateKey = readRequiredFile(
 );
 const coreTeamPath =
   process.env.BUZZ_CORE_TEAM_FILE || join(scriptDirectory, "core-team.json");
-const coreTeam = readCoreTeam();
+const coreTeam = readCoreTeamOrFail();
 const gh = process.env.GH_BIN || "gh";
 const recentAssignmentLoad = getRecentAssignmentLoad();
 const buzz = findBuzz();
@@ -32,39 +38,7 @@ const buzzEnvironment = {
   BUZZ_RELAY_URL: relayUrl,
 };
 
-const project = runJson(gh, [
-  "project",
-  "item-list",
-  String(options.projectNumber),
-  "--owner",
-  options.projectOwner,
-  "--limit",
-  String(options.projectLimit),
-  "--format",
-  "json",
-]);
-if (!Number.isSafeInteger(project.totalCount) || !Array.isArray(project.items)) {
-  fail("GitHub returned an invalid project item list.");
-}
-if (project.items.length !== project.totalCount) {
-  fail(
-    `Expected ${project.totalCount} project items but received ${project.items.length}. Raise --project-limit.`,
-  );
-}
-
-const channels = getAllIssueChannels();
-const channelByIssueNumber = new Map();
-for (const channel of channels) {
-  const issueNumber = issueNumberFromChannel(channel, options.repository);
-  if (!issueNumber) {
-    continue;
-  }
-  if (channelByIssueNumber.has(issueNumber)) {
-    fail(`More than one Buzz channel matches GitHub issue #${issueNumber}.`);
-  }
-  channelByIssueNumber.set(issueNumber, channel);
-}
-
+const project = getProject();
 const projectItemsByIssueNumber = new Map(
   project.items
     .filter(
@@ -74,6 +48,26 @@ const projectItemsByIssueNumber = new Map(
     )
     .map((item) => [item.content.number, item]),
 );
+const openIssuesByNumber = getOpenIssues();
+
+const channels = getAllIssueChannels();
+const channelByIssueNumber = new Map();
+for (const channel of channels) {
+  const reference = issueReferenceFromChannel(channel);
+  if (
+    !reference ||
+    (reference.repository &&
+      reference.repository.toLowerCase() !== options.repository.toLowerCase()) ||
+    !projectItemsByIssueNumber.has(reference.number)
+  ) {
+    continue;
+  }
+  if (channelByIssueNumber.has(reference.number)) {
+    fail(`More than one Buzz channel matches GitHub issue #${reference.number}.`);
+  }
+  channelByIssueNumber.set(reference.number, channel);
+}
+
 const issueWork = new Map();
 
 const inboxIssues = project.items
@@ -81,7 +75,8 @@ const inboxIssues = project.items
     (item) =>
       item.content?.type === "Issue" &&
       item.content.repository === options.repository &&
-      item.status === "Inbox",
+      item.status === "Inbox" &&
+      openIssuesByNumber.has(item.content.number),
   )
   .filter((item) => !item.assignees || item.assignees.length === 0);
 for (const item of inboxIssues) {
@@ -90,22 +85,20 @@ for (const item of inboxIssues) {
 
 const queue = readIssueQueue();
 for (const queued of queue.issues) {
-  if (channelByIssueNumber.has(queued.number)) {
-    queue.ignored.push({ ...queued, reason: "already-has-channel" });
+  const details = openIssuesByNumber.get(queued.number);
+  if (!details) {
+    queue.ignored.push({ ...queued, reason: "issue-is-closed" });
     continue;
   }
 
-  const details = runJson(gh, [
-    "issue",
-    "view",
-    String(queued.number),
-    "--repo",
-    options.repository,
-    "--json",
-    "number,title,url,state,assignees",
-  ]);
-  if (details.state !== "OPEN") {
-    queue.ignored.push({ ...queued, reason: "issue-is-closed" });
+  const matchingChannels = channels.filter((channel) =>
+    channelMatchesIssue(channel, details),
+  );
+  if (matchingChannels.length > 1) {
+    fail(`More than one Buzz channel matches GitHub issue #${queued.number}.`);
+  }
+  if (matchingChannels.length === 1) {
+    queue.ignored.push({ ...queued, reason: "already-has-channel" });
     continue;
   }
 
@@ -238,62 +231,74 @@ function positiveInteger(value, option) {
   return parsed;
 }
 
-function readCoreTeam() {
-  let document;
+function readCoreTeamOrFail() {
   try {
-    document = JSON.parse(readFileSync(coreTeamPath, "utf8"));
+    return readCoreTeam(coreTeamPath);
   } catch (error) {
-    fail(`Could not read core team file ${coreTeamPath}: ${error.message}`);
+    fail(error.message);
   }
+}
 
-  const entries = [
-    ...(document.owners || []).map((entry) => ({ ...entry, role: "owner" })),
-    ...(document.members || []).map((entry) => ({ ...entry, role: "member" })),
-  ];
-  if (entries.length === 0) {
-    fail(`Core team file ${coreTeamPath} has no people.`);
-  }
-
-  const people = entries.map((entry) => {
-    if (
-      typeof entry.name !== "string" ||
-      !entry.name.trim() ||
-      typeof entry.github !== "string" ||
-      !entry.github.trim() ||
-      typeof entry.pubkey !== "string" ||
-      !/^[0-9a-f]{64}$/i.test(entry.pubkey) ||
-      typeof entry.capacity !== "number" ||
-      !Number.isFinite(entry.capacity) ||
-      entry.capacity <= 0 ||
-      !Array.isArray(entry.interest) ||
-      entry.interest.length === 0 ||
-      entry.interest.some(
-        (interest) => typeof interest !== "string" || !interest.trim(),
-      )
-    ) {
+function getProject() {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const project = runJson(gh, [
+      "project",
+      "item-list",
+      String(options.projectNumber),
+      "--owner",
+      options.projectOwner,
+      "--limit",
+      String(options.projectLimit),
+      "--format",
+      "json",
+    ]);
+    if (!Number.isSafeInteger(project.totalCount) || !Array.isArray(project.items)) {
+      fail("GitHub returned an invalid project item list.");
+    }
+    if (project.totalCount > options.projectLimit) {
       fail(
-        `Every person in ${coreTeamPath} must have a name, GitHub handle, hexadecimal pubkey, positive capacity, and non-empty interest list.`,
+        `GitHub reports ${project.totalCount} project items. Raise --project-limit.`,
       );
     }
-    return {
-      name: entry.name.trim(),
-      github: entry.github.trim(),
-      pubkey: entry.pubkey.toLowerCase(),
-      role: entry.role,
-      capacity: entry.capacity,
-      interest: entry.interest.map((interest) => interest.trim()),
-    };
-  });
-
-  const byGithub = new Map();
-  for (const person of people) {
-    const handle = person.github.toLowerCase();
-    if (byGithub.has(handle)) {
-      fail(`More than one core team entry uses GitHub handle ${person.github}.`);
+    if (project.items.length === project.totalCount) {
+      return project;
     }
-    byGithub.set(handle, person);
+    if (attempt === 1) {
+      fail(
+        `Expected ${project.totalCount} project items but received ${project.items.length}.`,
+      );
+    }
   }
-  return { people, byGithub };
+}
+
+function getOpenIssues() {
+  const pages = runJson(gh, [
+    "api",
+    "--paginate",
+    "--slurp",
+    `repos/${options.repository}/issues?state=open&per_page=100`,
+  ]);
+  if (!Array.isArray(pages) || pages.some((page) => !Array.isArray(page))) {
+    fail("GitHub returned an invalid paginated issue response.");
+  }
+  return new Map(
+    pages
+      .flat()
+      .filter((issue) => !issue.pull_request)
+      .map((issue) => [
+        issue.number,
+        {
+          number: issue.number,
+          title: issue.title,
+          url: issue.html_url,
+          state: "OPEN",
+          repository: options.repository,
+          assignees: (issue.assignees || []).map((assignee) => ({
+            login: assignee.login,
+          })),
+        },
+      ]),
+  );
 }
 
 function getRecentAssignmentLoad() {
@@ -385,6 +390,7 @@ function issueRecord(item, sources, queued = null) {
           queue_messages: queued.message_ids,
           queue_links: queued.links,
           queue_requesters: queued.requester_pubkeys,
+          ignored_queue_requesters: queued.ignored_requester_pubkeys,
         }
       : {}),
   };
@@ -393,7 +399,11 @@ function issueRecord(item, sources, queued = null) {
 function readIssueQueue() {
   const channels = runBuzz([
     "channels",
-    "list",
+    "search",
+    "--query",
+    options.queueChannel,
+    "--exact",
+    "--include-archived",
     "--limit",
     String(options.channelLimit),
   ]);
@@ -431,7 +441,8 @@ function readIssueQueue() {
   const entries = messages
     .sort(
       (left, right) =>
-        left.created_at - right.created_at || left.id.localeCompare(right.id),
+        messageTimestamp(left) - messageTimestamp(right) ||
+        String(left.id || "").localeCompare(String(right.id || "")),
     )
     .flatMap((message) =>
       queueLinks(message.content || "").map((link) => ({ message, link })),
@@ -470,6 +481,15 @@ function readIssueQueue() {
     queuedByIssue.set(resolved.number, queued);
   }
 
+  for (const queued of queuedByIssue.values()) {
+    queued.ignored_requester_pubkeys = queued.requester_pubkeys.filter(
+      (pubkey) => !coreTeam.byPubkey.has(pubkey),
+    );
+    queued.requester_pubkeys = queued.requester_pubkeys.filter((pubkey) =>
+      coreTeam.byPubkey.has(pubkey),
+    );
+  }
+
   return {
     channel: { id: channel.channel_id, name: channel.name },
     entriesConsidered: entries.length,
@@ -477,6 +497,10 @@ function readIssueQueue() {
     ignored: [],
     unresolved,
   };
+}
+
+function messageTimestamp(message) {
+  return Number.isSafeInteger(message.created_at) ? message.created_at : 0;
 }
 
 function queueLinks(content) {
@@ -547,22 +571,6 @@ function getAllIssueChannels() {
     }
   }
   return [...channelsById.values()];
-}
-
-function issueNumberFromChannel(channel, repository) {
-  const issueUrlPrefix = `https://github.com/${repository}/issues/`;
-  const description = channel.about || channel.description || "";
-  const issueUrlIndex = description.indexOf(issueUrlPrefix);
-  if (issueUrlIndex !== -1) {
-    const value = description.slice(issueUrlIndex + issueUrlPrefix.length);
-    const match = value.match(/^([1-9]\d*)/);
-    if (match) {
-      return Number.parseInt(match[1], 10);
-    }
-  }
-
-  const canonical = channel.name?.match(/^#?([1-9]\d*)(?:\s|$)/);
-  return canonical ? Number.parseInt(canonical[1], 10) : null;
 }
 
 function runBuzz(arguments_) {

@@ -14,6 +14,11 @@ import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import {
+  issueReferenceFromChannel,
+  readCoreTeam,
+} from "./github_manager.mjs";
+
 const phaseMarkers = {
   Inbox: "⚪",
   "Needs info": "🟡",
@@ -68,68 +73,38 @@ const buzzEnvironment = {
   BUZZ_PRIVATE_KEY: privateKey,
   BUZZ_RELAY_URL: relayUrl,
 };
-const coreTeamByGithub = readCoreTeam();
+const coreTeam = readCoreTeamOrFail();
+const coreTeamByGithub = coreTeam.byGithub;
 const projectItemsByIssueNumber = getProjectItems();
-
-const [repositoryOwner, repositoryName] = repositoryParts(options.repository);
-const countResult = runJson(gh, [
-  "api",
-  "graphql",
-  "-f",
-  "query=query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issues(states:OPEN){totalCount}}}",
-  "-F",
-  `owner=${repositoryOwner}`,
-  "-F",
-  `name=${repositoryName}`,
-]);
-const openIssueCount = countResult.data?.repository?.issues?.totalCount;
-if (!Number.isSafeInteger(openIssueCount)) {
-  fail(`Could not count open issues in ${options.repository}.`);
-}
-
-const openIssues = runJson(gh, [
-  "issue",
-  "list",
-  "--repo",
-  options.repository,
-  "--state",
-  "open",
-  "--limit",
-  String(Math.max(openIssueCount, 1)),
-  "--json",
-  "number,title,url,projectItems,assignees",
-]);
-if (openIssues.length !== openIssueCount) {
-  fail(
-    `Expected ${openIssueCount} open GitHub issues but received ${openIssues.length}. Refusing to archive channels from an incomplete result.`,
-  );
-}
+const openIssues = getOpenIssues();
+const openIssueCount = openIssues.length;
 
 const openIssuesByNumber = new Map(
   openIssues.map((issue) => [issue.number, issue]),
 );
-const channels = runBuzz([
-  "channels",
-  "list",
-  "--limit",
-  String(options.limit),
-]);
-if (channels.length >= options.limit) {
-  fail(
-    `Buzz returned ${channels.length} channels at the --limit boundary. Raise --limit before syncing so no channel is missed.`,
-  );
-}
-
 const detailsByChannelId = getChannelDetails();
+const channels = [...detailsByChannelId.values()];
 const results = [];
 const channelsByIssueNumber = new Map();
 const channelOwnership = new Map();
+const githubItemKinds = new Map();
 
 for (const channel of channels) {
-  const issueNumber = issueNumberFromChannel(channel, options.repository);
-  if (!issueNumber) {
+  const resolved = resolveChannel(channel);
+  if (!resolved) {
     continue;
   }
+  if (!resolved.number) {
+    results.push({
+      channel_id: channel.channel_id,
+      channel: channel.name,
+      state: "IGNORED",
+      actions: ["skipped"],
+      reason: resolved.reason,
+    });
+    continue;
+  }
+  const issueNumber = resolved.number;
 
   if (channelsByIssueNumber.has(issueNumber)) {
     fail(`More than one Buzz channel matches GitHub issue #${issueNumber}.`);
@@ -376,80 +351,74 @@ function positiveInteger(value, option) {
   return parsed;
 }
 
-function repositoryParts(repository) {
-  const parts = repository.split("/");
-  if (parts.length !== 2 || parts.some((part) => !part)) {
-    fail(`Invalid GitHub repository: ${repository}`);
-  }
-  return parts;
-}
-
 function getProjectItems() {
-  const project = runJson(gh, [
-    "project",
-    "item-list",
-    String(options.projectNumber),
-    "--owner",
-    options.projectOwner,
-    "--limit",
-    String(options.projectLimit),
-    "--format",
-    "json",
-  ]);
-  if (!Number.isSafeInteger(project.totalCount) || !Array.isArray(project.items)) {
-    fail("GitHub returned an invalid project item list.");
-  }
-  if (project.items.length !== project.totalCount) {
-    fail(
-      `Expected ${project.totalCount} project items but received ${project.items.length}. Raise --project-limit.`,
-    );
-  }
-
-  return new Map(
-    project.items
-      .filter(
-        (item) =>
-          item.content?.type === "Issue" &&
-          item.content.repository === options.repository,
-      )
-      .map((item) => [item.content.number, item]),
-  );
-}
-
-function readCoreTeam() {
-  let document;
-  try {
-    document = JSON.parse(readFileSync(coreTeamPath, "utf8"));
-  } catch (error) {
-    fail(`Could not read core team file ${coreTeamPath}: ${error.message}`);
-  }
-
-  const entries = [...(document.owners || []), ...(document.members || [])];
-  const byGithub = new Map();
-  for (const entry of entries) {
-    if (
-      typeof entry.name !== "string" ||
-      !entry.name.trim() ||
-      typeof entry.github !== "string" ||
-      !entry.github.trim() ||
-      typeof entry.pubkey !== "string" ||
-      !/^[0-9a-f]{64}$/i.test(entry.pubkey)
-    ) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const project = runJson(gh, [
+      "project",
+      "item-list",
+      String(options.projectNumber),
+      "--owner",
+      options.projectOwner,
+      "--limit",
+      String(options.projectLimit),
+      "--format",
+      "json",
+    ]);
+    if (!Number.isSafeInteger(project.totalCount) || !Array.isArray(project.items)) {
+      fail("GitHub returned an invalid project item list.");
+    }
+    if (project.totalCount > options.projectLimit) {
       fail(
-        `Every person in ${coreTeamPath} must have a name, GitHub handle, and hexadecimal pubkey.`,
+        `GitHub reports ${project.totalCount} project items. Raise --project-limit.`,
       );
     }
-    const handle = entry.github.trim().toLowerCase();
-    if (byGithub.has(handle)) {
-      fail(`More than one core team entry uses GitHub handle ${entry.github}.`);
+    if (project.items.length === project.totalCount) {
+      return new Map(
+        project.items
+          .filter(
+            (item) =>
+              item.content?.type === "Issue" &&
+              item.content.repository === options.repository,
+          )
+          .map((item) => [item.content.number, item]),
+      );
     }
-    byGithub.set(handle, {
-      name: entry.name.trim(),
-      github: entry.github.trim(),
-      pubkey: entry.pubkey.toLowerCase(),
-    });
+    if (attempt === 1) {
+      fail(
+        `Expected ${project.totalCount} project items but received ${project.items.length}.`,
+      );
+    }
   }
-  return byGithub;
+}
+
+function getOpenIssues() {
+  const pages = runJson(gh, [
+    "api",
+    "--paginate",
+    "--slurp",
+    `repos/${options.repository}/issues?state=open&per_page=100`,
+  ]);
+  if (!Array.isArray(pages) || pages.some((page) => !Array.isArray(page))) {
+    fail("GitHub returned an invalid paginated issue response.");
+  }
+  return pages
+    .flat()
+    .filter((issue) => !issue.pull_request)
+    .map((issue) => ({
+      number: issue.number,
+      title: issue.title,
+      url: issue.html_url,
+      repository: options.repository,
+      assignees: issue.assignees || [],
+    }));
+}
+
+function readCoreTeamOrFail() {
+  try {
+    return readCoreTeam(coreTeamPath);
+  } catch (error) {
+    fail(error.message);
+  }
 }
 
 function getChannelDetails() {
@@ -464,6 +433,11 @@ function getChannelDetails() {
       "--limit",
       String(options.limit),
     ]);
+    if (matches.length >= options.limit) {
+      fail(
+        `Buzz returned ${matches.length} channels at the --limit boundary for ${digit}. Raise --limit.`,
+      );
+    }
     for (const channel of matches) {
       details.set(channel.channel_id, channel);
     }
@@ -490,36 +464,72 @@ function canManageChannel(channelId) {
   return channelOwnership.get(channelId);
 }
 
-function issueNumberFromChannel(channel, repository) {
-  const issueUrlPrefix = `https://github.com/${repository}/issues/`;
-  const description = channel.description || "";
-  const issueUrlIndex = description.indexOf(issueUrlPrefix);
-  if (issueUrlIndex !== -1) {
-    const value = description.slice(issueUrlIndex + issueUrlPrefix.length);
-    const match = value.match(/^([1-9]\d*)/);
-    if (match) {
-      return Number.parseInt(match[1], 10);
-    }
-  }
-  return issueNumberFromChannelName(channel.name, repository);
-}
-
-function issueNumberFromChannelName(name, repository) {
-  const canonical = name.match(/^#?([1-9]\d*)(?:\s|$)/);
-  if (canonical) {
-    const issueNumber = Number.parseInt(canonical[1], 10);
-    return projectItemsByIssueNumber.has(issueNumber) ? issueNumber : null;
-  }
-
-  const escapedRepository = repository.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const legacy = name.match(
-    new RegExp(`^${escapedRepository}\\s+#([1-9]\\d*)(?:\\s|$)`),
-  );
-  if (!legacy) {
+function resolveChannel(channel) {
+  const reference = issueReferenceFromChannel(channel);
+  if (!reference) {
     return null;
   }
-  const issueNumber = Number.parseInt(legacy[1], 10);
-  return projectItemsByIssueNumber.has(issueNumber) ? issueNumber : null;
+  if (
+    reference.repository &&
+    reference.repository.toLowerCase() !== options.repository.toLowerCase()
+  ) {
+    return {
+      reason: `Channel belongs to ${reference.repository}#${reference.number}`,
+    };
+  }
+  if (
+    reference.source === "description" ||
+    projectItemsByIssueNumber.has(reference.number) ||
+    openIssuesByNumber.has(reference.number)
+  ) {
+    return { number: reference.number };
+  }
+
+  const kind = githubItemKind(reference.number);
+  return kind === "issue"
+    ? { number: reference.number }
+    : {
+        reason:
+          kind === "pull-request"
+            ? `#${reference.number} is a pull request, not an issue`
+            : `Could not find GitHub issue #${reference.number}`,
+      };
+}
+
+function githubItemKind(number) {
+  if (!githubItemKinds.has(number)) {
+    const item = runOptionalJson(gh, [
+      "api",
+      `repos/${options.repository}/issues/${number}`,
+    ]);
+    githubItemKinds.set(
+      number,
+      item ? (item.pull_request ? "pull-request" : "issue") : "missing",
+    );
+  }
+  return githubItemKinds.get(number);
+}
+
+function runOptionalJson(command, arguments_) {
+  const result = spawnSync(command, arguments_, {
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+  });
+  if (result.error) {
+    fail(`Could not run ${command}: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    const message = result.stderr.trim() || result.stdout.trim();
+    if (/HTTP 404|Not Found/i.test(message)) {
+      return null;
+    }
+    fail(`${command} failed${message ? `: ${message}` : "."}`);
+  }
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    fail(`${command} returned invalid JSON: ${result.stdout.trim()}`);
+  }
 }
 
 function syncOutsiderComments(openIssuesByNumber, channelsByIssueNumber) {

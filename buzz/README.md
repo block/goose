@@ -68,10 +68,11 @@ public-key.hex     Shareable public key used by the Buzz CLI
 profile-created   Time at which the profile was published
 ```
 
-The command is deliberately idempotent. If all three key files exist, it fixes
-their permissions, prints the existing public key, and changes neither the keys
-nor the Buzz profile. If only part of the key pair exists, it stops rather than
-silently replacing the identity.
+The command is deliberately idempotent. If all three key files and the profile
+marker exist, it fixes their permissions and changes nothing. If the keys exist
+without the marker, it publishes the profile again without replacing the
+identity. If only part of the key pair exists, it stops rather than silently
+replacing the identity.
 
 Back up the entire `github-manager` directory in a secure password or secrets
 manager. The private key cannot be recovered from Buzz. Anyone with it can act
@@ -187,7 +188,8 @@ The command prints the issue, channel, message, and participant details as JSON.
 Channel names use `#<issue-number> <issue-title>` in the Buzz UI. The script
 refuses to create a duplicate when an active or archived channel already
 matches the issue number. For an existing channel, explicitly supplied owners,
-people, and bots are added without posting the summary a second time.
+people, and bots are added without posting the summary a second time. An
+archived matching channel is unarchived before its roster is updated.
 
 Adding a bot does not trigger it. After the channel is created, Github Manager
 must send a new message with an explicit bot mention:
@@ -204,8 +206,8 @@ must send a new message with an explicit bot mention:
 Lists unassigned issues in the project's Inbox and open issues linked from the
 Buzz `issues to add` channel. A queue entry can contain a Goose issue or pull
 request URL, or just `#<issue number>`. Queue entries with an existing issue
-channel are treated as processed. Pull request links resolve to their issue when GitHub
-reports exactly one closing issue. The JSON also includes the core team, GitHub
+channel are treated as processed. Pull request links resolve to their issue when
+GitHub reports exactly one closing issue. The JSON also includes the core team, GitHub
 handles, Buzz public keys, interests, and assignment capacity so a Goose recipe
 can select an owner. `recent_assignment_load` counts core-team assignees across
 the 100 most recently created issues, including closed issues. Phase and issue
@@ -227,13 +229,18 @@ Only the 20 most recent issue or pull-request links in the queue are considered.
 Conversation without GitHub links does not consume that limit. Use
 `--queue-count` to change it.
 
+Queue authors are only returned as `queue_requesters` when their public key is
+present in `core-team.json`. Other authors are reported as
+`ignored_queue_requesters` and cannot influence channel membership.
+
 ### `syncissues`
 
 Fetches all open GitHub issues and all Buzz channels, matches issue channels by
 the GitHub URL in their description, and synchronizes the project phase and
-assignees to the channel topic. Legacy channels matched only by a leading
-number must also correspond to an Issue on the configured GitHub project, so a
-channel for a pull request is not mistaken for a closed issue:
+assignees to the channel topic. Active and archived channels use the same
+matching rules. Legacy number-only channels are checked against GitHub so pull
+request channels are reported and skipped instead of being treated as closed
+issues:
 
 | GitHub phase | Buzz topic marker |
 | --- | --- |

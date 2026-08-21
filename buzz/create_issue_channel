@@ -6,6 +6,12 @@ import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import {
+  channelMatchesIssue,
+  readCoreTeam,
+  repositoryFromIssueUrl,
+} from "./github_manager.mjs";
+
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const coreTeamPath =
   process.env.BUZZ_CORE_TEAM_FILE || join(scriptDirectory, "core-team.json");
@@ -35,7 +41,7 @@ const buzzEnvironment = {
 };
 
 const issue = getIssue();
-const coreTeam = readCoreTeam();
+const coreTeam = readCoreTeamOrFail();
 const requestedOwners = resolveParticipants(options.owners, "owner");
 const requestedPeople = resolveParticipants(options.people, "member");
 const requestedBots = resolveParticipants(options.bots, "bot");
@@ -55,7 +61,10 @@ const bots = mergeParticipants(associatedBots, requestedBots);
 const requestedAssociatedBots = [...requestedOwners, ...requestedPeople].flatMap(
   (participant) => coreTeam.botsByPerson.get(participant.pubkey) || [],
 );
-const existingBots = mergeParticipants(requestedAssociatedBots, requestedBots);
+const botsForExistingChannel = mergeParticipants(
+  requestedAssociatedBots,
+  requestedBots,
+);
 rejectRoleConflicts(owners, people, bots);
 
 const channelPrefix = `${issue.number}`;
@@ -65,12 +74,17 @@ const existingChannels = runBuzz([
   "--query",
   channelPrefix,
   "--include-archived",
+  "--limit",
+  String(options.channelLimit),
 ]);
-const matchingChannels = existingChannels.filter(
-  (channel) =>
-    channel.name === channelPrefix ||
-    channel.name.startsWith(`${channelPrefix} `) ||
-    channel.name.includes(` #${issue.number} `),
+if (existingChannels.length >= options.channelLimit) {
+  fail(
+    `Buzz returned ${existingChannels.length} channels at the ` +
+      "--channel-limit boundary. Raise the limit.",
+  );
+}
+const matchingChannels = existingChannels.filter((channel) =>
+  channelMatchesIssue(channel, issue),
 );
 if (matchingChannels.length > 1) {
   fail(
@@ -82,13 +96,16 @@ if (matchingChannels.length === 1) {
   if (
     requestedOwners.length === 0 &&
     requestedPeople.length === 0 &&
-    existingBots.length === 0
+    botsForExistingChannel.length === 0
   ) {
     fail(
       `A channel already matches ${JSON.stringify(channelPrefix)}. Pass participants to update its roster.`,
     );
   }
   const existingChannel = matchingChannels[0];
+  if (existingChannel.archived) {
+    runBuzz(["channels", "unarchive", "--channel", existingChannel.channel_id]);
+  }
   for (const owner of requestedOwners) {
     runBuzz([
       "channels",
@@ -116,7 +133,7 @@ if (matchingChannels.length === 1) {
       "member",
     ]);
   }
-  for (const bot of existingBots) {
+  for (const bot of botsForExistingChannel) {
     runBuzz([
       "channels",
       "add-member",
@@ -135,12 +152,12 @@ if (matchingChannels.length === 1) {
         channel: {
           id: existingChannel.channel_id,
           name: existingChannel.name,
-          archived: Boolean(existingChannel.archived),
+          archived: false,
           existing: true,
         },
         owners_promoted: requestedOwners,
         people_added: requestedPeople,
-        bots_added: existingBots,
+        bots_added: botsForExistingChannel,
       },
       null,
       2,
@@ -245,6 +262,7 @@ function parseArguments(arguments_) {
     people: [],
     bots: [],
     coreTeam: true,
+    channelLimit: 1000,
     help: false,
   };
 
@@ -293,6 +311,14 @@ function parseArguments(arguments_) {
       continue;
     }
 
+    if (argument === "--channel-limit") {
+      parsed.channelLimit = positiveInteger(
+        requiredValue(arguments_, ++index, argument),
+        argument,
+      );
+      continue;
+    }
+
     if (argument.startsWith("-")) {
       fail(`Unknown option: ${argument}`);
     }
@@ -321,6 +347,14 @@ function requiredValue(arguments_, index, option) {
   return value;
 }
 
+function positiveInteger(value, option) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+    fail(`${option} must be a positive integer.`);
+  }
+  return parsed;
+}
+
 function getIssue() {
   const arguments_ = [
     "issue",
@@ -338,91 +372,12 @@ function getIssue() {
   return { ...issue, repository };
 }
 
-function repositoryFromIssueUrl(issueUrl) {
+function readCoreTeamOrFail() {
   try {
-    const parts = new URL(issueUrl).pathname.split("/").filter(Boolean);
-    if (parts.length >= 4 && parts[2] === "issues") {
-      return `${parts[0]}/${parts[1]}`;
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-function readCoreTeam() {
-  let document;
-  try {
-    document = JSON.parse(readFileSync(coreTeamPath, "utf8"));
+    return readCoreTeam(coreTeamPath);
   } catch (error) {
-    fail(`Could not read core team file ${coreTeamPath}: ${error.message}`);
+    fail(error.message);
   }
-
-  if (!Array.isArray(document.owners) || !Array.isArray(document.members)) {
-    fail(`Core team file ${coreTeamPath} must contain owners and members arrays.`);
-  }
-
-  const owners = document.owners.map((entry) =>
-    coreTeamEntry(entry, "owner"),
-  );
-  const members = document.members.map((entry) =>
-    coreTeamEntry(entry, "member"),
-  );
-  return {
-    owners: owners.map((entry) => entry.person),
-    members: members.map((entry) => entry.person),
-    botsByPerson: new Map(
-      [...owners, ...members].map((entry) => [entry.person.pubkey, entry.bots]),
-    ),
-  };
-}
-
-function coreTeamEntry(entry, role) {
-  if (
-    !entry ||
-    typeof entry.name !== "string" ||
-    !entry.name.trim() ||
-    typeof entry.github !== "string" ||
-    !entry.github.trim() ||
-    typeof entry.pubkey !== "string" ||
-    !/^[0-9a-f]{64}$/i.test(entry.pubkey) ||
-    !Array.isArray(entry.interest) ||
-    entry.interest.length === 0 ||
-    entry.interest.some(
-      (interest) => typeof interest !== "string" || !interest.trim(),
-    )
-  ) {
-    fail(
-      `Every ${role} in ${coreTeamPath} must have a name, GitHub handle, a 64-character hexadecimal pubkey, and a non-empty interest list.`,
-    );
-  }
-  const bots = entry.bots || {};
-  if (
-    typeof bots !== "object" ||
-    Array.isArray(bots) ||
-    Object.entries(bots).some(
-      ([name, pubkey]) =>
-        !name.trim() ||
-        typeof pubkey !== "string" ||
-        !/^[0-9a-f]{64}$/i.test(pubkey),
-    )
-  ) {
-    fail(
-      `Bots for ${JSON.stringify(entry.name)} in ${coreTeamPath} must map names to 64-character hexadecimal pubkeys.`,
-    );
-  }
-  return {
-    person: {
-      name: entry.name.trim(),
-      pubkey: entry.pubkey.toLowerCase(),
-      role,
-    },
-    bots: Object.entries(bots).map(([name, pubkey]) => ({
-      name: name.trim(),
-      pubkey: pubkey.toLowerCase(),
-      role: "bot",
-    })),
-  };
 }
 
 function mergeParticipants(...groups) {
@@ -558,6 +513,7 @@ Options:
   --person <name|pubkey>    Add a Buzz identity as a member; repeatable
   --bot <name|pubkey>       Add a Buzz identity as a bot; repeatable
   --no-core-team            Do not add the default people from the core team file
+  --channel-limit <number>  Maximum duplicate-search results (default: 1000)
   -h, --help                Show this help
 
 Owners and members from ${coreTeamPath} are added by default, along with their

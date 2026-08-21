@@ -34,6 +34,9 @@ const avatarPath = join(
 );
 
 const existingKeyPaths = keyPaths.filter(existsSync);
+let nsec;
+let npub;
+let publicKeyHex;
 if (existingKeyPaths.length > 0) {
   if (existingKeyPaths.length !== keyPaths.length) {
     console.error(
@@ -47,29 +50,34 @@ if (existingKeyPaths.length > 0) {
     chmodSync(keyPath, 0o600);
   }
 
-  const publicKey = readFileSync(publicKeyPath, "utf8").trim();
-  console.log(`Github Manager already exists: ${publicKey}`);
+  nsec = readFileSync(privateKeyPath, "utf8").trim();
+  npub = readFileSync(publicKeyPath, "utf8").trim();
+  publicKeyHex = readFileSync(publicKeyHexPath, "utf8").trim();
+  console.log(`Github Manager keys already exist: ${npub}`);
   console.log(`Keys: ${identityDirectory}`);
-  console.log("No key or profile changes were made.");
-  process.exit(0);
+  if (existsSync(profileCreatedPath)) {
+    chmodSync(profileCreatedPath, 0o600);
+    console.log("No key or profile changes were made.");
+    process.exit(0);
+  }
+  console.log("The profile marker is missing; recreating the Buzz profile.");
+} else {
+  mkdirSync(identityDirectory, { recursive: true, mode: 0o700 });
+  chmodSync(identityDirectory, 0o700);
+
+  const { privateKey, publicKey } = generateKeyPair();
+  publicKeyHex = publicKey.toString("hex");
+  nsec = bech32Encode("nsec", privateKey);
+  npub = bech32Encode("npub", publicKey);
+
+  writeSecret(privateKeyPath, nsec);
+  writeSecret(publicKeyPath, npub);
+  writeSecret(publicKeyHexPath, publicKeyHex);
+
+  console.log(`Generated ${identityName}: ${npub}`);
+  console.log(`Public key (hex): ${publicKeyHex}`);
+  console.log(`Keys: ${identityDirectory}`);
 }
-
-mkdirSync(identityDirectory, { recursive: true, mode: 0o700 });
-chmodSync(identityDirectory, 0o700);
-
-const { privateKey, publicKey } = generateKeyPair();
-const privateKeyHex = privateKey.toString("hex");
-const publicKeyHex = publicKey.toString("hex");
-const nsec = bech32Encode("nsec", privateKey);
-const npub = bech32Encode("npub", publicKey);
-
-writeSecret(privateKeyPath, nsec);
-writeSecret(publicKeyPath, npub);
-writeSecret(publicKeyHexPath, publicKeyHex);
-
-console.log(`Generated ${identityName}: ${npub}`);
-console.log(`Public key (hex): ${publicKeyHex}`);
-console.log(`Keys: ${identityDirectory}`);
 
 const buzz = findBuzz();
 const buzzEnvironment = {
