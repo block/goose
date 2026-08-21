@@ -106,7 +106,7 @@ impl CodeExecutionClient {
                 namespace,
                 description: tool.description.as_ref().map(|d| d.to_string()),
                 input_schema: Some(json!(tool.input_schema)),
-                output_schema: tool.output_schema.as_ref().map(|s| json!(s)),
+                output_schema: None,
             })
         }
         Some(cfgs)
@@ -747,6 +747,7 @@ mod tests {
                 "Model-visible tool".to_string(),
                 JsonObject::new(),
             )
+            .with_output_schema::<ToolGraphNode>()
             .with_meta(MetaObject(
                 json!({ "ui": { "visibility": ["model"] } })
                     .as_object()
@@ -815,6 +816,7 @@ mod tests {
         assert!(!names.contains(&"app_only"));
         assert!(names.contains(&"model_visible"));
         assert!(names.contains(&"ordinary"));
+        assert!(configs.iter().all(|config| config.output_schema.is_none()));
     }
 
     #[tokio::test]
