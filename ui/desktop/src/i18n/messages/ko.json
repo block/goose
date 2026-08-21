@@ -4490,6 +4490,45 @@
   "toolConfirmation.gooseWouldLikeToCallWithName": {
     "defaultMessage": "goose가 {toolName}을 호출하려고 합니다. 허용하시겠습니까?"
   },
+  "todoChecklist.status.completed": {
+    "defaultMessage": "Completed"
+  },
+  "todoChecklist.status.inProgress": {
+    "defaultMessage": "In progress"
+  },
+  "todoChecklist.status.pending": {
+    "defaultMessage": "Pending"
+  },
+  "todoDock.collapse": {
+    "defaultMessage": "Collapse task list"
+  },
+  "todoDock.current": {
+    "defaultMessage": "Current: {task}"
+  },
+  "todoDock.expand": {
+    "defaultMessage": "Expand task list"
+  },
+  "todoDock.progress": {
+    "defaultMessage": "{done} of {total} completed"
+  },
+  "todoTool.collapse": {
+    "defaultMessage": "Hide updated task list"
+  },
+  "todoTool.expand": {
+    "defaultMessage": "Show updated task list"
+  },
+  "todoTool.failed": {
+    "defaultMessage": "Failed to update task list"
+  },
+  "todoTool.updated": {
+    "defaultMessage": "Task list updated"
+  },
+  "todoTool.updatedWithProgress": {
+    "defaultMessage": "Task list updated · {done}/{total}"
+  },
+  "todoTool.updating": {
+    "defaultMessage": "Updating task list"
+  },
   "updateSection.autoDownload": {
     "defaultMessage": "goose가 백그라운드에서 업데이트를 다운로드하며, 종료하거나 다시 시작할 때 설치합니다."
   },

@@ -311,6 +311,13 @@ impl GooseAcpAgent {
             .await
             .internal_err_ctx("Failed to reload session")?;
 
+        todo_plan::send_current_todo_plan(
+            cx,
+            &self.session_manager,
+            &SessionId::new(session_id_str.clone()),
+        )
+        .await?;
+
         agent
             .extension_manager
             .update_working_dir(&session.working_dir)

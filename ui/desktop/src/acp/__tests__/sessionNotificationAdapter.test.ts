@@ -116,6 +116,36 @@ function firstContent(message: Message): Message['content'][number] {
 
 describe('createAcpSessionNotificationAdapter', () => {
   describe('apply', () => {
+    describe('plans', () => {
+      it('maps plan entries to chat state', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+        const entries = [
+          {
+            content: 'Inspect implementation',
+            priority: 'high',
+            status: 'in_progress',
+          },
+        ] as const;
+
+        expect(
+          adapter.apply(
+            acpUpdate({
+              sessionUpdate: 'plan',
+              entries: [...entries],
+            })
+          )
+        ).toEqual([{ type: 'plan', entries }]);
+      });
+
+      it('clears chat plan state when a plan is removed', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+
+        expect(
+          adapter.apply(acpUpdate({ sessionUpdate: 'plan_removed', planId: 'todo' }))
+        ).toEqual([{ type: 'plan', entries: [] }]);
+      });
+    });
+
     describe('message chunks', () => {
       it('maps and merges text chunks by role', () => {
         const adapter = createAcpSessionNotificationAdapter();

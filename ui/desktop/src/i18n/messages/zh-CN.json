@@ -4490,6 +4490,45 @@
   "toolConfirmation.gooseWouldLikeToCallWithName": {
     "defaultMessage": "Goose 想调用 {toolName}，允许吗？"
   },
+  "todoChecklist.status.completed": {
+    "defaultMessage": "已完成"
+  },
+  "todoChecklist.status.inProgress": {
+    "defaultMessage": "进行中"
+  },
+  "todoChecklist.status.pending": {
+    "defaultMessage": "待处理"
+  },
+  "todoDock.collapse": {
+    "defaultMessage": "收起任务列表"
+  },
+  "todoDock.current": {
+    "defaultMessage": "当前：{task}"
+  },
+  "todoDock.expand": {
+    "defaultMessage": "展开任务列表"
+  },
+  "todoDock.progress": {
+    "defaultMessage": "已完成 {done}/{total}"
+  },
+  "todoTool.collapse": {
+    "defaultMessage": "隐藏更新后的任务列表"
+  },
+  "todoTool.expand": {
+    "defaultMessage": "查看更新后的任务列表"
+  },
+  "todoTool.failed": {
+    "defaultMessage": "任务列表更新失败"
+  },
+  "todoTool.updated": {
+    "defaultMessage": "任务列表已更新"
+  },
+  "todoTool.updatedWithProgress": {
+    "defaultMessage": "任务列表已更新 · {done}/{total}"
+  },
+  "todoTool.updating": {
+    "defaultMessage": "正在更新任务列表"
+  },
   "updateSection.autoDownload": {
     "defaultMessage": "更新将在后台自动下载。"
   },

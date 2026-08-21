@@ -48,13 +48,13 @@ use agent_client_protocol::schema::v1::{
     ForkSessionResponse, ImageContent, Implementation, InitializeRequest, InitializeResponse,
     ListSessionsRequest, ListSessionsResponse, LoadSessionRequest, LoadSessionResponse,
     McpCapabilities, McpServer, Meta, NewSessionRequest, NewSessionResponse, PermissionOption,
-    PermissionOptionKind, PromptCapabilities, PromptRequest, PromptResponse,
-    RequestPermissionOutcome, RequestPermissionRequest, ResourceLink, SessionCapabilities,
-    SessionCloseCapabilities, SessionConfigOption, SessionDeleteCapabilities, SessionId,
-    SessionInfoUpdate, SessionListCapabilities, SessionNotification, SessionUpdate,
-    SetSessionConfigOptionRequest, SetSessionConfigOptionResponse, SetSessionModeRequest,
-    SetSessionModeResponse, StopReason, TextContent, ToolCallId, ToolCallUpdate, Usage,
-    UsageUpdate,
+    PermissionOptionKind, Plan, PlanEntry, PlanEntryPriority, PlanEntryStatus, PromptCapabilities,
+    PromptRequest, PromptResponse, RequestPermissionOutcome, RequestPermissionRequest,
+    ResourceLink, SessionCapabilities, SessionCloseCapabilities, SessionConfigOption,
+    SessionDeleteCapabilities, SessionId, SessionInfoUpdate, SessionListCapabilities,
+    SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
+    SetSessionConfigOptionResponse, SetSessionModeRequest, SetSessionModeResponse, StopReason,
+    TextContent, ToolCallId, ToolCallUpdate, Usage, UsageUpdate,
 };
 use agent_client_protocol::util::MatchDispatchFrom;
 use agent_client_protocol::{
@@ -118,6 +118,7 @@ mod resources;
 mod schedule;
 mod slash_commands;
 mod sources;
+mod todo_plan;
 mod tool_calls;
 mod tool_notifications;
 mod tools;
@@ -1401,6 +1402,12 @@ impl GooseAcpAgent {
             .meta(trusted_update_meta(tool_response));
         let tool_call_notifier = ToolCallNotifier::new(cx, session_id);
         tool_call_notifier.send_update(update)?;
+
+        if tool_request.is_some_and(todo_plan::is_todo_write_request)
+            && todo_plan::tool_response_succeeded(tool_response)
+        {
+            todo_plan::send_current_todo_plan(cx, &self.session_manager, session_id).await?;
+        }
 
         Ok(())
     }

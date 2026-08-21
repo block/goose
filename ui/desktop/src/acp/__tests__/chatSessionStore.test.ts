@@ -515,6 +515,40 @@ describe('acpChatSessionStore', () => {
     expect(nextSnapshot.notifications).toEqual([]);
   });
 
+  it('stores ACP plans and preserves them for a new prompt attempt', () => {
+    const currentSessionId = sessionId('session-1');
+    const snapshot = acpChatSessionActions.applyAcpSessionNotification({
+      sessionId: currentSessionId,
+      update: {
+        sessionUpdate: 'plan',
+        entries: [
+          {
+            content: 'Implement task dock',
+            priority: 'medium',
+            status: 'in_progress',
+          },
+        ],
+      },
+    });
+
+    expect(snapshot.plan).toEqual([
+      {
+        content: 'Implement task dock',
+        priority: 'medium',
+        status: 'in_progress',
+      },
+    ]);
+
+    const nextSnapshot = acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
+    expect(nextSnapshot.plan).toEqual([
+      {
+        content: 'Implement task dock',
+        priority: 'medium',
+        status: 'in_progress',
+      },
+    ]);
+  });
+
   it('resets replayed messages before starting an unloaded session load', () => {
     const currentSessionId = sessionId('session-1');
     const replayedChunk = agentMessageChunkNotification(currentSessionId, 'message-1', 'Hello');

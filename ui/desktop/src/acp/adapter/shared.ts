@@ -1,4 +1,4 @@
-import type { ToolCall, ToolCallUpdate } from '@agentclientprotocol/sdk';
+import type { PlanEntry, ToolCall, ToolCallUpdate } from '@agentclientprotocol/sdk';
 import type { TokenState } from '../../types/chat';
 import type { Message, NotificationEvent } from '../../types/message';
 
@@ -6,6 +6,7 @@ export type AcpChatStateChange =
   | { type: 'messages'; messages: Message[] }
   | { type: 'tokenState'; tokenState: Partial<TokenState> }
   | { type: 'progressMessage'; message: string | undefined }
+  | { type: 'plan'; entries: PlanEntry[] }
   | {
       type: 'sessionInfo';
       name?: string;

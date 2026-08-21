@@ -72,6 +72,7 @@ function snapshotWithName(name: string): AcpChatSessionSnapshot {
   return {
     session: sessionWithName(name),
     messages: [],
+    plan: [],
     tokenState: {
       inputTokens: 0,
       outputTokens: 0,
@@ -94,6 +95,7 @@ function snapshotWithoutSession(): AcpChatSessionSnapshot {
   return {
     session: undefined,
     messages: [],
+    plan: [],
     tokenState: {
       inputTokens: 0,
       outputTokens: 0,

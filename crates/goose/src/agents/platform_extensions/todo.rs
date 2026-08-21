@@ -38,8 +38,10 @@ impl TodoClient {
                 Your todo content is automatically available in your context.
 
                 Workflow:
-                - Start: write initial checklist
-                - During: update progress
+                - Start: write the initial checklist before doing task work
+                - During: after completing each checklist item, immediately rewrite the full
+                  checklist with that item completed before starting the next item. Never batch
+                  multiple completed items into a later or final update
                 - End: verify all complete
 
                 Template:
@@ -130,7 +132,7 @@ impl TodoClient {
             schema_value.as_object().unwrap().clone(),
         )
         .annotate(ToolAnnotations::from_raw(
-            Some("Write TODO".to_string()),
+            Some("Update Task List".to_string()),
             Some(false),
             Some(true),
             Some(false),

@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
-import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
+import type {
+  PlanEntry,
+  RequestPermissionRequest,
+  SessionNotification,
+} from '@agentclientprotocol/sdk';
 import type { TokenState } from '../types/chat';
 import { ChatState } from '../types/chatState';
 import type { Message, NotificationEvent } from '../types/message';
@@ -20,6 +24,7 @@ export interface AcpChatSessionSnapshot {
   tokenState: TokenState;
   notifications: NotificationEvent[];
   progressMessage: string | undefined;
+  plan: PlanEntry[];
   chatState: ChatState;
   sessionLoadError: string | undefined;
   activePromptAttemptId: string | null;
@@ -171,6 +176,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
       tokenState: { ...initialTokenState },
       notifications: [],
       progressMessage: undefined,
+      plan: [],
       chatState: ChatState.Idle,
       sessionLoadError: undefined,
       activePromptAttemptId: null,
@@ -636,6 +642,9 @@ function applyChatStateChanges(entry: StoreEntry, changes: AcpChatStateChange[])
       case 'progressMessage':
         entry.progressMessage = change.message;
         break;
+      case 'plan':
+        entry.plan = change.entries.map((item) => ({ ...item }));
+        break;
       case 'sessionInfo':
         if (change.name && entry.session) {
           entry.session = { ...entry.session, name: change.name };
@@ -672,6 +681,7 @@ function resetReplayState(entry: StoreEntry): void {
   entry.tokenState = { ...initialTokenState };
   entry.notifications = [];
   entry.progressMessage = undefined;
+  entry.plan = [];
   entry.activeRunId = null;
   entry.pendingCancelPromptAttemptId = null;
   entry.promptCancellationRestoreState = null;
@@ -747,6 +757,7 @@ function snapshotFromEntry(entry: StoreEntry): AcpChatSessionSnapshot {
     tokenState: { ...entry.tokenState },
     notifications: [...entry.notifications],
     progressMessage: entry.progressMessage,
+    plan: entry.plan.map((item) => ({ ...item })),
     chatState: entry.chatState,
     sessionLoadError: entry.sessionLoadError,
     activePromptAttemptId: entry.activePromptAttemptId,

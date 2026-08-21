@@ -33,6 +33,7 @@ import {
 import { substituteParameters } from '../utils/parameterSubstitution';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
 import { Goose } from './icons';
+import TodoDock from './TodoDock';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 import SessionActionsHeader from './SessionActionsHeader';
 import { isAcpRecovering, subscribeToAcpRecovery } from '../acp/acpConnection';
@@ -118,6 +119,7 @@ export default function BaseChat({
     pauseQueueOnStop,
     queueProcessingBlocked,
     onMessageUpdate,
+    plan,
   } = useChatSession({
     sessionId,
     onStreamFinish,
@@ -496,6 +498,13 @@ export default function BaseChat({
             {intl.formatMessage(i18n.reconnecting)}
           </div>
         )}
+
+        <div className="mx-4">
+          <TodoDock
+            entries={plan}
+            active={chatState !== ChatState.Idle && chatState !== ChatState.LoadingConversation}
+          />
+        </div>
 
         <ChatInputCard
           className={cn(

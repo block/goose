@@ -4490,6 +4490,45 @@
   "toolConfirmation.gooseWouldLikeToCallWithName": {
     "defaultMessage": "Goose 想要呼叫 {toolName}。要允許嗎？"
   },
+  "todoChecklist.status.completed": {
+    "defaultMessage": "已完成"
+  },
+  "todoChecklist.status.inProgress": {
+    "defaultMessage": "進行中"
+  },
+  "todoChecklist.status.pending": {
+    "defaultMessage": "待處理"
+  },
+  "todoDock.collapse": {
+    "defaultMessage": "收合任務清單"
+  },
+  "todoDock.current": {
+    "defaultMessage": "目前：{task}"
+  },
+  "todoDock.expand": {
+    "defaultMessage": "展開任務清單"
+  },
+  "todoDock.progress": {
+    "defaultMessage": "已完成 {done}/{total}"
+  },
+  "todoTool.collapse": {
+    "defaultMessage": "隱藏更新後的任務清單"
+  },
+  "todoTool.expand": {
+    "defaultMessage": "查看更新後的任務清單"
+  },
+  "todoTool.failed": {
+    "defaultMessage": "任務清單更新失敗"
+  },
+  "todoTool.updated": {
+    "defaultMessage": "任務清單已更新"
+  },
+  "todoTool.updatedWithProgress": {
+    "defaultMessage": "任務清單已更新 · {done}/{total}"
+  },
+  "todoTool.updating": {
+    "defaultMessage": "正在更新任務清單"
+  },
   "updateSection.autoDownload": {
     "defaultMessage": "Goose 會在背景下載更新，並於您下次結束或重新啟動時安裝。"
   },

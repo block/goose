@@ -21,8 +21,10 @@ import type { ContentBlock } from '../types/message';
 import McpAppRenderer from './McpApps/McpAppRenderer';
 import ToolApprovalButtons from './ToolApprovalButtons';
 import { defineMessages, useIntl } from '../i18n';
+import TodoToolCallView from './TodoToolCallView';
+import { isTodoWriteToolName } from '../utils/todoPlan';
 
-type LoadingStatus = 'loading' | 'success' | 'error';
+export type LoadingStatus = 'loading' | 'success' | 'error';
 
 const i18n = defineMessages({
   viewSubagentSession: {
@@ -551,6 +553,12 @@ function ToolCallView({
       setStartTime(Date.now());
     }
   }, [toolResponse, startTime]);
+
+  if (isTodoWriteToolName(toolCall.name)) {
+    const content =
+      typeof toolCall.arguments?.content === 'string' ? toolCall.arguments.content : '';
+    return <TodoToolCallView content={content} status={loadingStatus} />;
+  }
 
   const toolResults =
     loadingStatus === 'success' && toolResponse?.toolResult

@@ -2,6 +2,7 @@ import type { ChatState } from '../types/chatState';
 import type { TokenState } from '../types/chat';
 import type { ImageData, Message, NotificationEvent, UserInput } from '../types/message';
 import type { Session } from '../types/session';
+import type { PlanEntry } from '@agentclientprotocol/sdk';
 
 export interface UseChatSessionParams {
   sessionId: string;
@@ -14,6 +15,7 @@ export interface UseChatSessionResult {
   messages: Message[];
   chatState: ChatState;
   progressMessage?: string;
+  plan: PlanEntry[];
   updateSession: (updater: (session: Session) => Session) => void;
   handleSubmit: (input: UserInput) => Promise<void>;
   onSteerQueuedMessage?: (input: UserInput) => Promise<boolean>;

@@ -4490,6 +4490,45 @@
   "toolConfirmation.gooseWouldLikeToCallWithName": {
     "defaultMessage": "Goose {toolName} को कॉल करना चाहेंगे। अनुमति दें?"
   },
+  "todoChecklist.status.completed": {
+    "defaultMessage": "Completed"
+  },
+  "todoChecklist.status.inProgress": {
+    "defaultMessage": "In progress"
+  },
+  "todoChecklist.status.pending": {
+    "defaultMessage": "Pending"
+  },
+  "todoDock.collapse": {
+    "defaultMessage": "Collapse task list"
+  },
+  "todoDock.current": {
+    "defaultMessage": "Current: {task}"
+  },
+  "todoDock.expand": {
+    "defaultMessage": "Expand task list"
+  },
+  "todoDock.progress": {
+    "defaultMessage": "{done} of {total} completed"
+  },
+  "todoTool.collapse": {
+    "defaultMessage": "Hide updated task list"
+  },
+  "todoTool.expand": {
+    "defaultMessage": "Show updated task list"
+  },
+  "todoTool.failed": {
+    "defaultMessage": "Failed to update task list"
+  },
+  "todoTool.updated": {
+    "defaultMessage": "Task list updated"
+  },
+  "todoTool.updatedWithProgress": {
+    "defaultMessage": "Task list updated · {done}/{total}"
+  },
+  "todoTool.updating": {
+    "defaultMessage": "Updating task list"
+  },
   "updateSection.autoDownload": {
     "defaultMessage": "अपडेट बैकग्राउंड में अपने आप डाउनलोड हो जाएगा."
   },

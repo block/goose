@@ -79,6 +79,12 @@ function applyAcpSessionNotification(
       return applyToolCall(state, update);
     case 'tool_call_update':
       return applyToolCallUpdate(state, update);
+    case 'plan':
+      return [{ type: 'plan', entries: update.entries }];
+    case 'plan_update':
+      return update.plan.type === 'items' ? [{ type: 'plan', entries: update.plan.entries }] : [];
+    case 'plan_removed':
+      return [{ type: 'plan', entries: [] }];
     case 'session_info_update': {
       const activeRunId = getGooseActiveRunId(update);
       const queuedSteerMessageId = getGooseQueuedSteer(update);

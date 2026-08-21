@@ -80,22 +80,112 @@ pub trait ExtensionState: Sized + Serialize + for<'de> Deserialize<'de> {
     }
 }
 
-/// TODO extension state implementation
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TodoItemStatus {
+    Pending,
+    InProgress,
+    Completed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TodoItemPriority {
+    High,
+    Medium,
+    Low,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TodoItem {
+    pub content: String,
+    pub status: TodoItemStatus,
+    pub priority: TodoItemPriority,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub depth: usize,
+}
+
+fn is_zero(value: &usize) -> bool {
+    *value == 0
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TodoState {
     pub content: String,
+    pub items: Vec<TodoItem>,
 }
 
 impl ExtensionState for TodoState {
     const EXTENSION_NAME: &'static str = "todo";
-    const VERSION: &'static str = "v0";
+    const VERSION: &'static str = "v1";
 }
 
 impl TodoState {
-    /// Create a new TODO state
     pub fn new(content: String) -> Self {
-        Self { content }
+        let items = parse_todo_items(&content);
+        Self { content, items }
     }
+
+    pub fn from_extension_data(extension_data: &ExtensionData) -> Option<Self> {
+        <Self as ExtensionState>::from_extension_data(extension_data).or_else(|| {
+            extension_data
+                .get_extension_state(Self::EXTENSION_NAME, "v0")
+                .and_then(|value| value.get("content"))
+                .and_then(Value::as_str)
+                .map(|content| Self::new(content.to_string()))
+        })
+    }
+}
+
+fn parse_todo_items(content: &str) -> Vec<TodoItem> {
+    let mut items: Vec<TodoItem> = content.lines().filter_map(parse_todo_line).collect();
+    if !items
+        .iter()
+        .any(|item| item.status == TodoItemStatus::InProgress)
+    {
+        if let Some(item) = items
+            .iter_mut()
+            .find(|item| item.status == TodoItemStatus::Pending)
+        {
+            item.status = TodoItemStatus::InProgress;
+        }
+    }
+    items
+}
+
+fn parse_todo_line(line: &str) -> Option<TodoItem> {
+    let trimmed = line.trim_start();
+    let rest = trimmed
+        .strip_prefix("- ")
+        .or_else(|| trimmed.strip_prefix("* "))
+        .or_else(|| trimmed.strip_prefix("+ "))?;
+    let (status, content) = if let Some(content) = rest.strip_prefix("[ ]") {
+        (TodoItemStatus::Pending, content)
+    } else if let Some(content) = rest
+        .strip_prefix("[x]")
+        .or_else(|| rest.strip_prefix("[X]"))
+    {
+        (TodoItemStatus::Completed, content)
+    } else if let Some(content) = rest
+        .strip_prefix("[>]")
+        .or_else(|| rest.strip_prefix("[/]"))
+        .or_else(|| rest.strip_prefix("[-]"))
+    {
+        (TodoItemStatus::InProgress, content)
+    } else {
+        return None;
+    };
+    let content = content.trim();
+    if content.is_empty() {
+        return None;
+    }
+
+    Some(TodoItem {
+        content: content.to_string(),
+        status,
+        priority: TodoItemPriority::Medium,
+        depth: (line.len() - trimmed.len()) / 2,
+    })
 }
 
 /// Enabled extensions state implementation for storing which extensions are active
@@ -238,6 +328,33 @@ mod tests {
         let retrieved = TodoState::from_extension_data(&extension_data);
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().content, "- Task 1\n- Task 2");
+    }
+
+    #[test]
+    fn todo_state_parses_checklist_and_infers_current_item() {
+        let state = TodoState::new(
+            "- [x] Complete setup\n- [ ] Implement dock\n  - [ ] Add tests".to_string(),
+        );
+
+        assert_eq!(state.items.len(), 3);
+        assert_eq!(state.items[0].status, TodoItemStatus::Completed);
+        assert_eq!(state.items[1].status, TodoItemStatus::InProgress);
+        assert_eq!(state.items[2].status, TodoItemStatus::Pending);
+        assert_eq!(state.items[2].depth, 1);
+    }
+
+    #[test]
+    fn todo_state_reads_v0_data() {
+        let mut extension_data = ExtensionData::new();
+        extension_data.set_extension_state(
+            "todo",
+            "v0",
+            json!({"content": "- [ ] Restore existing task"}),
+        );
+
+        let state = TodoState::from_extension_data(&extension_data).unwrap();
+        assert_eq!(state.items.len(), 1);
+        assert_eq!(state.items[0].status, TodoItemStatus::InProgress);
     }
 
     #[test]
