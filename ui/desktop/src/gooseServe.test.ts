@@ -256,7 +256,7 @@ describe('startGooseServe', () => {
       path.join(tempDir, 'goose'),
       [
         '#!/usr/bin/env sh',
-        'sleep 0.1',
+        'sleep 5.1',
         'printf "GOOSED_CERT_FINGERPRINT=11:22:33\\n"',
         'while true; do sleep 1; done',
         '',
@@ -286,5 +286,5 @@ describe('startGooseServe', () => {
     } finally {
       await result.cleanup();
     }
-  });
+  }, 10_000);
 });

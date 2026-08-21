@@ -136,7 +136,7 @@ const appendErrorTail = (target: string[], lines: string[], maxLines = 100): voi
 };
 
 const CERT_FINGERPRINT_PREFIX = 'GOOSED_CERT_FINGERPRINT=';
-const TLS_FINGERPRINT_TIMEOUT_MS = 5000;
+const GOOSE_SERVE_STARTUP_TIMEOUT_MS = 30000;
 
 const fetchStatus = async (
   statusUrl: string,
@@ -180,12 +180,12 @@ const waitForGooseServeReady = async (
   options: {
     healthUrl: string;
     readinessFetch: ReadinessFetch;
+    deadline: number;
+    timeoutMs: number;
     onEvent?: (name: string, details?: Record<string, unknown>) => void;
   }
 ): Promise<boolean> => {
-  const timeout = 30000;
   const interval = 100;
-  const deadline = Date.now() + timeout;
   const probeDetails = {
     transport: statusUrl.startsWith('https:') ? 'https' : 'plain-http',
     method: 'GET',
@@ -196,12 +196,12 @@ const waitForGooseServeReady = async (
   };
   options.onEvent?.('healthcheck_start', {
     ...probeDetails,
-    timeoutMs: timeout,
+    timeoutMs: options.timeoutMs,
     intervalMs: interval,
   });
 
   let attempt = 1;
-  while (Date.now() < deadline) {
+  while (Date.now() < options.deadline) {
     if (shouldStopWaiting()) {
       options.onEvent?.('healthcheck_fatal_error', {
         ...probeDetails,
@@ -232,7 +232,10 @@ const waitForGooseServeReady = async (
     attempt += 1;
   }
 
-  options.onEvent?.('healthcheck_timeout', { ...probeDetails, timeoutMs: timeout });
+  options.onEvent?.('healthcheck_timeout', {
+    ...probeDetails,
+    timeoutMs: options.timeoutMs,
+  });
   return false;
 };
 
@@ -545,9 +548,11 @@ export const startGooseServe = async ({
     gooseProcess.stderr?.resume();
   };
 
+  const startupDeadline = Date.now() + GOOSE_SERVE_STARTUP_TIMEOUT_MS;
   if (tls) {
-    startupTrace?.record('fingerprint_wait_start', { timeoutMs: TLS_FINGERPRINT_TIMEOUT_MS });
-    const fingerprint = await waitForFingerprint(fingerprintReady, TLS_FINGERPRINT_TIMEOUT_MS);
+    const fingerprintTimeoutMs = Math.max(0, startupDeadline - Date.now());
+    startupTrace?.record('fingerprint_wait_start', { timeoutMs: fingerprintTimeoutMs });
+    const fingerprint = await waitForFingerprint(fingerprintReady, fingerprintTimeoutMs);
     if (!fingerprint) {
       stopOutputCollection();
       await cleanup();
@@ -556,7 +561,7 @@ export const startGooseServe = async ({
         : '';
       const stderrDetails = errorLog.length ? ` Stderr: ${errorLog.join('\n')}` : '';
       startupTrace?.record('fingerprint_missing', {
-        timeoutMs: TLS_FINGERPRINT_TIMEOUT_MS,
+        timeoutMs: fingerprintTimeoutMs,
         exited,
         exitCode,
         exitSignal,
@@ -573,6 +578,8 @@ export const startGooseServe = async ({
   const ready = await waitForGooseServeReady(statusUrl, errorLog, () => exited || spawnFailed, {
     healthUrl,
     readinessFetch,
+    deadline: startupDeadline,
+    timeoutMs: GOOSE_SERVE_STARTUP_TIMEOUT_MS,
     onEvent: startupTrace?.record,
   });
 
