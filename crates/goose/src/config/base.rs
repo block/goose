@@ -1074,12 +1074,23 @@ impl Config {
         })
     }
 
-    pub(crate) fn restore_secret_values(
+    pub(crate) fn restore_secret_values_if_unchanged(
         &self,
         snapshot: &[(String, Option<Value>)],
+        updates: &[(String, Value)],
     ) -> Result<(), ConfigError> {
         self.mutate_secrets(|values| {
             for (key, value) in snapshot {
+                let Some(written_value) = updates
+                    .iter()
+                    .rev()
+                    .find_map(|(updated_key, value)| (updated_key == key).then_some(value))
+                else {
+                    continue;
+                };
+                if values.get(key) != Some(written_value) {
+                    continue;
+                }
                 if let Some(value) = value {
                     values.insert(key.clone(), value.clone());
                 } else {

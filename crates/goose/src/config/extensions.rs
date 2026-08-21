@@ -293,7 +293,9 @@ where
     config.set_secret_values(secret_updates).map_err(E::from)?;
 
     if let Err(error) = persist() {
-        config.restore_secret_values(&snapshot).map_err(E::from)?;
+        config
+            .restore_secret_values_if_unchanged(&snapshot, secret_updates)
+            .map_err(E::from)?;
         return Err(error);
     }
     Ok(())
@@ -1077,6 +1079,33 @@ extensions:
                 _ => unreachable!(),
             }
         }
+    }
+
+    #[test]
+    fn test_failed_persist_does_not_restore_over_newer_secret() {
+        let directory = tempfile::tempdir().unwrap();
+        let config_path = directory.path().join("config.yaml");
+        let secrets_path = directory.path().join("secrets.yaml");
+        let first = Config::new_with_file_secrets(&config_path, &secrets_path).unwrap();
+        let second = Config::new_with_file_secrets(&config_path, &secrets_path).unwrap();
+        first
+            .set_secret("SHARED_TOKEN", &"original-secret")
+            .unwrap();
+        let updates = [(
+            "SHARED_TOKEN".to_string(),
+            serde_json::Value::String("rejected-secret".to_string()),
+        )];
+
+        let result: Result<(), ConfigError> = persist_with_secret_updates(&first, &updates, || {
+            second.set_secret("SHARED_TOKEN", &"newer-secret")?;
+            Err(ConfigError::NotFound("forced failure".to_string()))
+        });
+
+        assert!(matches!(result, Err(ConfigError::NotFound(_))));
+        assert_eq!(
+            first.get_secret::<String>("SHARED_TOKEN").unwrap(),
+            "newer-secret"
+        );
     }
 
     #[test]
