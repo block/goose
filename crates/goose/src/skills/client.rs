@@ -157,18 +157,28 @@ impl McpClientTrait for SkillsClient {
                 s.name == parent_skill_name
                     && matches!(s.source_type, SourceType::Skill | SourceType::BuiltinSkill)
             }) {
-                let skill_dir = PathBuf::from(&skill.path);
+                let listed_skill_dir = PathBuf::from(&skill.path);
+                let load_skill_dir = match listed_skill_dir.canonicalize() {
+                    Ok(path) => path,
+                    Err(e) => {
+                        return Ok(CallToolResult::error(vec![ContentBlock::text(format!(
+                            "Failed to resolve '{}': {}",
+                            parent_skill_name, e
+                        ))]));
+                    }
+                };
 
                 for file_path in &skill.supporting_files {
                     let file_path_buf = Path::new(file_path);
-                    let Ok(rel) = file_path_buf.strip_prefix(&skill_dir) else {
+                    let Ok(rel) = file_path_buf.strip_prefix(&listed_skill_dir) else {
                         continue;
                     };
                     if rel.to_string_lossy().replace('\\', "/") != relative_path {
                         continue;
                     }
 
-                    let result = match super::load_supporting_file(&skill_dir, rel, skill_name) {
+                    let result = match super::load_supporting_file(&load_skill_dir, rel, skill_name)
+                    {
                         Ok(content) => CallToolResult::success(vec![ContentBlock::text(content)]),
                         Err(e) => CallToolResult::error(vec![ContentBlock::text(format!(
                             "Failed to read '{}': {}",
@@ -183,7 +193,7 @@ impl McpClientTrait for SkillsClient {
                     .iter()
                     .filter_map(|f| {
                         Path::new(f)
-                            .strip_prefix(&skill_dir)
+                            .strip_prefix(&listed_skill_dir)
                             .ok()
                             .map(|r| r.to_string_lossy().replace('\\', "/"))
                     })
@@ -411,6 +421,43 @@ mod tests {
 
         assert!(!result.is_error.unwrap_or(false));
         assert!(result_text(&result).contains("custom plugin full body"));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn symlinked_project_plugin_supporting_file_is_loadable() {
+        let _guard = env_lock::lock_env([("PLUGINS", None::<&str>)]);
+        let project = TempDir::new().unwrap();
+        let external = TempDir::new().unwrap();
+        write_plugin_skill(
+            external.path(),
+            "symlinked-plugin",
+            "symlinked-skill",
+            "Symlinked skill metadata",
+            "symlinked skill body",
+        );
+        write_open_plugin_manifest(external.path(), "symlinked-plugin");
+        let external_plugin = external.path().join(".agents/plugins/symlinked-plugin");
+        let supporting_file = external_plugin.join("skills/symlinked-skill/guide.md");
+        fs::write(&supporting_file, "Symlinked supporting guidance.").unwrap();
+
+        let plugin_link = project.path().join(".agents/plugins/symlinked-plugin");
+        fs::create_dir_all(plugin_link.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(&external_plugin, &plugin_link).unwrap();
+        let client = test_client(project.path(), "symlinked-plugin", true);
+
+        let ctx = ToolCallContext::new("test".to_string(), None, None);
+        let args = serde_json::from_value(serde_json::json!({
+            "name": "symlinked-skill/guide.md"
+        }))
+        .unwrap();
+        let result = client
+            .call_tool(&ctx, "load_skill", Some(args), CancellationToken::new())
+            .await
+            .unwrap();
+
+        assert!(!result.is_error.unwrap_or(false));
+        assert!(result_text(&result).contains("Symlinked supporting guidance."));
     }
 
     #[tokio::test]
