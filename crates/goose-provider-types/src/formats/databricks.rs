@@ -54,6 +54,7 @@ fn format_text_content(
 fn format_tool_response(
     response: &crate::conversation::message::ToolResponse,
     image_format: &ImageFormat,
+    supports_vision: bool,
 ) -> Vec<DatabricksMessage> {
     let mut result = Vec::new();
 
@@ -67,15 +68,21 @@ fn format_tool_response(
             for content in abridged {
                 match content {
                     ContentBlock::Image(image) => {
-                        tool_content.push(ContentBlock::text(
+                        if supports_vision {
+                            tool_content.push(ContentBlock::text(
                             "This tool result included an image that is uploaded in the next message.",
                         ));
-                        image_messages.push(DatabricksMessage {
-                            role: "user".to_string(),
-                            content: [convert_image(&image, image_format)].into(),
-                            tool_calls: None,
-                            tool_call_id: None,
-                        });
+                            image_messages.push(DatabricksMessage {
+                                role: "user".to_string(),
+                                content: [convert_image(&image, image_format)].into(),
+                                tool_calls: None,
+                                tool_call_id: None,
+                            });
+                        } else {
+                            tool_content.push(ContentBlock::text(
+                                "This tool result included an image that was omitted as the model does not support vision.",
+                            ));
+                        }
                     }
                     ContentBlock::Resource(resource) => {
                         let text = extract_text_from_resource(&resource.resource);
@@ -219,7 +226,7 @@ fn format_messages(
                     }
                 }
                 MessageContentBlock::ToolResponse(response) => {
-                    for msg in format_tool_response(response, image_format) {
+                    for msg in format_tool_response(response, image_format, supports_vision) {
                         if msg.role == "user" {
                             pending_image_messages.push(msg);
                         } else {
@@ -228,7 +235,14 @@ fn format_messages(
                     }
                 }
                 MessageContentBlock::Image(image) => {
-                    content_array.push(convert_image(image, image_format));
+                    if supports_vision {
+                        content_array.push(convert_image(image, image_format));
+                    } else {
+                        content_array.push(json!({
+                            "type": "text",
+                            "text": "[image omitted: model does not support vision]"
+                        }));
+                    }
                 }
                 MessageContentBlock::FrontendToolRequest(req) => {
                     let text = match &req.tool_call {
@@ -1027,6 +1041,83 @@ mod tests {
         assert!(content.contains(png_path_str));
         assert!(!content.contains("image_url"));
         assert!(!content.contains("data:image"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_with_image_block_passthrough_when_not_vision() -> anyhow::Result<()> {
+        let message = Message::user().with_image("aW1hZ2VkYXRh", "image/png");
+
+        // Non-vision: explicit image content is replaced with a text placeholder
+        // at format time — session history is untouched.
+        let as_value = serde_json::to_value(format_messages(
+            &[message.clone()],
+            &ImageFormat::OpenAi,
+            None,
+            false,
+        ))
+        .unwrap();
+        let spec = as_value.as_array().unwrap();
+        let content = spec[0]["content"].as_str().unwrap();
+        assert_eq!(content, "[image omitted: model does not support vision]");
+        assert!(!content.contains("image_url"));
+
+        // Vision: the image is converted to an image_url block (existing behavior).
+        let as_value = serde_json::to_value(format_messages(
+            &[message],
+            &ImageFormat::OpenAi,
+            None,
+            true,
+        ))
+        .unwrap();
+        let spec = as_value.as_array().unwrap();
+        let content = spec[0]["content"].as_array().unwrap();
+        assert_eq!(content[0]["type"], "image_url");
+        assert!(content[0]["image_url"]["url"]
+            .as_str()
+            .unwrap()
+            .starts_with("data:image/png;base64,"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_tool_response_image_omitted_when_not_vision() -> anyhow::Result<()> {
+        let tool_response = Message::user().with_tool_response(
+            "tool1",
+            Ok(rmcp::model::CallToolResult::success(vec![
+                rmcp::model::ContentBlock::image("aW1hZ2VkYXRh", "image/png"),
+            ])),
+        );
+
+        // Non-vision: no separate user image message is emitted — this is what
+        // un-bricks sessions (a converted image in the next request 400s).
+        let as_value = serde_json::to_value(format_messages(
+            &[tool_response.clone()],
+            &ImageFormat::OpenAi,
+            None,
+            false,
+        ))
+        .unwrap();
+        let serialized = as_value.to_string();
+        assert!(!serialized.contains("image_url"));
+        assert!(serialized.contains(
+            "This tool result included an image that was omitted as the model does not support vision."
+        ));
+
+        // Vision: the separate user image message IS emitted (existing behavior).
+        let as_value = serde_json::to_value(format_messages(
+            &[tool_response],
+            &ImageFormat::OpenAi,
+            None,
+            true,
+        ))
+        .unwrap();
+        let serialized = as_value.to_string();
+        assert!(serialized.contains("image_url"));
+        assert!(serialized
+            .contains("This tool result included an image that is uploaded in the next message."));
 
         Ok(())
     }
@@ -1868,13 +1959,9 @@ mod tests {
                 ),
         ];
 
-        let as_value = serde_json::to_value(format_messages(
-            &messages,
-            &ImageFormat::OpenAi,
-            None,
-            false,
-        ))
-        .unwrap();
+        let as_value =
+            serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi, None, true))
+                .unwrap();
         let spec = as_value.as_array().unwrap();
         let roles: Vec<&str> = spec.iter().map(|m| m["role"].as_str().unwrap()).collect();
 
@@ -1907,13 +1994,9 @@ mod tests {
                 ),
         ];
 
-        let as_value = serde_json::to_value(format_messages(
-            &messages,
-            &ImageFormat::OpenAi,
-            None,
-            false,
-        ))
-        .unwrap();
+        let as_value =
+            serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi, None, true))
+                .unwrap();
         let spec = as_value.as_array().unwrap();
         let roles: Vec<&str> = spec.iter().map(|m| m["role"].as_str().unwrap()).collect();
 

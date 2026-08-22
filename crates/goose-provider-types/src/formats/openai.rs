@@ -355,14 +355,19 @@ pub fn format_messages_with_options(
                             for content in result.content.iter() {
                                 match content {
                                     ContentBlock::Image(image) => {
-                                        // Add placeholder text in the tool response
-                                        tool_content.push(ContentBlock::text("This tool result included an image that is uploaded in the next message."));
+                                        if options.supports_vision {
+                                            // Add placeholder text in the tool response
+                                            tool_content.push(ContentBlock::text("This tool result included an image that is uploaded in the next message."));
 
-                                        // Create a separate image message
-                                        image_messages.push(json!({
-                                            "role": "user",
-                                            "content": [convert_image(&image.clone(), image_format)]
-                                        }));
+                                            // Create a separate image message
+                                            image_messages.push(json!({
+                                                "role": "user",
+                                                "content": [convert_image(&image.clone(), image_format)]
+                                            }));
+                                        } else {
+                                            // Add placeholder text in the tool response
+                                            tool_content.push(ContentBlock::text("This tool result included an image that was omitted as the model does not support vision."));
+                                        }
                                     }
                                     ContentBlock::Resource(resource) => {
                                         let text = extract_text_from_resource(&resource.resource);
@@ -405,8 +410,15 @@ pub fn format_messages_with_options(
                 MessageContentBlock::ActionRequired(_) => {}
                 MessageContentBlock::Image(image) => {
                     if message.role == Role::User {
-                        has_non_text_content = true;
-                        content_array.push(convert_image(image, image_format));
+                        if options.supports_vision {
+                            has_non_text_content = true;
+                            content_array.push(convert_image(image, image_format));
+                        } else {
+                            content_array.push(json!({
+                                "type": "text",
+                                "text": "[image omitted: model does not support vision]"
+                            }));
+                        }
                     } else {
                         content_array.push(json!({
                             "type": "text",
@@ -2474,13 +2486,108 @@ mod tests {
     }
 
     #[test]
+    fn test_format_messages_with_image_block_passthrough_when_not_vision() -> anyhow::Result<()> {
+        let user_message = Message::user().with_image("aW1hZ2VkYXRh", "image/png");
+
+        // Non-vision: explicit image content is replaced with a text placeholder
+        // at format time — session history is untouched, so a vision model (or a
+        // delegated vision subagent) can still see the real image later.
+        let spec = format_messages_with_options(
+            &[user_message.clone()],
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+                supports_vision: false,
+                ..Default::default()
+            },
+        );
+        assert_eq!(spec.len(), 1);
+        let content = spec[0]["content"].as_str().unwrap();
+        assert_eq!(content, "[image omitted: model does not support vision]");
+        assert!(!content.contains("image_url"));
+        assert!(!content.contains("data:image"));
+
+        // Vision: the image is converted to an image_url block (existing behavior).
+        let spec = format_messages_with_options(
+            &[user_message],
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+                supports_vision: true,
+                ..Default::default()
+            },
+        );
+        let content = spec[0]["content"].as_array().unwrap();
+        assert_eq!(content.len(), 1);
+        assert_eq!(content[0]["type"], "image_url");
+        assert!(content[0]["image_url"]["url"]
+            .as_str()
+            .unwrap()
+            .starts_with("data:image/png;base64,"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_tool_response_image_omitted_when_not_vision() -> anyhow::Result<()> {
+        let tool_response = Message::user().with_tool_response(
+            "tool1",
+            Ok(rmcp::model::CallToolResult::success(vec![
+                rmcp::model::ContentBlock::image("aW1hZ2VkYXRh", "image/png"),
+            ])),
+        );
+
+        // Non-vision: the separate user image message is NOT emitted — this is
+        // what un-bricks sessions (a converted image in the next request 400s).
+        let spec = format_messages_with_options(
+            &[tool_response.clone()],
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+                supports_vision: false,
+                ..Default::default()
+            },
+        );
+        let serialized = serde_json::to_value(&spec).unwrap().to_string();
+        assert!(!serialized.contains("image_url"));
+        assert!(serialized.contains(
+            "This tool result included an image that was omitted as the model does not support vision."
+        ));
+
+        // Vision: the separate user image message IS emitted (existing behavior).
+        let spec = format_messages_with_options(
+            &[tool_response],
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+                supports_vision: true,
+                ..Default::default()
+            },
+        );
+        let serialized = serde_json::to_value(&spec).unwrap().to_string();
+        assert!(serialized.contains("image_url"));
+        assert!(serialized
+            .contains("This tool result included an image that is uploaded in the next message."));
+
+        Ok(())
+    }
+
+    #[test]
     fn test_format_messages_with_text_and_image_preserves_order() {
         // Text before image: order should be [text, image]
         let msg_text_first = Message::user()
             .with_text("Describe this image")
             .with_image("aW1hZ2VkYXRh", "image/png");
 
-        let spec = format_messages(&[msg_text_first], &ImageFormat::OpenAi);
+        let spec = format_messages_with_options(
+            &[msg_text_first],
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+                supports_vision: true,
+                ..Default::default()
+            },
+        );
         assert_eq!(spec.len(), 1);
         assert_eq!(spec[0]["role"], "user");
 
@@ -2497,7 +2604,15 @@ mod tests {
             .with_image("aW1hZ2VkYXRh", "image/png")
             .with_text("What do you see?");
 
-        let spec2 = format_messages(&[msg_image_first], &ImageFormat::OpenAi);
+        let spec2 = format_messages_with_options(
+            &[msg_image_first],
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+                supports_vision: true,
+                ..Default::default()
+            },
+        );
         let content2 = spec2[0]["content"]
             .as_array()
             .expect("content should be an array");
