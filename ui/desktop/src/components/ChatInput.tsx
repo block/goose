@@ -236,6 +236,19 @@ export default function ChatInput({
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
   const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
 
+  const draft = useChatDraft(sessionId ?? 'hub');
+
+  // Every path that puts text in the input goes through here, so the draft cannot
+  // miss one: typing, dictation, link paste, history, file and mention insertion.
+  const applyInputValue = useCallback(
+    (next: string) => {
+      setDisplayValue(next);
+      setValue(next);
+      draft.save(next);
+    },
+    [draft]
+  );
+
   // Derived state - chatState != Idle means we're in some form of loading state
   const isLoading = chatState !== ChatState.Idle;
   const isLoadingRef = useRef(isLoading);
@@ -493,8 +506,7 @@ export default function ChatInput({
           ? `${displayValue.trim()} ${cleanedText}`
           : displayValue.trim() || cleanedText;
 
-      setDisplayValue(newValue);
-      setValue(newValue);
+      applyInputValue(newValue);
 
       if (shouldAutoSubmit && newValue.trim()) {
         trackVoiceDictation('auto_submit');
@@ -517,8 +529,6 @@ export default function ChatInput({
   const internalTextAreaRef = useRef<HTMLTextAreaElement>(null);
   const textAreaRef = inputRef || internalTextAreaRef;
   const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
-
-  const draft = useChatDraft(sessionId ?? 'hub');
 
   useEffect(() => {
     // The draft is restored here rather than through `initialValue`, because this
@@ -714,11 +724,6 @@ export default function ChatInput({
 
   const maxHeight = 10 * 24;
 
-  // Immediate function to update actual value - no debounce for better responsiveness
-  const updateValue = React.useCallback((value: string) => {
-    setValue(value);
-  }, []);
-
   const minTextareaHeight = 38;
 
   const debouncedAutosize = useMemo(
@@ -756,10 +761,8 @@ export default function ChatInput({
     const val = evt.target.value;
     const cursorPosition = evt.target.selectionStart;
 
-    setDisplayValue(val);
-    updateValue(val);
+    applyInputValue(val);
     setHasUserTyped(true);
-    draft.save(val);
     checkForMentionOrSlash(val, cursorPosition, evt.target);
   };
 
@@ -891,8 +894,7 @@ export default function ChatInput({
               const newValue =
                 displayValue.substring(0, start) + markdown + displayValue.substring(end);
               const cursorPos = start + markdown.length;
-              setDisplayValue(newValue);
-              updateValue(newValue);
+              applyInputValue(newValue);
               setHasUserTyped(true);
               checkForMentionOrSlash(newValue, cursorPos, textarea);
               requestAnimationFrame(() => {
@@ -1055,13 +1057,7 @@ export default function ChatInput({
     // Update display if we have a new value
     if (newIndex !== historyIndex) {
       setHistoryIndex(newIndex);
-      if (newIndex === -1) {
-        setDisplayValue(savedInput || '');
-        setValue(savedInput || '');
-      } else {
-        setDisplayValue(newValue || '');
-        setValue(newValue || '');
-      }
+      applyInputValue((newIndex === -1 ? savedInput : newValue) || '');
       // Reset hasUserTyped when we populate from history
       setHasUserTyped(false);
     }
@@ -1155,6 +1151,9 @@ export default function ChatInput({
           setLastInterruption(null);
         }
 
+        // The draft always goes, even on Hub, where the visible input has to stay
+        // until the navigation to the new session completes.
+        draft.clear();
         if (sessionId !== null) {
           clearInputState();
         }
@@ -1172,6 +1171,7 @@ export default function ChatInput({
       handleSubmit,
       lastInterruption,
       clearInputState,
+      draft,
       sessionId,
     ]
   );
@@ -1218,9 +1218,7 @@ export default function ChatInput({
       }
 
       if (evt.altKey) {
-        const newValue = displayValue + '\n';
-        setDisplayValue(newValue);
-        setValue(newValue);
+        applyInputValue(displayValue + '\n');
         return;
       }
 
@@ -1320,9 +1318,7 @@ export default function ChatInput({
     } else {
       trackFileAttached('file');
       const path = window.electron.getPathForFile(file);
-      const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
-      setDisplayValue(newValue);
-      setValue(newValue);
+      applyInputValue(displayValue.trim() ? `${displayValue.trim()} ${path}` : path);
     }
 
     textAreaRef.current?.focus();
@@ -1340,8 +1336,7 @@ export default function ChatInput({
     );
     const newValue = `${beforeMention}${itemText}${afterMention}`;
 
-    setDisplayValue(newValue);
-    setValue(newValue);
+    applyInputValue(newValue);
     setMentionPopover((prev) => ({ ...prev, isOpen: false }));
     textAreaRef.current?.focus();
 

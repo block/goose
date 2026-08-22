@@ -74,6 +74,18 @@ describe('useChatDraft', () => {
     expect(SessionDraftStorage.get('hub')).toBe('');
   });
 
+  // Submitting from Hub leaves the visible input alone until the navigation to the
+  // new session completes, so the clear and the unmount arrive back to back.
+  it('does not resurrect a cleared draft when the unmount flush follows', () => {
+    const { result, unmount } = renderHook(() => useChatDraft('hub'));
+
+    act(() => result.current.save('sent from hub'));
+    act(() => result.current.clear());
+    unmount();
+
+    expect(SessionDraftStorage.get('hub')).toBe('');
+  });
+
   it('flushes a pending write on unmount, so leaving right after typing keeps the draft', () => {
     const { result, unmount } = renderHook(() => useChatDraft('hub'));
 
