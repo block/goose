@@ -399,7 +399,7 @@ pub enum ContentBlockPart {
     },
 }
 
-fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
+fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message], supports_vision: bool) {
     for message in messages.iter().filter(|m| m.is_agent_visible()) {
         let role = match message.role {
             Role::User => "user",
@@ -468,10 +468,17 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                     }
                 }
                 MessageContentBlock::Image(image) => {
-                    text_items.push(json!({
-                        "type": "input_image",
-                        "image_url": format!("data:{};base64,{}", image.mime_type, image.data)
-                    }));
+                    if supports_vision {
+                        text_items.push(json!({
+                            "type": "input_image",
+                            "image_url": format!("data:{};base64,{}", image.mime_type, image.data)
+                        }));
+                    } else {
+                        text_items.push(json!({
+                            "type": "input_text",
+                            "text": "[image omitted: model does not support vision]"
+                        }));
+                    }
                 }
                 MessageContentBlock::ToolResponse(response) => {
                     if !text_items.is_empty() {
@@ -485,10 +492,11 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
 
                     match &response.tool_result {
                         Ok(contents) => {
-                            let has_images = contents
-                                .content
-                                .iter()
-                                .any(|c| matches!(c, ContentBlock::Image(_)));
+                            let has_images = supports_vision
+                                && contents
+                                    .content
+                                    .iter()
+                                    .any(|c| matches!(c, ContentBlock::Image(_)));
 
                             let output = if has_images {
                                 json!(contents
@@ -533,7 +541,9 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                                         ContentBlock::ResourceLink(_) => {
                                             Some("[Resource link]".into())
                                         }
-                                        ContentBlock::Image(_) => None,
+                                        ContentBlock::Image(_) => Some(
+                                            "[image omitted: model does not support vision]".into(),
+                                        ),
                                         _ => Some("[Unsupported content]".into()),
                                     })
                                     .collect::<Vec<String>>()
@@ -663,7 +673,11 @@ pub fn create_responses_request_for_model(
         }));
     }
 
-    add_message_items(&mut input_items, messages);
+    add_message_items(
+        &mut input_items,
+        messages,
+        model_config.supports_vision.unwrap_or_default(),
+    );
 
     let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(capability_model_name);
     // All models routed here are responses-capable; temperature is rejected
@@ -2145,7 +2159,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
-            supports_vision: None,
+            supports_vision: Some(true),
             request_headers: None,
         };
 
@@ -2195,7 +2209,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
-            supports_vision: None,
+            supports_vision: Some(true),
             request_headers: None,
         };
 
@@ -2400,7 +2414,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
-            supports_vision: None,
+            supports_vision: Some(true),
             request_headers: None,
         };
 
@@ -2433,7 +2447,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
-            supports_vision: None,
+            supports_vision: Some(true),
             request_headers: None,
         };
 
@@ -2449,6 +2463,68 @@ mod tests {
         assert_eq!(content[1]["image_url"], "data:image/png;base64,img1");
         assert_eq!(content[2]["type"], "input_image");
         assert_eq!(content[2]["image_url"], "data:image/jpeg;base64,img2");
+    }
+
+    #[test]
+    fn test_user_image_omitted_when_not_vision() {
+        use crate::conversation::message::Message;
+
+        let messages = vec![Message::user()
+            .with_text("describe this image")
+            .with_image("aW1hZ2VkYXRh", "image/png")];
+
+        // Non-vision: explicit image content is replaced with a text placeholder
+        // at format time — session history is untouched.
+        let model_config = ModelConfig::new("o3-mini");
+        let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
+        let input = result["input"].as_array().unwrap();
+
+        assert_eq!(input.len(), 1);
+        assert_eq!(input[0]["role"], "user");
+        let content = input[0]["content"].as_array().unwrap();
+        assert_eq!(content.len(), 2);
+        assert_eq!(content[0]["type"], "input_text");
+        assert_eq!(content[0]["text"], "describe this image");
+        assert_eq!(content[1]["type"], "input_text");
+        assert_eq!(
+            content[1]["text"],
+            "[image omitted: model does not support vision]"
+        );
+
+        let serialized = serde_json::to_string(&result).unwrap();
+        assert!(!serialized.contains("input_image"));
+        assert!(!serialized.contains("data:image"));
+    }
+
+    #[test]
+    fn test_tool_response_image_omitted_when_not_vision() {
+        use crate::conversation::message::Message;
+        use rmcp::model::{CallToolResult, ContentBlock};
+
+        let messages = vec![
+            Message::user().with_content(MessageContentBlock::tool_response(
+                "call_1",
+                Ok(CallToolResult::success(vec![
+                    ContentBlock::text("caption"),
+                    ContentBlock::image("a+/=".to_string(), "image/png".to_string()),
+                ])),
+            )),
+        ];
+
+        // Non-vision: images in tool results are omitted from the output
+        // string (with a note) instead of being emitted as input_image items.
+        let model_config = ModelConfig::new("o3-mini");
+        let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
+        let input = result["input"].as_array().unwrap();
+
+        assert_eq!(input[0]["type"], "function_call_output");
+        let output = input[0]["output"].as_str().unwrap();
+        assert!(output.contains("caption"));
+        assert!(output.contains("[image omitted: model does not support vision]"));
+
+        let serialized = serde_json::to_string(&result).unwrap();
+        assert!(!serialized.contains("input_image"));
+        assert!(!serialized.contains("data:image"));
     }
 
     #[test]
