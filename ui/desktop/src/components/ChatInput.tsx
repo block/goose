@@ -532,9 +532,9 @@ export default function ChatInput({
 
   useEffect(() => {
     // The draft is restored here rather than through `initialValue`, because this
-    // effect also runs on mount and would overwrite it. A recipe prompt still wins:
-    // the effect below sets it after this one.
-    const restored = initialValue || draft.read();
+    // effect also runs on mount and would overwrite it. A draft only exists once the
+    // user has typed, so it wins over the recipe prompt `initialValue` carries.
+    const restored = draft.read() || initialValue;
     setValue(restored);
     setDisplayValue(restored);
     setPastedImages([]);
@@ -545,15 +545,15 @@ export default function ChatInput({
 
   // Handle recipe prompt updates
   useEffect(() => {
-    // If recipe is accepted and we have an initial prompt, and no messages yet, and we haven't set it before
-    if (recipeAccepted && initialPrompt && messages.length === 0) {
+    // The prompt seeds an empty input, so an edit the user has not sent yet is kept.
+    if (recipeAccepted && initialPrompt && messages.length === 0 && !draft.read()) {
       setDisplayValue(initialPrompt);
       setValue(initialPrompt);
       setTimeout(() => {
         textAreaRef.current?.focus();
       }, 0);
     }
-  }, [recipeAccepted, initialPrompt, messages.length, textAreaRef]);
+  }, [recipeAccepted, initialPrompt, messages.length, textAreaRef, draft]);
 
   const [isComposing, setIsComposing] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(-1);
