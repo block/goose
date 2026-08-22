@@ -66,6 +66,7 @@ pub fn is_reserved_request_param_key(key: &str) -> bool {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct OpenAiFormatOptions {
     pub preserve_thinking_context: bool,
+    pub supports_vision: bool,
     pub thinking_preservation_format: Option<ThinkingPreservationFormat>,
 }
 
@@ -256,11 +257,17 @@ pub fn format_messages_with_options(
                 MessageContentBlock::Text(text) => {
                     if !text.text.is_empty() {
                         if message.role == Role::User {
-                            if let Some(image_path) = detect_image_path(&text.text) {
-                                if let Ok(image) = load_image_file(image_path.as_ref()) {
-                                    has_non_text_content = true;
-                                    content_array.push(json!({"type": "text", "text": text.text}));
-                                    content_array.push(convert_image(&image, image_format));
+                            if options.supports_vision {
+                                if let Some(image_path) = detect_image_path(&text.text) {
+                                    if let Ok(image) = load_image_file(image_path.as_ref()) {
+                                        has_non_text_content = true;
+                                        content_array
+                                            .push(json!({"type": "text", "text": text.text}));
+                                        content_array.push(convert_image(&image, image_format));
+                                    } else {
+                                        content_array
+                                            .push(json!({"type": "text", "text": text.text}));
+                                    }
                                 } else {
                                     content_array.push(json!({"type": "text", "text": text.text}));
                                 }
@@ -1657,6 +1664,7 @@ pub fn create_request(
         for_streaming,
         OpenAiFormatOptions {
             preserve_thinking_context: true,
+            supports_vision: model_config.supports_vision.unwrap_or_default(),
             ..Default::default()
         },
     )
@@ -2306,9 +2314,17 @@ mod tests {
         std::fs::write(&png_path, png_data)?;
         let png_path_str = png_path.to_str().unwrap();
 
-        // Create user message with image path - should load the image
+        // Create user message with image path - should load the image when vision is supported
         let user_message = Message::user().with_text(format!("Here is an image: {}", png_path_str));
-        let spec = format_messages(&[user_message], &ImageFormat::OpenAi);
+        let spec = format_messages_with_options(
+            &[user_message],
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+                supports_vision: true,
+                ..Default::default()
+            },
+        );
 
         assert_eq!(spec.len(), 1);
         assert_eq!(spec[0]["role"], "user");
@@ -2327,7 +2343,15 @@ mod tests {
         // Create assistant message with same text - should NOT load the image
         let assistant_message =
             Message::assistant().with_text(format!("I saved the output to {}", png_path_str));
-        let spec = format_messages(&[assistant_message], &ImageFormat::OpenAi);
+        let spec = format_messages_with_options(
+            &[assistant_message],
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+                supports_vision: true,
+                ..Default::default()
+            },
+        );
 
         assert_eq!(spec.len(), 1);
         assert_eq!(spec[0]["role"], "assistant");
@@ -2339,6 +2363,112 @@ mod tests {
             "Assistant message content should be a string, not an array with image"
         );
         assert!(content.unwrap().contains(png_path_str));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_with_image_path_passthrough_when_not_vision() -> anyhow::Result<()> {
+        // Create a temporary PNG file with valid PNG magic numbers
+        let temp_dir = tempfile::tempdir()?;
+        let png_path = temp_dir.path().join("test.png");
+        let png_data = [
+            0x89, 0x50, 0x4E, 0x47, // PNG magic number
+            0x0D, 0x0A, 0x1A, 0x0A, // PNG header
+            0x00, 0x00, 0x00, 0x0D, // Rest of fake PNG data
+        ];
+        std::fs::write(&png_path, png_data)?;
+        let png_path_str = png_path.to_str().unwrap();
+
+        // User message with image path: with vision NOT supported, the path must
+        // pass through as plain text (a non-vision model can forward it to a
+        // vision subagent instead of 400ing on an injected image_url block).
+        let user_message = Message::user().with_text(format!("Here is an image: {}", png_path_str));
+
+        let spec = format_messages_with_options(
+            &[user_message.clone()],
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+                supports_vision: false,
+                ..Default::default()
+            },
+        );
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "user");
+        // Single text block collapses to a plain string — the path survives verbatim.
+        let content = spec[0]["content"].as_str().unwrap();
+        assert!(content.contains(png_path_str));
+        assert!(!content.contains("image_url"));
+        assert!(!content.contains("data:image"));
+
+        // Default options (bare format_messages wrapper) must behave the same:
+        // unaffirmed vision -> passthrough.
+        let spec = format_messages(&[user_message], &ImageFormat::OpenAi);
+        let content = spec[0]["content"].as_str().unwrap();
+        assert!(content.contains(png_path_str));
+        assert!(!content.contains("image_url"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_threads_supports_vision() -> anyhow::Result<()> {
+        // Create a temporary PNG file with valid PNG magic numbers
+        let temp_dir = tempfile::tempdir()?;
+        let png_path = temp_dir.path().join("test.png");
+        let png_data = [
+            0x89, 0x50, 0x4E, 0x47, // PNG magic number
+            0x0D, 0x0A, 0x1A, 0x0A, // PNG header
+            0x00, 0x00, 0x00, 0x0D, // Rest of fake PNG data
+        ];
+        std::fs::write(&png_path, png_data)?;
+        let png_path_str = png_path.to_str().unwrap();
+        let message = Message::user().with_text(format!("Here is an image: {}", png_path_str));
+
+        // Vision affirmed: path is converted to an image_url block.
+        let vision = ModelConfig::new("gpt-4o").with_vision_support(true);
+        let request = create_request(
+            &vision,
+            "system",
+            &[message.clone()],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
+        let messages = request["messages"].as_array().unwrap();
+        let content = messages[1]["content"].as_array().unwrap();
+        assert_eq!(content.len(), 2);
+        assert_eq!(content[1]["type"], "image_url");
+
+        // Unknown (None): passthrough, no image_url.
+        let unknown = ModelConfig::new("gpt-4o");
+        let request = create_request(
+            &unknown,
+            "system",
+            &[message.clone()],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
+        let messages = request["messages"].as_array().unwrap();
+        let content = messages[1]["content"].as_str().unwrap();
+        assert!(content.contains(png_path_str));
+        assert!(!content.contains("image_url"));
+
+        // Explicitly non-vision: passthrough, no image_url.
+        let non_vision = ModelConfig::new("gpt-4o").with_vision_support(false);
+        let request = create_request(
+            &non_vision,
+            "system",
+            &[message],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
+        let messages = request["messages"].as_array().unwrap();
+        let content = messages[1]["content"].as_str().unwrap();
+        assert!(!content.contains("image_url"));
 
         Ok(())
     }
@@ -5225,6 +5355,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                supports_vision: false,
                 thinking_preservation_format: Some(format),
             },
         )
