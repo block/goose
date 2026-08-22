@@ -41,16 +41,20 @@ export class SessionDraftStorage {
     }
   }
 
+  /**
+   * Whether the user has edited this chat at all. An emptied input is a draft too:
+   * without that, deleting a seeded recipe prompt looks like never having typed and
+   * the prompt comes back on the next mount.
+   */
+  static has(key: string): boolean {
+    return key in this.getDrafts();
+  }
+
   static get(key: string): string {
     return this.getDrafts()[key] ?? '';
   }
 
   static set(key: string, text: string) {
-    if (!text) {
-      this.clear(key);
-      return;
-    }
-
     const drafts = this.getDrafts();
     delete drafts[key];
     drafts[key] = text;

@@ -107,7 +107,7 @@ describe('useChatDraft', () => {
     expect(SessionDraftStorage.get('sess-1')).toBe('');
   });
 
-  it('saving an empty string removes the draft', () => {
+  it('saving an empty string keeps the draft present but empty', () => {
     const { result } = renderHook(() => useChatDraft('hub'));
 
     act(() => result.current.save('something'));
@@ -115,7 +115,39 @@ describe('useChatDraft', () => {
     act(() => result.current.save(''));
     act(() => vi.advanceTimersByTime(DRAFT_SAVE_DEBOUNCE_MS));
 
+    expect(result.current.read()).toBe('');
+    expect(result.current.has()).toBe(true);
+  });
+
+  // An effect can run while a write is still waiting out the debounce, so a read
+  // that only consulted storage would report the draft as absent and overwrite it.
+  it('reads the pending text before the debounce has fired', () => {
+    const { result } = renderHook(() => useChatDraft('hub'));
+
+    act(() => result.current.save('still pending'));
+
+    expect(result.current.has()).toBe(true);
+    expect(result.current.read()).toBe('still pending');
     expect(SessionDraftStorage.get('hub')).toBe('');
+  });
+
+  it('keeps a pending write to itself, so another chat still reads as absent', () => {
+    const { result } = renderHook(() => useChatDraft('hub'));
+    const other = renderHook(() => useChatDraft('sess-1'));
+
+    act(() => result.current.save('hub pending'));
+
+    expect(other.result.current.has()).toBe(false);
+    expect(other.result.current.read()).toBe('');
+  });
+
+  it('clear makes the draft absent again, including a pending one', () => {
+    const { result } = renderHook(() => useChatDraft('hub'));
+
+    act(() => result.current.save('pending'));
+    act(() => result.current.clear());
+
+    expect(result.current.has()).toBe(false);
   });
 
   it('writes each chat under its own key', () => {

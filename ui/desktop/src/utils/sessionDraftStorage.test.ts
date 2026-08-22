@@ -31,12 +31,26 @@ describe('SessionDraftStorage', () => {
     expect(SessionDraftStorage.get('hub')).toBe('second');
   });
 
-  it('removes the draft when the text is empty', () => {
+  it('reports no draft for a key that was never written', () => {
+    expect(SessionDraftStorage.has('hub')).toBe(false);
+  });
+
+  // Deleting a seeded recipe prompt has to stay distinguishable from never typing,
+  // otherwise the prompt is seeded again on the next mount.
+  it('keeps an emptied draft as a draft', () => {
     SessionDraftStorage.set('hub', 'typed then deleted');
     SessionDraftStorage.set('hub', '');
 
     expect(SessionDraftStorage.get('hub')).toBe('');
-    expect(JSON.parse(window.sessionStorage.getItem(STORAGE_KEY) as string)).toEqual({});
+    expect(SessionDraftStorage.has('hub')).toBe(true);
+  });
+
+  it('clearing removes the draft entirely, unlike emptying it', () => {
+    SessionDraftStorage.set('hub', '');
+    expect(SessionDraftStorage.has('hub')).toBe(true);
+
+    SessionDraftStorage.clear('hub');
+    expect(SessionDraftStorage.has('hub')).toBe(false);
   });
 
   it('clears one key without touching the others', () => {

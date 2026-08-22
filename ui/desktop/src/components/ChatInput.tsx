@@ -534,7 +534,7 @@ export default function ChatInput({
     // The draft is restored here rather than through `initialValue`, because this
     // effect also runs on mount and would overwrite it. A draft only exists once the
     // user has typed, so it wins over the recipe prompt `initialValue` carries.
-    const restored = draft.read() || initialValue;
+    const restored = draft.has() ? draft.read() : initialValue;
     setValue(restored);
     setDisplayValue(restored);
     setPastedImages([]);
@@ -546,7 +546,7 @@ export default function ChatInput({
   // Handle recipe prompt updates
   useEffect(() => {
     // The prompt seeds an empty input, so an edit the user has not sent yet is kept.
-    if (recipeAccepted && initialPrompt && messages.length === 0 && !draft.read()) {
+    if (recipeAccepted && initialPrompt && messages.length === 0 && !draft.has()) {
       setDisplayValue(initialPrompt);
       setValue(initialPrompt);
       setTimeout(() => {

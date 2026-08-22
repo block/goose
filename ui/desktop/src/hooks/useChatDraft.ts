@@ -35,7 +35,16 @@ export function useChatDraft(key: string) {
     SessionDraftStorage.set(pending.key, pending.text);
   }, []);
 
-  const read = useCallback(() => SessionDraftStorage.get(key), [key]);
+  // A write can be up to the debounce behind storage, so the pending text is the
+  // truth while it is waiting. Callers decide what to render from this.
+  const pendingFor = (draftKey: string) => {
+    const pending = pendingRef.current;
+    return pending && pending.key === draftKey ? pending : null;
+  };
+
+  const has = useCallback(() => pendingFor(key) !== null || SessionDraftStorage.has(key), [key]);
+
+  const read = useCallback(() => pendingFor(key)?.text ?? SessionDraftStorage.get(key), [key]);
 
   const save = useCallback(
     (text: string) => {
@@ -55,5 +64,5 @@ export function useChatDraft(key: string) {
   useEffect(() => flush, [key, flush]);
 
   // Stable per key, so callers can depend on it without re-running on every render.
-  return useMemo(() => ({ read, save, clear }), [read, save, clear]);
+  return useMemo(() => ({ has, read, save, clear }), [has, read, save, clear]);
 }
