@@ -1052,7 +1052,7 @@ mod tests {
         // Non-vision: explicit image content is replaced with a text placeholder
         // at format time — session history is untouched.
         let as_value = serde_json::to_value(format_messages(
-            &[message.clone()],
+            std::slice::from_ref(&message),
             &ImageFormat::OpenAi,
             None,
             false,
@@ -1094,7 +1094,7 @@ mod tests {
         // Non-vision: no separate user image message is emitted — this is what
         // un-bricks sessions (a converted image in the next request 400s).
         let as_value = serde_json::to_value(format_messages(
-            &[tool_response.clone()],
+            std::slice::from_ref(&tool_response),
             &ImageFormat::OpenAi,
             None,
             false,

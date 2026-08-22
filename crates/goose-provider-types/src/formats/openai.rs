@@ -2398,7 +2398,7 @@ mod tests {
         let user_message = Message::user().with_text(format!("Here is an image: {}", png_path_str));
 
         let spec = format_messages_with_options(
-            &[user_message.clone()],
+            std::slice::from_ref(&user_message),
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
@@ -2443,7 +2443,7 @@ mod tests {
         let request = create_request(
             &vision,
             "system",
-            &[message.clone()],
+            std::slice::from_ref(&message),
             &[],
             &ImageFormat::OpenAi,
             false,
@@ -2458,7 +2458,7 @@ mod tests {
         let request = create_request(
             &unknown,
             "system",
-            &[message.clone()],
+            std::slice::from_ref(&message),
             &[],
             &ImageFormat::OpenAi,
             false,
@@ -2493,7 +2493,7 @@ mod tests {
         // at format time — session history is untouched, so a vision model (or a
         // delegated vision subagent) can still see the real image later.
         let spec = format_messages_with_options(
-            &[user_message.clone()],
+            std::slice::from_ref(&user_message),
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
@@ -2540,7 +2540,7 @@ mod tests {
         // Non-vision: the separate user image message is NOT emitted — this is
         // what un-bricks sessions (a converted image in the next request 400s).
         let spec = format_messages_with_options(
-            &[tool_response.clone()],
+            std::slice::from_ref(&tool_response),
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
