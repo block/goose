@@ -232,7 +232,7 @@ impl PermissionManager {
     /// Helper function to retrieve the permission level for a specific permission category and tool.
     fn get_permission(&self, name: &str, principal_name: &str) -> Option<PermissionLevel> {
         if self.refresh_permission_map().is_err() {
-            return None;
+            return Some(PermissionLevel::NeverAllow);
         }
         let map = self.state.permission_map.read().unwrap();
         // Check if the permission category exists in the map
@@ -592,6 +592,18 @@ mod tests {
         FileExt::unlock(&lock_file).unwrap();
 
         assert_eq!(manager.get_user_permission("git__status"), None);
+    }
+
+    #[test]
+    fn test_reads_fail_closed_when_permission_refresh_fails() {
+        let (manager, _temp_dir) = create_test_permission_manager();
+        manager.update_user_permission("git__status", PermissionLevel::AlwaysAllow);
+        fs::write(manager.get_config_path(), "{{invalid yaml: [broken").unwrap();
+
+        assert_eq!(
+            manager.get_user_permission("git__status"),
+            Some(PermissionLevel::NeverAllow)
+        );
     }
 
     #[test]
