@@ -532,19 +532,18 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message], support
                                 json!(contents
                                     .content
                                     .iter()
-                                    .filter_map(|c| match c {
-                                        ContentBlock::Text(t) => Some(t.text.clone()),
+                                    .map(|c| match c {
+                                        ContentBlock::Text(t) => t.text.clone(),
                                         ContentBlock::Resource(r) => {
-                                            Some(extract_text_from_resource(&r.resource))
+                                            extract_text_from_resource(&r.resource)
                                         }
-                                        ContentBlock::Audio(_) => Some("[Audio content]".into()),
+                                        ContentBlock::Audio(_) => "[Audio content]".into(),
                                         ContentBlock::ResourceLink(_) => {
-                                            Some("[Resource link]".into())
+                                            "[Resource link]".into()
                                         }
-                                        ContentBlock::Image(_) => Some(
+                                        ContentBlock::Image(_) =>
                                             "[image omitted: model does not support vision]".into(),
-                                        ),
-                                        _ => Some("[Unsupported content]".into()),
+                                        _ => "[Unsupported content]".into(),
                                     })
                                     .collect::<Vec<String>>()
                                     .join("\n"))
