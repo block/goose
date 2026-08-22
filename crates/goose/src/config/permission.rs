@@ -131,6 +131,8 @@ impl PermissionManager {
         let mut map = self.state.permission_map.write().unwrap();
         if self.config_path.exists() {
             *map = Self::try_load_permission_map(&self.config_path)?;
+        } else {
+            map.clear();
         }
         modify(&mut map);
         let yaml_content = serde_yaml::to_string(&*map)?;
@@ -603,6 +605,23 @@ mod tests {
         assert_eq!(
             manager.get_user_permission("git__status"),
             Some(PermissionLevel::NeverAllow)
+        );
+    }
+
+    #[test]
+    fn test_update_does_not_restore_externally_deleted_permissions() {
+        let (manager, temp_dir) = create_test_permission_manager();
+        manager.update_user_permission("git__status", PermissionLevel::AlwaysAllow);
+        fs::remove_file(manager.get_config_path()).unwrap();
+
+        manager.update_user_permission("github__status", PermissionLevel::AskBefore);
+        drop(manager);
+
+        let persisted_manager = PermissionManager::new(temp_dir.path().to_path_buf());
+        assert_eq!(persisted_manager.get_user_permission("git__status"), None);
+        assert_eq!(
+            persisted_manager.get_user_permission("github__status"),
+            Some(PermissionLevel::AskBefore)
         );
     }
 
