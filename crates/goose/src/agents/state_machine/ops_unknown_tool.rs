@@ -92,6 +92,15 @@ impl Operation<Session, GooseEffect> for UnknownToolOperation {
                     )])),
                     false,
                 ),
+                ToolDisposition::Execute if !request_was_advertised(messages, &request) => {
+                    span.record("error.type", "tool_not_available");
+                    (
+                        Ok(CallToolResult::error(vec![ContentBlock::text(format!(
+                            "Tool '{tool_name}' is not available."
+                        ))])),
+                        true,
+                    )
+                }
                 ToolDisposition::Execute => {
                     match request.tool_call.as_ref() {
                         Ok(tool_call) => {
