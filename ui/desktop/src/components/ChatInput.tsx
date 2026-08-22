@@ -25,6 +25,7 @@ import { COST_TRACKING_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { ContextWindowIndicator } from './bottom_menu/ContextWindowIndicator';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
+import { useChatDraft } from '../hooks/useChatDraft';
 import { Recipe } from '../recipe';
 import { MessageQueue, QueuedMessage } from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
@@ -517,14 +518,20 @@ export default function ChatInput({
   const textAreaRef = inputRef || internalTextAreaRef;
   const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
+  const draft = useChatDraft(sessionId ?? 'hub');
+
   useEffect(() => {
-    setValue(initialValue);
-    setDisplayValue(initialValue);
+    // The draft is restored here rather than through `initialValue`, because this
+    // effect also runs on mount and would overwrite it. A recipe prompt still wins:
+    // the effect below sets it after this one.
+    const restored = initialValue || draft.read();
+    setValue(restored);
+    setDisplayValue(restored);
     setPastedImages([]);
     setHistoryIndex(-1);
     setIsInGlobalHistory(false);
     setHasUserTyped(false);
-  }, [initialValue]);
+  }, [initialValue, draft]);
 
   // Handle recipe prompt updates
   useEffect(() => {
@@ -752,6 +759,7 @@ export default function ChatInput({
     setDisplayValue(val);
     updateValue(val);
     setHasUserTyped(true);
+    draft.save(val);
     checkForMentionOrSlash(val, cursorPosition, evt.target);
   };
 
@@ -846,13 +854,20 @@ export default function ChatInput({
     setDisplayValue('');
     setValue('');
     setPastedImages([]);
+    draft.clear();
     if (onFilesProcessed && droppedFiles.length > 0) {
       onFilesProcessed();
     }
     if (localDroppedFiles.length > 0) {
       setLocalDroppedFiles([]);
     }
-  }, [droppedFiles.length, localDroppedFiles.length, onFilesProcessed, setLocalDroppedFiles]);
+  }, [
+    draft,
+    droppedFiles.length,
+    localDroppedFiles.length,
+    onFilesProcessed,
+    setLocalDroppedFiles,
+  ]);
 
   const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
     if (isRecording) return;
