@@ -361,9 +361,15 @@ fn parse_json_value_tolerant(input: &str) -> Option<Value> {
     })
 }
 
+struct TokenizedToolCallParse {
+    calls: Vec<CallToolRequestParams>,
+    rejected_execute: bool,
+}
+
 #[allow(clippy::string_slice)] // All markers are ASCII; byte indexing is safe.
-fn parse_tokenized_tool_calls(content: &str, tools: &[Tool]) -> Vec<CallToolRequestParams> {
+fn parse_tokenized_tool_calls_with_status(content: &str, tools: &[Tool]) -> TokenizedToolCallParse {
     let mut calls = Vec::new();
+    let mut rejected_execute = false;
     let mut remainder = content;
 
     while let Some(begin_idx) = remainder.find(TOOL_CALL_BEGIN) {
@@ -387,12 +393,24 @@ fn parse_tokenized_tool_calls(content: &str, tools: &[Tool]) -> Vec<CallToolRequ
                 let args = call_body[json_start..].trim();
                 (name, args)
             } else {
+                let raw_tool_name = call_body.split_whitespace().next().unwrap_or(call_body);
+                let alias = normalized_tool_alias(raw_tool_name);
+                if resolve_tool_name(raw_tool_name, tools).is_none()
+                    && matches!(alias.as_str(), "execute" | "execute_code")
+                {
+                    rejected_execute = true;
+                }
                 remainder = &after_begin[call_end_offset + TOOL_CALL_END.len()..];
                 continue;
             };
 
+        let resolved_tool_name = resolve_tool_name(raw_tool_name, tools);
+        let alias = normalized_tool_alias(raw_tool_name);
+        let is_execute_compatibility =
+            resolved_tool_name.is_none() && matches!(alias.as_str(), "execute" | "execute_code");
+
         if let Some(arguments_value) = parse_json_value_tolerant(raw_args) {
-            if let Some(tool_name) = resolve_tool_name(raw_tool_name, tools) {
+            if let Some(tool_name) = resolved_tool_name {
                 if arguments_value.is_object() {
                     calls.push(
                         CallToolRequestParams::new(tool_name)
@@ -403,13 +421,25 @@ fn parse_tokenized_tool_calls(content: &str, tools: &[Tool]) -> Vec<CallToolRequ
                 maybe_convert_execute_to_shell_tool_call(raw_tool_name, &arguments_value, tools)
             {
                 calls.push(shell_call);
+            } else if is_execute_compatibility {
+                rejected_execute = true;
             }
+        } else if is_execute_compatibility {
+            rejected_execute = true;
         }
 
         remainder = &after_begin[call_end_offset + TOOL_CALL_END.len()..];
     }
 
-    calls
+    TokenizedToolCallParse {
+        calls,
+        rejected_execute,
+    }
+}
+
+#[cfg(test)]
+fn parse_tokenized_tool_calls(content: &str, tools: &[Tool]) -> Vec<CallToolRequestParams> {
+    parse_tokenized_tool_calls_with_status(content, tools).calls
 }
 
 #[allow(clippy::string_slice)] // Indices come from char_indices(); slicing is safe.
@@ -1073,10 +1103,16 @@ pub async fn augment_message_with_tool_calls<T: ToolInterpreter>(
         .iter()
         .any(|content| matches!(content, MessageContent::ToolRequest(_)));
 
-    let direct_tool_calls = parse_tokenized_tool_calls(&content, tools);
-    if !direct_tool_calls.is_empty() {
+    let direct_tool_calls = parse_tokenized_tool_calls_with_status(&content, tools);
+    if direct_tool_calls.rejected_execute {
+        return Ok(sanitize_message_after_tokenized_parse(message));
+    }
+    if !direct_tool_calls.calls.is_empty() {
         let cleaned = sanitize_message_after_tokenized_parse(message);
-        return Ok(append_tool_calls_to_message(cleaned, direct_tool_calls));
+        return Ok(append_tool_calls_to_message(
+            cleaned,
+            direct_tool_calls.calls,
+        ));
     }
 
     let inline_json_tool_calls = parse_inline_json_tool_calls(&content, tools);
@@ -1376,6 +1412,30 @@ mod tests {
             .iter()
             .any(|c| matches!(c, MessageContent::ToolRequest(_))));
         assert!(!augmented.as_concat_text().contains("<|tool_call_begin|>"));
+    }
+
+    #[tokio::test]
+    async fn augment_does_not_interpret_rejected_execute_marker() {
+        let tools = vec![Tool::new(
+            "shell".to_string(),
+            "Shell command execution".to_string(),
+            serde_json::Map::new(),
+        )];
+        let rejected = [
+            "<|tool_calls_section_begin|> <|tool_call_begin|> functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: 'first' }); Developer.shell({ command: 'second' });\"} <|tool_call_end|> <|tool_calls_section_end|>",
+            "<|tool_calls_section_begin|> <|tool_call_begin|> functions.execute:0 <|tool_call_argument_begin|> {\"code\":\"Developer.shell({ command: getCommand() });\"} <|tool_call_end|> <|tool_calls_section_end|>",
+            "<|tool_calls_section_begin|> <|tool_call_begin|> functions.execute:0 <|tool_call_argument_begin|> {\"code\": <|tool_call_end|> <|tool_calls_section_end|>",
+            "<|tool_calls_section_begin|> <|tool_call_begin|> functions.execute:0 <|tool_call_end|> <|tool_calls_section_end|>",
+        ];
+
+        for content in rejected {
+            let message = Message::assistant().with_text(content);
+            let augmented = augment_message_with_tool_calls(&FailingInterpreter, message, &tools)
+                .await
+                .unwrap();
+
+            assert!(augmented.content.is_empty());
+        }
     }
 
     #[tokio::test]
