@@ -2668,13 +2668,11 @@ async fn handle_restart_command() -> anyhow::Result<()> {
     };
 
     let exe = std::env::current_exe()?;
-    let args: Vec<_> = std::env::args_os()
-        .skip(1)
-        .filter(|arg| arg != "restart")
-        .collect();
-
+    // `restart` is a leaf subcommand, so the only arg to drop is `restart`
+    // itself. Relaunch as `goose session --resume` to resume the most recent
+    // user session with the updated config instead of starting a fresh one.
     let mut child = std::process::Command::new(exe)
-        .args(args)
+        .args(["session", "--resume"])
         .stdin(std::process::Stdio::inherit())
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit())
@@ -3022,6 +3020,15 @@ mod tests {
             Some(Command::Restart) => {}
             _ => panic!("expected restart command"),
         }
+    }
+
+    #[test]
+    fn restart_command_rejects_extra_args() {
+        // `restart` is a leaf subcommand, so the old args_os().filter("restart")
+        // always produced an empty list and launched a fresh default session.
+        // Locking in arg rejection prevents that bug from regressing.
+        let result = Cli::try_parse_from(["goose", "restart", "--provider", "openai"]);
+        assert!(result.is_err(), "restart must not accept extra arguments");
     }
 
     #[test]
