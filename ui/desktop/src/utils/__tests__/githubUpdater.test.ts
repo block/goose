@@ -2,7 +2,11 @@ import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { resolveUpdateAssetName, updateAssetPattern } from '../githubUpdater';
+import {
+  extractVersionFromAssets,
+  resolveUpdateAssetName,
+  updateAssetPattern,
+} from '../githubUpdater';
 
 const require = createRequire(import.meta.url);
 const releaseAssetsPath = resolve(
@@ -53,5 +57,18 @@ describe('updateAssetPattern', () => {
     const win = updateAssetPattern('win32', 'x64', 'Avocado Work');
     expect(win.test('Avocado Work-Setup-x64.exe')).toBe(true);
     expect(win.test('Avocado.Work-Setup-1.45.0-x64.exe')).toBe(true);
+    expect(arm.test('Avocado.Work-1.46.0-dev.abc1234.zip')).toBe(true);
+    expect(win.test('Avocado.Work-Setup-1.46.0-dev.abc1234-x64.exe')).toBe(true);
+  });
+});
+
+describe('extractVersionFromAssets', () => {
+  it('reads a stable tag version and a dev prerelease from asset names', () => {
+    expect(
+      extractVersionFromAssets([{ name: 'Avocado.Work-1.46.0.zip' }])
+    ).toBe('1.46.0');
+    expect(
+      extractVersionFromAssets([{ name: 'Avocado.Work-1.45.0-dev.abc1234.dmg' }])
+    ).toBe('1.45.0-dev.abc1234');
   });
 });

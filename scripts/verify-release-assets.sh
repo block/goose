@@ -223,8 +223,8 @@ check_dev_channel() {
   grep -q 'allowUpdates: true' "$wf" || fail "$wf must set allowUpdates: true"
   ok "publishes tag dev with allowUpdates"
 
-  # DEV builds are unversioned; the workflow uploads by extension glob so a
-  # single release-action step covers the mac/win installer set.
+  # DEV builds use <cargo-version>-dev.<sha>; the workflow uploads by
+  # extension glob so a single release-action step covers the installer set.
   grep -qE '(\*\.dmg|Avocado Work.dmg)' "$wf" || fail "$wf must upload the mac DMG(s)"
   grep -qE '(\*\.exe|Avocado Work-Setup)' "$wf" || fail "$wf must upload the Windows installer"
   grep -qE '(\*\.zip|Avocado Work.*\.zip)' "$wf" || fail "$wf must upload the update zip(s)"

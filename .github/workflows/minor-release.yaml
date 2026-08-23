@@ -60,7 +60,13 @@ jobs:
 
   release:
     needs: check-version-bump-pr
-    if: always() && github.repository == 'aaif-goose/goose' && (github.event_name != 'push' || needs.check-version-bump-pr.outputs.should_run == 'true')
+    if: >
+      always() &&
+      (
+        (github.repository == 'Avocado-Technology/avcd-agent' && github.event_name == 'workflow_dispatch')
+        ||
+        (github.repository == 'aaif-goose/goose' && (github.event_name != 'push' || needs.check-version-bump-pr.outputs.should_run == 'true'))
+      )
     uses: ./.github/workflows/create-version-bump-pr.yaml
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

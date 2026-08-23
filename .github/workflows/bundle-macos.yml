@@ -122,11 +122,19 @@ jobs:
           echo "=== Remote Branches ==="
           git branch -r
 
-      - name: Update Cargo version
-        if: ${{ inputs.version != '' }}
+      - name: Resolve release version
+        id: release-version
         env:
-          VERSION: ${{ inputs.version }}
-        run: bash scripts/set-cargo-version.sh "$VERSION"
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          VERSION=$(bash scripts/release-version.sh "${INPUT_VERSION:-}")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "RELEASE_VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "Resolved RELEASE_VERSION=${VERSION}"
+
+      - name: Update Cargo version
+        run: bash scripts/set-cargo-version.sh "$RELEASE_VERSION"
 
       # rust-cache hashes the rustc currently on PATH. Activate Hermit first so
       # the key matches the compiler used by `cargo build` (see rust-cache README
@@ -238,14 +246,20 @@ jobs:
         with:
           ref: ${{ inputs.ref != '' && inputs.ref || '' }}
 
-      - name: Update desktop version
-        if: ${{ inputs.version != '' }}
+      - name: Resolve release version
         env:
-          VERSION: ${{ inputs.version }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          VERSION=$(bash scripts/release-version.sh "${INPUT_VERSION:-}")
+          echo "RELEASE_VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "Resolved RELEASE_VERSION=${VERSION}"
+
+      - name: Update desktop version
         run: |
           source ./bin/activate-hermit
           cd ui/desktop
-          npm pkg set "version=${VERSION}"
+          npm pkg set "version=${RELEASE_VERSION}"
 
       - name: Download binary artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
@@ -276,12 +290,9 @@ jobs:
         run: source ../../bin/activate-hermit && pnpm install --frozen-lockfile
         working-directory: ui/desktop
 
-      # Derive every (possibly versioned) filename from the single source of
-      # truth. When inputs.version is empty (the moving `dev` channel and local
-      # builds), names stay unversioned so those flows are unchanged.
+      # Derive every versioned filename from RELEASE_VERSION (resolved above).
       - name: Resolve desktop asset names
         env:
-          RELEASE_VERSION: ${{ inputs.version }}
           GOOSE_BUNDLE_NAME: Avocado Work
           TARGET: ${{ inputs.target }}
         run: |
@@ -324,7 +335,6 @@ jobs:
           GITHUB_OWNER: Avocado-Technology
           GITHUB_REPO: avcd-agent
           GOOSE_BUNDLE_NAME: Avocado Work
-          RELEASE_VERSION: ${{ inputs.version }}
         run: |
           source ../../bin/activate-hermit
           attempt=0

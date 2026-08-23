@@ -76,12 +76,20 @@ jobs:
         with:
           ref: ${{ inputs.ref != '' && inputs.ref || '' }}
 
-      - name: Update Cargo version
-        if: ${{ inputs.version != '' }}
+      - name: Resolve release version
         shell: bash
         env:
-          VERSION: ${{ inputs.version }}
-        run: bash scripts/set-cargo-version.sh "$VERSION"
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          VERSION=$(bash scripts/release-version.sh "${INPUT_VERSION:-}")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "RELEASE_VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "Resolved RELEASE_VERSION=${VERSION}"
+
+      - name: Update Cargo version
+        shell: bash
+        run: bash scripts/set-cargo-version.sh "$RELEASE_VERSION"
 
       # rust-cache must run after the toolchain is selected (rust-cache README).
       - name: Setup Rust
@@ -206,14 +214,21 @@ jobs:
         with:
           node-version: 24.10.0
 
-      - name: Update desktop version
-        if: ${{ inputs.version != '' }}
+      - name: Resolve release version
         shell: bash
         env:
-          VERSION: ${{ inputs.version }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          VERSION=$(bash scripts/release-version.sh "${INPUT_VERSION:-}")
+          echo "RELEASE_VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "Resolved RELEASE_VERSION=${VERSION}"
+
+      - name: Update desktop version
+        shell: bash
         run: |
           cd ui/desktop
-          npm pkg set "version=${VERSION}"
+          npm pkg set "version=${RELEASE_VERSION}"
 
       - name: Install pnpm
         run: npm install -g pnpm@10.30.3
@@ -265,7 +280,6 @@ jobs:
       - name: Resolve desktop asset names
         shell: bash
         env:
-          RELEASE_VERSION: ${{ inputs.version }}
           GOOSE_BUNDLE_NAME: Avocado Work
         run: |
           cd ui/desktop
@@ -279,7 +293,6 @@ jobs:
           GITHUB_OWNER: Avocado-Technology
           GITHUB_REPO: avcd-agent
           GOOSE_BUNDLE_NAME: Avocado Work
-          RELEASE_VERSION: ${{ inputs.version }}
         run: |
           cd ui/desktop
           pnpm install --frozen-lockfile
@@ -367,10 +380,12 @@ jobs:
           GITHUB_OWNER: Avocado-Technology
           GITHUB_REPO: avcd-agent
           GOOSE_BUNDLE_NAME: Avocado Work
-          RELEASE_VERSION: ${{ inputs.version }}
+          INPUT_VERSION: ${{ inputs.version }}
           VARIANT_SUFFIX: ${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
         run: |
           set -euo pipefail
+          RELEASE_VERSION=$(bash src/scripts/release-version.sh "${INPUT_VERSION:-}")
+          echo "RELEASE_VERSION=${RELEASE_VERSION}" >> "$GITHUB_ENV"
           cd src
           npm install -g pnpm@10.30.3
           cd ui/desktop
@@ -452,10 +467,12 @@ jobs:
           GITHUB_OWNER: Avocado-Technology
           GITHUB_REPO: avcd-agent
           GOOSE_BUNDLE_NAME: Avocado Work
-          RELEASE_VERSION: ${{ inputs.version }}
+          INPUT_VERSION: ${{ inputs.version }}
           VARIANT_SUFFIX: ${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
         run: |
           set -euo pipefail
+          RELEASE_VERSION=$(bash scripts/release-version.sh "${INPUT_VERSION:-}")
+          echo "RELEASE_VERSION=${RELEASE_VERSION}" >> "$GITHUB_ENV"
           cd ui/desktop
           pnpm install --frozen-lockfile
           APP_DIR=$(node scripts/release-assets.js "$RELEASE_VERSION" --field winX64.appDir)
