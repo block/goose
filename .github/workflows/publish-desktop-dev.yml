@@ -30,7 +30,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: publish-desktop-dev
+  group: publish-desktop-dev-${{ github.event_name == 'workflow_dispatch' && inputs.skip_build && 'skip' || 'build' }}
   cancel-in-progress: true
 
 jobs:
