@@ -240,6 +240,7 @@
     "link": "https://github.com/vshulcz/deja-vu",
     "installation_notes": "Install the deja binary first with `brew install vshulcz/tap/deja-vu` or the install script, then run `deja install goose`.",
     "is_builtin": false,
+    "show_install_link": false,
     "endorsed": false,
     "environmentVariables": []
   },
