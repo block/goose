@@ -238,6 +238,10 @@ check_dev_channel() {
   grep -q 'bundle-macos.yml' "$wf" || fail "$wf must call bundle-macos.yml"
   grep -q 'bundle-windows.yml' "$wf" || fail "$wf must call bundle-windows.yml"
   ok "reuses bundle-macos and bundle-windows"
+
+  grep -q 'skip_build' "$wf" || fail "$wf must expose skip_build for wiring-only runs"
+  grep -q 'do not publish to the dev tag' "$wf" || true
+  ok "skip_build wiring present"
 }
 
 case "$MODE" in

@@ -1,0 +1,139 @@
+# Fast check of version resolution and desktop artifact names.
+# Does not compile Rust or Electron. Use skip_build=false (or a tag) for a real build.
+name: Validate release wiring
+
+on:
+  workflow_dispatch:
+    inputs:
+      include_intel_mac:
+        type: boolean
+        default: true
+      include_windows:
+        type: boolean
+        default: true
+  pull_request:
+    paths:
+      - "scripts/release-version.sh"
+      - "scripts/write-skip-build-artifacts.sh"
+      - "ui/desktop/scripts/release-assets.js"
+      - "ui/desktop/forge.config.ts"
+      - ".github/workflows/bundle-macos.yml"
+      - ".github/workflows/bundle-windows.yml"
+      - ".github/workflows/publish-desktop-dev.yml"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/release-branches.yml"
+      - ".github/workflows/validate-release-wiring.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-release-wiring-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - id: v
+        run: |
+          set -euo pipefail
+          bash scripts/release-version.sh --check
+          VERSION=$(bash scripts/release-version.sh)
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Resolved RELEASE_VERSION=${VERSION}"
+
+  bundle-macos-arm64:
+    needs: version
+    uses: ./.github/workflows/bundle-macos.yml
+    permissions:
+      contents: read
+    with:
+      version: ${{ needs.version.outputs.version }}
+      target: aarch64-apple-darwin
+      package_cli: false
+      package_desktop: true
+      signing: false
+      skip_build: true
+
+  bundle-macos-x64:
+    needs: version
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.include_intel_mac }}
+    uses: ./.github/workflows/bundle-macos.yml
+    permissions:
+      contents: read
+    with:
+      version: ${{ needs.version.outputs.version }}
+      target: x86_64-apple-darwin
+      package_cli: false
+      package_desktop: true
+      signing: false
+      skip_build: true
+
+  bundle-windows:
+    needs: version
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.include_windows }}
+    uses: ./.github/workflows/bundle-windows.yml
+    permissions:
+      contents: read
+    with:
+      version: ${{ needs.version.outputs.version }}
+      package_cli: false
+      package_desktop: true
+      signing: false
+      skip_build: true
+
+  assert-names:
+    name: Assert versioned artifact names
+    runs-on: ubuntu-latest
+    needs: [version, bundle-macos-arm64, bundle-macos-x64, bundle-windows]
+    if: >
+      always() &&
+      !cancelled() &&
+      needs.bundle-macos-arm64.result == 'success' &&
+      (needs.bundle-macos-x64.result == 'success' || needs.bundle-macos-x64.result == 'skipped') &&
+      (needs.bundle-windows.result == 'success' || needs.bundle-windows.result == 'skipped')
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download desktop artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          pattern: '!internal-*'
+          merge-multiple: true
+          path: dist
+      - name: Assert contracted filenames
+        env:
+          RELEASE_VERSION: ${{ needs.version.outputs.version }}
+          MAC_X64: ${{ needs.bundle-macos-x64.result }}
+          WIN: ${{ needs.bundle-windows.result }}
+        run: |
+          set -euo pipefail
+          VERSION="$RELEASE_VERSION"
+          found="$(find dist -type f -printf '%f\n' | sort)"
+          echo "$found"
+          expect="Avocado Work-${VERSION}.dmg
+Avocado Work-${VERSION}.zip"
+          if [ "$MAC_X64" = success ]; then
+            expect="${expect}
+Avocado Work-${VERSION}_intel_mac.dmg
+Avocado Work-${VERSION}_intel_mac.zip"
+          fi
+          if [ "$WIN" = success ]; then
+            expect="${expect}
+Avocado Work-Setup-${VERSION}-x64.exe
+Avocado Work-${VERSION}-win32-x64.zip"
+          fi
+          missing=0
+          while IFS= read -r name; do
+            echo "$found" | grep -Fxq "$name" || { echo "MISSING  $name"; missing=1; }
+          done <<< "$expect"
+          [ "$missing" -eq 0 ]
+          echo "OK  skip_build artifacts match ${VERSION}"

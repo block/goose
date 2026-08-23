@@ -7,6 +7,12 @@ on:
       - "release/*"
     tags:
       - "v1.*"
+  workflow_dispatch:
+    inputs:
+      skip_build:
+        description: 'Validate workflow wiring only (skip Rust/Electron compile; do not publish)'
+        type: boolean
+        default: false
 
 name: Release
 
@@ -56,6 +62,7 @@ jobs:
   # 1) Build CLI targets not produced by desktop workflows
   # ------------------------------------
   build-cli-linux:
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.skip_build) }}
     uses: ./.github/workflows/build-cli-linux.yml
 
   # ------------------------------------
@@ -86,6 +93,7 @@ jobs:
       package_desktop: true
       signing: ${{ startsWith(github.ref, 'refs/tags/') && vars.ENABLE_RELEASE_SIGNING == 'true' }}
       environment: ${{ startsWith(github.ref, 'refs/tags/') && vars.ENABLE_RELEASE_SIGNING == 'true' && 'signing' || '' }}
+      skip_build: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_build }}
     secrets: inherit
 
   # ------------------------------------------------------------
@@ -103,12 +111,14 @@ jobs:
       package_desktop: true
       signing: ${{ startsWith(github.ref, 'refs/tags/') && vars.ENABLE_RELEASE_SIGNING == 'true' }}
       environment: ${{ startsWith(github.ref, 'refs/tags/') && vars.ENABLE_RELEASE_SIGNING == 'true' && 'signing' || '' }}
+      skip_build: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_build }}
     secrets: inherit
 
   # ------------------------------------------------------------
   # 5) Bundle Desktop App (Linux)
   # ------------------------------------------------------------
   bundle-desktop-linux:
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.skip_build) }}
     uses: ./.github/workflows/bundle-desktop-linux.yml
 
   # ------------------------------------------------------------
@@ -126,6 +136,7 @@ jobs:
       package_desktop: true
       signing: ${{ startsWith(github.ref, 'refs/tags/') && vars.ENABLE_RELEASE_SIGNING == 'true' }}
       environment: ${{ startsWith(github.ref, 'refs/tags/') && vars.ENABLE_RELEASE_SIGNING == 'true' && 'signing' || '' }}
+      skip_build: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_build }}
     secrets: inherit
 
   bundle-windows-cuda:
@@ -141,6 +152,7 @@ jobs:
       signing: ${{ startsWith(github.ref, 'refs/tags/') && vars.ENABLE_RELEASE_SIGNING == 'true' }}
       environment: ${{ startsWith(github.ref, 'refs/tags/') && vars.ENABLE_RELEASE_SIGNING == 'true' && 'signing' || '' }}
       windows_variant: cuda
+      skip_build: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_build }}
     secrets: inherit
 
   # ------------------------------------

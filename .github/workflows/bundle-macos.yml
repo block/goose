@@ -24,6 +24,11 @@ on:
         required: false
         default: false
         type: boolean
+      skip_build:
+        description: 'Validate workflow wiring only (skip Rust/Electron compile)'
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       version:
@@ -60,6 +65,11 @@ on:
         required: false
         type: string
         default: ''
+      skip_build:
+        description: 'Validate workflow wiring only (skip Rust/Electron compile)'
+        required: false
+        default: false
+        type: boolean
 
 name: "Bundle CLI and Desktop (macOS)"
 
@@ -134,13 +144,21 @@ jobs:
           echo "Resolved RELEASE_VERSION=${VERSION}"
 
       - name: Update Cargo version
+        if: ${{ !inputs.skip_build }}
         run: bash scripts/set-cargo-version.sh "$RELEASE_VERSION"
+
+      - name: Write skip-build goose placeholder
+        if: ${{ inputs.skip_build }}
+        env:
+          TARGET: ${{ inputs.target }}
+        run: bash scripts/write-skip-build-artifacts.sh goose-mac "" "$TARGET"
 
       # rust-cache hashes the rustc currently on PATH. Activate Hermit first so
       # the key matches the compiler used by `cargo build` (see rust-cache README
       # and bundle-desktop-linux.yml). Workspace crates are still not cached —
       # restore the goose-cli binary separately so UI-only republishes skip rustc.
       - name: Activate Hermit
+        if: ${{ !inputs.skip_build }}
         run: |
           source ./bin/activate-hermit
           echo "$PWD/bin" >> "$GITHUB_PATH"
@@ -148,6 +166,7 @@ jobs:
           if [ -n "$RUSTUP_HOME" ]; then echo "RUSTUP_HOME=${RUSTUP_HOME}" >> "$GITHUB_ENV"; fi
 
       - name: Restore goose CLI binary
+        if: ${{ !inputs.skip_build }}
         id: goose-bin
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
@@ -155,14 +174,14 @@ jobs:
           key: goose-cli-${{ inputs.target }}-${{ env.MACOSX_DEPLOYMENT_TARGET }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'crates/**', '.cargo/**', 'bin/.rustup-*.pkg') }}
 
       - name: Cache Rust dependencies
-        if: steps.goose-bin.outputs.cache-hit != 'true'
+        if: ${{ !inputs.skip_build && steps.goose-bin.outputs.cache-hit != 'true' }}
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4  # v2.9.1
         with:
           shared-key: goose-cli-${{ inputs.target }}
           key: ${{ inputs.target == 'x86_64-apple-darwin' && 'intel-macos-deployment-target-12' || 'macos-deployment-target-12' }}
 
       - name: Build goose
-        if: steps.goose-bin.outputs.cache-hit != 'true'
+        if: ${{ !inputs.skip_build && steps.goose-bin.outputs.cache-hit != 'true' }}
         env:
           TARGET: ${{ inputs.target }}
         run: |
@@ -171,7 +190,7 @@ jobs:
           cargo build --release -p goose-cli --bin goose --target "$TARGET"
 
       - name: Prepare binary artifact
-        if: steps.goose-bin.outputs.cache-hit != 'true'
+        if: ${{ !inputs.skip_build && steps.goose-bin.outputs.cache-hit != 'true' }}
         env:
           TARGET: ${{ inputs.target }}
         run: |
@@ -256,18 +275,21 @@ jobs:
           echo "Resolved RELEASE_VERSION=${VERSION}"
 
       - name: Update desktop version
+        if: ${{ !inputs.skip_build }}
         run: |
           source ./bin/activate-hermit
           cd ui/desktop
           npm pkg set "version=${RELEASE_VERSION}"
 
       - name: Download binary artifact
+        if: ${{ !inputs.skip_build }}
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: internal-goose-${{ inputs.target }}
           path: ui/desktop/src/bin
 
       - name: Prepare desktop backend
+        if: ${{ !inputs.skip_build }}
         env:
           TARGET: ${{ inputs.target }}
         run: |
@@ -277,6 +299,7 @@ jobs:
           ls -la ui/desktop/src/bin/
 
       - name: Cache pnpm dependencies
+        if: ${{ !inputs.skip_build }}
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
@@ -287,6 +310,7 @@ jobs:
             ${{ inputs.target == 'x86_64-apple-darwin' && 'intel-pnpm-cache-v1' || 'macos-pnpm-cache-v1' }}-${{ runner.os }}-
 
       - name: Install dependencies
+        if: ${{ !inputs.skip_build }}
         run: source ../../bin/activate-hermit && pnpm install --frozen-lockfile
         working-directory: ui/desktop
 
@@ -312,21 +336,32 @@ jobs:
         working-directory: ui/desktop
 
       - name: Configure for Intel build
-        if: ${{ inputs.target == 'x86_64-apple-darwin' }}
+        if: ${{ !inputs.skip_build && inputs.target == 'x86_64-apple-darwin' }}
         run: jq '.build.mac.target[0].arch = "x64"' package.json > package.json.tmp && mv package.json.tmp package.json
         working-directory: ui/desktop
 
       - name: Import Apple signing certificate
-        if: ${{ inputs.signing }}
+        if: ${{ !inputs.skip_build && inputs.signing }}
         uses: ./.github/actions/apple-codesign
         with:
           certificate-base64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           certificate-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
 
       - name: Check disk space before bundling
+        if: ${{ !inputs.skip_build }}
         run: df -h
 
+      - name: Write skip-build desktop placeholders
+        if: ${{ inputs.skip_build }}
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          if [ "$TARGET" = "x86_64-apple-darwin" ]; then KEY=mac-x64; else KEY=mac-arm64; fi
+          bash ../../scripts/write-skip-build-artifacts.sh "$KEY" "$RELEASE_VERSION"
+        working-directory: ui/desktop
+
       - name: Build App
+        if: ${{ !inputs.skip_build }}
         env:
           APPLE_ID: ${{ inputs.signing && secrets.APPLE_ID || '' }}
           APPLE_ID_PASSWORD: ${{ inputs.signing && secrets.APPLE_ID_PASSWORD || '' }}
@@ -352,6 +387,7 @@ jobs:
         working-directory: ui/desktop
 
       - name: Verify macOS updater resources
+        if: ${{ !inputs.skip_build }}
         env:
           APP_PATH: out/${{ env.APP_DIR }}/${{ env.APP_BUNDLE }}
           GITHUB_OWNER: Avocado-Technology
@@ -360,7 +396,7 @@ jobs:
         working-directory: ui/desktop
 
       - name: Notarize and staple DMG
-        if: ${{ inputs.signing }}
+        if: ${{ !inputs.skip_build && inputs.signing }}
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
@@ -396,7 +432,7 @@ jobs:
         working-directory: ui/desktop
 
       - name: Normalize DMG filename (unsigned)
-        if: ${{ !inputs.signing }}
+        if: ${{ !inputs.skip_build && !inputs.signing }}
         env:
           GOOSE_BUNDLE_NAME: Avocado Work
         run: |
@@ -446,6 +482,7 @@ jobs:
           overwrite: true
 
       - name: Quick launch test (macOS)
+        if: ${{ !inputs.skip_build }}
         env:
           APP_PATH: ui/desktop/out/${{ env.APP_DIR }}/${{ env.APP_BUNDLE }}
         run: |
