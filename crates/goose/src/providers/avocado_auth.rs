@@ -25,7 +25,6 @@ pub const DEFAULT_ZITADEL_ISSUER: &str = "https://zitadel.avcd.ai";
 pub const DEFAULT_ZITADEL_CLIENT_ID: &str = "385574574122598405";
 pub const DEFAULT_ZITADEL_PROJECT_ID: &str = "385574573904494597";
 pub const DEFAULT_ZITADEL_ORG_ID: &str = "378278744818778119";
-pub const DEFAULT_ZITADEL_GOOGLE_IDP_ID: &str = "382483250657951749";
 pub const DEFAULT_PROVISION_URL: &str = "https://dev.avocado.tech/llm-api/keys/provision";
 
 const OAUTH_HOST: [u8; 4] = [127, 0, 0, 1];
@@ -92,7 +91,7 @@ impl ZitadelOidcConfig {
             client_id: env_or("ZITADEL_CLIENT_ID", DEFAULT_ZITADEL_CLIENT_ID),
             project_id: env_or("ZITADEL_PROJECT_ID", DEFAULT_ZITADEL_PROJECT_ID),
             org_id: env_or("ZITADEL_ORG_ID", DEFAULT_ZITADEL_ORG_ID),
-            google_idp_id: env_or("ZITADEL_GOOGLE_IDP_ID", DEFAULT_ZITADEL_GOOGLE_IDP_ID),
+            google_idp_id: env_or("ZITADEL_GOOGLE_IDP_ID", ""),
             provision_url: env_or("AVOCADO_PROVISION_URL", DEFAULT_PROVISION_URL),
         }
     }
@@ -103,19 +102,23 @@ impl ZitadelOidcConfig {
                 return scopes;
             }
         }
-        [
-            "openid",
-            "profile",
-            "email",
-            "offline_access",
-            &format!("urn:zitadel:iam:org:project:id:{}:aud", self.project_id),
-            &format!("urn:zitadel:iam:org:project:id:{}:roles", self.project_id),
-            "urn:zitadel:iam:org:projects:roles",
-            &format!("urn:zitadel:iam:org:id:{}", self.org_id),
-            "urn:zitadel:iam:user:resourceowner",
-            &format!("urn:zitadel:iam:org:idp:id:{}", self.google_idp_id),
-        ]
-        .join(" ")
+        let mut scopes = vec![
+            "openid".to_string(),
+            "profile".to_string(),
+            "email".to_string(),
+            "offline_access".to_string(),
+            format!("urn:zitadel:iam:org:project:id:{}:aud", self.project_id),
+            format!("urn:zitadel:iam:org:project:id:{}:roles", self.project_id),
+            "urn:zitadel:iam:org:projects:roles".to_string(),
+            format!("urn:zitadel:iam:org:id:{}", self.org_id),
+            "urn:zitadel:iam:user:resourceowner".to_string(),
+        ];
+        // Only when explicitly set — this scope skips the email/password form
+        // and force-redirects to Google.
+        if !self.google_idp_id.is_empty() {
+            scopes.push(format!("urn:zitadel:iam:org:idp:id:{}", self.google_idp_id));
+        }
+        scopes.join(" ")
     }
 
     pub fn authorize_endpoint(&self) -> String {
@@ -628,7 +631,7 @@ mod tests {
             client_id: "client-1".into(),
             project_id: "proj".into(),
             org_id: "org".into(),
-            google_idp_id: "idp".into(),
+            google_idp_id: String::new(),
             provision_url: DEFAULT_PROVISION_URL.into(),
         };
         let pkce = PkceChallenge {
@@ -643,6 +646,23 @@ mod tests {
         assert!(url.contains("state=state-fixture"));
         assert!(url.contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A47821%2Fcallback"));
         assert!(url.contains("openid"));
+        assert!(
+            !url.contains("urn:zitadel:iam:org:idp:id"),
+            "desktop login must not force Google"
+        );
+    }
+
+    #[test]
+    fn given_google_idp_id_when_scopes_then_includes_idp_hint() {
+        let config = ZitadelOidcConfig {
+            issuer: "https://zitadel.example".into(),
+            client_id: "client-1".into(),
+            project_id: "proj".into(),
+            org_id: "org".into(),
+            google_idp_id: "idp-9".into(),
+            provision_url: DEFAULT_PROVISION_URL.into(),
+        };
+        assert!(config.scopes().contains("urn:zitadel:iam:org:idp:id:idp-9"));
     }
 
     #[tokio::test]
