@@ -5,13 +5,12 @@ const { getReleaseAssets } = require('./scripts/release-assets.js');
 
 const isLinuxVulkanBuild = process.env.GOOSE_DESKTOP_LINUX_VARIANT === 'vulkan';
 
-// When RELEASE_VERSION is set (semver release CI), the version becomes part of
-// the on-disk names: `Avocado Work-1.45.0.app`, `Avocado Work-1.45.0.dmg`,
-// `Avocado Work-Setup-1.45.0-x64.exe`. Left unset (local `pnpm make` and the
-// moving `dev` channel), names stay unversioned so those flows are unchanged.
+// Version is always part of the on-disk names: `Avocado Work-1.45.0.app`,
+// `Avocado Work-1.45.0.dmg`, `Avocado Work-Setup-1.45.0-x64.exe`.
+// RELEASE_VERSION overrides package.json (used by tagged release.yml).
 // Every name is derived from the single source of truth so CI, the updater, and
 // the website agree.
-const RELEASE_VERSION = process.env.RELEASE_VERSION || '';
+const RELEASE_VERSION = process.env.RELEASE_VERSION || require('./package.json').version || '';
 const BUNDLE_NAME = process.env.GOOSE_BUNDLE_NAME || 'Avocado Work';
 const ASSETS = getReleaseAssets(BUNDLE_NAME, RELEASE_VERSION);
 const PACKAGED_APP_NAME = ASSETS.macArm64.appBundle.replace(/\.app$/, '');

@@ -4,12 +4,30 @@ on:
   pull_request:
 
 jobs:
+  version:
+    if: startsWith(github.head_ref, 'release/')
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - id: v
+        run: |
+          set -euo pipefail
+          VERSION=$(bash scripts/release-version.sh)
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
   bundle-desktop:
+    needs: version
     if: startsWith(github.head_ref, 'release/')
     uses: ./.github/workflows/bundle-macos.yml
     permissions:
       contents: read
     with:
+      version: ${{ needs.version.outputs.version }}
       target: aarch64-apple-darwin
       package_cli: false
       package_desktop: true

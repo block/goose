@@ -26,7 +26,7 @@ function parseArch(argv) {
 }
 
 const arch = parseArch(process.argv.slice(2));
-const version = process.env.RELEASE_VERSION || '';
+const version = process.env.RELEASE_VERSION || require('../package.json').version || '';
 const assets = getReleaseAssets(getBundleName(), version);
 const target = arch === 'x64' ? assets.macX64 : assets.macArm64;
 

@@ -25,7 +25,8 @@ concurrency:
 jobs:
   # ------------------------------------
   # 0) Resolve the version that becomes part of every asset filename.
-  #    Tags (v1.2.3) -> "1.2.3"; release branches -> "" (unversioned, unchanged).
+  #    Explicit RELEASE_VERSION > v* tag > Cargo.toml.
+  #    On a v* tag, fail if the tag does not match Cargo.toml.
   # ------------------------------------
   version:
     name: Resolve version
@@ -33,13 +34,23 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
       - id: v
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-          else
-            echo "version=" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          VERSION=$(bash scripts/release-version.sh)
+          CARGO=$(bash scripts/release-version.sh --from-cargo)
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF_NAME#v}"
+            if [[ "$TAG" != "$CARGO" ]]; then
+              echo "::error::tag v${TAG} does not match Cargo.toml version ${CARGO}"
+              exit 1
+            fi
           fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Resolved RELEASE_VERSION=${VERSION} (Cargo.toml=${CARGO})"
 
   # ------------------------------------
   # 1) Build CLI targets not produced by desktop workflows
@@ -73,8 +84,8 @@ jobs:
       target: aarch64-apple-darwin
       package_cli: true
       package_desktop: true
-      signing: ${{ startsWith(github.ref, 'refs/tags/') }}
-      environment: ${{ startsWith(github.ref, 'refs/tags/') && 'signing' || '' }}
+      signing: ${{ startsWith(github.ref, 'refs/tags/') && vars.ENABLE_RELEASE_SIGNING == 'true' }}
+      environment: ${{ startsWith(github.ref, 'refs/tags/') && vars.ENABLE_RELEASE_SIGNING == 'true' && 'signing' || '' }}
     secrets: inherit
 
   # ------------------------------------------------------------
@@ -90,8 +101,8 @@ jobs:
       target: x86_64-apple-darwin
       package_cli: true
       package_desktop: true
-      signing: ${{ startsWith(github.ref, 'refs/tags/') }}
-      environment: ${{ startsWith(github.ref, 'refs/tags/') && 'signing' || '' }}
+      signing: ${{ startsWith(github.ref, 'refs/tags/') && vars.ENABLE_RELEASE_SIGNING == 'true' }}
+      environment: ${{ startsWith(github.ref, 'refs/tags/') && vars.ENABLE_RELEASE_SIGNING == 'true' && 'signing' || '' }}
     secrets: inherit
 
   # ------------------------------------------------------------
@@ -113,8 +124,8 @@ jobs:
       version: ${{ needs.version.outputs.version }}
       package_cli: true
       package_desktop: true
-      signing: ${{ startsWith(github.ref, 'refs/tags/') }}
-      environment: ${{ startsWith(github.ref, 'refs/tags/') && 'signing' || '' }}
+      signing: ${{ startsWith(github.ref, 'refs/tags/') && vars.ENABLE_RELEASE_SIGNING == 'true' }}
+      environment: ${{ startsWith(github.ref, 'refs/tags/') && vars.ENABLE_RELEASE_SIGNING == 'true' && 'signing' || '' }}
     secrets: inherit
 
   bundle-windows-cuda:
@@ -127,8 +138,8 @@ jobs:
       version: ${{ needs.version.outputs.version }}
       package_cli: true
       package_desktop: true
-      signing: ${{ startsWith(github.ref, 'refs/tags/') }}
-      environment: ${{ startsWith(github.ref, 'refs/tags/') && 'signing' || '' }}
+      signing: ${{ startsWith(github.ref, 'refs/tags/') && vars.ENABLE_RELEASE_SIGNING == 'true' }}
+      environment: ${{ startsWith(github.ref, 'refs/tags/') && vars.ENABLE_RELEASE_SIGNING == 'true' && 'signing' || '' }}
       windows_variant: cuda
     secrets: inherit
 
@@ -184,6 +195,21 @@ jobs:
             *.rpm
             *.flatpak
             download_cli.sh
+
+      # GitHub stores assets with spaces replaced by periods. Clear the moving
+      # `stable` tag first so versioned names can replace last week's files.
+      - name: Clear existing stable release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if ! gh release view stable --json assets >/dev/null 2>&1; then
+            echo "No stable release yet"
+            exit 0
+          fi
+          for id in $(gh release view stable --json assets -q '.assets[].id'); do
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/assets/${id}" || true
+          done
 
       # Create/update the versioned release
       - name: Release versioned

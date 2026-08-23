@@ -67,7 +67,7 @@ export function updateAssetPattern(
 const SEMVER_PREFIX = /^\d+\.\d+\.\d+/;
 
 /** Pull a semver out of versioned asset names when the tag isn't itself semver. */
-function extractVersionFromAssets(assets: Array<{ name: string }>): string | undefined {
+export function extractVersionFromAssets(assets: Array<{ name: string }>): string | undefined {
   for (const asset of assets) {
     const match = asset.name.match(/[-.](\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)(?:_intel_mac)?\.(?:dmg|zip|exe)$/i);
     if (match) {

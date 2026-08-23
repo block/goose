@@ -107,6 +107,25 @@ describe('release-assets contract', () => {
     expect(assets.winX64.portableZip).toBe('Avocado Work-1.45.0-win32-x64.zip');
   });
 
+  it('embeds prerelease versions such as 1.46.0-dev.abc1234', () => {
+    delete process.env.GOOSE_BUNDLE_NAME;
+    const mod = loadReleaseAssets() as unknown as {
+      getReleaseAssets: (
+        bundleName?: string,
+        version?: string
+      ) => {
+        version: string;
+        macArm64: { website: string; update: string };
+        winX64: { website: string };
+      };
+    };
+    const assets = mod.getReleaseAssets('Avocado Work', '1.46.0-dev.abc1234');
+    expect(assets.version).toBe('1.46.0-dev.abc1234');
+    expect(assets.macArm64.website).toBe('Avocado Work-1.46.0-dev.abc1234.dmg');
+    expect(assets.macArm64.update).toBe('Avocado Work-1.46.0-dev.abc1234.zip');
+    expect(assets.winX64.website).toBe('Avocado Work-Setup-1.46.0-dev.abc1234-x64.exe');
+  });
+
   it('matches versioned and unversioned assets, including GitHub period-sanitized names', () => {
     delete process.env.GOOSE_BUNDLE_NAME;
     const mod = loadReleaseAssets() as unknown as {
@@ -122,6 +141,8 @@ describe('release-assets contract', () => {
     expect(m.macArm64Website.test('Avocado Work-1.45.0_intel_mac.dmg')).toBe(false);
     expect(m.macX64Website.test('Avocado.Work-1.45.0_intel_mac.dmg')).toBe(true);
     expect(m.winWebsite.test('Avocado.Work-Setup-1.45.0-x64.exe')).toBe(true);
+    expect(m.macArm64Website.test('Avocado.Work-1.46.0-dev.abc1234.dmg')).toBe(true);
+    expect(m.winWebsite.test('Avocado.Work-Setup-1.46.0-dev.abc1234-x64.exe')).toBe(true);
   });
 
   it('uses a custom bundle name without hard-coding Avocado Work', () => {
