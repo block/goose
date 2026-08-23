@@ -1,7 +1,7 @@
 {
   "name": "avcd-agent-app",
   "productName": "Avocado Work",
-  "version": "1.45.0",
+  "version": "1.46.0",
   "description": "Avocado Work desktop app",
   "engines": {
     "node": "^24.10.0",
