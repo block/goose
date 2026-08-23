@@ -101,7 +101,9 @@ module.exports = {
       name: '@electron-forge/maker-dmg',
       platforms: ['darwin'],
       config: {
-        name: PACKAGED_APP_NAME,
+        // Volume names are capped at 27 characters; versioned filenames are
+        // applied after make (see bundle-macos.yml).
+        name: BUNDLE_NAME,
         icon: 'src/images/icon.icns',
         overwrite: true,
       },

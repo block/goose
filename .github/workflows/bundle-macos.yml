@@ -367,16 +367,20 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           RAW_DMG: out/make/${{ env.RAW_DMG }}
           WEBSITE_DMG: out/make/${{ env.WEBSITE_DMG }}
+          GOOSE_BUNDLE_NAME: Avocado Work
         run: |
           set -euo pipefail
-          # maker-dmg emits the raw (arch-agnostic) name; rename to the final
-          # website name (Intel gets the _intel_mac suffix).
+          # maker-dmg uses the short bundle name as the volume (27-char limit).
+          # Rename to the versioned website filename (Intel adds _intel_mac).
           DMG_PATH="$WEBSITE_DMG"
+          SHORT_DMG="out/make/${GOOSE_BUNDLE_NAME}.dmg"
           if [ ! -f "$DMG_PATH" ]; then
             if [ -f "$RAW_DMG" ]; then
               mv "$RAW_DMG" "$DMG_PATH"
+            elif [ -f "$SHORT_DMG" ]; then
+              mv "$SHORT_DMG" "$DMG_PATH"
             else
-              echo "DMG not found at $DMG_PATH or $RAW_DMG" >&2
+              echo "DMG not found at $DMG_PATH, $RAW_DMG, or $SHORT_DMG" >&2
               ls -la out/make || true
               exit 1
             fi
@@ -391,12 +395,25 @@ jobs:
           xcrun stapler validate "$DMG_PATH"
         working-directory: ui/desktop
 
-      - name: Normalize Intel DMG filename (unsigned)
-        if: ${{ !inputs.signing && inputs.target == 'x86_64-apple-darwin' }}
+      - name: Normalize DMG filename (unsigned)
+        if: ${{ !inputs.signing }}
+        env:
+          GOOSE_BUNDLE_NAME: Avocado Work
         run: |
-          if [ -f "out/make/${RAW_DMG}" ] && [ ! -f "out/make/${WEBSITE_DMG}" ]; then
-            mv "out/make/${RAW_DMG}" "out/make/${WEBSITE_DMG}"
+          set -euo pipefail
+          if [ -f "out/make/${WEBSITE_DMG}" ]; then
+            exit 0
           fi
+          SHORT_DMG="${GOOSE_BUNDLE_NAME}.dmg"
+          for candidate in "${RAW_DMG}" "${SHORT_DMG}"; do
+            if [ -f "out/make/${candidate}" ]; then
+              mv "out/make/${candidate}" "out/make/${WEBSITE_DMG}"
+              exit 0
+            fi
+          done
+          echo "DMG not found at out/make/${WEBSITE_DMG}" >&2
+          ls -la out/make || true
+          exit 1
         working-directory: ui/desktop
 
       - name: Clean up signing keychain
