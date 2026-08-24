@@ -38,10 +38,14 @@ impl RoamingIdentity {
     /// Load the node identity from `path`, creating and persisting a new one if
     /// the file does not exist.
     ///
-    /// Creation is atomic (`O_EXCL`): when two processes race to create the
-    /// first identity, exactly one key wins and the loser loads it, so both
-    /// end up advertising the same endpoint ID.
+    /// First creation is serialized on a sidecar advisory lock and lands via a
+    /// fully written temporary file renamed into place, so racing processes
+    /// agree on one key and a crash mid-write can never leave a truncated key
+    /// at the final path (which would permanently disable roaming until the
+    /// user deletes it — changing the endpoint ID peers trusted).
     pub fn load_or_create(path: &Path) -> Result<Self, RoamingError> {
+        use fs2::FileExt as _;
+
         if path.exists() {
             return Self::load(path);
         }
@@ -51,16 +55,26 @@ impl RoamingIdentity {
         })?;
         ensure_private_dir(parent)?;
 
-        let identity = Self::generate();
-        let encoded = encode_hex_key(&identity.secret.to_bytes());
-        match create_exclusive(path, encoded.as_bytes()) {
-            Ok(()) => {
-                ensure_private_file(path)?;
-                Ok(identity)
+        let lock_path = path.with_extension("lock");
+        let lock = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&lock_path)?;
+        lock.lock_exclusive()?;
+
+        let result = (|| {
+            // A racer may have created the key while we waited for the lock.
+            if path.exists() {
+                return Self::load(path);
             }
-            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => Self::load(path),
-            Err(err) => Err(err.into()),
-        }
+            let identity = Self::generate();
+            identity.save(path)?;
+            Ok(identity)
+        })();
+
+        let _ = fs2::FileExt::unlock(&lock);
+        result
     }
 
     /// Load the node identity from a hex-encoded key file.
@@ -124,17 +138,6 @@ fn decode_hex_key(hex: &str) -> Result<[u8; 32], RoamingError> {
             .map_err(|_| RoamingError::Identity("node key has invalid hex".into()))?;
     }
     Ok(bytes)
-}
-
-fn create_exclusive(path: &Path, contents: &[u8]) -> std::io::Result<()> {
-    use std::io::Write as _;
-
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)?;
-    file.write_all(contents)?;
-    file.sync_all()
 }
 
 fn write_atomically(path: &Path, contents: &[u8]) -> Result<(), RoamingError> {

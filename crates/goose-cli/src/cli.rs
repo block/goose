@@ -1723,7 +1723,12 @@ async fn start_roam_share(
     .await?;
 
     let agent_id = node.endpoint_id().to_string();
-    node.share(Arc::new(FullAcpBridge::new(server, agent_id)))
+    // Roaming sessions run where `goose serve` was started: the connector's
+    // machine-local path is meaningless on this host, and the serve-wide
+    // server keeps `session_cwd: None` for local ACP clients.
+    let session_cwd =
+        std::env::current_dir().map_err(|e| anyhow::anyhow!("could not determine cwd: {e}"))?;
+    node.share(Arc::new(FullAcpBridge::new(server, agent_id, session_cwd)))
         .await?;
 
     if !node.wait_online(std::time::Duration::from_secs(15)).await {

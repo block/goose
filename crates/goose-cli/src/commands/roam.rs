@@ -674,7 +674,11 @@ async fn handle_share(
         enable_scheduler: false,
     }));
     let agent_id = node.endpoint_id().to_string();
-    let bridge = Arc::new(FullAcpBridge::new(acp_server, agent_id));
+    let bridge = Arc::new(FullAcpBridge::new(
+        acp_server,
+        agent_id,
+        session_cwd.clone(),
+    ));
     node.share(bridge).await?;
 
     eprintln!("contacting relay...");
