@@ -15,6 +15,15 @@ impl GooseAcpAgent {
             .get_session(source_session_id, false)
             .await
             .internal_err()?;
+
+        // Resolve and validate the effective cwd before copying anything, so a
+        // bad request cannot leave a stray "(copy)" session in the store. The
+        // copy inherits the source's working dir, so it is the stored
+        // fallback.
+        let cwd =
+            effective_session_cwd(self.session_cwd.as_deref(), &args.cwd, &source.working_dir);
+        validate_absolute_cwd(&cwd)?;
+
         let fork_name = if source.name.trim().is_empty() {
             "(copy)".to_string()
         } else {
@@ -40,13 +49,6 @@ impl GooseAcpAgent {
             .get_session(&new_session_id, true)
             .await
             .internal_err()?;
-
-        let cwd = effective_session_cwd(
-            self.session_cwd.as_deref(),
-            &args.cwd,
-            &new_session.working_dir,
-        );
-        validate_absolute_cwd(&cwd)?;
 
         let goose_session = self
             .prepare_session_for_activation(new_session.clone(), cwd, args.mcp_servers, true)

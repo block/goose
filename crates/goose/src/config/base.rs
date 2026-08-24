@@ -1173,18 +1173,19 @@ impl Config {
         use std::sync::mpsc;
         use std::time::Duration;
 
-        // One long-lived worker performs every keyring read. If a read blocks
-        // indefinitely (e.g. a pending keychain ACL prompt on a headless
-        // host), later reads queue behind it and time out without spawning
-        // another permanently blocked thread; at most one thread is ever
-        // stuck. Replies to abandoned requests land in dropped receivers and
+        // One long-lived worker performs every keyring read through a
+        // single-slot queue. If a read blocks indefinitely (e.g. a pending
+        // keychain ACL prompt on a headless host), at most one thread is ever
+        // stuck and at most one request is ever queued behind it — later
+        // lookups fail fast with a timeout instead of growing an unbounded
+        // queue. Replies to abandoned requests land in dropped receivers and
         // are discarded.
         type ReadRequest = (String, mpsc::Sender<Result<String, keyring::Error>>);
-        static WORKER: std::sync::OnceLock<std::sync::Mutex<mpsc::Sender<ReadRequest>>> =
+        static WORKER: std::sync::OnceLock<std::sync::Mutex<mpsc::SyncSender<ReadRequest>>> =
             std::sync::OnceLock::new();
 
         let worker = WORKER.get_or_init(|| {
-            let (tx, rx) = mpsc::channel::<ReadRequest>();
+            let (tx, rx) = mpsc::sync_channel::<ReadRequest>(1);
             std::thread::Builder::new()
                 .name("goose-keyring-read".to_string())
                 .spawn(move || {
@@ -1202,7 +1203,7 @@ impl Config {
         worker
             .lock()
             .unwrap()
-            .send((service.to_string(), tx))
+            .try_send((service.to_string(), tx))
             .map_err(|_| KeyringReadError::TimedOut)?;
 
         match rx.recv_timeout(Duration::from_secs(3)) {
