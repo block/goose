@@ -8,8 +8,7 @@ use crate::mcp_utils::ToolResult;
 use chrono::Utc;
 use rmcp::model::{ContentBlock, ErrorCode, ErrorData};
 
-use crate::recipe::template_recipe::parse_recipe_content;
-use crate::recipe::validate_recipe::validate_recipe_template_from_content;
+use crate::recipe::validate_recipe::{recipe_file_format, validate_recipe_for_scheduling};
 use crate::scheduler::{
     open_regular_schedule_recipe, ValidatedScheduleRecipe, MAX_SCHEDULE_RECIPE_BYTES,
 };
@@ -180,52 +179,12 @@ impl ScheduleTool {
         let recipe_dir = canonical_recipe_path
             .parent()
             .map(|path| path.to_string_lossy().into_owned());
-        // Distinguish deserialization failures (which may echo file contents)
-        // from post-parse validation failures structurally. Any error from
-        // `parse_recipe_content` is treated as a generic parse error. Only
-        // allowlisted `missing field` errors for known required fields are
-        // surfaced; all other deserialization errors are sanitized to avoid
-        // reflecting arbitrary file contents (e.g. `unknown variant`,
-        // `invalid type: string "yaml-secret-242"...`, or a scalar containing
-        // the substring `missing field`).
-        match parse_recipe_content(&content, recipe_dir.clone()) {
-            Ok(_) => {
-                if let Err(error) = validate_recipe_template_from_content(&content, recipe_dir) {
-                    let message = error.to_string();
-                    // Only fixed validation diagnostics are safe to surface.
-                    // All other post-parse errors may embed dynamic values
-                    // (e.g. `Unnecessary parameter definitions: yaml-secret-242`)
-                    // and must be sanitized to avoid reflecting file contents.
-                    if message == "Recipe must specify at least one of `instructions` or `prompt`."
-                        || message == "missing field `title`"
-                        || message == "missing field `description`"
-                    {
-                        return Err(recipe_file_error(&format!("Invalid recipe: {message}")));
-                    }
-                    if recipe_path.ends_with(".json") {
-                        return Err(recipe_file_error("Invalid JSON recipe"));
-                    } else {
-                        return Err(recipe_file_error("Invalid YAML recipe"));
-                    }
-                }
-            }
-            Err(error) => {
-                let message = error.to_string();
-                // Only surface missing-field errors for known required fields.
-                // This prevents an attacker-controlled scalar like
-                // `missing field yaml-secret-242` (which produces
-                // `invalid type: string "missing field yaml-secret-242"...`)
-                // from bypassing the sanitizer via substring matching.
-                if message == "missing field `title`" || message == "missing field `description`" {
-                    return Err(recipe_file_error(&format!("Invalid recipe: {message}")));
-                }
-                if recipe_path.ends_with(".json") {
-                    return Err(recipe_file_error("Invalid JSON recipe"));
-                } else {
-                    return Err(recipe_file_error("Invalid YAML recipe"));
-                }
-            }
-        }
+        validate_recipe_for_scheduling(
+            &content,
+            recipe_dir,
+            recipe_file_format(Path::new(recipe_path)),
+        )
+        .map_err(|error| recipe_file_error(&error.to_string()))?;
 
         // Generate unique job ID
         let job_id = format!("agent_created_{}", uuid::Uuid::new_v4());

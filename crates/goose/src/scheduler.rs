@@ -22,7 +22,7 @@ use crate::conversation::Conversation;
 use crate::posthog;
 use crate::providers::create;
 use crate::recipe::build_recipe::build_recipe_from_template;
-use crate::recipe::validate_recipe::validate_recipe_template_from_content;
+use crate::recipe::validate_recipe::{recipe_file_format, validate_recipe_for_scheduling};
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::session_manager::SessionType;
@@ -111,8 +111,8 @@ fn copy_bounded_schedule_recipe(source: &Path, destination: &Path) -> Result<(),
     let recipe_dir = source
         .parent()
         .map(|path| path.to_string_lossy().into_owned());
-    validate_recipe_template_from_content(content, recipe_dir)
-        .map_err(|error| SchedulerError::RecipeLoadError(format!("Invalid recipe: {error}")))?;
+    validate_recipe_for_scheduling(content, recipe_dir, recipe_file_format(source))
+        .map_err(|error| SchedulerError::RecipeLoadError(error.to_string()))?;
 
     write_schedule_recipe_bytes(destination, &bytes)
 }

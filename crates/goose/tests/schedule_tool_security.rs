@@ -160,8 +160,8 @@ async fn parse_errors_do_not_reflect_recipe_contents() {
     assert_eq!(message, "Invalid YAML recipe");
     assert!(!message.contains(bypass_secret));
 
-    // Semantic validation errors that embed dynamic values (e.g. parameter
-    // keys) must also be sanitized.
+    // Semantic validation errors are surfaced as field-path diagnostics that
+    // never include offending values from the file.
     let dynamic_secret = "yaml-secret-242";
     let dynamic_recipe = format!(
         "title: Test\ndescription: hi\nprompt: hi\nparameters:\n  - key: {dynamic_secret}\n    input_type: string\n    requirement: required\n    description: hi\n"
@@ -169,7 +169,10 @@ async fn parse_errors_do_not_reflect_recipe_contents() {
     let path = temp_dir.path().join("dynamic_validation.yaml");
     std::fs::write(&path, dynamic_recipe).unwrap();
     let message = create_schedule(&tool, &path).await.unwrap_err();
-    assert_eq!(message, "Invalid YAML recipe");
+    assert_eq!(
+        message,
+        "Invalid recipe: unnecessary parameter definitions at parameters[0]"
+    );
     assert!(!message.contains(dynamic_secret));
 
     assert!(scheduler.jobs.lock().await.is_empty());
