@@ -2,7 +2,7 @@ on:
   workflow_dispatch:
     inputs:
       package_desktop:
-        description: 'Whether to package and upload Linux desktop artifacts'
+        description: 'Also package Linux desktop artifacts; CLI artifacts are always included'
         required: false
         default: false
         type: boolean
@@ -17,12 +17,12 @@ on:
         required: false
         default: ""
       package_desktop:
-        description: 'Whether to package and upload Linux desktop artifacts'
+        description: 'Also package Linux desktop artifacts; CLI artifacts are always included'
         required: false
         default: false
         type: boolean
 
-name: "Bundle CLI and Desktop for Linux"
+name: "Build CLI and optionally Desktop for Linux"
 
 permissions:
   contents: read
