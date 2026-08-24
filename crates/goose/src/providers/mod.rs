@@ -17,6 +17,7 @@ pub mod bedrock;
 pub mod canonical {
     pub use goose_providers::canonical::*;
 }
+pub mod canonical_cost;
 mod catalog_util;
 pub mod catalog {
     pub use super::catalog_util::*;
@@ -41,6 +42,7 @@ pub mod githubcopilot;
 pub mod google {
     pub use goose_providers::google::*;
 }
+pub mod gondola;
 pub mod google_def;
 pub mod http_status {
     pub use goose_providers::http_status::*;
@@ -69,7 +71,7 @@ pub mod openai_compatible {
 }
 pub mod openrouter;
 pub mod pi_acp;
-mod private_file;
+pub(crate) mod private_file;
 pub mod provider_registry;
 pub mod provider_secrets;
 pub mod provider_test;

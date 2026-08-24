@@ -480,6 +480,10 @@ pub fn is_otlp_initialized() -> bool {
 /// - Events from specific modules related to telemetry
 fn create_otlp_tracing_filter() -> FilterFn<impl Fn(&Metadata<'_>) -> bool> {
     FilterFn::new(|metadata: &Metadata<'_>| {
+        if is_otlp_suppressed_target(metadata.target()) {
+            return false;
+        }
+
         if metadata.level() <= &Level::INFO {
             return true;
         }
@@ -540,18 +544,27 @@ fn otel_logs_level() -> Level {
         .unwrap_or(Level::INFO)
 }
 
-/// Targets suppressed from OTLP log export.
+/// Targets suppressed from OTLP trace and log export.
 ///
 /// `rmcp::service` logs the full `InitializeResult` (including extension instructions
 /// and user memory content) as a `peer_info` attribute on every MCP handshake.
 /// This can be 400KB+ per session init and contains PII/sensitive data.
-/// These logs have no analytical value in OTLP — suppress them entirely.
-const OTLP_LOGS_SUPPRESSED_TARGETS: &[&str] = &["rmcp::service"];
+/// These events have no analytical value in OTLP — suppress them entirely.
+const OTLP_SUPPRESSED_TARGETS: &[&str] = &["rmcp::service"];
+
+fn is_otlp_suppressed_target(target: &str) -> bool {
+    OTLP_SUPPRESSED_TARGETS.iter().any(|suppressed| {
+        target == *suppressed
+            || target
+                .strip_prefix(suppressed)
+                .is_some_and(|suffix| suffix.starts_with("::"))
+    })
+}
 
 /// Creates a custom filter for OTLP logs.
 /// Valid RUST_LOG directives take precedence over OTEL_LOG_LEVEL and default INFO.
 /// Invalid RUST_LOG values fall back to OTEL_LOG_LEVEL and default INFO.
-/// Suppresses targets listed in `OTLP_LOGS_SUPPRESSED_TARGETS`.
+/// Suppresses targets listed in `OTLP_SUPPRESSED_TARGETS`.
 fn create_otlp_logs_filter() -> impl tracing_subscriber::layer::Filter<tracing_subscriber::Registry>
 {
     let filter = match env::var("RUST_LOG") {
@@ -561,10 +574,7 @@ fn create_otlp_logs_filter() -> impl tracing_subscriber::layer::Filter<tracing_s
     };
 
     filter.and(FilterFn::new(|metadata: &Metadata<'_>| {
-        let target = metadata.target();
-        !OTLP_LOGS_SUPPRESSED_TARGETS
-            .iter()
-            .any(|suppressed| target.starts_with(suppressed))
+        !is_otlp_suppressed_target(metadata.target())
     }))
 }
 
@@ -649,6 +659,49 @@ mod tests {
 
         tracing::subscriber::with_default(subscriber, emit);
         seen.load(Ordering::Relaxed)
+    }
+
+    fn count_otlp_trace_events(emit: impl FnOnce()) -> usize {
+        let seen = Arc::new(AtomicUsize::new(0));
+        let subscriber = tracing_subscriber::Registry::default()
+            .with(EventCounter(Arc::clone(&seen)).with_filter(create_otlp_tracing_filter()));
+
+        tracing::subscriber::with_default(subscriber, emit);
+        seen.load(Ordering::Relaxed)
+    }
+
+    #[test_case("rmcp::service", true; "exact target")]
+    #[test_case("rmcp::service::client", true; "module descendant")]
+    #[test_case("rmcp::services", false; "plural neighbor")]
+    #[test_case("rmcp::service_worker", false; "underscore neighbor")]
+    fn otlp_suppressed_target_boundaries(target: &str, expected: bool) {
+        assert_eq!(is_otlp_suppressed_target(target), expected);
+    }
+
+    #[test]
+    fn otlp_trace_filter_suppresses_sensitive_targets() {
+        let seen = count_otlp_trace_events(|| {
+            tracing::info!(target: "rmcp::service", peer_info = "SENSITIVE", "suppressed root");
+            tracing::warn!(target: "rmcp::service::client", "suppressed descendant");
+            tracing::info!(target: "rmcp::services", "allowed plural neighbor");
+            tracing::info!(target: "rmcp::service_worker", "allowed underscore neighbor");
+            tracing::info!(target: "goose::test", "allowed ordinary event");
+        });
+
+        assert_eq!(seen, 3);
+    }
+
+    #[test]
+    fn otlp_log_filter_uses_the_same_sensitive_target_boundary() {
+        let seen = count_otlp_log_events(&[("RUST_LOG", "trace")], || {
+            tracing::info!(target: "rmcp::service", "suppressed root");
+            tracing::error!(target: "rmcp::service::client", "suppressed descendant");
+            tracing::info!(target: "rmcp::services", "allowed plural neighbor");
+            tracing::info!(target: "rmcp::service_worker", "allowed underscore neighbor");
+            tracing::info!(target: "goose::test", "allowed ordinary event");
+        });
+
+        assert_eq!(seen, 3);
     }
 
     #[test]

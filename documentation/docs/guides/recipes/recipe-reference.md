@@ -281,22 +281,14 @@ extensions:
   </TabItem>
 </Tabs>
 
-#### Extension Secrets
+#### Extension environment variables
 
-This feature is only available through the CLI.
+Extensions can declare the names of required environment variables in `env_keys`. goose resolves these values when the extension starts, using an environment variable first and then goose secret storage (the system keyring, or `secrets.yaml` when the keyring is disabled).
 
-If a recipe uses an extension that requires a secret, goose can prompt users to provide the secret when running the recipe:
-
-1. When a recipe is loaded, goose scans all extensions (including those in subrecipes) for `env_keys` fields
-2. If any required environment variables are missing from the secure keyring, goose prompts the user to enter them
-3. Values are stored securely in the system keyring and reused for subsequent runs
-
-To update a stored secret, remove it from the system keyring and run the recipe again to be re-prompted.
+Recipe loading does not prompt for missing values. Configure them before starting the recipe; if a required value is unavailable, the extension reports an initialization error.
 
 :::info
-This feature is designed to prompt for and securely store secrets (such as API keys), but `env_keys` can include any environment variable needed by the extension (such as API endpoints, configuration values, etc.).
-
-Users can press `ESC` to skip entering a variable if it's optional for the extension. 
+`env_keys` can include secrets such as API keys as well as non-secret configuration such as API endpoints.
 :::
 
 ### Parameters

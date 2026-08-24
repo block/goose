@@ -397,11 +397,10 @@ You can customize how goose generates recipes by editing the `recipe.md` [prompt
 
      </TabItem>
    </Tabs>
-  :::info Privacy, Isolation, & Secrets
+  :::info Privacy & Isolation
   - Each person gets their own private session
   - No data is shared between users
   - Your session won't affect the original recipe creator's session
-  - The CLI can prompt users for required [extension secrets](/docs/guides/recipes/recipe-reference#extension-secrets)
   :::
 
    </TabItem>

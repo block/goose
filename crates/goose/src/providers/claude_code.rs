@@ -32,6 +32,7 @@ use crate::subprocess::configure_subprocess;
 use goose_providers::model::ModelConfig;
 
 use super::cli_common::{error_from_event, extract_usage_tokens};
+use super::private_file::create_private_named_temp_file;
 
 const CLAUDE_CODE_PROVIDER_NAME: &str = "claude-code";
 pub const CLAUDE_CODE_DEFAULT_MODEL: &str = "default";
@@ -157,6 +158,7 @@ struct CliProcess {
     log_model_update: bool,
     next_request_id: u64,
     needs_drain: bool,
+    _system_prompt_file: NamedTempFile,
 }
 
 impl std::fmt::Debug for CliProcess {
@@ -363,6 +365,22 @@ impl ClaudeCodeProvider {
         }
     }
 
+    fn apply_system_prompt_file(
+        cmd: &mut Command,
+        state_dir: &Path,
+        filtered_system: &str,
+    ) -> Result<NamedTempFile, ProviderError> {
+        let system_prompt_file =
+            write_system_prompt_file(state_dir, filtered_system).map_err(|e| {
+                ProviderError::RequestFailed(format!(
+                    "Failed to create Claude CLI system prompt file: {e}"
+                ))
+            })?;
+        cmd.arg("--system-prompt-file")
+            .arg(system_prompt_file.path());
+        Ok(system_prompt_file)
+    }
+
     async fn spawn_process(
         &self,
         model: &ModelConfig,
@@ -375,11 +393,10 @@ impl ClaudeCodeProvider {
             cmd.arg("--strict-mcp-config");
         }
 
-        cmd.arg("--include-partial-messages")
-            .arg("--system-prompt")
-            .arg(filtered_system)
-            .arg("--model")
-            .arg(&model.model_name);
+        cmd.arg("--include-partial-messages");
+        let system_prompt_file =
+            Self::apply_system_prompt_file(&mut cmd, &Paths::state_dir(), filtered_system)?;
+        cmd.arg("--model").arg(&model.model_name);
 
         let control_protocol_enabled = Self::apply_permission_flags(&mut cmd)?;
 
@@ -418,6 +435,7 @@ impl ClaudeCodeProvider {
             log_model_update: false,
             next_request_id: 0,
             needs_drain: false,
+            _system_prompt_file: system_prompt_file,
         };
 
         if control_protocol_enabled {
@@ -566,24 +584,40 @@ fn claude_mcp_config_json(extensions: &[ExtensionConfig]) -> Option<String> {
     serde_json::to_string(&json!({ "mcpServers": mcp_servers })).ok()
 }
 
-/// Write the MCP config JSON to a temp file with restricted permissions
-/// so secrets (headers, env vars) are not leaked via process argv.
-fn write_mcp_config_file(state_dir: &Path, json: &str) -> Result<NamedTempFile, anyhow::Error> {
+fn write_claude_temp_file(
+    state_dir: &Path,
+    prefix: &str,
+    suffix: &str,
+    contents: &str,
+) -> Result<NamedTempFile, anyhow::Error> {
     let dir = state_dir.join("claude-code");
     std::fs::create_dir_all(&dir)?;
-    let prefix = format!("mcp-config-{}_", chrono::Utc::now().format("%Y%m%d"));
-    let mut tmp = tempfile::Builder::new()
-        .prefix(&prefix)
-        .suffix(".json")
-        .tempfile_in(&dir)?;
-    tmp.write_all(json.as_bytes())?;
+    let mut builder = tempfile::Builder::new();
+    builder.prefix(prefix).suffix(suffix);
+    let mut tmp = create_private_named_temp_file(&mut builder, &dir)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         tmp.as_file()
             .set_permissions(std::fs::Permissions::from_mode(0o600))?;
     }
+    tmp.write_all(contents.as_bytes())?;
     Ok(tmp)
+}
+
+/// Write the MCP config JSON to a temp file with restricted permissions
+/// so secrets (headers, env vars) are not leaked via process argv.
+fn write_mcp_config_file(state_dir: &Path, json: &str) -> Result<NamedTempFile, anyhow::Error> {
+    let prefix = format!("mcp-config-{}_", chrono::Utc::now().format("%Y%m%d"));
+    write_claude_temp_file(state_dir, &prefix, ".json", json)
+}
+
+fn write_system_prompt_file(
+    state_dir: &Path,
+    system_prompt: &str,
+) -> Result<NamedTempFile, anyhow::Error> {
+    let prefix = format!("system-prompt-{}_", chrono::Utc::now().format("%Y%m%d"));
+    write_claude_temp_file(state_dir, &prefix, ".txt", system_prompt)
 }
 
 impl goose_providers::base::ProviderDescriptor for ClaudeCodeProvider {
@@ -652,7 +686,7 @@ impl Provider for ClaudeCodeProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        // Uses a separate short-lived process because --system-prompt is a CLI-only
+        // Uses a separate short-lived process because --system-prompt-file is a CLI-only
         // flag with no NDJSON equivalent. The persistent process needs it at spawn,
         // but it's unavailable during model listing.
         // See: https://code.claude.com/docs/en/cli-reference#system-prompt-flags
@@ -1317,6 +1351,58 @@ mod tests {
         assert!(write_mcp_config_file(Path::new("/dev/null"), "{}").is_err());
     }
 
+    #[test]
+    fn system_prompt_is_passed_by_file() {
+        let state_dir = tempdir().unwrap();
+        let sensitive_prompt = "private system prompt contents";
+        let mut command = tokio::process::Command::new("claude");
+
+        let system_prompt_file = ClaudeCodeProvider::apply_system_prompt_file(
+            &mut command,
+            state_dir.path(),
+            sensitive_prompt,
+        )
+        .unwrap();
+
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        let file_arg = args
+            .iter()
+            .position(|arg| arg == "--system-prompt-file")
+            .and_then(|index| args.get(index + 1))
+            .expect("system prompt file argument should include a path");
+        assert_eq!(Path::new(file_arg), system_prompt_file.path());
+        assert!(!args.iter().any(|arg| arg == "--system-prompt"));
+        assert!(!args.iter().any(|arg| arg.contains(sensitive_prompt)));
+        assert_eq!(
+            fs::read_to_string(system_prompt_file.path()).unwrap(),
+            sensitive_prompt
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn system_prompt_files_are_unpredictable_and_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let state_dir = tempdir().unwrap();
+        let first = write_system_prompt_file(state_dir.path(), "first").unwrap();
+        let second = write_system_prompt_file(state_dir.path(), "second").unwrap();
+
+        assert_ne!(first.path(), second.path());
+        assert_eq!(
+            fs::metadata(first.path()).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert_eq!(
+            fs::metadata(second.path()).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+    }
+
     fn make_provider() -> ClaudeCodeProvider {
         ClaudeCodeProvider {
             command: PathBuf::from("claude"),
@@ -1328,7 +1414,10 @@ mod tests {
         }
     }
 
-    fn make_test_process(canned_stdout: &str) -> (CliProcess, tokio::io::DuplexStream) {
+    fn make_test_process_with_system_prompt(
+        canned_stdout: &str,
+        system_prompt_file: NamedTempFile,
+    ) -> (CliProcess, tokio::io::DuplexStream) {
         let child = tokio::process::Command::new("true")
             .spawn()
             .expect("failed to spawn `true`");
@@ -1344,8 +1433,35 @@ mod tests {
             log_model_update: false,
             next_request_id: 0,
             needs_drain: false,
+            _system_prompt_file: system_prompt_file,
         };
         (process, stdin_reader)
+    }
+
+    fn make_test_process(canned_stdout: &str) -> (CliProcess, tokio::io::DuplexStream) {
+        make_test_process_with_system_prompt(canned_stdout, NamedTempFile::new().unwrap())
+    }
+
+    #[tokio::test]
+    async fn provider_reuses_system_prompt_file_and_cleans_it_on_drop() {
+        let state_dir = tempdir().unwrap();
+        let system_prompt_file = write_system_prompt_file(state_dir.path(), "private").unwrap();
+        let system_prompt_path = system_prompt_file.path().to_path_buf();
+        let (process, _stdin_reader) = make_test_process_with_system_prompt("", system_prompt_file);
+        let provider = make_provider();
+        provider
+            .cli_process
+            .set(Arc::new(tokio::sync::Mutex::new(process)))
+            .unwrap();
+
+        for _ in 0..2 {
+            let process = provider.cli_process.get().unwrap().lock().await;
+            assert_eq!(process._system_prompt_file.path(), system_prompt_path);
+            assert!(system_prompt_path.exists());
+        }
+
+        drop(provider);
+        assert!(!system_prompt_path.exists());
     }
 
     async fn stream_with_canned_stdout(

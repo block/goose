@@ -55,6 +55,17 @@ pub struct Pricing {
 }
 
 impl Pricing {
+    /// True when the entry carries no usable rate signal: `estimate_cost` needs both
+    /// an input and an output price, so an unset or literal-zero value in either field
+    /// makes the whole estimate wrong-low rather than merely incomplete. Mirrors the
+    /// `is_price_gap` predicate in `goose::providers::canonical_cost`.
+    pub fn has_no_usable_rate(&self) -> bool {
+        fn is_gap(price: Option<f64>) -> bool {
+            matches!(price, None | Some(0.0))
+        }
+        is_gap(self.input) || is_gap(self.output)
+    }
+
     pub fn estimate_cost(&self, usage: &Usage) -> Option<f64> {
         let input_price = self.input?;
         let output_price = self.output?;
@@ -205,6 +216,20 @@ mod tests {
         assert!(pricing(Some(2.0), None, None, None)
             .estimate_cost(&usage)
             .is_none());
+    }
+
+    #[test]
+    fn has_no_usable_rate_covers_absent_zero_and_asymmetric_prices() {
+        assert!(pricing(None, None, None, None).has_no_usable_rate());
+        assert!(pricing(Some(0.0), Some(0.0), None, None).has_no_usable_rate());
+        // A half-zero rate would bill one side at nothing, so it is not usable either.
+        assert!(pricing(Some(0.0), Some(5.0), None, None).has_no_usable_rate());
+        assert!(pricing(Some(5.0), Some(0.0), None, None).has_no_usable_rate());
+        assert!(pricing(None, Some(5.0), None, None).has_no_usable_rate());
+
+        assert!(!pricing(Some(1.25), Some(10.0), None, None).has_no_usable_rate());
+        // Zero cache rates are legitimate: free cache reads on a paid model.
+        assert!(!pricing(Some(1.25), Some(10.0), Some(0.0), Some(0.0)).has_no_usable_rate());
     }
 
     #[test]

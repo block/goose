@@ -457,6 +457,8 @@ where
         let mut last_signature: Option<String> = None;
         let stream_id = Uuid::new_v4().to_string();
         let mut incomplete_data: Option<String> = None;
+        let mut last_finish_reason: Option<String> = None;
+        let mut last_response_id: Option<String> = None;
 
         while let Some(line_result) = stream.next().await {
             let line = line_result?;
@@ -533,10 +535,22 @@ where
                 }
             }
 
-            let parts = chunk
+            if let Some(response_id) = chunk.get("responseId").and_then(|v| v.as_str()) {
+                last_response_id = Some(response_id.to_string());
+            }
+
+            let candidate = chunk
                 .get("candidates")
                 .and_then(|v| v.as_array())
-                .and_then(|c| c.first())
+                .and_then(|c| c.first());
+            if let Some(reason) = candidate
+                .and_then(|c| c.get("finishReason"))
+                .and_then(|v| v.as_str())
+            {
+                last_finish_reason = Some(reason.to_string());
+            }
+
+            let parts = candidate
                 .and_then(|c| c.get("content"))
                 .and_then(|c| c.get("parts"))
                 .and_then(|p| p.as_array());
@@ -555,7 +569,11 @@ where
             }
         }
 
-        if let Some(usage) = final_usage {
+        if let Some(mut usage) = final_usage {
+            if let Some(reason) = last_finish_reason {
+                usage.finish_reasons = Some(vec![reason]);
+            }
+            usage.response_id = last_response_id;
             yield (None, Some(usage));
         }
     }
@@ -1448,6 +1466,30 @@ mod tests {
             message_ids.iter().all(|id| id == first_id),
             "All streaming messages should have the same ID"
         );
+    }
+
+    #[tokio::test]
+    async fn test_streaming_response_metadata() {
+        use futures::StreamExt;
+
+        let lines = vec![Ok(
+            r#"data: {"candidates":[{"content":{"role":"model","parts":[{"text":"done"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":2,"candidatesTokenCount":1,"totalTokenCount":3},"modelVersion":"gemini-test","responseId":"response-123"}"#
+                .to_string(),
+        )];
+        let stream = Box::pin(futures::stream::iter(lines));
+        let mut message_stream = std::pin::pin!(response_to_streaming_message(stream));
+        let mut final_usage = None;
+
+        while let Some(result) = message_stream.next().await {
+            let (_, usage) = result.unwrap();
+            if usage.is_some() {
+                final_usage = usage;
+            }
+        }
+
+        let usage = final_usage.unwrap();
+        assert_eq!(usage.finish_reasons, Some(vec!["STOP".to_string()]));
+        assert_eq!(usage.response_id.as_deref(), Some("response-123"));
     }
 
     #[tokio::test]

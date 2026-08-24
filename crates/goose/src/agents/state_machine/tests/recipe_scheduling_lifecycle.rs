@@ -1,9 +1,10 @@
 use anyhow::Result;
 use serde_json::json;
 
+use super::dummy_api::ProviderFeatures;
 use super::pipeline::{
-    test_pipeline, test_pipeline_with_scheduler, MessageKind::Agent, MessageKind::Error,
-    MessageKind::ToolResponse,
+    test_pipeline, test_pipeline_with, test_pipeline_with_scheduler, MessageKind::Agent,
+    MessageKind::Error, MessageKind::ToolResponse,
 };
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
@@ -215,6 +216,44 @@ async fn recipe_retry_and_final_output_run_to_completion() -> Result<()> {
 }
 
 #[tokio::test]
+async fn structured_output_fails_fast_when_provider_manages_own_context() -> Result<()> {
+    let (pipeline, api) = test_pipeline_with(ProviderFeatures {
+        manages_own_context: true,
+        ..ProviderFeatures::default()
+    })
+    .await?;
+    let pipeline = pipeline.with_provider_name("context-owning-test").await?;
+    api.on("compute the answer").reply("thinking about it");
+    api.on(FINAL_OUTPUT_CONTINUATION_MESSAGE)
+        .call(FINAL_OUTPUT_TOOL_NAME, json!({ "result": "42" }));
+    let recipe = Recipe::builder()
+        .title("Structured output")
+        .description("Return structured output")
+        .instructions("Compute the answer")
+        .response(Response {
+            json_schema: Some(json!({
+                "type": "object",
+                "properties": { "result": { "type": "string" } },
+                "required": ["result"]
+            })),
+        })
+        .build()
+        .expect("valid recipe");
+    pipeline.set_recipe(recipe).await?;
+
+    let result = pipeline.run(["compute the answer"]).await?;
+    result.assert_message(-1, Agent, "provider `context-owning-test` can't support it");
+    assert!(
+        api.calls()
+            .iter()
+            .all(|call| !call.input_contains(FINAL_OUTPUT_CONTINUATION_MESSAGE)),
+        "must fail fast without ever entering the continuation-nudge loop"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn scheduler_is_advertised_only_when_configured_and_manages_jobs() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
     api.on("can I schedule work?").reply("not here");
@@ -341,6 +380,30 @@ async fn invalid_final_output_schema_stops_before_inference() -> Result<()> {
         Err(error) => error,
     };
     assert!(error.to_string().contains("empty json_schema"));
+    assert_eq!(api.call_count(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn boolean_final_output_schema_stops_before_inference() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    let recipe = Recipe::builder()
+        .title("Boolean output schema")
+        .description("Boolean output schema")
+        .instructions("This must not reach inference")
+        .response(Response {
+            json_schema: Some(json!(true)),
+        })
+        .build()
+        .expect("recipe shape is otherwise valid");
+    pipeline.set_recipe(recipe).await?;
+
+    let error = match pipeline.run(["start"]).await {
+        Ok(_) => panic!("boolean schema must be rejected"),
+        Err(error) => error,
+    };
+    assert!(error.to_string().contains("json_schema must be an object"));
     assert_eq!(api.call_count(), 0);
 
     Ok(())

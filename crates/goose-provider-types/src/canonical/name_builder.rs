@@ -34,7 +34,7 @@ pub fn canonical_name(provider: &str, model: &str) -> String {
     format!("{}/{}", provider, model_base)
 }
 
-fn is_meta_provider(provider: &str) -> bool {
+pub(crate) fn is_meta_provider(provider: &str) -> bool {
     matches!(
         provider,
         "databricks" | "databricks_v2" | "tetrate" | "bedrock" | "azure" | "azure_foundry"

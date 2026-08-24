@@ -4,7 +4,7 @@ use std::io::Write;
 
 const DEFAULT_LARGE_TEXT_THRESHOLD: usize = 200_000;
 
-fn large_text_threshold() -> usize {
+pub(crate) fn max_tool_response_size() -> usize {
     Config::global()
         .get_param::<usize>("GOOSE_MAX_TOOL_RESPONSE_SIZE")
         .unwrap_or(DEFAULT_LARGE_TEXT_THRESHOLD)
@@ -14,7 +14,7 @@ fn large_text_threshold() -> usize {
 pub fn process_tool_response(
     response: Result<CallToolResult, ErrorData>,
 ) -> Result<CallToolResult, ErrorData> {
-    let threshold = large_text_threshold();
+    let threshold = max_tool_response_size();
     match response {
         Ok(mut result) => {
             let mut processed_contents = Vec::new();

@@ -315,7 +315,11 @@ pub(crate) fn prepare_tools_for_provider(
         gen_ai.provider.name = %provider.get_name(),
         gen_ai.request.model = %model_config.model_name,
         gen_ai.request.stream = true,
+        gen_ai.request.temperature = tracing::field::Empty,
+        gen_ai.request.max_tokens = tracing::field::Empty,
         gen_ai.response.model = tracing::field::Empty,
+        gen_ai.response.finish_reasons = tracing::field::Empty,
+        gen_ai.response.id = tracing::field::Empty,
         gen_ai.usage.input_tokens = tracing::field::Empty,
         gen_ai.usage.output_tokens = tracing::field::Empty,
         gen_ai.usage.cache_read.input_tokens = tracing::field::Empty,
@@ -350,6 +354,7 @@ pub(crate) async fn stream_response_from_provider(
         filtered_messages
     };
     let span = tracing::Span::current();
+    gen_ai_telemetry::record_request_params(&span, &model_config);
     let capture_message_content = gen_ai_telemetry::capture_message_content();
     if capture_message_content {
         let input_messages =
@@ -786,10 +791,9 @@ impl Agent {
         if let Some(cost) = usage.cost {
             return (Some(cost), Some(CostSource::ProviderReported));
         }
-        match provider_name
-            .and_then(|pn| crate::providers::canonical::maybe_get_canonical_model(pn, &usage.model))
-            .and_then(|canonical| canonical.cost.estimate_cost(&usage.usage))
-        {
+        match provider_name.and_then(|pn| {
+            crate::providers::canonical_cost::estimate_model_cost(pn, &usage.model, &usage.usage)
+        }) {
             Some(cost) => (Some(cost), Some(CostSource::Estimated)),
             None => (None, None),
         }
