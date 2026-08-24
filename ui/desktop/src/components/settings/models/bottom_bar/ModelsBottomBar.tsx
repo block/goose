@@ -179,9 +179,9 @@ export default function ModelsBottomBar({
     const pendingModal = pendingModalRef.current;
     if (!pendingModal) return;
 
-    event.preventDefault();
     pendingModalRef.current = null;
     if (pendingModal === 'switch-model') {
+      event.preventDefault();
       setIsAddModelModalOpen(true);
     } else {
       setIsLocalModelSettingsOpen(true);

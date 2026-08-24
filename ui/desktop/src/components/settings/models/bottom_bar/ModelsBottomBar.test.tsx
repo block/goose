@@ -13,6 +13,7 @@ let mockCurrentModel: string | null = 'config-model';
 let mockCurrentProvider: string | null = 'config-provider';
 const mockGetProviders = vi.fn();
 const mockOnModelChanged = vi.fn();
+const mockPreventCloseAutoFocus = vi.fn();
 
 vi.mock('../../../ModelAndProviderContext', () => ({
   useModelAndProvider: () => ({
@@ -64,7 +65,7 @@ vi.mock('../../../ui/dropdown-menu', () => ({
     onCloseAutoFocus?: (event: Pick<Event, 'preventDefault'>) => void;
   }) => (
     <div>
-      <button onClick={() => onCloseAutoFocus?.({ preventDefault: vi.fn() })}>
+      <button onClick={() => onCloseAutoFocus?.({ preventDefault: mockPreventCloseAutoFocus })}>
         Complete model menu close
       </button>
       {children}
@@ -145,14 +146,14 @@ describe('ModelsBottomBar', () => {
     expect(screen.queryByTestId('model-loading-state')).not.toBeInTheDocument();
   });
 
-  it('closes the model menu before mounting the switch-model dialog', () => {
+  it('opens model overlays after the menu closes with the appropriate focus behavior', () => {
     renderWithIntl(
       <ModelsBottomBar
         sessionId="session-123"
         dropdownRef={createDropdownRef()}
         setView={vi.fn()}
-        sessionModel="session-model"
-        sessionProvider="session-provider"
+        sessionModel="local-model"
+        sessionProvider="local"
         onModelChanged={mockOnModelChanged}
         sessionLoaded={true}
       />
@@ -161,11 +162,26 @@ describe('ModelsBottomBar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open model menu' }));
     expect(screen.getByTestId('model-menu')).toHaveAttribute('data-open', 'true');
 
+    fireEvent.click(screen.getByRole('button', { name: 'Local Model Settings' }));
+    expect(screen.getByTestId('model-menu')).toHaveAttribute('data-open', 'false');
+    expect(
+      screen.queryByRole('heading', { name: 'Local Model Settings — Display local-model' })
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Complete model menu close' }));
+    expect(
+      screen.getByRole('heading', { name: 'Local Model Settings — Display local-model' })
+    ).toBeInTheDocument();
+    expect(mockPreventCloseAutoFocus).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: '×' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open model menu' }));
     fireEvent.click(screen.getByRole('button', { name: 'Change Model' }));
     expect(screen.getByTestId('model-menu')).toHaveAttribute('data-open', 'false');
     expect(screen.queryByTestId('switch-model-modal')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Complete model menu close' }));
     expect(screen.getByTestId('switch-model-modal')).toBeInTheDocument();
+    expect(mockPreventCloseAutoFocus).toHaveBeenCalledOnce();
   });
 });
