@@ -454,19 +454,16 @@ impl SessionManager {
     }
 
     pub async fn list_sessions_with_limit(&self, limit: usize) -> Result<Vec<Session>> {
-        let types = [SessionType::User, SessionType::Scheduled];
-        let page = self
-            .list_sessions_paged(SessionListPageQuery {
+        self.storage
+            .list_sessions_matching(SessionListQuery {
                 filters: SessionListFilters {
-                    types: Some(&types),
+                    types: Some(&[SessionType::User, SessionType::Scheduled]),
                     ..Default::default()
                 },
-                cursor: None,
-                page_size: limit,
-                include_last_message_snippet: false,
+                limit: Some(limit),
+                ..Default::default()
             })
-            .await?;
-        Ok(page.sessions)
+            .await
     }
 
     pub async fn list_sessions_by_types(&self, types: &[SessionType]) -> Result<Vec<Session>> {

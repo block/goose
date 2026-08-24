@@ -155,7 +155,7 @@ fn session_activity_at(session: &Session) -> chrono::DateTime<chrono::Utc> {
     session.last_message_at.unwrap_or(session.updated_at)
 }
 
-fn session_list_sql_limit(
+fn session_list_limit_if_safe_to_push_down(
     ascending: bool,
     working_dir: Option<&Path>,
     limit: Option<usize>,
@@ -174,12 +174,13 @@ pub async fn handle_session_list(
     limit: Option<usize>,
 ) -> Result<()> {
     let session_manager = SessionManager::instance();
-    let mut sessions =
-        if let Some(limit) = session_list_sql_limit(ascending, working_dir.as_deref(), limit) {
-            session_manager.list_sessions_with_limit(limit).await?
-        } else {
-            session_manager.list_sessions().await?
-        };
+    let mut sessions = if let Some(limit) =
+        session_list_limit_if_safe_to_push_down(ascending, working_dir.as_deref(), limit)
+    {
+        session_manager.list_sessions_with_limit(limit).await?
+    } else {
+        session_manager.list_sessions().await?
+    };
 
     if let Some(ref pat) = working_dir {
         let pat_lower = pat.to_string_lossy().to_lowercase();
@@ -246,13 +247,22 @@ mod session_list_tests {
 
     #[test]
     fn pushes_down_only_safe_session_list_limits() {
-        assert_eq!(session_list_sql_limit(false, None, Some(50)), Some(50));
-        assert_eq!(session_list_sql_limit(true, None, Some(50)), None);
         assert_eq!(
-            session_list_sql_limit(false, Some(Path::new("/tmp")), Some(50)),
+            session_list_limit_if_safe_to_push_down(false, None, Some(50)),
+            Some(50)
+        );
+        assert_eq!(
+            session_list_limit_if_safe_to_push_down(true, None, Some(50)),
             None
         );
-        assert_eq!(session_list_sql_limit(false, None, None), None);
+        assert_eq!(
+            session_list_limit_if_safe_to_push_down(false, Some(Path::new("/tmp")), Some(50)),
+            None
+        );
+        assert_eq!(
+            session_list_limit_if_safe_to_push_down(false, None, None),
+            None
+        );
     }
 }
 
