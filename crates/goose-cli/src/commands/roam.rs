@@ -631,6 +631,13 @@ async fn handle_share(
             .with_context(|| format!("invalid --cwd: {}", dir.display()))?,
         None => std::env::current_dir().context("could not determine current directory")?,
     };
+    // Fail here rather than advertising a share whose every session activation
+    // would reject the host-imposed path.
+    anyhow::ensure!(
+        session_cwd.is_dir(),
+        "--cwd must be a directory: {}",
+        session_cwd.display()
+    );
 
     // Load the accepted-peer allowlist. Peers are accepted out of band with
     // `roam peers accept`; this serve loop re-reads it per connection.
