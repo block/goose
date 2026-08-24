@@ -657,9 +657,9 @@ impl AcpProvider {
             }
         };
 
-        let context_limit = self
-            .get_context_limit(&model_config.model_name, model_config.context_limit)
-            .await;
+        let context_limit = crate::context_limit::get_context_limit(self, &model_config.model_name)
+            .await
+            .ok()?;
         let budget = memo_token_budget(context_limit, prompt_token_cost(current_prompt, &counter));
 
         build_handoff_context_memo(&messages[..last_user_index], budget, &counter)
@@ -2897,6 +2897,26 @@ mod tests {
         assert_eq!(
             provider.get_context_limit(&model.model_name, None).await,
             200_000
+        );
+    }
+
+    #[tokio::test]
+    async fn handoff_budget_honors_global_context_limit_override() {
+        let _guard = env_lock::lock_env([("GOOSE_CONTEXT_LIMIT", Some("64"))]);
+        let (provider, model) = test_provider();
+        provider.context_size.store(200_000, Ordering::Relaxed);
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        let current_prompt = vec![ContentBlock::Text(TextContent::new("current request"))];
+
+        assert!(
+            provider
+                .bounded_handoff_memo(&model, &messages, &current_prompt)
+                .await
+                .is_none(),
+            "the global limit should leave too little room for a handoff memo"
         );
     }
 
