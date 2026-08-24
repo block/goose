@@ -244,6 +244,46 @@ pub struct ActivePromptRun {
 /// one session.
 pub type ActiveRunRegistry = Arc<Mutex<HashMap<String, ActivePromptRun>>>;
 
+/// Releases a registry entry if the owning `on_prompt` future is dropped
+/// without reaching its explicit `clear_active_run` — e.g. a roaming
+/// connection is revoked or lost mid-prompt and the transport drops the
+/// request future. Without this, the shared registry retains the run forever
+/// and every later connection gets "session already has active run".
+///
+/// The explicit clear still runs on normal paths; this drop is then a no-op
+/// because the entry (matched by run id) is already gone.
+struct ActiveRunDropGuard {
+    registry: ActiveRunRegistry,
+    session_id: String,
+    run_id: String,
+    cancel_token: CancellationToken,
+}
+
+impl Drop for ActiveRunDropGuard {
+    fn drop(&mut self) {
+        self.cancel_token.cancel();
+        let registry = self.registry.clone();
+        let session_id = std::mem::take(&mut self.session_id);
+        let run_id = std::mem::take(&mut self.run_id);
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            handle.spawn(async move {
+                let agent = {
+                    let mut runs = registry.lock().await;
+                    match runs.get(&session_id) {
+                        Some(run) if run.run_id == run_id => {
+                            runs.remove(&session_id).map(|run| run.agent)
+                        }
+                        _ => None,
+                    }
+                };
+                if let Some(agent) = agent {
+                    agent.discard_pending_steers(&session_id).await;
+                }
+            });
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct AcpBuiltinSelection {
     pub defaults: Vec<String>,
@@ -784,6 +824,16 @@ impl GooseAcpAgent {
     ) -> Result<(), agent_client_protocol::Error> {
         self.start_active_run(session_id, run_id, CancellationToken::new(), agent)
             .await
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test_drop_active_run_guard(&self, session_id: &str, run_id: &str) {
+        drop(ActiveRunDropGuard {
+            registry: self.active_prompt_runs.clone(),
+            session_id: session_id.to_string(),
+            run_id: run_id.to_string(),
+            cancel_token: CancellationToken::new(),
+        });
     }
 
     #[cfg(test)]
@@ -2023,6 +2073,16 @@ impl GooseAcpAgent {
             agent.clone(),
         )
         .await?;
+
+        // Frees the run if this future is dropped mid-prompt (e.g. the roaming
+        // connection carrying it is revoked or lost); a normal completion's
+        // explicit clear wins and makes the guard's cleanup a no-op.
+        let _run_guard = ActiveRunDropGuard {
+            registry: self.active_prompt_runs.clone(),
+            session_id: session_id.clone(),
+            run_id: run_id.clone(),
+            cancel_token: cancel_token.clone(),
+        };
 
         if cancel_token.is_cancelled() {
             self.clear_active_run(&session_id, &run_id).await;
