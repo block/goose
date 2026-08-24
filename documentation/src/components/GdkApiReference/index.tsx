@@ -1,45 +1,45 @@
 import React, { useMemo, useState } from "react";
 import CodeBlock from "@theme/CodeBlock";
-import apiData from "@site/src/data/sdk-api.json";
+import apiData from "@site/src/data/gdk-api.json";
 import { LANGUAGES, Language, LanguageId } from "./languages";
 import styles from "./styles.module.css";
 
-type SdkParam = {
+type GdkParam = {
   name: string;
   type: string;
   default: string | null;
   docs: string;
 };
 
-type SdkFunc = {
+type GdkFunc = {
   name: string;
   docs: string;
-  params: SdkParam[];
+  params: GdkParam[];
   returns: string | null;
   throws: string | null;
   isAsync: boolean;
 };
 
-type SdkItem = {
+type GdkItem = {
   name: string;
   kind: "object" | "callback" | "record" | "enum" | "error";
   docs: string;
-  fields: SdkParam[];
-  variants: { name: string; fields: SdkParam[] }[];
-  methods: SdkFunc[];
+  fields: GdkParam[];
+  variants: { name: string; fields: GdkParam[] }[];
+  methods: GdkFunc[];
 };
 
-type SdkApiDoc = {
+type GdkApiDoc = {
   version: string;
   docVersion: string;
   source: string;
-  functions: SdkFunc[];
-  items: SdkItem[];
+  functions: GdkFunc[];
+  items: GdkItem[];
 };
 
-const VERSIONS = (apiData as { versions: SdkApiDoc[] }).versions;
+const VERSIONS = (apiData as { versions: GdkApiDoc[] }).versions;
 
-const KIND_LABELS: Record<SdkItem["kind"], string> = {
+const KIND_LABELS: Record<GdkItem["kind"], string> = {
   object: "Class",
   callback: "Interface",
   record: "Data type",
@@ -47,7 +47,7 @@ const KIND_LABELS: Record<SdkItem["kind"], string> = {
   error: "Error",
 };
 
-const KIND_HEADINGS: Record<SdkItem["kind"], string> = {
+const KIND_HEADINGS: Record<GdkItem["kind"], string> = {
   object: "Classes",
   callback: "Interfaces",
   record: "Data types",
@@ -58,7 +58,7 @@ const KIND_HEADINGS: Record<SdkItem["kind"], string> = {
 const slug = (...parts: string[]) =>
   parts.join("-").replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase();
 
-function signature(func: SdkFunc, language: Language, owner?: string): string {
+function signature(func: GdkFunc, language: Language, owner?: string): string {
   const params = func.params
     .map((param) => {
       const type = language.type(param.type);
@@ -103,7 +103,7 @@ function ParamTable({
   language,
   caption,
 }: {
-  rows: SdkParam[];
+  rows: GdkParam[];
   language: Language;
   caption: string;
 }) {
@@ -144,7 +144,7 @@ function FuncEntry({
   language,
   owner,
 }: {
-  func: SdkFunc;
+  func: GdkFunc;
   language: Language;
   owner?: string;
 }) {
@@ -165,7 +165,7 @@ function FuncEntry({
   );
 }
 
-function ItemEntry({ item, language }: { item: SdkItem; language: Language }) {
+function ItemEntry({ item, language }: { item: GdkItem; language: Language }) {
   const dataCarrying = item.variants.some((variant) => variant.fields.length > 0);
   return (
     <section className={styles.item} id={slug(item.name)}>
@@ -219,7 +219,7 @@ function ItemEntry({ item, language }: { item: SdkItem; language: Language }) {
   );
 }
 
-export default function SdkApiReference() {
+export default function GdkApiReference() {
   const [languageId, setLanguageId] = useState<LanguageId>("rust");
   const [docVersion, setDocVersion] = useState(VERSIONS[0].docVersion);
 
@@ -230,7 +230,7 @@ export default function SdkApiReference() {
   );
 
   const grouped = useMemo(() => {
-    const order: SdkItem["kind"][] = ["object", "callback", "record", "enum", "error"];
+    const order: GdkItem["kind"][] = ["object", "callback", "record", "enum", "error"];
     return order
       .map((kind) => ({ kind, items: doc.items.filter((item) => item.kind === kind) }))
       .filter((group) => group.items.length > 0);
@@ -239,7 +239,7 @@ export default function SdkApiReference() {
   return (
     <div>
       <div className={styles.toolbar}>
-        <div className={styles.tabs} role="tablist" aria-label="SDK language">
+        <div className={styles.tabs} role="tablist" aria-label="GDK language">
           {LANGUAGES.map((entry) => (
             <button
               key={entry.id}
@@ -259,7 +259,7 @@ export default function SdkApiReference() {
           <select
             value={docVersion}
             onChange={(event) => setDocVersion(event.target.value)}
-            aria-label="SDK version"
+            aria-label="GDK version"
           >
             {VERSIONS.map((entry) => (
               <option key={entry.docVersion} value={entry.docVersion}>

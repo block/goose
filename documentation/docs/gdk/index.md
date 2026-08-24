@@ -1,24 +1,25 @@
 ---
 sidebar_position: 1
-title: SDK Overview
+title: GDK Overview
 sidebar_label: Overview
 description: Build with goose providers in Rust, Python, and Kotlin.
 ---
 
-# goose SDK
+# GDK
 
-The goose SDK exposes goose's provider layer as a library so you can call models,
-stream completions, and compact conversations from your own application.
+The goose Development Kit (GDK) exposes goose's provider layer as a library so you
+can call models, stream completions, and compact conversations from your own
+application.
 
 One Rust crate, `goose-sdk`, is the source of every language binding. Python and
 Kotlin are generated from it with [UniFFI](https://github.com/mozilla/uniffi-rs),
 so all three languages share the same types, behavior, and version number.
 
-See the [API Reference](/docs/sdk/api-reference) for the complete surface in your
+See the [API Reference](/docs/gdk/api-reference) for the complete surface in your
 language of choice.
 
 :::info Alpha
-The SDK is in alpha. The surface may change between `0.x` releases. Pin an exact
+The GDK is in alpha. The surface may change between `0.x` releases. Pin an exact
 version and check the API reference version selector when upgrading.
 :::
 
@@ -76,7 +77,7 @@ The artifact version matches the Rust crate version. Classes live in the
 `io.github.aaif_goose` package. The jar bundles native libraries for
 macOS (arm64, x86-64), Linux (arm64, x86-64), and Windows (x86-64).
 
-On JDK 24+, add `--enable-native-access=ALL-UNNAMED` because the SDK loads its
+On JDK 24+, add `--enable-native-access=ALL-UNNAMED` because the GDK loads its
 native library through JNA.
 
 <!-- prettier-ignore-end -->
@@ -233,6 +234,6 @@ Errors raised before the stream starts are thrown as `GooseError`
 
 ## Next steps
 
-- [API Reference](/docs/sdk/api-reference) — every function, type, and error
+- [API Reference](/docs/gdk/api-reference) — every function, type, and error
 - [goose in ACP clients](/docs/guides/acp-clients) — drive the full goose agent
   over the Agent Client Protocol

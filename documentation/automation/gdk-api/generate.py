@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Generate SDK API reference data from the UniFFI surface in goose-sdk.
+"""Generate GDK API reference data from the UniFFI surface in goose-sdk.
 
 `crates/goose-sdk/src/bindings.rs` is the single source of truth for the Rust,
-Python, and Kotlin SDK APIs, so the docs are derived from it instead of being
-written by hand. Output is `documentation/src/data/sdk-api.json`, holding one
-entry per SDK release series, consumed by the SdkApiReference component.
+Python, and Kotlin GDK APIs, so the docs are derived from it instead of being
+written by hand. Output is `documentation/src/data/gdk-api.json`, holding one
+entry per GDK release series, consumed by the GdkApiReference component.
 
 Usage:
-    python3 documentation/automation/sdk-api/generate.py [--check]
+    python3 documentation/automation/gdk-api/generate.py [--check]
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BINDINGS = REPO_ROOT / "crates/goose-sdk/src/bindings.rs"
 CARGO_TOML = REPO_ROOT / "crates/goose-sdk/Cargo.toml"
-OUT_FILE = REPO_ROOT / "documentation/src/data/sdk-api.json"
+OUT_FILE = REPO_ROOT / "documentation/src/data/gdk-api.json"
 
 
 def crate_version() -> str:

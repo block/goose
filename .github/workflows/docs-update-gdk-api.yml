@@ -1,10 +1,10 @@
-# Regenerates the SDK API reference data from the goose-sdk UniFFI surface and
+# Regenerates the GDK API reference data from the goose-sdk UniFFI surface and
 # opens a PR when it drifts from what is committed.
 #
 # The generator is deterministic and needs no build or API key, so this stays a
 # plain script run rather than an AI-assisted job.
 
-name: Update SDK API Reference
+name: Update GDK API Reference
 
 on:
   workflow_dispatch:
@@ -15,8 +15,8 @@ permissions:
   contents: read
 
 jobs:
-  update-sdk-api-docs:
-    name: Update SDK API reference
+  update-gdk-api-docs:
+    name: Update GDK API reference
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -25,25 +25,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Regenerate SDK API reference data
-        run: python3 documentation/automation/sdk-api/generate.py
+      - name: Regenerate GDK API reference data
+        run: python3 documentation/automation/gdk-api/generate.py
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
-          branch: docs/auto-sdk-api-reference
+          branch: docs/auto-gdk-api-reference
           delete-branch: true
-          add-paths: documentation/src/data/sdk-api.json
-          commit-message: "docs: update SDK API reference data"
-          title: "docs: update SDK API reference"
+          add-paths: documentation/src/data/gdk-api.json
+          commit-message: "docs: update GDK API reference data"
+          title: "docs: update GDK API reference"
           body: |
-            Regenerated `documentation/src/data/sdk-api.json` from
+            Regenerated `documentation/src/data/gdk-api.json` from
             `crates/goose-sdk/src/bindings.rs`.
 
             - **Triggered by**: ${{ github.event_name }}
             - **Release**: ${{ github.event.release.tag_name || 'n/a' }}
 
-            The SDK API reference renders from this file, so merging publishes the
+            The GDK API reference renders from this file, so merging publishes the
             updated Rust, Python, and Kotlin reference docs.
           labels: |
             documentation

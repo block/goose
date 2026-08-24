@@ -1,8 +1,8 @@
 {
-  "label": "SDK",
+  "label": "GDK",
   "position": 3,
   "link": {
     "type": "doc",
-    "id": "sdk/index"
+    "id": "gdk/index"
   }
 }
