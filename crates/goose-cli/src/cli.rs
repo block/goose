@@ -1661,15 +1661,15 @@ type RoamShareSlot =
 fn spawn_roam_share(
     server: std::sync::Arc<goose::acp::server_factory::AcpServer>,
 ) -> RoamShareSlot {
-    use crate::commands::roam::try_acquire_roam_lock;
+    use crate::commands::roam::try_acquire_roam_lock_owner;
 
     let slot = RoamShareSlot::default();
     let task_slot = slot.clone();
     tokio::spawn(async move {
         let mut standing_by = false;
         loop {
-            match try_acquire_roam_lock() {
-                Ok(lock) => match start_roam_share(server.clone()).await {
+            match try_acquire_roam_lock_owner() {
+                Ok(Some(lock)) => match start_roam_share(server.clone()).await {
                     Ok(node) => {
                         *task_slot.write().await = Some(node);
                         let _lock = lock;
@@ -1680,13 +1680,20 @@ fn spawn_roam_share(
                         drop(lock);
                     }
                 },
-                Err(_) => {
+                Ok(None) => {
                     if !standing_by {
                         standing_by = true;
                         eprintln!(
                             "another goose process owns the roaming endpoint; standing by to take over if it exits"
                         );
                     }
+                }
+                // A real failure (unwritable data dir, filesystem error) will
+                // not fix itself: surface it and stop instead of retrying as
+                // if the endpoint were merely busy.
+                Err(error) => {
+                    eprintln!("roaming disabled: cannot acquire the endpoint lock: {error:#}");
+                    return;
                 }
             }
             tokio::time::sleep(std::time::Duration::from_secs(3)).await;

@@ -601,25 +601,36 @@ pub(crate) fn load_identity() -> Result<RoamingIdentity> {
 /// windows, CLI serves, standalone shares); it auto-releases when the owner
 /// dies — even on SIGKILL — so a standby can promote itself and paired
 /// devices keep access.
-pub(crate) fn try_acquire_roam_lock() -> Result<std::fs::File> {
+/// `Ok(Some(file))` holds the lock; `Ok(None)` means another live process owns
+/// the endpoint (standby is reasonable); `Err` is a real failure — unwritable
+/// data dir, filesystem error — that must be surfaced, not retried silently.
+pub(crate) fn try_acquire_roam_lock_owner() -> Result<Option<std::fs::File>> {
     use fs2::FileExt as _;
     use std::io::Write as _;
 
     let lock_path = Paths::data_dir().join("roam/serve.lock");
     if let Some(parent) = lock_path.parent() {
-        std::fs::create_dir_all(parent)?;
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("cannot create roam lock dir {}", parent.display()))?;
     }
     let mut file = std::fs::OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(false)
-        .open(&lock_path)?;
-    file.try_lock_exclusive().map_err(|_| {
-        anyhow::anyhow!("another goose process is already running the roaming endpoint")
-    })?;
+        .open(&lock_path)
+        .with_context(|| format!("cannot open roam lock file {}", lock_path.display()))?;
+    if file.try_lock_exclusive().is_err() {
+        return Ok(None);
+    }
     file.set_len(0)?;
     writeln!(file, "{}", std::process::id())?;
-    Ok(file)
+    Ok(Some(file))
+}
+
+pub(crate) fn try_acquire_roam_lock() -> Result<std::fs::File> {
+    try_acquire_roam_lock_owner()?.ok_or_else(|| {
+        anyhow::anyhow!("another goose process is already running the roaming endpoint")
+    })
 }
 
 async fn handle_share(

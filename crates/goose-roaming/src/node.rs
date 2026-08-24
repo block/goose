@@ -409,6 +409,12 @@ impl RoamingNode {
 
         match ack {
             HostAck::Accepted { agent_id } => {
+                // Host-controlled display text: printed by connect/delegate
+                // and persisted for `roam connections`. Sanitize like client
+                // labels so a malicious host can't inject terminal control
+                // sequences.
+                let agent_id =
+                    sanitize_label(agent_id).unwrap_or_else(|| "remote-agent".to_string());
                 self.directory
                     .record_connect(
                         conn.remote_id(),
