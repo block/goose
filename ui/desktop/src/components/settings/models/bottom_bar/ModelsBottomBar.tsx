@@ -1,5 +1,5 @@
 import { Sliders, Bot, LoaderCircle, Settings, History } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { SwitchModelModal } from '../subcomponents/SwitchModelModal';
 import { View } from '../../../../utils/navigationUtils';
@@ -96,7 +96,7 @@ export default function ModelsBottomBar({
     intl.formatMessage(i18n.selectModel)
   );
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
-  const [pendingModal, setPendingModal] = useState<ModelMenuModal | null>(null);
+  const pendingModalRef = useRef<ModelMenuModal | null>(null);
   const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
   const [isLocalModelSettingsOpen, setIsLocalModelSettingsOpen] = useState(false);
   const [providerDefaultModel, setProviderDefaultModel] = useState<string | null>(null);
@@ -110,21 +110,6 @@ export default function ModelsBottomBar({
   useEffect(() => {
     void loadRecentModels();
   }, [loadRecentModels]);
-
-  useEffect(() => {
-    if (isModelMenuOpen || !pendingModal) return;
-
-    const frameId = requestAnimationFrame(() => {
-      if (pendingModal === 'switch-model') {
-        setIsAddModelModalOpen(true);
-      } else {
-        setIsLocalModelSettingsOpen(true);
-      }
-      setPendingModal(null);
-    });
-
-    return () => cancelAnimationFrame(frameId);
-  }, [isModelMenuOpen, pendingModal]);
 
   // Show a visible loading placeholder while session metadata is still being fetched,
   // rather than flashing the config default or leaving the footer blank.
@@ -186,8 +171,21 @@ export default function ModelsBottomBar({
   };
 
   const openModalAfterMenuCloses = (modal: ModelMenuModal) => {
-    setPendingModal(modal);
+    pendingModalRef.current = modal;
     setIsModelMenuOpen(false);
+  };
+
+  const handleModelMenuCloseAutoFocus = (event: Event) => {
+    const pendingModal = pendingModalRef.current;
+    if (!pendingModal) return;
+
+    event.preventDefault();
+    pendingModalRef.current = null;
+    if (pendingModal === 'switch-model') {
+      setIsAddModelModalOpen(true);
+    } else {
+      setIsLocalModelSettingsOpen(true);
+    }
   };
 
   const handleRecentModelClick = async (recent: RecentModel) => {
@@ -240,7 +238,12 @@ export default function ModelsBottomBar({
             )}
           </div>
         </DropdownMenuTrigger>
-        <DropdownMenuContent side="top" align="center" className="w-64 text-sm">
+        <DropdownMenuContent
+          side="top"
+          align="center"
+          className="w-64 text-sm"
+          onCloseAutoFocus={handleModelMenuCloseAutoFocus}
+        >
           <h6 className="text-xs text-text-primary mt-2 ml-2">
             {intl.formatMessage(i18n.currentModel)}
           </h6>

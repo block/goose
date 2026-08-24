@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, fireEvent, render, type RenderOptions, screen } from '@testing-library/react';
+import { fireEvent, render, type RenderOptions, screen } from '@testing-library/react';
 import ModelsBottomBar from './ModelsBottomBar';
 import { IntlTestWrapper } from '../../../../i18n/test-utils';
 
@@ -56,7 +56,20 @@ vi.mock('../../../ui/dropdown-menu', () => ({
     </div>
   ),
   DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuContent: ({
+    children,
+    onCloseAutoFocus,
+  }: {
+    children: React.ReactNode;
+    onCloseAutoFocus?: (event: Pick<Event, 'preventDefault'>) => void;
+  }) => (
+    <div>
+      <button onClick={() => onCloseAutoFocus?.({ preventDefault: vi.fn() })}>
+        Complete model menu close
+      </button>
+      {children}
+    </div>
+  ),
   DropdownMenuItem: ({
     children,
     onSelect,
@@ -133,14 +146,6 @@ describe('ModelsBottomBar', () => {
   });
 
   it('closes the model menu before mounting the switch-model dialog', () => {
-    let scheduledFrame: FrameRequestCallback | undefined;
-    const requestAnimationFrameSpy = vi
-      .spyOn(window, 'requestAnimationFrame')
-      .mockImplementation((callback) => {
-        scheduledFrame = callback;
-        return 1;
-      });
-
     renderWithIntl(
       <ModelsBottomBar
         sessionId="session-123"
@@ -160,9 +165,7 @@ describe('ModelsBottomBar', () => {
     expect(screen.getByTestId('model-menu')).toHaveAttribute('data-open', 'false');
     expect(screen.queryByTestId('switch-model-modal')).not.toBeInTheDocument();
 
-    act(() => scheduledFrame?.(0));
+    fireEvent.click(screen.getByRole('button', { name: 'Complete model menu close' }));
     expect(screen.getByTestId('switch-model-modal')).toBeInTheDocument();
-
-    requestAnimationFrameSpy.mockRestore();
   });
 });
