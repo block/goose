@@ -118,6 +118,7 @@ pub async fn delegate(
     let transport = agent_client_protocol::ByteStreams::new(send, recv);
     let collected = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
     let sink = collected.clone();
+    let replay_sink = collected.clone();
 
     Client
         .builder()
@@ -159,6 +160,10 @@ pub async fn delegate(
                     cx.send_request(LoadSessionRequest::new(session_id.clone(), cwd))
                         .block_task()
                         .await?;
+                    // Loading replays the session's history as message chunks,
+                    // which the notification handler collected. Discard them so
+                    // the result is only the new response to this task.
+                    replay_sink.lock().unwrap().clear();
                     cx.send_request(PromptRequest::new(session_id, vec![task.clone().into()]))
                         .block_task()
                         .await?;
