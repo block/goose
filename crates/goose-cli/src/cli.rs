@@ -1653,33 +1653,6 @@ struct ServeCommandArgs {
     roam: bool,
 }
 
-/// Roaming is an app-level service: every backend loads the same persisted
-/// identity, so only one process may advertise the endpoint at a time. An OS
-/// advisory lock decides ownership across all goose processes (desktop
-/// windows, CLI serves); it auto-releases when the owner dies — even on
-/// SIGKILL — so a standby can promote itself and paired devices keep access.
-#[cfg(feature = "roaming")]
-fn try_acquire_roam_lock() -> Result<std::fs::File> {
-    use fs2::FileExt as _;
-    use std::io::Write as _;
-
-    let lock_path = goose::config::paths::Paths::data_dir().join("roam/serve.lock");
-    if let Some(parent) = lock_path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(&lock_path)?;
-    file.try_lock_exclusive().map_err(|_| {
-        anyhow::anyhow!("another goose process is already running the roaming endpoint")
-    })?;
-    file.set_len(0)?;
-    writeln!(file, "{}", std::process::id())?;
-    Ok(file)
-}
-
 #[cfg(feature = "roaming")]
 type RoamShareSlot =
     std::sync::Arc<tokio::sync::RwLock<Option<std::sync::Arc<goose_roaming::RoamingNode>>>>;
@@ -1688,6 +1661,8 @@ type RoamShareSlot =
 fn spawn_roam_share(
     server: std::sync::Arc<goose::acp::server_factory::AcpServer>,
 ) -> RoamShareSlot {
+    use crate::commands::roam::try_acquire_roam_lock;
+
     let slot = RoamShareSlot::default();
     let task_slot = slot.clone();
     tokio::spawn(async move {
@@ -1738,7 +1713,7 @@ async fn start_roam_share(
     let identity = load_identity()?;
     let node = RoamingNode::bind(RoamingConfig {
         identity,
-        relay: resolve_relay_settings(),
+        relay: resolve_relay_settings()?,
         trust: TrustBook::new(),
         trust_path: Some(trust_path()),
         directory: goose_roaming::Directory::persistent(directory_path()),
