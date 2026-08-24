@@ -418,6 +418,18 @@ impl RoamingNode {
                         now_ms(),
                     )
                     .await;
+                // Balance the connect when the dialed connection closes for
+                // any reason (normal command teardown included), so the
+                // directory doesn't report the remote connected forever.
+                {
+                    let directory = self.directory.clone();
+                    let remote = conn.remote_id();
+                    let watched = conn.clone();
+                    tokio::spawn(async move {
+                        watched.closed().await;
+                        directory.record_disconnect(remote, now_ms()).await;
+                    });
+                }
                 Ok(RoamingClientStream {
                     agent_id,
                     conn,

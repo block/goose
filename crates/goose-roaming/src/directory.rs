@@ -124,11 +124,15 @@ impl Directory {
             .collect();
         for entry in map.values() {
             match merged.get(&entry.endpoint_id) {
-                // This process owns live connections with the peer, or has the
-                // fresher observation.
+                // Keep the on-disk entry unless this process owns live
+                // connections with the peer or has a strictly fresher
+                // observation. Equal timestamps mean this process merely
+                // loaded the entry and has nothing new to say — overwriting
+                // would clobber another process's live state with our stale
+                // snapshot.
                 Some(existing)
                     if entry.live_connections == 0
-                        && existing.last_seen_ms > entry.last_seen_ms => {}
+                        && existing.last_seen_ms >= entry.last_seen_ms => {}
                 _ => {
                     merged.insert(entry.endpoint_id.clone(), entry.clone());
                 }
