@@ -75,17 +75,25 @@ const DEFAULT_ROAM_RELAYS: &[&str] = &[
 /// Uses `GOOSE_ROAM_RELAYS` (env or config file) when set — optionally
 /// authenticated with the `GOOSE_ROAM_RELAY_TOKEN` secret applied to each —
 /// otherwise the default managed relays. Never iroh's public n0 relays.
-pub(crate) fn resolve_relay_settings() -> RelaySettings {
+///
+/// Fails when `GOOSE_ROAM_RELAYS` is set but unreadable: a deployment that
+/// configured private relays must not silently fall back to the managed ones.
+pub(crate) fn resolve_relay_settings() -> Result<RelaySettings> {
     let config = Config::global();
     let urls: Vec<String> = match config.get_param::<Vec<String>>(CONFIG_ROAM_RELAYS_KEY) {
         Ok(urls) => urls,
         Err(ConfigError::NotFound(_)) => Vec::new(),
-        Err(_) => Vec::new(),
+        Err(error) => {
+            return Err(anyhow::anyhow!(
+                "{CONFIG_ROAM_RELAYS_KEY} is set but could not be read as a list of relay \
+                 URLs; refusing to fall back to the default relays: {error}"
+            ))
+        }
     };
     let token = config
         .get_secret::<String>(CONFIG_ROAM_RELAY_TOKEN_KEY)
         .ok();
-    build_relay_settings(urls, token)
+    Ok(build_relay_settings(urls, token))
 }
 
 /// Pure relay-settings builder. With no configured URLs, use the default
@@ -304,7 +312,7 @@ async fn handle_id(qr: bool) -> Result<()> {
     let identity = load_identity()?;
     let node = RoamingNode::bind(RoamingConfig {
         identity,
-        relay: resolve_relay_settings(),
+        relay: resolve_relay_settings()?,
         trust: TrustBook::new(),
         trust_path: None,
         directory: Directory::new(),
@@ -338,7 +346,7 @@ async fn handle_pair(name: Option<String>) -> Result<()> {
     let identity = load_identity()?;
     let node = RoamingNode::bind(RoamingConfig {
         identity,
-        relay: resolve_relay_settings(),
+        relay: resolve_relay_settings()?,
         trust: TrustBook::new(),
         trust_path: None,
         directory: Directory::new(),
@@ -571,11 +579,42 @@ pub(crate) fn load_identity() -> Result<RoamingIdentity> {
     RoamingIdentity::load_or_create(&path).context("failed to load roaming identity")
 }
 
+/// Roaming is an app-level service: every backend loads the same persisted
+/// identity, so only one process may advertise the endpoint at a time. An OS
+/// advisory lock decides ownership across all goose processes (desktop
+/// windows, CLI serves, standalone shares); it auto-releases when the owner
+/// dies — even on SIGKILL — so a standby can promote itself and paired
+/// devices keep access.
+pub(crate) fn try_acquire_roam_lock() -> Result<std::fs::File> {
+    use fs2::FileExt as _;
+    use std::io::Write as _;
+
+    let lock_path = Paths::data_dir().join("roam/serve.lock");
+    if let Some(parent) = lock_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&lock_path)?;
+    file.try_lock_exclusive().map_err(|_| {
+        anyhow::anyhow!("another goose process is already running the roaming endpoint")
+    })?;
+    file.set_len(0)?;
+    writeln!(file, "{}", std::process::id())?;
+    Ok(file)
+}
+
 async fn handle_share(
     builtins: Vec<String>,
     cwd: Option<std::path::PathBuf>,
     qr: bool,
 ) -> Result<()> {
+    // Same app-level lock as `serve --roam`: both bind the one persisted
+    // identity, and two processes advertising the same endpoint ID would race
+    // for connections while hosting different working directories.
+    let _roam_lock = try_acquire_roam_lock()?;
     let identity = load_identity()?;
 
     // The hosted agent runs in `--cwd` or the directory `roam share` was started
@@ -607,7 +646,7 @@ async fn handle_share(
 
     let node = RoamingNode::bind(RoamingConfig {
         identity,
-        relay: resolve_relay_settings(),
+        relay: resolve_relay_settings()?,
         trust,
         // Re-read acceptance on each connection so `peers accept`/`revoke` from
         // another process take effect against this live share without restart.
@@ -682,10 +721,11 @@ async fn dial_target(
     let card = resolve_card(target)?;
     let node = RoamingNode::bind(RoamingConfig {
         identity: load_identity()?,
-        relay: resolve_relay_settings(),
+        relay: resolve_relay_settings()?,
         trust: TrustBook::new(),
         trust_path: None,
-        directory: Directory::new(),
+        // Persist outbound observations so `roam connections` can show them.
+        directory: Directory::persistent(directory_path()),
         bind_addr: None,
         relay_tls: None,
     })
