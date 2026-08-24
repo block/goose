@@ -36,6 +36,11 @@ pub struct PeerEntry {
     pub last_seen_ms: u64,
     /// Whether a session is currently active with this peer.
     pub connected: bool,
+    /// Live connections with this peer in the current process. Not persisted:
+    /// only the process owning the endpoint knows what is live, so a restart
+    /// starts from zero rather than trusting a stale flag from disk.
+    #[serde(skip)]
+    live_connections: u32,
 }
 
 /// A shared directory of peers, optionally persisted to disk so that a separate
@@ -59,7 +64,13 @@ impl Directory {
             .and_then(|bytes| serde_json::from_slice::<Vec<PeerEntry>>(&bytes).ok())
             .unwrap_or_default()
             .into_iter()
-            .map(|e| (e.endpoint_id.clone(), e))
+            .map(|mut e| {
+                // A persisted `connected` flag outlives the process that owned
+                // the connection (crash, SIGKILL, reboot). Only this process's
+                // own observations may claim a peer is live.
+                e.connected = false;
+                (e.endpoint_id.clone(), e)
+            })
             .collect::<HashMap<_, _>>();
         Self {
             inner: Arc::new(Mutex::new(entries)),
@@ -104,6 +115,7 @@ impl Directory {
             .and_modify(|e| {
                 e.last_seen_ms = now_ms;
                 e.connected = true;
+                e.live_connections = e.live_connections.saturating_add(1);
                 if label.is_some() {
                     e.label = label.clone();
                 }
@@ -119,16 +131,20 @@ impl Directory {
                 first_seen_ms: now_ms,
                 last_seen_ms: now_ms,
                 connected: true,
+                live_connections: 1,
             });
         self.flush(&map).await;
     }
 
-    /// Record that a connection with a peer has ended.
+    /// Record that a connection with a peer has ended. The peer is only marked
+    /// disconnected when its *last* live connection ends; a peer with several
+    /// simultaneous sessions stays `connected` until all of them close.
     pub(crate) async fn record_disconnect(&self, endpoint_id: EndpointId, now_ms: u64) {
         let key = endpoint_id.to_string();
         let mut map = self.inner.lock().await;
         if let Some(entry) = map.get_mut(&key) {
-            entry.connected = false;
+            entry.live_connections = entry.live_connections.saturating_sub(1);
+            entry.connected = entry.live_connections > 0;
             entry.last_seen_ms = now_ms;
         }
         self.flush(&map).await;
