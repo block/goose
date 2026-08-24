@@ -2,6 +2,7 @@ use super::api_client::ApiClient;
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata};
 use super::retry::ProviderRetry;
 use crate::api_client::{AuthMethod, TlsConfig};
+use crate::canonical::{maybe_get_canonical_model, recommended_models_from_registry};
 use crate::conversation::message::Message;
 use crate::conversation::token_usage::{CostSource, ProviderUsage};
 use crate::declarative::{DeclarativeProviderConfig, KeyResolver};
@@ -40,6 +41,8 @@ const OPEN_AI_DEFAULT_RESPONSES_PATH: &str = "v1/responses";
 const OPEN_AI_DEFAULT_MODELS_PATH: &str = "v1/models";
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
 pub const OPEN_AI_DEFAULT_FAST_MODEL: &str = "gpt-4o-mini";
+
+// Fallback only, used if the bundled canonical registry fails to load.
 pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
     ("gpt-4o", 128_000),
     ("gpt-4o-mini", 128_000),
@@ -73,6 +76,9 @@ pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
     ("gpt-5.6-terra", 1_050_000),
     ("gpt-5.6-luna", 1_050_000),
 ];
+
+// Deprecated by OpenAI, absent from the canonical registry; kept so existing configs don't lose it.
+const OPEN_AI_LEGACY_MODELS: &[(&str, usize)] = &[("gpt-3.5-turbo", 16_385)];
 
 pub const OPEN_AI_DOC_URL: &str = "https://platform.openai.com/docs/models";
 const DEFAULT_TIMEOUT_SECONDS: u64 = 600;
@@ -630,12 +636,39 @@ fn parse_n_ctx_from_models(json: &serde_json::Value, model_name: &str) -> Option
     }
 }
 
-impl ProviderDescriptor for OpenAiProvider {
-    fn metadata() -> ProviderMetadata {
-        let models = OPEN_AI_KNOWN_MODELS
+// Builds the picker list from the bundled canonical registry so it stays in
+// sync automatically, falling back to OPEN_AI_KNOWN_MODELS if the registry
+// fails to load. The hand-maintained list previously backed metadata()
+// directly and had silently drifted (missing gpt-4, gpt-5.2-chat,
+// gpt-5.3-chat, gpt-5.3-codex-spark, gpt-realtime-2.1).
+fn openai_model_list() -> Vec<ModelInfo> {
+    let registry_names = recommended_models_from_registry(OPEN_AI_PROVIDER_NAME);
+    if registry_names.is_empty() {
+        return OPEN_AI_KNOWN_MODELS
             .iter()
             .map(|(name, limit)| ModelInfo::new(*name, *limit))
             .collect();
+    }
+
+    registry_names
+        .into_iter()
+        .map(|name| {
+            let context_limit = maybe_get_canonical_model(OPEN_AI_PROVIDER_NAME, &name)
+                .map(|canonical| canonical.limit.context)
+                .unwrap_or(128_000);
+            ModelInfo::new(name, context_limit)
+        })
+        .chain(
+            OPEN_AI_LEGACY_MODELS
+                .iter()
+                .map(|(name, limit)| ModelInfo::new(*name, *limit)),
+        )
+        .collect()
+}
+
+impl ProviderDescriptor for OpenAiProvider {
+    fn metadata() -> ProviderMetadata {
+        let models = openai_model_list();
         ProviderMetadata::with_models(
             OPEN_AI_PROVIDER_NAME,
             "OpenAI",
@@ -1781,5 +1814,27 @@ mod tests {
         assert_eq!(payload["stream"], json!(true));
         assert_eq!(payload["stream_options"], json!({"include_usage": true}));
         assert_eq!(payload["messages"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn metadata_includes_models_missing_from_the_hardcoded_list() {
+        // Regression guard: OPEN_AI_KNOWN_MODELS had silently drifted, missing
+        // gpt-5.2-chat, gpt-5.3-chat, and gpt-5.3-codex-spark.
+        let metadata = OpenAiProvider::metadata();
+        for name in ["gpt-5.2-chat", "gpt-5.3-chat", "gpt-5.3-codex-spark"] {
+            assert!(
+                metadata.known_models.iter().any(|m| m.name == name),
+                "expected {name} to be in the registry-derived list"
+            );
+        }
+    }
+
+    #[test]
+    fn metadata_includes_legacy_model_with_no_registry_counterpart() {
+        let metadata = OpenAiProvider::metadata();
+        assert!(metadata
+            .known_models
+            .iter()
+            .any(|m| m.name == "gpt-3.5-turbo"));
     }
 }
