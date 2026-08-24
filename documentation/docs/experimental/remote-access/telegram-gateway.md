@@ -37,7 +37,7 @@ Keep your bot token secure. Anyone with the token can control your bot.
 
 ## Setup
 
-The Telegram Gateway is currently available through the goose CLI, not goose Desktop. No feature flag is required.
+Use the goose CLI to start the gateway and pair your Telegram account.
 
 ### Start the Gateway
 
