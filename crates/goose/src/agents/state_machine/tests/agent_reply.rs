@@ -19,7 +19,6 @@ use crate::acp::server::GooseAcpAgent;
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::mcp_client::McpClientTrait;
 use crate::agents::{Agent, AgentConfig, AgentEvent, GoosePlatform, SessionConfig};
-use crate::config::permission::PermissionManager;
 use crate::config::GooseMode;
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent};
 use crate::permission::Permission;
@@ -518,9 +517,15 @@ async fn assert_bang_shell_uses_only_user_visible_content() -> Result<()> {
 }
 
 #[tokio::test]
-async fn bang_shell_visibility_is_enforced_when_state_machine_is_disabled() -> Result<()> {
+async fn bang_shell_not_executed_in_legacy_loop() -> Result<()> {
     let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", None::<&str>)]);
-    assert_bang_shell_uses_only_user_visible_content().await
+    let (agent, api, session_id, _temp_dir) = agent_with_dummy_api().await?;
+    api.on("!echo hello").reply("treated as text");
+    let messages =
+        reply_messages(&agent, session_id, Message::user().with_text("!echo hello")).await?;
+    assert!(shell_commands(&messages).is_empty());
+    assert_eq!(api.call_count(), 1);
+    Ok(())
 }
 
 #[tokio::test]
