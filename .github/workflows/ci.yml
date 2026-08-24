@@ -137,6 +137,37 @@ jobs:
           RUST_MIN_STACK: 8388608
 
 
+  rust-build-and-test-roaming:
+    name: Build and Test Roaming Feature
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
+
+      - name: Cache Cargo artifacts
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6  # v2.9.2
+        with:
+          key: roaming
+
+      - name: Build and Test with roaming
+        run: |
+          gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
+          export CARGO_INCREMENTAL=0
+          cargo test -p goose-roaming
+          cargo build -p goose-cli --features roaming
+          cargo test -p goose-cli --features roaming --test roam_acp_client
+        env:
+          RUST_MIN_STACK: 8388608
+
   rust-build-windows:
     name: Build Rust Project on Windows
     runs-on: windows-latest

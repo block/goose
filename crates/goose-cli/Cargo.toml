@@ -102,7 +102,6 @@ default = [
     "rustls-tls",
     "system-keyring",
     "update",
-    "roaming",
 ]
 roaming = ["dep:goose-roaming", "dep:qrcode", "dep:fs2"]
 code-mode = ["goose/code-mode"]
