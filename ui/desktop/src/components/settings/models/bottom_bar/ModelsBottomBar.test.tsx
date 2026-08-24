@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, type RenderOptions, screen } from '@testing-library/react';
+import { act, fireEvent, render, type RenderOptions, screen } from '@testing-library/react';
 import ModelsBottomBar from './ModelsBottomBar';
 import { IntlTestWrapper } from '../../../../i18n/test-utils';
 
@@ -41,10 +41,34 @@ vi.mock('../../../bottom_menu/BottomMenuAlertPopover', () => ({
 }));
 
 vi.mock('../../../ui/dropdown-menu', () => ({
-  DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenu: ({
+    children,
+    open,
+    onOpenChange,
+  }: {
+    children: React.ReactNode;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  }) => (
+    <div data-testid="model-menu" data-open={open}>
+      <button onClick={() => onOpenChange(true)}>Open model menu</button>
+      {children}
+    </div>
+  ),
   DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DropdownMenuItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({
+    children,
+    onSelect,
+  }: {
+    children: React.ReactNode;
+    onSelect?: () => void;
+  }) => <button onClick={onSelect}>{children}</button>,
+  DropdownMenuSeparator: () => null,
+}));
+
+vi.mock('../subcomponents/SwitchModelModal', () => ({
+  SwitchModelModal: () => <div data-testid="switch-model-modal" />,
 }));
 
 vi.mock('../../localInference/ModelSettingsPanel', () => ({
@@ -106,5 +130,39 @@ describe('ModelsBottomBar', () => {
 
     expect(screen.getByText('config-model')).toBeInTheDocument();
     expect(screen.queryByTestId('model-loading-state')).not.toBeInTheDocument();
+  });
+
+  it('closes the model menu before mounting the switch-model dialog', () => {
+    let scheduledFrame: FrameRequestCallback | undefined;
+    const requestAnimationFrameSpy = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback) => {
+        scheduledFrame = callback;
+        return 1;
+      });
+
+    renderWithIntl(
+      <ModelsBottomBar
+        sessionId="session-123"
+        dropdownRef={createDropdownRef()}
+        setView={vi.fn()}
+        sessionModel="session-model"
+        sessionProvider="session-provider"
+        onModelChanged={mockOnModelChanged}
+        sessionLoaded={true}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open model menu' }));
+    expect(screen.getByTestId('model-menu')).toHaveAttribute('data-open', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change Model' }));
+    expect(screen.getByTestId('model-menu')).toHaveAttribute('data-open', 'false');
+    expect(screen.queryByTestId('switch-model-modal')).not.toBeInTheDocument();
+
+    act(() => scheduledFrame?.(0));
+    expect(screen.getByTestId('switch-model-modal')).toBeInTheDocument();
+
+    requestAnimationFrameSpy.mockRestore();
   });
 });
