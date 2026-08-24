@@ -7,7 +7,7 @@ use agent_client_protocol::schema::v1::{
     SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOption,
     SessionConfigSelectOptions, SessionId, SessionModeState, SessionNotification, SessionUpdate,
     SetSessionConfigOptionRequest, SetSessionModeRequest, SetSessionModeResponse, StopReason,
-    TextContent, ToolCallContent, ToolCallStatus, ToolKind,
+    TextContent, ToolCall, ToolCallContent, ToolCallStatus, ToolCallUpdate, ToolKind,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
@@ -187,12 +187,195 @@ fn provider_error_from_acp(error: agent_client_protocol::Error) -> ProviderError
     }
 }
 
+/// A `tool_call` whose emission is deferred until a refining `tool_call_update`
+/// supplies the title and input the initial notification lacked.
+#[derive(Debug, Clone)]
+struct PendingToolCallStart {
+    title: String,
+    kind: ToolKind,
+    raw_input: Option<serde_json::Value>,
+    /// Arrival order, so held starts are released in the order the agent
+    /// announced them rather than in `HashMap` iteration order.
+    seq: u64,
+}
+
+static PENDING_TOOL_CALL_SEQ: AtomicU64 = AtomicU64::new(0);
+
+impl PendingToolCallStart {
+    fn new(title: String, kind: ToolKind, raw_input: Option<serde_json::Value>) -> Self {
+        Self {
+            title,
+            kind,
+            raw_input,
+            seq: PENDING_TOOL_CALL_SEQ.fetch_add(1, Ordering::Relaxed),
+        }
+    }
+
+    fn into_update(self, id: String) -> AcpUpdate {
+        AcpUpdate::ToolCallStart {
+            id,
+            name: self.title,
+            kind: self.kind,
+            raw_input: self.raw_input,
+        }
+    }
+}
+
 /// Per-tool-call buffer for accumulating ACP ToolCallUpdate fields across
 /// non-terminal updates, drained on the terminal status update.
 #[derive(Debug, Default)]
 struct AccumulatedToolCall {
     raw_output: Option<serde_json::Value>,
     content: Vec<ToolCallContent>,
+    pending_start: Option<PendingToolCallStart>,
+}
+
+/// Whether an ACP `raw_input` carries arguments we can actually show. Agents that
+/// stream tool input send the first `tool_call` with the input still empty, so an
+/// absent or empty object means the call has nothing to display yet.
+fn has_usable_raw_input(raw_input: Option<&serde_json::Value>) -> bool {
+    match raw_input {
+        Some(serde_json::Value::Object(map)) => !map.is_empty(),
+        Some(_) => true,
+        None => false,
+    }
+}
+
+/// Takes every tool-call start still waiting for a refinement, oldest first, so
+/// they are released in the order the agent announced them.
+fn take_pending_tool_call_starts(
+    pending_tool_updates: &Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
+) -> Vec<(String, PendingToolCallStart)> {
+    let mut ready: Vec<(String, PendingToolCallStart)> = Vec::new();
+    if let Ok(mut buffer) = pending_tool_updates.lock() {
+        for (id, entry) in buffer.iter_mut() {
+            if let Some(start) = entry.pending_start.take() {
+                ready.push((id.clone(), start));
+            }
+        }
+    }
+    ready.sort_by_key(|(_, start)| start.seq);
+    ready
+}
+
+/// Emits any tool-call starts still waiting for a refinement.
+///
+/// A held start is released as soon as anything else would be shown, so deferring
+/// it can only ever reorder a call against its own refinement — never against the
+/// surrounding message stream, and never past the end of the turn.
+fn flush_pending_tool_call_starts(
+    pending_tool_updates: &Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
+    tx: &mpsc::Sender<AcpUpdate>,
+) {
+    for (id, start) in take_pending_tool_call_starts(pending_tool_updates) {
+        let _ = tx.try_send(start.into_update(id));
+    }
+}
+
+fn tool_call_complete(
+    id: String,
+    accumulated: AccumulatedToolCall,
+    status: ToolCallStatus,
+) -> AcpUpdate {
+    AcpUpdate::ToolCallComplete {
+        id,
+        raw_output: accumulated.raw_output,
+        content: Some(accumulated.content).filter(|c| !c.is_empty()),
+        is_error: matches!(status, ToolCallStatus::Failed),
+    }
+}
+
+/// Translates an ACP `tool_call` into the updates to forward.
+///
+/// Agents that stream tool input announce the call before the input exists, then
+/// refine it with a `tool_call_update` carrying the real title and `rawInput`.
+/// Emitting now would paint a call with no command that can never be corrected:
+/// this notification creates the tool request downstream consumers key on by id,
+/// so a later refinement has nowhere to land. Hold the start for the refinement
+/// instead — it follows within milliseconds.
+fn updates_for_acp_tool_call(
+    buffer: &mut HashMap<String, AccumulatedToolCall>,
+    tool_call: &ToolCall,
+) -> Vec<AcpUpdate> {
+    let id = tool_call.tool_call_id.0.to_string();
+    let status = tool_call.status;
+    let synchronous_terminal = matches!(status, ToolCallStatus::Completed | ToolCallStatus::Failed);
+    let defer_start = !synchronous_terminal && !has_usable_raw_input(tool_call.raw_input.as_ref());
+
+    let entry = buffer.entry(id.clone()).or_default();
+    if let Some(raw_output) = tool_call.raw_output.clone() {
+        entry.raw_output = Some(raw_output);
+    }
+    entry.content.extend(tool_call.content.clone());
+    if defer_start {
+        entry.pending_start = Some(PendingToolCallStart::new(
+            tool_call.title.clone(),
+            tool_call.kind,
+            tool_call.raw_input.clone(),
+        ));
+        return Vec::new();
+    }
+
+    let mut updates = vec![AcpUpdate::ToolCallStart {
+        id: id.clone(),
+        name: tool_call.title.clone(),
+        kind: tool_call.kind,
+        raw_input: tool_call.raw_input.clone(),
+    }];
+    // Drain immediately if the call is already terminal (synchronous tool, no follow-up).
+    if synchronous_terminal {
+        if let Some(accumulated) = buffer.remove(&id) {
+            updates.push(tool_call_complete(id, accumulated, status));
+        }
+    }
+    updates
+}
+
+/// Translates an ACP `tool_call_update` into the updates to forward, merging
+/// patch-like fields into the buffered call.
+fn updates_for_acp_tool_call_update(
+    buffer: &mut HashMap<String, AccumulatedToolCall>,
+    update: &ToolCallUpdate,
+) -> Vec<AcpUpdate> {
+    let id = update.tool_call_id.0.to_string();
+    let terminal_status = update
+        .fields
+        .status
+        .filter(|s| matches!(s, ToolCallStatus::Completed | ToolCallStatus::Failed));
+
+    let entry = buffer.entry(id.clone()).or_default();
+    if let Some(raw_output) = update.fields.raw_output.clone() {
+        entry.raw_output = Some(raw_output);
+    }
+    if let Some(content) = update.fields.content.clone() {
+        entry.content.extend(content);
+    }
+    // Fold the refinement into the held start: this is the title and input the
+    // initial notification lacked.
+    if let Some(pending) = entry.pending_start.as_mut() {
+        if let Some(title) = update.fields.title.clone() {
+            pending.title = title;
+        }
+        if let Some(kind) = update.fields.kind {
+            pending.kind = kind;
+        }
+        if let Some(raw_input) = update.fields.raw_input.clone() {
+            pending.raw_input = Some(raw_input);
+        }
+    }
+    // Release on the first update regardless of what it carried. Waiting for a
+    // refinement that may never come would strand the call, and the placeholder
+    // we'd emit is no worse than emitting it at `tool_call` time.
+    let mut updates = Vec::new();
+    if let Some(start) = entry.pending_start.take() {
+        updates.push(start.into_update(id.clone()));
+    }
+    if let Some(status) = terminal_status {
+        if let Some(accumulated) = buffer.remove(&id) {
+            updates.push(tool_call_complete(id, accumulated, status));
+        }
+    }
+    updates
 }
 
 /// The single ACP session backing this provider instance.
@@ -900,6 +1083,7 @@ impl Provider for AcpProvider {
             bare_retry_blocks.map(|blocks| (self.tx.as_ref().unwrap().clone(), session_id, blocks));
 
         let pending_confirmations = self.pending_confirmations.clone();
+        let pending_tool_updates = self.pending_tool_updates.clone();
         let goose_mode = *self
             .goose_mode
             .lock()
@@ -946,25 +1130,7 @@ impl Provider for AcpProvider {
                             suppress_text = true;
                             rejected_tool_calls.insert(id);
                         } else {
-                            let mut params = CallToolRequestParams::new(name);
-                            if let Some(serde_json::Value::Object(map)) = raw_input {
-                                params = params.with_arguments(map);
-                            }
-                            // external_dispatch tells the agent loop not to redispatch this
-                            // call. goose.acp.kind preserves ACP's stable categorization for
-                            // downstream consumers (metrics, observability, icon selection)
-                            // independent of the display title we put in `name`.
-                            let tool_meta = Some(serde_json::json!({
-                                TOOL_META_EXTERNAL_DISPATCH_KEY: true,
-                                "goose.acp.kind": kind,
-                            }));
-                            let message = Message::assistant().with_tool_request_with_metadata(
-                                id,
-                                Ok(params),
-                                None,
-                                tool_meta,
-                            );
-                            yield (Some(message), None);
+                            yield (Some(acp_tool_request_message(id, name, kind, raw_input)), None);
                         }
                     }
                     AcpUpdate::ToolCallComplete {
@@ -1041,6 +1207,22 @@ impl Provider for AcpProvider {
                         let _ = response_tx.send(map_permission_response(&request, decision));
                     }
                     AcpUpdate::Complete(reason, usage) => {
+                        // A turn that ends right after announcing a tool call leaves its start
+                        // held with no refinement coming. Emit it rather than dropping the call
+                        // entirely, so a cancelled turn still shows what it had started.
+                        if !reject_all_tools {
+                            for (id, start) in take_pending_tool_call_starts(&pending_tool_updates) {
+                                yield (
+                                    Some(acp_tool_request_message(
+                                        id,
+                                        start.title,
+                                        start.kind,
+                                        start.raw_input,
+                                    )),
+                                    None,
+                                );
+                            }
+                        }
                         // Prefer retrying context over silently losing it. A harness may have
                         // ingested the memo before cancelling or refusing, so a retry can duplicate
                         // it, but treating an unprocessed handoff as delivered is unrecoverable.
@@ -1270,108 +1452,36 @@ impl AcpClientLoop {
                                     content: ContentBlock::Text(text),
                                     ..
                                 }) => {
+                                    flush_pending_tool_call_starts(&pending_tool_updates, tx);
                                     let _ = tx.try_send(AcpUpdate::Text(text));
                                 }
                                 SessionUpdate::AgentThoughtChunk(ContentChunk {
                                     content: ContentBlock::Text(TextContent { text, .. }),
                                     ..
                                 }) => {
+                                    flush_pending_tool_call_starts(&pending_tool_updates, tx);
                                     let _ = tx.try_send(AcpUpdate::Thought(text));
                                 }
                                 SessionUpdate::ToolCall(tool_call) => {
-                                    let id = tool_call.tool_call_id.0.to_string();
-                                    let initial_status = tool_call.status;
-                                    let synchronous_terminal = matches!(
-                                        initial_status,
-                                        ToolCallStatus::Completed | ToolCallStatus::Failed
-                                    );
-                                    // Seed the buffer; drain immediately if the call is
-                                    // already terminal (synchronous tool, no follow-up).
-                                    let synchronous_accumulated =
-                                        if let Ok(mut buffer) = pending_tool_updates.lock() {
-                                            let entry = buffer.entry(id.clone()).or_default();
-                                            if let Some(raw_output) = tool_call.raw_output.clone() {
-                                                entry.raw_output = Some(raw_output);
-                                            }
-                                            entry.content.extend(tool_call.content.clone());
-                                            if synchronous_terminal {
-                                                buffer.remove(&id)
-                                            } else {
-                                                None
-                                            }
-                                        } else {
-                                            None
-                                        };
-                                    // ACP carries no canonical tool name to clients — only
-                                    // `title` (display) and `kind` (category). We pass `title`
-                                    // for renderer affordance, surface `kind` separately via
-                                    // tool_meta for stable categorization, and the
-                                    // goose.external_dispatch marker keeps `name` off the
-                                    // agent loop's routing/auth paths.
-                                    let _ = tx.try_send(AcpUpdate::ToolCallStart {
-                                        id: id.clone(),
-                                        name: tool_call.title.clone(),
-                                        kind: tool_call.kind,
-                                        raw_input: tool_call.raw_input.clone(),
-                                    });
-                                    if let Some(accumulated) = synchronous_accumulated {
-                                        let content = if accumulated.content.is_empty() {
-                                            None
-                                        } else {
-                                            Some(accumulated.content)
-                                        };
-                                        let _ = tx.try_send(AcpUpdate::ToolCallComplete {
-                                            id,
-                                            raw_output: accumulated.raw_output,
-                                            content,
-                                            is_error: matches!(
-                                                initial_status,
-                                                ToolCallStatus::Failed
-                                            ),
-                                        });
+                                    let updates = match pending_tool_updates.lock() {
+                                        Ok(mut buffer) => {
+                                            updates_for_acp_tool_call(&mut buffer, &tool_call)
+                                        }
+                                        Err(_) => Vec::new(),
+                                    };
+                                    for update in updates {
+                                        let _ = tx.try_send(update);
                                     }
                                 }
                                 SessionUpdate::ToolCallUpdate(update) => {
-                                    let id = update.tool_call_id.0.to_string();
-                                    // Merge patch-like fields; only emit on terminal status.
-                                    let terminal_status = update.fields.status.filter(|s| {
-                                        matches!(
-                                            s,
-                                            ToolCallStatus::Completed | ToolCallStatus::Failed
-                                        )
-                                    });
-                                    let accumulated = if let Ok(mut buffer) =
-                                        pending_tool_updates.lock()
-                                    {
-                                        let entry = buffer.entry(id.clone()).or_default();
-                                        if let Some(raw_output) = update.fields.raw_output.clone() {
-                                            entry.raw_output = Some(raw_output);
+                                    let updates = match pending_tool_updates.lock() {
+                                        Ok(mut buffer) => {
+                                            updates_for_acp_tool_call_update(&mut buffer, &update)
                                         }
-                                        if let Some(content) = update.fields.content.clone() {
-                                            entry.content.extend(content);
-                                        }
-                                        if terminal_status.is_some() {
-                                            buffer.remove(&id)
-                                        } else {
-                                            None
-                                        }
-                                    } else {
-                                        None
+                                        Err(_) => Vec::new(),
                                     };
-                                    if let (Some(accumulated), Some(status)) =
-                                        (accumulated, terminal_status)
-                                    {
-                                        let content = if accumulated.content.is_empty() {
-                                            None
-                                        } else {
-                                            Some(accumulated.content)
-                                        };
-                                        let _ = tx.try_send(AcpUpdate::ToolCallComplete {
-                                            id,
-                                            raw_output: accumulated.raw_output,
-                                            content,
-                                            is_error: matches!(status, ToolCallStatus::Failed),
-                                        });
+                                    for update in updates {
+                                        let _ = tx.try_send(update);
                                     }
                                 }
                                 _ => {}
@@ -2030,6 +2140,30 @@ fn acp_text_update_message(text: TextContent, id: String, created: i64) -> Messa
         .with_id(id)
 }
 
+/// Builds the synthesized `ToolRequest` message for an ACP tool call.
+///
+/// ACP carries no canonical tool name to clients — only `title` (display) and
+/// `kind` (category). We pass `title` as the name for renderer affordance and
+/// surface `kind` separately via tool_meta for stable categorization, while the
+/// `external_dispatch` marker tells the agent loop not to redispatch this call
+/// and keeps `name` off its routing/auth paths.
+fn acp_tool_request_message(
+    id: String,
+    name: String,
+    kind: ToolKind,
+    raw_input: Option<serde_json::Value>,
+) -> Message {
+    let mut params = CallToolRequestParams::new(name);
+    if let Some(serde_json::Value::Object(map)) = raw_input {
+        params = params.with_arguments(map);
+    }
+    let tool_meta = Some(serde_json::json!({
+        TOOL_META_EXTERNAL_DISPATCH_KEY: true,
+        "goose.acp.kind": kind,
+    }));
+    Message::assistant().with_tool_request_with_metadata(id, Ok(params), None, tool_meta)
+}
+
 /// Convert ACP `ToolCallContent` blocks into the rmcp `Content` shape goose's
 /// `Message::with_tool_response` consumes. Handles `Content` (text/image/other),
 /// `Diff`, and `Terminal` variants; falls back to a JSON serialization of
@@ -2367,7 +2501,7 @@ mod tests {
     use crate::agents::extension::Envs;
     use agent_client_protocol::schema::v1::{
         ConfigOptionUpdate, ErrorCode, SessionConfigSelectGroup, SessionConfigSelectOption,
-        SessionMode, SessionModeId,
+        SessionMode, SessionModeId, ToolCallUpdateFields,
     };
 
     use test_case::test_case;
@@ -4624,6 +4758,170 @@ mod tests {
             serialized.contains("key"),
             "fallback raw_output lost: {serialized}"
         );
+    }
+
+    /// Regression coverage for agents that stream tool input (e.g. claude-acp):
+    /// the first `tool_call` has no `rawInput` and a placeholder title, and the
+    /// real command only arrives in a refining `tool_call_update`.
+    mod streamed_tool_input_refinement {
+        use super::*;
+
+        fn start_fields(update: &AcpUpdate) -> (&str, &str, Option<&serde_json::Value>) {
+            match update {
+                AcpUpdate::ToolCallStart {
+                    id,
+                    name,
+                    raw_input,
+                    ..
+                } => (id.as_str(), name.as_str(), raw_input.as_ref()),
+                other => panic!("expected ToolCallStart, got {other:?}"),
+            }
+        }
+
+        #[test]
+        fn initial_call_without_input_is_held_for_its_refinement() {
+            let mut buffer = HashMap::new();
+            let tool_call = ToolCall::new("call-1", "Terminal").kind(ToolKind::Execute);
+
+            let updates = updates_for_acp_tool_call(&mut buffer, &tool_call);
+
+            assert!(
+                updates.is_empty(),
+                "a call with no input yet must not paint an untitled tool call: {updates:?}"
+            );
+            assert!(buffer["call-1"].pending_start.is_some());
+        }
+
+        #[test]
+        fn refinement_supplies_the_title_and_command() {
+            let mut buffer = HashMap::new();
+            updates_for_acp_tool_call(
+                &mut buffer,
+                &ToolCall::new("call-1", "Terminal").kind(ToolKind::Execute),
+            );
+
+            let refinement = ToolCallUpdate::new(
+                "call-1",
+                ToolCallUpdateFields::new()
+                    .title("cargo build".to_string())
+                    .raw_input(serde_json::json!({ "command": "cargo build" })),
+            );
+            let updates = updates_for_acp_tool_call_update(&mut buffer, &refinement);
+
+            assert_eq!(updates.len(), 1, "expected only the refined start");
+            let (id, name, raw_input) = start_fields(&updates[0]);
+            assert_eq!(id, "call-1");
+            assert_eq!(name, "cargo build");
+            assert_eq!(
+                raw_input,
+                Some(&serde_json::json!({ "command": "cargo build" })),
+                "the command must reach the renderer while the call is still running"
+            );
+        }
+
+        #[test]
+        fn call_that_already_carries_input_is_emitted_immediately() {
+            let mut buffer = HashMap::new();
+            let tool_call = ToolCall::new("call-1", "Read file")
+                .kind(ToolKind::Read)
+                .raw_input(serde_json::json!({ "path": "README.md" }));
+
+            let updates = updates_for_acp_tool_call(&mut buffer, &tool_call);
+
+            assert_eq!(updates.len(), 1, "conformant agents must not be delayed");
+            let (_, name, raw_input) = start_fields(&updates[0]);
+            assert_eq!(name, "Read file");
+            assert_eq!(raw_input, Some(&serde_json::json!({ "path": "README.md" })));
+            assert!(buffer["call-1"].pending_start.is_none());
+        }
+
+        #[test]
+        fn synchronous_terminal_call_still_emits_start_then_completion() {
+            let mut buffer = HashMap::new();
+            let tool_call = ToolCall::new("call-1", "Fetch")
+                .status(ToolCallStatus::Completed)
+                .raw_output(serde_json::json!({ "ok": true }));
+
+            let updates = updates_for_acp_tool_call(&mut buffer, &tool_call);
+
+            assert_eq!(updates.len(), 2);
+            start_fields(&updates[0]);
+            assert!(matches!(
+                updates[1],
+                AcpUpdate::ToolCallComplete {
+                    is_error: false,
+                    ..
+                }
+            ));
+            assert!(buffer.is_empty(), "terminal call must not stay buffered");
+        }
+
+        #[test]
+        fn a_held_start_is_released_before_its_completion() {
+            let mut buffer = HashMap::new();
+            updates_for_acp_tool_call(&mut buffer, &ToolCall::new("call-1", "Terminal"));
+
+            let terminal = ToolCallUpdate::new(
+                "call-1",
+                ToolCallUpdateFields::new()
+                    .status(ToolCallStatus::Completed)
+                    .title("cargo build".to_string())
+                    .raw_output(serde_json::json!("done")),
+            );
+            let updates = updates_for_acp_tool_call_update(&mut buffer, &terminal);
+
+            assert_eq!(
+                updates.len(),
+                2,
+                "a call that completes without a separate refinement must still be reported"
+            );
+            assert_eq!(start_fields(&updates[0]).1, "cargo build");
+            assert!(matches!(updates[1], AcpUpdate::ToolCallComplete { .. }));
+            assert!(buffer.is_empty());
+        }
+
+        #[test]
+        fn a_refinement_carrying_nothing_still_releases_the_placeholder() {
+            let mut buffer = HashMap::new();
+            updates_for_acp_tool_call(&mut buffer, &ToolCall::new("call-1", "Terminal"));
+
+            let updates = updates_for_acp_tool_call_update(
+                &mut buffer,
+                &ToolCallUpdate::new("call-1", ToolCallUpdateFields::new()),
+            );
+
+            assert_eq!(updates.len(), 1, "the call must not be stranded");
+            assert_eq!(start_fields(&updates[0]).1, "Terminal");
+        }
+
+        #[test]
+        fn held_starts_flush_in_announcement_order() {
+            let pending: Arc<Mutex<HashMap<String, AccumulatedToolCall>>> =
+                Arc::new(Mutex::new(HashMap::new()));
+            {
+                let mut buffer = pending.lock().unwrap();
+                for id in ["call-1", "call-2", "call-3"] {
+                    updates_for_acp_tool_call(&mut buffer, &ToolCall::new(id, "Terminal"));
+                }
+            }
+
+            let flushed = take_pending_tool_call_starts(&pending);
+
+            let ids: Vec<&str> = flushed.iter().map(|(id, _)| id.as_str()).collect();
+            assert_eq!(ids, ["call-1", "call-2", "call-3"]);
+            assert!(pending
+                .lock()
+                .unwrap()
+                .values()
+                .all(|entry| entry.pending_start.is_none()));
+        }
+    }
+
+    #[test]
+    fn empty_raw_input_is_not_usable_input() {
+        assert!(!has_usable_raw_input(None));
+        assert!(!has_usable_raw_input(Some(&serde_json::json!({}))));
+        assert!(has_usable_raw_input(Some(&serde_json::json!({ "a": 1 }))));
     }
 
     /// Pins the tool_meta shape that the `AcpUpdate::ToolCallStart` consumer
