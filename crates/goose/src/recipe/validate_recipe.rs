@@ -458,6 +458,12 @@ parameters:
     }
 
     #[test]
+    fn scheduling_rejects_duplicate_fields_like_runtime_load() {
+        let error = scheduling_error("title: First\ntitle: Second\ndescription: hi\nprompt: Run\n");
+        assert_eq!(error.to_string(), "Invalid YAML recipe");
+    }
+
+    #[test]
     fn scheduling_sanitizes_value_echoing_conversion_errors() {
         let error = scheduling_error("missing field yaml-secret-242\n");
         assert_eq!(error.to_string(), "Invalid YAML recipe");
