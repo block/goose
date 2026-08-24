@@ -1,11 +1,14 @@
 use crate::api_client::{ApiClient, AuthMethod};
 use crate::base::MessageStream;
+use crate::canonical::recommended_models_from_registry;
 use crate::conversation::message::Message;
 use crate::errors::ProviderError;
 use crate::openai_compatible::{handle_status, map_http_error_to_provider_error, sanitize_url};
 use crate::retry::ProviderRetry;
 
-use crate::base::{ConfigKey, Provider, ProviderMetadata};
+use crate::base::{
+    model_info_for_provider_model, ConfigKey, ModelInfo, Provider, ProviderMetadata,
+};
 use crate::formats::google::{create_request_with_thinking_budget, response_to_streaming_message};
 use crate::model::ModelConfig;
 use crate::request_log::{start_log, LoggerHandleExt};
@@ -25,33 +28,50 @@ pub const GOOGLE_PROVIDER_NAME: &str = "google";
 pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
 pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.5-pro";
 pub const GOOGLE_DEFAULT_FAST_MODEL: &str = "gemini-2.5-flash";
+// Fallback only, used if the bundled canonical registry fails to load.
 pub const GOOGLE_KNOWN_MODELS: &[&str] = &[
     "gemini-3.6-flash",
     "gemini-3.5-flash",
     "gemini-3.5-flash-lite",
-    // Gemini 3 models
     "gemini-3-pro-preview",
     "gemini-3-pro-image-preview",
-    // Gemini 2.5 Pro models
     "gemini-2.5-pro",
     "gemini-2.5-pro-preview-tts",
-    // Gemini 2.5 Flash models
     "gemini-2.5-flash",
     "gemini-2.5-flash-preview-09-2025",
     "gemini-2.5-flash-image",
     "gemini-2.5-flash-image-preview",
     "gemini-2.5-flash-native-audio-preview-09-2025",
     "gemini-2.5-flash-preview-tts",
-    // Gemini 2.5 Flash-Lite models
     "gemini-2.5-flash-lite",
     "gemini-2.5-flash-lite-preview-09-2025",
-    // Gemini 2.0 Flash models
     "gemini-2.0-flash",
     "gemini-2.0-flash-001",
     "gemini-2.0-flash-exp",
     "gemini-2.0-flash-preview-image-generation",
     "gemini-2.0-flash-live-001",
-    // Gemini 2.0 Flash-Lite models
+    "gemini-2.0-flash-lite",
+    "gemini-2.0-flash-lite-001",
+];
+
+// recommended_models_from_registry() only returns text+tool-calling models, so
+// the 2.0 series (absent from the registry entirely) and the TTS/image-only
+// variants it filters out are merged in here rather than dropped from the picker.
+const GOOGLE_LEGACY_MODELS: &[&str] = &[
+    "gemini-3-pro-preview",
+    "gemini-3-pro-image-preview",
+    "gemini-2.5-pro-preview-tts",
+    "gemini-2.5-flash-preview-09-2025",
+    "gemini-2.5-flash-image",
+    "gemini-2.5-flash-image-preview",
+    "gemini-2.5-flash-native-audio-preview-09-2025",
+    "gemini-2.5-flash-preview-tts",
+    "gemini-2.5-flash-lite-preview-09-2025",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-001",
+    "gemini-2.0-flash-exp",
+    "gemini-2.0-flash-preview-image-generation",
+    "gemini-2.0-flash-live-001",
     "gemini-2.0-flash-lite",
     "gemini-2.0-flash-lite-001",
 ];
@@ -114,14 +134,38 @@ impl GoogleProvider {
     }
 }
 
+// Builds the picker list from the bundled canonical registry so it stays in
+// sync automatically, falling back to GOOGLE_KNOWN_MODELS if the registry
+// fails to load. GOOGLE_LEGACY_MODELS is merged in either way since the
+// registry's tool-calling filter excludes real, still-useful entries (see
+// its comment above).
+fn google_model_list() -> Vec<ModelInfo> {
+    let registry_names = recommended_models_from_registry(GOOGLE_PROVIDER_NAME);
+    let names: Vec<&str> = if registry_names.is_empty() {
+        // GOOGLE_KNOWN_MODELS already includes every GOOGLE_LEGACY_MODELS entry.
+        GOOGLE_KNOWN_MODELS.to_vec()
+    } else {
+        registry_names
+            .iter()
+            .map(String::as_str)
+            .chain(GOOGLE_LEGACY_MODELS.iter().copied())
+            .collect()
+    };
+
+    names
+        .into_iter()
+        .map(|name| model_info_for_provider_model(GOOGLE_PROVIDER_NAME, name))
+        .collect()
+}
+
 impl crate::base::ProviderDescriptor for GoogleProvider {
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::with_models(
             GOOGLE_PROVIDER_NAME,
             "Google Gemini (API Key)",
             "Gemini models from Google AI",
             GOOGLE_DEFAULT_MODEL,
-            GOOGLE_KNOWN_MODELS.to_vec(),
+            google_model_list(),
             GOOGLE_DOC_URL,
             vec![
                 ConfigKey::new("GOOGLE_API_KEY", true, true, None, true),
@@ -219,5 +263,54 @@ impl Provider for GoogleProvider {
                 yield (message, usage);
             }
         }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::base::ProviderDescriptor;
+
+    #[test]
+    fn metadata_includes_models_missing_from_the_hardcoded_list() {
+        let metadata = GoogleProvider::metadata();
+        for name in ["gemini-3.1-pro-preview", "gemini-3.7-flash"] {
+            assert!(
+                metadata.known_models.iter().any(|m| m.name == name),
+                "expected {name} to be in the registry-derived list"
+            );
+        }
+    }
+
+    #[test]
+    fn metadata_keeps_models_the_registry_filter_would_otherwise_drop() {
+        // gemini-2.0-flash has no registry entry at all; gemini-2.5-flash-image
+        // is in the registry but tool_call=false, so recommended_models_from_registry()
+        // filters it out. Both must survive via GOOGLE_LEGACY_MODELS.
+        let metadata = GoogleProvider::metadata();
+        for name in ["gemini-2.0-flash", "gemini-2.5-flash-image"] {
+            assert!(
+                metadata.known_models.iter().any(|m| m.name == name),
+                "expected {name} to survive via GOOGLE_LEGACY_MODELS"
+            );
+        }
+    }
+
+    #[test]
+    fn metadata_has_no_duplicate_model_names() {
+        let metadata = GoogleProvider::metadata();
+        let mut names: Vec<&str> = metadata
+            .known_models
+            .iter()
+            .map(|m| m.name.as_str())
+            .collect();
+        let count_before = names.len();
+        names.sort();
+        names.dedup();
+        assert_eq!(
+            names.len(),
+            count_before,
+            "duplicate model name in known_models"
+        );
     }
 }
