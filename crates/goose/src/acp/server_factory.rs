@@ -67,6 +67,21 @@ impl AcpServer {
     }
 
     pub async fn create_agent(&self) -> Result<Arc<GooseAcpAgent>> {
+        self.create_agent_with_session_cwd(self.config.session_cwd.clone())
+            .await
+    }
+
+    /// Create an agent whose sessions use `session_cwd` instead of this
+    /// server's configured default. Used by the roaming bridge on `goose
+    /// serve --roam`: the serve-wide server keeps `session_cwd: None` for
+    /// local ACP clients whose paths are real on this machine, while each
+    /// roaming connection gets a host-controlled working directory (the
+    /// connector's absolute path is meaningless here). The agent still shares
+    /// this server's active-run registry.
+    pub async fn create_agent_with_session_cwd(
+        &self,
+        session_cwd: Option<std::path::PathBuf>,
+    ) -> Result<Arc<GooseAcpAgent>> {
         let config = crate::config::Config::global();
         let disable_session_naming = config.get_goose_disable_session_naming().unwrap_or(false);
         let scheduler = self.scheduler().await?;
@@ -106,7 +121,7 @@ impl AcpServer {
             disable_session_naming,
             goose_platform: self.config.goose_platform.clone(),
             additional_source_roots: self.config.additional_source_roots.clone(),
-            session_cwd: self.config.session_cwd.clone(),
+            session_cwd,
             scheduler,
             active_prompt_runs: self.active_prompt_runs.clone(),
         })
