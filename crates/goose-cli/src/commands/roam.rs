@@ -90,9 +90,18 @@ pub(crate) fn resolve_relay_settings() -> Result<RelaySettings> {
             ))
         }
     };
-    let token = config
-        .get_secret::<String>(CONFIG_ROAM_RELAY_TOKEN_KEY)
-        .ok();
+    let token = match config.get_secret::<String>(CONFIG_ROAM_RELAY_TOKEN_KEY) {
+        Ok(token) => Some(token),
+        Err(ConfigError::NotFound(_)) => None,
+        // A configured token that cannot be read (keyring timeout, corrupt
+        // store) must not silently become unauthenticated relay dials.
+        Err(error) => {
+            return Err(anyhow::anyhow!(
+                "{CONFIG_ROAM_RELAY_TOKEN_KEY} could not be read; refusing to contact \
+                 relays without the configured token: {error}"
+            ))
+        }
+    };
     Ok(build_relay_settings(urls, token))
 }
 
@@ -665,7 +674,7 @@ async fn handle_share(
         // Re-read acceptance on each connection so `peers accept`/`revoke` from
         // another process take effect against this live share without restart.
         trust_path: Some(trust_path()),
-        directory: Directory::persistent(directory_path()),
+        directory: Directory::persistent_owned(directory_path()),
         bind_addr: None,
         relay_tls: None,
     })

@@ -78,6 +78,33 @@ impl Directory {
         }
     }
 
+    /// Like [`persistent`](Self::persistent), for the process that *owns* the
+    /// roaming endpoint (holds the exclusive endpoint lock). Because no other
+    /// owner can be alive, any persisted `connected` flags are stale by
+    /// definition — from a crash, SIGKILL, or reboot — so the cleared state is
+    /// flushed straight back to disk, making `goose roam connections` stop
+    /// reporting phantom live peers immediately after a restart.
+    pub fn persistent_owned(path: PathBuf) -> Self {
+        let dir = Self::persistent(path.clone());
+        // The directory was just constructed and is not yet shared, so the
+        // lock is always free (`try_lock` cannot fail); this also stays safe
+        // inside an async runtime where a blocking lock would panic.
+        if let Ok(map) = dir.inner.try_lock() {
+            let mut entries: Vec<&PeerEntry> = map.values().collect();
+            entries.sort_by_key(|e| std::cmp::Reverse(e.last_seen_ms));
+            if let Ok(json) = serde_json::to_vec_pretty(&entries) {
+                if let Some(parent) = path.parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                let tmp = path.with_extension(format!("tmp.{}", std::process::id()));
+                if std::fs::write(&tmp, json).is_ok() {
+                    let _ = std::fs::rename(&tmp, &path);
+                }
+            }
+        }
+        dir
+    }
+
     /// Read the persisted directory at `path` without holding the endpoint.
     pub fn read_persisted(path: &std::path::Path) -> Vec<PeerEntry> {
         let mut entries = std::fs::read(path)

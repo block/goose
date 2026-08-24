@@ -9,6 +9,18 @@ peer-to-peer connection — no open ports, no VPN, no server to host. It's built
 on [iroh](https://iroh.computer) (QUIC), so two machines can connect directly or
 via a relay, typically without any firewall changes.
 
+:::warning Opt-in build required
+Roaming is an optional, experimental feature that is **not included in
+released goose binaries**. Every command in this guide requires a goose built
+from source with the `roaming` feature enabled:
+
+```bash
+cargo build --release -p goose-cli --features roaming
+```
+
+On a default build, `goose roam` reports an unrecognized subcommand.
+:::
+
 Roaming is designed to be **embedded**: the transport is a standalone Rust crate
 (`goose-roaming`) with no dependency on goose's agent internals, the CLI exposes
 it as `goose roam` commands, and there are wasm bindings for browser apps. If

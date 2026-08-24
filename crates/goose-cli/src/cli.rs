@@ -1716,7 +1716,7 @@ async fn start_roam_share(
         relay: resolve_relay_settings()?,
         trust: TrustBook::new(),
         trust_path: Some(trust_path()),
-        directory: goose_roaming::Directory::persistent(directory_path()),
+        directory: goose_roaming::Directory::persistent_owned(directory_path()),
         bind_addr: None,
         relay_tls: None,
     })
