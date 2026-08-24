@@ -23,11 +23,13 @@ use crate::openai_compatible::{
 use crate::request_log::{start_log, LoggerHandleExt};
 use crate::thinking::ThinkingEffort;
 use anyhow::Result;
+use async_stream::try_stream;
 use async_trait::async_trait;
 use reqwest::StatusCode;
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use tokio_stream::StreamExt;
 
 use crate::base::{MessageStream, ProviderDescriptor};
 use crate::model::ModelConfig;
@@ -630,6 +632,74 @@ fn parse_n_ctx_from_models(json: &serde_json::Value, model_name: &str) -> Option
     }
 }
 
+fn normalize_openai_compat_stream(stream: MessageStream, context_limit: usize) -> MessageStream {
+    Box::pin(try_stream! {
+        let mut stream = stream;
+        let mut last_total_tokens = None;
+        let mut output_token_limit_reached = false;
+        let mut last_message_id = None;
+
+        while let Some(item) = stream.next().await {
+            let (mut message, usage) = item?;
+
+            if let Some(total_tokens) = usage.as_ref().and_then(openai_compat_total_tokens) {
+                last_total_tokens = Some(total_tokens);
+            }
+
+            if let Some(msg) = message.as_mut() {
+                if let Some(id) = msg.id.clone() {
+                    last_message_id = Some(id);
+                }
+
+                if msg.metadata.output_token_limit_reached {
+                    output_token_limit_reached = true;
+                    msg.metadata.output_token_limit_reached = false;
+
+                    if msg.content.is_empty() {
+                        message = None;
+                    }
+                }
+            }
+
+            yield (message, usage);
+        }
+
+        if output_token_limit_reached {
+            if context_limit > 10_000 {
+                if let Some(total) = last_total_tokens {
+                    let min_remaining = ((context_limit as f64 * 0.001) as usize).max(10);
+                    if context_limit.saturating_sub(total) < min_remaining {
+                        Err(ProviderError::ContextLengthExceeded(format!(
+                            "Context limit reached: used {} of {} tokens",
+                            total, context_limit
+                        )))?;
+                    }
+                }
+            }
+
+            let mut marker = Message::assistant();
+            if let Some(id) = last_message_id {
+                marker = marker.with_id(id);
+            }
+            marker.metadata.output_token_limit_reached = true;
+            yield (Some(marker), None);
+        }
+    })
+}
+
+fn openai_compat_total_tokens(usage: &ProviderUsage) -> Option<usize> {
+    let reported = usage
+        .usage
+        .total_tokens
+        .filter(|&t| t >= 0)
+        .map(|t| t as usize);
+    let summed = match (usage.usage.input_tokens, usage.usage.output_tokens) {
+        (Some(i), Some(o)) if i >= 0 && o >= 0 => Some(i as usize + o as usize),
+        _ => None,
+    };
+    reported.into_iter().chain(summed).max()
+}
+
 impl ProviderDescriptor for OpenAiProvider {
     fn metadata() -> ProviderMetadata {
         let models = OPEN_AI_KNOWN_MODELS
@@ -814,7 +884,13 @@ impl Provider for OpenAiProvider {
                 })?;
 
             if self.supports_streaming {
-                stream_openai_compat(response, log)
+                let stream = stream_openai_compat(response, log)?;
+                if self.name != OPEN_AI_PROVIDER_NAME {
+                    let context_limit = self.get_context_limit(model_config).await?;
+                    Ok(normalize_openai_compat_stream(stream, context_limit))
+                } else {
+                    Ok(stream)
+                }
             } else {
                 let json: serde_json::Value = read_json_response(response).await?;
 
@@ -835,7 +911,15 @@ impl Provider for OpenAiProvider {
                     Some(&usage_data),
                 )?;
 
-                Ok(super::base::stream_from_single_message(message, usage))
+                if self.name != OPEN_AI_PROVIDER_NAME {
+                    let context_limit = self.get_context_limit(model_config).await?;
+                    Ok(normalize_openai_compat_stream(
+                        super::base::stream_from_single_message(message, usage),
+                        context_limit,
+                    ))
+                } else {
+                    Ok(super::base::stream_from_single_message(message, usage))
+                }
             }
         }
     }
