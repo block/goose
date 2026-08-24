@@ -345,9 +345,9 @@ fn normalize_custom_provider_upsert(
     provider.models = provider
         .models
         .into_iter()
-        .filter_map(|mut model| {
-            model.name = model.name.trim().to_string();
-            (!model.name.is_empty()).then_some(model)
+        .filter_map(|model| {
+            let model = model.trim().to_string();
+            (!model.is_empty()).then_some(model)
         })
         .collect();
     if provider.models.is_empty() {
@@ -386,6 +386,34 @@ fn custom_provider_headers(headers: HashMap<String, String>) -> Option<HashMap<S
     (!headers.is_empty()).then_some(headers)
 }
 
+fn custom_provider_models(
+    names: Vec<String>,
+    existing: &[ModelInfo],
+    catalog_provider_id: Option<&str>,
+) -> Vec<ModelInfo> {
+    let catalog_models = catalog_provider_id
+        .and_then(crate::providers::catalog::get_provider_template)
+        .map(|template| template.models)
+        .unwrap_or_default();
+
+    names
+        .into_iter()
+        .map(|name| {
+            existing
+                .iter()
+                .find(|model| model.name == name)
+                .cloned()
+                .or_else(|| {
+                    catalog_models
+                        .iter()
+                        .find(|model| model.id == name)
+                        .map(|model| ModelInfo::new(&name).with_context_limit(model.context_limit))
+                })
+                .unwrap_or_else(|| ModelInfo::new(name))
+        })
+        .collect()
+}
+
 fn load_declarative_provider_for_client(
     provider_id: &str,
 ) -> Result<declarative_providers::LoadedProvider, agent_client_protocol::Error> {
@@ -422,10 +450,7 @@ fn custom_provider_config_to_dto(
         models: config
             .models
             .iter()
-            .map(|model| CustomProviderModelDto {
-                name: model.name.clone(),
-                context_limit: model.context_limit,
-            })
+            .map(|model| model.name.clone())
             .collect(),
         supports_streaming: config.supports_streaming,
         headers: config.headers.clone().unwrap_or_default(),
@@ -622,13 +647,11 @@ impl GooseAcpAgent {
                 display_name: provider.display_name,
                 api_url: provider.api_url,
                 api_key: provider.api_key,
-                models: provider
-                    .models
-                    .into_iter()
-                    .map(|model| {
-                        ModelInfo::new(model.name).with_optional_context_limit(model.context_limit)
-                    })
-                    .collect(),
+                models: custom_provider_models(
+                    provider.models,
+                    &[],
+                    provider.catalog_provider_id.as_deref(),
+                ),
                 supports_streaming: provider.supports_streaming,
                 headers: custom_provider_headers(provider.headers),
                 requires_auth: provider.requires_auth,
@@ -697,13 +720,11 @@ impl GooseAcpAgent {
                 display_name: provider.display_name,
                 api_url: provider.api_url,
                 api_key: provider.api_key,
-                models: provider
-                    .models
-                    .into_iter()
-                    .map(|model| {
-                        ModelInfo::new(model.name).with_optional_context_limit(model.context_limit)
-                    })
-                    .collect(),
+                models: custom_provider_models(
+                    provider.models,
+                    &loaded.config.models,
+                    provider.catalog_provider_id.as_deref(),
+                ),
                 supports_streaming: provider.supports_streaming,
                 headers: Some(provider.headers),
                 requires_auth: provider.requires_auth,

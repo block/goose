@@ -1071,7 +1071,7 @@ export type CustomProviderCreateRequest_unstable = {
     displayName: string;
     apiUrl: string;
     apiKey?: string | null;
-    models?: Array<CustomProviderModelDto>;
+    models?: Array<string>;
     supportsStreaming?: boolean | null;
     headers?: {
         [key: string]: string;
@@ -1080,11 +1080,6 @@ export type CustomProviderCreateRequest_unstable = {
     catalogProviderId?: string | null;
     basePath?: string | null;
     preservesThinking?: boolean | null;
-};
-
-export type CustomProviderModelDto = {
-    name: string;
-    contextLimit?: number | null;
 };
 
 export type CustomProviderCreateResponse_unstable = {
@@ -1137,7 +1132,7 @@ export type CustomProviderConfigDto = {
     engine: string;
     displayName: string;
     apiUrl: string;
-    models?: Array<CustomProviderModelDto>;
+    models?: Array<string>;
     supportsStreaming?: boolean | null;
     headers?: {
         [key: string]: string;
@@ -1159,7 +1154,7 @@ export type CustomProviderUpdateRequest_unstable = {
     displayName: string;
     apiUrl: string;
     apiKey?: string | null;
-    models?: Array<CustomProviderModelDto>;
+    models?: Array<string>;
     supportsStreaming?: boolean | null;
     headers?: {
         [key: string]: string;

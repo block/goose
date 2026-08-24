@@ -61,7 +61,7 @@ export type UpdateCustomProviderRequest = {
   display_name: string;
   engine: string;
   headers?: Record<string, string> | null;
-  models: Array<{ name: string; contextLimit?: number | null }>;
+  models: string[];
   preserves_thinking?: boolean | null;
   requires_auth?: boolean;
   supports_streaming?: boolean | null;

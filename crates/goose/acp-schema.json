@@ -2276,7 +2276,7 @@
         "models": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/CustomProviderModelDto"
+            "type": "string"
           },
           "default": []
         },
@@ -2324,24 +2324,6 @@
       "description": "Create a custom provider backed by Goose's declarative provider store.",
       "x-side": "agent",
       "x-method": "_goose/unstable/providers/custom/create"
-    },
-    "CustomProviderModelDto": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "contextLimit": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "minimum": 0
-        }
-      },
-      "required": [
-        "name"
-      ]
     },
     "CustomProviderCreateResponse_unstable": {
       "type": "object",
@@ -2482,7 +2464,7 @@
         "models": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/CustomProviderModelDto"
+            "type": "string"
           },
           "default": []
         },
@@ -2561,7 +2543,7 @@
         "models": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/CustomProviderModelDto"
+            "type": "string"
           },
           "default": []
         },

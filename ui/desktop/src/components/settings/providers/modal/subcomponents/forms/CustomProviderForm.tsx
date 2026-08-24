@@ -293,7 +293,7 @@ export default function CustomProviderForm({
       setDisplayName(initialData.display_name);
       setApiUrl(initialData.api_url);
       setBasePath(initialData.base_path ?? '');
-      setModels(initialData.models.map((model) => model.name).join(', '));
+      setModels(initialData.models.join(', '));
       setSupportsStreaming(initialData.supports_streaming ?? true);
       setRequiresAuth(initialData.requires_auth ?? true);
 
@@ -448,12 +448,10 @@ export default function CustomProviderForm({
       return;
     }
 
-    const existingModels = new Map(initialData?.models.map((model) => [model.name, model]));
     const modelList = models
       .split(',')
       .map((name) => name.trim())
-      .filter(Boolean)
-      .map((name) => existingModels.get(name) ?? { name });
+      .filter(Boolean);
 
     let allHeaders = [...headers];
 
