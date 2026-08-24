@@ -87,7 +87,19 @@ impl RelaySettings {
                     });
                     let cfg = RelayConfig::new(url, quic);
                     let cfg = match &entry.auth_token {
-                        Some(token) => cfg.with_auth_token(token.clone()),
+                        Some(token) => {
+                            // Never send a bearer token in cleartext: a
+                            // token on an http:// relay would be readable by
+                            // anyone on the path.
+                            if !entry.url.trim_start().starts_with("https://") {
+                                return Err(RoamingError::Transport(format!(
+                                    "relay {} has an auth token but is not https; \
+                                     refusing to send the token in cleartext",
+                                    entry.url
+                                )));
+                            }
+                            cfg.with_auth_token(token.clone())
+                        }
                         None => cfg,
                     };
                     configs.push(cfg);

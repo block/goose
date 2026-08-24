@@ -90,6 +90,11 @@ pub(crate) fn resolve_relay_settings() -> Result<RelaySettings> {
             ))
         }
     };
+    // Only explicit relay URLs use a token; skip the secret-store read (and
+    // any keyring stall it may involve) entirely on the default-relay path.
+    if urls.iter().all(|u| u.trim().is_empty()) {
+        return Ok(build_relay_settings(urls, None));
+    }
     let token = match config.get_secret::<String>(CONFIG_ROAM_RELAY_TOKEN_KEY) {
         Ok(token) => Some(token),
         Err(ConfigError::NotFound(_)) => None,
