@@ -88,16 +88,63 @@ impl Directory {
         entries
     }
 
+    /// Flush this node's view to disk, merged with whatever other processes
+    /// have written (a share and an outbound `connect`/`delegate` may run
+    /// concurrently). The whole reload-merge-write runs under a cross-process
+    /// advisory lock and lands via a unique temp file renamed into place, so
+    /// concurrent flushes can neither interleave bytes nor drop each other's
+    /// observations.
     async fn flush(&self, map: &HashMap<String, PeerEntry>) {
+        use fs2::FileExt as _;
+
         let Some(path) = &self.path else { return };
-        let mut entries: Vec<&PeerEntry> = map.values().collect();
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+
+        let lock_path = path.with_extension("json.lock");
+        let Ok(lock) = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&lock_path)
+        else {
+            return;
+        };
+        if lock.lock_exclusive().is_err() {
+            return;
+        }
+
+        let mut merged: HashMap<String, PeerEntry> = std::fs::read(path)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<Vec<PeerEntry>>(&bytes).ok())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|e| (e.endpoint_id.clone(), e))
+            .collect();
+        for entry in map.values() {
+            match merged.get(&entry.endpoint_id) {
+                // This process owns live connections with the peer, or has the
+                // fresher observation.
+                Some(existing)
+                    if entry.live_connections == 0
+                        && existing.last_seen_ms > entry.last_seen_ms => {}
+                _ => {
+                    merged.insert(entry.endpoint_id.clone(), entry.clone());
+                }
+            }
+        }
+
+        let mut entries: Vec<&PeerEntry> = merged.values().collect();
         entries.sort_by_key(|e| std::cmp::Reverse(e.last_seen_ms));
         if let Ok(json) = serde_json::to_vec_pretty(&entries) {
-            if let Some(parent) = path.parent() {
-                let _ = std::fs::create_dir_all(parent);
+            let tmp = path.with_extension(format!("tmp.{}", std::process::id()));
+            if std::fs::write(&tmp, json).is_ok() {
+                let _ = std::fs::rename(&tmp, path);
             }
-            let _ = std::fs::write(path, json);
         }
+
+        let _ = fs2::FileExt::unlock(&lock);
     }
 
     /// Record the start of a connection, creating or updating the entry.
