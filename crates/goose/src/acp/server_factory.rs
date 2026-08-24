@@ -193,6 +193,32 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn dropping_a_prompt_future_releases_the_shared_run() {
+        let root = tempfile::tempdir().unwrap();
+        let server = server(root.path().to_path_buf(), false);
+
+        let running = server.create_agent().await.unwrap();
+        let owner = Arc::new(crate::agents::Agent::new());
+        running
+            .test_start_active_run("session-1", "run-1".to_string(), owner)
+            .await
+            .unwrap();
+
+        running.test_drop_active_run_guard("session-1", "run-1");
+        tokio::task::yield_now().await;
+
+        let second = server.create_agent().await.unwrap();
+        assert!(
+            second
+                .test_require_active_run("session-1", "run-1")
+                .await
+                .is_err(),
+            "a dropped prompt future must release its run so later \
+             connections are not permanently locked out of the session"
+        );
+    }
+
+    #[tokio::test]
     async fn start_scheduler_initializes_before_any_client_connects() {
         let root = tempfile::tempdir().unwrap();
         let server = server(root.path().to_path_buf(), true);
