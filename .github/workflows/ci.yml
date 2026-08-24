@@ -170,6 +170,7 @@ jobs:
           export CARGO_INCREMENTAL=0
           cargo test -p goose-roaming
           cargo build -p goose-cli --features roaming
+          cargo clippy -p goose-cli --features roaming --all-targets -- -D warnings
           cargo test -p goose-cli --features roaming --test roam_acp_client
         env:
           RUST_MIN_STACK: 8388608
