@@ -26,7 +26,7 @@ path = "src/bin/mcp_conformance_driver.rs"
 [dependencies]
 clap_mangen = { version = "0.3", default-features = false }
 goose = { path = "../goose", default-features = false }
-agent-client-protocol = { workspace = true, features = ["unstable"] }
+agent-client-protocol = { workspace = true, features = ["unstable"], optional = true }
 goose-mcp = { path = "../goose-mcp", default-features = false }
 goose-providers = { path = "../goose-providers", default-features = false }
 goose-roaming = { path = "../goose-roaming", optional = true }
@@ -103,7 +103,7 @@ default = [
     "system-keyring",
     "update",
 ]
-roaming = ["dep:goose-roaming", "dep:qrcode", "dep:fs2"]
+roaming = ["dep:goose-roaming", "dep:qrcode", "dep:fs2", "dep:agent-client-protocol"]
 code-mode = ["goose/code-mode"]
 local-inference = ["goose/local-inference"]
 aws-providers = ["goose/aws-providers"]
