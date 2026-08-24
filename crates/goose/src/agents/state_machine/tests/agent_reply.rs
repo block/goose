@@ -19,6 +19,7 @@ use crate::acp::server::GooseAcpAgent;
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::mcp_client::McpClientTrait;
 use crate::agents::{Agent, AgentConfig, AgentEvent, GoosePlatform, SessionConfig};
+use crate::config::permission::PermissionManager;
 use crate::config::GooseMode;
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent};
 use crate::permission::Permission;
