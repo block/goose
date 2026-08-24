@@ -9,7 +9,9 @@ use crate::tool_inspection::ToolInspectionManager;
 use anyhow::Result;
 use async_trait::async_trait;
 use goose_agent::inference::{InferenceRequestPreparer, PreparedInferenceRequest};
-use goose_agent::operation::InferenceInput;
+use goose_agent::operation::{messages_since_kickoff, InferenceInput};
+use goose_providers::conversation::message::Message;
+use goose_providers::conversation::Conversation;
 #[cfg(feature = "code-mode")]
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -21,6 +23,7 @@ pub struct GooseInferenceRequestPreparer<'a> {
     pub(crate) prompt_manager: &'a Mutex<PromptManager>,
     pub(crate) tool_inspection_manager: &'a ToolInspectionManager,
     pub(crate) frontend_instructions: &'a Mutex<Option<String>>,
+    pub(crate) context_limit: usize,
 }
 
 #[async_trait]
@@ -28,6 +31,7 @@ impl InferenceRequestPreparer<Session> for GooseInferenceRequestPreparer<'_> {
     async fn prepare(
         &self,
         session: &Session,
+        conversation: &Conversation,
         mut input: InferenceInput,
     ) -> Result<PreparedInferenceRequest> {
         #[cfg(feature = "code-mode")]
@@ -57,10 +61,31 @@ impl InferenceRequestPreparer<Session> for GooseInferenceRequestPreparer<'_> {
             input.prompt_parts,
             goose_mode,
         );
+        let turn = messages_since_kickoff(conversation)?;
+        let turn_start = turn
+            .first()
+            .and_then(|message| chrono::DateTime::from_timestamp(message.created, 0))
+            .map(|timestamp| timestamp.with_timezone(&chrono::Local))
+            .unwrap_or_else(chrono::Local::now);
+        let last = turn
+            .iter()
+            .rev()
+            .find(|message| message.is_turn_context())
+            .map(Message::as_concat_text);
+        let context_limit = Some(self.context_limit);
+        let additional_messages = crate::agents::moim::turn_context_event(
+            &session.working_dir,
+            context_limit,
+            input.moim_parts,
+            turn_start,
+        )
+        .filter(|event| Some(event.as_concat_text()) != last)
+        .into_iter()
+        .collect();
         Ok(PreparedInferenceRequest {
             system_prompt,
             tools,
-            moim_parts: input.moim_parts,
+            additional_messages,
         })
     }
 }

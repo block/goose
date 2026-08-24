@@ -16,7 +16,7 @@ use crate::agents::mcp_client::McpClientTrait;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::state_machine::{
     BangShellOperation, CompactionOperation, DoctorOperation, Emitter, EntryHookOperation,
-    ExitOnErrorOperation, GooseEffect, GooseInferenceHooks, GooseInferenceRequestPreparer,
+    ExitOnErrorOperation, GooseEffect, GooseInferenceProvider, GooseInferenceRequestPreparer,
     InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation, RecipeOperation,
     RetryOperation, SkillOperation, SlashCommandOperation, StateMachine, StatusOperation,
     SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
@@ -172,17 +172,17 @@ impl TestPipeline {
             prompt_manager: &self.prompt_manager,
             tool_inspection_manager: &self.tool_inspection_manager,
             frontend_instructions: &self.frontend_instructions,
+            context_limit: self.model_config.context_limit(),
         };
         let status_operation = Arc::new(StatusOperation::new(
             provider.clone(),
             self.model_config.clone(),
         ));
-        let inference = Arc::new(InferenceRunner::new(
-            provider,
-            self.model_config.clone(),
-            Some(Arc::new(request_preparer)),
-            Arc::new(GooseInferenceHooks),
-        ));
+        let inference_provider = Arc::new(GooseInferenceProvider::new(provider));
+        let inference = Arc::new(
+            InferenceRunner::new(inference_provider, self.model_config.clone())
+                .with_request_preparer(Arc::new(request_preparer)),
+        );
         let mut command_handlers = operations.clone();
         command_handlers.push(status_operation);
         let command_operation: Arc<dyn Operation<Session, GooseEffect> + '_> =

@@ -5,14 +5,18 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::StreamExt;
-use goose_provider_types::base::{MessageStream, Provider};
+use goose_provider_types::base::Provider;
 use goose_provider_types::conversation::message::{InferenceMetadata, Message, MessageContent};
-use goose_provider_types::conversation::token_usage::{ProviderUsage, Usage};
-use goose_provider_types::conversation::{effective_role, Conversation, EffectiveRole};
+use goose_provider_types::conversation::token_usage::ProviderUsage;
+use goose_provider_types::conversation::{
+    effective_role, fix_conversation, merge_consecutive_messages_for_request, Conversation,
+    EffectiveRole,
+};
 use goose_provider_types::errors::ProviderError;
 use goose_provider_types::model::ModelConfig;
 use tracing_futures::Instrument;
 
+use crate::machine::MachineSession;
 use crate::operation::{
     applied, messages_since_kickoff, not_applicable, trailing_error, yielded_with,
     ConversationEffect, Emitter, Inference, InferenceInput, Operation, OperationResult,
@@ -21,13 +25,17 @@ use crate::operation::{
 pub struct PreparedInferenceRequest {
     pub system_prompt: String,
     pub tools: Vec<rmcp::model::Tool>,
-    pub moim_parts: Vec<String>,
+    pub additional_messages: Vec<Message>,
 }
 
 #[async_trait]
 pub trait InferenceRequestPreparer<S>: Send + Sync {
-    async fn prepare(&self, session: &S, input: InferenceInput)
-        -> Result<PreparedInferenceRequest>;
+    async fn prepare(
+        &self,
+        session: &S,
+        conversation: &Conversation,
+        input: InferenceInput,
+    ) -> Result<PreparedInferenceRequest>;
 }
 
 pub struct IdentityInferenceRequestPreparer;
@@ -37,6 +45,7 @@ impl<S: Sync> InferenceRequestPreparer<S> for IdentityInferenceRequestPreparer {
     async fn prepare(
         &self,
         _session: &S,
+        _conversation: &Conversation,
         input: InferenceInput,
     ) -> Result<PreparedInferenceRequest> {
         Ok(PreparedInferenceRequest {
@@ -47,7 +56,7 @@ impl<S: Sync> InferenceRequestPreparer<S> for IdentityInferenceRequestPreparer {
                 .collect::<Vec<_>>()
                 .join("\n\n"),
             tools: input.tools,
-            moim_parts: input.moim_parts,
+            additional_messages: Vec::new(),
         })
     }
 }
@@ -57,43 +66,6 @@ pub trait InferenceEffect:
 {
     fn record_usage(usage: ProviderUsage) -> Self;
     fn appended_message(&self) -> Option<&Message>;
-}
-
-#[async_trait]
-pub trait InferenceHooks<S>: Send + Sync {
-    fn session_id<'a>(&self, session: &'a S) -> &'a str;
-    async fn prepare_tools(
-        &self,
-        tools: Vec<rmcp::model::Tool>,
-        system_prompt: String,
-        model: &ModelConfig,
-    ) -> (Vec<rmcp::model::Tool>, Vec<rmcp::model::Tool>, String);
-    #[allow(clippy::too_many_arguments)]
-    async fn stream(
-        &self,
-        provider: Arc<dyn Provider>,
-        model: ModelConfig,
-        session_id: &str,
-        system_prompt: &str,
-        messages: &[Message],
-        tools: &[rmcp::model::Tool],
-        toolshim_tools: &[rmcp::model::Tool],
-    ) -> Result<MessageStream, ProviderError>;
-    async fn turn_context(
-        &self,
-        session: &S,
-        context_limit: usize,
-        moim_parts: Vec<String>,
-        conversation: &Conversation,
-    ) -> Option<Message>;
-    async fn ensure_usage(
-        &self,
-        usage: &mut ProviderUsage,
-        system_prompt: &str,
-        messages: &[Message],
-        response: &Message,
-        tools: &[rmcp::model::Tool],
-    ) -> Result<()>;
 }
 
 const EMPTY_RESPONSE_MESSAGE: &str =
@@ -189,7 +161,6 @@ pub struct InferenceRunner<'a, S, E> {
     provider: Arc<dyn Provider>,
     model_config: ModelConfig,
     request_preparer: Arc<dyn InferenceRequestPreparer<S> + 'a>,
-    hooks: Arc<dyn InferenceHooks<S> + 'a>,
     effect: std::marker::PhantomData<fn() -> E>,
 }
 
@@ -225,13 +196,13 @@ fn latest_provider_session_id<'a>(
     conversation: &'a Conversation,
     provider: &str,
 ) -> Option<&'a str> {
-    conversation.messages().iter().rev().find_map(|message| {
-        message.metadata.inference.as_ref().and_then(|inference| {
-            (inference.provider == provider)
-                .then_some(inference.provider_session_id.as_deref())
-                .flatten()
-        })
-    })
+    conversation
+        .messages()
+        .iter()
+        .rev()
+        .find_map(|message| message.metadata.inference.as_ref())
+        .filter(|inference| inference.provider == provider)
+        .and_then(|inference| inference.provider_session_id.as_deref())
 }
 
 fn ends_with_provider_turn(messages: &[Message]) -> bool {
@@ -243,21 +214,22 @@ fn ends_with_provider_turn(messages: &[Message]) -> bool {
     })
 }
 
-impl<'a, S: Sync, E: InferenceEffect> InferenceRunner<'a, S, E> {
-    pub fn new(
-        provider: Arc<dyn Provider>,
-        model_config: ModelConfig,
-        request_preparer: Option<Arc<dyn InferenceRequestPreparer<S> + 'a>>,
-        hooks: Arc<dyn InferenceHooks<S> + 'a>,
-    ) -> Self {
+impl<'a, S: MachineSession, E: InferenceEffect> InferenceRunner<'a, S, E> {
+    pub fn new(provider: Arc<dyn Provider>, model_config: ModelConfig) -> Self {
         Self {
             provider,
             model_config,
-            request_preparer: request_preparer
-                .unwrap_or_else(|| Arc::new(IdentityInferenceRequestPreparer)),
-            hooks,
+            request_preparer: Arc::new(IdentityInferenceRequestPreparer),
             effect: std::marker::PhantomData,
         }
+    }
+
+    pub fn with_request_preparer(
+        mut self,
+        request_preparer: Arc<dyn InferenceRequestPreparer<S> + 'a>,
+    ) -> Self {
+        self.request_preparer = request_preparer;
+        self
     }
 
     async fn error_outcome(&self, err: &ProviderError, emit: &Emitter) -> Vec<E> {
@@ -270,7 +242,7 @@ impl<'a, S: Sync, E: InferenceEffect> InferenceRunner<'a, S, E> {
 }
 
 #[async_trait]
-impl<S: Sync, E: InferenceEffect> Operation<S, E> for InferenceRunner<'_, S, E> {
+impl<S: MachineSession, E: InferenceEffect> Operation<S, E> for InferenceRunner<'_, S, E> {
     fn name(&self) -> &'static str {
         "llm"
     }
@@ -345,7 +317,7 @@ impl<S: Sync, E: InferenceEffect> Operation<S, E> for InferenceRunner<'_, S, E> 
 }
 
 #[async_trait]
-impl<S: Sync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S, E> {
+impl<S: MachineSession, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S, E> {
     fn applies(&self, conversation: &Conversation) -> bool {
         let Ok(turn) = messages_since_kickoff(conversation) else {
             return false;
@@ -374,17 +346,21 @@ impl<S: Sync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S, E> 
         let span = chat_span(
             self.provider.as_ref(),
             &self.model_config,
-            self.hooks.session_id(session),
+            session.id(),
             "inference",
         );
 
         async {
-            let prepared = self.request_preparer.prepare(session, input).await?;
-            let (tools, toolshim_tools, system_prompt) = self.hooks
-                .prepare_tools(prepared.tools, prepared.system_prompt, &self.model_config).await;
+            let PreparedInferenceRequest {
+                system_prompt,
+                tools,
+                additional_messages,
+            } = self
+                .request_preparer
+                .prepare(session, conversation, input)
+                .await?;
             let mut available_tools = tools
                 .iter()
-                .chain(toolshim_tools.iter())
                 .map(|tool| tool.name.as_ref())
                 .collect::<Vec<_>>();
             available_tools.sort_unstable();
@@ -411,11 +387,11 @@ impl<S: Sync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S, E> 
                 }
             }
 
-            let context_limit = self
-                .provider
-                .get_context_limit(&self.model_config)
-                .await
-                .unwrap_or_else(|_| self.model_config.context_limit());
+            for message in &additional_messages {
+                messages_for_provider.push(message.clone());
+            }
+            let mut usage_effects: Vec<E> = additional_messages.into_iter().map(E::from).collect();
+
             let provider_name = self.provider.get_name();
             if let Some(session_id) = latest_provider_session_id(conversation, provider_name) {
                 if let Err(error) = self.provider.resume(session_id).await {
@@ -426,19 +402,22 @@ impl<S: Sync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S, E> 
                     );
                 }
             }
-            let turn_context = self.hooks
-                .turn_context(session, context_limit, prepared.moim_parts, conversation).await;
-            if let Some(event) = &turn_context {
-                messages_for_provider.push(event.clone());
-            }
-            let conversation_for_provider = Conversation::new_unvalidated(messages_for_provider);
-            let mut usage_effects: Vec<E> = turn_context
-                .into_iter().map(|message| E::from(message)).collect();
 
-            let stream = self.hooks.stream(
-                self.provider.clone(), self.model_config.clone(), self.hooks.session_id(session),
-                &system_prompt, conversation_for_provider.messages(), &tools, &toolshim_tools,
-            ).await;
+            let projected = Conversation::new_unvalidated(messages_for_provider)
+                .agent_visible_messages();
+            let (fixed, _) = fix_conversation(Conversation::new_unvalidated(projected));
+            let conversation_for_provider = Conversation::new_unvalidated(
+                merge_consecutive_messages_for_request(fixed.messages().clone()),
+            );
+            let stream = self
+                .provider
+                .stream(
+                    &self.model_config,
+                    &system_prompt,
+                    conversation_for_provider.messages(),
+                    &tools,
+                )
+                .await;
 
             let mut stream = match stream {
                 Ok(stream) => stream,
@@ -464,7 +443,6 @@ impl<S: Sync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S, E> 
             });
 
             let mut accumulator = Conversation::empty();
-            let mut has_recorded_usage = false;
             let mut tool_request_ids = std::collections::HashSet::new();
             loop {
                 tokio::select! {
@@ -481,7 +459,6 @@ impl<S: Sync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S, E> 
                             }
                         };
                         if let Some(usage) = usage_opt {
-                            has_recorded_usage = true;
                             let span = tracing::Span::current();
                             record_chat_usage(&span, &usage);
                             usage_effects.push(E::record_usage(usage));
@@ -528,23 +505,42 @@ impl<S: Sync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S, E> 
                 return yielded_with(usage_effects);
             }
 
-            if !has_recorded_usage {
-                let mut usage = ProviderUsage::new(
-                    self.model_config.model_name.clone(),
-                    Usage::default(),
-                );
-                if let Some(response) = accumulator.last() {
-                    self.hooks.ensure_usage(&mut usage, &system_prompt,
-                        conversation_for_provider.messages(), response, &tools).await?;
-                    record_chat_usage(&tracing::Span::current(), &usage);
-                    usage_effects.push(E::record_usage(usage));
-                }
-            }
-
             usage_effects.extend(accumulator.into_iter().map(|message| E::from(message)));
             applied(usage_effects)
         }
         .instrument(span)
         .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn provider_session_id_comes_only_from_latest_inference() {
+        let conversation = Conversation::new_unvalidated([
+            Message::assistant().with_inference(InferenceMetadata {
+                provider: "provider-a".to_string(),
+                requested_model: "model".to_string(),
+                resolved_model: None,
+                provider_session_id: Some("session-a".to_string()),
+            }),
+            Message::assistant().with_inference(InferenceMetadata {
+                provider: "provider-b".to_string(),
+                requested_model: "model".to_string(),
+                resolved_model: None,
+                provider_session_id: Some("session-b".to_string()),
+            }),
+        ]);
+
+        assert_eq!(
+            latest_provider_session_id(&conversation, "provider-b"),
+            Some("session-b")
+        );
+        assert_eq!(
+            latest_provider_session_id(&conversation, "provider-a"),
+            None
+        );
     }
 }

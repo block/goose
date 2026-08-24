@@ -28,7 +28,7 @@ use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::state_machine::{
     run_goose, BangShellOperation, CompactionOperation, DoctorOperation, Emitter,
-    EntryHookOperation, ExitOnErrorOperation, GooseEffect, GooseInferenceHooks,
+    EntryHookOperation, ExitOnErrorOperation, GooseEffect, GooseInferenceProvider,
     GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation,
     RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation, StateMachine,
     StatusOperation, SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
@@ -1691,15 +1691,15 @@ impl Agent {
             prompt_manager: &self.prompt_manager,
             tool_inspection_manager: &self.tool_inspection_manager,
             frontend_instructions: &self.frontend_instructions,
+            context_limit,
         };
         let status_operation =
             Arc::new(StatusOperation::new(provider.clone(), model_config.clone()));
-        let inference = Arc::new(InferenceRunner::new(
-            provider,
-            model_config,
-            Some(Arc::new(request_preparer)),
-            Arc::new(GooseInferenceHooks),
-        ));
+        let inference_provider = Arc::new(GooseInferenceProvider::new(provider));
+        let inference = Arc::new(
+            InferenceRunner::new(inference_provider, model_config)
+                .with_request_preparer(Arc::new(request_preparer)),
+        );
         let mut command_handlers = operations.clone();
         command_handlers.push(status_operation);
         let command_operation: Arc<dyn Operation<Session, GooseEffect> + '_> =
@@ -1803,7 +1803,10 @@ impl Agent {
                 let (tx, mut rx) = mpsc::channel::<AgentEvent>(32);
                 let emit = Emitter::new(tx, cancel.clone());
                 let result = {
-                    let run = run_goose(&machine, session_manager.as_ref(), &session_id, &emit);
+                    let run = crate::session_context::with_session_id(
+                        Some(session_id.clone()),
+                        run_goose(&machine, session_manager.as_ref(), &session_id, &emit),
+                    );
                     tokio::pin!(run);
                     loop {
                         tokio::select! {
