@@ -3472,6 +3472,8 @@ print(\"hello, world\")
                 goose_platform: GoosePlatform::GooseCli,
                 additional_source_roots: Vec::new(),
                 scheduler: None,
+                session_cwd: None,
+                active_prompt_runs: Default::default(),
             })
             .await
             .unwrap(),
