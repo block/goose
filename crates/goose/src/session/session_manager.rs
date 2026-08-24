@@ -28,6 +28,7 @@ pub const CURRENT_SCHEMA_VERSION: i32 = 16;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 const MILLISECOND_TIMESTAMP_THRESHOLD: i64 = 10_000_000_000;
+const SESSION_COUNT_BATCH_SIZE: usize = 900;
 
 #[derive(
     Debug,
@@ -450,6 +451,22 @@ impl SessionManager {
 
     pub async fn list_sessions(&self) -> Result<Vec<Session>> {
         self.storage.list_sessions().await
+    }
+
+    pub async fn list_sessions_with_limit(&self, limit: usize) -> Result<Vec<Session>> {
+        let types = [SessionType::User, SessionType::Scheduled];
+        let page = self
+            .list_sessions_paged(SessionListPageQuery {
+                filters: SessionListFilters {
+                    types: Some(&types),
+                    ..Default::default()
+                },
+                cursor: None,
+                page_size: limit,
+                include_last_message_snippet: false,
+            })
+            .await?;
+        Ok(page.sessions)
     }
 
     pub async fn list_sessions_by_types(&self, types: &[SessionType]) -> Result<Vec<Session>> {
@@ -1936,6 +1953,7 @@ impl SessionStorage {
             return Ok(Vec::new());
         }
 
+        let has_limit = query.limit.is_some();
         let keywords = keyword_terms(filters.keyword);
         let mut where_clauses = Vec::new();
         let mut having_clauses = Vec::new();
@@ -1976,6 +1994,14 @@ impl SessionStorage {
         let order_by = "ORDER BY sort_timestamp DESC, s.id DESC";
         let limit_clause = if query.limit.is_some() { "LIMIT ?" } else { "" };
 
+        let message_count_sql = if has_limit {
+            "0".to_string()
+        } else {
+            format!(
+                "COUNT(m.id) FILTER (WHERE {})",
+                user_visible_message_sql("m.metadata_json")
+            )
+        };
         let sql = format!(
             r#"
             SELECT s.id, s.working_dir, s.name, s.description, s.user_set_name, s.session_type, s.created_at, s.updated_at, s.extension_data,
@@ -1987,7 +2013,7 @@ impl SessionStorage {
                    s.schedule_id, s.recipe_json, s.user_recipe_values_json,
                    s.provider_name, s.model_config_json, s.goose_mode,
                    s.archived_at, s.project_id, s.parent_session_id,
-                   COUNT(m.id) FILTER (WHERE {}) as message_count,
+                   {} as message_count,
                    MAX({}) as last_message_timestamp,
                    {} as sort_timestamp
             FROM sessions s
@@ -1998,7 +2024,7 @@ impl SessionStorage {
             {}
             {}
             "#,
-            user_visible_message_sql("m.metadata_json"),
+            message_count_sql,
             normalized_message_timestamp,
             sort_timestamp_sql,
             message_join,
@@ -2031,7 +2057,50 @@ impl SessionStorage {
         }
 
         let pool = self.pool().await?;
-        q.fetch_all(pool).await.map_err(Into::into)
+        if has_limit {
+            let mut tx = pool.begin().await?;
+            let mut sessions = q.fetch_all(&mut *tx).await?;
+            Self::populate_visible_message_counts(&mut tx, &mut sessions).await?;
+            tx.commit().await?;
+            Ok(sessions)
+        } else {
+            q.fetch_all(pool).await.map_err(Into::into)
+        }
+    }
+
+    async fn populate_visible_message_counts(
+        tx: &mut sqlx::Transaction<'_, Sqlite>,
+        sessions: &mut [Session],
+    ) -> Result<()> {
+        let mut counts = HashMap::with_capacity(sessions.len());
+
+        for chunk in sessions.chunks(SESSION_COUNT_BATCH_SIZE) {
+            let placeholders = chunk.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+            let sql = format!(
+                r#"
+                SELECT m.session_id,
+                       COUNT(m.id) FILTER (WHERE {}) as message_count
+                FROM messages m
+                WHERE m.session_id IN ({})
+                GROUP BY m.session_id
+                "#,
+                user_visible_message_sql("m.metadata_json"),
+                placeholders
+            );
+            let mut q = sqlx::query_as::<_, (String, i64)>(AssertSqlSafe(sql));
+            for session in chunk {
+                q = q.bind(&session.id);
+            }
+            for (session_id, message_count) in q.fetch_all(&mut **tx).await? {
+                counts.insert(session_id, message_count as usize);
+            }
+        }
+
+        for session in sessions {
+            session.message_count = counts.get(&session.id).copied().unwrap_or_default();
+        }
+
+        Ok(())
     }
 
     async fn list_sessions_by_types(&self, types: Option<&[SessionType]>) -> Result<Vec<Session>> {
@@ -3073,6 +3142,10 @@ mod tests {
         let listed = sm.list_sessions().await.unwrap();
         let listed_session = listed.iter().find(|s| s.id == session.id).unwrap();
         assert_eq!(listed_session.message_count, 2);
+
+        let limited = sm.list_sessions_with_limit(1).await.unwrap();
+        assert_eq!(limited[0].id, session.id);
+        assert_eq!(limited[0].message_count, 2);
     }
 
     #[tokio::test]
@@ -3527,6 +3600,114 @@ mod tests {
             assert_session_list_page(&sm, cursor.as_ref(), None, 2, &expected_ids[2..4], true)
                 .await;
         assert_session_list_page(&sm, cursor.as_ref(), None, 2, &expected_ids[4..5], false).await;
+    }
+
+    #[tokio::test]
+    async fn test_list_sessions_with_limit_counts_visible_and_legacy_messages() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let older = create_session_for_list(&sm, "/tmp/session-list", false).await;
+        add_message_at(&sm, &older, "older", "2026-01-01T00:00:00Z").await;
+
+        let selected = create_session_for_list(&sm, "/tmp/session-list", false).await;
+        sm.add_message(
+            &selected,
+            &Message::user().with_id("legacy").with_text("legacy"),
+        )
+        .await
+        .unwrap();
+        set_message_timestamp(&sm, &selected, "legacy", "2026-01-02T00:00:00Z").await;
+        sqlx::query(
+            "UPDATE messages SET metadata_json = '{}' WHERE session_id = ? AND message_id = ?",
+        )
+        .bind(&selected)
+        .bind("legacy")
+        .execute(sm.storage().pool().await.unwrap())
+        .await
+        .unwrap();
+
+        sm.add_message(
+            &selected,
+            &Message::user()
+                .with_id("hidden")
+                .with_text("hidden")
+                .with_visibility(false, true),
+        )
+        .await
+        .unwrap();
+        set_message_timestamp(&sm, &selected, "hidden", "2026-01-03T00:00:00Z").await;
+
+        sm.add_message(
+            &selected,
+            &Message::assistant().with_id("visible").with_text("visible"),
+        )
+        .await
+        .unwrap();
+        set_message_timestamp(&sm, &selected, "visible", "2026-01-04T00:00:00Z").await;
+
+        let sessions = sm.list_sessions_with_limit(1).await.unwrap();
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].id, selected);
+        assert_eq!(sessions[0].message_count, 2);
+        assert_eq!(
+            sessions[0].last_message_at,
+            Some(
+                chrono::DateTime::parse_from_rfc3339("2026-01-04T00:00:00Z")
+                    .unwrap()
+                    .with_timezone(&Utc)
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_session_list_paged_includes_hidden_only_session_with_zero_count() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let hidden_only = create_session_for_list(&sm, "/tmp/session-list", false).await;
+        sm.add_message(
+            &hidden_only,
+            &Message::user()
+                .with_text("hidden")
+                .with_visibility(false, true),
+        )
+        .await
+        .unwrap();
+        create_session_for_list(&sm, "/tmp/session-list", false).await;
+
+        let types = [SessionType::User];
+        let page = sm
+            .list_sessions_paged(SessionListPageQuery {
+                filters: SessionListFilters {
+                    types: Some(&types),
+                    only_sessions_with_messages: true,
+                    ..Default::default()
+                },
+                cursor: None,
+                page_size: 10,
+                include_last_message_snippet: false,
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(page.sessions.len(), 1);
+        assert_eq!(page.sessions[0].id, hidden_only);
+        assert_eq!(page.sessions[0].message_count, 0);
+        assert!(page.sessions[0].last_message_at.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_list_sessions_with_limit_returns_empty_session_with_zero_count() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let empty = create_session_for_list(&sm, "/tmp/session-list", false).await;
+
+        let sessions = sm.list_sessions_with_limit(1).await.unwrap();
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].id, empty);
+        assert_eq!(sessions[0].message_count, 0);
+        assert_eq!(sessions[0].last_message_at, None);
     }
 
     #[tokio::test]
