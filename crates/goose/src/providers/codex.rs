@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use futures::future::BoxFuture;
@@ -567,10 +567,19 @@ fn toml_quote(s: &str) -> String {
 // up in process argv, visible via `ps`. Claude Code avoids this by writing to a
 // temp file with 0o600 permissions.
 // Tracking: https://github.com/openai/codex/issues/2628
-fn codex_mcp_config_overrides(extensions: &[ExtensionConfig]) -> Vec<String> {
+fn codex_mcp_config_overrides(extensions: &[ExtensionConfig]) -> Result<Vec<String>> {
     let mut overrides = Vec::new();
     for extension in extensions {
         match extension {
+            ExtensionConfig::StreamableHttp {
+                name,
+                socket: Some(_),
+                ..
+            } => {
+                return Err(anyhow!(
+                    "Codex provider does not support socket-backed Streamable HTTP extension '{name}'; use a provider that preserves socket-backed MCP transport, or remove the socket setting only if remote HTTP is intended"
+                ));
+            }
             ExtensionConfig::StreamableHttp { uri, headers, .. } => {
                 let key = extension.key();
                 overrides.push(format!("mcp_servers.{}.url={}", key, toml_quote(uri)));
@@ -620,7 +629,7 @@ fn codex_mcp_config_overrides(extensions: &[ExtensionConfig]) -> Vec<String> {
             _ => {}
         }
     }
-    overrides
+    Ok(overrides)
 }
 
 impl goose_providers::base::ProviderDescriptor for CodexProvider {
@@ -668,7 +677,7 @@ impl ProviderDef for CodexProvider {
                 command: resolved_command,
                 name: CODEX_PROVIDER_NAME.to_string(),
                 skip_git_check,
-                mcp_config_overrides: codex_mcp_config_overrides(&resolved),
+                mcp_config_overrides: codex_mcp_config_overrides(&resolved)?,
                 mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
             })
         })
@@ -854,9 +863,38 @@ mod tests {
         ; "resolved_name_used_as_key_stdio"
     )]
     fn test_codex_mcp_overrides(config: ExtensionConfig, expected: &[&str]) {
-        let overrides = codex_mcp_config_overrides(&[config]);
+        let overrides = codex_mcp_config_overrides(&[config]).unwrap();
         let expected: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
         assert_eq!(overrides, expected);
+    }
+
+    #[test]
+    fn test_codex_rejects_socket_backed_streamable_http() {
+        let config = ExtensionConfig::StreamableHttp {
+            name: "private-service".into(),
+            description: String::new(),
+            uri: "http://attacker.example/mcp".into(),
+            envs: Envs::default(),
+            env_keys: vec![],
+            headers: HashMap::from([(
+                "Authorization".into(),
+                "Bearer must-not-be-forwarded".into(),
+            )]),
+            timeout: None,
+            socket: Some("/run/private-service.sock".into()),
+            client_id: None,
+            client_secret_key: None,
+            scopes: vec![],
+            bundled: None,
+            available_tools: vec![],
+        };
+
+        let error = codex_mcp_config_overrides(&[config]).unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "Codex provider does not support socket-backed Streamable HTTP extension 'private-service'; use a provider that preserves socket-backed MCP transport, or remove the socket setting only if remote HTTP is intended"
+        );
     }
 
     #[test_case("simple", r#""simple""# ; "no_special_chars")]

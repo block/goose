@@ -1,5 +1,5 @@
 import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
-import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
+import type { SessionNotification } from '@agentclientprotocol/sdk';
 import type { Message } from '../types/message';
 import {
   applyElicitationRequest as applyElicitationRequestToState,
@@ -8,7 +8,10 @@ import {
 } from './adapter/elicitations';
 import { applyGooseSessionNotification } from './adapter/gooseSessionNotifications';
 import { applyContentChunk, applyThoughtChunk } from './adapter/messages';
-import { applyPermissionRequest as applyPermissionRequestToState } from './adapter/permissions';
+import {
+  applyPermissionRequest as applyPermissionRequestToState,
+  cancelPermissionRequest as cancelPermissionRequestInState,
+} from './adapter/permissions';
 import {
   type AcpChatStateChange,
   type AdapterState,
@@ -18,13 +21,15 @@ import {
 } from './adapter/shared';
 import { applyToolCall, applyToolCallUpdate } from './adapter/tools';
 import type { AcpElicitationRequest } from './elicitationRequests';
+import type { AcpPermissionRequest } from './permissionRequestTypes';
 
 export type { AcpChatStateChange } from './adapter/shared';
 
 export interface AcpSessionNotificationAdapter {
   apply(notification: SessionNotification): AcpChatStateChange[];
   applyGoose(notification: GooseSessionNotification_unstable): AcpChatStateChange[];
-  applyPermissionRequest(request: RequestPermissionRequest): AcpChatStateChange[];
+  applyPermissionRequest(request: AcpPermissionRequest): AcpChatStateChange[];
+  cancelPermissionRequest(toolCallId: string, generation: string): AcpChatStateChange[];
   applyElicitationRequest(request: AcpElicitationRequest): AcpChatStateChange[];
   applyElicitationStatus(elicitationId: string, status: ElicitationStatus): AcpChatStateChange[];
   getMessages(): Message[];
@@ -49,6 +54,9 @@ export function createAcpSessionNotificationAdapter(
     },
     applyPermissionRequest(request) {
       return applyPermissionRequestToState(state, request);
+    },
+    cancelPermissionRequest(toolCallId, generation) {
+      return cancelPermissionRequestInState(state, toolCallId, generation);
     },
     applyElicitationRequest(request) {
       return applyElicitationRequestToState(state, request);

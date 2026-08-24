@@ -284,6 +284,7 @@ export default function ToolCallWithResponse({
             <div className="px-4 pb-2">
               <ToolApprovalButtons
                 data={{
+                  generation: confirmationContent.generation,
                   id: confirmationContent.id,
                   toolName: confirmationContent.toolName,
                   prompt: confirmationContent.prompt ?? undefined,

@@ -12,6 +12,10 @@ pub struct ProviderUsage {
     pub cost: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cost_source: Option<CostSource>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub finish_reasons: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -48,6 +52,8 @@ impl ProviderUsage {
             stats: None,
             cost: None,
             cost_source: None,
+            finish_reasons: None,
+            response_id: None,
         }
     }
 
@@ -59,6 +65,16 @@ impl ProviderUsage {
     pub fn with_cost(mut self, cost: f64, source: CostSource) -> Self {
         self.cost = Some(cost);
         self.cost_source = Some(source);
+        self
+    }
+
+    pub fn with_finish_reasons(mut self, reasons: Vec<String>) -> Self {
+        self.finish_reasons = Some(reasons);
+        self
+    }
+
+    pub fn with_response_id(mut self, id: String) -> Self {
+        self.response_id = Some(id);
         self
     }
 }
@@ -207,6 +223,46 @@ mod tests {
         assert_eq!(usage.total_tokens, Some(6060));
         assert_eq!(usage.cache_read_input_tokens, Some(5000));
         assert_eq!(usage.cache_write_input_tokens, Some(1000));
+    }
+
+    #[test]
+    fn provider_usage_finish_reasons_and_response_id_roundtrip() -> Result<()> {
+        let usage = ProviderUsage::new("gpt-4".to_string(), Usage::new(Some(10), Some(20), None))
+            .with_finish_reasons(vec!["stop".to_string()])
+            .with_response_id("resp-abc".to_string());
+
+        let json = serde_json::to_value(&usage)?;
+        assert_eq!(json["finish_reasons"], json!(["stop"]));
+        assert_eq!(json["response_id"], json!("resp-abc"));
+
+        let roundtripped: ProviderUsage = serde_json::from_value(json)?;
+        assert_eq!(
+            roundtripped.finish_reasons.as_deref(),
+            Some(&["stop".to_string()][..])
+        );
+        assert_eq!(roundtripped.response_id.as_deref(), Some("resp-abc"));
+        Ok(())
+    }
+
+    #[test]
+    fn provider_usage_omits_none_fields_in_json() -> Result<()> {
+        let usage = ProviderUsage::new("gpt-4".to_string(), Usage::new(Some(5), Some(10), None));
+        let json = serde_json::to_value(&usage)?;
+        assert!(!json.as_object().unwrap().contains_key("finish_reasons"));
+        assert!(!json.as_object().unwrap().contains_key("response_id"));
+        Ok(())
+    }
+
+    #[test]
+    fn provider_usage_deserializes_without_new_fields() -> Result<()> {
+        let json = json!({
+            "model": "gpt-4",
+            "usage": {"input_tokens": 5, "output_tokens": 10, "total_tokens": 15}
+        });
+        let usage: ProviderUsage = serde_json::from_value(json)?;
+        assert!(usage.finish_reasons.is_none());
+        assert!(usage.response_id.is_none());
+        Ok(())
     }
 
     #[test]

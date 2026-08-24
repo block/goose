@@ -19,16 +19,16 @@ use rmcp::{
         CallToolRequestParams, CallToolResult, CancelledNotificationParam, ClientCapabilities,
         ClientInfo, ClientRequest, GetPromptRequestParams, GetPromptResult, Implementation,
         InitializeRequestParams, InitializeResult, ListPromptsResult, ListResourcesResult,
-        ListToolsResult, Notification, PaginatedRequestParams, ReadResourceRequestParams,
-        ReadResourceResult, Request, RequestId, RequestOptionalParam, Role, ServerNotification,
-        ServerResult,
+        ListToolsResult, Notification, PaginatedRequestParams, ProtocolVersion,
+        ReadResourceRequestParams, ReadResourceResult, Request, RequestId, RequestOptionalParam,
+        Role, ServerNotification, ServerResult,
     },
     service::{
-        ClientInitializeError, PeerRequestOptions, RequestContext, RequestHandle, RunningService,
-        ServiceRole,
+        ClientInitializeError, ClientLifecycleMode, ClientServiceExt, PeerRequestOptions,
+        RequestContext, RequestHandle, RunningService, ServiceRole,
     },
     transport::IntoTransport,
-    ClientHandler, ErrorData, Peer, RoleClient, ServiceError, ServiceExt,
+    ClientHandler, ErrorData, Peer, RoleClient, ServiceError,
 };
 use serde_json::Value;
 use std::{
@@ -499,6 +499,10 @@ impl ClientHandler for GooseClient {
         request: ElicitRequestParams,
         context: RequestContext<RoleClient>,
     ) -> Result<ElicitResult, ErrorData> {
+        if let Some(handler) = &self.capabilities.elicitation_handler {
+            return Ok(handler(&request));
+        }
+
         let session_id = self
             .resolve_session_id(&context.extensions)
             .await
@@ -571,18 +575,40 @@ impl ClientHandler for GooseClient {
                 .build(),
             self.resolved_client_info(),
         )
+        .with_protocol_version(
+            self.capabilities
+                .protocol_version
+                .clone()
+                .unwrap_or_default(),
+        )
     }
 }
 
-#[derive(Debug, Clone)]
+pub type ElicitationHandler = Arc<dyn Fn(&ElicitRequestParams) -> ElicitResult + Send + Sync>;
+
+#[derive(Clone, Default)]
 pub struct GooseMcpClientCapabilities {
     pub mcpui: bool,
     pub host_info: Option<GooseMcpHostInfo>,
+    pub elicitation_handler: Option<ElicitationHandler>,
+    pub protocol_version: Option<ProtocolVersion>,
+}
+
+impl std::fmt::Debug for GooseMcpClientCapabilities {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("GooseMcpClientCapabilities")
+            .field("mcpui", &self.mcpui)
+            .field("host_info", &self.host_info)
+            .field("elicitation_handler", &self.elicitation_handler.is_some())
+            .field("protocol_version", &self.protocol_version)
+            .finish()
+    }
 }
 
 /// The MCP client is the interface for MCP operations.
 pub struct McpClient {
-    client: Mutex<RunningService<RoleClient, GooseClient>>,
+    client: Mutex<Arc<RunningService<RoleClient, GooseClient>>>,
     notification_subscribers: Arc<Mutex<Vec<mpsc::Sender<ServerNotification>>>>,
     server_info: Option<InitializeResult>,
     timeout: std::time::Duration,
@@ -648,7 +674,26 @@ impl McpClient {
             extension_manager,
         );
         let client: rmcp::service::RunningService<rmcp::RoleClient, GooseClient> =
-            client.serve(transport).await?;
+            if let Some(protocol_version) = capabilities.protocol_version {
+                let lifecycle = if protocol_version >= ProtocolVersion::STANDARD_HEADERS {
+                    ClientLifecycleMode::Discover {
+                        preferred_versions: vec![protocol_version],
+                    }
+                } else {
+                    ClientLifecycleMode::Initialize
+                };
+                client.serve_with_lifecycle(transport, lifecycle).await?
+            } else {
+                client
+                    .serve_with_lifecycle(
+                        transport,
+                        ClientLifecycleMode::Auto {
+                            preferred_versions: vec![ProtocolVersion::V_2026_07_28],
+                            legacy_version: Some(ProtocolVersion::LATEST),
+                        },
+                    )
+                    .await?
+            };
         let server_info = client.peer_info().map(|info| {
             let mut initialize_result = InitializeResult::new(info.capabilities.clone())
                 .with_protocol_version(info.protocol_version.clone());
@@ -661,7 +706,7 @@ impl McpClient {
         });
 
         Ok(Self {
-            client: Mutex::new(client),
+            client: Mutex::new(Arc::new(client)),
             notification_subscribers,
             server_info,
             timeout,
@@ -788,14 +833,27 @@ impl McpClientTrait for McpClient {
         uri: &str,
         cancel_token: CancellationToken,
     ) -> Result<ReadResourceResult, Error> {
+        let params = ReadResourceRequestParams::new(uri.to_string());
+        let client = self.client.lock().await.clone();
+        if client
+            .peer_info()
+            .is_some_and(|info| info.protocol_version == ProtocolVersion::V_2026_07_28)
+        {
+            client.service().set_session_id(session_id).await;
+            return tokio::select! {
+                result = client.read_resource(params) => result,
+                _ = tokio::time::sleep(self.timeout) => Err(ServiceError::Timeout { timeout: self.timeout }),
+                _ = cancel_token.cancelled() => Err(ServiceError::Cancelled { reason: None }),
+            };
+        }
+        drop(client);
+
         let res = self
             .send_request_with_context(
                 session_id,
                 None,
                 None,
-                ClientRequest::ReadResourceRequest(Request::new(ReadResourceRequestParams::new(
-                    uri.to_string(),
-                ))),
+                ClientRequest::ReadResourceRequest(Request::new(params)),
                 cancel_token,
             )
             .await?;
@@ -841,6 +899,46 @@ impl McpClientTrait for McpClient {
         if let Some(args) = arguments {
             params = params.with_arguments(args);
         }
+        let protocol_version = {
+            let client = self.client.lock().await;
+            client.peer_info().map(|info| info.protocol_version.clone())
+        };
+        if protocol_version.as_ref() == Some(&ProtocolVersion::V_2026_07_28) {
+            let extensions = inject_session_context_into_extensions(
+                Extensions::new(),
+                Some(&ctx.session_id),
+                ctx.working_dir_str(),
+                ctx.tool_call_request_id.as_deref(),
+            );
+            if let Some(meta) = extensions.get::<MetaObject>() {
+                params.meta.get_or_insert_default().0 .0.extend(
+                    meta.0
+                        .iter()
+                        .map(|(key, value)| (key.clone(), value.clone())),
+                );
+            }
+            let client = self.client.lock().await.clone();
+            client.service().set_session_id(&ctx.session_id).await;
+            let _active_tool_call_guard = ctx
+                .tool_call_request_id
+                .as_deref()
+                .filter(|id| !id.is_empty())
+                .map(|tool_call_request_id| {
+                    client
+                        .service()
+                        .register_active_tool_call(&ctx.session_id, tool_call_request_id)
+                });
+            return tokio::select! {
+                result = client.call_tool(params) => result,
+                _ = tokio::time::sleep(self.timeout) => {
+                    Err(ServiceError::Timeout { timeout: self.timeout })
+                }
+                _ = cancel_token.cancelled() => {
+                    Err(ServiceError::Cancelled { reason: None })
+                }
+            };
+        }
+
         let request = ClientRequest::CallToolRequest(Request::new(params));
 
         let result = self
@@ -898,6 +996,20 @@ impl McpClientTrait for McpClient {
         if let Some(args) = arguments {
             params = params.with_arguments(args);
         }
+        let client = self.client.lock().await.clone();
+        if client
+            .peer_info()
+            .is_some_and(|info| info.protocol_version == ProtocolVersion::V_2026_07_28)
+        {
+            client.service().set_session_id(session_id).await;
+            return tokio::select! {
+                result = client.get_prompt(params) => result,
+                _ = tokio::time::sleep(self.timeout) => Err(ServiceError::Timeout { timeout: self.timeout }),
+                _ = cancel_token.cancelled() => Err(ServiceError::Cancelled { reason: None }),
+            };
+        }
+        drop(client);
+
         let res = self
             .send_request_with_context(
                 session_id,
@@ -1103,10 +1215,14 @@ mod tests {
             GoosePlatform::GooseDesktop => GooseMcpClientCapabilities {
                 mcpui: true,
                 host_info: None,
+                elicitation_handler: None,
+                protocol_version: None,
             },
             GoosePlatform::GooseCli => GooseMcpClientCapabilities {
                 mcpui: false,
                 host_info: None,
+                elicitation_handler: None,
+                protocol_version: None,
             },
         };
 
@@ -1157,6 +1273,8 @@ mod tests {
             GooseMcpClientCapabilities {
                 mcpui: false,
                 host_info: None,
+                elicitation_handler: None,
+                protocol_version: None,
             },
             temp_dir.path().to_path_buf(),
             Arc::new(ActionRequiredManager::new()),
@@ -1533,6 +1651,8 @@ mod tests {
                     client_name: Some("goose2".to_string()),
                     client_version: Some("0.1.0".to_string()),
                 }),
+                elicitation_handler: None,
+                protocol_version: None,
             },
             std::env::current_dir().unwrap_or_default(),
             Arc::new(ActionRequiredManager::new()),
@@ -1566,6 +1686,8 @@ mod tests {
                     client_name: Some("goose2".to_string()),
                     client_version: Some("0.1.0".to_string()),
                 }),
+                elicitation_handler: None,
+                protocol_version: None,
             },
             std::env::current_dir().unwrap_or_default(),
             Arc::new(ActionRequiredManager::new()),
@@ -1596,6 +1718,8 @@ mod tests {
                     client_name: Some("goose2".to_string()),
                     client_version: Some("0.1.0".to_string()),
                 }),
+                elicitation_handler: None,
+                protocol_version: None,
             },
             std::env::current_dir().unwrap_or_default(),
             Arc::new(ActionRequiredManager::new()),

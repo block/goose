@@ -51,6 +51,7 @@ pub struct AnthropicFormatOptions {
     pub preserve_unsigned_thinking: bool,
     pub preserve_thinking_context: bool,
     pub thinking_disabled: bool,
+    pub emit_clear_thinking: bool,
     pub current_model: Option<String>,
     pub prompt_cache_disabled: bool,
 }
@@ -66,11 +67,15 @@ impl AnthropicFormatOptions {
             || preserve_thinking_context;
         let thinking_disabled = model_config.reasoning == Some(false)
             || model_config.thinking_effort() == Some(ThinkingEffort::Off);
+        let emit_clear_thinking = model_config
+            .request_param::<bool>("emit_clear_thinking")
+            .unwrap_or(self.emit_clear_thinking);
 
         Self {
             preserve_unsigned_thinking,
             preserve_thinking_context,
             thinking_disabled,
+            emit_clear_thinking,
             current_model: self
                 .current_model
                 .or_else(|| Some(model_config.model_name.clone())),
@@ -751,8 +756,11 @@ fn apply_thinking_config(
             }
         }
 
-        if let Some(thinking) = obj.get_mut("thinking").and_then(|t| t.as_object_mut()) {
-            thinking.insert("clear_thinking".to_string(), json!(false));
+        // Z.AI requires this to preserve reasoning; Anthropic rejects it.
+        if options.emit_clear_thinking {
+            if let Some(thinking) = obj.get_mut("thinking").and_then(|t| t.as_object_mut()) {
+                thinking.insert("clear_thinking".to_string(), json!(false));
+            }
         }
     }
 
@@ -1087,7 +1095,9 @@ where
                             let category = str_field("category");
                             // The refusal delta carries the request's usage;
                             // flush it so refused turns are still accounted.
-                            if let Some(usage) = final_usage.take() {
+                            if let Some(mut usage) = final_usage.take() {
+                                usage.finish_reasons = Some(vec![STOP_REASON_REFUSAL.to_string()]);
+                                usage.response_id = message_id.clone();
                                 yield (None, Some(usage));
                             }
                             Err(ProviderError::Refusal { details, category })?;
@@ -1157,12 +1167,18 @@ where
 
         if stop_reason.as_deref() == Some("max_tokens") {
             let mut message = Message::assistant();
-            message.id = message_id;
+            message.id = message_id.clone();
             message.metadata.output_token_limit_reached = true;
             yield (Some(message), None);
         }
 
-        if let Some(usage) = final_usage {
+        if let Some(mut usage) = final_usage {
+            if let Some(reason) = stop_reason {
+                usage.finish_reasons = Some(vec![reason]);
+            }
+            if let Some(id) = message_id {
+                usage.response_id = Some(id);
+            }
             yield (None, Some(usage));
         }
     }
@@ -1667,6 +1683,7 @@ mod tests {
             AnthropicFormatOptions {
                 preserve_unsigned_thinking: true,
                 preserve_thinking_context: true,
+                emit_clear_thinking: true,
                 ..Default::default()
             },
         )?;
@@ -1701,6 +1718,38 @@ mod tests {
     }
 
     #[test]
+    fn test_enabled_thinking_without_optin_omits_clear_thinking() -> Result<()> {
+        let mut config = cfg("claude-sonnet-4-5-20250929");
+        config.max_tokens = Some(64000);
+        let messages = vec![
+            Message::assistant().with_content(MessageContentBlock::thinking("internal", "")),
+            Message::user().with_text("Continue"),
+        ];
+
+        let payload = create_request_with_options_provider(
+            &config,
+            "system",
+            &messages,
+            &[],
+            AnthropicFormatOptions {
+                preserve_unsigned_thinking: true,
+                preserve_thinking_context: true,
+                emit_clear_thinking: false,
+                ..Default::default()
+            },
+        )?;
+
+        assert_eq!(payload["thinking"]["type"], "enabled");
+        assert!(
+            payload["thinking"].get("clear_thinking").is_none(),
+            "Anthropic enabled thinking must not carry clear_thinking, got {}",
+            payload["thinking"]
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn test_create_request_model_params_enable_preserved_thinking_context() -> Result<()> {
         let _guard = env_lock::lock_env([
             ("CLAUDE_THINKING_ENABLED", None::<&str>),
@@ -1710,6 +1759,7 @@ mod tests {
 
         let mut params = std::collections::HashMap::new();
         params.insert("preserve_thinking_context".to_string(), json!(true));
+        params.insert("emit_clear_thinking".to_string(), json!(true));
 
         let mut config = cfg("glm-4.7");
         config.request_params = Some(params);
@@ -1724,6 +1774,39 @@ mod tests {
         assert_eq!(payload["thinking"]["clear_thinking"], false);
         assert_eq!(payload["messages"][0]["content"][0]["type"], "thinking");
         assert_eq!(payload["messages"][0]["content"][0]["thinking"], "internal");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_adaptive_model_preserved_thinking_omits_clear_thinking() -> Result<()> {
+        let mut config = cfg_with_effort("claude-opus-4-8", "high");
+        config.max_tokens = Some(64000);
+        let messages = vec![
+            Message::assistant().with_content(MessageContentBlock::thinking("internal", "")),
+            Message::user().with_text("Continue"),
+        ];
+
+        let payload = create_request_with_options_provider(
+            &config,
+            "system",
+            &messages,
+            &[],
+            AnthropicFormatOptions {
+                preserve_unsigned_thinking: true,
+                preserve_thinking_context: true,
+                emit_clear_thinking: false,
+                ..Default::default()
+            },
+        )?;
+
+        assert_eq!(payload["thinking"]["type"], "adaptive");
+        assert!(
+            payload["thinking"].get("clear_thinking").is_none(),
+            "adaptive thinking must not carry clear_thinking, got {}",
+            payload["thinking"]
+        );
+        assert_eq!(payload["output_config"]["effort"], "high");
 
         Ok(())
     }
@@ -2366,6 +2449,11 @@ mod tests {
         assert_eq!(usage.usage.output_tokens, Some(25));
         assert_eq!(usage.usage.cache_read_input_tokens, Some(5000));
         assert_eq!(usage.usage.cache_write_input_tokens, Some(10000));
+        assert_eq!(
+            usage.finish_reasons.as_deref(),
+            Some(&["end_turn".to_string()][..])
+        );
+        assert_eq!(usage.response_id.as_deref(), Some("msg_1"));
     }
 
     #[tokio::test]
@@ -2475,6 +2563,8 @@ mod tests {
             .expect("a refused request should still yield its usage");
         assert_eq!(usage.usage.input_tokens, Some(10));
         assert_eq!(usage.usage.output_tokens, Some(5));
+        assert_eq!(usage.finish_reasons, Some(vec!["refusal".to_string()]));
+        assert_eq!(usage.response_id.as_deref(), Some("msg_1"));
 
         let (details, category) = expect_refusal(results);
         assert_eq!(details, "This request violates the usage policy.");

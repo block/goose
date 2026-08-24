@@ -10,6 +10,7 @@ use tracing::debug;
 
 use super::super::agents::Agent;
 use super::gen_ai_telemetry;
+use crate::agents::extension_manager::{get_tool_owner, recover_mangled_tool_name};
 #[cfg(feature = "code-mode")]
 use crate::agents::platform_extensions::code_execution;
 use crate::config::{Config, GooseMode};
@@ -314,7 +315,11 @@ pub(crate) fn prepare_tools_for_provider(
         gen_ai.provider.name = %provider.get_name(),
         gen_ai.request.model = %model_config.model_name,
         gen_ai.request.stream = true,
+        gen_ai.request.temperature = tracing::field::Empty,
+        gen_ai.request.max_tokens = tracing::field::Empty,
         gen_ai.response.model = tracing::field::Empty,
+        gen_ai.response.finish_reasons = tracing::field::Empty,
+        gen_ai.response.id = tracing::field::Empty,
         gen_ai.usage.input_tokens = tracing::field::Empty,
         gen_ai.usage.output_tokens = tracing::field::Empty,
         gen_ai.usage.cache_read.input_tokens = tracing::field::Empty,
@@ -349,6 +354,7 @@ pub(crate) async fn stream_response_from_provider(
         filtered_messages
     };
     let span = tracing::Span::current();
+    gen_ai_telemetry::record_request_params(&span, &model_config);
     let capture_message_content = gen_ai_telemetry::capture_message_content();
     if capture_message_content {
         let input_messages =
@@ -578,6 +584,17 @@ impl Agent {
         tools: &[Tool],
         suppress_replayed_thinking: bool,
     ) -> (Vec<ToolRequest>, Vec<ToolRequest>, Message) {
+        // Precomputed once per response so a model-mangled tool name (GLM,
+        // Minimax — see #9486) is canonicalized to the real advertised name
+        // HERE, before permission inspection or PreToolUse hooks run on it
+        // downstream. Canonicalizing later (e.g. only at dispatch time) would
+        // let a mangled name dodge policy checks keyed to the canonical tool
+        // name while still executing the real tool underneath.
+        let tool_owners: Vec<(&str, Option<String>)> = tools
+            .iter()
+            .map(|t| (t.name.as_ref(), get_tool_owner(t)))
+            .collect();
+
         // First collect all tool requests with coercion applied
         let tool_requests: Vec<ToolRequest> = response
             .content
@@ -587,6 +604,15 @@ impl Agent {
                     let mut coerced_req = req.clone();
 
                     if let Ok(ref mut tool_call) = coerced_req.tool_call {
+                        if !tools.iter().any(|t| t.name == tool_call.name) {
+                            if let Some(recovered) = recover_mangled_tool_name(
+                                &tool_call.name,
+                                tool_owners.iter().map(|(n, o)| (*n, o.as_deref())),
+                            ) {
+                                tool_call.name = recovered.into();
+                            }
+                        }
+
                         if let Some(tool) = tools.iter().find(|t| t.name == tool_call.name) {
                             let schema_value = Value::Object(tool.input_schema.as_ref().clone());
                             tool_call.arguments =
@@ -765,10 +791,9 @@ impl Agent {
         if let Some(cost) = usage.cost {
             return (Some(cost), Some(CostSource::ProviderReported));
         }
-        match provider_name
-            .and_then(|pn| crate::providers::canonical::maybe_get_canonical_model(pn, &usage.model))
-            .and_then(|canonical| canonical.cost.estimate_cost(&usage.usage))
-        {
+        match provider_name.and_then(|pn| {
+            crate::providers::canonical_cost::estimate_model_cost(pn, &usage.model, &usage.usage)
+        }) {
             Some(cost) => (Some(cost), Some(CostSource::Estimated)),
             None => (None, None),
         }
@@ -795,7 +820,7 @@ pub fn is_tool_visible_to_app(tool: &Tool) -> bool {
         return true;
     };
     let Some(arr) = visibility.as_array() else {
-        return true;
+        return false;
     };
     arr.iter().any(|v| v.as_str() == Some("app"))
 }
@@ -1624,6 +1649,108 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn categorize_tool_requests_canonicalizes_mangled_unprefixed_tool_name() {
+        // GLM's documented reproduction (#9486): a default Developer-extension
+        // tool is advertised unprefixed ("shell"), owner only in metadata, and
+        // the model emits "developer.shell". This must be rewritten to the
+        // canonical "shell" here — before permission inspection and PreToolUse
+        // hooks ever see the request — or policy checks keyed to the real tool
+        // name can be bypassed by a mangled name that later dispatch recovers
+        // (see PR #10230 follow-up review).
+        let agent = crate::agents::Agent::new();
+
+        let shell_tool = Tool::new(
+            "shell",
+            "run a shell command",
+            object!({ "type": "object" }),
+        )
+        .with_meta(rmcp::model::MetaObject(
+            serde_json::json!({ "goose_extension": "developer" })
+                .as_object()
+                .unwrap()
+                .clone(),
+        ));
+
+        let response = Message::assistant().with_tool_request(
+            "tool-1",
+            Ok(rmcp::model::CallToolRequestParams::new("developer.shell")),
+        );
+
+        let (_frontend_requests, other_requests, _filtered_message) = agent
+            .categorize_tool_requests(&response, &[shell_tool], false)
+            .await;
+
+        assert_eq!(other_requests.len(), 1);
+        let tool_call = other_requests[0]
+            .tool_call
+            .as_ref()
+            .expect("mangled-but-recoverable name must not become an Err");
+        assert_eq!(
+            tool_call.name, "shell",
+            "mangled name must be canonicalized before inspection/dispatch"
+        );
+    }
+
+    #[tokio::test]
+    async fn categorize_tool_requests_canonicalizes_mangled_non_extension_manager_tool_name() {
+        // recipe__final_output is appended by Agent::list_tools outside the
+        // extension manager (see #9486 review); it must recover the same way.
+        let agent = crate::agents::Agent::new();
+
+        let final_output_tool = Tool::new(
+            "recipe__final_output",
+            "submit the final structured output",
+            object!({ "type": "object" }),
+        );
+
+        let response = Message::assistant().with_tool_request(
+            "tool-1",
+            Ok(rmcp::model::CallToolRequestParams::new(
+                "recipe.final_output",
+            )),
+        );
+
+        let (_frontend_requests, other_requests, _filtered_message) = agent
+            .categorize_tool_requests(&response, &[final_output_tool], false)
+            .await;
+
+        assert_eq!(other_requests.len(), 1);
+        let tool_call = other_requests[0]
+            .tool_call
+            .as_ref()
+            .expect("mangled-but-recoverable name must not become an Err");
+        assert_eq!(tool_call.name, "recipe__final_output");
+    }
+
+    #[tokio::test]
+    async fn categorize_tool_requests_leaves_unrecoverable_name_untouched() {
+        // No matching tool at all: the request must pass through unchanged
+        // (still Ok, still the original name) so existing not-found handling
+        // downstream is unaffected.
+        let agent = crate::agents::Agent::new();
+        let tool = Tool::new(
+            "shell",
+            "run a shell command",
+            object!({ "type": "object" }),
+        );
+
+        let response = Message::assistant().with_tool_request(
+            "tool-1",
+            Ok(rmcp::model::CallToolRequestParams::new(
+                "totally_unknown_tool",
+            )),
+        );
+
+        let (_frontend_requests, other_requests, _filtered_message) = agent
+            .categorize_tool_requests(&response, &[tool], false)
+            .await;
+
+        assert_eq!(other_requests.len(), 1);
+        let tool_call = other_requests[0].tool_call.as_ref().unwrap();
+        assert_eq!(tool_call.name, "totally_unknown_tool");
+    }
+
+    #[tokio::test]
     async fn categorize_tool_requests_dedups_duplicate_ids_in_provider_order() {
         // A malformed provider repeats id "dup". The first occurrence wins, the
         // later duplicate is dropped from both the dispatch bucket and the
@@ -1754,6 +1881,12 @@ mod tests {
     #[test]
     fn test_app_hidden_when_visibility_is_empty() {
         let tool = make_tool_with_meta(Some(serde_json::json!({"ui": {"visibility": []}})));
+        assert!(!is_tool_visible_to_app(&tool));
+    }
+
+    #[test]
+    fn test_app_hidden_when_visibility_is_not_array() {
+        let tool = make_tool_with_meta(Some(serde_json::json!({"ui": {"visibility": "model"}})));
         assert!(!is_tool_visible_to_app(&tool));
     }
 

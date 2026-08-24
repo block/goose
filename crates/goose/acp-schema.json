@@ -6934,6 +6934,33 @@
       ],
       "description": "Per-message token usage/cost/timing, keyed by the message id used for\nchunk matching. Sent live after a turn's messages and on replay."
     },
+    "ProviderDeviceCodeNotification_unstable": {
+      "type": "object",
+      "properties": {
+        "providerId": {
+          "type": "string"
+        },
+        "userCode": {
+          "type": "string"
+        },
+        "verificationUri": {
+          "type": "string"
+        },
+        "expiresIn": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "providerId",
+        "userCode",
+        "verificationUri",
+        "expiresIn"
+      ],
+      "description": "Dedicated provider notification for OAuth device-code flow.\nSent during provider authentication when the ACP client supports\n`goose.customNotifications` — avoids a fake empty session ID.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/authentication/device-code"
+    },
     "RequestRecipeParams_unstable": {
       "type": "object",
       "properties": {
@@ -8715,6 +8742,15 @@
                   ],
                   "description": "Params for _goose/unstable/session/update",
                   "title": "GooseSessionNotification_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ProviderDeviceCodeNotification_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/providers/authentication/device-code",
+                  "title": "ProviderDeviceCodeNotification_unstable"
                 }
               ]
             },

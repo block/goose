@@ -6,7 +6,7 @@ export async function safeJsonParse<T>(
     return (await response.json()) as T;
   } catch (error) {
     if (error instanceof SyntaxError) {
-      throw new Error(errorMessage);
+      throw new Error(errorMessage, { cause: error });
     }
     throw error;
   }

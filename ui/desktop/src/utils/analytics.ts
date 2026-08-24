@@ -70,7 +70,11 @@ export type AnalyticsEvent =
     }
   | {
       name: 'schedule_created';
-      properties: { source_type: 'file' | 'deeplink'; success: boolean; error_details?: string };
+      properties: {
+        source_type: 'file' | 'deeplink' | 'saved';
+        success: boolean;
+        error_details?: string;
+      };
     }
   | { name: 'schedule_deleted'; properties: { success: boolean; error_details?: string } }
   | { name: 'schedule_run_now'; properties: { success: boolean; error_details?: string } }
@@ -419,7 +423,7 @@ export function trackExtensionDeleted(
 // ============================================================================
 
 export function trackScheduleCreated(
-  sourceType: 'file' | 'deeplink',
+  sourceType: 'file' | 'deeplink' | 'saved',
   success: boolean,
   errorDetails?: string
 ): void {

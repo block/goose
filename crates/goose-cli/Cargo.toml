@@ -19,6 +19,10 @@ path = "src/main.rs"
 name = "generate_manpages"
 path = "src/bin/generate_manpages.rs"
 
+[[bin]]
+name = "mcp_conformance_driver"
+path = "src/bin/mcp_conformance_driver.rs"
+
 [dependencies]
 clap_mangen = { version = "0.3", default-features = false }
 goose = { path = "../goose", default-features = false }
@@ -61,11 +65,12 @@ open = { version = "5", default-features = false }
 url = { workspace = true }
 urlencoding = { workspace = true }
 clap_complete = { version = "4", default-features = false }
-comfy-table = { version = "7", default-features = false }
+comfy-table = { version = "8", default-features = false }
 sha2 = { workspace = true }
 sigstore-verify = { version = "0.11", default-features = false, optional = true }
+snap = { workspace = true, optional = true }
 axum.workspace = true
-axum-server = { version = "0.8", default-features = false, optional = true }
+axum-server = { workspace = true, optional = true }
 clap_complete_nushell = { version = "4", default-features = false }
 
 [target.'cfg(target_os = "windows")'.dependencies]
@@ -105,7 +110,7 @@ nostr = ["goose/nostr"]
 otel = ["goose/otel"]
 system-keyring = ["goose/system-keyring"]
 tui = []
-update = ["dep:sigstore-verify"]
+update = ["dep:sigstore-verify", "dep:snap"]
 portable-default = ["rustls-tls", "aws-providers", "telemetry", "otel", "tui"]
 # disables the update command
 disable-update = []

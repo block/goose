@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
-import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
+import type { SessionNotification } from '@agentclientprotocol/sdk';
 import type { TokenState } from '../types/chat';
 import { ChatState } from '../types/chatState';
 import type { Message, NotificationEvent } from '../types/message';
@@ -13,6 +13,7 @@ import {
 import type { ElicitationStatus } from './adapter/elicitations';
 import { cloneMessage } from './adapter/shared';
 import type { AcpElicitationRequest } from './elicitationRequests';
+import type { AcpPermissionRequest } from './permissionRequestTypes';
 
 export interface AcpChatSessionSnapshot {
   session: Session | undefined;
@@ -65,7 +66,12 @@ export interface AcpChatSessionActions {
   applyAcpGooseSessionNotification(
     notification: GooseSessionNotification_unstable
   ): AcpChatSessionSnapshot;
-  applyPermissionRequest(request: RequestPermissionRequest): AcpChatSessionSnapshot;
+  applyPermissionRequest(request: AcpPermissionRequest): AcpChatSessionSnapshot;
+  cancelPermissionRequest(
+    sessionId: string,
+    toolCallId: string,
+    generation: string
+  ): AcpChatSessionSnapshot | undefined;
   applyElicitationRequest(request: AcpElicitationRequest): AcpChatSessionSnapshot;
   setElicitationStatus(
     sessionId: string,
@@ -483,14 +489,30 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     };
 
   const applyPermissionRequest: AcpChatSessionActions['applyPermissionRequest'] = (request) => {
-    const entry = getOrCreateEntry(request.sessionId);
+    const entry = getOrCreateEntry(request.request.sessionId);
     const changes = entry.adapter.applyPermissionRequest(request);
     applyChatStateChanges(entry, changes);
     entry.pendingUserInputRequestIds.add(
-      acpPermissionUserInputRequestId(request.toolCall.toolCallId)
+      acpPermissionUserInputRequestId(request.request.toolCall.toolCallId)
     );
     entry.chatState = ChatState.WaitingForUserInput;
-    return notify(request.sessionId, entry);
+    return notify(request.request.sessionId, entry);
+  };
+
+  const cancelPermissionRequest: AcpChatSessionActions['cancelPermissionRequest'] = (
+    sessionId,
+    toolCallId,
+    generation
+  ) => {
+    const entry = sessionsById.get(sessionId);
+    if (!entry) {
+      return undefined;
+    }
+
+    const changes = entry.adapter.cancelPermissionRequest(toolCallId, generation);
+    applyChatStateChanges(entry, changes);
+    entry.pendingUserInputRequestIds.delete(acpPermissionUserInputRequestId(toolCallId));
+    return notify(sessionId, entry);
   };
 
   const applyElicitationRequest: AcpChatSessionActions['applyElicitationRequest'] = (request) => {
@@ -545,6 +567,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     applyAcpSessionNotification,
     applyAcpGooseSessionNotification,
     applyPermissionRequest,
+    cancelPermissionRequest,
     applyElicitationRequest,
     setElicitationStatus,
   };
@@ -601,6 +624,7 @@ function actionsFromStore(store: AcpChatSessionStoreInternal): AcpChatSessionAct
     applyAcpSessionNotification: store.applyAcpSessionNotification,
     applyAcpGooseSessionNotification: store.applyAcpGooseSessionNotification,
     applyPermissionRequest: store.applyPermissionRequest,
+    cancelPermissionRequest: store.cancelPermissionRequest,
     applyElicitationRequest: store.applyElicitationRequest,
     setElicitationStatus: store.setElicitationStatus,
     setSessionMetadata: store.setSessionMetadata,

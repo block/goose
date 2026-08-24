@@ -5,6 +5,7 @@ import packageJson from '../../package.json';
 import { GOOSE_SERVE_EXITED_USER_MESSAGE } from '../gooseServeLeaseRegistry';
 import {
   handleAcpGooseSessionNotification,
+  handleAcpProviderDeviceCodeNotification,
   handleAcpSessionNotification,
 } from './chatNotifications';
 import { requestAcpElicitation } from './elicitationRequests';
@@ -221,6 +222,7 @@ function createClientCallbacks(): GooseAcpCallbacks {
     unstable_sessionRecipeRequestParams: requestAcpRecipeParams,
     sessionUpdate: handleAcpSessionNotification,
     unstable_sessionUpdate: handleAcpGooseSessionNotification,
+    unstable_providerDeviceCode: handleAcpProviderDeviceCodeNotification,
   };
 }
 
