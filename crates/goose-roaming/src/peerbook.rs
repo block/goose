@@ -104,6 +104,40 @@ impl PeerBook {
         self.peers.values().collect()
     }
 
+    /// Read-modify-write the peer book under a cross-process advisory lock.
+    ///
+    /// Mirrors [`crate::TrustBook::update`]: atomic replacement protects
+    /// readers from partial JSON but not writers from lost updates — two
+    /// concurrent `goose roam peers`/pairing commands each load the whole
+    /// book, mutate, and save, so the last writer clobbers the other's add,
+    /// remove, or rename. The lock is held on a sidecar `.lock` file and
+    /// auto-releases if the holder dies.
+    pub fn update<T>(
+        path: PathBuf,
+        mutate: impl FnOnce(&mut Self) -> Result<T, RoamingError>,
+    ) -> Result<T, RoamingError> {
+        use fs2::FileExt as _;
+
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let lock_path = path.with_extension("json.lock");
+        let lock = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&lock_path)?;
+        lock.lock_exclusive()?;
+
+        let result = (|| {
+            let mut book = Self::load(path)?;
+            mutate(&mut book)
+        })();
+
+        let _ = fs2::FileExt::unlock(&lock);
+        result
+    }
+
     fn flush(&self) -> Result<(), RoamingError> {
         let Some(path) = &self.path else {
             return Ok(());
@@ -118,7 +152,9 @@ impl PeerBook {
 }
 
 fn write_file(path: &Path, contents: &[u8]) -> Result<(), RoamingError> {
-    let tmp = path.with_extension("tmp");
+    // Unique per writer so concurrent flushes cannot rename each other's
+    // half-written bytes into place or fail on a stolen temporary file.
+    let tmp = path.with_extension(format!("tmp.{}", std::process::id()));
     std::fs::write(&tmp, contents)?;
     std::fs::rename(&tmp, path)?;
     Ok(())

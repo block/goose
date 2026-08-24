@@ -308,9 +308,11 @@ impl RoamingNode {
             for conn in conns {
                 conn.close(0u32.into(), b"revoked");
                 closed += 1;
+                // One disconnect per closed connection so the directory's
+                // per-peer live count reaches zero.
+                self.directory.record_disconnect(client, now_ms()).await;
             }
             tracing::info!(%client, "roaming: force-closed live connection(s) for revoked key");
-            self.directory.record_disconnect(client, now_ms()).await;
         }
         closed
     }

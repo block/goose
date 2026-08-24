@@ -393,8 +393,9 @@ async fn handle_pair(name: Option<String>) -> Result<()> {
         return Ok(());
     }
 
-    let mut book = goose_roaming::PeerBook::load(peerbook_path())?;
-    book.save(&name, device_card, now_ms())?;
+    goose_roaming::PeerBook::update(peerbook_path(), |book| {
+        book.save(&name, device_card, now_ms())
+    })?;
     let path = trust_path();
     TrustBook::update(&path, |trust| trust.accept(&decoded.endpoint_id)).with_context(|| {
         format!(
@@ -417,12 +418,14 @@ fn read_stdin_line() -> Result<String> {
 }
 
 async fn handle_peers(command: PeersCommand) -> Result<()> {
-    let mut book = goose_roaming::PeerBook::load(peerbook_path())?;
+    let book = goose_roaming::PeerBook::load(peerbook_path())?;
     match command {
         PeersCommand::Add { card, name } => {
             let decoded = ConnectionCard::decode(&card)?;
             let name = name.unwrap_or_else(|| short_id(&decoded.endpoint_id.to_string()));
-            book.save(&name, &card, now_ms())?;
+            goose_roaming::PeerBook::update(peerbook_path(), |book| {
+                book.save(&name, &card, now_ms())
+            })?;
             eprintln!(
                 "saved peer `{name}` -> {} (fingerprint {})",
                 decoded.endpoint_id,
@@ -436,7 +439,9 @@ async fn handle_peers(command: PeersCommand) -> Result<()> {
             let card = match ConnectionCard::decode(&target) {
                 Ok(card) => {
                     let name = name.unwrap_or_else(|| short_id(&card.endpoint_id.to_string()));
-                    book.save(&name, &target, now_ms())?;
+                    goose_roaming::PeerBook::update(peerbook_path(), |book| {
+                        book.save(&name, &target, now_ms())
+                    })?;
                     card
                 }
                 Err(_) => {
@@ -480,7 +485,9 @@ async fn handle_peers(command: PeersCommand) -> Result<()> {
             Ok(())
         }
         PeersCommand::Remove { name } => {
-            if book.remove(&name)? {
+            let existed =
+                goose_roaming::PeerBook::update(peerbook_path(), |book| book.remove(&name))?;
+            if existed {
                 eprintln!("removed peer `{name}` from the address book");
             } else {
                 eprintln!("no peer named `{name}`");
@@ -488,7 +495,7 @@ async fn handle_peers(command: PeersCommand) -> Result<()> {
             Ok(())
         }
         PeersCommand::Rename { from, to } => {
-            book.rename(&from, &to)?;
+            goose_roaming::PeerBook::update(peerbook_path(), |book| book.rename(&from, &to))?;
             eprintln!("renamed `{from}` -> `{to}`");
             Ok(())
         }
