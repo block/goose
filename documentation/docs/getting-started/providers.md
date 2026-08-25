@@ -52,6 +52,7 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 | [Ollama Cloud](https://ollama.com/)                                         | Access hosted models on ollama.com via OpenAI-compatible API. Requires an Ollama account and API key.  | `OLLAMA_CLOUD_API_KEY`                                                                                                                                                                       |
 | [OpenAI](https://platform.openai.com/api-keys)                              | Provides gpt-4o, o1, and other advanced language models. Also supports OpenAI-compatible endpoints (e.g., self-hosted LLaMA, vLLM, KServe). **o1-mini and o1-preview are not supported because goose uses tool calling.** | `OPENAI_API_KEY`, `OPENAI_HOST` (optional), `OPENAI_ORGANIZATION` (optional), `OPENAI_PROJECT` (optional), `OPENAI_CUSTOM_HEADERS` (optional)                                       |
 | [OpenRouter](https://openrouter.ai/)                                        | API gateway for unified access to various models with features like rate-limiting management.                                                                                                                             | `OPENROUTER_API_KEY`, `OPENROUTER_HOST` (optional), `OPENROUTER_PARAMETERS` (optional)                                                                                              |
+| [Opper](https://opper.ai/)                                                  | European AI gateway serving 700+ models from OpenAI, Anthropic, DeepSeek, Qwen, Moonshot, and other labs through one OpenAI-compatible API, with EU- and US-hosted routes. Model ids are prefixed with the hosting route (e.g. `anthropic/claude-opus-5`); catalog at `https://api.opper.ai/v3/models`. Connects via the [OpenAI provider](#using-custom-openai-endpoints) or a [custom provider](#configure-custom-provider). | `OPENAI_API_KEY` (Opper API key from [platform.opper.ai](https://platform.opper.ai)), `OPENAI_HOST` (`https://api.opper.ai/v3/compat`), `OPENAI_BASE_PATH` (`chat/completions`)     |
 | [Perplexity](https://www.perplexity.ai/)                                    | Chat models with built-in real-time web search grounding. OpenAI-compatible chat completions API at `https://api.perplexity.ai`.                                                                                          | `PERPLEXITY_API_KEY`                                                                                                                                                                |
 | [OVHcloud AI](https://www.ovhcloud.com/en/public-cloud/ai-endpoints/)       | Provides access to open-source models including Qwen, Llama, Mistral, and DeepSeek through AI Endpoints service.                                                       | `OVHCLOUD_API_KEY`                                                                                                                                                                  |
 | [Ramalama](https://ramalama.ai/)                                            | Local model using native [OCI](https://opencontainers.org/) container runtimes, [CNCF](https://www.cncf.io/) tools, and supporting models as OCI artifacts. Ramalama API is a compatible alternative to Ollama and can be used with the goose Ollama provider. Supports Qwen, Llama, DeepSeek, and other open-source models. **Because this provider runs locally, you must first [download and run a model](#local-llms).**  | `OLLAMA_HOST`                                                                                                                                                                       |
@@ -515,6 +516,45 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
     export CUSTOM_CORP_API_API_KEY="your-api-key"
     goose session start --provider custom_corp_api
     ```
+
+    The same mechanism connects hosted OpenAI-compatible gateways. For example, `opper.json` configures [Opper](https://opper.ai/) (see Opper's [goose setup guide](https://opper.ai/apps/goose)), authenticating with an API key from [platform.opper.ai](https://platform.opper.ai):
+    ```json
+    {
+      "name": "opper",
+      "engine": "openai",
+      "display_name": "Opper",
+      "description": "Opper AI gateway",
+      "api_key_env": "OPPER_API_KEY",
+      "base_url": "https://api.opper.ai/v3/compat/chat/completions",
+      "models": [
+        {
+          "name": "anthropic/claude-sonnet-5",
+          "context_limit": 1000000
+        },
+        {
+          "name": "aws/gpt-5.6-sol",
+          "context_limit": 1000000
+        },
+        {
+          "name": "alibaba:global/deepseek-v4-pro",
+          "context_limit": 1048576
+        },
+        {
+          "name": "alibaba:global/kimi-k2.7-code",
+          "context_limit": 262144
+        }
+      ],
+      "supports_streaming": true,
+      "requires_auth": true
+    }
+    ```
+
+    ```bash
+    export OPPER_API_KEY="your-opper-api-key"
+    goose session start --provider opper
+    ```
+
+    Model ids on Opper are prefixed with the hosting route; the full catalog is available at `https://api.opper.ai/v3/models`.
 
     :::tip Keychain Key Storage
     If you want to store the API key in the `goose` keychain, update the provider in goose Desktop and enter the key. This provides secure, persistent storage and allows goose to connect natively to the provider.
