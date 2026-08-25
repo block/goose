@@ -1,27 +1,35 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { applyThemeTokens, buildMcpHostStyles, themes } from '../theme/theme-tokens';
-import type { ThemeId, ThemeVariant } from '../theme/theme-tokens';
+import {
+  DEFAULT_CATPPUCCIN_ACCENT,
+  isCatppuccinAccent,
+  isThemeId,
+  isThemePreference,
+  type CatppuccinAccent,
+  type ThemeId,
+  type ThemePreference,
+  type ThemeVariant,
+} from '../theme/types';
 import type { McpUiHostStyles } from '@modelcontextprotocol/ext-apps/app-bridge';
-
-type ThemePreference = 'light' | 'dark' | 'aura' | 'system';
-type ResolvedTheme = ThemeVariant;
 
 interface ThemeContextValue {
   userThemePreference: ThemePreference;
   setUserThemePreference: (pref: ThemePreference) => void;
   resolvedThemeId: ThemeId;
-  resolvedTheme: ResolvedTheme;
+  resolvedTheme: ThemeVariant;
+  catppuccinAccent: CatppuccinAccent;
+  setCatppuccinAccent: (accent: CatppuccinAccent) => void;
   mcpHostStyles: McpUiHostStyles;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function getSystemTheme(): ResolvedTheme {
+function getSystemTheme(): ThemeVariant {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
 // Resolve a user preference to a concrete theme id. 'system' picks the light or
-// dark built-in from the OS; named themes (light/dark/aura) map to themselves.
+// dark built-in from the OS; named themes map to themselves.
 function resolveThemeId(preference: ThemePreference): ThemeId {
   if (preference === 'system') {
     return getSystemTheme();
@@ -29,7 +37,7 @@ function resolveThemeId(preference: ThemePreference): ThemeId {
   return preference;
 }
 
-function applyThemeToDocument(theme: ResolvedTheme): void {
+function applyThemeToDocument(theme: ThemeVariant): void {
   const toRemove = theme === 'dark' ? 'light' : 'dark';
   document.documentElement.classList.add(theme);
   document.documentElement.classList.remove(toRemove);
@@ -44,21 +52,34 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   // Start with light theme to avoid flash, will update once settings load
   const [userThemePreference, setUserThemePreferenceState] = useState<ThemePreference>('light');
   const [resolvedThemeId, setResolvedThemeId] = useState<ThemeId>('light');
+  const [catppuccinAccent, setCatppuccinAccentState] =
+    useState<CatppuccinAccent>(DEFAULT_CATPPUCCIN_ACCENT);
   const resolvedTheme = themes[resolvedThemeId].variant;
-  const mcpHostStyles = useMemo(() => buildMcpHostStyles(resolvedThemeId), [resolvedThemeId]);
+  const mcpHostStyles = useMemo(
+    () => buildMcpHostStyles(resolvedThemeId, catppuccinAccent),
+    [resolvedThemeId, catppuccinAccent]
+  );
 
   useEffect(() => {
     async function loadThemeFromSettings() {
       try {
-        const [useSystemTheme, savedTheme] = await Promise.all([
+        const [useSystemTheme, savedTheme, savedAccent] = await Promise.all([
           window.electron.getSetting('useSystemTheme'),
           window.electron.getSetting('theme'),
+          window.electron.getSetting('catppuccinAccent'),
         ]);
 
-        const preference: ThemePreference = useSystemTheme ? 'system' : savedTheme;
+        const preference: ThemePreference = useSystemTheme
+          ? 'system'
+          : isThemePreference(savedTheme)
+            ? savedTheme
+            : 'light';
 
         setUserThemePreferenceState(preference);
         setResolvedThemeId(resolveThemeId(preference));
+        setCatppuccinAccentState(
+          isCatppuccinAccent(savedAccent) ? savedAccent : DEFAULT_CATPPUCCIN_ACCENT
+        );
       } catch (error) {
         console.warn('[ThemeContext] Failed to load theme settings:', error);
       }
@@ -73,7 +94,6 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     const resolvedId = resolveThemeId(preference);
     setResolvedThemeId(resolvedId);
 
-    // Save to settings
     try {
       if (preference === 'system') {
         await window.electron.setSetting('useSystemTheme', true);
@@ -85,13 +105,30 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       console.warn('[ThemeContext] Failed to save theme settings:', error);
     }
 
-    // Broadcast to other windows via Electron
     window.electron?.broadcastThemeChange({
       mode: themes[resolvedId].variant,
       useSystemTheme: preference === 'system',
       theme: resolvedId,
+      catppuccinAccent,
     });
-  }, []);
+  }, [catppuccinAccent]);
+
+  const setCatppuccinAccent = useCallback(async (accent: CatppuccinAccent) => {
+    setCatppuccinAccentState(accent);
+
+    try {
+      await window.electron.setSetting('catppuccinAccent', accent);
+    } catch (error) {
+      console.warn('[ThemeContext] Failed to save Catppuccin accent:', error);
+    }
+
+    window.electron?.broadcastThemeChange({
+      mode: themes[resolvedThemeId].variant,
+      useSystemTheme: userThemePreference === 'system',
+      theme: resolvedThemeId,
+      catppuccinAccent: accent,
+    });
+  }, [resolvedThemeId, userThemePreference]);
 
   // Listen for system theme changes when preference is 'system'
   useEffect(() => {
@@ -112,20 +149,31 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     if (!window.electron) return;
 
     const handleThemeChanged = (_event: unknown, ...args: unknown[]) => {
-      const themeData = args[0] as { useSystemTheme: boolean; theme: ThemeId };
+      const themeData = args[0] as {
+        useSystemTheme: boolean;
+        theme: ThemeId;
+        catppuccinAccent?: CatppuccinAccent;
+      };
       const newPreference: ThemePreference = themeData.useSystemTheme
         ? 'system'
-        : themeData.theme;
+        : isThemeId(themeData.theme)
+          ? themeData.theme
+          : 'light';
 
       setUserThemePreferenceState(newPreference);
       setResolvedThemeId(resolveThemeId(newPreference));
+      if (isCatppuccinAccent(themeData.catppuccinAccent)) {
+        setCatppuccinAccentState(themeData.catppuccinAccent);
+      }
 
-      // Save to settings (don't await, fire and forget)
       if (newPreference === 'system') {
         window.electron.setSetting('useSystemTheme', true);
       } else {
         window.electron.setSetting('useSystemTheme', false);
         window.electron.setSetting('theme', newPreference);
+      }
+      if (isCatppuccinAccent(themeData.catppuccinAccent)) {
+        window.electron.setSetting('catppuccinAccent', themeData.catppuccinAccent);
       }
     };
 
@@ -135,18 +183,21 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     };
   }, []);
 
-  // Apply theme class and CSS tokens whenever the resolved theme changes
+  // Apply theme class and CSS tokens whenever the resolved theme or accent changes
   useEffect(() => {
     applyThemeToDocument(themes[resolvedThemeId].variant);
-    applyThemeTokens(resolvedThemeId);
+    applyThemeTokens(resolvedThemeId, catppuccinAccent);
     document.documentElement.dataset.theme = resolvedThemeId;
-  }, [resolvedThemeId]);
+    document.documentElement.dataset.catppuccinAccent = catppuccinAccent;
+  }, [resolvedThemeId, catppuccinAccent]);
 
   const value: ThemeContextValue = {
     userThemePreference,
     setUserThemePreference,
     resolvedThemeId,
     resolvedTheme,
+    catppuccinAccent,
+    setCatppuccinAccent,
     mcpHostStyles,
   };
 

@@ -262,12 +262,13 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
                 .unwrap_or_default()
                 .trim()
                 .to_lowercase();
-            if ["light", "dark", "ansi"].contains(&t.as_str()) {
+            if super::output::CLI_THEME_NAMES.contains(&t.as_str()) {
                 Some(InputResult::SelectTheme(t))
             } else {
                 println!(
-                    "Theme Unavailable: {} Available themes are: light, dark, ansi",
-                    t
+                    "Theme Unavailable: {} Available themes are: {}",
+                    t,
+                    super::output::CLI_THEME_NAMES.join(", ")
                 );
                 Some(InputResult::Retry)
             }
@@ -471,7 +472,7 @@ fn help_text() -> String {
         "Available commands:
 /exit or /quit - Exit the session
 /t - Toggle Light/Dark/Ansi theme
-/t <name> - Set theme directly (light, dark, ansi)
+/t <name> - Set theme directly (light, dark, ansi, latte, frappe, macchiato, mocha)
 /r - Toggle full tool output display (show complete tool parameters without truncation)
 /extension <command> - Add a stdio extension (format: ENV1=val1 command args...)
 /builtin <names> - Add builtin extensions by name (comma-separated)
@@ -576,6 +577,20 @@ mod tests {
         assert!(matches!(
             handle_slash_command("/t"),
             Some(InputResult::ToggleTheme)
+        ));
+        if let Some(InputResult::SelectTheme(name)) = handle_slash_command("/t mocha") {
+            assert_eq!(name, "mocha");
+        } else {
+            panic!("Expected SelectTheme(mocha)");
+        }
+        if let Some(InputResult::SelectTheme(name)) = handle_slash_command("/t latte") {
+            assert_eq!(name, "latte");
+        } else {
+            panic!("Expected SelectTheme(latte)");
+        }
+        assert!(matches!(
+            handle_slash_command("/t unknown-theme"),
+            Some(InputResult::Retry)
         ));
 
         // Test full tool output toggle

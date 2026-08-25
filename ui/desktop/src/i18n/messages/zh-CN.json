@@ -4677,5 +4677,68 @@
   },
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "访问"
+  },
+  "themeSelector.builtinGroup": {
+    "defaultMessage": "内置"
+  },
+  "themeSelector.catppuccinGroup": {
+    "defaultMessage": "Catppuccin"
+  },
+  "themeSelector.accent": {
+    "defaultMessage": "强调色"
+  },
+  "themeSelector.catppuccinLatte": {
+    "defaultMessage": "Latte"
+  },
+  "themeSelector.catppuccinFrappe": {
+    "defaultMessage": "Frappé"
+  },
+  "themeSelector.catppuccinMacchiato": {
+    "defaultMessage": "Macchiato"
+  },
+  "themeSelector.catppuccinMocha": {
+    "defaultMessage": "Mocha"
+  },
+  "themeSelector.accentRosewater": {
+    "defaultMessage": "玫瑰水"
+  },
+  "themeSelector.accentFlamingo": {
+    "defaultMessage": "火烈鸟"
+  },
+  "themeSelector.accentPink": {
+    "defaultMessage": "粉色"
+  },
+  "themeSelector.accentMauve": {
+    "defaultMessage": "淡紫"
+  },
+  "themeSelector.accentRed": {
+    "defaultMessage": "红色"
+  },
+  "themeSelector.accentMaroon": {
+    "defaultMessage": "栗色"
+  },
+  "themeSelector.accentPeach": {
+    "defaultMessage": "桃色"
+  },
+  "themeSelector.accentYellow": {
+    "defaultMessage": "黄色"
+  },
+  "themeSelector.accentGreen": {
+    "defaultMessage": "绿色"
+  },
+  "themeSelector.accentTeal": {
+    "defaultMessage": "青色"
+  },
+  "themeSelector.accentSky": {
+    "defaultMessage": "天空蓝"
+  },
+  "themeSelector.accentSapphire": {
+    "defaultMessage": "宝石蓝"
+  },
+  "themeSelector.accentBlue": {
+    "defaultMessage": "蓝色"
+  },
+  "themeSelector.accentLavender": {
+    "defaultMessage": "薰衣草"
   }
 }

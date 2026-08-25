@@ -46,12 +46,26 @@ fn danger<T: Display>(value: T) -> StyledObject<T> {
 }
 
 // Re-export theme for use in main
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Theme {
     Light,
     Dark,
     Ansi,
+    CatppuccinLatte,
+    CatppuccinFrappe,
+    CatppuccinMacchiato,
+    CatppuccinMocha,
 }
+
+pub const CLI_THEME_NAMES: &[&str] = &[
+    "light",
+    "dark",
+    "ansi",
+    "latte",
+    "frappe",
+    "macchiato",
+    "mocha",
+];
 
 impl Theme {
     fn as_str(&self) -> String {
@@ -63,24 +77,47 @@ impl Theme {
                 .get_param::<String>("GOOSE_CLI_DARK_THEME")
                 .unwrap_or(DEFAULT_CLI_DARK_THEME.to_string()),
             Theme::Ansi => "base16".to_string(),
+            Theme::CatppuccinLatte => "Catppuccin Latte".to_string(),
+            Theme::CatppuccinFrappe => "Catppuccin Frappe".to_string(),
+            Theme::CatppuccinMacchiato => "Catppuccin Macchiato".to_string(),
+            Theme::CatppuccinMocha => "Catppuccin Mocha".to_string(),
         }
     }
 
-    fn from_config_str(val: &str) -> Self {
-        if val.eq_ignore_ascii_case("light") {
-            Theme::Light
-        } else if val.eq_ignore_ascii_case("ansi") {
-            Theme::Ansi
-        } else {
-            Theme::Dark
+    pub fn from_config_str(val: &str) -> Self {
+        match val.to_ascii_lowercase().as_str() {
+            "light" => Theme::Light,
+            "ansi" => Theme::Ansi,
+            "latte" | "catppuccin-latte" => Theme::CatppuccinLatte,
+            "frappe" | "frappé" | "catppuccin-frappe" => Theme::CatppuccinFrappe,
+            "macchiato" | "catppuccin-macchiato" => Theme::CatppuccinMacchiato,
+            "mocha" | "catppuccin-mocha" => Theme::CatppuccinMocha,
+            "dark" => Theme::Dark,
+            _ => Theme::Dark,
         }
     }
 
-    fn as_config_string(&self) -> String {
+    pub fn as_config_string(&self) -> &'static str {
         match self {
-            Theme::Light => "light".to_string(),
-            Theme::Dark => "dark".to_string(),
-            Theme::Ansi => "ansi".to_string(),
+            Theme::Light => "light",
+            Theme::Dark => "dark",
+            Theme::Ansi => "ansi",
+            Theme::CatppuccinLatte => "latte",
+            Theme::CatppuccinFrappe => "frappe",
+            Theme::CatppuccinMacchiato => "macchiato",
+            Theme::CatppuccinMocha => "mocha",
+        }
+    }
+
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Theme::Light => "Light",
+            Theme::Dark => "Dark",
+            Theme::Ansi => "Ansi",
+            Theme::CatppuccinLatte => "Catppuccin Latte",
+            Theme::CatppuccinFrappe => "Catppuccin Frappé",
+            Theme::CatppuccinMacchiato => "Catppuccin Macchiato",
+            Theme::CatppuccinMocha => "Catppuccin Mocha",
         }
     }
 }
@@ -101,20 +138,10 @@ thread_local! {
 }
 
 pub fn set_theme(theme: Theme) {
-    let config = Config::global();
-    config
-        .set_param("GOOSE_CLI_THEME", theme.as_config_string())
-        .expect("Failed to set theme");
     CURRENT_THEME.with(|t| *t.borrow_mut() = theme);
 
     let config = Config::global();
-    let theme_str = match theme {
-        Theme::Light => "light",
-        Theme::Dark => "dark",
-        Theme::Ansi => "ansi",
-    };
-
-    if let Err(e) = config.set_param("GOOSE_CLI_THEME", theme_str) {
+    if let Err(e) = config.set_param("GOOSE_CLI_THEME", theme.as_config_string()) {
         eprintln!("Failed to save theme setting to config: {}", e);
     }
 }
@@ -1762,5 +1789,33 @@ mod tests {
             json!({"top_up_url": "https://router.tetrate.ai/billing"}),
         );
         assert_eq!(get_credits_top_up_url(&message), None);
+    }
+
+    #[test]
+    fn test_catppuccin_theme_names_round_trip() {
+        for (input, expected, bat_theme) in [
+            ("latte", Theme::CatppuccinLatte, "Catppuccin Latte"),
+            ("frappe", Theme::CatppuccinFrappe, "Catppuccin Frappe"),
+            (
+                "macchiato",
+                Theme::CatppuccinMacchiato,
+                "Catppuccin Macchiato",
+            ),
+            ("mocha", Theme::CatppuccinMocha, "Catppuccin Mocha"),
+            (
+                "catppuccin-mocha",
+                Theme::CatppuccinMocha,
+                "Catppuccin Mocha",
+            ),
+        ] {
+            let theme = Theme::from_config_str(input);
+            assert_eq!(theme, expected);
+            assert_eq!(theme.as_str(), bat_theme);
+            assert_eq!(Theme::from_config_str(theme.as_config_string()), expected);
+        }
+        assert_eq!(Theme::from_config_str("light"), Theme::Light);
+        assert_eq!(Theme::from_config_str("dark"), Theme::Dark);
+        assert_eq!(Theme::from_config_str("ansi"), Theme::Ansi);
+        assert!(CLI_THEME_NAMES.contains(&"mocha"));
     }
 }

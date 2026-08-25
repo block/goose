@@ -4677,5 +4677,68 @@
   },
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "방문하여"
+  },
+  "themeSelector.builtinGroup": {
+    "defaultMessage": "기본"
+  },
+  "themeSelector.catppuccinGroup": {
+    "defaultMessage": "Catppuccin"
+  },
+  "themeSelector.accent": {
+    "defaultMessage": "액센트"
+  },
+  "themeSelector.catppuccinLatte": {
+    "defaultMessage": "Latte"
+  },
+  "themeSelector.catppuccinFrappe": {
+    "defaultMessage": "Frappé"
+  },
+  "themeSelector.catppuccinMacchiato": {
+    "defaultMessage": "Macchiato"
+  },
+  "themeSelector.catppuccinMocha": {
+    "defaultMessage": "Mocha"
+  },
+  "themeSelector.accentRosewater": {
+    "defaultMessage": "로즈워터"
+  },
+  "themeSelector.accentFlamingo": {
+    "defaultMessage": "플라밍고"
+  },
+  "themeSelector.accentPink": {
+    "defaultMessage": "핑크"
+  },
+  "themeSelector.accentMauve": {
+    "defaultMessage": "모브"
+  },
+  "themeSelector.accentRed": {
+    "defaultMessage": "레드"
+  },
+  "themeSelector.accentMaroon": {
+    "defaultMessage": "마룬"
+  },
+  "themeSelector.accentPeach": {
+    "defaultMessage": "피치"
+  },
+  "themeSelector.accentYellow": {
+    "defaultMessage": "옐로"
+  },
+  "themeSelector.accentGreen": {
+    "defaultMessage": "그린"
+  },
+  "themeSelector.accentTeal": {
+    "defaultMessage": "틸"
+  },
+  "themeSelector.accentSky": {
+    "defaultMessage": "스카이"
+  },
+  "themeSelector.accentSapphire": {
+    "defaultMessage": "사파이어"
+  },
+  "themeSelector.accentBlue": {
+    "defaultMessage": "블루"
+  },
+  "themeSelector.accentLavender": {
+    "defaultMessage": "라벤더"
   }
 }

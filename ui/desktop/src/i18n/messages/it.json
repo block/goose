@@ -4677,5 +4677,68 @@
   },
   "providerConfigurationModal.deviceCodeVisit": {
     "defaultMessage": "Visita"
+  },
+  "themeSelector.builtinGroup": {
+    "defaultMessage": "Integrati"
+  },
+  "themeSelector.catppuccinGroup": {
+    "defaultMessage": "Catppuccin"
+  },
+  "themeSelector.accent": {
+    "defaultMessage": "Accento"
+  },
+  "themeSelector.catppuccinLatte": {
+    "defaultMessage": "Latte"
+  },
+  "themeSelector.catppuccinFrappe": {
+    "defaultMessage": "Frappé"
+  },
+  "themeSelector.catppuccinMacchiato": {
+    "defaultMessage": "Macchiato"
+  },
+  "themeSelector.catppuccinMocha": {
+    "defaultMessage": "Mocha"
+  },
+  "themeSelector.accentRosewater": {
+    "defaultMessage": "Acqua di rose"
+  },
+  "themeSelector.accentFlamingo": {
+    "defaultMessage": "Fenicottero"
+  },
+  "themeSelector.accentPink": {
+    "defaultMessage": "Rosa"
+  },
+  "themeSelector.accentMauve": {
+    "defaultMessage": "Malva"
+  },
+  "themeSelector.accentRed": {
+    "defaultMessage": "Rosso"
+  },
+  "themeSelector.accentMaroon": {
+    "defaultMessage": "Bordeaux"
+  },
+  "themeSelector.accentPeach": {
+    "defaultMessage": "Pesca"
+  },
+  "themeSelector.accentYellow": {
+    "defaultMessage": "Giallo"
+  },
+  "themeSelector.accentGreen": {
+    "defaultMessage": "Verde"
+  },
+  "themeSelector.accentTeal": {
+    "defaultMessage": "Ottanio"
+  },
+  "themeSelector.accentSky": {
+    "defaultMessage": "Cielo"
+  },
+  "themeSelector.accentSapphire": {
+    "defaultMessage": "Zaffiro"
+  },
+  "themeSelector.accentBlue": {
+    "defaultMessage": "Blu"
+  },
+  "themeSelector.accentLavender": {
+    "defaultMessage": "Lavanda"
   }
 }
