@@ -1749,8 +1749,9 @@ async fn model_info_to_local_model_info(
     downloads_hint: Option<u64>,
 ) -> Result<Option<HfModelInfo>> {
     let repo_id = info.id.clone();
-    let mut variants: Vec<HfModelVariant> = get_repo_gguf_variants(&repo_id)
-        .await
+    let gguf_variants = get_repo_gguf_variants(&repo_id).await;
+    let mut variants: Vec<HfModelVariant> = gguf_variants
+        .as_deref()
         .unwrap_or_default()
         .iter()
         .map(|variant| variant.to_model_variant(&repo_id))
@@ -1764,6 +1765,10 @@ async fn model_info_to_local_model_info(
     }
 
     if variants.is_empty() {
+        if let Err(error) = gguf_variants {
+            return Err(error);
+        }
+
         let unusable: Vec<&str> = info
             .siblings
             .as_deref()
