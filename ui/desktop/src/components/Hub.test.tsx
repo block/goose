@@ -42,6 +42,7 @@ vi.mock('../acp/errors', () => ({ formatAcpError: (error: unknown) => String(err
 vi.mock('../toasts', () => ({ toastError: vi.fn() }));
 
 const DRAFT = 'a half-written thought';
+const TYPED_WHILE_STARTING = 'and one more thought';
 
 function renderHub(draftRef: { current: string }) {
   return render(
@@ -75,6 +76,30 @@ describe('Hub', () => {
     });
 
     expect(draftRef.current).toBe(DRAFT);
+  });
+
+  it('keeps text typed while the session was starting', async () => {
+    let failCreate!: (error: Error) => void;
+    vi.mocked(createSession).mockImplementation(
+      () =>
+        new Promise<Awaited<ReturnType<typeof createSession>>>((_resolve, reject) => {
+          failCreate = reject;
+        })
+    );
+    const draftRef = { current: '' };
+    renderHub(draftRef);
+
+    await act(async () => {
+      captured.chatInput?.handleSubmit({ msg: DRAFT, images: [] });
+    });
+    // The input stays editable while the session is being created.
+    draftRef.current = TYPED_WHILE_STARTING;
+
+    await act(async () => {
+      failCreate(new Error('no agent'));
+    });
+
+    expect(draftRef.current).toBe(TYPED_WHILE_STARTING);
   });
 
   it('leaves the draft cleared when the chat starts', async () => {

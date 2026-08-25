@@ -139,9 +139,10 @@ export default function Hub({
     } catch (error) {
       console.error('Failed to create session:', error);
       toastError({ title: "Couldn't start chat", msg: formatAcpError(error) });
-      // The text stays on screen, but submitting already dropped the draft. Put it
-      // back, so leaving the page after a failed start does not lose it.
-      if (draftRef) {
+      // Submitting dropped the draft and the text stays on screen. Put it back, so
+      // leaving the page after a failed start does not lose it - unless something was
+      // typed while the session was starting, which is newer.
+      if (draftRef && !draftRef.current) {
         draftRef.current = userMessage;
       }
       setIsCreatingSession(false);
