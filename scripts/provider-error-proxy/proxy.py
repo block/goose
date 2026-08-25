@@ -84,12 +84,14 @@ COMPLETION_PATHS = [
     '/serving-endpoints',  # Databricks
 ]
 
-# Path fragments identifying known non-inference (metadata) traffic. Used as
+# Path suffixes identifying known non-inference (metadata) traffic. Used as
 # the exclusion list when classifying requests that do not match
 # COMPLETION_PATHS: a POST to an unrecognized path (e.g. a provider configured
 # with a custom inference base path) is still treated as a completion, but
-# known metadata endpoints are not.
-METADATA_PATHS = [
+# known metadata endpoints are not. Matched as suffixes, not substrings, so a
+# custom inference path that merely contains one of these segments (e.g.
+# /v1/models/my-model/predict) is still classified as a completion.
+METADATA_PATH_SUFFIXES = [
     '/models',      # model listing (OpenAI-compatible)
     '/api/tags',    # Ollama model listing
     '/embeddings',  # embeddings are not turn completions
@@ -441,7 +443,8 @@ class ErrorProxy:
         # injection still applies to custom inference routes.
         if request.method.upper() != 'POST':
             return False
-        return not any(fragment in path for fragment in METADATA_PATHS)
+        path = path.rstrip('/')
+        return not any(path.endswith(suffix) for suffix in METADATA_PATH_SUFFIXES)
 
     def get_target_url(self, request: Request, provider: str) -> str:
         """
