@@ -145,11 +145,71 @@ fn classify_conversion_error(
                 SchedulerRecipeError::GenericParse(format)
             }
         }
+        _ if !schema_safe_path(&path) => SchedulerRecipeError::GenericParse(format),
         _ if missing_or_duplicate => {
             SchedulerRecipeError::InvalidSchema(format!("{path}: {message}"))
         }
         _ => SchedulerRecipeError::InvalidSchema(format!("{path} is invalid")),
     }
+}
+
+const RECIPE_PARAMETER_FIELDS: &[&str] = &[
+    "key",
+    "input_type",
+    "requirement",
+    "description",
+    "default",
+    "options",
+];
+
+/// Paths may only name schema fields and numeric indices. serde_path_to_error
+/// also embeds map keys from the recipe file, so anything else (for example a
+/// key under `extensions[*].envs`) is file content and must never be surfaced.
+fn schema_safe_path(path: &str) -> bool {
+    fn is_parameter_field(segment: &str) -> bool {
+        RECIPE_PARAMETER_FIELDS.contains(&schema_identifier(segment).unwrap_or_default())
+    }
+
+    let mut segments = path.split('.');
+    let Some(root) = segments.next() else {
+        return false;
+    };
+    if schema_identifier(root) != Some("parameters") {
+        return false;
+    }
+
+    match segments.next() {
+        None => true,
+        Some(second) if root.contains('[') => {
+            is_parameter_field(second) && segments.next().is_none()
+        }
+        Some(item) => {
+            if !(item.contains('[') && schema_identifier(item) == Some("parameters")) {
+                return false;
+            }
+            match segments.next() {
+                None => true,
+                Some(field) => is_parameter_field(field) && segments.next().is_none(),
+            }
+        }
+    }
+}
+
+/// Returns the base identifier of a segment iff every `[...]` it carries is a
+/// bare numeric index; `None` when the segment contains other content.
+fn schema_identifier(segment: &str) -> Option<&str> {
+    let mut pieces = segment.split('[');
+    let base = pieces.next()?;
+    if base.is_empty() || !base.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
+        return None;
+    }
+    for group in pieces {
+        let digits = group.strip_suffix(']')?;
+        if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+    }
+    Some(base)
 }
 
 fn is_schema_conversion_message(message: &str) -> bool {
@@ -581,6 +641,31 @@ parameters:
             "Invalid recipe: parameters[0].input_type is invalid"
         );
         assert!(!error.to_string().contains("yaml-secret-242"));
+    }
+
+    #[test]
+    fn scheduling_redacts_file_controlled_map_keys_from_paths() {
+        let secret = "yaml-secret-242";
+        let error = scheduling_error(&format!(
+            "title: Test\ndescription: hi\nprompt: hi\nextensions:\n  - type: stdio\n    name: ext\n    cmd: run\n    args: []\n    envs:\n      {secret}: []\n"
+        ));
+        assert_eq!(error.to_string(), "Invalid YAML recipe");
+        assert!(!error.to_string().contains(secret));
+    }
+
+    #[test]
+    fn schema_safe_path_accepts_only_schema_fields_and_indices() {
+        use super::schema_safe_path;
+        assert!(schema_safe_path("parameters"));
+        assert!(schema_safe_path("parameters[0]"));
+        assert!(schema_safe_path("parameters[2].input_type"));
+        assert!(schema_safe_path("parameters[1].options[3]"));
+        assert!(!schema_safe_path("title"));
+        assert!(!schema_safe_path("parameters[0].envs.secret-key"));
+        assert!(!schema_safe_path("extensions[0].envs.yaml-secret-242"));
+        assert!(!schema_safe_path("parameters[0].unknown_field"));
+        assert!(!schema_safe_path("parameters[0][x]"));
+        assert!(!schema_safe_path("parameters.a.b"));
     }
 
     #[test]
