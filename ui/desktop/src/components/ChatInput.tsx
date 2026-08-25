@@ -1160,11 +1160,6 @@ export default function ChatInput({
           setLastInterruption(null);
         }
 
-        // The draft always goes, even on Hub, where the visible input has to stay
-        // until the navigation to the new session completes.
-        if (draftRef) {
-          draftRef.current = '';
-        }
         if (sessionId !== null) {
           clearInputState();
         }
@@ -1182,7 +1177,6 @@ export default function ChatInput({
       handleSubmit,
       lastInterruption,
       clearInputState,
-      draftRef,
       sessionId,
     ]
   );

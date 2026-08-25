@@ -107,6 +107,7 @@ export default function Hub({
     const { msg: userMessage, images } = input;
     if (!(images.length > 0 || userMessage.trim()) || isCreatingSession) return;
 
+    const draftAtSubmit = draftRef?.current;
     setIsCreatingSession(true);
 
     try {
@@ -131,6 +132,13 @@ export default function Hub({
         })
       );
 
+      // The draft is this screen's own, so it is dropped once the session exists.
+      // Comparing it against the value at submit leaves an edit made while the
+      // session was starting alone, including one that emptied the input.
+      if (draftRef && draftRef.current === draftAtSubmit) {
+        draftRef.current = '';
+      }
+
       setView('pair', {
         disableAnimation: true,
         resumeSessionId: session.id,
@@ -139,12 +147,6 @@ export default function Hub({
     } catch (error) {
       console.error('Failed to create session:', error);
       toastError({ title: "Couldn't start chat", msg: formatAcpError(error) });
-      // Submitting dropped the draft and the text stays on screen. Put it back, so
-      // leaving the page after a failed start does not lose it - unless something was
-      // typed while the session was starting, which is newer.
-      if (draftRef && !draftRef.current) {
-        draftRef.current = userMessage;
-      }
       setIsCreatingSession(false);
     }
   };
