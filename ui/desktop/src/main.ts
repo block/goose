@@ -65,6 +65,8 @@ import {
   isAuthorizedFileAccessRequest,
   readSelectedRecipe,
 } from './desktopFileAccess';
+import { discoverClientExtensions, getClientExtensionsInstallDir, installClientExtension, readClientExtensionMain, setClientExtensionEnabledState, uninstallClientExtension } from './main/clientExtensions';
+import { syncPlugins, unloadAllPlugins, unloadPlugin } from './main/pluginHost';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -2028,6 +2030,42 @@ ipcMain.handle('get-acp-url', async (event) => {
   return gooseServeLeases.getAcpUrl(windowId) ?? null;
 });
 
+ipcMain.handle('list-client-extensions', () => {
+  const extensions = discoverClientExtensions();
+  syncPlugins(extensions);
+  return extensions;
+});
+
+ipcMain.handle('read-client-extension-main', (_event, extensionId: string) =>
+  readClientExtensionMain(extensionId)
+);
+
+ipcMain.handle('get-client-extensions-install-dir', () => getClientExtensionsInstallDir());
+
+ipcMain.handle('set-client-extension-enabled', (_event, extensionId: string, enabled: boolean) => {
+  const extensions = setClientExtensionEnabledState(extensionId, enabled);
+  syncPlugins(extensions);
+  return extensions;
+});
+
+ipcMain.handle('uninstall-client-extension', (_event, extensionId: string) => {
+  unloadPlugin(extensionId);
+  try {
+    const extensions = uninstallClientExtension(extensionId);
+    syncPlugins(extensions);
+    return extensions;
+  } catch (err) {
+    syncPlugins(discoverClientExtensions());
+    throw err;
+  }
+});
+
+ipcMain.handle('install-client-extension', (_event, sourcePath: string) => {
+  const extensions = installClientExtension(sourcePath);
+  syncPlugins(extensions);
+  return extensions;
+});
+
 // Handle menu bar icon visibility
 ipcMain.handle('set-menu-bar-icon', async (_event, show: boolean) => {
   updateSettings((s) => {
@@ -3174,6 +3212,8 @@ async function getAllowList(): Promise<string[]> {
 }
 
 app.on('will-quit', async () => {
+  unloadAllPlugins();
+
   const gooseServeLeaseCount = gooseServeLeases.activeLeaseCount();
   if (gooseServeLeaseCount > 0) {
     log.info(`App quitting, cleaning up ${gooseServeLeaseCount} backend lease(s)`);

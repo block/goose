@@ -1,6 +1,8 @@
 export const NAV_DIMENSIONS = {
   /** Width of the navigation sidebar */
   NAV_WIDTH: 240,
+  /** Width of the client extension sidecar panel */
+  SIDECAR_WIDTH: 320,
 } as const;
 
 export const Z_INDEX = {

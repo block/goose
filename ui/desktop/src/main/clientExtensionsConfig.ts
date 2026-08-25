@@ -1,0 +1,112 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+export interface ClientExtensionsConfig {
+  disabled: string[];
+  enabledDev: string[];
+}
+
+export type ClientExtensionSource = 'installed' | 'dev';
+
+const CONFIG_FILENAME = 'config.json';
+
+export function getClientExtensionsInstallDir(): string {
+  return path.join(os.homedir(), '.agents', 'client-extensions');
+}
+
+function configPath(): string {
+  return path.join(getClientExtensionsInstallDir(), CONFIG_FILENAME);
+}
+
+export function defaultClientExtensionsConfig(): ClientExtensionsConfig {
+  return { disabled: [], enabledDev: [] };
+}
+
+export function loadClientExtensionsConfig(): ClientExtensionsConfig | null {
+  const filePath = configPath();
+  try {
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8')) as unknown;
+    if (typeof raw !== 'object' || raw === null) {
+      return defaultClientExtensionsConfig();
+    }
+    const record = raw as Record<string, unknown>;
+    return {
+      disabled: Array.isArray(record.disabled)
+        ? record.disabled.filter((entry): entry is string => typeof entry === 'string')
+        : [],
+      enabledDev: Array.isArray(record.enabledDev)
+        ? record.enabledDev.filter((entry): entry is string => typeof entry === 'string')
+        : [],
+    };
+  } catch (error) {
+    // ENOENT means no config yet (fresh install) — use defaults.
+    // Any other error (corrupt JSON, permission denied) means we cannot trust
+    // what was previously disabled, so return null to fail closed.
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return defaultClientExtensionsConfig();
+    }
+    console.error('[client-extensions] Failed to read config — disabling all extensions:', error);
+    return null;
+  }
+}
+
+export function saveClientExtensionsConfig(config: ClientExtensionsConfig): void {
+  const installDir = getClientExtensionsInstallDir();
+  fs.mkdirSync(installDir, { recursive: true });
+  fs.writeFileSync(configPath(), `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+}
+
+export function isClientExtensionEnabled(
+  id: string,
+  source: ClientExtensionSource,
+  config: ClientExtensionsConfig | null
+): boolean {
+  if (!config) return false;
+  if (config.disabled.includes(id)) {
+    return false;
+  }
+  if (source === 'dev') {
+    return config.enabledDev.includes(id);
+  }
+  return true;
+}
+
+export function setClientExtensionEnabled(
+  id: string,
+  source: ClientExtensionSource,
+  enabled: boolean
+): ClientExtensionsConfig {
+  const config = loadClientExtensionsConfig() ?? defaultClientExtensionsConfig();
+  const disabled = new Set(config.disabled);
+  const enabledDev = new Set(config.enabledDev);
+
+  if (enabled) {
+    disabled.delete(id);
+    if (source === 'dev') {
+      enabledDev.add(id);
+    }
+  } else {
+    disabled.add(id);
+    if (source === 'dev') {
+      enabledDev.delete(id);
+    }
+  }
+
+  const next = {
+    disabled: [...disabled].sort(),
+    enabledDev: [...enabledDev].sort(),
+  };
+  saveClientExtensionsConfig(next);
+  return next;
+}
+
+export function removeClientExtensionFromConfig(id: string): ClientExtensionsConfig {
+  const config = loadClientExtensionsConfig() ?? defaultClientExtensionsConfig();
+  const next = {
+    disabled: config.disabled.filter((entry) => entry !== id),
+    enabledDev: config.enabledDev.filter((entry) => entry !== id),
+  };
+  saveClientExtensionsConfig(next);
+  return next;
+}
