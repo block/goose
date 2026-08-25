@@ -88,6 +88,21 @@ struct DeploymentMetadata {
 struct DeploymentCache {
     deployments: HashMap<String, DeploymentMetadata>,
     fetched_at: Option<Instant>,
+    fetch_failed: bool,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DeploymentMetadataLookup {
+    ContextDiscovery,
+    InferenceRouting,
+}
+
+impl DeploymentCache {
+    fn applies_to(&self, lookup: DeploymentMetadataLookup) -> bool {
+        self.fetched_at.is_some_and(|fetched_at| {
+            fetched_at.elapsed() < Duration::from_secs(DEPLOYMENT_METADATA_TTL_SECS)
+        }) && (lookup == DeploymentMetadataLookup::ContextDiscovery || !self.fetch_failed)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -319,28 +334,32 @@ impl AzureFoundryProvider {
         Ok((models, deployments))
     }
 
-    async fn deployment_for(&self, deployment_name: &str) -> Option<DeploymentMetadata> {
+    async fn deployment_for(
+        &self,
+        deployment_name: &str,
+        lookup: DeploymentMetadataLookup,
+    ) -> Option<DeploymentMetadata> {
         {
             let cache = self
                 .deployments
                 .lock()
                 .expect("Azure Foundry deployment cache poisoned");
-            if cache.fetched_at.is_some_and(|fetched_at| {
-                fetched_at.elapsed() < Duration::from_secs(DEPLOYMENT_METADATA_TTL_SECS)
-            }) {
+            if cache.applies_to(lookup) {
                 return cache.deployments.get(deployment_name).cloned();
             }
         }
 
-        let deployments = tokio::time::timeout(
+        let fetch_result = tokio::time::timeout(
             Duration::from_secs(DEPLOYMENT_METADATA_TIMEOUT_SECS),
             self.fetch_deployments(),
         )
         .await
         .ok()
-        .and_then(Result::ok)
-        .map(|(_, deployments)| deployments)
-        .unwrap_or_default();
+        .and_then(Result::ok);
+        let fetch_failed = fetch_result.is_none();
+        let deployments = fetch_result
+            .map(|(_, deployments)| deployments)
+            .unwrap_or_default();
         let deployment = deployments.get(deployment_name).cloned();
         *self
             .deployments
@@ -348,6 +367,7 @@ impl AzureFoundryProvider {
             .expect("Azure Foundry deployment cache poisoned") = DeploymentCache {
             deployments,
             fetched_at: Some(Instant::now()),
+            fetch_failed,
         };
         deployment
     }
@@ -439,6 +459,7 @@ impl Provider for AzureFoundryProvider {
             .expect("Azure Foundry deployment cache poisoned") = DeploymentCache {
             deployments,
             fetched_at: Some(Instant::now()),
+            fetch_failed: false,
         };
         Ok(models)
     }
@@ -468,6 +489,7 @@ impl Provider for AzureFoundryProvider {
             .expect("Azure Foundry deployment cache poisoned") = DeploymentCache {
             deployments,
             fetched_at: Some(Instant::now()),
+            fetch_failed: false,
         };
         Ok(model_info)
     }
@@ -476,7 +498,7 @@ impl Provider for AzureFoundryProvider {
         let resolved_model = if let Some(model) = &self.maas_model {
             model.clone()
         } else if is_project_endpoint(&self.endpoint) {
-            self.deployment_for(model_name)
+            self.deployment_for(model_name, DeploymentMetadataLookup::ContextDiscovery)
                 .await
                 .map(|deployment| deployment.model_name)
                 .unwrap_or_else(|| model_name.to_string())
@@ -514,7 +536,8 @@ impl Provider for AzureFoundryProvider {
             .clone()
             .unwrap_or_else(|| model_config.model_name.clone());
         let deployment = if is_project_endpoint(&self.endpoint) {
-            self.deployment_for(&wire_model).await
+            self.deployment_for(&wire_model, DeploymentMetadataLookup::InferenceRouting)
+                .await
         } else {
             None
         };
@@ -634,6 +657,30 @@ mod tests {
         format!(
             "{start}\n\n{block_start}\n\n{delta}\n\n{block_stop}\n\n{message_delta}\n\n{stop}\n\n"
         )
+    }
+
+    #[test]
+    fn routing_retries_cached_deployment_failures() {
+        let cache = DeploymentCache {
+            fetched_at: Some(Instant::now()),
+            fetch_failed: true,
+            ..Default::default()
+        };
+
+        assert!(cache.applies_to(DeploymentMetadataLookup::ContextDiscovery));
+        assert!(!cache.applies_to(DeploymentMetadataLookup::InferenceRouting));
+    }
+
+    #[test]
+    fn routing_reuses_successful_empty_deployment_inventory() {
+        let cache = DeploymentCache {
+            fetched_at: Some(Instant::now()),
+            fetch_failed: false,
+            ..Default::default()
+        };
+
+        assert!(cache.applies_to(DeploymentMetadataLookup::ContextDiscovery));
+        assert!(cache.applies_to(DeploymentMetadataLookup::InferenceRouting));
     }
 
     #[test]
