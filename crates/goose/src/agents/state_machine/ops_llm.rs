@@ -91,7 +91,11 @@ impl Provider for GooseInferenceProvider {
                 if let Some(message) = &message {
                     responses.push(message.clone());
                 }
-                has_usage |= usage.is_some();
+                has_usage |= usage.as_ref().is_some_and(|usage| {
+                    usage.usage.input_tokens.is_some()
+                        || usage.usage.output_tokens.is_some()
+                        || usage.usage.total_tokens.is_some()
+                });
                 yield (message, usage);
             }
             if !has_usage {

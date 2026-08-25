@@ -22,6 +22,7 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
             // new_session/load_session on this connection. Set-once per
             // connection; the result is ignored on later requests.
             let _ = agent.client_cx.set(cx.clone());
+            agent.start_thinking_effort_update_forwarder(&cx).await;
 
             // InitializeRequest runs inline: it sets connection-scoped state
             // (client fs/terminal capabilities) that later handlers read with
@@ -371,6 +372,21 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                     |req: ListSessionsRequest, responder: Responder<ListSessionsResponse>| async move {
                         cx.spawn(async move {
                             match agent.on_list_sessions(req).await {
+                                Ok(response) => responder.respond(response)?,
+                                Err(e) => responder.respond_with_error(e)?,
+                            }
+                            Ok(())
+                        })?;
+                        Ok(())
+                    }
+                })
+                .await
+                .if_request({
+                    let agent = agent.clone();
+                    let cx = cx.clone();
+                    |req: DeleteSessionRequest, responder: Responder<DeleteSessionResponse>| async move {
+                        cx.spawn(async move {
+                            match agent.on_delete_session(req).await {
                                 Ok(response) => responder.respond(response)?,
                                 Err(e) => responder.respond_with_error(e)?,
                             }

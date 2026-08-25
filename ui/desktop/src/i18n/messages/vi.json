@@ -932,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Thư mục gần đây"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "Không thể chuyển sang {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "Không tìm thấy nhánh"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "Tìm kiếm nhánh…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "Bạn có thể có các thay đổi chưa commit."
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Chấp nhận"
   },
@@ -1889,9 +1901,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "Sử dụng {modelId}"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "Hủy"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "Sao chép mã"
   },
@@ -1901,23 +1910,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "Không tìm thấy ứng dụng nào để mở liên kết này."
   },
-  "markdownContent.open": {
-    "defaultMessage": "Mở"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "Mở liên kết bên ngoài"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "Mở liên kết {protocol}?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "Thao tác này sẽ mở: {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "Ứng dụng"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "Hủy"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "Đóng"
@@ -1942,18 +1936,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "Di chuyển cửa sổ Hình-trong-hình (dùng phím mũi tên)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "Mở"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Mở liên kết bên ngoài"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "Thao tác này sẽ mở: {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "Mở liên kết {protocol}?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Hình-trong-hình"
@@ -2760,7 +2742,7 @@
     "defaultMessage": "Tiếp tục"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Một cửa sổ trình duyệt sẽ mở ra và mã xác minh sẽ được sao chép vào bộ nhớ tạm của bạn. Dán mã vào trình duyệt để hoàn tất đăng nhập."
+    "defaultMessage": "Một cửa sổ trình duyệt sẽ mở ra. Mã xác minh sẽ xuất hiện tại đây để bạn nhập và hoàn tất đăng nhập."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Bạn chưa có khóa API?"
@@ -2799,7 +2781,7 @@
     "defaultMessage": "Thao tác này sẽ xóa vĩnh viễn cấu hình nhà cung cấp hiện tại."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Một cửa sổ trình duyệt sẽ mở ra và mã xác minh sẽ được sao chép vào bộ nhớ tạm của bạn. Dán mã vào trình duyệt để hoàn tất đăng nhập."
+    "defaultMessage": "Một cửa sổ trình duyệt sẽ mở ra. Mã xác minh sẽ xuất hiện tại đây để bạn nhập và hoàn tất đăng nhập."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "Đã xảy ra lỗi khi kiểm tra cấu hình nhà cung cấp này."
@@ -3443,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Đang xem ID lịch trình: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (đã lên lịch)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "Duyệt tìm tệp YAML..."
   },
@@ -3467,6 +3452,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Sửa lịch trình"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Không thể tải công thức."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "Không thể phân tích công thức từ tệp."
   },
@@ -3479,14 +3467,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Loại tệp không hợp lệ: Vui lòng chọn tệp YAML (.yaml hoặc .yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Đang tải công thức..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "Tên:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "ví dụ: daily-summary-job"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "Không tìm thấy công thức đã lưu."
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Vui lòng cung cấp nguồn công thức hợp lệ."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "Công thức này đã có lịch. Chỉnh sửa từ danh sách Công thức."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Mô tả: {description}"
@@ -3497,11 +3494,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Tiêu đề: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Công thức đã lưu"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "Bắt buộc phải có ID lịch trình."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Lịch trình:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Chọn một công thức đã lưu"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Đã chọn: {path}"
@@ -3856,6 +3859,12 @@
   },
   "sessions.saving": {
     "defaultMessage": "Đang lưu..."
+  },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count,plural,one{{count} job} other{{count} jobs}}"
   },
   "sessions.search.noResults": {
     "defaultMessage": "Không tìm thấy phiên phù hợp"
@@ -4427,6 +4436,9 @@
   "telemetrySettings.updateError": {
     "defaultMessage": "Không thể cập nhật cài đặt đo từ xa."
   },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
+  },
   "themeSelector.dark": {
     "defaultMessage": "Tối"
   },
@@ -4654,5 +4666,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "Hãy kiểm tra kết nối tài khoản trước khi tiếp tục."
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "và nhập:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "Sao chép"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "Truy cập"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "và nhập:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "Sao chép"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "Truy cập"
   }
 }

@@ -74,6 +74,21 @@ fn project_file_path(slug: &str) -> PathBuf {
     projects_dir().join(format!("{slug}.md"))
 }
 
+fn read_source_path(path: &Path) -> std::io::Result<String> {
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."))
+        .canonicalize()?;
+    let file_name = path.file_name().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "source path has no file name",
+        )
+    })?;
+    crate::skills::read_source_file(&parent, Path::new(file_name))
+}
+
 fn build_source_markdown(
     name: &str,
     description: &str,
@@ -140,7 +155,7 @@ fn validate_project_slug(slug: &str) -> Result<(), Error> {
 /// Read the `metadata:` field out of an existing SKILL.md, returning an
 /// empty map if the file is missing, malformed, or carries no metadata.
 fn read_existing_skill_properties(skill_dir: &Path) -> HashMap<String, serde_json::Value> {
-    let raw = match fs::read_to_string(skill_dir.join("SKILL.md")) {
+    let raw = match read_source_path(&skill_dir.join("SKILL.md")) {
         Ok(s) => s,
         Err(_) => return HashMap::new(),
     };
@@ -152,7 +167,7 @@ fn read_existing_skill_properties(skill_dir: &Path) -> HashMap<String, serde_jso
 
 /// Read the properties bag out of an existing project file.
 fn read_existing_project_properties(file: &Path) -> HashMap<String, serde_json::Value> {
-    let raw = match fs::read_to_string(file) {
+    let raw = match read_source_path(file) {
         Ok(s) => s,
         Err(_) => return HashMap::new(),
     };
@@ -162,7 +177,7 @@ fn read_existing_project_properties(file: &Path) -> HashMap<String, serde_json::
 
 /// Read the properties bag out of an existing agent file.
 fn read_existing_agent_properties(file: &Path) -> HashMap<String, serde_json::Value> {
-    let raw = match fs::read_to_string(file) {
+    let raw = match read_source_path(file) {
         Ok(s) => s,
         Err(_) => return HashMap::new(),
     };
@@ -177,7 +192,7 @@ fn project_entry_from_file(file: &Path) -> Option<SourceEntry> {
     if slug.is_empty() {
         return None;
     }
-    let raw = fs::read_to_string(file).ok()?;
+    let raw = read_source_path(file).ok()?;
     let (title, description, content, mut properties) = parse_project_frontmatter(&raw);
     let display_name = if title.is_empty() {
         slug.clone()
@@ -384,7 +399,7 @@ fn parse_agent_frontmatter(raw: &str) -> Result<(MarkdownSourceFrontmatter, Stri
 }
 
 fn agent_source_entry(path: &Path, global: bool, writable: bool) -> Result<SourceEntry, Error> {
-    let raw = fs::read_to_string(path)
+    let raw = read_source_path(path)
         .map_err(|e| Error::internal_error().data(format!("Failed to read agent file: {e}")))?;
     let (frontmatter, content) = parse_agent_frontmatter(&raw)?;
     Ok({
@@ -988,7 +1003,7 @@ pub fn export_source_with_roots(
             let dir = resolve_discoverable_skill_dir(path)?;
 
             let md = dir.join("SKILL.md");
-            let raw = fs::read_to_string(&md).map_err(|e| {
+            let raw = read_source_path(&md).map_err(|e| {
                 Error::internal_error().data(format!("Failed to read SKILL.md: {e}"))
             })?;
             let (description, content) = parse_skill_frontmatter(&raw);
@@ -1031,7 +1046,7 @@ pub fn export_source_with_roots(
         }
         SourceType::Project => {
             let file = resolve_project_path(path)?;
-            let raw = fs::read_to_string(&file).map_err(|e| {
+            let raw = read_source_path(&file).map_err(|e| {
                 Error::internal_error().data(format!("Failed to read project file: {e}"))
             })?;
             let (title, description, content, properties) = parse_project_frontmatter(&raw);
@@ -1818,6 +1833,37 @@ mod tests {
                 .and_then(|v| v.as_str()),
             Some("high")
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn list_agent_sources_rejects_symlinked_review_check_outside_project() {
+        use std::os::unix::fs::symlink;
+
+        let tmp = TempDir::new().unwrap();
+        let project = tmp.path().join("project");
+        let checks_dir = project.join(".agents").join("checks");
+        std::fs::create_dir_all(&checks_dir).unwrap();
+
+        let private_check = tmp.path().join("private").join("secret-check.md");
+        std::fs::create_dir_all(private_check.parent().unwrap()).unwrap();
+        std::fs::write(
+            &private_check,
+            "---\nname: secret-check\ndescription: hidden\n---\nTOP_SECRET_CHECK",
+        )
+        .unwrap();
+        symlink(&private_check, checks_dir.join("secret-check.md")).unwrap();
+
+        let listed = list_sources(
+            Some(SourceType::Agent),
+            Some(project.to_str().unwrap()),
+            false,
+        )
+        .unwrap();
+
+        assert!(!listed.iter().any(|source| {
+            source.name == "secret-check" && source.content.contains("TOP_SECRET_CHECK")
+        }));
     }
 
     #[test]

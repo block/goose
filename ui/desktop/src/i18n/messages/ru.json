@@ -932,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Недавние каталоги"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "Не удалось переключиться на {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "Ветки не найдены"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "Поиск веток…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "Возможно, у вас есть незакоммиченные изменения."
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Принять"
   },
@@ -1889,9 +1901,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "Использовать {modelId}"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "Отмена"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "Копировать код"
   },
@@ -1901,23 +1910,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "Не найдено приложение для открытия этой ссылки."
   },
-  "markdownContent.open": {
-    "defaultMessage": "Открыть"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "Открыть внешнюю ссылку"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "Открыть ссылку {protocol}?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "Будет открыто: {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "Приложение"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "Отмена"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "Закрыть"
@@ -1942,18 +1936,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "Переместить окно «картинка в картинке» (используйте стрелки)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "Открыть"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Открыть внешнюю ссылку"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "Будет открыто: {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "Открыть ссылку {protocol}?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Картинка в картинке"
@@ -2760,7 +2742,7 @@
     "defaultMessage": "Продолжить"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Откроется окно браузера, а код подтверждения будет скопирован в буфер обмена. Вставьте его в браузере, чтобы завершить вход."
+    "defaultMessage": "Откроется окно браузера. Код подтверждения появится здесь — введите его, чтобы завершить вход."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Нет API-ключа?"
@@ -2799,7 +2781,7 @@
     "defaultMessage": "Это навсегда удалит текущую конфигурацию провайдера."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Откроется окно браузера, а код подтверждения будет скопирован в буфер обмена. Вставьте его в браузере, чтобы завершить вход."
+    "defaultMessage": "Откроется окно браузера. Код подтверждения появится здесь — введите его, чтобы завершить вход."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "При проверке конфигурации этого провайдера произошла ошибка."
@@ -3443,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Просмотр ID расписания: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (уже запланирован)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "Выбрать YAML-файл..."
   },
@@ -3467,6 +3452,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Изменить расписание"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Не удалось загрузить рецепты."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "Не удалось разобрать рецепт из файла."
   },
@@ -3479,14 +3467,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Неверный тип файла: выберите YAML-файл (.yaml или .yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Загрузка рецептов..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "Имя:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "например, daily-summary-job"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "Сохранённые рецепты не найдены."
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Укажите корректный источник рецепта."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "У этого рецепта уже есть расписание. Измените его в списке рецептов."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Описание: {description}"
@@ -3497,11 +3494,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Название: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Сохранённые рецепты"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "Требуется ID расписания."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Расписание:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Выберите сохранённый рецепт"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Выбрано: {path}"
@@ -3856,6 +3859,12 @@
   },
   "sessions.saving": {
     "defaultMessage": "Сохранение..."
+  },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count,plural,one{{count} job} other{{count} jobs}}"
   },
   "sessions.search.noResults": {
     "defaultMessage": "Подходящие сеансы не найдены"
@@ -4427,6 +4436,9 @@
   "telemetrySettings.updateError": {
     "defaultMessage": "Не удалось обновить настройки телеметрии."
   },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
+  },
   "themeSelector.dark": {
     "defaultMessage": "Темная"
   },
@@ -4654,5 +4666,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "Проверьте подключение учетной записи, прежде чем продолжить."
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "и введите:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "Копировать"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "Перейдите на"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "и введите:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "Копировать"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "Перейдите на"
   }
 }

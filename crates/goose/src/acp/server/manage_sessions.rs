@@ -98,17 +98,18 @@ impl GooseAcpAgent {
     pub(super) async fn on_delete_session(
         &self,
         req: DeleteSessionRequest,
-    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+    ) -> Result<DeleteSessionResponse, agent_client_protocol::Error> {
+        let session_id = req.session_id.0.to_string();
         self.session_manager
-            .delete_session(&req.session_id)
+            .delete_session(&session_id)
             .await
             .internal_err()?;
-        self.sessions.lock().await.remove(&req.session_id);
+        self.sessions.lock().await.remove(&session_id);
         self.agent_manager
-            .remove_session_if_loaded(&req.session_id)
+            .remove_session_if_loaded(&session_id)
             .await
             .internal_err_ctx("Failed to remove in-memory agent")?;
-        Ok(EmptyResponse {})
+        Ok(DeleteSessionResponse::new())
     }
 
     pub(super) async fn on_export_session(
@@ -228,12 +229,23 @@ impl GooseAcpAgent {
         &self,
         req: UpdateSessionProjectRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        self.session_manager
-            .update(&req.session_id)
-            .project_id(req.project_id)
-            .apply()
+        let session_id = &req.session_id;
+        let session_not_found = || {
+            agent_client_protocol::Error::resource_not_found(Some(session_id.to_string()))
+                .data(format!("Session not found: {session_id}"))
+        };
+        let updated = self
+            .session_manager
+            .update_project_for_session_types(
+                session_id,
+                req.project_id,
+                &ACP_VISIBLE_SESSION_TYPES,
+            )
             .await
             .internal_err()?;
+        if !updated {
+            return Err(session_not_found());
+        }
         Ok(EmptyResponse {})
     }
 

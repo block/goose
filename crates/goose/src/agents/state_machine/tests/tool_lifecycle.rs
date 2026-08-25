@@ -9,6 +9,7 @@ use super::pipeline::MessageKind::{Agent, Confirmation, ToolCall, ToolResponse};
 use super::pipeline::MAX_TURNS;
 use super::test_pipeline;
 use crate::agents::tool_execution::{CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use crate::agents::AgentEvent;
 use crate::config::permission::PermissionLevel;
 use crate::config::GooseMode;
 use crate::conversation::message::{Message, MessageContent};
@@ -268,6 +269,21 @@ async fn execution_recovers_from_timeout_cancellation_and_filtered_output() -> R
     api.on("result: 3").reply("shown once");
     let result = pipeline.run(["show the result once"]).await?;
     result.assert_message(-1, Agent, "shown once");
+    let emitted_result_count = result
+        .events
+        .iter()
+        .filter_map(|event| match event {
+            AgentEvent::Message(message) => Some(message),
+            _ => None,
+        })
+        .flat_map(|message| &message.content)
+        .filter_map(MessageContent::as_tool_response)
+        .filter_map(|response| response.tool_result.as_ref().ok())
+        .flat_map(|result| &result.content)
+        .filter_map(|content| content.as_text())
+        .filter(|text| text.text == "result: 3")
+        .count();
+    assert_eq!(emitted_result_count, 1);
     assert_eq!(
         api.calls().last().unwrap().input_occurrences("result: 3"),
         1

@@ -932,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "हाल की निर्देशिकाएँ"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "{branch} पर स्विच नहीं किया जा सका"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "कोई ब्रांच नहीं मिली"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "ब्रांच खोजें…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "आपके कुछ बदलाव कमिट नहीं हुए हो सकते हैं।"
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "स्वीकार करो"
   },
@@ -1889,9 +1901,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "{modelId} का प्रयोग करें"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "रद्द करें"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "कोड कॉपी करें"
   },
@@ -1901,23 +1910,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "इस लिंक को खोलने के लिए कोई एप्लिकेशन नहीं मिला."
   },
-  "markdownContent.open": {
-    "defaultMessage": "खुला"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "बाहरी लिंक खोलें"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "{protocol} लिंक खोलें?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "यह खुलेगा: {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "ऐप"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "रद्द करें"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "बंद करें"
@@ -1942,18 +1936,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "पिक्चर-इन-पिक्चर विंडो को स्थानांतरित करें (तीर कुंजियों का उपयोग करें)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "खुला"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "बाहरी लिंक खोलें"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "यह खुलेगा: {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "{protocol} लिंक खोलें?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "चित्र-में-चित्र"
@@ -2760,7 +2742,7 @@
     "defaultMessage": "जारी रखें"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "एक ब्राउज़र विंडो खुलेगी और सत्यापन कोड आपके क्लिपबोर्ड पर कॉपी हो जाएगा। साइन-इन पूरा करने के लिए इसे ब्राउज़र में पेस्ट करें।"
+    "defaultMessage": "एक ब्राउज़र विंडो खुलेगी। सत्यापन कोड यहाँ दिखाई देगा, ताकि आप उसे दर्ज करके साइन-इन पूरा कर सकें।"
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "क्या आपके पास API कुंजी नहीं है?"
@@ -2799,7 +2781,7 @@
     "defaultMessage": "यह वर्तमान प्रदाता कॉन्फ़िगरेशन को स्थायी रूप से हटा देगा।"
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "एक ब्राउज़र विंडो खुलेगी और सत्यापन कोड आपके क्लिपबोर्ड पर कॉपी हो जाएगा। साइन-इन पूरा करने के लिए इसे ब्राउज़र में पेस्ट करें।"
+    "defaultMessage": "एक ब्राउज़र विंडो खुलेगी। सत्यापन कोड यहाँ दिखाई देगा, ताकि आप उसे दर्ज करके साइन-इन पूरा कर सकें।"
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "इस प्रदाता कॉन्फ़िगरेशन की जाँच करने में त्रुटि हुई।"
@@ -3443,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "शेड्यूल आईडी देखना: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (पहले से शेड्यूल)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "YAML फ़ाइल ब्राउज़ करें..."
   },
@@ -3467,6 +3452,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "शेड्यूल संपादित करें"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "रेसिपी लोड करने में विफल।"
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "फ़ाइल से रेसिपी पार्स करने में विफल।"
   },
@@ -3479,14 +3467,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "अमान्य फ़ाइल प्रकार: कृपया YAML file (.yaml या .yml) चुनें"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "रेसिपी लोड हो रही हैं..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "नाम:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "उदाहरण के लिए, दैनिक-सारांश-कार्य"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "कोई सहेजी गई रेसिपी नहीं मिली।"
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "कृपया एक मान्य रेसिपी स्रोत दें।"
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "इस रेसिपी का पहले से शेड्यूल है। रेसिपी सूची से इसे संपादित करें।"
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "विवरण: {description}"
@@ -3497,11 +3494,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "शीर्षक: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "सहेजी गई रेसिपी"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "शेड्यूल आईडी आवश्यक है."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "अनुसूची:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "एक सहेजी गई रेसिपी चुनें"
   },
   "scheduleModal.selected": {
     "defaultMessage": "चयनित: {path}"
@@ -3856,6 +3859,12 @@
   },
   "sessions.saving": {
     "defaultMessage": "सहेजा जा रहा है..."
+  },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count,plural,one{{count} job} other{{count} jobs}}"
   },
   "sessions.search.noResults": {
     "defaultMessage": "कोई मिलान सत्र नहीं मिला"
@@ -4427,6 +4436,9 @@
   "telemetrySettings.updateError": {
     "defaultMessage": "टेलीमेट्री सेटिंग अपडेट करने में विफल."
   },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
+  },
   "themeSelector.dark": {
     "defaultMessage": "अंधेरा"
   },
@@ -4654,5 +4666,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "आगे बढ़ने से पहले अपने खाते का कनेक्शन जाँचें।"
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "और दर्ज करें:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "कॉपी करें"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "जाएं"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "और दर्ज करें:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "कॉपी करें"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "जाएं"
   }
 }

@@ -132,19 +132,34 @@ pub fn chat_span(
     session_id: &str,
     purpose: &'static str,
 ) -> tracing::Span {
-    tracing::info_span!(
+    let span = tracing::info_span!(
         target: "goose::state_machine",
         "chat",
         "gen_ai.operation.name" = "chat",
         "gen_ai.provider.name" = %provider.get_name(),
         "gen_ai.request.model" = %model_config.model_name,
+        "gen_ai.request.temperature" = tracing::field::Empty,
+        "gen_ai.request.max_tokens" = tracing::field::Empty,
         "gen_ai.response.model" = tracing::field::Empty,
+        "gen_ai.response.finish_reasons" = tracing::field::Empty,
+        "gen_ai.response.id" = tracing::field::Empty,
         "gen_ai.usage.input_tokens" = tracing::field::Empty,
         "gen_ai.usage.output_tokens" = tracing::field::Empty,
         "goose.chat.purpose" = purpose,
         "error.type" = tracing::field::Empty,
         session.id = %session_id,
-    )
+    );
+    record_request_params(&span, model_config);
+    span
+}
+
+fn record_request_params(span: &tracing::Span, model_config: &ModelConfig) {
+    if let Some(temperature) = model_config.temperature {
+        span.record("gen_ai.request.temperature", temperature as f64);
+    }
+    if let Some(max_tokens) = model_config.max_tokens {
+        span.record("gen_ai.request.max_tokens", max_tokens as i64);
+    }
 }
 
 pub fn record_chat_usage(span: &tracing::Span, usage: &ProviderUsage) {
@@ -154,6 +169,19 @@ pub fn record_chat_usage(span: &tracing::Span, usage: &ProviderUsage) {
     }
     if let Some(tokens) = usage.usage.output_tokens {
         span.record("gen_ai.usage.output_tokens", tokens);
+    }
+    if let Some(tokens) = usage.usage.cache_read_input_tokens {
+        span.record("gen_ai.usage.cache_read.input_tokens", tokens);
+    }
+    if let Some(tokens) = usage.usage.cache_write_input_tokens {
+        span.record("gen_ai.usage.cache_creation.input_tokens", tokens);
+    }
+    if let Some(reasons) = &usage.finish_reasons {
+        let reasons_json = serde_json::to_string(reasons).unwrap_or_default();
+        span.record("gen_ai.response.finish_reasons", reasons_json.as_str());
+    }
+    if let Some(id) = &usage.response_id {
+        span.record("gen_ai.response.id", id.as_str());
     }
 }
 

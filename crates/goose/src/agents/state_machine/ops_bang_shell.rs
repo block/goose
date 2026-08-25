@@ -47,7 +47,7 @@ impl Operation<Session, GooseEffect> for BangShellOperation {
         let Some(kickoff) = messages.first() else {
             return not_applicable();
         };
-        let kickoff_text = kickoff.as_concat_text();
+        let kickoff_text = kickoff.user_visible_content().as_concat_text();
         let Some(command) = bang_shell_command(&kickoff_text) else {
             return not_applicable();
         };

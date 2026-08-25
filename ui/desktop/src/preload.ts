@@ -3,6 +3,7 @@ import { Recipe } from './recipe';
 import type { GooseApp } from './types/apps';
 import type { Settings, SettingKey } from './utils/settings';
 import { defaultSettings } from './utils/settings';
+import type { OpenExternalUrlResult } from './utils/urlSecurity';
 
 // Mapping from settings keys to their old localStorage keys for lazy migration
 const localStorageKeyMap: Partial<Record<SettingKey, string>> = {
@@ -158,7 +159,7 @@ type ElectronAPI = {
     theme: string;
     tokensUpdated?: boolean;
   }) => void;
-  openExternal: (url: string) => Promise<void>;
+  openExternal: (url: string) => Promise<OpenExternalUrlResult>;
   // Update-related functions
   getVersion: () => string;
   checkForUpdates: () => Promise<{ updateInfo: unknown; error: string | null }>;
@@ -180,6 +181,9 @@ type ElectronAPI = {
   addRecentDir: (dir: string) => Promise<boolean>;
   listRecentDirs: () => Promise<string[]>;
   listGitWorktreeDirs: (dir: string) => Promise<string[]>;
+  getGitBranchInfo: (dir: string) => Promise<{ branch: string } | null>;
+  listGitBranches: (dir: string) => Promise<string[]>;
+  switchGitBranch: (dir: string, branch: string) => Promise<{ success: boolean; error?: string }>;
 };
 
 type AppConfigAPI = {
@@ -297,7 +301,7 @@ const electronAPI: ElectronAPI = {
   }) => {
     ipcRenderer.send('broadcast-theme-change', themeData);
   },
-  openExternal: (url: string): Promise<void> => {
+  openExternal: (url: string): Promise<OpenExternalUrlResult> => {
     return ipcRenderer.invoke('open-external', url);
   },
   getVersion: (): string => {
@@ -339,6 +343,10 @@ const electronAPI: ElectronAPI = {
   addRecentDir: (dir: string) => ipcRenderer.invoke('add-recent-dir', dir),
   listRecentDirs: () => ipcRenderer.invoke('list-recent-dirs'),
   listGitWorktreeDirs: (dir: string) => ipcRenderer.invoke('list-git-worktree-dirs', dir),
+  getGitBranchInfo: (dir: string) => ipcRenderer.invoke('get-git-branch-info', dir),
+  listGitBranches: (dir: string) => ipcRenderer.invoke('list-git-branches', dir),
+  switchGitBranch: (dir: string, branch: string) =>
+    ipcRenderer.invoke('switch-git-branch', dir, branch),
 };
 
 function getAppLocale(): unknown {

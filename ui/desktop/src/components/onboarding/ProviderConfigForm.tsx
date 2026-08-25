@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { acpAuthenticateProvider } from '../../acp/providers';
+import { useProviderDeviceCode } from '../../hooks/useProviderDeviceCode';
 import type { ProviderDetails } from '../../types/providers';
 import DefaultProviderSetupForm, {
   ConfigInput,
@@ -23,7 +24,7 @@ const i18n = defineMessages({
   deviceCodeFlowHint: {
     id: 'providerConfigForm.deviceCodeFlowHint',
     defaultMessage:
-      'A browser window will open and the verification code will be copied to your clipboard. Paste it in the browser to complete sign-in.',
+      'A browser window will open. The verification code will appear here so you can enter it to complete sign-in.',
   },
   signingIn: {
     id: 'providerConfigForm.signingIn',
@@ -44,6 +45,18 @@ const i18n = defineMessages({
   continue: {
     id: 'providerConfigForm.continue',
     defaultMessage: 'Continue',
+  },
+  deviceCodeVisit: {
+    id: 'providerConfigForm.deviceCodeVisit',
+    defaultMessage: 'Visit',
+  },
+  deviceCodeAndEnter: {
+    id: 'providerConfigForm.deviceCodeAndEnter',
+    defaultMessage: 'and enter:',
+  },
+  deviceCodeCopy: {
+    id: 'providerConfigForm.deviceCodeCopy',
+    defaultMessage: 'Copy',
   },
 });
 
@@ -78,9 +91,11 @@ function OAuthForm({
 }) {
   const intl = useIntl();
   const [isLoading, setIsLoading] = useState(false);
+  const { deviceCode, clearDeviceCode } = useProviderDeviceCode(provider.name);
 
   const handleLogin = async () => {
     setIsLoading(true);
+    clearDeviceCode();
     try {
       await acpAuthenticateProvider(provider.name);
       await onConfigured(provider.name);
@@ -106,11 +121,42 @@ function OAuthForm({
           ? intl.formatMessage(i18n.signingIn)
           : intl.formatMessage(i18n.signInWith, { providerName: provider.metadata.display_name })}
       </Button>
-      <p className="text-xs text-text-muted text-center">
-        {isDeviceCodeFlow
-          ? intl.formatMessage(i18n.deviceCodeFlowHint)
-          : intl.formatMessage(i18n.browserWindowOpen)}
-      </p>
+      {isDeviceCodeFlow && isLoading && deviceCode ? (
+        <div className="flex flex-col items-center gap-2 w-full">
+          <p className="text-xs text-text-muted text-center">
+            {intl.formatMessage(i18n.deviceCodeVisit)}{' '}
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                window.electron.openExternal(deviceCode.verificationUri);
+              }}
+              className="underline"
+            >
+              {deviceCode.verificationUri}
+            </a>{' '}
+            {intl.formatMessage(i18n.deviceCodeAndEnter)}
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="text-lg font-mono tracking-widest bg-background-muted px-3 py-1 rounded">
+              {deviceCode.userCode}
+            </code>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(deviceCode.userCode)}
+              className="text-xs text-text-muted hover:text-text-default underline"
+            >
+              {intl.formatMessage(i18n.deviceCodeCopy)}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs text-text-muted text-center">
+          {isDeviceCodeFlow
+            ? intl.formatMessage(i18n.deviceCodeFlowHint)
+            : intl.formatMessage(i18n.browserWindowOpen)}
+        </p>
+      )}
     </div>
   );
 }

@@ -28,6 +28,7 @@ pub(crate) mod declarative_providers {
         inception,
         llama_swap,
         lmstudio,
+        lynkr,
         meta,
         minimax,
         mistral,
@@ -38,16 +39,20 @@ pub(crate) mod declarative_providers {
         ollama_cloud,
         omlx,
         opencode_go,
+        opencode_zen,
         orcarouter,
         ovhcloud,
         perplexity,
+        pleumrouter,
         routstr,
         sakana,
         saladcloud,
+        saygm,
         scaleway,
         tanzu,
         tensorix,
         together,
+        trustedrouter,
         venice,
         vercel_ai_gateway,
         zai,
@@ -147,6 +152,9 @@ pub struct DeclarativeProviderConfig {
     pub fast_model: Option<String>,
     #[serde(default)]
     pub preserves_thinking: bool,
+    /// Enables Z.AI's `clear_thinking` field, which Anthropic does not support.
+    #[serde(default)]
+    pub emit_clear_thinking: bool,
     #[serde(default)]
     pub setup: Option<goose_provider_types::canonical::catalog::ProviderSetupMetadata>,
 }

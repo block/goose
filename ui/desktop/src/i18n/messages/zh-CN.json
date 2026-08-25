@@ -932,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "最近的目录"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "无法切换到 {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "未找到分支"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "搜索分支…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "你可能有尚未提交的更改。"
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "接受"
   },
@@ -1889,9 +1901,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "使用 {modelId}"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "取消"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "复制代码"
   },
@@ -1901,23 +1910,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "未找到可以打开此链接的应用。"
   },
-  "markdownContent.open": {
-    "defaultMessage": "打开"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "打开外部链接"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "打开 {protocol} 链接？"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "这将打开：{href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "应用"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "取消"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "关闭"
@@ -1942,18 +1936,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "移动画中画窗口（使用方向键）"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "打开"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "打开外部链接"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "这将打开：{url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "打开 {protocol} 链接？"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "画中画"
@@ -2760,7 +2742,7 @@
     "defaultMessage": "继续"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "将打开浏览器窗口，验证码将复制到剪贴板。把它粘贴到浏览器即可完成登录。"
+    "defaultMessage": "将打开浏览器窗口。验证码会显示在此处，输入验证码即可完成登录。"
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "没有 API 密钥？"
@@ -2799,7 +2781,7 @@
     "defaultMessage": "这将永久删除当前的提供商配置。"
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "将打开浏览器窗口，验证码将复制到剪贴板。把它粘贴到浏览器即可完成登录。"
+    "defaultMessage": "将打开浏览器窗口。验证码会显示在此处，输入验证码即可完成登录。"
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "检查此提供商配置时出错。"
@@ -3443,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "正在查看计划 ID：{id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title}（已安排）"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "浏览 YAML 文件…"
   },
@@ -3467,6 +3452,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "编辑计划"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "加载方案失败。"
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "从文件解析配方失败。"
   },
@@ -3479,14 +3467,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "文件类型无效：请选择 YAML 文件（.yaml 或 .yml）"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "正在加载方案..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "名称："
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "例如：daily-summary-job"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "未找到已保存的方案。"
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "请提供有效的配方来源。"
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "此配方已有计划。请从配方列表中编辑。"
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "描述：{description}"
@@ -3497,11 +3494,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "标题：{title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "已保存的方案"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "计划 ID 为必填项。"
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "计划："
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "选择一个已保存的方案"
   },
   "scheduleModal.selected": {
     "defaultMessage": "已选择：{path}"
@@ -3856,6 +3859,12 @@
   },
   "sessions.saving": {
     "defaultMessage": "保存中…"
+  },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count,plural,one{{count} job} other{{count} jobs}}"
   },
   "sessions.search.noResults": {
     "defaultMessage": "未找到匹配的会话"
@@ -4427,6 +4436,9 @@
   "telemetrySettings.updateError": {
     "defaultMessage": "更新遥测设置失败。"
   },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
+  },
   "themeSelector.dark": {
     "defaultMessage": "深色"
   },
@@ -4654,5 +4666,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "请先检查账户连接，然后再继续。"
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "并输入："
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "复制"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "访问"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "并输入："
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "复制"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "访问"
   }
 }

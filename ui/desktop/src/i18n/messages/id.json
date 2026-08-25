@@ -932,6 +932,18 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Direktori terbaru"
   },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "Gagal beralih ke {branch}"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "Tidak ada branch yang ditemukan"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "Cari branch…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "Anda mungkin memiliki perubahan yang belum di-commit."
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Terima"
   },
@@ -1889,9 +1901,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "Gunakan {modelId}"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "Batal"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "Salin kode"
   },
@@ -1901,23 +1910,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "Tidak ada aplikasi yang ditemukan untuk membuka tautan ini."
   },
-  "markdownContent.open": {
-    "defaultMessage": "Buka"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "Buka Tautan Eksternal"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "Buka tautan {protocol}?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "Ini akan membuka: {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "Aplikasi"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "Batal"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "Tutup"
@@ -1942,18 +1936,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "Pindahkan jendela Picture-in-Picture (gunakan tombol panah)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "Buka"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Buka Tautan Eksternal"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "Ini akan membuka: {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "Buka tautan {protocol}?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Picture-in-Picture"
@@ -2760,7 +2742,7 @@
     "defaultMessage": "Lanjutkan"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Jendela browser akan terbuka dan kode verifikasi akan disalin ke clipboard Anda. Tempelkan di browser untuk menyelesaikan proses masuk."
+    "defaultMessage": "Jendela browser akan terbuka. Kode verifikasi akan muncul di sini agar Anda dapat memasukkannya untuk menyelesaikan proses masuk."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Tidak punya kunci API?"
@@ -2799,7 +2781,7 @@
     "defaultMessage": "Tindakan ini akan menghapus konfigurasi penyedia saat ini secara permanen."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Jendela browser akan terbuka dan kode verifikasi akan disalin ke clipboard Anda. Tempelkan di browser untuk menyelesaikan proses masuk."
+    "defaultMessage": "Jendela browser akan terbuka. Kode verifikasi akan muncul di sini agar Anda dapat memasukkannya untuk menyelesaikan proses masuk."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "Terjadi kesalahan saat memeriksa konfigurasi penyedia ini."
@@ -3443,6 +3425,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Melihat ID Jadwal: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (sudah dijadwalkan)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "Telusuri berkas YAML..."
   },
@@ -3467,6 +3452,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Edit Jadwal"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Gagal memuat resep."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "Gagal mengurai resep dari berkas."
   },
@@ -3479,14 +3467,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Jenis berkas tidak valid: Harap pilih berkas YAML (.yaml atau .yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Memuat resep..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "Nama:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "mis., daily-summary-job"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "Tidak ada resep tersimpan ditemukan."
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Harap berikan sumber resep yang valid."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "Resep ini sudah memiliki jadwal. Edit dari daftar Resep."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Deskripsi: {description}"
@@ -3497,11 +3494,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Judul: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Resep tersimpan"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "ID jadwal diperlukan."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Jadwal:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Pilih resep tersimpan"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Dipilih: {path}"
@@ -3856,6 +3859,12 @@
   },
   "sessions.saving": {
     "defaultMessage": "Menyimpan..."
+  },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count,plural,one{{count} job} other{{count} jobs}}"
   },
   "sessions.search.noResults": {
     "defaultMessage": "Tidak ada sesi yang cocok ditemukan"
@@ -4427,6 +4436,9 @@
   "telemetrySettings.updateError": {
     "defaultMessage": "Gagal memperbarui pengaturan telemetri."
   },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
+  },
   "themeSelector.dark": {
     "defaultMessage": "Gelap"
   },
@@ -4654,5 +4666,23 @@
   },
   "acpReadinessPanel.connectionNotChecked": {
     "defaultMessage": "Periksa koneksi akun Anda sebelum melanjutkan."
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "dan masukkan:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "Salin"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "Kunjungi"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "dan masukkan:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "Salin"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "Kunjungi"
   }
 }

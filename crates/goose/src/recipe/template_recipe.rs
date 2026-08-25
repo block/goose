@@ -355,6 +355,28 @@ mod tests {
         }
 
         #[test]
+        fn test_builtin_filters_are_registered() {
+            // Regression test for #11301: minijinja's `builtins` feature (where
+            // indent/upper/trim/etc. live) was dropped from Cargo.toml, so every
+            // documented recipe filter except safe/escape/e failed as "unknown filter".
+            let content = "{{ raw_data | indent(2) }}";
+            let params = HashMap::from([
+                ("recipe_dir".to_string(), "some_dir".to_string()),
+                ("raw_data".to_string(), "line one\nline two".to_string()),
+            ]);
+            let result = render_recipe_content_with_params(content, &params).unwrap();
+            assert_eq!(result, "line one\n  line two");
+
+            let content = "{{ raw_data | upper }} / {{ raw_data | trim }}";
+            let params = HashMap::from([
+                ("recipe_dir".to_string(), "some_dir".to_string()),
+                ("raw_data".to_string(), "  hi  ".to_string()),
+            ]);
+            let result = render_recipe_content_with_params(content, &params).unwrap();
+            assert_eq!(result, "  HI   / hi");
+        }
+
+        #[test]
         fn test_render_content_with_spaced_variables() {
             let content = "Hello {{hf model org}}_{{hf model name}}!";
             let params = HashMap::from([("recipe_dir".to_string(), "some_dir".to_string())]);

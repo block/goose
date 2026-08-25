@@ -108,7 +108,7 @@ uuid = { workspace = true, features = ["v7"] }
 regex = { workspace = true }
 async-trait = { workspace = true }
 async-stream = { workspace = true }
-minijinja = { version = "2.18", default-features = false, features = ["loader", "multi_template", "serde"] }
+minijinja = { version = "2.18", default-features = false, features = ["loader", "multi_template", "serde", "builtins"] }
 include_dir = { workspace = true }
 tiktoken-rs = { version = "0.12", default-features = false }
 chrono = { workspace = true }
@@ -171,8 +171,12 @@ tokio-stream = { workspace = true, features = ["io-util"] }
 tempfile = { workspace = true }
 tokio-util = { workspace = true, features = ["compat"] }
 agent-client-protocol-schema = { workspace = true }
-agent-client-protocol = { workspace = true, features = ["unstable"] }
-agent-client-protocol-http = { workspace = true }
+agent-client-protocol = { workspace = true, features = [
+    "unstable_elicitation",
+    "unstable_end_turn_token_usage",
+    "unstable_session_fork",
+] }
+agent-client-protocol-http = { workspace = true, features = ["server"] }
 unicode-normalization = { version = "0.1.22", default-features = false, features = ["std"] }
 
 # For local Whisper transcription (optional, behind "local-inference" feature)
@@ -181,8 +185,8 @@ candle-nn = { workspace = true, optional = true }
 candle-transformers = { version = "0.11", default-features = false, optional = true }
 byteorder = { version = "1.5", default-features = false, features = ["std"], optional = true }
 tokenizers = { version = "0.23", default-features = false, features = ["onig"], optional = true }
-symphonia = { version = "0.5", default-features = false, features = ["aac", "adpcm", "alac", "isomp4", "mkv", "mp3", "pcm", "vorbis", "wav"], optional = true }
-rubato = { version = "0.16", default-features = false, optional = true }
+symphonia = { version = "0.6", default-features = false, features = ["aac", "adpcm", "alac", "isomp4", "mkv", "mp3", "pcm", "vorbis", "wav"], optional = true }
+rubato = { version = "5.0", default-features = false, optional = true }
 sys-info = { version = "0.9", default-features = false }
 
 schemars = { workspace = true, features = [
@@ -209,16 +213,16 @@ goose-acp-macros = { path = "../goose-acp-macros", default-features = false }
 tower-http = { workspace = true, features = ["cors"] }
 tracing-appender = { workspace = true }
 process-wrap = { version = "9", default-features = false, features = ["std"] }
-nostr = { version = "0.44.7", default-features = false, features = ["nip44", "std"], optional = true }
-nostr-sdk = { version = "0.44", default-features = false, features = ["nip44"], optional = true }
+nostr = { version = "0.45.1", default-features = false, features = ["nip44", "os-rng", "std"], optional = true }
+nostr-sdk = { version = "0.45.1", default-features = false, optional = true }
 rustls = { workspace = true, optional = true }
 rcgen = { version = "0.14", default-features = false, features = ["crypto", "pem"], optional = true }
-axum-server = { version = "0.8", default-features = false, optional = true }
+axum-server = { workspace = true, optional = true }
 aws-lc-rs = { version = "1.17", default-features = false, optional = true }
 openssl = { version = "0.10.66", default-features = false, optional = true }
 pem = { version = "4.0.0", default-features = false, features = ["std"], optional = true }
 
-pctx_code_mode = { version = "0.4.1", default-features = false, optional = true }
+pctx_code_mode = { version = "0.5.0", default-features = false, optional = true }
 
 # These are needed because temporal_rs 0.1 (a transitive dep via PCTX) enables unstable features on icu_calendar without pinning the dependency version
 # A fix is available in temporal_rs 0.2 but PCTX has not updated
@@ -232,6 +236,7 @@ gethostname = "1.1.0"
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { workspace = true, features = ["accctrl", "aclapi", "fileapi", "handleapi", "minwinbase", "sddl", "securitybaseapi", "winbase", "winerror"] }
 keyring = { workspace = true, features = ["windows-native"], optional = true }
+ntapi = { version = "0.4.3", default-features = false }
 
 # Platform-specific GPU acceleration for Whisper and local inference
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -252,7 +257,7 @@ wiremock = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true, features = ["compat"] }
 dotenvy = { workspace = true }
-ctor = { version = "0.6", default-features = false, features = ["proc_macro"] }
+ctor = { version = "1.0", default-features = false, features = ["proc_macro"] }
 test-case = { workspace = true }
 env-lock = { workspace = true }
 rmcp = { workspace = true, features = ["transport-streamable-http-server"] }

@@ -65,10 +65,18 @@ pub fn recommended_models_from_registry(provider: &str) -> Vec<String> {
         .collect()
 }
 
-/// Catalog pricing is not valid for local inference or Azure Foundry deployments.
-/// Azure billing depends on deployment region, SKU, offer, and contract.
+/// Catalog pricing is not valid for local inference: models served via ollama or a
+/// local runtime are actually free to run, so any catalog price would be misleading.
+///
+/// Azure Foundry is different: it's a meta-provider that proxies models from third-party
+/// providers (Anthropic, OpenAI, Meta, etc.). `map_to_canonical_model` already infers the
+/// real underlying provider from the model name (e.g. "claude-sonnet-5" -> anthropic,
+/// "gpt-5" -> openai) and resolves its public catalog price. That price is a reasonable
+/// estimate of the real cost even though it's not guaranteed to match exactly, since Azure
+/// billing can vary by deployment region, SKU, offer, and contract/discounts. Callers should
+/// treat this as `CostSource::Estimated` rather than `CostSource::ProviderReported`.
 fn should_clear_catalog_pricing(provider: &str) -> bool {
-    matches!(provider, "ollama" | "local" | "azure_foundry")
+    matches!(provider, "ollama" | "local")
 }
 
 pub fn maybe_get_canonical_model(provider: &str, model: &str) -> Option<CanonicalModel> {
@@ -83,9 +91,36 @@ pub fn maybe_get_canonical_model(provider: &str, model: &str) -> Option<Canonica
 
     if should_clear_catalog_pricing(provider) {
         canonical.cost = Pricing::default();
+    } else if name_builder::is_meta_provider(provider) && canonical.cost.has_no_usable_rate() {
+        // A meta-provider model can infer to a first-party catalog entry that carries literal
+        // 0.0 prices (open-weights publishers such as meta-llama do). The host's own catalog
+        // row carries the rate it actually charges to proxy that model, so prefer it. Where
+        // there is no such row, report nothing: billing paid proxied inference as free is
+        // worse than showing no estimate at all.
+        canonical.cost = host_catalog_pricing(provider, model, registry).unwrap_or_default();
     }
 
     Some(canonical)
+}
+
+/// Pricing from the meta-provider's own catalog rows (`azure/*`, `databricks/*`,
+/// `amazon-bedrock/*`), which price proxied inference directly rather than by inferring the
+/// upstream publisher. Only the rate is taken: model identity and capabilities stay on the
+/// canonical entry that `map_to_canonical_model` resolved.
+fn host_catalog_pricing(
+    provider: &str,
+    model: &str,
+    registry: &CanonicalModelRegistry,
+) -> Option<Pricing> {
+    let host = name_builder::map_provider_name(provider);
+    let stripped = name_builder::strip_version_suffix(model);
+    let cost = registry
+        .get(host, &stripped)
+        .or_else(|| registry.get(host, model))
+        .or_else(|| registry.get(host, &stripped.to_ascii_lowercase()))?
+        .cost
+        .clone();
+    (!cost.has_no_usable_rate()).then_some(cost)
 }
 
 #[cfg(test)]
@@ -107,12 +142,39 @@ mod tests {
     }
 
     #[test]
-    fn azure_foundry_models_retain_limits_without_catalog_pricing() {
+    fn azure_foundry_models_use_inferred_provider_pricing() {
         let canonical = maybe_get_canonical_model("azure_foundry", "gpt-5")
             .expect("gpt-5 should resolve through the Azure catalog");
         assert_eq!(canonical.limit.context, 400_000);
+        let openai = maybe_get_canonical_model("openai", "gpt-5")
+            .expect("gpt-5 should resolve for its first-party provider");
+        assert_eq!(canonical.cost.input, openai.cost.input);
+        assert_eq!(canonical.cost.output, openai.cost.output);
+        assert!(canonical.cost.input.is_some_and(|price| price > 0.0));
+        assert!(canonical.cost.output.is_some_and(|price| price > 0.0));
+    }
+
+    #[test]
+    fn meta_provider_zero_priced_inference_prefers_the_host_catalog_rate() {
+        // "llama-3.3-70b-instruct" infers to meta-llama/llama-3.3-70b-instruct, priced 0.0/0.0
+        // because the weights are free to download — but Azure bills to serve them. The
+        // azure/llama-3.3-70b-instruct row carries the rate Azure actually charges.
+        let canonical = maybe_get_canonical_model("azure_foundry", "llama-3.3-70b-instruct")
+            .expect("llama-3.3-70b-instruct should resolve");
+        assert_eq!(canonical.cost.input, Some(0.71));
+        assert_eq!(canonical.cost.output, Some(0.71));
+        assert!(canonical.limit.context > 0);
+    }
+
+    #[test]
+    fn meta_provider_zero_priced_inference_reports_no_cost_without_a_host_rate() {
+        // Databricks bills for llama-3.3-70b-instruct but publishes no catalog row for it.
+        // Reporting nothing beats reporting the publisher's 0.0/0.0 as if it were free.
+        let canonical = maybe_get_canonical_model("databricks", "llama-3.3-70b-instruct")
+            .expect("llama-3.3-70b-instruct should resolve");
         assert_eq!(canonical.cost.input, None);
         assert_eq!(canonical.cost.output, None);
+        assert!(canonical.limit.context > 0);
     }
 
     #[test]

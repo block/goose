@@ -45,12 +45,11 @@ tracing = { workspace = true }
 uuid = { workspace = true, features = ["v4", "std"] }
 tempfile = { workspace = true }
 
-safemlx = { default-features = false, features = ["accelerate", "metal", "safetensors"], optional = true, version = "0.1.2" }
-safemlx-lm = { optional = true, version = "0.1.5" }
-safemlx-lm-utils = { optional = true, version = "0.1.2" }
-
 [target.'cfg(target_os = "macos")'.dependencies]
 llama-cpp-2 = { workspace = true, features = ["sampler", "metal", "mtmd"] }
+safemlx = { default-features = false, features = ["accelerate", "metal", "safetensors"], optional = true, version = "0.1.2" }
+safemlx-lm = { optional = true, version = "0.4.1" }
+safemlx-lm-utils = { optional = true, version = "0.1.2" }
 
 [dev-dependencies]
 env-lock.workspace = true

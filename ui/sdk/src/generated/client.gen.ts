@@ -41,7 +41,6 @@ import type {
   DefaultsSaveRequest_unstable,
   DeleteRecipeRequest_unstable,
   DeleteScheduleRequest_unstable,
-  DeleteSessionRequest,
   DeleteSourceRequest_unstable,
   DiagnosticsGetRequest_unstable,
   DiagnosticsGetResponse_unstable,
@@ -448,10 +447,6 @@ export class GooseExtClient {
     return zPromptOperationResponse_unstable.parse(
       raw,
     ) as PromptOperationResponse_unstable;
-  }
-
-  async sessionDelete(params: DeleteSessionRequest): Promise<void> {
-    await this.conn.request("session/delete", params);
   }
 
   async configExtensionsList_unstable(
