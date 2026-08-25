@@ -30,6 +30,7 @@ interface GooseMessageProps {
   sessionId: string;
   message: Message;
   messages: Message[];
+  messageIndex: number;
   metadata?: string[];
   toolCallNotifications: Map<string, NotificationEvent[]>;
   append: (value: string) => void;
@@ -44,6 +45,7 @@ function GooseMessage({
   sessionId,
   message,
   messages,
+  messageIndex,
   toolCallNotifications,
   append,
   isStreaming,
@@ -61,11 +63,7 @@ function GooseMessage({
 
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
   const toolRequests = getToolRequests(message);
-  const messageIndex = messages.findIndex((msg) => msg.id === message.id);
-  const reasoningConsumedBudget = reasoningConsumedOutputBudget(
-    messages,
-    messageIndex >= 0 ? messageIndex : messages.length - 1
-  );
+  const reasoningConsumedBudget = reasoningConsumedOutputBudget(messages, messageIndex);
   const toolConfirmationContent = getToolConfirmationContent(message);
   const elicitationContent = getElicitationContent(message);
 
