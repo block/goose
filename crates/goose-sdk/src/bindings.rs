@@ -1,4 +1,4 @@
-//! In-process uniffi bindings for the Goose SDK.
+//! In-process uniffi bindings for the GDK.
 //!
 //! This is the API surface exposed to Python and Kotlin. It focuses on native
 //! Goose providers and mirrors the provider message/tool/streaming model closely
@@ -25,8 +25,7 @@ use goose_providers::{
     utils::sanitize_unicode_tags,
 };
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, ContentBlock as Content, ErrorCode, ErrorData, Role,
-    Tool,
+    CallToolRequestParams, CallToolResult, ContentBlock, ErrorCode, ErrorData, Role, Tool,
 };
 use serde_json::Value;
 
@@ -306,15 +305,15 @@ fn call_tool_result(value: Value, is_error: bool) -> CallToolResult {
     }
 }
 
-fn value_to_content(value: Value) -> Content {
+fn value_to_content(value: Value) -> ContentBlock {
     match value {
-        Value::String(text) => Content::text(text),
+        Value::String(text) => ContentBlock::text(text),
         Value::Object(object) => match object.get("type").and_then(|value| value.as_str()) {
             Some("text") => object
                 .get("text")
                 .and_then(|value| value.as_str().map(str::to_owned))
-                .map(Content::text)
-                .unwrap_or_else(|| Content::text(Value::Object(object).to_string())),
+                .map(ContentBlock::text)
+                .unwrap_or_else(|| ContentBlock::text(Value::Object(object).to_string())),
             Some("image") => {
                 let mime_type = object
                     .get("mimeType")
@@ -325,11 +324,11 @@ fn value_to_content(value: Value) -> Content {
                     .get("data")
                     .and_then(|value| value.as_str().map(str::to_owned))
                     .unwrap_or_default();
-                Content::image(data, mime_type)
+                ContentBlock::image(data, mime_type)
             }
-            _ => Content::text(Value::Object(object).to_string()),
+            _ => ContentBlock::text(Value::Object(object).to_string()),
         },
-        other => Content::text(other.to_string()),
+        other => ContentBlock::text(other.to_string()),
     }
 }
 

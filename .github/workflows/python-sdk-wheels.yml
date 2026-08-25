@@ -1,4 +1,4 @@
-name: Python SDK Wheels
+name: Python GDK Wheels
 
 on:
   workflow_dispatch:

@@ -2,11 +2,12 @@
 
 use std::sync::Arc;
 
-use crate::agents::state_machine::operation::{
-    applied, messages_since_kickoff, not_applicable, trailing_error, yielded_with, Emitter,
-    Inference, InferenceInput, Operation, OperationResult, SlashCommand, StateEffect,
-};
 use crate::agents::state_machine::ops_unknown_tool::UNCLAIMED_TOOL_ERROR;
+use crate::agents::state_machine::{
+    applied, messages_since_kickoff, not_applicable, trailing_error, yielded_with,
+    ConversationEffect, Emitter, GooseEffect, Inference, InferenceInput, Operation,
+    OperationResult, SlashCommand,
+};
 use crate::agents::{ExtensionManager, PromptManager};
 use crate::config::GooseMode;
 use crate::conversation::message::{InferenceMetadata, Message, MessageContent};
@@ -85,29 +86,29 @@ pub(super) fn chat_span(
     session_id: &str,
     purpose: &'static str,
 ) -> tracing::Span {
-    tracing::info_span!(
+    let span = tracing::info_span!(
         target: "goose::state_machine",
         "chat",
         "gen_ai.operation.name" = "chat",
         "gen_ai.provider.name" = %provider.get_name(),
         "gen_ai.request.model" = %model_config.model_name,
+        "gen_ai.request.temperature" = tracing::field::Empty,
+        "gen_ai.request.max_tokens" = tracing::field::Empty,
         "gen_ai.response.model" = tracing::field::Empty,
+        "gen_ai.response.finish_reasons" = tracing::field::Empty,
+        "gen_ai.response.id" = tracing::field::Empty,
         "gen_ai.usage.input_tokens" = tracing::field::Empty,
         "gen_ai.usage.output_tokens" = tracing::field::Empty,
         "goose.chat.purpose" = purpose,
         "error.type" = tracing::field::Empty,
         session.id = %session_id,
-    )
+    );
+    super::super::gen_ai_telemetry::record_request_params(&span, model_config);
+    span
 }
 
 pub(super) fn record_chat_usage(span: &tracing::Span, usage: &ProviderUsage) {
-    span.record("gen_ai.response.model", usage.model.as_str());
-    if let Some(tokens) = usage.usage.input_tokens {
-        span.record("gen_ai.usage.input_tokens", tokens);
-    }
-    if let Some(tokens) = usage.usage.output_tokens {
-        span.record("gen_ai.usage.output_tokens", tokens);
-    }
+    super::super::gen_ai_telemetry::record_provider_usage(span, usage);
 }
 
 pub struct InferenceRunner<'a> {
@@ -182,7 +183,7 @@ impl<'a> InferenceRunner<'a> {
         }
     }
 
-    async fn error_outcome(&self, err: &ProviderError, emit: &Emitter) -> Vec<StateEffect> {
+    async fn error_outcome(&self, err: &ProviderError, emit: &Emitter) -> Vec<GooseEffect> {
         #[cfg(feature = "telemetry")]
         crate::posthog::emit_error(err.telemetry_type(), &err.to_string());
         tracing::Span::current().record("error.type", err.telemetry_type());
@@ -194,7 +195,7 @@ impl<'a> InferenceRunner<'a> {
 }
 
 #[async_trait]
-impl Operation for InferenceRunner<'_> {
+impl Operation<Session, GooseEffect> for InferenceRunner<'_> {
     fn name(&self) -> &'static str {
         "llm"
     }
@@ -203,9 +204,9 @@ impl Operation for InferenceRunner<'_> {
         &self,
         _session: &Session,
         conversation: &Conversation,
-        result: OperationResult,
+        result: OperationResult<GooseEffect>,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let mut answered = conversation
             .messages()
             .iter()
@@ -235,7 +236,9 @@ impl Operation for InferenceRunner<'_> {
         }
         if let OperationResult::Applied(step) = &result {
             for effect in &step.effects {
-                if let StateEffect::AppendMessage(message) = effect {
+                if let GooseEffect::Conversation(ConversationEffect::AppendMessage(message)) =
+                    effect
+                {
                     collect(message);
                 }
             }
@@ -273,7 +276,7 @@ impl Operation for InferenceRunner<'_> {
         session: &Session,
         conversation: &Conversation,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         if command.command != "status" {
             return not_applicable();
         }
@@ -320,18 +323,19 @@ impl Operation for InferenceRunner<'_> {
             .await;
         let response = emit.message(response).await;
         yielded_with([
-            StateEffect::SetMessageVisibility {
+            ConversationEffect::SetMessageVisibility {
                 message_id,
                 user_visible: true,
                 agent_visible: false,
-            },
+            }
+            .into(),
             response.into(),
         ])
     }
 }
 
 #[async_trait]
-impl Inference for InferenceRunner<'_> {
+impl Inference<Session, GooseEffect> for InferenceRunner<'_> {
     fn applies(&self, conversation: &Conversation) -> bool {
         let Ok(turn) = messages_since_kickoff(conversation) else {
             return false;
@@ -346,7 +350,7 @@ impl Inference for InferenceRunner<'_> {
         conversation: &Conversation,
         mut input: InferenceInput,
         emit: &Emitter,
-    ) -> Result<OperationResult> {
+    ) -> Result<OperationResult<GooseEffect>> {
         let messages = messages_since_kickoff(conversation)?;
         if trailing_error(conversation).is_some() {
             return not_applicable();
@@ -471,8 +475,8 @@ impl Inference for InferenceRunner<'_> {
                 messages_for_provider.push(event.clone());
             }
             let conversation_for_provider = Conversation::new_unvalidated(messages_for_provider);
-            let mut usage_effects: Vec<StateEffect> =
-                turn_context.into_iter().map(StateEffect::from).collect();
+            let mut usage_effects: Vec<GooseEffect> =
+                turn_context.into_iter().map(GooseEffect::from).collect();
 
             let stream = crate::agents::reply_parts::stream_response_from_provider(
                 self.provider.clone(),
@@ -519,7 +523,7 @@ impl Inference for InferenceRunner<'_> {
                         let (msg_opt, usage_opt) = match result {
                             Ok(chunk) => chunk,
                             Err(err) => {
-                                usage_effects.extend(accumulator.into_iter().map(StateEffect::from));
+                                usage_effects.extend(accumulator.into_iter().map(GooseEffect::from));
                                 usage_effects.extend(self.error_outcome(&err, emit).await);
                                 return applied(usage_effects);
                             }
@@ -527,7 +531,7 @@ impl Inference for InferenceRunner<'_> {
                         if let Some(usage) = usage_opt {
                             let span = tracing::Span::current();
                             record_chat_usage(&span, &usage);
-                            usage_effects.push(StateEffect::RecordUsage(usage));
+                            usage_effects.push(GooseEffect::RecordUsage(usage));
                         }
                         if let Some(mut chunk) = msg_opt {
                             if let Some(inference) = &inference {
@@ -571,10 +575,16 @@ impl Inference for InferenceRunner<'_> {
                 return yielded_with(usage_effects);
             }
 
-            let has_recorded_usage = usage_effects
-                .iter()
-                .any(|effect| matches!(effect, StateEffect::RecordUsage(_)));
-            if !has_recorded_usage {
+            let has_recorded_tokens = usage_effects.iter().any(|effect| {
+                matches!(
+                    effect,
+                    GooseEffect::RecordUsage(usage)
+                        if usage.usage.input_tokens.is_some()
+                            || usage.usage.output_tokens.is_some()
+                            || usage.usage.total_tokens.is_some()
+                )
+            });
+            if !has_recorded_tokens {
                 let mut usage = ProviderUsage::new(
                     self.model_config.model_name.clone(),
                     goose_providers::conversation::token_usage::Usage::default(),
@@ -589,7 +599,7 @@ impl Inference for InferenceRunner<'_> {
                     )
                     .await?;
                     record_chat_usage(&tracing::Span::current(), &usage);
-                    usage_effects.push(StateEffect::RecordUsage(usage));
+                    usage_effects.push(GooseEffect::RecordUsage(usage));
                 }
             }
 

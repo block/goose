@@ -34,7 +34,7 @@ pub fn canonical_name(provider: &str, model: &str) -> String {
     format!("{}/{}", provider, model_base)
 }
 
-fn is_meta_provider(provider: &str) -> bool {
+pub(crate) fn is_meta_provider(provider: &str) -> bool {
     matches!(
         provider,
         "databricks" | "databricks_v2" | "tetrate" | "bedrock" | "azure" | "azure_foundry"
@@ -53,6 +53,7 @@ pub fn map_provider_name(provider: &str) -> &str {
         "zhipu" => "zhipuai",
         "novita" => "novita-ai",
         "opencode_go" => "opencode-go",
+        "opencode_zen" => "opencode",
         "ollama_cloud" => "ollama-cloud",
         "kimi_code" => "kimi-for-coding",
         _ => provider,
@@ -344,6 +345,10 @@ mod tests {
         assert_eq!(
             map_to_canonical_model("opencode_go", "kimi-k2.6", r),
             Some("opencode-go/kimi-k2.6".to_string())
+        );
+        assert_eq!(
+            map_to_canonical_model("opencode_zen", "kimi-k3", r),
+            Some("opencode/kimi-k3".to_string())
         );
 
         // === OpenRouter ===

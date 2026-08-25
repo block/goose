@@ -13,8 +13,8 @@ workspace = true
 
 [features]
 default = []
-rustls-tls = ["reqwest/rustls"]
-native-tls = ["reqwest/native-tls"]
+rustls-tls = []
+native-tls = []
 
 [dependencies]
 rmcp = { workspace = true, features = ["server", "client", "transport-io", "macros"] }
@@ -23,13 +23,11 @@ tokio = { workspace = true, features = ["process", "io-util"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 tracing-appender = { workspace = true }
-url = { workspace = true }
 base64 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 schemars = { workspace = true }
 indoc = { workspace = true }
-reqwest = { workspace = true, features = ["json", "system-proxy"] }
 chrono = { workspace = true }
 etcetera = { workspace = true }
 tempfile = { workspace = true }

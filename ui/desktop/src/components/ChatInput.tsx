@@ -10,13 +10,15 @@ import { ChatState } from '../types/chatState';
 import debounce from 'lodash/debounce';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
+import { GitBranchIndicator } from './GitBranchIndicator';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuExtensionSelection } from './bottom_menu/BottomMenuExtensionSelection';
 import { cn } from '../utils';
 import { AlertType, useAlerts } from './alerts';
 import { useModelAndProvider } from './ModelAndProviderContext';
-import { acpListProviderDetails } from '../acp/providers';
+import { acpGetProviderDetails } from '../acp/providers';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
+import { useFocusOnTyping } from '../hooks/useFocusOnTyping';
 import { toastError } from '../toasts';
 import MentionPopover, { DisplayItemWithMatch } from './MentionPopover';
 import { COST_TRACKING_ENABLED } from '../updates';
@@ -574,6 +576,8 @@ export default function ChatInput({
     }
   }, [textAreaRef]);
 
+  useFocusOnTyping(textAreaRef, !isRecording);
+
   // Load providers and get current model's token limit
   const loadProviderDetails = async () => {
     try {
@@ -612,8 +616,7 @@ export default function ChatInput({
       }
 
       // Priority 3: Fall back to provider metadata known_models (may be outdated)
-      const providers = await acpListProviderDetails();
-      const currentProvider = providers.find((p) => p.name === provider);
+      const currentProvider = await acpGetProviderDetails(provider);
       if (currentProvider?.metadata?.known_models) {
         const modelConfig = currentProvider.metadata.known_models.find((m) => m.name === model);
         if (modelConfig?.context_limit) {
@@ -664,7 +667,7 @@ export default function ChatInput({
       });
     }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totalTokens, tokenLimit, isTokenLimitLoaded, isLoading, addAlert, clearAlerts]);
 
   // Cleanup effect for component unmount - prevent memory leaks
@@ -1118,7 +1121,9 @@ export default function ChatInput({
           setLastInterruption(null);
         }
 
-        clearInputState();
+        if (sessionId !== null) {
+          clearInputState();
+        }
         setHistoryIndex(-1);
         setSavedInput('');
         setIsInGlobalHistory(false);
@@ -1133,6 +1138,7 @@ export default function ChatInput({
       handleSubmit,
       lastInterruption,
       clearInputState,
+      sessionId,
     ]
   );
 
@@ -1679,6 +1685,10 @@ export default function ChatInput({
               setWorkingDirOverride(newDir);
             }}
           />
+        )}
+
+        {!isBottomBarNarrow && currentWorkingDir && (
+          <GitBranchIndicator dir={currentWorkingDir} className="ml-1" />
         )}
 
         {/* Spacer */}

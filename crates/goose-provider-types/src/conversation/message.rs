@@ -262,6 +262,7 @@ pub struct SystemNotificationContent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum MessageErrorKind {
+    Authentication,
     ContextLengthExceeded,
     CreditsExhausted,
     #[serde(other)]
@@ -272,6 +273,7 @@ impl From<&crate::errors::ProviderError> for MessageErrorKind {
     fn from(err: &crate::errors::ProviderError) -> Self {
         use crate::errors::ProviderError;
         match err {
+            ProviderError::Authentication(_) => MessageErrorKind::Authentication,
             ProviderError::ContextLengthExceeded(_) => MessageErrorKind::ContextLengthExceeded,
             ProviderError::CreditsExhausted { .. } => MessageErrorKind::CreditsExhausted,
             _ => MessageErrorKind::Other,
@@ -704,7 +706,10 @@ impl From<PromptMessage> for Message {
 
         // Convert and add the content
         let content = match prompt_message.content {
-            ContentBlock::Text(text) => MessageContentBlock::Text(text),
+            ContentBlock::Text(mut text) => {
+                text.text = sanitize_unicode_tags(&text.text);
+                MessageContentBlock::Text(text)
+            }
             ContentBlock::Image(image) => MessageContentBlock::Image(image),
             ContentBlock::ResourceLink(_) => MessageContentBlock::text("[Resource link]"),
             ContentBlock::Resource(resource) => {
@@ -1320,9 +1325,10 @@ pub struct TokenState {
 #[cfg(test)]
 mod tests {
     use crate::conversation::message::{
-        ActionRequiredData, Message, MessageContentBlock, MessageMetadata, ProviderMetadata,
-        ToolResponse,
+        ActionRequiredData, Message, MessageContentBlock, MessageErrorKind, MessageMetadata,
+        ProviderMetadata, ToolResponse,
     };
+    use crate::errors::ProviderError;
     use base64::Engine;
     use rmcp::model::{
         Annotations, CallToolResult, ElicitationAction, ErrorCode, ErrorData, ImageContent,
@@ -1331,6 +1337,17 @@ mod tests {
     use rmcp::model::{CallToolRequestParams, ContentBlock, EmbeddedResource, PromptMessage, Role};
     use rmcp::object;
     use serde_json::Value;
+
+    #[test]
+    fn provider_authentication_error_has_authentication_kind() {
+        let message = Message::from_provider_error(&ProviderError::Authentication(
+            "Authentication required".to_string(),
+        ));
+
+        assert_eq!(message.error_kind(), Some(MessageErrorKind::Authentication));
+        assert!(message.is_user_visible());
+        assert!(!message.is_agent_visible());
+    }
 
     #[test]
     fn test_sanitize_with_text() {
@@ -1885,6 +1902,27 @@ mod tests {
         } else {
             panic!("Expected MessageContentBlock::Text");
         }
+    }
+
+    #[test]
+    fn test_from_prompt_message_text_preserves_visible_unicode() {
+        let prompt_message = PromptMessage::new(Role::User, ContentBlock::text("Grüße 你好 🪿"));
+
+        let message = Message::from(prompt_message);
+
+        assert_eq!(message.as_concat_text(), "Grüße 你好 🪿");
+    }
+
+    #[test]
+    fn test_from_prompt_message_text_removes_unicode_tags() {
+        let prompt_message = PromptMessage::new(
+            Role::User,
+            ContentBlock::text("visible\u{E0000}\u{E0041}\u{E007F} text"),
+        );
+
+        let message = Message::from(prompt_message);
+
+        assert_eq!(message.as_concat_text(), "visible text");
     }
 
     #[test]

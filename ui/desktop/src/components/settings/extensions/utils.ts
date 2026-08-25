@@ -38,6 +38,12 @@ export interface ExtensionFormData {
   }[];
   installation_notes?: string;
   available_tools?: string[];
+  // streamable_http fields with no form input yet; carried through so an
+  // unrelated edit does not strip them from the saved config.
+  socket?: string | null;
+  client_id?: string | null;
+  client_secret_key?: string | null;
+  scopes?: string[];
 }
 
 export function getDefaultFormData(): ExtensionFormData {
@@ -125,6 +131,14 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
       | string
       | undefined,
     ...(availableTools ? { available_tools: availableTools } : {}),
+    ...(extension.type === 'streamable_http'
+      ? {
+          socket: extension.socket,
+          client_id: extension.client_id,
+          client_secret_key: extension.client_secret_key,
+          scopes: extension.scopes,
+        }
+      : {}),
   };
 }
 
@@ -176,6 +190,12 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
       ...(env_keys.length > 0 ? { env_keys } : {}),
       headers,
       ...availableToolsConfig(formData.available_tools),
+      ...(formData.socket != null ? { socket: formData.socket } : {}),
+      ...(formData.client_id != null ? { client_id: formData.client_id } : {}),
+      ...(formData.client_secret_key != null
+        ? { client_secret_key: formData.client_secret_key }
+        : {}),
+      ...(formData.scopes?.length ? { scopes: formData.scopes } : {}),
     };
   } else if (formData.type === 'builtin') {
     return {

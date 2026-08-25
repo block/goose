@@ -21,5 +21,11 @@
     "Choose a Free Endpoint model from the model catalog",
     "Create an API key",
     "Copy the key and paste it above"
-  ]
+  ],
+  "setup": {
+    "category": "model",
+    "setup_method": "single_api_key",
+    "group": "additional",
+    "docs_url": "https://build.nvidia.com/models"
+  }
 }

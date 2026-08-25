@@ -3,7 +3,6 @@ import type { GooseExtension } from '@aaif/goose-sdk';
 import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
 import type { Session } from '../types/session';
-import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 import {
   createUserMessage,
@@ -17,7 +16,11 @@ import {
   type AcpChatSessionSnapshot,
 } from './chatSessionStore';
 import { cancelAcpElicitationRequestsForSession } from './elicitationRequests';
-import { parseAcpCreditsExhaustedError, type AcpCreditsExhaustedError } from './errors';
+import {
+  formatAcpError,
+  parseAcpCreditsExhaustedError,
+  type AcpCreditsExhaustedError,
+} from './errors';
 import { cancelAcpPermissionRequestsForSession } from './permissionRequests';
 import { acpCancelPrompt, acpPromptSession } from './prompt';
 import {
@@ -128,7 +131,7 @@ async function createSession(
 
 async function loadSession(sessionId: string, options: AcpLoadSessionOptions = {}): Promise<void> {
   const cached = acpChatSessionStore.getSnapshot(sessionId);
-  if (cached?.session) {
+  if (cached?.session && !cached.sessionLoadError) {
     window.dispatchEvent(
       new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED, { detail: { sessionId } })
     );
@@ -162,7 +165,7 @@ async function loadSessionFromServer(
     options.onSessionLoaded?.();
   } catch (error) {
     console.error('Failed to load ACP session:', error);
-    acpChatSessionActions.failSessionLoad(sessionId, errorMessage(error));
+    acpChatSessionActions.failSessionLoad(sessionId, formatAcpError(error));
   }
 }
 
@@ -211,10 +214,8 @@ async function submitMessage(
       return;
     }
 
-    const submitError = 'Submit error: ' + errorMessage(error);
-    if (
-      acpChatSessionActions.finishPromptAttemptIfCurrent(sessionId, promptAttemptId, submitError)
-    ) {
+    const submitError = formatAcpError(error);
+    if (acpChatSessionActions.finishPromptAttemptIfCurrent(sessionId, promptAttemptId)) {
       void options.onFinish(submitError);
     }
   }

@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::extension_manager::{ExtensionManager, ExtensionManagerCapabilities};
-use goose::agents::GoosePlatform;
+use goose::agents::{GoosePlatform, MCP_PROTOCOL_VERSION};
 use goose_providers::model::ModelConfig;
 
 use test_case::test_case;
@@ -167,18 +167,23 @@ async fn test_replayed_session(
     tool_calls: Vec<CallToolRequestParams>,
     required_envs: Vec<&str>,
 ) {
+    // The working directory is sent to the server verbatim in our `roots/list`
+    // response, so it is part of the recorded protocol traffic. It must be an
+    // absolute path (relative paths are not convertible to a `file://` URL) and
+    // it must be stable across machines, otherwise playback compares a recorded
+    // path against whatever cwd the test happens to run in.
+    const TEST_WORKING_DIR: &str = "/tmp/goose_test";
+    fs::create_dir_all(TEST_WORKING_DIR).ok();
+
     let _env = env_lock::lock_env([
         ("GOOSE_MCP_CLIENT_VERSION", Some("0.0.0")),
         ("GOOSE_PROVIDER", Some("openai")),
         ("GOOSE_MODEL", Some("gpt-4o")),
-        ("GOOSE_WORKING_DIR", Some("/tmp/goose_test")),
+        ("GOOSE_WORKING_DIR", Some(TEST_WORKING_DIR)),
     ]);
 
     // Setup test file for developer extension tests
     let test_file_path = "/tmp/goose_test/goose.txt";
-    if let Some(parent) = std::path::Path::new(test_file_path).parent() {
-        fs::create_dir_all(parent).ok();
-    }
     fs::write(test_file_path, "# goose\n").ok();
     let replay_file_name = command
         .iter()
@@ -257,6 +262,8 @@ async fn test_replayed_session(
         ExtensionManagerCapabilities {
             mcpui: true,
             host_info: None,
+            elicitation_handler: None,
+            protocol_version: Some(MCP_PROTOCOL_VERSION),
         },
         true,
     ));

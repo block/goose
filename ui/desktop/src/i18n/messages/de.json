@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "Verbindung unterbrochen. Verbindung wird wiederhergestellt…"
   },
+  "baseChat.retry": {
+    "defaultMessage": "Wiederholen"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Erweiterung aktualisiert"
   },
@@ -914,6 +917,16 @@
   "dirSwitcher.currentDirectory": {
     "defaultMessage": "Aktuelles Verzeichnis"
   },
+  "dirSwitcher.enterPath": {
+    "defaultMessage": "Pfad eingeben"
+  },
+  "dirSwitcher.enterPathPlaceholder": {
+    "defaultMessage": "Absoluten Pfad eingeben (z. B. /home/goose/workspace)"
+  },
+  "dirSwitcher.enterPathInvalid": {
+    "defaultMessage": "Arbeitsverzeichnis muss ein absoluter Pfad sein"
+  },
+
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "Aktualisieren des Arbeitsverzeichnisses fehlgeschlagen"
   },
@@ -928,6 +941,18 @@
   },
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Zuletzt verwendete Verzeichnisse"
+  },
+  "gitBranchIndicator.failedToSwitch": {
+    "defaultMessage": "Wechsel zu {branch} fehlgeschlagen"
+  },
+  "gitBranchIndicator.noBranchesFound": {
+    "defaultMessage": "Keine Branches gefunden"
+  },
+  "gitBranchIndicator.searchBranches": {
+    "defaultMessage": "Branches durchsuchen…"
+  },
+  "gitBranchIndicator.uncommittedChanges": {
+    "defaultMessage": "Möglicherweise gibt es noch nicht committete Änderungen."
   },
   "elicitationRequest.accept": {
     "defaultMessage": "Akzeptieren"
@@ -1886,9 +1911,6 @@
   "localModelPicker.useModel": {
     "defaultMessage": "{modelId} verwenden"
   },
-  "markdownContent.cancel": {
-    "defaultMessage": "Abbrechen"
-  },
   "markdownContent.copyCode": {
     "defaultMessage": "Code kopieren"
   },
@@ -1898,23 +1920,8 @@
   "markdownContent.noApplicationFound": {
     "defaultMessage": "Keine Anwendung zum Öffnen dieses Links gefunden."
   },
-  "markdownContent.open": {
-    "defaultMessage": "Öffnen"
-  },
-  "markdownContent.openExternalLink": {
-    "defaultMessage": "Externen Link öffnen"
-  },
-  "markdownContent.openProtocolLink": {
-    "defaultMessage": "{protocol}-Link öffnen?"
-  },
-  "markdownContent.thisWillOpen": {
-    "defaultMessage": "Dies öffnet: {href}"
-  },
   "mcpAppRenderer.appFallbackTitle": {
     "defaultMessage": "App"
-  },
-  "mcpAppRenderer.cancelButton": {
-    "defaultMessage": "Abbrechen"
   },
   "mcpAppRenderer.close": {
     "defaultMessage": "Schließen"
@@ -1939,18 +1946,6 @@
   },
   "mcpAppRenderer.movePipWindow": {
     "defaultMessage": "Bild-in-Bild-Fenster verschieben (Pfeiltasten verwenden)"
-  },
-  "mcpAppRenderer.openButton": {
-    "defaultMessage": "Öffnen"
-  },
-  "mcpAppRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Externen Link öffnen"
-  },
-  "mcpAppRenderer.openLinkDetail": {
-    "defaultMessage": "Dies öffnet: {url}"
-  },
-  "mcpAppRenderer.openProtocolLink": {
-    "defaultMessage": "{protocol}-Link öffnen?"
   },
   "mcpAppRenderer.pictureInPicture": {
     "defaultMessage": "Bild-in-Bild"
@@ -2757,7 +2752,7 @@
     "defaultMessage": "Weiter"
   },
   "providerConfigForm.deviceCodeFlowHint": {
-    "defaultMessage": "Es öffnet sich ein Browserfenster und der Bestätigungscode wird in Ihre Zwischenablage kopiert. Fügen Sie ihn im Browser ein, um die Anmeldung abzuschließen."
+    "defaultMessage": "Ein Browserfenster wird geöffnet. Der Bestätigungscode wird hier angezeigt, damit Sie ihn eingeben und die Anmeldung abschließen können."
   },
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Sie haben keinen API-Schlüssel?"
@@ -2796,7 +2791,7 @@
     "defaultMessage": "Dadurch wird die aktuelle Anbieterkonfiguration dauerhaft gelöscht."
   },
   "providerConfigurationModal.deviceCodeFlowHint": {
-    "defaultMessage": "Es öffnet sich ein Browserfenster und der Bestätigungscode wird in Ihre Zwischenablage kopiert. Fügen Sie ihn im Browser ein, um die Anmeldung abzuschließen."
+    "defaultMessage": "Ein Browserfenster wird geöffnet. Der Bestätigungscode wird hier angezeigt, damit Sie ihn eingeben und die Anmeldung abschließen können."
   },
   "providerConfigurationModal.errorCheckingConfig": {
     "defaultMessage": "Beim Überprüfen dieser Anbieterkonfiguration ist ein Fehler aufgetreten."
@@ -3440,6 +3435,9 @@
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Zeitplan-ID wird angezeigt: {id}"
   },
+  "scheduleModal.alreadyScheduledOption": {
+    "defaultMessage": "{title} (bereits geplant)"
+  },
   "scheduleModal.browseYaml": {
     "defaultMessage": "Nach YAML-Datei suchen..."
   },
@@ -3464,6 +3462,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Zeitplan bearbeiten"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Rezepte konnten nicht geladen werden."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "Rezept konnte nicht aus der Datei gelesen werden."
   },
@@ -3476,14 +3477,23 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Ungültiger Dateityp: Bitte wählen Sie eine YAML-Datei (.yaml oder .yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Rezepte werden geladen..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "Name:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "z. B. daily-summary-job"
   },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "Keine gespeicherten Rezepte gefunden."
+  },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Bitte geben Sie eine gültige Rezeptquelle an."
+  },
+  "scheduleModal.recipeAlreadyScheduled": {
+    "defaultMessage": "Dieses Rezept hat bereits einen Zeitplan. Bearbeiten Sie ihn in der Rezeptliste."
   },
   "scheduleModal.recipeDescription": {
     "defaultMessage": "Beschreibung: {description}"
@@ -3494,11 +3504,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Titel: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Gespeicherte Rezepte"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "Zeitplan-ID ist erforderlich."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Zeitplan:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Ein gespeichertes Rezept auswählen"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Ausgewählt: {path}"
@@ -3853,6 +3869,12 @@
   },
   "sessions.saving": {
     "defaultMessage": "Wird gespeichert..."
+  },
+  "sessions.scheduledJobs": {
+    "defaultMessage": "Scheduled Jobs"
+  },
+  "sessions.scheduledJobsCount": {
+    "defaultMessage": "{count,plural,one{{count} job} other{{count} jobs}}"
   },
   "sessions.search.noResults": {
     "defaultMessage": "Keine passenden Sitzungen gefunden"
@@ -4424,6 +4446,9 @@
   "telemetrySettings.updateError": {
     "defaultMessage": "Telemetrie-Einstellungen konnten nicht aktualisiert werden."
   },
+  "themeSelector.aura": {
+    "defaultMessage": "Aura"
+  },
   "themeSelector.dark": {
     "defaultMessage": "Dunkel"
   },
@@ -4624,5 +4649,50 @@
   },
   "modelsBottomBar.recentModels": {
     "defaultMessage": "Zuletzt verwendet"
+  },
+  "providerConfigurationModal.chooseModel": {
+    "defaultMessage": "Modell auswählen"
+  },
+  "providerCard.deprecatedReplacement": {
+    "defaultMessage": "Veraltet — verwenden Sie stattdessen {replacement}."
+  },
+  "acpReadinessPanel.adapterFound": {
+    "defaultMessage": "ACP-Adapter gefunden"
+  },
+  "acpReadinessPanel.adapterNotFound": {
+    "defaultMessage": "ACP-Adapter nicht gefunden"
+  },
+  "acpReadinessPanel.authenticationHelp": {
+    "defaultMessage": "Melden Sie sich über die Anbieter-CLI an und prüfen Sie die Verbindung erneut."
+  },
+  "acpReadinessPanel.checkAgain": {
+    "defaultMessage": "Erneut prüfen"
+  },
+  "acpReadinessPanel.checking": {
+    "defaultMessage": "Wird geprüft..."
+  },
+  "acpReadinessPanel.connected": {
+    "defaultMessage": "Erfolgreich verbunden"
+  },
+  "acpReadinessPanel.connectionNotChecked": {
+    "defaultMessage": "Prüfen Sie Ihre Kontoverbindung, bevor Sie fortfahren."
+  },
+  "providerConfigForm.deviceCodeAndEnter": {
+    "defaultMessage": "und geben Sie ein:"
+  },
+  "providerConfigForm.deviceCodeCopy": {
+    "defaultMessage": "Kopieren"
+  },
+  "providerConfigForm.deviceCodeVisit": {
+    "defaultMessage": "Besuchen Sie"
+  },
+  "providerConfigurationModal.deviceCodeAndEnter": {
+    "defaultMessage": "und geben Sie ein:"
+  },
+  "providerConfigurationModal.deviceCodeCopy": {
+    "defaultMessage": "Kopieren"
+  },
+  "providerConfigurationModal.deviceCodeVisit": {
+    "defaultMessage": "Besuchen Sie"
   }
 }

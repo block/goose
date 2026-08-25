@@ -350,7 +350,7 @@ export const startGooseServe = async ({
   } catch (error) {
     const message = errorMessage(error);
     startupTrace?.record('binary_resolve_error', { message });
-    throw new Error(withStartupDiagnosticsPath(message, startupDiagnosticsPath));
+    throw new Error(withStartupDiagnosticsPath(message, startupDiagnosticsPath), { cause: error });
   }
 
   const port = await findAvailablePort();

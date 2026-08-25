@@ -60,6 +60,9 @@ impl goose_providers::base::ProviderDescriptor for XaiProvider {
                 ConfigKey::new("XAI_HOST", false, false, Some(XAI_API_HOST), false),
             ],
         )
+        .with_setup(crate::providers::catalog::ProviderSetupMetadata::api_key(
+            crate::providers::catalog::ProviderSetupGroup::Additional,
+        ))
     }
 }
 

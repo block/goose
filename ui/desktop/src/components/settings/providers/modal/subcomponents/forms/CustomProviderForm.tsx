@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Input } from '../../../../../ui/input';
 import { Select } from '../../../../../ui/Select';
 import { Button } from '../../../../../ui/button';
@@ -264,10 +264,23 @@ export default function CustomProviderForm({
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const contextVersionRef = useRef(0);
 
   // Template + step state
   const [selectedTemplate, setSelectedTemplate] = useState<ProviderTemplateDto | null>(null);
   const [step, setStep] = useState<Step>(initialData ? 'form' : 'choice');
+
+  const clearSensitiveState = () => {
+    contextVersionRef.current += 1;
+    setApiKey('');
+    setHeaders([]);
+    setNewHeaderKey('');
+    setNewHeaderValue('');
+    setHeaderValidationError(null);
+    setInvalidHeaderFields({ key: false, value: false });
+    setValidationErrors({});
+    setSubmitError(null);
+  };
 
   useEffect(() => {
     if (initialData) {
@@ -297,6 +310,7 @@ export default function CustomProviderForm({
   }, [initialData]);
 
   const handleTemplateSelect = (template: ProviderTemplateDto) => {
+    clearSensitiveState();
     setSelectedTemplate(template);
 
     // Prefill fields from template
@@ -320,6 +334,7 @@ export default function CustomProviderForm({
   };
 
   const handleClearTemplate = () => {
+    clearSensitiveState();
     setSelectedTemplate(null);
     setDisplayName('');
     setApiUrl('');
@@ -329,6 +344,16 @@ export default function CustomProviderForm({
     setSupportsStreaming(true);
     setRequiresAuth(false);
     setStep('choice');
+  };
+
+  const handleBackToChoice = () => {
+    clearSensitiveState();
+    setStep('choice');
+  };
+
+  const handleCancel = () => {
+    clearSensitiveState();
+    onCancel();
   };
 
   const handleRequiresAuthChange = (checked: boolean) => {
@@ -406,6 +431,7 @@ export default function CustomProviderForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const contextVersion = contextVersionRef.current;
     setSubmitError(null);
     setValidationErrors({});
 
@@ -464,6 +490,7 @@ export default function CustomProviderForm({
         base_path: basePath || undefined,
       });
     } catch (error) {
+      if (contextVersionRef.current !== contextVersion) return;
       console.error('Failed to save custom provider:', error);
       setSubmitError(intl.formatMessage(i18n.submitError));
     }
@@ -522,7 +549,7 @@ export default function CustomProviderForm({
           </div>
         </button>
         <div className="flex justify-end pt-2">
-          <Button type="button" variant="outline" onClick={onCancel}>
+          <Button type="button" variant="outline" onClick={handleCancel}>
             {intl.formatMessage(i18n.cancel)}
           </Button>
         </div>
@@ -534,12 +561,12 @@ export default function CustomProviderForm({
   if (step === 'catalog') {
     return (
       <div className="mt-4">
-        <ProviderCatalogPicker onSelect={handleTemplateSelect} onCancel={onCancel} embedded />
+        <ProviderCatalogPicker onSelect={handleTemplateSelect} onCancel={handleCancel} embedded />
         <div className="flex justify-between pt-4">
-          <Button type="button" variant="ghost" onClick={() => setStep('choice')}>
+          <Button type="button" variant="ghost" onClick={handleBackToChoice}>
             {intl.formatMessage(i18n.back)}
           </Button>
-          <Button type="button" variant="outline" onClick={onCancel}>
+          <Button type="button" variant="outline" onClick={handleCancel}>
             {intl.formatMessage(i18n.cancel)}
           </Button>
         </div>
@@ -587,7 +614,7 @@ export default function CustomProviderForm({
 
       {/* Back to choice (create without template only) */}
       {!initialData && !selectedTemplate && (
-        <Button type="button" variant="ghost" size="sm" onClick={() => setStep('choice')}>
+        <Button type="button" variant="ghost" size="sm" onClick={handleBackToChoice}>
           {intl.formatMessage(i18n.back)}
         </Button>
       )}
@@ -952,7 +979,7 @@ export default function CustomProviderForm({
               {intl.formatMessage(i18n.deleteProvider)}
             </Button>
           )}
-          <Button type="button" variant="outline" onClick={onCancel}>
+          <Button type="button" variant="outline" onClick={handleCancel}>
             {intl.formatMessage(i18n.cancel)}
           </Button>
           <Button type="submit">

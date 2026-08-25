@@ -8,7 +8,7 @@ resolver = "2"
 
 [workspace.package]
 edition = "2021"
-version = "1.46.0"
+version = "1.47.0"
 rust-version = "1.94.1"
 authors = ["AAIF <ai-oss-tools@block.xyz>"]
 license = "Apache-2.0"
@@ -21,14 +21,15 @@ string_slice = "warn"
 
 [workspace.dependencies]
 rmcp = { version = "3.0.0", default-features = false, features = ["schemars", "auth"] }
-agent-client-protocol-schema = { version = "=1.5.0", default-features = false, features = ["unstable"] }
+agent-client-protocol-schema = { version = "=1.5.0", default-features = false }
 agent-client-protocol = { version = "2.0.0", default-features = false }
-agent-client-protocol-http = { version = "2.0.0", default-features = false, features = ["server"] }
+agent-client-protocol-http = { version = "2.0.0", default-features = false }
 arboard = { version = "3", default-features = false }
 anyhow = { version = "1.0.102", default-features = false, features = ["std"] }
 async-stream = { version = "0.3.6", default-features = false }
 async-trait = { version = "0.1.89", default-features = false }
 axum = { version = "0.8", default-features = false, features = ["http1", "http2", "json", "tokio", "query"] }
+axum-server = { version = "0.8", default-features = false }
 base64 = { version = "0.23.0", default-features = false, features = ["std"] }
 bytes = { version = "1.10.1", default-features = false, features = ["std"] }
 candle-core = { version = "0.11", default-features = false }
@@ -75,9 +76,10 @@ which = { version = "8", default-features = false, features = ["real-sys"] }
 winapi = { version = "0.3.9", default-features = false, features = ["wincred", "std"] }
 wiremock = { version = "0.6", default-features = false }
 zip = { version = "8", default-features = false, features = ["deflate"] }
-serial_test = { version = "3", default-features = false }
+serial_test = { version = "4", default-features = false }
 sha2 = { version = "0.11", default-features = false }
 shell-words = { version = "1", default-features = false, features = ["std"] }
+snap = { version = "1", default-features = false }
 test-case = { version = "3", default-features = false }
 url = { version = "2.5.4", default-features = false, features = ["std"] }
 opentelemetry = { version = "0.32", default-features = false }

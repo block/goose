@@ -82,6 +82,27 @@ describe('ACP recipe param requests', () => {
     scope.finish();
   });
 
+  it('does not offer deeplink values for file parameters', async () => {
+    setRecipeParameters({ document: '/tmp/private.txt', topic: 'release notes' });
+    const scope = requests.beginConfiguredRecipeParameterScope()!;
+    const request = recipeParamRequest('session-1', scope.id);
+    request.parameters.unshift({
+      key: 'document',
+      description: 'Document',
+      input_type: 'file',
+      requirement: 'required',
+    });
+
+    const response = requests.requestAcpRecipeParams(request);
+    const [pendingRequest] = requests.getAcpRecipeParamRequestsSnapshot();
+
+    expect(pendingRequest.initialValues).toEqual({ topic: 'release notes' });
+
+    requests.cancelAcpRecipeParamRequest(pendingRequest.id);
+    await expect(response).resolves.toEqual({ action: 'cancel' });
+    scope.finish();
+  });
+
   it('allows same-session retries until a terminal response consumes the values', async () => {
     setRecipeParameters({ topic: 'release notes' });
     const scope = requests.beginConfiguredRecipeParameterScope()!;

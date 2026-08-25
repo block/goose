@@ -11,6 +11,23 @@ use reqwest::header::HeaderMap;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
+tokio::task_local! {
+    /// When set, called instead of the default CLI announce when a device code
+    /// is obtained. Args: (user_code, verification_uri, expires_in_secs).
+    /// Set by the ACP server to forward the code to the desktop UI.
+    static DEVICE_CODE_ANNOUNCE: Box<dyn Fn(String, String, u64) + Send + Sync>;
+}
+
+pub async fn with_device_code_announce<F, T>(
+    announce: Box<dyn Fn(String, String, u64) + Send + Sync>,
+    fut: F,
+) -> T
+where
+    F: std::future::Future<Output = T>,
+{
+    DEVICE_CODE_ANNOUNCE.scope(announce, fut).await
+}
+
 /// Fallback poll interval when the server omits `interval` (RFC 8628 §3.2).
 const DEFAULT_POLL_INTERVAL_SECS: u64 = 5;
 
@@ -320,19 +337,32 @@ async fn send_request<T: Serialize + ?Sized>(
 }
 
 fn announce_user_action(device: &DeviceCodeResponse) {
-    if let Ok(mut clipboard) = arboard::Clipboard::new() {
-        if let Err(e) = clipboard.set_text(&device.user_code) {
-            tracing::warn!("Failed to copy verification code to clipboard: {}", e);
-        }
+    let verify_url = device.verification_url().to_string();
+
+    if DEVICE_CODE_ANNOUNCE
+        .try_with(|f| {
+            let expires_in = device
+                .expires_in
+                .unwrap_or(DEFAULT_DEVICE_CODE_LIFETIME_SECS);
+            f(device.user_code.clone(), verify_url.clone(), expires_in)
+        })
+        .is_ok()
+    {
+        return;
     }
-    let verify_url = device.verification_url();
-    if let Err(e) = webbrowser::open(verify_url) {
+
+    let copied = arboard::Clipboard::new()
+        .ok()
+        .and_then(|mut cb| cb.set_text(&device.user_code).ok())
+        .is_some();
+    if let Err(e) = webbrowser::open(&verify_url) {
         tracing::warn!("Failed to open browser: {}", e);
     }
     // stderr keeps stdout clean for CLI workflows parsing provider output.
+    let clipboard_hint = if copied { " (copied to clipboard)" } else { "" };
     eprintln!(
-        "Please visit {} and enter code {}",
-        verify_url, device.user_code
+        "Please visit {} and enter code {}{}",
+        verify_url, device.user_code, clipboard_hint
     );
 }
 

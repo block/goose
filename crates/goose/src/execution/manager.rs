@@ -214,11 +214,14 @@ impl AgentManager {
                     "Restoring evicted session {} (provider: {:?})",
                     session_id, session.provider_name
                 );
-                if let Err(e) = agent.restore_provider_from_session(&session).await {
+                if let Err(error) = agent.restore_provider_from_session(&session).await {
+                    if crate::acp::is_auth_required(&error) {
+                        return Err(error);
+                    }
                     tracing::warn!(
                         "Failed to restore provider for session {}: {}",
                         session_id,
-                        e
+                        error
                     );
                 }
             }
@@ -226,7 +229,7 @@ impl AgentManager {
             if let Some(recipe) = &session.recipe {
                 agent
                     .apply_recipe_components(recipe.response.clone(), true)
-                    .await;
+                    .await?;
             }
         }
 

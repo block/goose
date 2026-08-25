@@ -541,6 +541,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -713,6 +715,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -894,6 +898,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -1253,6 +1259,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -1531,6 +1539,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -1732,6 +1742,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -1883,6 +1895,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -2242,6 +2256,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -3130,6 +3146,7 @@ mod tests {
             call_count: AtomicUsize,
             empty_count: usize,
             wrap_empty_text: bool,
+            manages_own_context: bool,
         }
 
         struct AssistantOnlyProvider;
@@ -3151,6 +3168,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -3196,6 +3215,7 @@ mod tests {
                     call_count: AtomicUsize::new(0),
                     empty_count,
                     wrap_empty_text: false,
+                    manages_own_context: false,
                 }
             }
 
@@ -3204,6 +3224,14 @@ mod tests {
                     call_count: AtomicUsize::new(0),
                     empty_count,
                     wrap_empty_text: true,
+                    manages_own_context: false,
+                }
+            }
+
+            fn with_own_context() -> Self {
+                Self {
+                    manages_own_context: true,
+                    ..Self::new(usize::MAX)
                 }
             }
         }
@@ -3229,6 +3257,8 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    setup: None,
+                    deprecated: None,
                 }
             }
         }
@@ -3272,6 +3302,10 @@ mod tests {
 
             fn get_name(&self) -> &str {
                 "empty-then-text-mock"
+            }
+
+            fn manages_own_context(&self) -> bool {
+                self.manages_own_context
             }
         }
 
@@ -3560,6 +3594,70 @@ mod tests {
             Ok(())
         }
 
+        #[tokio::test]
+        async fn legacy_structured_output_fails_before_provider_inference() -> Result<()> {
+            use goose::recipe::Response;
+
+            let _guard = env_lock::lock_env([("GOOSE_STATE_MACHINE", None::<&str>)]);
+            let agent = Agent::new();
+            let session = agent
+                .config
+                .session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "unsupported-structured-output".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+            let provider = Arc::new(EmptyThenTextProvider::with_own_context());
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
+            agent
+                .add_final_output_tool(Response {
+                    json_schema: Some(serde_json::json!({
+                        "type": "object",
+                        "properties": { "result": { "type": "string" } }
+                    })),
+                })
+                .await?;
+
+            let reply_stream = agent
+                .reply(
+                    Message::user().with_text("Hi"),
+                    SessionConfig {
+                        id: session.id,
+                        schedule_id: None,
+                        max_turns: Some(3),
+                        retry_config: None,
+                    },
+                    None,
+                )
+                .await?;
+            tokio::pin!(reply_stream);
+
+            let mut messages = Vec::new();
+            while let Some(event) = reply_stream.next().await {
+                if let AgentEvent::Message(message) = event? {
+                    messages.push(message);
+                }
+            }
+
+            let text = concat_text(&messages);
+            assert!(
+                text.contains("empty-then-text-mock") && text.contains("final_output"),
+                "expected the unsupported structured-output error, got: {text:?}"
+            );
+            assert_eq!(provider.call_count.load(Ordering::SeqCst), 0);
+
+            Ok(())
+        }
+
         /// When a final-output tool is installed and the model stops without
         /// calling it, the empty turn must yield the mandatory final-output nudge
         /// — not the generic empty-response fallback — so structured-output
@@ -3594,7 +3692,7 @@ mod tests {
                         "properties": { "result": { "type": "string" } }
                     })),
                 })
-                .await;
+                .await?;
 
             let session_config = SessionConfig {
                 id: session.id.clone(),
@@ -3712,7 +3810,7 @@ mod tests {
                         "required": ["result"]
                     })),
                 })
-                .await;
+                .await?;
 
             let session_config = SessionConfig {
                 id: session.id,

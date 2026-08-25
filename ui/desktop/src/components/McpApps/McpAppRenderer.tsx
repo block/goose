@@ -40,7 +40,6 @@ import { AppEvents } from '../../constants/events';
 import { useTheme } from '../../contexts/ThemeContext';
 import { cn } from '../../utils';
 import { errorMessage } from '../../utils/conversionUtils';
-import { getProtocol, isProtocolSafe } from '../../utils/urlSecurity';
 import { defineMessages, useIntl } from '../../i18n';
 import FlyingBird from '../FlyingBird';
 import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
@@ -98,26 +97,6 @@ const i18n = defineMessages({
   invalidUrl: {
     id: 'mcpAppRenderer.invalidUrl',
     defaultMessage: 'Invalid URL',
-  },
-  openExternalLinkTitle: {
-    id: 'mcpAppRenderer.openExternalLinkTitle',
-    defaultMessage: 'Open External Link',
-  },
-  openProtocolLink: {
-    id: 'mcpAppRenderer.openProtocolLink',
-    defaultMessage: 'Open {protocol} link?',
-  },
-  openLinkDetail: {
-    id: 'mcpAppRenderer.openLinkDetail',
-    defaultMessage: 'This will open: {url}',
-  },
-  cancelButton: {
-    id: 'mcpAppRenderer.cancelButton',
-    defaultMessage: 'Cancel',
-  },
-  openButton: {
-    id: 'mcpAppRenderer.openButton',
-    defaultMessage: 'Open',
   },
   failedToLoadResource: {
     id: 'mcpAppRenderer.failedToLoadResource',
@@ -799,31 +778,15 @@ export default function McpAppRenderer({
 
   const handleOpenLink = useCallback(
     async ({ url }: { url: string }) => {
-      if (isProtocolSafe(url)) {
-        await window.electron.openExternal(url);
+      const result = await window.electron.openExternal(url);
+      if (result === 'opened') {
         return { status: 'success' as const };
       }
 
-      const protocol = getProtocol(url);
-      if (!protocol) {
-        return { status: 'error' as const, message: intl.formatMessage(i18n.invalidUrl) };
-      }
-
-      const result = await window.electron.showMessageBox({
-        type: 'question',
-        buttons: [intl.formatMessage(i18n.cancelButton), intl.formatMessage(i18n.openButton)],
-        defaultId: 0,
-        title: intl.formatMessage(i18n.openExternalLinkTitle),
-        message: intl.formatMessage(i18n.openProtocolLink, { protocol }),
-        detail: intl.formatMessage(i18n.openLinkDetail, { url }),
-      });
-
-      if (result.response !== 1) {
-        return { status: 'error' as const, message: 'User cancelled' };
-      }
-
-      await window.electron.openExternal(url);
-      return { status: 'success' as const };
+      return {
+        status: 'error' as const,
+        message: result === 'cancelled' ? 'User cancelled' : intl.formatMessage(i18n.invalidUrl),
+      };
     },
     [intl]
   );
