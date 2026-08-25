@@ -379,6 +379,37 @@ fn is_shard_file(filename: &str) -> bool {
     parse_shard_index(filename).is_some()
 }
 
+fn shard_set_key(filename: &str) -> Option<&str> {
+    let stem = filename.trim_end_matches(".gguf");
+    let pos = stem.rfind("-of-")?;
+    let before = stem.get(..pos)?;
+    let (prefix, index) = before.rsplit_once('-')?;
+    if !index.is_empty() && index.chars().all(|c| c.is_ascii_digit()) {
+        Some(prefix)
+    } else {
+        None
+    }
+}
+
+fn select_plainest_shard_set(files: Vec<&HfApiSibling>) -> Vec<&HfApiSibling> {
+    let mut shard_sets: std::collections::HashMap<&str, Vec<&HfApiSibling>> =
+        std::collections::HashMap::new();
+
+    for file in files {
+        let key = shard_set_key(&file.rfilename)
+            .expect("files passed to select_plainest_shard_set must be shards");
+        shard_sets.entry(key).or_default().push(file);
+    }
+
+    shard_sets
+        .into_iter()
+        .min_by(|(key_a, _), (key_b, _)| {
+            key_a.len().cmp(&key_b.len()).then_with(|| key_a.cmp(key_b))
+        })
+        .map(|(_, files)| files)
+        .unwrap_or_default()
+}
+
 /// Parse the shard index (1-based) from a filename like "model-BF16-00001-of-00002.gguf".
 fn parse_shard_index(filename: &str) -> Option<u32> {
     let basename = filename.rsplit('/').next().unwrap_or(filename);
@@ -576,10 +607,11 @@ fn group_into_variants(repo_id: &str, files: Vec<HfApiSibling>) -> Vec<HfQuantVa
     }
 
     // Add shard-only variants (quants that only exist as sharded files)
-    for (quant, mut shards) in shard_groups {
+    for (quant, shards) in shard_groups {
         if seen_quants.contains(&quant) {
             continue;
         }
+        let mut shards = select_plainest_shard_set(shards);
         shards.sort_by(|a, b| a.rfilename.cmp(&b.rfilename));
         let total_size: u64 = shards.iter().map(|s| s.size.unwrap_or(0)).sum();
         let info = quant_info(&quant);
@@ -882,6 +914,8 @@ pub async fn resolve_model_spec_full(spec: &str) -> Result<(String, ResolvedMode
             },
         ));
     }
+
+    let mut shard_files = select_plainest_shard_set(shard_files);
 
     // Use shards, sorted by filename so shard 1 is first
     shard_files.sort_by(|a, b| a.rfilename.cmp(&b.rfilename));
@@ -1450,6 +1484,35 @@ mod tests {
         assert_eq!(variants[0].size_bytes, 50_000_000_000);
         assert_eq!(variants[1].quantization, "Q4_K_M");
         assert!(!variants[1].sharded);
+    }
+
+    #[test]
+    fn test_group_into_variants_selects_plainest_duplicate_shard_set() {
+        let files = vec![
+            HfApiSibling {
+                rfilename: "Model-Q4_K_M-00001-of-00002.gguf".into(),
+                size: Some(2_000_000_000),
+            },
+            HfApiSibling {
+                rfilename: "Model-Q4_K_M-00002-of-00002.gguf".into(),
+                size: Some(1_000_000_000),
+            },
+            HfApiSibling {
+                rfilename: "Model-Q4_K_M-mtp-00001-of-00002.gguf".into(),
+                size: Some(2_500_000_000),
+            },
+            HfApiSibling {
+                rfilename: "Model-Q4_K_M-mtp-00002-of-00002.gguf".into(),
+                size: Some(1_500_000_000),
+            },
+        ];
+
+        let variants = group_into_variants("someone/Model-GGUF", files);
+
+        assert_eq!(variants.len(), 1);
+        assert_eq!(variants[0].quantization, "Q4_K_M");
+        assert_eq!(variants[0].size_bytes, 3_000_000_000);
+        assert_eq!(variants[0].filename, "Model-Q4_K_M-00001-of-00002.gguf");
     }
 
     #[test]
