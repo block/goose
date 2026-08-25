@@ -514,7 +514,7 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
     Then use the `api_key_env` to set the key for your session. For example:
     ```bash
     export CUSTOM_CORP_API_API_KEY="your-api-key"
-    goose session start --provider custom_corp_api
+    goose session --provider custom_corp_api
     ```
 
     The same mechanism connects hosted OpenAI-compatible gateways. For example, `opper.json` configures [Opper](https://opper.ai/) (see Opper's [goose setup guide](https://opper.ai/apps/goose)), authenticating with an API key from [platform.opper.ai](https://platform.opper.ai):
@@ -551,7 +551,7 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
 
     ```bash
     export OPPER_API_KEY="your-opper-api-key"
-    goose session start --provider opper
+    goose session --provider opper
     ```
 
     Model ids on Opper are prefixed with the hosting route; the full catalog is available at `https://api.opper.ai/v3/models`.
