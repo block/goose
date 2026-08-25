@@ -84,6 +84,17 @@ COMPLETION_PATHS = [
     '/serving-endpoints',  # Databricks
 ]
 
+# Path fragments identifying known non-inference (metadata) traffic. Used as
+# the exclusion list when classifying requests that do not match
+# COMPLETION_PATHS: a POST to an unrecognized path (e.g. a provider configured
+# with a custom inference base path) is still treated as a completion, but
+# known metadata endpoints are not.
+METADATA_PATHS = [
+    '/models',      # model listing (OpenAI-compatible)
+    '/api/tags',    # Ollama model listing
+    '/embeddings',  # embeddings are not turn completions
+]
+
 
 class ErrorMode(Enum):
     """Error injection modes."""
@@ -421,7 +432,16 @@ class ErrorProxy:
             True if this is a completion request
         """
         path = request.path.lower()
-        return any(fragment in path for fragment in COMPLETION_PATHS)
+        if any(fragment in path for fragment in COMPLETION_PATHS):
+            return True
+        # Providers configured with a custom inference base path (e.g. an
+        # OpenAI-compatible endpoint at "<project_id>/v1") post completions to
+        # routes that match none of the known fragments. Treat any other POST
+        # that is not known metadata traffic as a completion so error
+        # injection still applies to custom inference routes.
+        if request.method.upper() != 'POST':
+            return False
+        return not any(fragment in path for fragment in METADATA_PATHS)
 
     def get_target_url(self, request: Request, provider: str) -> str:
         """
