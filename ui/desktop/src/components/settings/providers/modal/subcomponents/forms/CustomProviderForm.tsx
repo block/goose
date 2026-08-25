@@ -227,6 +227,20 @@ const i18n = defineMessages({
 
 type Step = 'choice' | 'catalog' | 'form';
 
+type ProviderEngine = 'openai_compatible' | 'anthropic_compatible' | 'ollama_compatible';
+
+const ENGINE_ALIASES: Record<string, ProviderEngine> = {
+  openai: 'openai_compatible',
+  openai_compatible: 'openai_compatible',
+  anthropic: 'anthropic_compatible',
+  anthropic_compatible: 'anthropic_compatible',
+  ollama: 'ollama_compatible',
+  ollama_compatible: 'ollama_compatible',
+};
+
+const normalizeEngine = (engine: string): ProviderEngine =>
+  ENGINE_ALIASES[engine.trim().toLowerCase()] ?? 'openai_compatible';
+
 interface CustomProviderFormProps {
   onSubmit: (data: UpdateCustomProviderRequest) => void | Promise<void>;
   onCancel: () => void;
@@ -245,7 +259,12 @@ export default function CustomProviderForm({
   isEditable,
 }: CustomProviderFormProps) {
   const intl = useIntl();
-  const [engine, setEngine] = useState('openai_compatible');
+  const engineOptions: { value: ProviderEngine; label: string }[] = [
+    { value: 'openai_compatible', label: intl.formatMessage(i18n.openaiCompatible) },
+    { value: 'anthropic_compatible', label: intl.formatMessage(i18n.anthropicCompatible) },
+    { value: 'ollama_compatible', label: intl.formatMessage(i18n.ollamaCompatible) },
+  ];
+  const [engine, setEngine] = useState<ProviderEngine>('openai_compatible');
   const [displayName, setDisplayName] = useState('');
   const [apiUrl, setApiUrl] = useState('');
   const [basePath, setBasePath] = useState('');
@@ -284,12 +303,7 @@ export default function CustomProviderForm({
 
   useEffect(() => {
     if (initialData) {
-      const engineMap: Record<string, string> = {
-        openai: 'openai_compatible',
-        anthropic: 'anthropic_compatible',
-        ollama: 'ollama_compatible',
-      };
-      setEngine(engineMap[initialData.engine] || 'openai_compatible');
+      setEngine(normalizeEngine(initialData.engine));
       setDisplayName(initialData.display_name);
       setApiUrl(initialData.api_url);
       setBasePath(initialData.base_path ?? '');
@@ -320,12 +334,7 @@ export default function CustomProviderForm({
     setSupportsStreaming(template.supportsStreaming);
     setRequiresAuth(true);
 
-    const formatToEngine: Record<string, string> = {
-      openai: 'openai_compatible',
-      anthropic: 'anthropic_compatible',
-      ollama: 'ollama_compatible',
-    };
-    setEngine(formatToEngine[template.format] || 'openai_compatible');
+    setEngine(normalizeEngine(template.format));
 
     const templateModels = template.models.filter((m) => !m.deprecated).map((m) => m.id);
     setModels(templateModels.join(', '));
@@ -633,25 +642,10 @@ export default function CustomProviderForm({
             id="provider-select"
             aria-invalid={!!validationErrors.providerType}
             aria-describedby={validationErrors.providerType ? 'provider-select-error' : undefined}
-            options={[
-              { value: 'openai_compatible', label: intl.formatMessage(i18n.openaiCompatible) },
-              {
-                value: 'anthropic_compatible',
-                label: intl.formatMessage(i18n.anthropicCompatible),
-              },
-              { value: 'ollama_compatible', label: intl.formatMessage(i18n.ollamaCompatible) },
-            ]}
-            value={{
-              value: engine,
-              label:
-                engine === 'openai_compatible'
-                  ? intl.formatMessage(i18n.openaiCompatible)
-                  : engine === 'anthropic_compatible'
-                    ? intl.formatMessage(i18n.anthropicCompatible)
-                    : intl.formatMessage(i18n.ollamaCompatible),
-            }}
+            options={engineOptions}
+            value={engineOptions.find((option) => option.value === engine)}
             onChange={(option: unknown) => {
-              const selectedOption = option as { value: string; label: string } | null;
+              const selectedOption = option as { value: ProviderEngine } | null;
               if (selectedOption) setEngine(selectedOption.value);
             }}
             isSearchable={false}

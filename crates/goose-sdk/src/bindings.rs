@@ -1,4 +1,4 @@
-//! In-process uniffi bindings for the Goose SDK.
+//! In-process uniffi bindings for the GDK.
 //!
 //! This is the API surface exposed to Python and Kotlin. It focuses on native
 //! Goose providers and mirrors the provider message/tool/streaming model closely

@@ -31,7 +31,8 @@ use smithy_transport_reqwest::ReqwestHttpClient;
 
 use super::formats::bedrock::{
     bedrock_anthropic_thinking_fields, bedrock_inference_config, from_bedrock_message,
-    from_bedrock_usage, to_bedrock_message_with_caching, to_bedrock_tool_config,
+    from_bedrock_usage, sanitize_json_unicode_tags, to_bedrock_message_with_caching,
+    to_bedrock_tool_config,
 };
 
 pub(crate) const BEDROCK_PROVIDER_NAME: &str = "aws_bedrock";
@@ -793,9 +794,13 @@ fn process_stream_event(
                         .with_arguments(object(serde_json::json!({}))))
                 } else {
                     match serde_json::from_str::<Value>(&input_json) {
-                        Ok(parsed) => {
-                            Ok(CallToolRequestParams::new(name).with_arguments(object(parsed)))
-                        }
+                        Ok(parsed) => sanitize_json_unicode_tags(parsed)
+                            .map(|arguments| {
+                                CallToolRequestParams::new(name).with_arguments(object(arguments))
+                            })
+                            .map_err(|error| {
+                                ErrorData::new(ErrorCode::INVALID_PARAMS, error.to_string(), None)
+                            }),
                         Err(_) => Err(ErrorData::new(
                             ErrorCode::INVALID_PARAMS,
                             format!("Could not parse tool arguments: {}", input_json),
@@ -1097,6 +1102,7 @@ mod tests {
                 toolshim_model: None,
                 request_params: None,
                 reasoning: None,
+                supports_vision: None,
                 request_headers: None,
             },
         )
@@ -1511,6 +1517,41 @@ mod tests {
             }
             other => panic!("expected ToolRequest, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn test_stream_tool_use_sanitizes_nested_arguments() {
+        let mut state = StreamBlockState::default();
+
+        process_stream_event(
+            tool_start_event(1, "tool-1", "lookup"),
+            &mut state,
+            TEST_MESSAGE_ID,
+        );
+        process_stream_event(
+            tool_delta_event(
+                1,
+                "{\"query\":\"visible\u{E0041}text\",\"nested\":[{\"cit\u{E0042}y\":\"東京🌍\u{E0043}\"}]}",
+            ),
+            &mut state,
+            TEST_MESSAGE_ID,
+        );
+
+        let (messages, _) = process_stream_event(stop_event(1), &mut state, TEST_MESSAGE_ID);
+        let MessageContent::ToolRequest(request) = &messages[0].content[0] else {
+            panic!("expected tool request");
+        };
+        let call = request
+            .tool_call
+            .as_ref()
+            .expect("expected valid tool call");
+        assert_eq!(
+            call.arguments,
+            Some(object(serde_json::json!({
+                "query": "visibletext",
+                "nested": [{"city": "東京🌍"}]
+            })))
+        );
     }
 
     #[test]

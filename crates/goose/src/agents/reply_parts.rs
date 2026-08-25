@@ -841,7 +841,7 @@ pub fn is_tool_visible_to_model(tool: &Tool) -> bool {
         return true;
     };
     let Some(arr) = visibility.as_array() else {
-        return true;
+        return false;
     };
     arr.iter().any(|v| v.as_str() == Some("model"))
 }
@@ -1847,9 +1847,17 @@ mod tests {
     }
 
     #[test]
-    fn test_tool_visible_when_visibility_is_not_array() {
-        let tool = make_tool_with_meta(Some(serde_json::json!({"ui": {"visibility": "model"}})));
-        assert!(is_tool_visible_to_model(&tool));
+    fn test_tool_hidden_when_visibility_is_not_array() {
+        for visibility in [
+            serde_json::json!("app"),
+            serde_json::json!("model"),
+            serde_json::json!({"model": true}),
+            serde_json::Value::Null,
+        ] {
+            let tool =
+                make_tool_with_meta(Some(serde_json::json!({"ui": {"visibility": visibility}})));
+            assert!(!is_tool_visible_to_model(&tool));
+        }
     }
 
     #[test]
