@@ -1,6 +1,7 @@
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use futures::future::BoxFuture;
+use goose_providers::base::ProviderModelMeta;
 use goose_providers::images::ImageFormat;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -97,6 +98,32 @@ impl OpenRouterProvider {
         })
         .await
     }
+}
+
+fn parse_openrouter_model(model: &serde_json::Value) -> Option<ProviderModelMeta> {
+    let id = model.get("id").and_then(|v| v.as_str())?.to_string();
+    Some(ProviderModelMeta {
+        context_limit: model
+            .get("context_length")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as usize),
+        max_output_tokens: model
+            .pointer("/top_provider/max_completion_tokens")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as usize),
+        reasoning: model
+            .get("supported_parameters")
+            .and_then(|v| v.as_array())
+            .map(|params| params.iter().any(|p| p.as_str() == Some("reasoning"))),
+        id,
+    })
+}
+
+fn meta_tool_capable(model: &serde_json::Value) -> bool {
+    model
+        .get("supported_parameters")
+        .and_then(|v| v.as_array())
+        .is_some_and(|params| params.iter().any(|p| p.as_str() == Some("tools")))
 }
 
 fn is_mandatory_reasoning_error(error: &ProviderError) -> bool {
@@ -458,7 +485,10 @@ impl Provider for OpenRouterProvider {
         true
     }
 
-    async fn fetch_recommended_models(&self, toolshim: bool) -> Result<Vec<String>, ProviderError> {
+    async fn fetch_model_metadata(
+        &self,
+        toolshim: bool,
+    ) -> Result<Vec<ProviderModelMeta>, ProviderError> {
         let response = self
             .api_client
             .request("api/v1/models")
@@ -493,26 +523,27 @@ impl Provider for OpenRouterProvider {
             ProviderError::UsageError("Missing data field in JSON response".into())
         })?;
 
-        let mut models: Vec<String> = data
+        let mut models: Vec<ProviderModelMeta> = data
             .iter()
             .filter_map(|model| {
-                let id = model.get("id").and_then(|v| v.as_str())?;
-                if toolshim {
-                    return Some(id.to_string());
+                let meta = parse_openrouter_model(model)?;
+                if !toolshim && !meta_tool_capable(model) {
+                    return None;
                 }
-                let supports_tools = model
-                    .get("supported_parameters")
-                    .and_then(|v| v.as_array())
-                    .is_some_and(|params| params.iter().any(|p| p.as_str() == Some("tools")));
-                if supports_tools {
-                    Some(id.to_string())
-                } else {
-                    None
-                }
+                Some(meta)
             })
             .collect();
-        models.sort();
+        models.sort_by(|a, b| a.id.cmp(&b.id));
         Ok(models)
+    }
+
+    async fn fetch_recommended_models(&self, toolshim: bool) -> Result<Vec<String>, ProviderError> {
+        Ok(self
+            .fetch_model_metadata(toolshim)
+            .await?
+            .into_iter()
+            .map(|m| m.id)
+            .collect())
     }
 
     async fn stream(
@@ -607,6 +638,31 @@ mod tests {
             supports_vision: None,
             request_headers: None,
         }
+    }
+
+    #[test]
+    fn parses_live_model_metadata() {
+        use serde_json::json;
+        let m = json!({
+            "id": "stealth/ox-alpha",
+            "context_length": 1000000,
+            "top_provider": { "max_completion_tokens": 64000 },
+            "supported_parameters": ["tools", "reasoning"]
+        });
+        let meta = parse_openrouter_model(&m).unwrap();
+        assert_eq!(meta.id, "stealth/ox-alpha");
+        assert_eq!(meta.context_limit, Some(1_000_000));
+        assert_eq!(meta.max_output_tokens, Some(64_000));
+        assert_eq!(meta.reasoning, Some(true));
+
+        let plain = parse_openrouter_model(&json!({
+            "id": "vendor/model",
+            "context_length": 8192,
+            "supported_parameters": ["tools"]
+        }))
+        .unwrap();
+        assert_eq!(plain.reasoning, Some(false));
+        assert!(parse_openrouter_model(&json!({"context_length": 1})).is_none());
     }
 
     #[test]

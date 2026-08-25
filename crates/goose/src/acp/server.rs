@@ -1114,6 +1114,17 @@ impl GooseAcpAgent {
         self.apply_acp_extension_overrides(cx, &agent, session)
             .await;
         self.spawn_provider_inventory_refresh(session, &agent);
+        // The background refresh can learn limits/reasoning support that the
+        // build-time catalog lacks; apply whatever the snapshot already holds
+        // so new/restored default-model sessions start with live metadata.
+        if let (Ok(provider), Ok(config)) = (
+            agent.provider().await,
+            agent.model_config_for_session(&session.id).await,
+        ) {
+            let provider_name = provider.get_name().to_string();
+            let config = self.with_inventory_model_info(&provider_name, config).await;
+            let _ = agent.update_provider(provider, config, &session.id).await;
+        }
 
         Ok((agent, agent_result.extension_results))
     }
@@ -2357,6 +2368,9 @@ impl GooseAcpAgent {
                 None,
             )
             .invalid_params_err_ctx("Invalid model config")?;
+        let model_config = self
+            .with_inventory_model_info(&provider_name, model_config)
+            .await;
         agent
             .recreate_provider_for_session(session_id, &provider_name, model_config)
             .await
@@ -2504,6 +2518,9 @@ impl GooseAcpAgent {
                 context_limit,
             )
             .invalid_params_err_ctx("Invalid model config")?;
+        let model_config = self
+            .with_inventory_model_info(&resolved_provider_name, model_config)
+            .await;
 
         agent
             .recreate_provider_for_session(session_id, &resolved_provider_name, model_config)

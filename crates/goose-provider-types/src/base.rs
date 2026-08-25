@@ -264,6 +264,17 @@ pub enum ThinkingPreservationFormat {
     ReasoningContent,
 }
 
+/// A model entry from a provider's live models API, when the API exposes
+/// capability metadata alongside IDs. `None` fields fall back to canonical
+/// enrichment during inventory storage.
+#[derive(Debug, Clone, Default)]
+pub struct ProviderModelMeta {
+    pub id: String,
+    pub context_limit: Option<usize>,
+    pub max_output_tokens: Option<usize>,
+    pub reasoning: Option<bool>,
+}
+
 /// Information about a model's capabilities
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ModelInfo {
@@ -541,6 +552,26 @@ pub trait Provider: Send + Sync {
 
     fn skip_canonical_filtering(&self) -> bool {
         false
+    }
+
+    /// Fetch live models with metadata when the provider's API exposes it.
+    ///
+    /// Default derives from [`Self::fetch_recommended_models`] IDs without
+    /// metadata; providers with richer model APIs override this and inventory
+    /// enrichment falls back to the canonical registry per field.
+    async fn fetch_model_metadata(
+        &self,
+        toolshim: bool,
+    ) -> Result<Vec<ProviderModelMeta>, ProviderError> {
+        Ok(self
+            .fetch_recommended_models(toolshim)
+            .await?
+            .into_iter()
+            .map(|id| ProviderModelMeta {
+                id,
+                ..Default::default()
+            })
+            .collect())
     }
 
     /// Fetch inventory models filtered by canonical registry and usability.

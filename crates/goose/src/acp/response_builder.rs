@@ -538,6 +538,7 @@ mod tests {
                     family: None,
                     context_limit: None,
                     reasoning: None,
+                    max_output_tokens: None,
                     recommended: false,
                 })
                 .collect(),

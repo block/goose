@@ -2,6 +2,7 @@ use super::*;
 use crate::config::declarative_providers;
 use crate::providers::inventory::ensure_refresh_identity_current;
 use crate::providers::provider_secrets;
+use goose_providers::base::ProviderModelMeta;
 use std::str::FromStr;
 
 const ACP_READINESS_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
@@ -824,28 +825,28 @@ impl GooseAcpAgent {
                 .catch_unwind()
                 .await;
 
-                let fetch_result: Result<Vec<String>> =
-                    match provider_result {
-                        Ok(Ok(provider)) => {
-                            match ensure_refresh_identity_current(&provider_id, &identity).await {
-                                Ok(()) => match AssertUnwindSafe(provider.fetch_recommended_models(
-                                    crate::model_config::global_toolshim(),
-                                ))
-                                .catch_unwind()
-                                .await
-                                {
-                                    Ok(Ok(models)) => Ok(models),
-                                    Ok(Err(error)) => Err(anyhow::anyhow!(error.to_string())),
-                                    Err(_) => Err(anyhow::anyhow!(
-                                        "provider inventory refresh task panicked"
-                                    )),
-                                },
-                                Err(error) => Err(error),
-                            }
+                let fetch_result: Result<Vec<ProviderModelMeta>> = match provider_result {
+                    Ok(Ok(provider)) => {
+                        match ensure_refresh_identity_current(&provider_id, &identity).await {
+                            Ok(()) => match AssertUnwindSafe(
+                                provider
+                                    .fetch_model_metadata(crate::model_config::global_toolshim()),
+                            )
+                            .catch_unwind()
+                            .await
+                            {
+                                Ok(Ok(models)) => Ok(models),
+                                Ok(Err(error)) => Err(anyhow::anyhow!(error.to_string())),
+                                Err(_) => {
+                                    Err(anyhow::anyhow!("provider inventory refresh task panicked"))
+                                }
+                            },
+                            Err(error) => Err(error),
                         }
-                        Ok(Err(error)) => Err(error),
-                        Err(_) => Err(anyhow::anyhow!("provider inventory refresh task panicked")),
-                    };
+                    }
+                    Ok(Err(error)) => Err(error),
+                    Err(_) => Err(anyhow::anyhow!("provider inventory refresh task panicked")),
+                };
 
                 match fetch_result {
                     Ok(models) => match provider_inventory
@@ -1158,7 +1159,7 @@ impl GooseAcpAgent {
         // Config-declared prices carry the config's currency; without them the
         // response reports registry rates, which are USD.
         let currency = crate::providers::canonical_cost::display_currency(config_info.as_ref());
-        let model_info =
+        let mut model_info =
             crate::providers::canonical::maybe_get_canonical_model(&req.provider, &req.model)
                 .map(|canonical_model| {
                     // Config-declared prices outrank the registry's catalog rates;
@@ -1206,6 +1207,143 @@ impl GooseAcpAgent {
                         })
                 });
 
+        // Live inventory is fresher than the build-time catalog: overlay it
+        // per field when this provider/model has been refreshed.
+        if let Ok(Some(entry)) = self
+            .provider_inventory
+            .entry_for_provider(&req.provider)
+            .await
+        {
+            if let (Some(info), Some(m)) = (
+                model_info.as_mut(),
+                entry.models.iter().find(|m| m.id == req.model),
+            ) {
+                if let Some(ctx) = m.context_limit {
+                    info.context_limit = ctx;
+                }
+                if let Some(r) = m.reasoning {
+                    info.reasoning = r;
+                }
+                if let Some(out) = m.max_output_tokens {
+                    info.max_output_tokens = Some(out);
+                }
+            }
+        }
+
+        let model_info = match model_info {
+            Some(info) => Some(info),
+            None => self.inventory_model_info(&req.provider, &req.model).await,
+        };
+
         Ok(CanonicalModelInfoResponse { model_info })
+    }
+
+    /// Backfill unset capabilities from the provider's live inventory snapshot
+    /// so models missing from the canonical catalog still think and compact
+    /// against real limits.
+    pub(super) async fn with_inventory_model_info(
+        &self,
+        provider_name: &str,
+        mut config: goose_providers::model::ModelConfig,
+    ) -> goose_providers::model::ModelConfig {
+        // An explicitly configured context limit wins over catalog AND
+        // snapshot; it must not suppress unrelated reasoning enrichment.
+        let user_context_limit = crate::config::Config::global()
+            .get_goose_context_limit()
+            .ok()
+            .flatten()
+            .filter(|&limit| config.context_limit == Some(limit));
+
+        let entry = match self
+            .provider_inventory
+            .entry_for_provider(provider_name)
+            .await
+        {
+            Ok(Some(entry)) => entry,
+            _ => return config,
+        };
+        // No live row: keep whatever construction produced rather than
+        // erasing canonical defaults we can't replace.
+        let Some(m) = entry.models.iter().find(|m| m.id == config.model_name) else {
+            return config;
+        };
+
+        let canonical = crate::providers::canonical::maybe_get_canonical_model(
+            provider_name,
+            &config.model_name,
+        );
+
+        // Canonical-derived values are build-time defaults, replaceable by
+        // the live snapshot. Anything else was set explicitly and stays.
+        if user_context_limit.is_none()
+            && config.context_limit == canonical.as_ref().map(|c| c.limit.context)
+        {
+            config.context_limit = None;
+        }
+        if let Some(ctx) = m.context_limit {
+            if config.context_limit.is_none() {
+                config.context_limit = Some(ctx);
+            }
+        }
+
+        if config.reasoning == canonical.as_ref().and_then(|c| c.reasoning) {
+            config.reasoning = None;
+        }
+        if let Some(r) = m.reasoning {
+            if config.reasoning.is_none() {
+                config.reasoning = Some(r);
+            }
+        }
+
+        // Same provenance rule for the completion limit.
+        if crate::config::Config::global()
+            .get_goose_max_tokens()
+            .ok()
+            .flatten()
+            .is_some_and(|explicit| Some(explicit) == config.max_tokens)
+        {
+            return config;
+        }
+        // For uncatalogued models there is no derived default to protect:
+        // None == None matches, so the live completion limit applies.
+        let derived_output = canonical
+            .as_ref()
+            .and_then(|c| c.limit.output.filter(|&o| o < c.limit.context))
+            .map(|o| o as i32);
+        if config.max_tokens == derived_output {
+            if let Some(out) = m.max_output_tokens {
+                config.max_tokens = Some((out as i32).max(1));
+            }
+        }
+
+        config
+    }
+
+    /// Canonical-info fallback backed by live inventory rows (no pricing data).
+    async fn inventory_model_info(
+        &self,
+        provider_id: &str,
+        model_id: &str,
+    ) -> Option<CanonicalModelInfoDto> {
+        let entry = self
+            .provider_inventory
+            .entry_for_provider(provider_id)
+            .await
+            .ok()??;
+        let m = entry.models.iter().find(|m| m.id == model_id)?;
+        Some(CanonicalModelInfoDto {
+            provider: provider_id.to_string(),
+            model: model_id.to_string(),
+            context_limit: m
+                .context_limit
+                .unwrap_or(goose_providers::model::DEFAULT_CONTEXT_LIMIT),
+            max_output_tokens: m.max_output_tokens,
+            reasoning: m.reasoning.unwrap_or(false),
+            input_token_cost: None,
+            output_token_cost: None,
+            cache_read_token_cost: None,
+            cache_write_token_cost: None,
+            currency: "USD".to_string(),
+        })
     }
 }

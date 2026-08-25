@@ -251,7 +251,7 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                         .await
                                         {
                                             Ok(()) => match AssertUnwindSafe(
-                                                provider.fetch_recommended_models(
+                                                provider.fetch_model_metadata(
                                                     crate::model_config::global_toolshim(),
                                                 ),
                                             )

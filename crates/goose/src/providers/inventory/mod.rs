@@ -11,6 +11,7 @@ use super::canonical::{map_provider_name, map_to_canonical_model, CanonicalModel
 use super::catalog::ProviderSetupCategory;
 use crate::config::declarative_providers::{DeclarativeProviderConfig, ProviderEngine};
 use crate::config::Config;
+use crate::providers::base::ProviderModelMeta;
 use crate::session::session_manager::SessionStorage;
 use crate::utils::bytes_to_hex;
 use anyhow::{Context, Result};
@@ -76,6 +77,8 @@ pub struct InventoryModel {
     pub context_limit: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<usize>,
     /// Whether this model should appear in the compact recommended picker.
     pub recommended: bool,
 }
@@ -454,7 +457,14 @@ impl ProviderInventoryService {
         model_ids: &[String],
     ) -> Result<()> {
         let descriptor = self.require_provider(provider_id).await?;
-        self.store_refreshed_models_for_identity(&descriptor.identity, model_ids)
+        let metas: Vec<ProviderModelMeta> = model_ids
+            .iter()
+            .map(|id| ProviderModelMeta {
+                id: id.clone(),
+                ..Default::default()
+            })
+            .collect();
+        self.store_refreshed_models_for_identity(&descriptor.identity, &metas)
             .await?;
         self.clear_refreshing_many(std::slice::from_ref(&descriptor.identity));
         Ok(())
@@ -463,9 +473,10 @@ impl ProviderInventoryService {
     pub(crate) async fn store_refreshed_models_for_identity(
         &self,
         identity: &InventoryIdentity,
-        model_ids: &[String],
+        metas: &[crate::providers::base::ProviderModelMeta],
     ) -> Result<()> {
-        let models = enrich_model_ids_with_canonical(&identity.provider_family, model_ids);
+        let mut models = enrich_model_ids_with_canonical(&identity.provider_family, metas);
+        apply_live_metadata(&mut models, metas);
         let now = Utc::now();
         let pool = self.storage.pool().await?;
         let mut tx = pool.begin().await?;
@@ -514,8 +525,9 @@ impl ProviderInventoryService {
                     family,
                     context_limit,
                     reasoning,
+                    max_output_tokens,
                     recommended
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 "#,
             )
             .bind(&identity.inventory_key)
@@ -525,6 +537,7 @@ impl ProviderInventoryService {
             .bind(&model.family)
             .bind(model.context_limit.map(i64::try_from).transpose()?)
             .bind(model.reasoning)
+            .bind(model.max_output_tokens.map(i64::try_from).transpose()?)
             .bind(model.recommended)
             .execute(&mut *tx)
             .await?;
@@ -628,14 +641,16 @@ impl ProviderInventoryService {
                     .find(|job| job.provider_id == provider_id);
                 if let Some(refresh_job) = refresh_job {
                     let mut refresh_guard = self.refresh_guard(&refresh_job.identity);
-                    let fetch_result: Result<Vec<String>> =
+                    let fetch_result: Result<Vec<crate::providers::base::ProviderModelMeta>> =
                         match ensure_refresh_identity_current(&provider_id, &refresh_job.identity)
                             .await
                         {
                             Ok(()) => {
-                                match AssertUnwindSafe(provider.fetch_recommended_models(
-                                    crate::model_config::global_toolshim(),
-                                ))
+                                match AssertUnwindSafe(
+                                    provider.fetch_model_metadata(
+                                        crate::model_config::global_toolshim(),
+                                    ),
+                                )
                                 .catch_unwind()
                                 .await
                                 {
@@ -825,7 +840,7 @@ impl ProviderInventoryService {
 
         let rows = sqlx::query(
             r#"
-            SELECT model_id, name, family, context_limit, reasoning, recommended
+            SELECT model_id, name, family, context_limit, reasoning, max_output_tokens, recommended
             FROM provider_inventory_models
             WHERE inventory_key = ?
             ORDER BY ordinal
@@ -847,6 +862,10 @@ impl ProviderInventoryService {
                         .map(usize::try_from)
                         .transpose()?,
                     reasoning: row.try_get("reasoning")?,
+                    max_output_tokens: row
+                        .try_get::<Option<i64>, _>("max_output_tokens")?
+                        .map(usize::try_from)
+                        .transpose()?,
                     recommended: row
                         .try_get::<Option<bool>, _>("recommended")?
                         .unwrap_or(false),
@@ -1043,8 +1062,10 @@ fn fallback_inventory_identity(provider_id: &str) -> InventoryIdentityInput {
 
 fn enrich_model_ids_with_canonical(
     provider_family: &str,
-    model_ids: &[String],
+    metas: &[crate::providers::base::ProviderModelMeta],
 ) -> Vec<InventoryModel> {
+    let model_ids: Vec<String> = metas.iter().map(|m| m.id.clone()).collect();
+    let model_ids = &model_ids;
     if provider_family == "litellm" {
         return model_ids
             .iter()
@@ -1054,6 +1075,7 @@ fn enrich_model_ids_with_canonical(
                 family: None,
                 context_limit: None,
                 reasoning: None,
+                max_output_tokens: None,
                 recommended: false,
             })
             .collect();
@@ -1104,6 +1126,29 @@ fn enrich_model_ids_with_canonical(
     }
 
     models
+}
+
+/// Overlay live provider metadata onto enriched rows: live values win per
+/// field, canonical fills the rest.
+fn apply_live_metadata(
+    models: &mut [InventoryModel],
+    metas: &[crate::providers::base::ProviderModelMeta],
+) {
+    let by_id: std::collections::HashMap<&str, &crate::providers::base::ProviderModelMeta> =
+        metas.iter().map(|m| (m.id.as_str(), m)).collect();
+    for model in models.iter_mut() {
+        if let Some(meta) = by_id.get(model.id.as_str()) {
+            if meta.context_limit.is_some() {
+                model.context_limit = meta.context_limit;
+            }
+            if meta.reasoning.is_some() {
+                model.reasoning = meta.reasoning;
+            }
+            if meta.max_output_tokens.is_some() {
+                model.max_output_tokens = meta.max_output_tokens;
+            }
+        }
+    }
 }
 
 fn configured_models_to_inventory(
@@ -1175,6 +1220,7 @@ fn enriched_model(
             .map(|model| model.limit.context)
             .or(fallback_context_limit),
         reasoning: canonical.as_ref().and_then(|model| model.reasoning),
+        max_output_tokens: canonical.as_ref().and_then(|model| model.limit.output),
         recommended: false,
     }
 }
@@ -1215,6 +1261,11 @@ pub async fn create_tables(tx: &mut Transaction<'_, Sqlite>) -> Result<()> {
     .execute(&mut **tx)
     .await?;
 
+    let _ =
+        sqlx::query("ALTER TABLE provider_inventory_models ADD COLUMN max_output_tokens INTEGER")
+            .execute(&mut **tx)
+            .await;
+
     sqlx::query(
         "CREATE INDEX IF NOT EXISTS idx_provider_inventory_provider_id ON provider_inventory_entries(provider_id)",
     )
@@ -1251,6 +1302,28 @@ mod tests {
         assert!(!refreshing_keys.read().unwrap().contains("key-a"));
     }
 
+    #[test]
+    fn live_metadata_overrides_canonical_per_field() {
+        let mut models = vec![InventoryModel {
+            id: "m".into(),
+            name: "Canonical Name".into(),
+            family: None,
+            context_limit: Some(128_000),
+            reasoning: Some(false),
+            max_output_tokens: None,
+            recommended: false,
+        }];
+        let metas = vec![ProviderModelMeta {
+            id: "m".into(),
+            context_limit: Some(1_000_000),
+            max_output_tokens: None,
+            reasoning: None,
+        }];
+        apply_live_metadata(&mut models, &metas);
+        assert_eq!(models[0].context_limit, Some(1_000_000));
+        assert_eq!(models[0].reasoning, Some(false));
+    }
+
     #[tokio::test]
     async fn clear_refreshing_many_removes_all_inserted_keys() {
         let service =
@@ -1281,7 +1354,10 @@ mod tests {
         service
             .store_refreshed_models_for_identity(
                 &plan_time_identity,
-                std::slice::from_ref(&sentinel_model),
+                std::slice::from_ref(&ProviderModelMeta {
+                    id: sentinel_model.clone(),
+                    ..Default::default()
+                }),
             )
             .await
             .unwrap();
@@ -1329,13 +1405,14 @@ mod tests {
 
     #[test]
     fn databricks_v2_inventory_prefers_goose_model_ids_for_duplicate_names() {
-        let models = enrich_model_ids_with_canonical(
-            "databricks_v2",
-            &[
-                "databricks-gpt-5-5".to_string(),
-                "goose-gpt-5-5".to_string(),
-            ],
-        );
+        let metas: Vec<ProviderModelMeta> = ["databricks-gpt-5-5", "goose-gpt-5-5"]
+            .iter()
+            .map(|id| ProviderModelMeta {
+                id: id.to_string(),
+                ..Default::default()
+            })
+            .collect();
+        let models = enrich_model_ids_with_canonical("databricks_v2", &metas);
 
         assert!(
             models.iter().any(|model| model.id == "goose-gpt-5-5"),
@@ -1390,6 +1467,7 @@ mod tests {
                 family: None,
                 context_limit: None,
                 reasoning: None,
+                max_output_tokens: None,
                 recommended: false,
             }],
             last_updated_at: Some(Utc::now()),
