@@ -892,7 +892,8 @@ impl GooseAcpAgent {
                 .model_config
                 .as_ref()
                 .map(|model| model.model_name.as_str());
-            if !Arc::ptr_eq(&provider, &current_provider)
+            if provider_name.as_deref() != Some(provider.get_name())
+                || !Arc::ptr_eq(&provider, &current_provider)
                 || session.provider_name != provider_name
                 || refreshed_model_name != Some(model_name.as_str())
             {
