@@ -1,4 +1,8 @@
 import React, { useMemo, useState } from "react";
+import clsx from "clsx";
+import Link from "@docusaurus/Link";
+import useBrokenLinks from "@docusaurus/useBrokenLinks";
+import { useAnchorTargetClassName } from "@docusaurus/theme-common";
 import CodeBlock from "@theme/CodeBlock";
 import apiData from "@site/src/data/gdk-api.json";
 import { LANGUAGES, Language, LanguageId } from "./languages";
@@ -58,6 +62,35 @@ const KIND_HEADINGS: Record<GdkItem["kind"], string> = {
 const slug = (...parts: string[]) =>
   parts.join("-").replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase();
 
+// Anchors use the canonical Rust names so a link keeps working when the reader
+// switches the language or version toggle.
+const funcAnchor = (func: GdkFunc, owner?: string) => slug(owner ?? "fn", func.name);
+const itemAnchor = (item: GdkItem) => slug(item.name);
+const memberAnchor = (ownerAnchor: string, kind: string, name: string) =>
+  slug(ownerAnchor, kind, name);
+
+function anchorsForFunc(func: GdkFunc, owner?: string): string[] {
+  const anchor = funcAnchor(func, owner);
+  return [anchor, ...func.params.map((param) => memberAnchor(anchor, "param", param.name))];
+}
+
+function anchorsForDoc(doc: GdkApiDoc): string[] {
+  const anchors = ["functions"];
+  doc.functions.forEach((func) => anchors.push(...anchorsForFunc(func)));
+
+  doc.items.forEach((item) => {
+    const anchor = itemAnchor(item);
+    anchors.push(anchor, slug(item.kind, "types"));
+    item.fields.forEach((field) => anchors.push(memberAnchor(anchor, "field", field.name)));
+    item.variants.forEach((variant) =>
+      anchors.push(memberAnchor(anchor, "variant", variant.name)),
+    );
+    item.methods.forEach((method) => anchors.push(...anchorsForFunc(method, item.name)));
+  });
+
+  return anchors;
+}
+
 function signature(func: GdkFunc, language: Language, owner?: string): string {
   const params = func.params
     .map((param) => {
@@ -98,14 +131,49 @@ function signature(func: GdkFunc, language: Language, owner?: string): string {
   return `${throwsAnnotation}${suspend}fun ${prefix}${name}(${params})${returns ? `: ${returns}` : ""}`;
 }
 
+function HashLink({ anchor, label }: { anchor: string; label: string }) {
+  const title = `Direct link to ${label}`;
+  return (
+    <Link className="hash-link" to={`#${anchor}`} aria-label={title} title={title} translate="no">
+      &#8203;
+    </Link>
+  );
+}
+
+function Anchored({
+  as: As,
+  anchor,
+  label,
+  className,
+  children,
+}: {
+  as: "h2" | "h3" | "h4" | "td";
+  anchor: string;
+  label: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const anchorTargetClassName = useAnchorTargetClassName(anchor);
+  return (
+    <As id={anchor} className={clsx("anchor", anchorTargetClassName, className)}>
+      {children}
+      <HashLink anchor={anchor} label={label} />
+    </As>
+  );
+}
+
 function ParamTable({
   rows,
   language,
   caption,
+  ownerAnchor,
+  rowKind,
 }: {
   rows: GdkParam[];
   language: Language;
   caption: string;
+  ownerAnchor: string;
+  rowKind: string;
 }) {
   if (rows.length === 0) return null;
   const hasDefaults = rows.some((row) => row.default);
@@ -120,20 +188,28 @@ function ParamTable({
         </tr>
       </thead>
       <tbody>
-        {rows.map((row) => (
-          <tr key={row.name}>
-            <td>
-              <code>{language.field(row.name)}</code>
-            </td>
-            <td>
-              <code>{language.type(row.type)}</code>
-            </td>
-            {hasDefaults && (
-              <td>{row.default ? <code>{language.default(row.default)}</code> : "—"}</td>
-            )}
-            <td>{row.docs || "—"}</td>
-          </tr>
-        ))}
+        {rows.map((row) => {
+          const name = language.field(row.name);
+          return (
+            <tr key={row.name}>
+              <Anchored
+                as="td"
+                anchor={memberAnchor(ownerAnchor, rowKind, row.name)}
+                label={name}
+                className={styles.nameCell}
+              >
+                <code>{name}</code>
+              </Anchored>
+              <td>
+                <code>{language.type(row.type)}</code>
+              </td>
+              {hasDefaults && (
+                <td>{row.default ? <code>{language.default(row.default)}</code> : "—"}</td>
+              )}
+              <td>{row.docs || "—"}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
@@ -148,14 +224,22 @@ function FuncEntry({
   language: Language;
   owner?: string;
 }) {
+  const anchor = funcAnchor(func, owner);
+  const name = language.func(func.name);
   return (
-    <div className={styles.entry} id={slug(owner ?? "fn", func.name)}>
-      <h4 className={styles.entryTitle}>
-        <code>{language.func(func.name)}</code>
-      </h4>
+    <div className={styles.entry}>
+      <Anchored as="h4" anchor={anchor} label={name} className={styles.entryTitle}>
+        <code>{name}</code>
+      </Anchored>
       {func.docs && <p>{func.docs}</p>}
       <CodeBlock language={language.prism}>{signature(func, language, owner)}</CodeBlock>
-      <ParamTable rows={func.params} language={language} caption="Parameter" />
+      <ParamTable
+        rows={func.params}
+        language={language}
+        caption="Parameter"
+        ownerAnchor={anchor}
+        rowKind="param"
+      />
       {func.throws && (
         <p className={styles.meta}>
           Raises <code>{language.errorType(func.throws)}</code>
@@ -167,15 +251,23 @@ function FuncEntry({
 
 function ItemEntry({ item, language }: { item: GdkItem; language: Language }) {
   const dataCarrying = item.variants.some((variant) => variant.fields.length > 0);
+  const anchor = itemAnchor(item);
+  const name = item.kind === "error" ? language.errorType(item.name) : item.name;
   return (
-    <section className={styles.item} id={slug(item.name)}>
-      <h3 className={styles.itemTitle}>
-        <code>{item.kind === "error" ? language.errorType(item.name) : item.name}</code>
+    <section className={styles.item}>
+      <Anchored as="h3" anchor={anchor} label={name} className={styles.itemTitle}>
+        <code>{name}</code>
         <span className={styles.badge}>{KIND_LABELS[item.kind]}</span>
-      </h3>
+      </Anchored>
       {item.docs && <p>{item.docs}</p>}
 
-      <ParamTable rows={item.fields} language={language} caption="Field" />
+      <ParamTable
+        rows={item.fields}
+        language={language}
+        caption="Field"
+        ownerAnchor={anchor}
+        rowKind="field"
+      />
 
       {item.variants.length > 0 && (
         <table className={styles.table}>
@@ -186,28 +278,35 @@ function ItemEntry({ item, language }: { item: GdkItem; language: Language }) {
             </tr>
           </thead>
           <tbody>
-            {item.variants.map((variant) => (
-              <tr key={variant.name}>
-                <td>
-                  <code>
-                    {item.kind === "error" && language.id === "kotlin"
-                      ? `${language.errorType(item.name)}.${variant.name}`
-                      : language.variant(variant.name, dataCarrying)}
-                  </code>
-                </td>
-                <td>
-                  {variant.fields.length === 0
-                    ? "—"
-                    : variant.fields.map((field) => (
-                        <div key={field.name}>
-                          <code>
-                            {language.field(field.name)}: {language.type(field.type)}
-                          </code>
-                        </div>
-                      ))}
-                </td>
-              </tr>
-            ))}
+            {item.variants.map((variant) => {
+              const variantName =
+                item.kind === "error" && language.id === "kotlin"
+                  ? `${language.errorType(item.name)}.${variant.name}`
+                  : language.variant(variant.name, dataCarrying);
+              return (
+                <tr key={variant.name}>
+                  <Anchored
+                    as="td"
+                    anchor={memberAnchor(anchor, "variant", variant.name)}
+                    label={variantName}
+                    className={styles.nameCell}
+                  >
+                    <code>{variantName}</code>
+                  </Anchored>
+                  <td>
+                    {variant.fields.length === 0
+                      ? "—"
+                      : variant.fields.map((field) => (
+                          <div key={field.name}>
+                            <code>
+                              {language.field(field.name)}: {language.type(field.type)}
+                            </code>
+                          </div>
+                        ))}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
@@ -222,12 +321,17 @@ function ItemEntry({ item, language }: { item: GdkItem; language: Language }) {
 export default function GdkApiReference() {
   const [languageId, setLanguageId] = useState<LanguageId>("rust");
   const [docVersion, setDocVersion] = useState(VERSIONS[0].docVersion);
+  const brokenLinks = useBrokenLinks();
 
   const language = LANGUAGES.find((entry) => entry.id === languageId)!;
   const doc = useMemo(
     () => VERSIONS.find((entry) => entry.docVersion === docVersion) ?? VERSIONS[0],
     [docVersion],
   );
+
+  // Register every version's anchors, not just the rendered one, so links into
+  // an older reference version are not reported as broken.
+  VERSIONS.flatMap(anchorsForDoc).forEach((anchor) => brokenLinks.collectAnchor(anchor));
 
   const grouped = useMemo(() => {
     const order: GdkItem["kind"][] = ["object", "callback", "record", "enum", "error"];
@@ -274,14 +378,22 @@ export default function GdkApiReference() {
         Generated from <code>{doc.source}</code> at <code>goose-sdk {doc.version}</code>.
       </p>
 
-      <h2 id="functions">Functions</h2>
+      <Anchored as="h2" anchor="functions" label="Functions">
+        Functions
+      </Anchored>
       {doc.functions.map((func) => (
         <FuncEntry key={func.name} func={func} language={language} />
       ))}
 
       {grouped.map((group) => (
         <React.Fragment key={group.kind}>
-          <h2 id={slug(group.kind, "types")}>{KIND_HEADINGS[group.kind]}</h2>
+          <Anchored
+            as="h2"
+            anchor={slug(group.kind, "types")}
+            label={KIND_HEADINGS[group.kind]}
+          >
+            {KIND_HEADINGS[group.kind]}
+          </Anchored>
           {group.items.map((item) => (
             <ItemEntry key={item.name} item={item} language={language} />
           ))}
