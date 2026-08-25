@@ -97,6 +97,9 @@ fn treats_projectors_and_encoders_as_auxiliary() {
     assert!(is_auxiliary_gguf_file("mmproj-model-f16-27B.gguf"));
     assert!(is_auxiliary_gguf_file("vision-encoder-Q4_K_M.gguf"));
     assert!(is_auxiliary_gguf_file("Q4_K_M/mmproj-F32.gguf"));
+    assert!(is_auxiliary_gguf_file("draft/Model-Q4_K_M.gguf"));
+    assert!(is_auxiliary_gguf_file("adapter/Model-Q4_K_M.gguf"));
+    assert!(is_auxiliary_gguf_file("lora/Model-Q4_K_M.gguf"));
 }
 
 #[test]

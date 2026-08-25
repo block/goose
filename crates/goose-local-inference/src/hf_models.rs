@@ -391,20 +391,42 @@ fn shard_set_key(filename: &str) -> Option<&str> {
     }
 }
 
-fn select_plainest_shard_set(files: Vec<&HfApiSibling>) -> Vec<&HfApiSibling> {
+fn is_complete_shard_set(files: &[&HfApiSibling]) -> bool {
+    let Some(expected_total) = files
+        .first()
+        .and_then(|file| parse_shard_total(&file.rfilename))
+    else {
+        return false;
+    };
+    if files.len() != expected_total as usize {
+        return false;
+    }
+
+    let mut indices = std::collections::HashSet::with_capacity(files.len());
+    files.iter().all(|file| {
+        parse_shard_total(&file.rfilename) == Some(expected_total)
+            && parse_shard_index(&file.rfilename)
+                .is_some_and(|index| index > 0 && index <= expected_total && indices.insert(index))
+    })
+}
+
+fn select_preferred_shard_set(files: Vec<&HfApiSibling>) -> Vec<&HfApiSibling> {
     let mut shard_sets: std::collections::HashMap<&str, Vec<&HfApiSibling>> =
         std::collections::HashMap::new();
 
     for file in files {
         let key = shard_set_key(&file.rfilename)
-            .expect("files passed to select_plainest_shard_set must be shards");
+            .expect("files passed to select_preferred_shard_set must be shards");
         shard_sets.entry(key).or_default().push(file);
     }
 
     shard_sets
         .into_iter()
-        .min_by(|(key_a, _), (key_b, _)| {
-            key_a.len().cmp(&key_b.len()).then_with(|| key_a.cmp(key_b))
+        .min_by(|(key_a, files_a), (key_b, files_b)| {
+            is_complete_shard_set(files_b)
+                .cmp(&is_complete_shard_set(files_a))
+                .then_with(|| key_a.len().cmp(&key_b.len()))
+                .then_with(|| key_a.cmp(key_b))
         })
         .map(|(_, files)| files)
         .unwrap_or_default()
@@ -517,6 +539,12 @@ fn select_best_mmproj(
 
 const AUXILIARY_TOKENS: &[&str] = &["encoder", "draft", "drafter", "adapter", "lora"];
 
+fn contains_auxiliary_token(value: &str) -> bool {
+    value
+        .split(['-', '_', '.'])
+        .any(|token| AUXILIARY_TOKENS.contains(&token))
+}
+
 /// Check whether a GGUF file ships alongside the weights rather than being a
 /// downloadable variant itself (projectors, vision encoders, speculative drafters).
 ///
@@ -534,15 +562,17 @@ pub fn is_auxiliary_gguf_file(filename: &str) -> bool {
         return true;
     }
 
-    if parent_components(&lowercase).contains(&"mtp") {
+    if parent_components(&lowercase)
+        .into_iter()
+        .any(|component| component == "mtp" || contains_auxiliary_token(component))
+    {
         return true;
     }
 
     let basename = lowercase.rsplit('/').next().unwrap_or(&lowercase);
     let stem = basename.trim_end_matches(".gguf");
-    let tokens: Vec<&str> = stem.split(['-', '_', '.']).collect();
 
-    tokens.first() == Some(&"mtp") || tokens.iter().any(|token| AUXILIARY_TOKENS.contains(token))
+    stem.split(['-', '_', '.']).next() == Some("mtp") || contains_auxiliary_token(stem)
 }
 
 /// Collect GGUF files into quantization variants.
@@ -611,7 +641,7 @@ fn group_into_variants(repo_id: &str, files: Vec<HfApiSibling>) -> Vec<HfQuantVa
         if seen_quants.contains(&quant) {
             continue;
         }
-        let mut shards = select_plainest_shard_set(shards);
+        let mut shards = select_preferred_shard_set(shards);
         shards.sort_by(|a, b| a.rfilename.cmp(&b.rfilename));
         let total_size: u64 = shards.iter().map(|s| s.size.unwrap_or(0)).sum();
         let info = quant_info(&quant);
@@ -915,7 +945,7 @@ pub async fn resolve_model_spec_full(spec: &str) -> Result<(String, ResolvedMode
         ));
     }
 
-    let mut shard_files = select_plainest_shard_set(shard_files);
+    let mut shard_files = select_preferred_shard_set(shard_files);
 
     // Use shards, sorted by filename so shard 1 is first
     shard_files.sort_by(|a, b| a.rfilename.cmp(&b.rfilename));
@@ -1516,6 +1546,30 @@ mod tests {
     }
 
     #[test]
+    fn test_group_into_variants_prefers_complete_duplicate_shard_set() {
+        let files = vec![
+            HfApiSibling {
+                rfilename: "Model-Q4_K_M-00001-of-00002.gguf".into(),
+                size: Some(2_000_000_000),
+            },
+            HfApiSibling {
+                rfilename: "Model-Q4_K_M-mtp-00001-of-00002.gguf".into(),
+                size: Some(2_500_000_000),
+            },
+            HfApiSibling {
+                rfilename: "Model-Q4_K_M-mtp-00002-of-00002.gguf".into(),
+                size: Some(1_500_000_000),
+            },
+        ];
+
+        let variants = group_into_variants("someone/Model-GGUF", files);
+
+        assert_eq!(variants.len(), 1);
+        assert_eq!(variants[0].size_bytes, 4_000_000_000);
+        assert_eq!(variants[0].filename, "Model-Q4_K_M-mtp-00001-of-00002.gguf");
+    }
+
+    #[test]
     fn test_group_into_variants_sorted_descending() {
         let files = vec![
             HfApiSibling {
@@ -1765,9 +1819,7 @@ async fn model_info_to_local_model_info(
     }
 
     if variants.is_empty() {
-        if let Err(error) = gguf_variants {
-            return Err(error);
-        }
+        drop(gguf_variants?);
 
         let unusable: Vec<&str> = info
             .siblings
