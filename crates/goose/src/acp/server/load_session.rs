@@ -310,8 +310,7 @@ impl GooseAcpAgent {
                     .data(format!("Session not found: {}", session_id_str))
             })?;
 
-        let cwd =
-            effective_session_cwd(self.session_cwd.as_deref(), &args.cwd, &session.working_dir);
+        let cwd = effective_session_cwd(self.session_cwd.as_deref(), &args.cwd);
         validate_absolute_cwd(&cwd)?;
 
         session = self

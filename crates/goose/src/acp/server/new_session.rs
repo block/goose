@@ -44,7 +44,6 @@ impl GooseAcpAgent {
         if let Some(host_cwd) = &self.session_cwd {
             args.cwd = host_cwd.clone();
         }
-        args.cwd = cwd_or_home(args.cwd);
         validate_absolute_cwd(&args.cwd)?;
         let config = Config::global();
         let session_type = session_type_from_meta(args.meta.as_ref())?;
@@ -325,18 +324,6 @@ fn new_session_meta_fields(
     })
 }
 
-/// A remote client whose local cwd is meaningless on this host (`roam connect`
-/// and `roam delegate` do this) sends "/" — never run an agent in the
-/// filesystem root; fall back to the user's home directory instead.
-fn cwd_or_home(cwd: std::path::PathBuf) -> std::path::PathBuf {
-    if cwd == std::path::Path::new("/") {
-        if let Some(home) = dirs::home_dir() {
-            return home;
-        }
-    }
-    cwd
-}
-
 fn meta_goose_extensions(
     meta: Option<&Meta>,
 ) -> Result<Option<Vec<GooseExtension>>, agent_client_protocol::Error> {
@@ -406,17 +393,5 @@ mod tests {
             session_type_from_meta(Some(&meta)).unwrap(),
             SessionType::User
         );
-    }
-
-    #[test]
-    fn root_cwd_falls_back_to_home() {
-        let home = dirs::home_dir().expect("test environment has a home dir");
-        assert_eq!(cwd_or_home(std::path::PathBuf::from("/")), home);
-    }
-
-    #[test]
-    fn non_root_cwd_is_untouched() {
-        let cwd = std::path::PathBuf::from("/tmp/some/project");
-        assert_eq!(cwd_or_home(cwd.clone()), cwd);
     }
 }

@@ -776,23 +776,11 @@ pub(super) fn build_usage_updates(
     })
 }
 
-/// Resolve the cwd an existing session should be activated with.
-///
-/// A host-imposed cwd always wins, and a remote client with no meaningful cwd
-/// (e.g. a roaming client on a different filesystem) sends "/" — that must
-/// never rewrite the session's stored working dir.
-pub(super) fn effective_session_cwd(
-    host_cwd: Option<&Path>,
-    requested: &Path,
-    stored: &Path,
-) -> PathBuf {
-    if let Some(host_cwd) = host_cwd {
-        return host_cwd.to_path_buf();
-    }
-    if requested == Path::new("/") {
-        return stored.to_path_buf();
-    }
-    requested.to_path_buf()
+/// Resolve the cwd an existing session should be activated with: a
+/// host-imposed cwd (roaming) wins, otherwise the client-requested cwd is
+/// honored as-is, preserving standard ACP semantics.
+pub(super) fn effective_session_cwd(host_cwd: Option<&Path>, requested: &Path) -> PathBuf {
+    host_cwd.unwrap_or(requested).to_path_buf()
 }
 
 pub(super) fn validate_absolute_cwd(cwd: &Path) -> Result<(), agent_client_protocol::Error> {
@@ -2723,22 +2711,14 @@ mod tests {
         let cwd = effective_session_cwd(
             Some(Path::new("/host/share")),
             Path::new("/client/only/path"),
-            Path::new("/stored"),
         );
 
         assert_eq!(cwd, PathBuf::from("/host/share"));
     }
 
     #[test]
-    fn effective_session_cwd_keeps_stored_dir_for_rootless_client() {
-        let cwd = effective_session_cwd(None, Path::new("/"), Path::new("/stored"));
-
-        assert_eq!(cwd, PathBuf::from("/stored"));
-    }
-
-    #[test]
     fn effective_session_cwd_uses_client_path_without_host_override() {
-        let cwd = effective_session_cwd(None, Path::new("/client/path"), Path::new("/stored"));
+        let cwd = effective_session_cwd(None, Path::new("/client/path"));
 
         assert_eq!(cwd, PathBuf::from("/client/path"));
     }
@@ -2750,7 +2730,7 @@ mod tests {
 
         assert!(validate_absolute_cwd(client_path).is_err());
 
-        let cwd = effective_session_cwd(Some(host.path()), client_path, Path::new("/stored"));
+        let cwd = effective_session_cwd(Some(host.path()), client_path);
 
         assert!(validate_absolute_cwd(&cwd).is_ok());
     }
