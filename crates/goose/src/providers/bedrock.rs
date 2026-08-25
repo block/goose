@@ -141,6 +141,14 @@ const BEDROCK_MODEL_TABLE: &[BedrockModelEntry] = &[
     },
 ];
 
+pub(crate) fn local_context_limit(model: &str) -> Option<usize> {
+    BEDROCK_MODEL_TABLE
+        .iter()
+        .find(|entry| entry.name.eq_ignore_ascii_case(model))
+        .and_then(|entry| entry.context_limit)
+        .map(|limit| limit as usize)
+}
+
 fn find_model_entry(name: &str) -> Option<&'static BedrockModelEntry> {
     // Direct lookup first (handles exact names like "google.gemma-4-31b")
     if let Some(entry) = BEDROCK_MODEL_TABLE.iter().find(|e| e.name == name) {

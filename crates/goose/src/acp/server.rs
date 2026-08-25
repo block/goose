@@ -861,11 +861,6 @@ impl GooseAcpAgent {
             .get_session(session_id, false)
             .await
             .internal_err_ctx("Failed to load session for setup notifications")?;
-        let totals = self
-            .session_manager
-            .get_session_usage_totals(session_id)
-            .await
-            .unwrap_or_default();
         let agent = self.get_session_agent(session_id).await?;
         let provider = agent
             .provider()
@@ -878,6 +873,16 @@ impl GooseAcpAgent {
             crate::context_limit::get_context_limit(provider.as_ref(), &model.model_name)
                 .await
                 .internal_err_ctx("Failed to resolve context limit")?;
+        let session = self
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .internal_err_ctx("Failed to refresh session for setup notifications")?;
+        let totals = self
+            .session_manager
+            .get_session_usage_totals(session_id)
+            .await
+            .unwrap_or_default();
         Ok((session, totals, context_limit))
     }
 

@@ -521,6 +521,16 @@ impl Provider for DatabricksProvider {
         self.retry_config.clone()
     }
 
+    async fn get_context_limit(&self, model: &str, override_limit: Option<usize>) -> usize {
+        crate::context_limit::ContextLimitResolver::new(self.get_name())
+            .resolve(model, override_limit, || async {
+                self.fetch_model_info(model)
+                    .await
+                    .map(|info| info.context_limit)
+            })
+            .await
+    }
+
     async fn refresh_credentials(&self) -> Result<(), ProviderError> {
         if let Some(refresh_hook) = &self.refresh_hook {
             refresh_hook();

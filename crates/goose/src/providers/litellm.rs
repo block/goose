@@ -34,7 +34,7 @@ pub struct LiteLLMProvider {
     #[serde(skip)]
     name: String,
     #[serde(skip)]
-    cached_model_info: tokio::sync::OnceCell<Vec<ModelInfo>>,
+    cached_model_info: tokio::sync::OnceCell<Option<Vec<ModelInfo>>>,
 }
 
 impl LiteLLMProvider {
@@ -93,10 +93,20 @@ impl LiteLLMProvider {
     }
 
     async fn get_or_fetch_models(&self) -> Result<&[ModelInfo], ProviderError> {
+        const DISCOVERY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
         self.cached_model_info
-            .get_or_try_init(|| self.fetch_models_from_api())
+            .get_or_init(|| async {
+                match tokio::time::timeout(DISCOVERY_TIMEOUT, self.fetch_models_from_api()).await {
+                    Ok(Ok(models)) => Some(models),
+                    Ok(Err(_)) | Err(_) => None,
+                }
+            })
             .await
-            .map(|v| v.as_slice())
+            .as_deref()
+            .ok_or_else(|| {
+                ProviderError::RequestFailed("LiteLLM model metadata is unavailable".to_string())
+            })
     }
 
     async fn fetch_models_from_api(&self) -> Result<Vec<ModelInfo>, ProviderError> {
@@ -234,14 +244,11 @@ impl Provider for LiteLLMProvider {
     }
 
     async fn get_context_limit(&self, model: &str, override_limit: Option<usize>) -> usize {
-        let resolver = goose_providers::context_limit::ContextLimitResolver::new(&self.name);
-        let Some(models) = self.cached_model_info.get() else {
-            return resolver.resolve_local(model, override_limit);
-        };
-
-        resolver
+        goose_providers::context_limit::ContextLimitResolver::new(&self.name)
             .resolve(model, override_limit, || async {
-                Ok(models
+                Ok(self
+                    .get_or_fetch_models()
+                    .await?
                     .iter()
                     .find(|info| info.name == model)
                     .and_then(|info| info.context_limit))
@@ -314,7 +321,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn context_limit_does_not_probe_model_info() {
+    async fn context_limit_negative_caches_failed_model_info() {
         let provider = LiteLLMProvider {
             api_client: ApiClient::new_with_tls(
                 "http://127.0.0.1:1".to_string(),
@@ -331,16 +338,23 @@ mod tests {
             provider.get_context_limit("unknown-model", None).await,
             goose_providers::model::DEFAULT_CONTEXT_LIMIT
         );
-        assert!(provider.cached_model_info.get().is_none());
+        assert!(provider
+            .cached_model_info
+            .get()
+            .is_some_and(Option::is_none));
+        assert_eq!(
+            provider.get_context_limit("unknown-model", None).await,
+            goose_providers::model::DEFAULT_CONTEXT_LIMIT
+        );
     }
 
     #[tokio::test]
     async fn context_limit_uses_cached_model_info() {
         let cached_model_info = tokio::sync::OnceCell::new();
         cached_model_info
-            .set(vec![
+            .set(Some(vec![
                 ModelInfo::new("cached-model").with_context_limit(32_000)
-            ])
+            ]))
             .unwrap();
         let provider = LiteLLMProvider {
             api_client: ApiClient::new_with_tls(
