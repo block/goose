@@ -16,10 +16,9 @@ use goose_provider_types::errors::ProviderError;
 use goose_provider_types::model::ModelConfig;
 use tracing_futures::Instrument;
 
-use crate::machine::MachineSession;
 use crate::operation::{
-    applied, messages_since_kickoff, not_applicable, trailing_error, yielded_with,
-    ConversationEffect, Emitter, Inference, InferenceInput, Operation, OperationResult,
+    applied, messages_since_kickoff, not_applicable, trailing_error, yielded_with, Emitter,
+    Inference, InferenceInput, Operation, OperationResult,
 };
 
 pub struct PreparedInferenceRequest {
@@ -61,16 +60,12 @@ impl<S: Sync> InferenceRequestPreparer<S> for IdentityInferenceRequestPreparer {
     }
 }
 
-pub trait InferenceEffect:
-    From<Message> + From<Conversation> + From<ConversationEffect> + Send + 'static
-{
+pub trait InferenceEffect: From<Message> + Send + 'static {
     fn record_usage(usage: ProviderUsage) -> Self;
-    fn appended_message(&self) -> Option<&Message>;
 }
 
 const EMPTY_RESPONSE_MESSAGE: &str =
     "The model returned an empty response. Please resend your message to continue.";
-pub const UNCLAIMED_TOOL_ERROR: &str = "goose.unclaimed_tool";
 const CANCELLED_TOOL_RESPONSE: &str = "Tool call was cancelled before execution";
 
 fn is_thinking(content: &MessageContent) -> bool {
@@ -242,7 +237,53 @@ fn ends_with_provider_turn(messages: &[Message]) -> bool {
     })
 }
 
-impl<'a, S: MachineSession, E: InferenceEffect> InferenceRunner<'a, S, E> {
+fn cancellation_response(persisted: &[Message], pending: &[Message]) -> Option<Message> {
+    let mut answered = persisted
+        .iter()
+        .chain(pending)
+        .flat_map(Message::get_tool_response_ids)
+        .collect::<std::collections::HashSet<_>>();
+    let mut request_ids = std::collections::HashSet::new();
+    let mut response = Message::user();
+    for request in persisted
+        .iter()
+        .chain(pending)
+        .flat_map(|message| &message.content)
+        .filter_map(MessageContent::as_tool_request)
+    {
+        if request_ids.insert(request.id.as_str()) && !answered.remove(request.id.as_str()) {
+            response.add_tool_response_with_metadata(
+                request.id.clone(),
+                Ok(rmcp::model::CallToolResult::error(vec![
+                    rmcp::model::ContentBlock::text(CANCELLED_TOOL_RESPONSE),
+                ])),
+                request.metadata.as_ref(),
+            );
+        }
+    }
+    (!response.get_tool_response_ids().is_empty()).then_some(response)
+}
+
+fn inference_span(provider: &dyn Provider, model_config: &ModelConfig) -> tracing::Span {
+    let span = tracing::info_span!(
+        "chat",
+        "gen_ai.operation.name" = "chat",
+        "gen_ai.provider.name" = %provider.get_name(),
+        "gen_ai.request.model" = %model_config.model_name,
+        "gen_ai.request.temperature" = tracing::field::Empty,
+        "gen_ai.request.max_tokens" = tracing::field::Empty,
+        "gen_ai.response.model" = tracing::field::Empty,
+        "gen_ai.response.finish_reasons" = tracing::field::Empty,
+        "gen_ai.response.id" = tracing::field::Empty,
+        "gen_ai.usage.input_tokens" = tracing::field::Empty,
+        "gen_ai.usage.output_tokens" = tracing::field::Empty,
+        "error.type" = tracing::field::Empty,
+    );
+    record_request_params(&span, model_config);
+    span
+}
+
+impl<'a, S: Sync, E: InferenceEffect> InferenceRunner<'a, S, E> {
     pub fn new(provider: Arc<dyn Provider>, model_config: ModelConfig) -> Self {
         Self {
             provider,
@@ -270,7 +311,7 @@ impl<'a, S: MachineSession, E: InferenceEffect> InferenceRunner<'a, S, E> {
 }
 
 #[async_trait]
-impl<S: MachineSession, E: InferenceEffect> Operation<S, E> for InferenceRunner<'_, S, E> {
+impl<S: Sync, E: InferenceEffect> Operation<S, E> for InferenceRunner<'_, S, E> {
     fn name(&self) -> &'static str {
         "llm"
     }
@@ -282,70 +323,20 @@ impl<S: MachineSession, E: InferenceEffect> Operation<S, E> for InferenceRunner<
         result: OperationResult<E>,
         emit: &Emitter,
     ) -> Result<OperationResult<E>> {
-        let mut answered = conversation
-            .messages()
-            .iter()
-            .flat_map(Message::get_tool_response_ids)
-            .map(str::to_string)
-            .collect::<std::collections::HashSet<_>>();
-        let mut requests = Vec::new();
-        let mut request_ids = std::collections::HashSet::new();
-
-        let mut collect = |message: &Message| {
-            for content in &message.content {
-                match content {
-                    MessageContent::ToolRequest(request) => {
-                        if request_ids.insert(request.id.clone()) {
-                            requests.push(request.clone());
-                        }
-                    }
-                    MessageContent::ToolResponse(response) => {
-                        answered.insert(response.id.clone());
-                    }
-                    _ => {}
-                }
-            }
-        };
-        for message in messages_since_kickoff(conversation)? {
-            collect(message);
-        }
-        if let OperationResult::Applied(step) = &result {
-            for effect in &step.effects {
-                if let Some(message) = effect.appended_message() {
-                    collect(message);
-                }
-            }
-        }
-
-        let mut response = Message::user();
-        for request in requests {
-            if !answered.contains(&request.id) {
-                response.add_tool_response_with_metadata(
-                    request.id,
-                    Ok(rmcp::model::CallToolResult::error(vec![
-                        rmcp::model::ContentBlock::text(CANCELLED_TOOL_RESPONSE),
-                    ])),
-                    request.metadata.as_ref(),
-                );
-            }
-        }
-        if response.get_tool_response_ids().is_empty() {
+        let OperationResult::NotApplicable = result else {
             return Ok(result);
-        }
-
+        };
+        let Some(response) = cancellation_response(messages_since_kickoff(conversation)?, &[])
+        else {
+            return Ok(OperationResult::NotApplicable);
+        };
         let response = emit.message(response).await;
-        match result {
-            OperationResult::NotApplicable => applied([E::from(response)]),
-            OperationResult::Applied(mut step) => {
-                step.effects.push(E::from(response));
-                Ok(OperationResult::Applied(step))
-            }
-        }
+        applied([E::from(response)])
     }
 }
 
 #[async_trait]
-impl<S: MachineSession, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S, E> {
+impl<S: Sync, E: InferenceEffect> Inference<S, E> for InferenceRunner<'_, S, E> {
     fn applies(&self, conversation: &Conversation) -> bool {
         let Ok(turn) = messages_since_kickoff(conversation) else {
             return false;
@@ -371,12 +362,7 @@ impl<S: MachineSession, E: InferenceEffect> Inference<S, E> for InferenceRunner<
             return not_applicable();
         }
 
-        let span = chat_span(
-            self.provider.as_ref(),
-            &self.model_config,
-            session.id(),
-            "inference",
-        );
+        let span = inference_span(self.provider.as_ref(), &self.model_config);
 
         async {
             let PreparedInferenceRequest {
@@ -387,33 +373,6 @@ impl<S: MachineSession, E: InferenceEffect> Inference<S, E> for InferenceRunner<
                 .request_preparer
                 .prepare(session, conversation, input)
                 .await?;
-            let mut available_tools = tools
-                .iter()
-                .map(|tool| tool.name.as_ref())
-                .collect::<Vec<_>>();
-            available_tools.sort_unstable();
-            available_tools.dedup();
-            let available_tools = available_tools.join(", ");
-            for message in &mut messages_for_provider {
-                for content in &mut message.content {
-                    let MessageContent::ToolResponse(response) = content else {
-                        continue;
-                    };
-                    let Some(metadata) = &mut response.metadata else {
-                        continue;
-                    };
-                    if metadata.remove(UNCLAIMED_TOOL_ERROR).is_none() {
-                        continue;
-                    }
-                    let Ok(result) = &mut response.tool_result else {
-                        continue;
-                    };
-                    result.content.push(rmcp::model::ContentBlock::text(format!(
-                        "Available tools: [{}].",
-                        available_tools
-                    )));
-                }
-            }
 
             for message in &additional_messages {
                 messages_for_provider.push(message.clone());
@@ -431,8 +390,8 @@ impl<S: MachineSession, E: InferenceEffect> Inference<S, E> for InferenceRunner<
                 }
             }
 
-            let projected = Conversation::new_unvalidated(messages_for_provider)
-                .agent_visible_messages();
+            let projected =
+                Conversation::new_unvalidated(messages_for_provider).agent_visible_messages();
             let (fixed, _) = fix_conversation(Conversation::new_unvalidated(projected));
             let conversation_for_provider = Conversation::new_unvalidated(
                 merge_consecutive_messages_for_request(fixed.messages().clone()),
@@ -472,16 +431,24 @@ impl<S: MachineSession, E: InferenceEffect> Inference<S, E> for InferenceRunner<
 
             let mut accumulator = Conversation::empty();
             let mut tool_request_ids = std::collections::HashSet::new();
+            let mut provider_usage = None;
+            let mut cancelled = false;
             loop {
                 tokio::select! {
                     biased;
-                    _ = emit.cancelled() => break,
+                    _ = emit.cancelled() => {
+                        cancelled = true;
+                        break;
+                    },
                     next = stream.next() => {
                         let Some(result) = next else { break };
                         let (msg_opt, usage_opt) = match result {
                             Ok(chunk) => chunk,
                             Err(err) => {
-                                usage_effects.extend(accumulator.into_iter().map(|message| E::from(message)));
+                                if let Some(usage) = provider_usage {
+                                    usage_effects.push(E::record_usage(usage));
+                                }
+                                usage_effects.extend(accumulator.into_iter().map(E::from));
                                 usage_effects.extend(self.error_outcome(&err, emit).await);
                                 return applied(usage_effects);
                             }
@@ -489,7 +456,7 @@ impl<S: MachineSession, E: InferenceEffect> Inference<S, E> for InferenceRunner<
                         if let Some(usage) = usage_opt {
                             let span = tracing::Span::current();
                             record_chat_usage(&span, &usage);
-                            usage_effects.push(E::record_usage(usage));
+                            provider_usage = Some(usage);
                         }
                         if let Some(mut chunk) = msg_opt {
                             if let Some(inference) = &inference {
@@ -516,9 +483,21 @@ impl<S: MachineSession, E: InferenceEffect> Inference<S, E> for InferenceRunner<
                 }
             }
 
-            let empty_response = !accumulator
-                .iter()
-                .any(|message| message.metadata.output_token_limit_reached)
+            if let Some(usage) = provider_usage {
+                usage_effects.push(E::record_usage(usage));
+            }
+
+            if cancelled || emit.cancel_token().is_cancelled() {
+                if let Some(response) = cancellation_response(messages, accumulator.messages()) {
+                    let response = emit.message(response).await;
+                    accumulator.push(response);
+                }
+            }
+
+            let empty_response = !cancelled
+                && !accumulator
+                    .iter()
+                    .any(|message| message.metadata.output_token_limit_reached)
                 && accumulator.iter().all(|message| {
                     message.content.iter().all(|content| match content {
                         MessageContent::Text(text) => text.text.trim().is_empty(),
@@ -570,5 +549,51 @@ mod tests {
             latest_provider_session_id(&conversation, "provider-a"),
             None
         );
+    }
+
+    #[test]
+    fn cancellation_response_includes_requests_from_unconverted_messages() {
+        let persisted = [Message::user().with_text("run it")];
+        let pending = [Message::assistant().with_tool_request(
+            "pending-call",
+            Ok(rmcp::model::CallToolRequestParams::new("tool")),
+        )];
+
+        let response = cancellation_response(&persisted, &pending).expect("cancellation response");
+
+        assert_eq!(
+            response.get_tool_response_ids(),
+            std::collections::HashSet::from(["pending-call"])
+        );
+        let cancellation_text = response
+            .content
+            .iter()
+            .filter_map(MessageContent::as_tool_response)
+            .flat_map(|response| {
+                response
+                    .tool_result
+                    .as_ref()
+                    .expect("tool result")
+                    .content
+                    .iter()
+            })
+            .filter_map(|content| content.as_text())
+            .map(|text| text.text.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(cancellation_text, vec![CANCELLED_TOOL_RESPONSE]);
+    }
+
+    #[test]
+    fn cancellation_response_skips_answered_requests() {
+        let request = Message::assistant().with_tool_request(
+            "answered-call",
+            Ok(rmcp::model::CallToolRequestParams::new("tool")),
+        );
+        let response = Message::user().with_tool_response(
+            "answered-call",
+            Ok(rmcp::model::CallToolResult::success(vec![])),
+        );
+
+        assert!(cancellation_response(&[request, response], &[]).is_none());
     }
 }

@@ -21,7 +21,7 @@ use crate::conversation::Conversation;
 use crate::hooks::HookManager;
 use crate::session::Session;
 
-pub use goose_agent::inference::UNCLAIMED_TOOL_ERROR;
+pub(super) const UNCLAIMED_TOOL_ERROR: &str = "goose.unclaimed_tool";
 
 pub struct UnknownToolOperation {
     hook_manager: HookManager,
