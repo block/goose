@@ -611,7 +611,8 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "apiKey": "secret",
                 "models": ["model-a"],
                 "headers": {},
-                "requiresAuth": true
+                "requiresAuth": true,
+                "toolshim": false
             });
             let payload_obj = payload.as_object_mut().unwrap();
             for (key, value) in patch.as_object().unwrap() {
@@ -641,7 +642,8 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "apiKey": "owned-secret",
                 "models": ["model-a"],
                 "headers": {},
-                "requiresAuth": true
+                "requiresAuth": true,
+                "toolshim": false
             }),
         )
         .await
@@ -697,7 +699,8 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
                 "apiKey": "owned-secret",
                 "models": ["model-a"],
                 "headers": {},
-                "requiresAuth": true
+                "requiresAuth": true,
+                "toolshim": false
             }),
         )
         .await

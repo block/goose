@@ -2315,15 +2315,15 @@
           ]
         },
         "toolshim": {
-          "type": "boolean",
-          "default": false
+          "type": "boolean"
         }
       },
       "required": [
         "engine",
         "displayName",
         "apiUrl",
-        "requiresAuth"
+        "requiresAuth",
+        "toolshim"
       ],
       "description": "Create a custom provider backed by Goose's declarative provider store.",
       "x-side": "agent",

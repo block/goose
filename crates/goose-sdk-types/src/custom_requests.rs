@@ -1276,7 +1276,6 @@ pub struct CustomProviderUpsertDto {
 pub struct CustomProviderCreateRequest {
     #[serde(flatten)]
     pub provider: CustomProviderUpsertDto,
-    #[serde(default)]
     pub toolshim: bool,
 }
 

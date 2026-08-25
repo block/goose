@@ -735,7 +735,7 @@ export const zCustomProviderCreateRequest_unstable = z.object({
     catalogProviderId: z.string().nullish(),
     basePath: z.string().nullish(),
     preservesThinking: z.boolean().nullish(),
-    toolshim: z.boolean().optional().default(false)
+    toolshim: z.boolean()
 });
 
 export const zProviderConfigStatusDto = z.object({
