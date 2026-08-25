@@ -1999,18 +1999,8 @@ impl Agent {
         ))
     }
 
-    pub async fn reply(
-        &self,
-        user_message: Message,
-        session_config: SessionConfig,
-        cancel_token: Option<CancellationToken>,
-    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        self.reply_with_loop_override(user_message, session_config, None, cancel_token)
-            .await
-    }
-
     #[instrument(
-        skip(self, user_message, session_config, loop_override, cancel_token),
+        skip(self, user_message, session_config, use_state_machine, cancel_token),
         fields(
             user_message,
             trace_input,
@@ -2024,16 +2014,21 @@ impl Agent {
             gen_ai.usage.output_tokens = tracing::field::Empty,
         )
     )]
-    pub(crate) async fn reply_with_loop_override(
+    pub async fn reply(
         &self,
         user_message: Message,
         session_config: SessionConfig,
-        loop_override: Option<bool>,
+        use_state_machine: bool,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let reply_span = tracing::Span::current();
         let events = self
-            .reply_impl(user_message, session_config, loop_override, cancel_token)
+            .reply_impl(
+                user_message,
+                session_config,
+                use_state_machine,
+                cancel_token,
+            )
             .await?;
 
         // This is the single live-event identity boundary. Callers that intentionally stream
@@ -2049,7 +2044,7 @@ impl Agent {
         &self,
         user_message: Message,
         session_config: SessionConfig,
-        loop_override: Option<bool>,
+        use_state_machine: bool,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let user_message = user_message.with_generated_id_if_missing();
@@ -2102,7 +2097,6 @@ impl Agent {
             }
         }
 
-        let use_state_machine = loop_override.unwrap_or_else(super::state_machine::enabled);
         if use_state_machine {
             tracing::info!("dispatching reply via experimental state machine");
             return self
@@ -5252,7 +5246,12 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         };
 
         let reply_stream = agent
-            .reply(Message::user().with_text("hi"), session_config, None)
+            .reply(
+                Message::user().with_text("hi"),
+                session_config,
+                crate::agents::state_machine::enabled(),
+                None,
+            )
             .await?;
         tokio::pin!(reply_stream);
         let mut emitted_refusal_id = None;
@@ -5445,7 +5444,12 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             retry_config: None,
         };
         let reply_stream = agent
-            .reply(Message::user().with_text(text), session_config, None)
+            .reply(
+                Message::user().with_text(text),
+                session_config,
+                crate::agents::state_machine::enabled(),
+                None,
+            )
             .await?;
         tokio::pin!(reply_stream);
 
@@ -5581,6 +5585,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             .reply(
                 Message::user().with_content(user_only_content),
                 session_config,
+                crate::agents::state_machine::enabled(),
                 None,
             )
             .await?;
@@ -5607,6 +5612,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             .reply(
                 Message::user().with_text("agent-visible"),
                 visible_session_config,
+                crate::agents::state_machine::enabled(),
                 None,
             )
             .await?;
@@ -5626,6 +5632,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             .reply(
                 Message::user().with_text("second-agent-visible"),
                 final_session_config,
+                crate::agents::state_machine::enabled(),
                 None,
             )
             .await?;

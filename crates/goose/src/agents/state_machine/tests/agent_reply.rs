@@ -334,10 +334,10 @@ async fn bang_shell_uses_state_machine_when_explicitly_enabled() -> Result<()> {
         retry_config: None,
     };
     let stream = agent
-        .reply_with_loop_override(
+        .reply(
             Message::user().with_text("!echo hello"),
             session_config,
-            Some(true),
+            true,
             Some(CancellationToken::new()),
         )
         .await?;
@@ -375,6 +375,7 @@ async fn reply_messages(
                 max_turns: Some(2),
                 retry_config: None,
             },
+            crate::agents::state_machine::enabled(),
             Some(CancellationToken::new()),
         )
         .await?;

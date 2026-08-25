@@ -533,7 +533,12 @@ impl GatewayHandler {
         };
 
         let mut stream = match agent
-            .reply(user_message, session_config, Some(cancel.clone()))
+            .reply(
+                user_message,
+                session_config,
+                crate::agents::state_machine::enabled(),
+                Some(cancel),
+            )
             .await
         {
             Ok(s) => s,
