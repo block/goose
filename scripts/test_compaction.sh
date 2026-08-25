@@ -263,9 +263,21 @@ if ! (cd "$PROXY_DIR" && uv sync 2>&1 | tee "$PROXY_SETUP_LOG"); then
 else
   echo "✓ Dependencies installed"
 
-  # Start the error proxy in context-length error mode (3 errors)
+  # Start the error proxy in context-length error mode.
+  #
+  # Inject exactly ONE error. The proxy's count mode decrements on every
+  # forwarded request regardless of purpose (see provider-error-proxy/proxy.py
+  # should_inject_error), so the count directly controls how many of goose's
+  # upstream calls fail. This test wants the *turn completion* to fail with a
+  # context-length error and the *summarizer* call that follows to succeed, so
+  # that compaction actually produces a summary message to validate.
+  #
+  # Do not raise this number to "give compaction more retries". A context-length
+  # error is deterministic for a fixed prompt, so retrying an identical request
+  # is not a scenario worth asserting; a higher count just consumes the
+  # summarizer's own calls and prevents the summary this test exists to check.
   echo "Starting error proxy on port $PROXY_PORT with context-length error mode..."
-  (cd "$PROXY_DIR" && UV_INDEX_URL="https://pypi.org/simple" uv run proxy.py --port "$PROXY_PORT" --mode "c 3" --no-stdin > "$PROXY_LOG" 2>&1) &
+  (cd "$PROXY_DIR" && UV_INDEX_URL="https://pypi.org/simple" uv run proxy.py --port "$PROXY_PORT" --mode "c 1" --no-stdin > "$PROXY_LOG" 2>&1) &
   PROXY_PID=$!
 
   # Wait for proxy to be ready (check if port is listening)
@@ -313,8 +325,15 @@ else
       echo "Session created: $SESSION_ID"
       echo "Checking for compaction evidence..."
 
-      # Check for compaction in the output
-      if grep -qi "context.*length\|compacting\|compacted\|compaction" "$OUTPUT"; then
+      # The compaction failure message itself contains the word "compact", so a
+      # bare keyword grep matches it and reports success on a failed run. Fail
+      # explicitly on the error text before checking for evidence of compaction.
+      if grep -qi "error trying to compact" "$OUTPUT"; then
+        echo "✗ FAILED: Compaction was attempted but returned an error"
+        echo "   Output:"
+        cat "$OUTPUT"
+        RESULTS+=("✗ Out-of-Context Test Error (compaction errored)")
+      elif grep -qi "context.*length\|compacting\|compacted\|compaction" "$OUTPUT"; then
         echo "✓ SUCCESS: Out-of-context Test error triggered compaction"
 
         if validate_compaction "$SESSION_ID" "out-of-context error compaction"; then
