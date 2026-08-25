@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -21,6 +22,9 @@ pub const AZURE_FOUNDRY_PROVIDER_NAME: &str = "azure_foundry";
 pub const AZURE_FOUNDRY_DEFAULT_MODEL: &str = "Phi-4";
 pub const AZURE_FOUNDRY_DOC_URL: &str =
     "https://learn.microsoft.com/azure/ai-foundry/foundry-models/how-to/inference";
+
+const DEPLOYMENT_METADATA_TIMEOUT_SECS: u64 = 5;
+const DEPLOYMENT_METADATA_TTL_SECS: u64 = 60;
 
 pub const AZURE_FOUNDRY_KNOWN_MODELS: &[&str] = &[
     "Phi-4",
@@ -80,6 +84,12 @@ struct DeploymentMetadata {
     model_name: String,
 }
 
+#[derive(Default)]
+struct DeploymentCache {
+    deployments: HashMap<String, DeploymentMetadata>,
+    fetched_at: Option<Instant>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum InferenceRoute {
     MaasChatCompletions,
@@ -134,7 +144,7 @@ pub struct AzureFoundryProvider {
     endpoint: String,
     api_version: Option<String>,
     maas_model: Option<String>,
-    deployments: Mutex<HashMap<String, DeploymentMetadata>>,
+    deployments: Mutex<DeploymentCache>,
 }
 
 impl ProviderDescriptor for AzureFoundryProvider {
@@ -249,7 +259,7 @@ impl AzureFoundryProvider {
             endpoint,
             api_version,
             maas_model,
-            deployments: Mutex::new(HashMap::new()),
+            deployments: Mutex::new(DeploymentCache::default()),
         })
     }
 
@@ -310,22 +320,35 @@ impl AzureFoundryProvider {
     }
 
     async fn deployment_for(&self, deployment_name: &str) -> Option<DeploymentMetadata> {
-        if let Some(deployment) = self
-            .deployments
-            .lock()
-            .expect("Azure Foundry deployment cache poisoned")
-            .get(deployment_name)
-            .cloned()
         {
-            return Some(deployment);
+            let cache = self
+                .deployments
+                .lock()
+                .expect("Azure Foundry deployment cache poisoned");
+            if cache.fetched_at.is_some_and(|fetched_at| {
+                fetched_at.elapsed() < Duration::from_secs(DEPLOYMENT_METADATA_TTL_SECS)
+            }) {
+                return cache.deployments.get(deployment_name).cloned();
+            }
         }
 
-        let (_, deployments) = self.fetch_deployments().await.ok()?;
+        let deployments = tokio::time::timeout(
+            Duration::from_secs(DEPLOYMENT_METADATA_TIMEOUT_SECS),
+            self.fetch_deployments(),
+        )
+        .await
+        .ok()
+        .and_then(Result::ok)
+        .map(|(_, deployments)| deployments)
+        .unwrap_or_default();
         let deployment = deployments.get(deployment_name).cloned();
         *self
             .deployments
             .lock()
-            .expect("Azure Foundry deployment cache poisoned") = deployments;
+            .expect("Azure Foundry deployment cache poisoned") = DeploymentCache {
+            deployments,
+            fetched_at: Some(Instant::now()),
+        };
         deployment
     }
 }
@@ -413,7 +436,10 @@ impl Provider for AzureFoundryProvider {
         *self
             .deployments
             .lock()
-            .expect("Azure Foundry deployment cache poisoned") = deployments;
+            .expect("Azure Foundry deployment cache poisoned") = DeploymentCache {
+            deployments,
+            fetched_at: Some(Instant::now()),
+        };
         Ok(models)
     }
 
@@ -439,7 +465,10 @@ impl Provider for AzureFoundryProvider {
         *self
             .deployments
             .lock()
-            .expect("Azure Foundry deployment cache poisoned") = deployments;
+            .expect("Azure Foundry deployment cache poisoned") = DeploymentCache {
+            deployments,
+            fetched_at: Some(Instant::now()),
+        };
         Ok(model_info)
     }
 
@@ -1050,6 +1079,7 @@ mod tests {
         Mock::given(method("GET"))
             .and(path("/api/projects/test/deployments"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({"value": []})))
+            .expect(1)
             .mount(&server)
             .await;
         Mock::given(method("POST"))
@@ -1064,7 +1094,12 @@ mod tests {
             .mount(&server)
             .await;
 
-        project_provider(&server)
+        let provider = project_provider(&server);
+        assert_eq!(
+            provider.get_context_limit("gpt-5-high", None).await,
+            400_000
+        );
+        provider
             .complete(&raw_model_config("gpt-5-high"), "system", &[], &[])
             .await
             .unwrap();
