@@ -240,7 +240,10 @@ fn format_messages(
                     } else {
                         content_array.push(json!({
                             "type": "text",
-                            "text": "[image omitted: model does not support vision]"
+                            "text": format!(
+                                "[image omitted: model does not support vision ({})]",
+                                image.mime_type
+                            )
                         }));
                     }
                 }
@@ -559,7 +562,7 @@ pub fn create_request_for_provider(
         tool_call_id: None,
     };
 
-    let model_supports_vision = model_config.supports_vision.unwrap_or_default();
+    let model_supports_vision = model_config.supports_vision.unwrap_or(true);
     let messages_spec = format_messages(
         messages,
         image_format,
@@ -1060,7 +1063,10 @@ mod tests {
         .unwrap();
         let spec = as_value.as_array().unwrap();
         let content = spec[0]["content"].as_str().unwrap();
-        assert_eq!(content, "[image omitted: model does not support vision]");
+        assert_eq!(
+            content,
+            "[image omitted: model does not support vision (image/png)]"
+        );
         assert!(!content.contains("image_url"));
 
         // Vision: the image is converted to an image_url block (existing behavior).

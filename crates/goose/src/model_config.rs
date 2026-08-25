@@ -47,6 +47,18 @@ fn apply_canonical_limits(provider_name: &str, model: ModelConfig) -> ModelConfi
     }
 }
 
+pub(crate) fn rehydrate_canonical_defaults(
+    model_config: ModelConfig,
+    provider_name: Option<&str>,
+) -> ModelConfig {
+    let global_provider = Config::global().get_goose_provider().ok();
+    let provider_name = provider_name.or(global_provider.as_deref());
+    match provider_name {
+        Some(provider_name) => apply_canonical_limits(provider_name, model_config),
+        None => model_config,
+    }
+}
+
 fn materialize_model_config_inner(
     mut model: ModelConfig,
     provider_name: &str,

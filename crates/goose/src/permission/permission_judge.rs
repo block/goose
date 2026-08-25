@@ -17,7 +17,10 @@ async fn resolve_model_config(
     if !session_id.is_empty() {
         if let Ok(session) = session_manager.get_session(session_id, false).await {
             if let Some(model_config) = session.model_config {
-                return Ok(model_config);
+                return Ok(crate::model_config::rehydrate_canonical_defaults(
+                    model_config,
+                    session.provider_name.as_deref(),
+                ));
             }
         }
     }

@@ -416,7 +416,10 @@ pub fn format_messages_with_options(
                         } else {
                             content_array.push(json!({
                                 "type": "text",
-                                "text": "[image omitted: model does not support vision]"
+                                "text": format!(
+                                    "[image omitted: model does not support vision ({})]",
+                                    image.mime_type
+                                )
                             }));
                         }
                     } else {
@@ -1676,7 +1679,7 @@ pub fn create_request(
         for_streaming,
         OpenAiFormatOptions {
             preserve_thinking_context: true,
-            supports_vision: model_config.supports_vision.unwrap_or_default(),
+            supports_vision: model_config.supports_vision.unwrap_or(true),
             ..Default::default()
         },
     )
@@ -2453,7 +2456,6 @@ mod tests {
         assert_eq!(content.len(), 2);
         assert_eq!(content[1]["type"], "image_url");
 
-        // Unknown (None): passthrough, no image_url.
         let unknown = ModelConfig::new("gpt-4o");
         let request = create_request(
             &unknown,
@@ -2464,9 +2466,9 @@ mod tests {
             false,
         )?;
         let messages = request["messages"].as_array().unwrap();
-        let content = messages[1]["content"].as_str().unwrap();
-        assert!(content.contains(png_path_str));
-        assert!(!content.contains("image_url"));
+        let content = messages[1]["content"].as_array().unwrap();
+        assert_eq!(content.len(), 2);
+        assert_eq!(content[1]["type"], "image_url");
 
         // Explicitly non-vision: passthrough, no image_url.
         let non_vision = ModelConfig::new("gpt-4o").with_vision_support(false);
@@ -2503,7 +2505,10 @@ mod tests {
         );
         assert_eq!(spec.len(), 1);
         let content = spec[0]["content"].as_str().unwrap();
-        assert_eq!(content, "[image omitted: model does not support vision]");
+        assert_eq!(
+            content,
+            "[image omitted: model does not support vision (image/png)]"
+        );
         assert!(!content.contains("image_url"));
         assert!(!content.contains("data:image"));
 
