@@ -1641,6 +1641,9 @@ impl GooseAcpAgent {
                 );
                 let mut meta = serde_json::Map::new();
                 meta.insert("goose".to_string(), serde_json::Value::Object(goose));
+                server
+                    .wait_for_active_run_to_finish(session_id.0.as_ref())
+                    .await;
                 let request = PromptRequest::new(session_id, Vec::new()).meta(meta);
                 server.on_prompt(&cx, request).await?;
                 Ok(())
@@ -1942,6 +1945,20 @@ impl GooseAcpAgent {
             },
         );
         Ok(())
+    }
+
+    async fn wait_for_active_run_to_finish(&self, session_id: &str) {
+        loop {
+            if !self
+                .active_prompt_runs
+                .lock()
+                .await
+                .contains_key(session_id)
+            {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
     }
 
     async fn clear_active_run(&self, session_id: &str, run_id: &str) {
