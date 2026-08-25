@@ -22,7 +22,7 @@ use crate::config::GooseMode;
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
 use crate::hints::load_hints::SubdirectoryHintTracker;
-use crate::hooks::{HookChainOutcome, HookContext, HookDecision, HookEvent, HookManager};
+use crate::hooks::{HookChainOutcome, HookContext, HookEvent, HookManager};
 use crate::session::{EnabledExtensionsState, ExtensionState, Session};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -100,9 +100,7 @@ async fn emit_pre_tool_use_result(
         .with_tool_call_id(tool_call_id)
         .with_working_dir(session.working_dir.to_string_lossy().to_string())
         .with_pre_tool_use_outcome(outcome);
-    hook_manager
-        .emit(HookEvent::PreToolUseResult, context)
-        .await;
+    hook_manager.emit_pre_tool_use_result(context).await;
 }
 
 /// Runs the `PreToolUse` chain, emits `PreToolUseResult`, and reports a denial
@@ -145,14 +143,11 @@ pub(super) async fn run_pre_tool_hooks(
     )
     .await;
 
-    if let HookDecision::Deny { reason, plugin } = outcome.decision {
-        tracing::Span::current().record("error.type", "hook_denied");
+    if let Some(denial) = outcome.denial() {
+        tracing::Span::current().record("error.type", denial.error_type);
         return Err(ErrorData::new(
             rmcp::model::ErrorCode::INTERNAL_ERROR,
-            format!(
-                "Tool call denied by policy hook `{plugin}`: {reason}. \
-                 Do not retry; this is a policy denial, not a transient failure."
-            ),
+            denial.message,
             None,
         ));
     }
@@ -982,7 +977,9 @@ impl Operation<Session, GooseEffect> for ToolExecutionOperation<'_> {
             effects.push(self.extension_state_effect(session).await?);
         }
 
-        let response = emit.message(response).await;
+        let response = response.with_generated_id_if_missing();
+        emit.emit(AgentEvent::Message(response.user_visible_content()))
+            .await;
         effects.push(response.into());
         applied(effects)
     }

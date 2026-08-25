@@ -1,6 +1,6 @@
-//! Goose SDK.
+//! The goose Development Kit (GDK).
 //!
-//! With default features this crate re-exports the shared SDK wire types from
+//! With default features this crate re-exports the shared GDK wire types from
 //! `goose-sdk-types` so you can build an Agent Client Protocol (ACP) client
 //! that talks to `goose acp` over stdio.
 //!

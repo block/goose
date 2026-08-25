@@ -133,6 +133,13 @@ pub type AcpProviderFactory = Arc<
         + Sync,
 >;
 
+const ACP_VISIBLE_SESSION_TYPES: [SessionType; 3] =
+    [SessionType::User, SessionType::Scheduled, SessionType::Acp];
+
+fn is_acp_visible_session_type(session_type: &SessionType) -> bool {
+    ACP_VISIBLE_SESSION_TYPES.contains(session_type)
+}
+
 /// Convenience conversions from any `Display` error into an `agent_client_protocol::Error`.
 ///
 /// Replaces the repetitive `.internal_err()`

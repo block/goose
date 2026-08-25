@@ -286,6 +286,16 @@ jobs:
           cd ui/sdk
           pnpm run lint
 
+  gdk-api-docs-check:
+    name: Check GDK API Reference is Up-to-Date
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Check generated GDK API reference data
+        run: python3 documentation/automation/gdk-api/generate.py --check
+
   desktop-lint:
     name: Test and Lint Electron Desktop App
     runs-on: macos-latest

@@ -59,6 +59,8 @@ tokio = { workspace = true, features = ["io-util", "macros", "net", "rt-multi-th
 tokio-stream = { workspace = true }
 env-lock = { workspace = true }
 wiremock.workspace = true
+flate2 = "1.1.9"
+reqwest = { workspace = true, features = ["gzip"] }
 
 [[example]]
 name = "streaming"

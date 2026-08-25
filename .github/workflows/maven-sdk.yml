@@ -1,4 +1,4 @@
-name: Maven SDK
+name: Maven GDK
 
 on:
   workflow_dispatch:
