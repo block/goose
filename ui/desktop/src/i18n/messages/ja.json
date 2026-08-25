@@ -4531,9 +4531,6 @@
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "自動ダウンロードは無効です。手動でダウンロードするには「今すぐダウンロード」をクリックしてください。"
   },
-  "updateSection.autoInstallNote": {
-    "defaultMessage": "アプリを終了すると、アップデートが自動的にインストールされます。"
-  },
   "updateSection.checkForUpdates": {
     "defaultMessage": "アップデートを確認"
   },
@@ -4564,26 +4561,11 @@
   "updateSection.installAndRestart": {
     "defaultMessage": "インストールして再起動"
   },
-  "updateSection.installNowHint": {
-    "defaultMessage": "今すぐアップデートするには「インストールして再起動」をクリックしてください。"
-  },
   "updateSection.latestVersion": {
     "defaultMessage": "最新バージョンを使用しています！"
   },
   "updateSection.loading": {
     "defaultMessage": "読み込み中..."
-  },
-  "updateSection.manualInstallNote": {
-    "defaultMessage": "ダウンロード後、アップデートを手動でインストールする必要があります。"
-  },
-  "updateSection.manualInstallRequired": {
-    "defaultMessage": "このアップデート方法では、手動インストールが必要です。"
-  },
-  "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ アップデートの準備ができました！Gooseを終了するとインストールされます。"
-  },
-  "updateSection.readyInstallManual": {
-    "defaultMessage": "✓ アップデートの準備ができました！インストール手順を表示するには「インストールして再起動」をクリックしてください。"
   },
   "updateSection.upToDate": {
     "defaultMessage": "(最新)"
