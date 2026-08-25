@@ -15,6 +15,7 @@ activities:
   - Test delegate tool for task delegation (sync and async)
   - Test multi-turn thinking preservation for providers that reject replayed reasoning_content
   - Validate ACP thinking-effort discovery, forwarding, and provider switching
+  - Validate provider-reported context windows reach session model configs
   - Test error boundaries including nested delegation prevention
   - Generate comprehensive test report
 
@@ -23,7 +24,7 @@ parameters:
     input_type: string
     requirement: optional
     default: "all"
-    description: "Which test phases to run: all, basic, extensions, delegation, reasoning, acp-effort, advanced"
+    description: "Which test phases to run: all, basic, extensions, delegation, reasoning, acp-effort, inventory-context, advanced"
 
   - key: test_depth
     input_type: string
@@ -413,6 +414,28 @@ prompt: |
      managed providers preserve values they support.
 
   Log results to: {{ workspace_dir }}/phase3d_acp_effort.md
+  {% endif %}
+
+  {% if test_phases == "all" or "inventory-context" in test_phases %}
+  ## 🪟 PHASE 3E: Inventory Context Windows
+
+  **Prerequisites**: Run from a goose source checkout with the Rust toolchain
+  available and `OPENROUTER_API_KEY` configured. Skip this phase and record it
+  as SKIPPED otherwise.
+
+  ### Provider-Reported Context Window Integration
+  1. Run `cargo test -p goose providers::inventory`.
+  2. Trigger an OpenRouter inventory refresh, then verify a noncanonical model
+     (e.g. `stealth/ox-alpha`) resolves its session `context_limit` from the
+     provider-reported value instead of the 128k default.
+  3. Verify canonical-covered models keep catalog values unless the provider
+     reports a different one, and that a fresh report outranks the catalog.
+  4. Set `GOOSE_CONTEXT_LIMIT` to a smaller value and confirm it still
+     overrides any stored window.
+  5. Confirm Azure Foundry sessions ignore inventory windows entirely
+     (deployment-derived limits).
+
+  Log results to: {{ workspace_dir }}/phase3e_inventory_context.md
   {% endif %}
 
   {% if test_phases == "all" or "advanced" in test_phases %}
