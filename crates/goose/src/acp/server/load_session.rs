@@ -236,7 +236,7 @@ impl GooseAcpAgent {
                 request.tool_name.clone(),
                 request.arguments.clone(),
                 request.prompt.clone(),
-                false,
+                true,
             )?;
         }
 
