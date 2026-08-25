@@ -99,3 +99,7 @@ pub use init::{
     refresh_custom_providers,
 };
 pub use retry::{retry_operation, RetryConfig};
+
+fn install_jsonwebtoken_crypto_provider() {
+    let _ = jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER.install_default();
+}

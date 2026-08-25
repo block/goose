@@ -436,6 +436,7 @@ impl GcpAuth {
     /// # Returns
     /// * `Result<String>` - A signed JWT token
     fn create_jwt_token(&self, creds: &ServiceAccountCredentials) -> Result<String, AuthError> {
+        super::install_jsonwebtoken_crypto_provider();
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|e| AuthError::TokenCreation(e.to_string()))?

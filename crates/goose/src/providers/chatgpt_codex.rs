@@ -416,6 +416,7 @@ async fn get_jwks(state: &ChatGptCodexAuthState) -> Result<JwkSet> {
 }
 
 fn parse_jwt_claims_with_jwks(token: &str, jwks: &JwkSet) -> Result<JwtClaims> {
+    super::install_jsonwebtoken_crypto_provider();
     let header = decode_header(token)?;
     let kid = header
         .kid
