@@ -77,6 +77,7 @@ fn keeps_named_presets_in_the_tag_position_as_variant_labels() {
     // These are the only variant these repos expose, so they stay listed.
     assert_eq!(quant("Qwen3.6-35B-A3B-APEX-I-Quality.gguf"), "Quality");
     assert_eq!(quant("SIQ-1-35B-OPAL-quality.gguf"), "quality");
+    assert_eq!(quant("Model.Quality.gguf"), "Quality");
     // A real quant tag elsewhere in the name still wins over the preset word.
     assert_eq!(quant("Model-Q4_0-quality.gguf"), "Q4_0");
 }

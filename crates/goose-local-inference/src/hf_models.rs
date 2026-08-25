@@ -317,7 +317,7 @@ fn parse_quantization(filename: &str) -> String {
     // Some publishers put a named preset rather than a quantization in the tag
     // position ("...-APEX-I-Quality"). Keep accepting a trailing Q-word so those
     // repos still expose the single variant they ship.
-    if let Some((_, tail)) = stem.rsplit_once('-') {
+    if let Some((_, tail)) = stem.rsplit_once(['-', '.']) {
         if tail.starts_with(['Q', 'q']) {
             return tail.to_string();
         }
@@ -379,13 +379,14 @@ fn is_shard_file(filename: &str) -> bool {
     parse_shard_index(filename).is_some()
 }
 
-fn shard_set_key(filename: &str) -> Option<&str> {
+fn shard_set_key(filename: &str) -> Option<(&str, &str)> {
     let stem = filename.trim_end_matches(".gguf");
     let pos = stem.rfind("-of-")?;
     let before = stem.get(..pos)?;
+    let total = stem.get(pos + 4..)?;
     let (prefix, index) = before.rsplit_once('-')?;
     if !index.is_empty() && index.chars().all(|c| c.is_ascii_digit()) {
-        Some(prefix)
+        Some((prefix, total))
     } else {
         None
     }
@@ -411,7 +412,7 @@ fn is_complete_shard_set(files: &[&HfApiSibling]) -> bool {
 }
 
 fn select_preferred_shard_set(files: Vec<&HfApiSibling>) -> Vec<&HfApiSibling> {
-    let mut shard_sets: std::collections::HashMap<&str, Vec<&HfApiSibling>> =
+    let mut shard_sets: std::collections::HashMap<(&str, &str), Vec<&HfApiSibling>> =
         std::collections::HashMap::new();
 
     for file in files {
@@ -425,7 +426,7 @@ fn select_preferred_shard_set(files: Vec<&HfApiSibling>) -> Vec<&HfApiSibling> {
         .min_by(|(key_a, files_a), (key_b, files_b)| {
             is_complete_shard_set(files_b)
                 .cmp(&is_complete_shard_set(files_a))
-                .then_with(|| key_a.len().cmp(&key_b.len()))
+                .then_with(|| (key_a.0.len() + key_a.1.len()).cmp(&(key_b.0.len() + key_b.1.len())))
                 .then_with(|| key_a.cmp(key_b))
         })
         .map(|(_, files)| files)
@@ -1567,6 +1568,38 @@ mod tests {
         assert_eq!(variants.len(), 1);
         assert_eq!(variants[0].size_bytes, 4_000_000_000);
         assert_eq!(variants[0].filename, "Model-Q4_K_M-mtp-00001-of-00002.gguf");
+    }
+
+    #[test]
+    fn test_group_into_variants_keeps_different_shard_totals_separate() {
+        let files = vec![
+            HfApiSibling {
+                rfilename: "Model-Q4_K_M-00001-of-00002.gguf".into(),
+                size: Some(2_000_000_000),
+            },
+            HfApiSibling {
+                rfilename: "Model-Q4_K_M-00002-of-00002.gguf".into(),
+                size: Some(1_000_000_000),
+            },
+            HfApiSibling {
+                rfilename: "Model-Q4_K_M-00001-of-00003.gguf".into(),
+                size: Some(2_500_000_000),
+            },
+            HfApiSibling {
+                rfilename: "Model-Q4_K_M-00002-of-00003.gguf".into(),
+                size: Some(1_500_000_000),
+            },
+            HfApiSibling {
+                rfilename: "Model-Q4_K_M-00003-of-00003.gguf".into(),
+                size: Some(500_000_000),
+            },
+        ];
+
+        let variants = group_into_variants("someone/Model-GGUF", files);
+
+        assert_eq!(variants.len(), 1);
+        assert_eq!(variants[0].size_bytes, 3_000_000_000);
+        assert_eq!(variants[0].filename, "Model-Q4_K_M-00001-of-00002.gguf");
     }
 
     #[test]
