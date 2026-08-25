@@ -28,6 +28,7 @@ use reqwest::StatusCode;
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use crate::base::{MessageStream, ProviderDescriptor};
 use crate::model::ModelConfig;
@@ -38,6 +39,24 @@ pub const OPEN_AI_DEFAULT_BASE_PATH: &str = "v1/chat/completions";
 pub const OPEN_AI_VERSIONLESS_BASE_PATH: &str = "chat/completions";
 const OPEN_AI_DEFAULT_RESPONSES_PATH: &str = "v1/responses";
 const OPEN_AI_DEFAULT_MODELS_PATH: &str = "v1/models";
+const N_CTX_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
+const N_CTX_FAILURE_TTL: Duration = Duration::from_secs(60);
+
+#[derive(Debug, Clone, Copy)]
+enum CachedContextLimit {
+    Success(Option<usize>),
+    Failure(Instant),
+}
+
+impl CachedContextLimit {
+    fn value(self) -> Option<Option<usize>> {
+        match self {
+            Self::Success(limit) => Some(limit),
+            Self::Failure(fetched_at) if fetched_at.elapsed() < N_CTX_FAILURE_TTL => Some(None),
+            Self::Failure(_) => None,
+        }
+    }
+}
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
 pub const OPEN_AI_DEFAULT_FAST_MODEL: &str = "gpt-4o-mini";
 pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
@@ -149,7 +168,7 @@ pub struct OpenAiProvider {
     skip_canonical_filtering: bool,
     preserve_thinking_context: bool,
     #[serde(skip)]
-    n_ctx_cache: Arc<Mutex<HashMap<String, Option<usize>>>>,
+    n_ctx_cache: Arc<Mutex<HashMap<String, CachedContextLimit>>>,
 }
 
 /// Builder for [`OpenAiProvider`].
@@ -712,29 +731,33 @@ impl Provider for OpenAiProvider {
                     .lock()
                     .ok()
                     .and_then(|cache| cache.get(model).copied())
+                    .and_then(CachedContextLimit::value)
                 {
                     return Ok(cached);
                 }
 
-                const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
-                let probed =
-                    match tokio::time::timeout(PROBE_TIMEOUT, self.fetch_n_ctx_from_api(model))
-                        .await
-                    {
-                        Ok(Ok(limit)) => limit,
-                        Ok(Err(error)) if error.is_endpoint_not_found() => None,
-                        Ok(Err(error)) => return Err(error),
-                        Err(_) => {
-                            return Err(ProviderError::RequestFailed(
-                                "Context-limit discovery timed out".into(),
-                            ));
-                        }
-                    };
+                let probed = match tokio::time::timeout(
+                    N_CTX_PROBE_TIMEOUT,
+                    self.fetch_n_ctx_from_api(model),
+                )
+                .await
+                {
+                    Ok(Ok(limit)) => Ok(limit),
+                    Ok(Err(error)) if error.is_endpoint_not_found() => Ok(None),
+                    Ok(Err(error)) => Err(error),
+                    Err(_) => Err(ProviderError::RequestFailed(
+                        "Context-limit discovery timed out".into(),
+                    )),
+                };
 
                 if let Ok(mut cache) = self.n_ctx_cache.lock() {
-                    cache.insert(model.to_string(), probed);
+                    let cached = match probed.as_ref() {
+                        Ok(limit) => CachedContextLimit::Success(*limit),
+                        Err(_) => CachedContextLimit::Failure(Instant::now()),
+                    };
+                    cache.insert(model.to_string(), cached);
                 }
-                Ok(probed)
+                probed
             })
             .await
     }
@@ -1477,6 +1500,64 @@ mod tests {
             preserve_thinking_context: false,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
+    }
+
+    #[tokio::test]
+    async fn context_limit_caches_failed_models_probe() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(500))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let mut provider = make_provider_with_custom_models(
+            &server.uri(),
+            "v1/chat/completions",
+            vec!["other-model".to_string()],
+        );
+        provider.custom_models = None;
+
+        for _ in 0..2 {
+            assert_eq!(
+                provider.get_context_limit("unknown-model", None).await,
+                crate::model::DEFAULT_CONTEXT_LIMIT
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn context_limit_retries_expired_models_probe_failure() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(500))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let mut provider = make_provider_with_custom_models(
+            &server.uri(),
+            "v1/chat/completions",
+            vec!["other-model".to_string()],
+        );
+        provider.custom_models = None;
+        provider.n_ctx_cache.lock().unwrap().insert(
+            "unknown-model".to_string(),
+            CachedContextLimit::Failure(Instant::now() - N_CTX_FAILURE_TTL),
+        );
+
+        assert_eq!(
+            provider.get_context_limit("unknown-model", None).await,
+            crate::model::DEFAULT_CONTEXT_LIMIT
+        );
     }
 
     #[tokio::test]
