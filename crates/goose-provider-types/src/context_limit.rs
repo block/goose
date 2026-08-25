@@ -23,11 +23,10 @@ impl ContextLimitResolver {
         mut self,
         configured_limits: impl IntoIterator<Item = (String, usize)>,
     ) -> Self {
-        self.configured_limits.extend(
-            configured_limits
-                .into_iter()
-                .filter(|(_, context_limit)| *context_limit > 0),
-        );
+        self.configured_limits = configured_limits
+            .into_iter()
+            .filter(|(_, context_limit)| *context_limit > 0)
+            .collect();
         self
     }
 
