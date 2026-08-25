@@ -62,6 +62,28 @@ ALWAYS_FORWARD_PATHS = [
     '/api/2.0/',  # Databricks management API
 ]
 
+# Path fragments identifying an inference/completion request.
+#
+# Error injection only applies to these. Every error mode the proxy offers
+# describes a completion failure (context length exceeded, rate limited,
+# upstream 500), so injecting them into metadata traffic such as model listing
+# is meaningless. It is also actively harmful in count mode: a pre-flight
+# request would silently consume the error budget intended for a completion,
+# making "inject N errors" depend on goose's incidental call pattern rather
+# than on the completions the test is actually exercising.
+COMPLETION_PATHS = [
+    '/chat/completions',  # OpenAI and compatible
+    '/completions',       # OpenAI legacy
+    '/messages',          # Anthropic
+    '/responses',         # OpenAI Responses API
+    ':generatecontent',   # Google Gemini
+    ':streamgeneratecontent',
+    '/converse',          # Bedrock
+    '/invoke',            # Bedrock / Databricks serving
+    '/invocations',
+    '/serving-endpoints',  # Databricks
+]
+
 
 class ErrorMode(Enum):
     """Error injection modes."""
@@ -383,7 +405,23 @@ class ErrorProxy:
         for forward_path in ALWAYS_FORWARD_PATHS:
             if forward_path in path:
                 return True
-        return False
+        return not self.is_completion_request(request)
+
+    def is_completion_request(self, request: Request) -> bool:
+        """
+        Check whether this request is an inference/completion call.
+
+        Only completion requests are eligible for error injection; see
+        COMPLETION_PATHS.
+
+        Args:
+            request: The incoming HTTP request
+
+        Returns:
+            True if this is a completion request
+        """
+        path = request.path.lower()
+        return any(fragment in path for fragment in COMPLETION_PATHS)
 
     def get_target_url(self, request: Request, provider: str) -> str:
         """
@@ -462,7 +500,13 @@ class ErrorProxy:
 
         # Check if this request should always be forwarded
         if self.should_always_forward(request):
-            logger.info(f"🔄 Always forwarding: {request.path}")
+            if self.is_completion_request(request):
+                logger.info(f"🔄 Always forwarding: {request.path}")
+            else:
+                logger.info(
+                    f"🔄 Forwarding non-completion request (not eligible for "
+                    f"error injection): {request.path}"
+                )
         else:
             # Capture the error mode BEFORE checking if we should inject (since that modifies state)
             mode_before_check = self.get_error_mode()
