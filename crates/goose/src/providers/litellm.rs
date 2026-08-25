@@ -7,6 +7,7 @@ use goose_providers::errors::ProviderError;
 use goose_providers::images::ImageFormat;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{
@@ -26,6 +27,15 @@ const LITELLM_DEFAULT_HOST: &str = "http://localhost:4000";
 pub const LITELLM_DEFAULT_MODEL: &str = "gpt-4o-mini";
 pub const LITELLM_DOC_URL: &str = "https://docs.litellm.ai/docs/";
 
+const MODEL_INFO_DISCOVERY_TIMEOUT: Duration = Duration::from_secs(5);
+const MODEL_INFO_FAILURE_TTL: Duration = Duration::from_secs(60);
+
+#[derive(Debug)]
+enum CachedModelInfo {
+    Success(Vec<ModelInfo>),
+    Failure(Instant),
+}
+
 #[derive(Debug, serde::Serialize)]
 pub struct LiteLLMProvider {
     #[serde(skip)]
@@ -34,7 +44,7 @@ pub struct LiteLLMProvider {
     #[serde(skip)]
     name: String,
     #[serde(skip)]
-    cached_model_info: tokio::sync::OnceCell<Option<Vec<ModelInfo>>>,
+    cached_model_info: tokio::sync::Mutex<Option<CachedModelInfo>>,
 }
 
 impl LiteLLMProvider {
@@ -88,25 +98,41 @@ impl LiteLLMProvider {
             api_client,
             base_path,
             name: LITELLM_PROVIDER_NAME.to_string(),
-            cached_model_info: tokio::sync::OnceCell::new(),
+            cached_model_info: tokio::sync::Mutex::new(None),
         })
     }
 
-    async fn get_or_fetch_models(&self) -> Result<&[ModelInfo], ProviderError> {
-        const DISCOVERY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+    async fn get_or_fetch_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        let mut cache = self.cached_model_info.lock().await;
+        match cache.as_ref() {
+            Some(CachedModelInfo::Success(models)) => return Ok(models.clone()),
+            Some(CachedModelInfo::Failure(fetched_at))
+                if fetched_at.elapsed() < MODEL_INFO_FAILURE_TTL =>
+            {
+                return Err(ProviderError::RequestFailed(
+                    "LiteLLM model metadata is unavailable".to_string(),
+                ));
+            }
+            Some(CachedModelInfo::Failure(_)) | None => {}
+        }
 
-        self.cached_model_info
-            .get_or_init(|| async {
-                match tokio::time::timeout(DISCOVERY_TIMEOUT, self.fetch_models_from_api()).await {
-                    Ok(Ok(models)) => Some(models),
-                    Ok(Err(_)) | Err(_) => None,
-                }
-            })
-            .await
-            .as_deref()
-            .ok_or_else(|| {
-                ProviderError::RequestFailed("LiteLLM model metadata is unavailable".to_string())
-            })
+        match tokio::time::timeout(MODEL_INFO_DISCOVERY_TIMEOUT, self.fetch_models_from_api()).await
+        {
+            Ok(Ok(models)) => {
+                *cache = Some(CachedModelInfo::Success(models.clone()));
+                Ok(models)
+            }
+            Ok(Err(error)) => {
+                *cache = Some(CachedModelInfo::Failure(Instant::now()));
+                Err(error)
+            }
+            Err(_) => {
+                *cache = Some(CachedModelInfo::Failure(Instant::now()));
+                Err(ProviderError::RequestFailed(
+                    "LiteLLM model metadata discovery timed out".to_string(),
+                ))
+            }
+        }
     }
 
     async fn fetch_models_from_api(&self) -> Result<Vec<ModelInfo>, ProviderError> {
@@ -331,17 +357,17 @@ mod tests {
             .unwrap(),
             base_path: "v1/chat/completions".to_string(),
             name: LITELLM_PROVIDER_NAME.to_string(),
-            cached_model_info: tokio::sync::OnceCell::new(),
+            cached_model_info: tokio::sync::Mutex::new(None),
         };
 
         assert_eq!(
             provider.get_context_limit("unknown-model", None).await,
             goose_providers::model::DEFAULT_CONTEXT_LIMIT
         );
-        assert!(provider
-            .cached_model_info
-            .get()
-            .is_some_and(Option::is_none));
+        assert!(matches!(
+            provider.cached_model_info.lock().await.as_ref(),
+            Some(CachedModelInfo::Failure(_))
+        ));
         assert_eq!(
             provider.get_context_limit("unknown-model", None).await,
             goose_providers::model::DEFAULT_CONTEXT_LIMIT
@@ -349,13 +375,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn expired_failure_allows_model_info_retry() {
+        let provider = LiteLLMProvider {
+            api_client: ApiClient::new_with_tls(
+                "http://127.0.0.1:1".to_string(),
+                AuthMethod::NoAuth,
+                None,
+            )
+            .unwrap(),
+            base_path: "v1/chat/completions".to_string(),
+            name: LITELLM_PROVIDER_NAME.to_string(),
+            cached_model_info: tokio::sync::Mutex::new(Some(CachedModelInfo::Failure(
+                Instant::now() - MODEL_INFO_FAILURE_TTL,
+            ))),
+        };
+
+        assert!(provider.get_or_fetch_models().await.is_err());
+        assert!(matches!(
+            provider.cached_model_info.lock().await.as_ref(),
+            Some(CachedModelInfo::Failure(fetched_at))
+                if fetched_at.elapsed() < MODEL_INFO_FAILURE_TTL
+        ));
+    }
+
+    #[tokio::test]
     async fn context_limit_uses_cached_model_info() {
-        let cached_model_info = tokio::sync::OnceCell::new();
-        cached_model_info
-            .set(Some(vec![
-                ModelInfo::new("cached-model").with_context_limit(32_000)
-            ]))
-            .unwrap();
+        let cached_model_info =
+            tokio::sync::Mutex::new(Some(CachedModelInfo::Success(vec![ModelInfo::new(
+                "cached-model",
+            )
+            .with_context_limit(32_000)])));
         let provider = LiteLLMProvider {
             api_client: ApiClient::new_with_tls(
                 "http://127.0.0.1:1".to_string(),
