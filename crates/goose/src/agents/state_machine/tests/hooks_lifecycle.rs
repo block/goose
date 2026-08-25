@@ -341,7 +341,6 @@ impl RecordingHookEnv {
         Self::with_on_failure(specs, "")
     }
 
-    /// Same fixture with `"on_failure": "block"` on every command action.
     fn blocking_on_failure(specs: &[HookSpec<'_>]) -> Self {
         Self::with_on_failure(specs, r#", "on_failure": "block""#)
     }
@@ -412,10 +411,6 @@ const DENY_AND_RECORD_SCRIPT: &str =
 /// non-zero. That is a hook that ran but never returned a decision.
 const ABNORMAL_EXIT_AND_RECORD_SCRIPT: &str =
     "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/pre.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/pre.log\"\necho boom >&2\nexit 3\n";
-/// What `ABNORMAL_EXIT_AND_RECORD_SCRIPT` under `on_failure: block` reports
-/// back. The legacy loop asserts this same string in `agents::agent::tests`;
-/// both loops build it through `HookChainOutcome::denial`, so they cannot word
-/// it differently.
 const HOOK_FAILURE_REFUSAL: &str =
     "Tool call blocked because policy hook `test-plugin` could not complete: \
      the hook exited with status 3 and no usable decision. \
@@ -1616,9 +1611,6 @@ async fn final_output_waits_for_ordinary_sibling_and_answers_every_request() -> 
     Ok(())
 }
 
-/// A hook that returns no decision is ignored, which is how hooks behaved
-/// before `on_failure` existed. The tool still runs and the lifecycle event
-/// records why the chain evaluated no policy.
 #[tokio::test]
 async fn pre_tool_use_hook_failure_allows_by_default() -> Result<()> {
     let env = RecordingHookEnv::new(&[
@@ -1647,8 +1639,6 @@ async fn pre_tool_use_hook_failure_allows_by_default() -> Result<()> {
     Ok(())
 }
 
-/// `on_failure: block` turns that same failure into a refusal, worded by the
-/// formatter both loops share and separate from a policy denial.
 #[tokio::test]
 async fn pre_tool_use_hook_failure_blocks_when_configured() -> Result<()> {
     let env = RecordingHookEnv::blocking_on_failure(&[
@@ -1686,8 +1676,6 @@ async fn pre_tool_use_hook_failure_blocks_when_configured() -> Result<()> {
             _ => None,
         })
         .expect("blocked tool response");
-    // Read here after the error code has been rendered in; the legacy loop
-    // asserts the same string on the ErrorData it returns.
     assert!(
         tool_error.message.ends_with(HOOK_FAILURE_REFUSAL),
         "expected the shared refusal, got {}",

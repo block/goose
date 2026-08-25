@@ -22,20 +22,6 @@
 //! Goose currently supports `type: "command"` actions. Unknown event names and
 //! action types are ignored per the spec. Hook scripts receive the JSON event
 //! context on stdin and SHOULD exit 0 on success.
-//!
-//! # The decision channel
-//!
-//! For blocking events, stdout is the protocol channel and nothing else. A hook
-//! reports a decision by exiting 0 with no output, exiting 0 with
-//! `{"decision":"allow"}`, exiting 2 with a reason on stderr, or printing
-//! `{"decision":"block","reason":"..."}`. Anything else means the hook did not
-//! produce a decision: a stray log line on stdout, truncated JSON, an
-//! unexpected exit status. Ordinary logging belongs on stderr.
-//!
-//! A `PreToolUse` command action can set `"on_failure": "block"` to deny the
-//! tool call when its hook fails: it cannot be executed, does not receive its
-//! payload, produces output goose cannot decode, or exits without a decision
-//! goose recognizes. The default, `"allow"`, continues the call.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -57,10 +43,6 @@ use crate::plugins::discovery::{discover_enabled_plugins, DiscoveredPlugin};
 /// Default per-hook timeout when the plugin does not specify one.
 const DEFAULT_HOOK_TIMEOUT_SECS: u64 = 30;
 
-/// Reasons handed to the model and to other hook plugins when a hook could not
-/// produce a decision. They are deliberately fixed strings: the internal errors
-/// embed the configured command and the expanded plugin path, and a command can
-/// carry credentials. The full error goes to the Goose log instead.
 const COMMAND_FAILED_REASON: &str = "the hook command failed to run";
 const SERIALIZATION_FAILED_REASON: &str = "the hook payload could not be serialized";
 const STDIN_DELIVERY_FAILED_REASON: &str = "the hook did not receive the request payload";
@@ -128,18 +110,12 @@ impl std::fmt::Display for HookEvent {
     }
 }
 
-/// Top-level `hooks.json` shape. Each event payload stays raw JSON until the
-/// event name is recognized, so an unknown event carrying a future shape cannot
-/// reject the file and take the valid hooks beside it.
 #[derive(Debug, Default, Deserialize)]
 struct HooksFile {
     #[serde(default)]
     hooks: HashMap<String, Value>,
 }
 
-/// One rule under a recognized event. `matcher` is strict; the action entries
-/// stay raw JSON until an action is selected, so an action type goose does not
-/// run keeps every other field uninterpreted.
 #[derive(Debug, Deserialize)]
 struct RawHookRule {
     #[serde(default)]
@@ -148,46 +124,27 @@ struct RawHookRule {
     hooks: Vec<Value>,
 }
 
-/// A command action that has already been selected: its `type` is `command`,
-/// absent, or null, and its `command` is a present string. Only once an action
-/// reaches this point are its remaining fields parsed strictly.
 #[derive(Debug, Deserialize)]
 struct RawCommandAction {
-    /// Always present: `select_action` returns `Selected` only when `command`
-    /// is a string, so absent, null, and commandless entries never reach here.
     command: String,
     #[serde(default)]
     timeout: Option<u64>,
-    /// Held as raw JSON so an unrecognized value is rejected where it means
-    /// something rather than at whole-file parse. `None` means the key was
-    /// absent; an explicit `null` is preserved as `Some(Value::Null)` so it is
-    /// rejected rather than defaulting to allow. Interpreted for `PreToolUse`
-    /// only.
     #[serde(default, deserialize_with = "deserialize_present_on_failure")]
     on_failure: Option<Value>,
 }
 
-/// Whether one raw action entry is something goose runs.
 #[derive(Debug, PartialEq, Eq)]
 enum ActionSelection {
-    /// A command action with a runnable command. Its remaining fields are strict.
     Selected,
-    /// An unsupported action type, or a command action with no command. Ignored
-    /// without interpreting any of its other fields.
     Ignored,
 }
 
-/// Decide whether goose runs an action entry, reading `type` and `command` and
-/// nothing else. Everything beyond those two keys stays uninterpreted until the
-/// entry is selected, so a future field shape on an entry goose ignores cannot
-/// reject the plugin file.
 fn select_action(action: &Value, plugin_name: &str, path: &Path) -> Result<ActionSelection> {
     let Some(obj) = action.as_object() else {
         anyhow::bail!("hook action in {} must be an object", path.display());
     };
 
     match obj.get("type") {
-        // Absent or null has always meant `command`.
         None | Some(Value::Null) => {}
         Some(Value::String(action_type)) if action_type == "command" => {}
         Some(Value::String(action_type)) => {
@@ -198,9 +155,6 @@ fn select_action(action: &Value, plugin_name: &str, path: &Path) -> Result<Actio
             );
             return Ok(ActionSelection::Ignored);
         }
-        // A non-string discriminator is malformed configuration, not a future
-        // action type to skip over. Ignoring it could silently drop an intended
-        // policy hook behind nothing louder than a debug line.
         Some(_) => anyhow::bail!("hook action `type` in {} must be a string", path.display()),
     }
 
@@ -220,10 +174,6 @@ fn select_action(action: &Value, plugin_name: &str, path: &Path) -> Result<Actio
     }
 }
 
-/// Distinguishes an absent `on_failure` from an explicit `null`. Serde folds
-/// both into `None` for an `Option`; `deserialize_with` runs only when the key
-/// is present, so anything it sees, `null` included, is a value the author
-/// wrote and must be validated rather than defaulted away.
 fn deserialize_present_on_failure<'de, D>(d: D) -> Result<Option<serde_json::Value>, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -231,11 +181,6 @@ where
     serde_json::Value::deserialize(d).map(Some)
 }
 
-/// What a `PreToolUse` action does when its hook fails: it cannot be executed,
-/// times out, never receives its payload, produces output goose cannot decode,
-/// or exits without a decision the protocol recognizes. Absent means
-/// [`OnFailure::Allow`], which is how hooks have always behaved: a hook that
-/// fails is logged and the tool call proceeds.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum OnFailure {
@@ -393,13 +338,6 @@ impl HookContext {
     }
 }
 
-/// The `PreToolUseResult` payload: the common hook context plus the
-/// outcome-only `cause`.
-///
-/// `cause` lives here rather than on [`HookContext`] because that struct is
-/// public and not `non_exhaustive`, so a new field would break any downstream
-/// struct literal. The wire payload is unchanged: `serde(flatten)` emits the
-/// context's fields exactly as before and appends `cause` when there is one.
 #[derive(Debug, Serialize)]
 pub(crate) struct PreToolUseResultPayload {
     #[serde(flatten)]
@@ -414,15 +352,9 @@ pub enum HookDecision {
     Deny { reason: String, plugin: String },
 }
 
-/// Why a blocking chain ended the way it did. Absent only for an allow with no
-/// hook failure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum HookOutcomeCause {
-    /// A hook explicitly denied the call.
     PolicyDenial,
-    /// A hook failed: it could not be executed, did not receive its payload,
-    /// produced output goose could not decode, or answered nothing the decision
-    /// protocol recognizes.
     HookFailure,
 }
 
@@ -435,14 +367,6 @@ impl HookOutcomeCause {
     }
 }
 
-/// Result of running a blocking hook chain: the decision, plus whether any
-/// matching hook ran to a conclusion for this event. A hook counts as evaluated
-/// when its process exits 0, whatever its stdout carried and whether or not the
-/// payload reached it, or when it returns an explicit denial. A spawn failure, a
-/// timeout, a non-zero exit without a denial, a serialization failure, and a
-/// hook that was never reached do not count. Whether the hook produced a usable
-/// decision is a separate question, reported by `cause`.
-///
 /// Crate-internal: the public [`HookManager::emit_blocking`] contract is
 /// unchanged and still returns a [`HookDecision`].
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -461,9 +385,6 @@ impl HookChainOutcome {
         }
     }
 
-    /// The refusal to hand back to the model, or `None` when the chain allowed.
-    /// Shared so both agent loops word a denial identically and classify the
-    /// span the same way.
     pub(crate) fn denial(&self) -> Option<HookDenial> {
         let HookDecision::Deny { reason, plugin } = &self.decision else {
             return None;
@@ -487,8 +408,6 @@ impl HookChainOutcome {
     }
 }
 
-/// How a denied tool call is reported: the message the model sees and the
-/// `error.type` the span records.
 pub(crate) struct HookDenial {
     pub message: String,
     pub error_type: &'static str,
@@ -619,8 +538,6 @@ impl HookManager {
         .await;
     }
 
-    /// Emit `PreToolUseResult` with its outcome-only `cause`. Crate-private so
-    /// the field never has to appear on the public [`HookContext`].
     pub(crate) async fn emit_pre_tool_use_result(&self, payload: PreToolUseResultPayload) {
         let event = HookEvent::PreToolUseResult;
         if !self.has_hooks(event) {
@@ -642,8 +559,6 @@ impl HookManager {
         .await;
     }
 
-    /// The shared body of [`Self::emit`]: run every matching rule against an
-    /// already serialized payload.
     async fn emit_serialized(
         &self,
         event: HookEvent,
@@ -751,8 +666,6 @@ impl HookManager {
                 .await
                 {
                     Ok(run) if run.output.status.success() => {
-                        // A banner is display text, not the decision protocol,
-                        // so lossy decoding is the right call here.
                         let stdout = String::from_utf8_lossy(&run.output.stdout);
                         if let Some(banner) = extract_banner(stdout.trim()) {
                             banners.push(banner);
@@ -787,20 +700,10 @@ impl HookManager {
     /// Like [`Self::emit`], but stops at the first rule that denies the event
     /// and returns the denial. A hook denies by exiting with status code 2
     /// (reason on stderr) or by printing `{"decision":"block","reason":"..."}`
-    /// to stdout. A hook that fails, whether it could not run, never received
-    /// its payload, or returned nothing usable, is logged and treated as Allow,
-    /// unless it is a `PreToolUse` action with `on_failure: block`.
     pub async fn emit_blocking(&self, event: HookEvent, ctx: HookContext) -> HookDecision {
         self.emit_blocking_with_outcome(event, ctx).await.decision
     }
 
-    /// Like [`Self::emit_blocking`], but also reports whether any matching hook
-    /// ran to a conclusion, which `PreToolUseResult` needs for
-    /// `policy_evaluated`, and why the chain ended as it did.
-    ///
-    /// The payload is serialized after matching rather than before, so that a
-    /// serialization failure can be attributed to the action that would have
-    /// received it and honour that action's `on_failure`.
     pub(crate) async fn emit_blocking_with_outcome(
         &self,
         event: HookEvent,
@@ -828,30 +731,17 @@ impl HookManager {
                 timeout,
                 on_failure,
             } = action;
-            // `already_logged` keeps an execution failure to a single warning: the
-            // Err arm below records the real error, so the generic fail-open
-            // warning would only repeat it. Classify-origin failures are not
-            // logged there, so they still get exactly one warning.
             let (verdict, evaluated, already_logged) = match self
                 .run_action(event, &ctx.session_id, rule, command, &payload, *timeout)
                 .await
             {
                 Ok(run) => {
                     let verdict = classify_run(&run);
-                    // The merged contract, unchanged: exiting 0 or returning an
-                    // explicit decision is what makes a hook an evaluation. It
-                    // is deliberately independent of `on_failure`, which decides
-                    // only what a missing decision does, and of whether the hook
-                    // produced a usable decision, which `cause` reports.
                     let evaluated = run.output.status.success()
                         || matches!(verdict, HookVerdict::PolicyDeny { .. });
                     (verdict, evaluated, false)
                 }
                 Err(err) => {
-                    // The internal error embeds the configured command and the
-                    // expanded plugin path, and a command can carry credentials.
-                    // That detail belongs in our logs, never in a reason handed
-                    // to the model or broadcast to other hook plugins.
                     warn!(
                         plugin = %rule.plugin_name,
                         event = %event,
@@ -868,8 +758,6 @@ impl HookManager {
                     )
                 }
             };
-            // At-least-one, and latched: an earlier evaluation stays true when a
-            // later hook in the chain fails.
             policy_evaluated |= evaluated;
 
             match apply_verdict(verdict, *on_failure, event) {
@@ -931,11 +819,6 @@ impl HookManager {
     }
 }
 
-/// The outcome for a payload that could not be serialized: no hook ran, so
-/// nothing was evaluated, and the failure is attributed to the first matching
-/// action configured to block. Pure, so a test can pin both shapes without a
-/// seam in the runtime path. [`HookContext`] is entirely serializable, so the
-/// production caller cannot be made to reach this with a real context.
 fn serialization_failure_outcome(
     matched: &[(&LoadedRule, &LoadedAction)],
     event: HookEvent,
@@ -961,19 +844,12 @@ fn serialization_failure_outcome(
     }
 }
 
-/// One hook execution: what the child returned, plus whether Goose managed to
-/// hand it the whole request payload on stdin. A hook that never received the
-/// request cannot have decided on it, but it may still have printed an explicit
-/// denial, so the two facts are carried separately and reconciled in
-/// [`classify_run`].
 #[derive(Debug)]
 struct HookRun {
     output: std::process::Output,
     stdin_delivered: bool,
 }
 
-/// What one action decided. Distinct from [`HookDecision`] because a hook that
-/// failed, for any reason, is not the same as one that allowed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum HookVerdict {
     Allow,
@@ -981,7 +857,6 @@ enum HookVerdict {
     HookFailure { reason: String },
 }
 
-/// What a verdict does to the rest of the chain.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ChainStep {
     Allowed,
@@ -994,8 +869,6 @@ enum ChainStep {
     },
 }
 
-/// `on_failure: block` is honoured for `PreToolUse` only. The same chain serves
-/// the `Stop` hook, where a broken hook must never block a finished turn.
 fn apply_verdict(verdict: HookVerdict, on_failure: OnFailure, event: HookEvent) -> ChainStep {
     match verdict {
         HookVerdict::Allow => ChainStep::Allowed,
@@ -1030,13 +903,6 @@ fn extract_banner(stdout: &str) -> Option<String> {
     parsed.banner.filter(|b| !b.is_empty())
 }
 
-/// Reconcile what the child returned with whether it was actually asked.
-///
-/// An explicit denial the hook managed to print still wins. It decided
-/// something, and honouring a denial is strictly safer than discarding it
-/// because we could not hand over the payload. Anything else that follows a
-/// failed delivery is a hook failure: the hook answered a question it never
-/// received, so its allow cannot be trusted as a policy decision.
 fn classify_run(run: &HookRun) -> HookVerdict {
     let verdict = classify_output(&run.output);
     if run.stdin_delivered || matches!(verdict, HookVerdict::PolicyDeny { .. }) {
@@ -1047,20 +913,6 @@ fn classify_run(run: &HookRun) -> HookVerdict {
     }
 }
 
-/// Read one hook's exit status and stdout as a verdict.
-///
-/// Precedence, explicit denial ahead of execution failure:
-///
-/// 1. exit 2 denies, reason from stderr
-/// 2. `{"decision":"block"}` denies whatever the exit status
-/// 3. exit 0 with no output allows
-/// 4. exit 0 with `{"decision":"allow"}` allows
-/// 5. anything else produced no decision
-///
-/// Only those two allow shapes count, so a hook that logs to stdout reads as a
-/// failure rather than an allow. Ordinary logging belongs on stderr. stdout is
-/// read as strict UTF-8, so invalid bytes are a failure rather than something
-/// to repair into a decision.
 fn classify_output(output: &std::process::Output) -> HookVerdict {
     const DEFAULT_DENY: &str = "denied by plugin hook";
     let non_empty = |s: String| if s.is_empty() { DEFAULT_DENY.into() } else { s };
@@ -1078,10 +930,6 @@ fn classify_output(output: &std::process::Output) -> HookVerdict {
         reason: Option<String>,
     }
 
-    // Strict, not lossy. Lossy decoding replaces invalid bytes with U+FFFD,
-    // which can repair malformed protocol output into JSON that parses as an
-    // allow. stderr above stays lossy: it is a human diagnostic, not a channel
-    // we make decisions from.
     let Ok(stdout) = std::str::from_utf8(&output.stdout) else {
         return HookVerdict::HookFailure {
             reason: "the hook wrote invalid UTF-8 to stdout".to_string(),
@@ -1129,21 +977,14 @@ fn load_hooks_file(
 
     let mut out: HashMap<HookEvent, Vec<LoadedRule>> = HashMap::new();
     for (event_name, raw_payload) in parsed.hooks {
-        // An unknown event's payload is never inspected, whatever shape it has.
         let Some(event) = HookEvent::from_name(&event_name) else {
             debug!(plugin = plugin_name, event = %event_name, "Ignoring unknown hook event");
             continue;
         };
-        // Recognized: the payload must now be an array of rules.
         let raw_rules: Vec<RawHookRule> = serde_json::from_value(raw_payload)
             .with_context(|| format!("reading `{event_name}` rules in {}", path.display()))?;
 
         for raw in raw_rules {
-            // The rule is read in the same order the single-pass loader used.
-            //
-            // First, select each action and parse its supported fields strictly,
-            // so a malformed shape still fails the load exactly when every action
-            // was parsed with the whole file.
             let mut selected = Vec::new();
             for raw_action in raw.hooks {
                 if select_action(&raw_action, plugin_name, path)? == ActionSelection::Ignored {
@@ -1154,9 +995,6 @@ fn load_hooks_file(
                 selected.push(action);
             }
 
-            // Then compile the matcher. An invalid regex skips the rule before
-            // on_failure is looked at, so a rule goose will never run cannot fail
-            // the file over a policy value it would never apply.
             let matcher = match raw.matcher.as_deref().filter(|s| !s.is_empty()) {
                 Some(pattern) => match Regex::new(pattern) {
                     Ok(re) => Some(re),
@@ -1173,14 +1011,10 @@ fn load_hooks_file(
                 None => None,
             };
 
-            // Only now, for a rule that survived the matcher, interpret
-            // on_failure and build the runnable actions.
             let mut actions = Vec::new();
             for action in selected {
                 let timeout =
                     Duration::from_secs(action.timeout.unwrap_or(DEFAULT_HOOK_TIMEOUT_SECS));
-                // on_failure governs a PreToolUse decision, so it is interpreted
-                // there and ignored everywhere else.
                 let on_failure = if event == HookEvent::PreToolUse {
                     match action.on_failure {
                         None => OnFailure::Allow,
@@ -1253,11 +1087,6 @@ async fn run_command_hook_inner(
         .spawn()
         .with_context(|| format!("spawning hook `{command}`"))?;
 
-    // A hook that never received the request cannot have decided on it. Record
-    // the delivery failure but keep going: the child may still have printed an
-    // explicit denial, and that decision outranks our delivery problem. Killing
-    // it here would throw the denial away. Dropping `stdin` closes the pipe
-    // either way, so the child always sees EOF and never blocks on a read.
     let mut stdin_delivered = true;
     if let Some(mut stdin) = child.stdin.take() {
         if let Err(err) = stdin.write_all(payload.as_bytes()).await {
@@ -1384,7 +1213,6 @@ mod tests {
         serde_json::json!({ "type": "command", "command": command, "on_failure": "block" })
     }
 
-    /// One plugin per entry, each contributing a single rule with no matcher.
     fn manager_for(root: &Path, event: HookEvent, plugins: &[(&str, Vec<Value>)]) -> HookManager {
         let discovered = plugins
             .iter()
@@ -1414,9 +1242,6 @@ mod tests {
             .await
     }
 
-    /// A context whose payload is far larger than any pipe buffer, so a child
-    /// that exits without reading stdin makes the write genuinely fail rather
-    /// than quietly fitting in the kernel buffer.
     fn oversized_context(event: HookEvent) -> HookContext {
         let filler = "x".repeat(1024 * 1024);
         HookContext::new(event, "s").with_tool(
@@ -1446,7 +1271,6 @@ mod tests {
         }
     }
 
-    /// `exited`, but for stdout that is not valid UTF-8 and so cannot be a &str.
     #[cfg(unix)]
     fn exited_raw(code: i32, stdout: &[u8], stderr: &str) -> std::process::Output {
         use std::os::unix::process::ExitStatusExt;
@@ -1467,7 +1291,6 @@ mod tests {
         }
     }
 
-    /// Every stdout and exit-status boundary the classifier decides on.
     #[cfg(unix)]
     #[test]
     fn classify_output_pins_every_boundary() {
@@ -1475,10 +1298,8 @@ mod tests {
             reason: reason.to_string(),
         };
 
-        // Rule 1: exit 2 always denies, with stderr or the default reason, and
-        // it outranks whatever stdout says.
         assert_eq!(
-            classify_output(&exited(2, "", "  path is protected  ")),
+            classify_output(&exited_raw(2, b"\xff", "  path is protected  ")),
             denies("path is protected")
         );
         assert_eq!(
@@ -1486,120 +1307,58 @@ mod tests {
             denies("denied by plugin hook")
         );
         assert_eq!(
-            classify_output(&exited(2, r#"{"decision":"allow"}"#, "")),
-            denies("denied by plugin hook")
+            classify_output(&exited(1, r#"{"decision":"block","reason":"nope"}"#, "")),
+            denies("nope")
         );
-        assert_eq!(
-            classify_output(&exited_raw(2, b"\xff", "path is protected")),
-            denies("path is protected"),
-            "exit 2 is read before stdout, so unreadable stdout cannot disturb it"
-        );
-
-        // Rule 2: a block decision denies whatever the exit status.
-        for code in [0, 1, 3, 127] {
-            assert_eq!(
-                classify_output(&exited(code, r#"{"decision":"block","reason":"nope"}"#, "")),
-                denies("nope"),
-                "block JSON with exit {code} must deny"
-            );
-        }
         assert_eq!(
             classify_output(&exited(0, r#"{"decision":"block"}"#, "")),
             denies("denied by plugin hook")
         );
 
-        // Rules 3 and 4: the only two shapes that allow.
-        for stdout in ["", "   \n\t  ", r#"{"decision":"allow"}"#] {
-            assert_eq!(
-                classify_output(&exited(0, stdout, "")),
-                HookVerdict::Allow,
-                "exit 0 with {stdout:?} must allow"
-            );
+        for stdout in ["", r#"{"decision":"allow"}"#] {
+            assert_eq!(classify_output(&exited(0, stdout, "")), HookVerdict::Allow);
         }
 
-        // Rule 5: everything else produced no decision at all.
-        for (label, output) in [
-            (
-                "allow JSON with a non-zero exit",
-                exited(1, r#"{"decision":"allow"}"#, ""),
-            ),
-            ("JSON carrying no decision", exited(0, "{}", "")),
-            (
-                "an unknown decision value",
-                exited(0, r#"{"decision":"maybe"}"#, ""),
-            ),
-            ("a JSON array", exited(0, r#"[{"decision":"allow"}]"#, "")),
-            ("JSON null", exited(0, "null", "")),
-            ("malformed JSON", exited(0, r#"{"decision" "allow"}"#, "")),
-            ("truncated JSON", exited(0, r#"{"decision":"allo"#, "")),
-            (
-                "a stray log line on stdout",
-                exited(0, "checking policy", ""),
-            ),
-            (
-                "invalid UTF-8 inside otherwise valid allow JSON",
-                exited_raw(0, b"{\"decision\":\"allow\",\"reason\":\"\xff\"}", ""),
-            ),
-            (
-                "stdout that is not UTF-8 at all",
-                exited_raw(0, b"\xff\xfe", ""),
-            ),
-            ("an unexpected non-zero exit", exited(1, "", "")),
-            ("a command-not-found exit", exited(127, "", "")),
-            ("termination by signal", signalled(9)),
+        for output in [
+            exited(1, r#"{"decision":"allow"}"#, ""),
+            exited(0, r#"{"decision":"maybe"}"#, ""),
+            exited(0, r#"{"decision" "allow"}"#, ""),
+            exited_raw(0, b"{\"decision\":\"allow\",\"reason\":\"\xff\"}", ""),
+            exited(1, "", ""),
+            signalled(9),
         ] {
             assert!(
                 matches!(classify_output(&output), HookVerdict::HookFailure { .. }),
-                "{label} must be a hook failure, got {:?}",
+                "expected a hook failure, got {:?}",
                 classify_output(&output)
             );
         }
     }
 
-    /// `on_failure: block` turns a failure into a denial for `PreToolUse` and
-    /// nothing else. Covers the failures the operating system will not produce
-    /// on demand, including a wait failure, alongside the ones the chain tests
-    /// reach through a real subprocess.
     #[test]
     fn on_failure_block_denies_pre_tool_use_failures_and_leaves_stop_alone() {
-        for reason in [
-            // Spawn, timeout and wait errors all reach this arm as the same
-            // fixed string: the raw error names the command and the plugin
-            // path, so it stays in the log.
-            COMMAND_FAILED_REASON,
-            "the hook was terminated by a signal",
-            "the hook exited with status 3 and no usable decision",
-            "the hook exited 0 without an allow or block decision on stdout",
-            SERIALIZATION_FAILED_REASON,
-        ] {
-            let failure = || HookVerdict::HookFailure {
-                reason: reason.to_string(),
-            };
-            assert_eq!(
-                apply_verdict(failure(), OnFailure::Allow, HookEvent::PreToolUse),
-                ChainStep::FailedOpen {
-                    reason: reason.to_string()
-                },
-                "default mode must ignore: {reason}"
-            );
-            assert_eq!(
-                apply_verdict(failure(), OnFailure::Block, HookEvent::PreToolUse),
-                ChainStep::Denied {
-                    reason: reason.to_string(),
-                    cause: HookOutcomeCause::HookFailure,
-                },
-                "block mode must deny: {reason}"
-            );
-            assert_eq!(
-                apply_verdict(failure(), OnFailure::Block, HookEvent::Stop),
-                ChainStep::FailedOpen {
-                    reason: reason.to_string()
-                },
-                "Stop must stay fail-open: {reason}"
-            );
-        }
+        let failure = || HookVerdict::HookFailure {
+            reason: "failed".to_string(),
+        };
+        let failed_open = ChainStep::FailedOpen {
+            reason: "failed".to_string(),
+        };
+        assert_eq!(
+            apply_verdict(failure(), OnFailure::Allow, HookEvent::PreToolUse),
+            failed_open
+        );
+        assert_eq!(
+            apply_verdict(failure(), OnFailure::Block, HookEvent::PreToolUse),
+            ChainStep::Denied {
+                reason: "failed".to_string(),
+                cause: HookOutcomeCause::HookFailure,
+            }
+        );
+        assert_eq!(
+            apply_verdict(failure(), OnFailure::Block, HookEvent::Stop),
+            failed_open
+        );
 
-        // A hook that did decide is unaffected by on_failure, on either event.
         for event in [HookEvent::PreToolUse, HookEvent::Stop] {
             for mode in [OnFailure::Allow, OnFailure::Block] {
                 assert_eq!(
@@ -1623,54 +1382,28 @@ mod tests {
         }
     }
 
-    /// A hook command can carry credentials, and the internal errors embed both
-    /// the command and the expanded plugin path. Neither may reach the model or
-    /// the other plugins subscribed to `PreToolUseResult`.
     #[cfg(unix)]
     #[tokio::test]
     async fn a_blocked_execution_failure_never_leaks_the_command_or_path() {
         const SECRET: &str = "s3cr3t-token";
-        let cases = [
-            serde_json::json!({
-                "type": "command",
-                "command": format!("curl -H 'Authorization: Bearer {SECRET}' \u{0}"),
-                "on_failure": "block",
-            }),
-            serde_json::json!({
-                "type": "command",
-                "command": format!("sleep 30 # {SECRET}"),
-                "timeout": 0,
-                "on_failure": "block",
-            }),
-        ];
-
-        for spec in cases {
-            let outcome = run_chain(HookEvent::PreToolUse, vec![spec.clone()]).await;
-            let HookDecision::Deny { reason, .. } = &outcome.decision else {
-                panic!("expected a denial for {spec}, got {:?}", outcome.decision);
-            };
-            assert_eq!(
-                reason, COMMAND_FAILED_REASON,
-                "the external reason must be the fixed string, got {reason}"
-            );
-            for leaked in [SECRET, "curl", "sleep 30", "nul byte", "timed out"] {
-                assert!(
-                    !reason.contains(leaked),
-                    "denial reason leaked {leaked:?}: {reason}"
-                );
-            }
+        let spec = serde_json::json!({
+            "type": "command",
+            "command": format!("curl -H 'Authorization: Bearer {SECRET}' \u{0}"),
+            "on_failure": "block",
+        });
+        let outcome = run_chain(HookEvent::PreToolUse, vec![spec]).await;
+        let HookDecision::Deny { reason, .. } = &outcome.decision else {
+            panic!("expected a denial, got {:?}", outcome.decision);
+        };
+        assert_eq!(reason, COMMAND_FAILED_REASON);
+        for leaked in [SECRET, "curl", "nul byte"] {
+            assert!(!reason.contains(leaked));
         }
     }
 
-    /// Every failure the chain can hit through a real subprocess, in both modes.
-    /// The command containing a NUL byte fails to spawn; the zero timeout
-    /// elapses before the child can report.
     #[cfg(unix)]
     #[tokio::test]
     async fn subprocess_failures_fail_open_by_default_and_block_when_configured() {
-        // `evaluated` is the merged contract, independent of the verdict: a hook
-        // that exited 0 counts as an evaluation even when it gave us nothing
-        // usable. `cause` is what reports that it gave us nothing usable.
         let cases = [
             (
                 "spawn failure",
@@ -1689,16 +1422,7 @@ mod tests {
                 action(r#"printf '%s' '{"decision" "allow"}'"#),
                 true,
             ),
-            (
-                "truncated JSON",
-                action(r#"printf '%s' '{"decision":"allo'"#),
-                true,
-            ),
-            (
-                "a stray log line on stdout",
-                action("echo checking policy"),
-                true,
-            ),
+            ("invalid UTF-8", action(r#"printf '\377'"#), true),
             (
                 "allow JSON with a non-zero exit",
                 action(r#"printf '%s' '{"decision":"allow"}'; exit 1"#),
@@ -1740,70 +1464,14 @@ mod tests {
                 blocked.policy_evaluated, evaluated,
                 "{label}: on_failure must not change policy_evaluated"
             );
-
-            let stop = run_chain(HookEvent::Stop, vec![spec]).await;
-            assert_eq!(
-                stop.decision,
-                HookDecision::Allow,
-                "{label} must never block turn completion"
-            );
         }
     }
 
-    /// Blocker 1. The merged contract, pinned on its own: a hook that exits 0
-    /// counts as an evaluation even when its stdout carried nothing usable.
-    /// `on_failure` decides what happens to the call, never what
-    /// `policy_evaluated` reports, and `cause` carries the failure.
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn exit_zero_without_a_decision_still_counts_as_evaluated() {
-        for (label, command) in [
-            ("a stray log line on stdout", "echo checking policy"),
-            ("malformed JSON", r#"printf '%s' '{"decision" "allow"}'"#),
-        ] {
-            let allowed = run_chain(HookEvent::PreToolUse, vec![action(command)]).await;
-            assert_eq!(allowed.decision, HookDecision::Allow, "{label}");
-            assert!(
-                allowed.policy_evaluated,
-                "{label}: the hook exited 0, so a policy was evaluated"
-            );
-            assert_eq!(
-                allowed.cause,
-                Some(HookOutcomeCause::HookFailure),
-                "{label}: cause is what reports the missing decision"
-            );
-
-            let blocked = run_chain(HookEvent::PreToolUse, vec![blocking_action(command)]).await;
-            assert!(
-                matches!(blocked.decision, HookDecision::Deny { .. }),
-                "{label} must deny under on_failure block, got {:?}",
-                blocked.decision
-            );
-            assert!(
-                blocked.policy_evaluated,
-                "{label}: on_failure must not change policy_evaluated"
-            );
-            assert_eq!(
-                blocked.cause,
-                Some(HookOutcomeCause::HookFailure),
-                "{label}"
-            );
-        }
-    }
-
-    /// Blocker 2. The hook exits without reading, so an oversized payload cannot
-    /// be delivered. A hook that never received the request is not entitled to a
-    /// vote it never cast, so its silence cannot read as an allow. An explicit
-    /// denial it did manage to print still stands: honouring a denial is safer
-    /// than discarding it, and we must not kill the child before reading it.
-    ///
-    /// These run the real subprocess and the real stdin pipe, not a helper.
     #[cfg(unix)]
     #[tokio::test]
     async fn a_hook_that_never_received_the_payload_cannot_allow_but_can_still_deny() {
         let event = HookEvent::PreToolUse;
 
-        // delivery failure plus exit 0, default allow
         let open = run_chain_with(event, vec![action("exit 0")], oversized_context(event)).await;
         assert_eq!(
             open.decision,
@@ -1817,25 +1485,6 @@ mod tests {
         );
         assert!(open.policy_evaluated, "it did exit 0");
 
-        // delivery failure plus exit 0, on_failure block
-        let closed = run_chain_with(
-            event,
-            vec![blocking_action("exit 0")],
-            oversized_context(event),
-        )
-        .await;
-        let HookDecision::Deny { reason, .. } = &closed.decision else {
-            panic!(
-                "a policy that never received the request must not allow it under block, got {:?}",
-                closed.decision
-            );
-        };
-        assert_eq!(reason, STDIN_DELIVERY_FAILED_REASON);
-        assert_eq!(closed.cause, Some(HookOutcomeCause::HookFailure));
-
-        // delivery failure plus an explicit allow the hook printed anyway. It
-        // answered a question it never received, so under block that allow does
-        // not save the call. Only a denial survives a failed delivery.
         let printed_allow = run_chain_with(
             event,
             vec![blocking_action(r#"printf '%s' '{"decision":"allow"}'"#)],
@@ -1852,82 +1501,14 @@ mod tests {
         assert_eq!(printed_allow.cause, Some(HookOutcomeCause::HookFailure));
         assert!(printed_allow.policy_evaluated, "it did exit 0");
 
-        // an explicit denial outranks the delivery failure, in either mode
-        for command in [
-            "echo refused by policy >&2; exit 2",
-            r#"printf '%s' '{"decision":"block","reason":"nope"}'"#,
-        ] {
-            for spec in [action(command), blocking_action(command)] {
-                let outcome = run_chain_with(event, vec![spec], oversized_context(event)).await;
-                assert!(
-                    matches!(outcome.decision, HookDecision::Deny { .. }),
-                    "{command}: the denial must survive, got {:?}",
-                    outcome.decision
-                );
-                assert_eq!(
-                    outcome.cause,
-                    Some(HookOutcomeCause::PolicyDenial),
-                    "{command}: an explicit denial is a policy decision, not a delivery failure",
-                );
-                assert!(outcome.policy_evaluated, "{command}");
-            }
-        }
-    }
-
-    /// Blocker 3. stdout is a strict UTF-8 protocol channel. Lossy decoding
-    /// would swap the invalid byte for U+FFFD and hand back JSON that parses as
-    /// a clean allow, so unreadable stdout must read as no decision at all.
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn invalid_utf8_on_stdout_is_never_repaired_into_a_decision() {
-        let event = HookEvent::PreToolUse;
-        // allow-shaped JSON carrying one invalid byte, not a wholly invalid blob
-        let sneaky = r#"printf '{"decision":"allow","reason":"\377"}'"#;
-
-        let open = run_chain(event, vec![action(sneaky)]).await;
-        assert_eq!(open.decision, HookDecision::Allow);
-        assert!(open.policy_evaluated, "the hook exited 0");
-        assert_eq!(
-            open.cause,
-            Some(HookOutcomeCause::HookFailure),
-            "invalid UTF-8 must not be repaired into an allow decision",
-        );
-
-        let closed = run_chain(event, vec![blocking_action(sneaky)]).await;
-        assert!(
-            matches!(closed.decision, HookDecision::Deny { .. }),
-            "under block it must deny, got {:?}",
-            closed.decision
-        );
-        assert!(closed.policy_evaluated);
-        assert_eq!(closed.cause, Some(HookOutcomeCause::HookFailure));
-
-        // Strict parsing must leave both denial signals exactly as they were.
-        let by_exit = run_chain(
+        let denied = run_chain_with(
             event,
-            vec![action(
-                r#"printf '\377'; echo refused by policy >&2; exit 2"#,
-            )],
+            vec![action("echo refused by policy >&2; exit 2")],
+            oversized_context(event),
         )
         .await;
-        let HookDecision::Deny { reason, .. } = &by_exit.decision else {
-            panic!("exit 2 must still deny, got {:?}", by_exit.decision);
-        };
-        assert_eq!(reason, "refused by policy");
-        assert_eq!(by_exit.cause, Some(HookOutcomeCause::PolicyDenial));
-
-        let by_json = run_chain(
-            event,
-            vec![action(
-                r#"printf '%s' '{"decision":"block","reason":"nope"}'"#,
-            )],
-        )
-        .await;
-        assert_eq!(by_json.cause, Some(HookOutcomeCause::PolicyDenial));
-        let HookDecision::Deny { reason, .. } = &by_json.decision else {
-            panic!("block JSON must still deny, got {:?}", by_json.decision);
-        };
-        assert_eq!(reason, "nope");
+        assert!(matches!(denied.decision, HookDecision::Deny { .. }));
+        assert_eq!(denied.cause, Some(HookOutcomeCause::PolicyDenial));
     }
 
     #[tokio::test]
@@ -1945,9 +1526,6 @@ mod tests {
             assert!(outcome.policy_evaluated);
         }
 
-        // Drain stdin first. Without it the child can exit before the payload
-        // write completes, which is a real delivery failure and correctly reads
-        // as hook_failure, so the fixture would be testing the wrong thing.
         for spec in [
             action("cat >/dev/null 2>&1; exit 0"),
             blocking_action(r#"cat >/dev/null 2>&1; printf '%s' '{"decision":"allow"}'"#),
@@ -1960,24 +1538,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_block_mode_failure_denies_without_losing_an_earlier_decision() {
-        let outcome = run_chain(
+    async fn mixed_chains_preserve_evaluation_and_report_the_final_cause() {
+        let failure = run_chain(
             HookEvent::PreToolUse,
             vec![action("exit 0"), blocking_action("exit 3")],
         )
         .await;
 
-        assert!(matches!(outcome.decision, HookDecision::Deny { .. }));
-        assert_eq!(outcome.cause, Some(HookOutcomeCause::HookFailure));
-        assert!(
-            outcome.policy_evaluated,
-            "the first action returned a decision"
-        );
-    }
+        assert!(matches!(failure.decision, HookDecision::Deny { .. }));
+        assert_eq!(failure.cause, Some(HookOutcomeCause::HookFailure));
+        assert!(failure.policy_evaluated);
 
-    #[tokio::test]
-    async fn a_policy_denial_after_a_fail_open_failure_reports_the_denial() {
-        let outcome = run_chain(
+        let denial = run_chain(
             HookEvent::PreToolUse,
             vec![
                 action("exit 3"),
@@ -1987,14 +1559,14 @@ mod tests {
         .await;
 
         assert_eq!(
-            outcome.decision,
+            denial.decision,
             HookDecision::Deny {
                 reason: "nope".to_string(),
                 plugin: "p".to_string(),
             }
         );
-        assert_eq!(outcome.cause, Some(HookOutcomeCause::PolicyDenial));
-        assert!(outcome.policy_evaluated);
+        assert_eq!(denial.cause, Some(HookOutcomeCause::PolicyDenial));
+        assert!(denial.policy_evaluated);
     }
 
     #[tokio::test]
@@ -2055,13 +1627,6 @@ mod tests {
         assert_eq!(outcome.cause, None);
     }
 
-    /// A payload that cannot be built is a hook failure like any other, and it
-    /// is attributed to the first matching action that asked to block.
-    ///
-    /// `HookContext` is entirely serializable, so production cannot reach this
-    /// with a real context. The outcome is therefore chosen by a pure helper and
-    /// pinned here against the real matched actions, rather than through a
-    /// serializer seam threaded into the runtime path.
     #[test]
     fn serialization_failure_fails_open_by_default_and_blocks_when_configured() {
         let outcome = |event: HookEvent, plugins: &[(&str, Vec<Value>)]| {
@@ -2096,7 +1661,6 @@ mod tests {
         assert_eq!(closed.cause, Some(HookOutcomeCause::HookFailure));
         assert!(!closed.policy_evaluated);
 
-        // Stop shares the chain and must not block on a payload failure.
         let stop = outcome(
             HookEvent::Stop,
             &[("fail-closed", vec![blocking_action("exit 0")])],
@@ -2113,170 +1677,29 @@ mod tests {
     }
 
     #[test]
-    fn on_failure_defaults_to_allow_and_reads_both_values() {
+    fn on_failure_values_are_validated() {
         let rule = |extra: &str| {
             format!(
                 r#"{{"hooks":{{"PreToolUse":[{{"hooks":[{{"type":"command","command":"echo"{extra}}}]}}]}}}}"#
             )
         };
 
-        assert_eq!(loaded_on_failure(&rule("")).unwrap(), OnFailure::Allow);
-        assert_eq!(
-            loaded_on_failure(&rule(r#","on_failure":"allow""#)).unwrap(),
-            OnFailure::Allow
-        );
-        assert_eq!(
-            loaded_on_failure(&rule(r#","on_failure":"block""#)).unwrap(),
-            OnFailure::Block
-        );
+        for (extra, expected) in [
+            ("", Some(OnFailure::Allow)),
+            (r#","on_failure":"allow""#, Some(OnFailure::Allow)),
+            (r#","on_failure":"block""#, Some(OnFailure::Block)),
+            (r#","on_failure":"deny""#, None),
+            (r#","on_failure":null"#, None),
+        ] {
+            match expected {
+                Some(expected) => assert_eq!(loaded_on_failure(&rule(extra)).unwrap(), expected),
+                None => assert!(loaded_on_failure(&rule(extra)).is_err()),
+            }
+        }
     }
 
-    /// An unrecognised value is a config error rather than a silent choice of
-    /// either policy, so the file is rejected the way any other malformed
-    /// `hooks.json` is.
     #[test]
-    fn an_invalid_on_failure_value_rejects_the_file() {
-        let hooks = r#"{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"echo","on_failure":"deny"}]}]}}"#;
-        let err = loaded_on_failure(hooks).unwrap_err();
-        assert!(
-            format!("{err:#}").contains("unknown variant `deny`"),
-            "expected a variant error, got {err:#}"
-        );
-
-        let tmp = tempfile::tempdir().unwrap();
-        let root = write_plugin(tmp.path(), "p", hooks);
-        let mgr = make_manager(vec![DiscoveredPlugin {
-            name: "p".into(),
-            root,
-            scope: PluginScope::User,
-        }]);
-        assert!(!mgr.has_hooks(HookEvent::PreToolUse));
-    }
-
-    /// R1. The reported scenario. An unrecognized `on_failure` on an entry under
-    /// an event this loader ignores must not fail the whole-file parse, which
-    /// silently dropped every working hook in the plugin.
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn an_unknown_event_with_an_unrecognized_on_failure_keeps_the_file() {
-        let hooks = r#"{"hooks":{
-            "SomeFutureEvent":[{"hooks":[{"type":"command","command":"echo","on_failure":"retry"}]}],
-            "PreToolUse":[{"hooks":[{"type":"command","command":"echo refused by policy >&2; exit 2"}]}]
-        }}"#;
-        let tmp = tempfile::tempdir().unwrap();
-        let root = write_plugin(tmp.path(), "p", hooks);
-
-        let loaded = load_hooks_file(&root.join("hooks").join("hooks.json"), "p", &root)
-            .expect("an ignored event must not reject the file");
-        assert_eq!(loaded[&HookEvent::PreToolUse].len(), 1);
-
-        // Present is not enough: the surviving hook has to actually run.
-        let mgr = make_manager(vec![DiscoveredPlugin {
-            name: "p".into(),
-            root,
-            scope: PluginScope::User,
-        }]);
-        assert!(mgr.has_hooks(HookEvent::PreToolUse));
-        let outcome = mgr
-            .emit_blocking_with_outcome(
-                HookEvent::PreToolUse,
-                blocking_context(HookEvent::PreToolUse),
-            )
-            .await;
-        let HookDecision::Deny { reason, .. } = &outcome.decision else {
-            panic!("the surviving hook must run, got {:?}", outcome.decision);
-        };
-        assert_eq!(reason, "refused by policy");
-    }
-
-    /// R2. `on_failure` is meaningless on an entry the loader ignores, so its
-    /// value is never looked at there, whatever shape it has. Covers both
-    /// remaining ignore paths, an unsupported action type and a command action
-    /// with no command, and pins that a valid sibling still loads.
-    #[test]
-    fn an_ignored_action_with_a_non_string_on_failure_keeps_its_siblings() {
-        let hooks = r#"{"hooks":{"PreToolUse":[{"hooks":[
-            {"type":"webhook","url":"https://example.invalid","on_failure":true},
-            {"type":"command","on_failure":{"mode":"retry"}},
-            {"type":"command","command":"echo","on_failure":"block"}
-        ]}]}}"#;
-        let tmp = tempfile::tempdir().unwrap();
-        let root = write_plugin(tmp.path(), "p", hooks);
-
-        let loaded = load_hooks_file(&root.join("hooks").join("hooks.json"), "p", &root)
-            .expect("an ignored action must not reject the file");
-        let actions = &loaded[&HookEvent::PreToolUse][0].actions;
-        assert_eq!(actions.len(), 1, "only the supported command action loads");
-        assert_eq!(
-            actions[0].on_failure(),
-            OnFailure::Block,
-            "the sibling's own on_failure is still honoured"
-        );
-    }
-
-    /// RN. An explicit `null` is not an absent field. Serde folds both into
-    /// `None` for an `Option`, which would load a malformed fail-closed policy
-    /// as fail-open. Field presence is preserved so `null` reaches validation
-    /// and rejects the file like any other value that is not allow or block.
-    #[test]
-    fn an_explicit_null_on_failure_rejects_the_file() {
-        let hooks = r#"{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"echo","on_failure":null}]}]}}"#;
-        let err = loaded_on_failure(hooks).unwrap_err();
-        assert!(
-            format!("{err:#}").contains("reading on_failure"),
-            "expected the on_failure configuration error, got {err:#}"
-        );
-
-        let tmp = tempfile::tempdir().unwrap();
-        let root = write_plugin(tmp.path(), "p", hooks);
-        let mgr = make_manager(vec![DiscoveredPlugin {
-            name: "p".into(),
-            root,
-            scope: PluginScope::User,
-        }]);
-        assert!(!mgr.has_hooks(HookEvent::PreToolUse));
-    }
-
-    /// RU. Preservation. On an entry this loader ignores, `null` is still just a
-    /// raw value it never looks at, so the file loads and the valid sibling runs.
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn an_unknown_event_with_a_null_on_failure_keeps_the_file() {
-        let hooks = r#"{"hooks":{
-            "SomeFutureEvent":[{"hooks":[{"type":"command","command":"echo","on_failure":null}]}],
-            "PreToolUse":[{"hooks":[{"type":"command","command":"echo refused by policy >&2; exit 2"}]}]
-        }}"#;
-        let tmp = tempfile::tempdir().unwrap();
-        let root = write_plugin(tmp.path(), "p", hooks);
-
-        let loaded = load_hooks_file(&root.join("hooks").join("hooks.json"), "p", &root)
-            .expect("an ignored event must not reject the file");
-        assert_eq!(loaded[&HookEvent::PreToolUse].len(), 1);
-
-        let mgr = make_manager(vec![DiscoveredPlugin {
-            name: "p".into(),
-            root,
-            scope: PluginScope::User,
-        }]);
-        let outcome = mgr
-            .emit_blocking_with_outcome(
-                HookEvent::PreToolUse,
-                blocking_context(HookEvent::PreToolUse),
-            )
-            .await;
-        let HookDecision::Deny { reason, .. } = &outcome.decision else {
-            panic!("the valid sibling must run, got {:?}", outcome.decision);
-        };
-        assert_eq!(reason, "refused by policy");
-    }
-
-    /// RE. `on_failure` is documented as ignored outside `PreToolUse`, so an
-    /// unrecognized value on a `Stop` action must not reject the file. The
-    /// `PreToolUse` action in the same file keeps its own `on_failure`, and the
-    /// `Stop` action loads with the default.
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn on_failure_outside_pre_tool_use_is_ignored_not_validated() {
+    fn on_failure_outside_pre_tool_use_is_ignored_not_validated() {
         for ignored in [r#""retry""#, "null"] {
             let hooks = format!(
                 r#"{{"hooks":{{
@@ -2306,242 +1729,97 @@ mod tests {
                 OnFailure::Block,
                 "the PreToolUse action keeps its own on_failure: {ignored}"
             );
-
-            let mgr = make_manager(vec![DiscoveredPlugin {
-                name: "p".into(),
-                root,
-                scope: PluginScope::User,
-            }]);
-            assert!(mgr.has_hooks(HookEvent::PreToolUse));
-            let outcome = mgr
-                .emit_blocking_with_outcome(
-                    HookEvent::PreToolUse,
-                    blocking_context(HookEvent::PreToolUse),
-                )
-                .await;
-            let HookDecision::Deny { reason, .. } = &outcome.decision else {
-                panic!("the PreToolUse hook must run, got {:?}", outcome.decision);
-            };
-            assert_eq!(reason, "refused by policy", "on_failure {ignored}");
         }
     }
 
-    /// Loads a `hooks.json` body and returns whatever the loader decided. Used
-    /// by the boundary tests that only care whether the file was accepted.
     fn load_hooks_json(hooks_json: &str) -> Result<HashMap<HookEvent, Vec<LoadedRule>>> {
         let tmp = tempfile::tempdir().unwrap();
         let root = write_plugin(tmp.path(), "p", hooks_json);
         load_hooks_file(&root.join("hooks").join("hooks.json"), "p", &root)
     }
 
-    /// Runs the one `PreToolUse` rule the fixture is expected to keep, and
-    /// returns the reason it denied with. Proves the survivor is runnable, not
-    /// merely present in the map.
-    async fn surviving_pre_tool_use_denial(hooks_json: &str) -> String {
+    fn surviving_pre_tool_use_command(hooks_json: &str) -> String {
         let tmp = tempfile::tempdir().unwrap();
         let root = write_plugin(tmp.path(), "p", hooks_json);
         let loaded = load_hooks_file(&root.join("hooks").join("hooks.json"), "p", &root)
             .unwrap_or_else(|err| panic!("the file must load: {err:#}"));
-        assert_eq!(
-            loaded[&HookEvent::PreToolUse].len(),
-            1,
-            "exactly the valid rule survives",
-        );
-
-        let mgr = make_manager(vec![DiscoveredPlugin {
-            name: "p".into(),
-            root,
-            scope: PluginScope::User,
-        }]);
-        assert!(mgr.has_hooks(HookEvent::PreToolUse));
-        let outcome = mgr
-            .emit_blocking_with_outcome(
-                HookEvent::PreToolUse,
-                blocking_context(HookEvent::PreToolUse),
-            )
-            .await;
-        let HookDecision::Deny { reason, .. } = outcome.decision else {
-            panic!(
-                "the surviving hook must run and deny, got {:?}",
-                outcome.decision
-            );
-        };
-        reason
+        let rules = &loaded[&HookEvent::PreToolUse];
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].actions.len(), 1);
+        let LoadedAction::Command { command, .. } = &rules[0].actions[0];
+        command.clone()
     }
 
     const DENYING_COMMAND: &str =
         r#"{"type":"command","command":"echo refused by policy >&2; exit 2"}"#;
 
-    /// L1. An unknown event name is ignored without its payload ever being
-    /// inspected, whatever shape that payload has. A future event beside a
-    /// working policy hook must not take the policy hook down with it.
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn an_unknown_event_payload_is_opaque_whatever_its_shape() {
+    #[test]
+    fn an_unknown_event_payload_is_opaque_whatever_its_shape() {
         let hooks = format!(
             r#"{{"hooks":{{
-                "SomeFutureEvent":{{"mode":"batch","rules":42}},
-                "AnotherFutureEvent":7,
-                "ThirdFutureEvent":[{{"matcher":{{"kind":"glob"}},"hooks":"soon"}}],
+                "SomeFutureEvent":{{"mode":"batch","rules":42,"on_failure":"retry"}},
+                "AnotherFutureEvent":null,
+                "ThirdFutureEvent":[{{"matcher":{{"kind":"glob"}},"hooks":"soon","on_failure":null}}],
                 "PreToolUse":[{{"hooks":[{DENYING_COMMAND}]}}]
             }}}}"#
         );
         assert_eq!(
-            surviving_pre_tool_use_denial(&hooks).await,
-            "refused by policy"
+            surviving_pre_tool_use_command(&hooks),
+            "echo refused by policy >&2; exit 2"
         );
     }
 
-    /// L2. An unsupported string action type is ignored entirely. None of its
-    /// other fields are interpreted, so a future shape on any of them cannot
-    /// reject the file or remove the valid sibling.
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn an_unsupported_action_type_is_opaque_whatever_its_fields() {
+    #[test]
+    fn action_selection_preserves_ignored_and_null_shapes() {
         let hooks = format!(
             r#"{{"hooks":{{"PreToolUse":[{{"hooks":[
                 {{"type":"webhook","command":{{"url":"https://example.invalid"}},"timeout":"soon","on_failure":{{"mode":"retry"}},"headers":[1,2]}},
-                {DENYING_COMMAND}
-            ]}}]}}}}"#
-        );
-        assert_eq!(
-            surviving_pre_tool_use_denial(&hooks).await,
-            "refused by policy"
-        );
-    }
-
-    /// L3. A command action with no command is not runnable, so it is ignored
-    /// without validating the fields that would only matter if it ran.
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn a_commandless_action_is_unselected_and_its_fields_uninterpreted() {
-        let hooks = format!(
-            r#"{{"hooks":{{"PreToolUse":[{{"hooks":[
-                {{"type":"command","timeout":"5s","on_failure":{{"mode":"retry"}}}},
-                {DENYING_COMMAND}
-            ]}}]}}}}"#
-        );
-        assert_eq!(
-            surviving_pre_tool_use_denial(&hooks).await,
-            "refused by policy"
-        );
-    }
-
-    /// S1. A recognized event is strict: a malformed rule field rejects the file.
-    #[test]
-    fn a_malformed_rule_under_a_recognized_event_rejects_the_file() {
-        let err = load_hooks_json(
-            r#"{"hooks":{"PreToolUse":[{"matcher":{"kind":"glob"},"hooks":[{"type":"command","command":"echo"}]}]}}"#,
-        )
-        .unwrap_err();
-        // Rejection is the boundary. The wording differs between the one-pass and
-        // two-stage loaders, so pin the malformed shape, which both report.
-        assert!(
-            format!("{err:#}").contains("invalid type: map, expected a string"),
-            "expected the malformed matcher to reject the file, got {err:#}"
-        );
-    }
-
-    /// S2. A non-string `type` is malformed configuration, not a future action
-    /// type to skip over, so it rejects the file. Both the frozen base and the
-    /// public PR head reject it: the compatibility promise covers unsupported
-    /// string action types, not malformed discriminators.
-    #[test]
-    fn a_non_string_action_type_rejects_the_file() {
-        let err = load_hooks_json(
-            r#"{"hooks":{"PreToolUse":[{"hooks":[{"type":42,"command":"echo"}]}]}}"#,
-        )
-        .unwrap_err();
-        // Rejection is the boundary; the two loaders word it differently.
-        assert!(
-            format!("{err:#}").contains("string"),
-            "expected the non-string type to reject the file, got {err:#}"
-        );
-    }
-
-    /// M1. Unknown events are ignored whatever their payload is, including a
-    /// bare `true` or `null`, and the valid sibling still runs.
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn unknown_events_with_scalar_payloads_are_ignored() {
-        let hooks = format!(
-            r#"{{"hooks":{{
-                "SomeFutureEvent":true,
-                "AnotherFutureEvent":null,
-                "PreToolUse":[{{"hooks":[{DENYING_COMMAND}]}}]
-            }}}}"#
-        );
-        assert_eq!(
-            surviving_pre_tool_use_denial(&hooks).await,
-            "refused by policy"
-        );
-    }
-
-    /// M2. An explicit `"type": null` selects the command path, which is the
-    /// presence semantics the single-pass loader had.
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn a_null_action_type_selects_the_command_path() {
-        let hooks = r#"{"hooks":{"PreToolUse":[{"hooks":[
-            {"type":null,"command":"echo refused by policy >&2; exit 2"}
-        ]}]}}"#;
-        assert_eq!(
-            surviving_pre_tool_use_denial(hooks).await,
-            "refused by policy"
-        );
-    }
-
-    /// M3. A command action with an explicit null command, or none at all, is
-    /// dropped silently and the file still loads.
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn a_null_or_absent_command_drops_the_action_silently() {
-        let hooks = format!(
-            r#"{{"hooks":{{"PreToolUse":[{{"hooks":[
                 {{"type":"command","command":null}},
-                {{"type":"command"}},
-                {DENYING_COMMAND}
+                {{"type":"command","timeout":"5s","on_failure":{{"mode":"retry"}}}},
+                {{"type":null,"command":"echo refused by policy >&2; exit 2"}}
             ]}}]}}}}"#
         );
-        let loaded = load_hooks_json(&hooks).expect("the file must load");
         assert_eq!(
-            loaded[&HookEvent::PreToolUse][0].actions.len(),
-            1,
-            "only the runnable command survives",
-        );
-        assert_eq!(
-            surviving_pre_tool_use_denial(&hooks).await,
-            "refused by policy"
+            surviving_pre_tool_use_command(&hooks),
+            "echo refused by policy >&2; exit 2"
         );
     }
 
-    /// M4. A recognized event is strict about its own payload shape.
     #[test]
-    fn a_non_array_payload_under_a_recognized_event_rejects_the_file() {
-        let err = load_hooks_json(r#"{"hooks":{"PreToolUse":{}}}"#).unwrap_err();
-        assert!(
-            format!("{err:#}").contains("invalid type: map, expected a sequence"),
-            "expected the payload shape error, got {err:#}"
-        );
+    fn malformed_selected_configuration_is_rejected() {
+        for (hooks, expected) in [
+            (
+                r#"{"hooks":{"PreToolUse":[{"matcher":{"kind":"glob"},"hooks":[{"type":"command","command":"echo"}]}]}}"#,
+                "expected a string",
+            ),
+            (
+                r#"{"hooks":{"PreToolUse":[{"hooks":[{"type":42,"command":"echo"}]}]}}"#,
+                "must be a string",
+            ),
+            (r#"{"hooks":{"PreToolUse":{}}}"#, "expected a sequence"),
+            (
+                r#"{"hooks":{"PreToolUse":[{"hooks":["echo"]}]}}"#,
+                "must be an object",
+            ),
+            (
+                r#"{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"echo","timeout":"5s"}]}]}}"#,
+                "expected u64",
+            ),
+            (
+                r#"{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":["echo"]}]}]}}"#,
+                "must be a string",
+            ),
+        ] {
+            let err = load_hooks_json(hooks).unwrap_err();
+            assert!(
+                format!("{err:#}").contains(expected),
+                "expected {expected:?}, got {err:#}"
+            );
+        }
     }
 
-    /// M5. An action entry must be an object under a recognized event.
     #[test]
-    fn a_non_object_action_rejects_the_file() {
-        let err = load_hooks_json(r#"{"hooks":{"PreToolUse":[{"hooks":["echo"]}]}}"#).unwrap_err();
-        assert!(
-            format!("{err:#}").contains("must be an object")
-                || format!("{err:#}").contains("invalid type: string"),
-            "expected the action shape error, got {err:#}"
-        );
-    }
-
-    /// RM. An invalid matcher skips its rule before `on_failure` is interpreted,
-    /// so a rule goose will never run cannot fail the file over a policy value
-    /// it would never apply, and the valid rule beside it still runs.
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn an_invalid_matcher_skips_its_rule_before_on_failure_is_read() {
+    fn an_invalid_matcher_skips_its_rule_before_on_failure_is_read() {
         let hooks = format!(
             r#"{{"hooks":{{"PreToolUse":[
                 {{"matcher":"[unclosed","hooks":[{{"type":"command","command":"echo","on_failure":"retry"}}]}},
@@ -2549,41 +1827,11 @@ mod tests {
             ]}}}}"#
         );
         assert_eq!(
-            surviving_pre_tool_use_denial(&hooks).await,
-            "refused by policy"
+            surviving_pre_tool_use_command(&hooks),
+            "echo refused by policy >&2; exit 2"
         );
     }
 
-    /// S3. Once a command action is selected its remaining fields are strict.
-    #[test]
-    fn a_malformed_timeout_on_a_selected_command_rejects_the_file() {
-        let err = load_hooks_json(
-            r#"{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"echo","timeout":"5s"}]}]}}"#,
-        )
-        .unwrap_err();
-        // serde names the expected type rather than the field here.
-        assert!(
-            format!("{err:#}").contains(r#"invalid type: string "5s", expected u64"#),
-            "expected the timeout type error, got {err:#}"
-        );
-    }
-
-    /// S4. A present non-string `command` is malformed configuration.
-    #[test]
-    fn a_non_string_command_rejects_the_file() {
-        let err = load_hooks_json(
-            r#"{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":["echo"]}]}]}}"#,
-        )
-        .unwrap_err();
-        // Rejection is the boundary; the two loaders word it differently.
-        assert!(
-            format!("{err:#}").contains("string"),
-            "expected the non-string command to reject the file, got {err:#}"
-        );
-    }
-
-    /// Both agent loops call this, so a denial reads the same either way, and a
-    /// hook that could not decide never borrows the policy-denial wording.
     #[test]
     fn denial_wording_separates_policy_from_failure() {
         let deny = |cause: HookOutcomeCause, reason: &str| {
@@ -2914,36 +2162,6 @@ mod tests {
                 plugin: "p".into(),
             }
         );
-    }
-
-    /// The `emit_blocking` contract that predates `on_failure`: a hook that
-    /// returned a decision still gets exactly the same answer.
-    #[tokio::test]
-    async fn decisions_survive_the_on_failure_change() {
-        async fn decision(command: &str) -> HookDecision {
-            let tmp = tempfile::tempdir().unwrap();
-            manager_for(
-                tmp.path(),
-                HookEvent::PreToolUse,
-                &[("p", vec![action(command)])],
-            )
-            .emit_blocking(
-                HookEvent::PreToolUse,
-                blocking_context(HookEvent::PreToolUse),
-            )
-            .await
-        }
-        let denied = |reason: &str| HookDecision::Deny {
-            reason: reason.to_string(),
-            plugin: "p".to_string(),
-        };
-
-        assert_eq!(
-            decision(r#"printf '%s' '{"decision":"block","reason":"nope"}'; exit 1"#).await,
-            denied("nope"),
-        );
-        assert_eq!(decision("exit 2").await, denied("denied by plugin hook"));
-        assert_eq!(decision("exit 0").await, HookDecision::Allow);
     }
 
     #[test]

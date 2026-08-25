@@ -5677,7 +5677,6 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             Self::with_on_failure(specs, "")
         }
 
-        /// Same fixture with `"on_failure": "block"` on every command action.
         fn blocking_on_failure(specs: &[HookSpec<'_>]) -> Self {
             Self::with_on_failure(specs, r#", "on_failure": "block""#)
         }
@@ -5745,9 +5744,6 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     /// non-zero. That is a hook that ran but never returned a decision.
     const ABNORMAL_EXIT_AND_RECORD_SCRIPT: &str =
         "#!/bin/sh\ncat >> \"$PLUGIN_ROOT/pre.log\"\nprintf '\\n' >> \"$PLUGIN_ROOT/pre.log\"\necho boom >&2\nexit 3\n";
-    /// What `ABNORMAL_EXIT_AND_RECORD_SCRIPT` under `on_failure: block` reports back.
-    /// The state-machine loop asserts this same string; both loops build it
-    /// through `HookChainOutcome::denial`, so they cannot word it differently.
     const HOOK_FAILURE_REFUSAL: &str =
         "Tool call blocked because policy hook `test-plugin` could not complete: \
          the hook exited with status 3 and no usable decision. \
@@ -6012,8 +6008,6 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         );
     }
 
-    /// A hook that returns no decision is ignored, which is how hooks behaved
-    /// before `on_failure` existed. The lifecycle event says so.
     #[tokio::test]
     async fn pre_tool_use_hook_failure_allows_by_default() {
         let env = RecordingHookEnv::new(&[
@@ -6035,9 +6029,6 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         assert_eq!(results[0]["policy_evaluated"], false);
     }
 
-    /// `on_failure: block` turns that same failure into a refusal. The wording
-    /// comes from the shared formatter, so the state-machine loop asserts the
-    /// identical string in `state_machine::tests::hooks_lifecycle`.
     #[tokio::test]
     async fn pre_tool_use_hook_failure_blocks_when_configured() {
         let env = RecordingHookEnv::blocking_on_failure(&[
