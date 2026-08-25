@@ -44,7 +44,7 @@ pub(crate) fn is_meta_provider(provider: &str) -> bool {
 pub fn map_provider_name(provider: &str) -> &str {
     match provider {
         // Goose provider names that differ from models.dev names
-        "xai" => "x-ai",
+        "xai" | "xai_oauth" => "x-ai",
         "azure_openai" | "azure_foundry" => "azure",
         "aws_bedrock" => "amazon-bedrock",
         "gcp_vertex_ai" => "google-vertex",
@@ -337,6 +337,10 @@ mod tests {
         assert_eq!(
             map_to_canonical_model("openai", "gpt-4o-latest", r),
             Some("openai/gpt-4o".to_string())
+        );
+        assert_eq!(
+            map_to_canonical_model("xai_oauth", "grok-4.5", r),
+            Some("x-ai/grok-4.5".to_string())
         );
         assert_eq!(
             map_to_canonical_model("openai", "gpt-4-turbo-2024-04-09", r),

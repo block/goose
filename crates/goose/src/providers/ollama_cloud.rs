@@ -17,6 +17,7 @@ use std::sync::Mutex;
 use tokio::sync::OnceCell;
 
 const OLLAMA_CLOUD_PROVIDER_NAME: &str = "ollama_cloud";
+const SHOW_INFO_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
 pub struct OllamaCloudProvider {
     inner: OpenAiProvider,
@@ -226,7 +227,13 @@ impl Provider for OllamaCloudProvider {
                     return Ok(cached);
                 }
 
-                let limit = self.fetch_context_limit_from_show(model).await;
+                let limit = tokio::time::timeout(
+                    SHOW_INFO_TIMEOUT,
+                    self.fetch_context_limit_from_show(model),
+                )
+                .await
+                .ok()
+                .flatten();
                 if let Ok(mut cache) = self.context_limits.lock() {
                     cache.insert(model.to_string(), limit);
                 }
