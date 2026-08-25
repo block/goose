@@ -25,7 +25,6 @@ import { COST_TRACKING_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { ContextWindowIndicator } from './bottom_menu/ContextWindowIndicator';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
-import { useChatDraft } from '../hooks/useChatDraft';
 import { Recipe } from '../recipe';
 import { MessageQueue, QueuedMessage } from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
@@ -169,6 +168,12 @@ interface ChatInputProps {
   queueProcessingBlocked?: boolean;
   commandHistory?: string[];
   initialValue?: string;
+  /**
+   * Unsent input, held above the route outlet so it outlives the unmount.
+   * Only New Chat passes it: every other chat stays mounted in
+   * `ChatSessionsContainer` and keeps its text in local state.
+   */
+  draftRef?: React.RefObject<string>;
   droppedFiles?: DroppedFile[];
   onFilesProcessed?: () => void;
   setView: (view: View) => void;
@@ -205,6 +210,7 @@ export default function ChatInput({
   queueProcessingBlocked = false,
   commandHistory = [],
   initialValue = '',
+  draftRef,
   droppedFiles = [],
   onFilesProcessed,
   setView,
@@ -236,17 +242,17 @@ export default function ChatInput({
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
   const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
 
-  const draft = useChatDraft(sessionId ?? 'hub');
-
   // Every path that puts text in the input goes through here, so the draft cannot
   // miss one: typing, dictation, link paste, history, file and mention insertion.
   const applyInputValue = useCallback(
     (next: string) => {
       setDisplayValue(next);
       setValue(next);
-      draft.save(next);
+      if (draftRef) {
+        draftRef.current = next;
+      }
     },
-    [draft]
+    [draftRef]
   );
 
   // Derived state - chatState != Idle means we're in some form of loading state
@@ -532,28 +538,29 @@ export default function ChatInput({
 
   useEffect(() => {
     // The draft is restored here rather than through `initialValue`, because this
-    // effect also runs on mount and would overwrite it. A draft only exists once the
-    // user has typed, so it wins over the recipe prompt `initialValue` carries.
-    const restored = draft.has() ? draft.read() : initialValue;
+    // effect also runs on mount and would overwrite a value seeded into `useState`.
+    // It stays a ref for the same reason: a prop that changed on every keystroke
+    // would re-run this effect and reset the state it clears below.
+    const restored = draftRef?.current || initialValue;
     setValue(restored);
     setDisplayValue(restored);
     setPastedImages([]);
     setHistoryIndex(-1);
     setIsInGlobalHistory(false);
     setHasUserTyped(false);
-  }, [initialValue, draft]);
+  }, [initialValue, draftRef]);
 
   // Handle recipe prompt updates
   useEffect(() => {
-    // The prompt seeds an empty input, so an edit the user has not sent yet is kept.
-    if (recipeAccepted && initialPrompt && messages.length === 0 && !draft.has()) {
+    // If recipe is accepted and we have an initial prompt, and no messages yet, and we haven't set it before
+    if (recipeAccepted && initialPrompt && messages.length === 0) {
       setDisplayValue(initialPrompt);
       setValue(initialPrompt);
       setTimeout(() => {
         textAreaRef.current?.focus();
       }, 0);
     }
-  }, [recipeAccepted, initialPrompt, messages.length, textAreaRef, draft]);
+  }, [recipeAccepted, initialPrompt, messages.length, textAreaRef]);
 
   const [isComposing, setIsComposing] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -857,7 +864,9 @@ export default function ChatInput({
     setDisplayValue('');
     setValue('');
     setPastedImages([]);
-    draft.clear();
+    if (draftRef) {
+      draftRef.current = '';
+    }
     if (onFilesProcessed && droppedFiles.length > 0) {
       onFilesProcessed();
     }
@@ -865,7 +874,7 @@ export default function ChatInput({
       setLocalDroppedFiles([]);
     }
   }, [
-    draft,
+    draftRef,
     droppedFiles.length,
     localDroppedFiles.length,
     onFilesProcessed,
@@ -1153,7 +1162,9 @@ export default function ChatInput({
 
         // The draft always goes, even on Hub, where the visible input has to stay
         // until the navigation to the new session completes.
-        draft.clear();
+        if (draftRef) {
+          draftRef.current = '';
+        }
         if (sessionId !== null) {
           clearInputState();
         }
@@ -1171,7 +1182,7 @@ export default function ChatInput({
       handleSubmit,
       lastInterruption,
       clearInputState,
-      draft,
+      draftRef,
       sessionId,
     ]
   );

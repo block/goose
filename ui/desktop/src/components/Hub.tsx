@@ -7,7 +7,7 @@
  * lives there.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { defineMessages, useIntl } from '../i18n';
 import { AppEvents } from '../constants/events';
 import ChatInput from './ChatInput';
@@ -47,8 +47,11 @@ function useClock() {
 
 export default function Hub({
   setView,
+  draftRef,
 }: {
   setView: (view: View, viewOptions?: ViewOptions) => void;
+  /** Unsent input of this screen, kept above the route outlet across the unmount. */
+  draftRef?: RefObject<string>;
 }) {
   const intl = useIntl();
   const { extensionsList } = useConfig();
@@ -136,6 +139,11 @@ export default function Hub({
     } catch (error) {
       console.error('Failed to create session:', error);
       toastError({ title: "Couldn't start chat", msg: formatAcpError(error) });
+      // The text stays on screen, but submitting already dropped the draft. Put it
+      // back, so leaving the page after a failed start does not lose it.
+      if (draftRef) {
+        draftRef.current = userMessage;
+      }
       setIsCreatingSession(false);
     }
   };
@@ -156,6 +164,7 @@ export default function Hub({
         <ChatInputCard>
           <ChatInput
             sessionId={null}
+            draftRef={draftRef}
             handleSubmit={handleSubmit}
             chatState={isCreatingSession ? ChatState.LoadingConversation : ChatState.Idle}
             onStop={() => {}}
