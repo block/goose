@@ -65,9 +65,10 @@ pub fn validate_recipe_for_scheduling(
     let document: serde_yaml::Value = serde_yaml::from_str(&rendered_content)
         .map_err(|_| SchedulerRecipeError::GenericParse(format))?;
 
-    let recipe_value = document.get("recipe").unwrap_or(&document);
-    let mut recipe: Recipe = serde_yaml::from_value(recipe_value.clone())
-        .map_err(|error| classify_conversion_error(&error.to_string(), format))?;
+    let mut recipe: Recipe = match document.get("recipe") {
+        Some(nested_recipe) => convert_recipe_from_value(nested_recipe.clone(), format)?,
+        None => convert_recipe_from_str(&rendered_content, format)?,
+    };
 
     recipe.ensure_analyze_for_developer();
     recipe.ensure_summon_for_subrecipes();
@@ -96,15 +97,72 @@ pub fn validate_recipe_for_scheduling(
     Ok(recipe)
 }
 
-fn classify_conversion_error(message: &str, format: RecipeFileFormat) -> SchedulerRecipeError {
-    let schema_derived = (message.starts_with("missing field `")
-        || message.starts_with("duplicate field `"))
-        && message.ends_with('`');
-    if schema_derived {
-        SchedulerRecipeError::InvalidSchema(message.to_string())
-    } else {
-        SchedulerRecipeError::GenericParse(format)
+fn convert_recipe_from_value(
+    value: serde_yaml::Value,
+    format: RecipeFileFormat,
+) -> Result<Recipe, SchedulerRecipeError> {
+    serde_path_to_error::deserialize(value)
+        .map_err(|error| classify_conversion_error(&error, format))
+}
+
+fn convert_recipe_from_str(
+    content: &str,
+    format: RecipeFileFormat,
+) -> Result<Recipe, SchedulerRecipeError> {
+    serde_path_to_error::deserialize(serde_yaml::Deserializer::from_str(content))
+        .map_err(|error| classify_conversion_error(&error, format))
+}
+
+fn classify_conversion_error(
+    error: &serde_path_to_error::Error<serde_yaml::Error>,
+    format: RecipeFileFormat,
+) -> SchedulerRecipeError {
+    let path = error.path().to_string();
+    let path = if path == "." { String::new() } else { path };
+
+    let mut message = crate::recipe::strip_error_location(&error.inner().to_string());
+    if !path.is_empty() {
+        if let Some(stripped) = message
+            .strip_prefix(&path)
+            .and_then(|rest| rest.strip_prefix(": "))
+        {
+            message = stripped.to_string();
+        }
     }
+
+    if !is_schema_conversion_message(&message) {
+        return SchedulerRecipeError::GenericParse(format);
+    }
+
+    let missing_or_duplicate =
+        message.starts_with("missing field `") || message.starts_with("duplicate field `");
+
+    match path.as_str() {
+        "" => {
+            if missing_or_duplicate && message.ends_with('`') {
+                SchedulerRecipeError::InvalidSchema(message)
+            } else {
+                SchedulerRecipeError::GenericParse(format)
+            }
+        }
+        _ if missing_or_duplicate => {
+            SchedulerRecipeError::InvalidSchema(format!("{path}: {message}"))
+        }
+        _ => SchedulerRecipeError::InvalidSchema(format!("{path} is invalid")),
+    }
+}
+
+fn is_schema_conversion_message(message: &str) -> bool {
+    [
+        "missing field `",
+        "duplicate field `",
+        "invalid type:",
+        "unknown variant `",
+        "unknown field `",
+        "invalid length:",
+    ]
+    .iter()
+    .any(|prefix| message.starts_with(prefix))
 }
 
 fn format_parameter_paths(indices: &[usize]) -> String {
@@ -470,6 +528,41 @@ parameters:
     }
 
     #[test]
+    fn scheduling_reports_parameter_field_paths() {
+        let error = scheduling_error(
+            "title: Test\ndescription: hi\nprompt: Run {{ a }}\nparameters:\n  - key: a\n    input_type: string\n    requirement: required\n",
+        );
+        assert_eq!(
+            error.to_string(),
+            "Invalid recipe: parameters[0]: missing field `description`"
+        );
+
+        let secret = "yaml-secret-242";
+        let error = scheduling_error(&format!(
+            "title: Test\ndescription: hi\nprompt: Run {{ a }}\nparameters:\n  - key: a\n    input_type: {secret}\n    requirement: required\n    description: hi\n"
+        ));
+        assert_eq!(
+            error.to_string(),
+            "Invalid recipe: parameters[0].input_type is invalid"
+        );
+        assert!(!error.to_string().contains(secret));
+    }
+
+    #[test]
+    fn scheduling_accepts_unquoted_numeric_default_like_runtime() {
+        let recipe = validate_recipe_for_scheduling(
+            "title: Test\ndescription: hi\nprompt: Run {{ count }}\nparameters:\n  - key: count\n    input_type: string\n    requirement: optional\n    default: 15\n    description: hi\n",
+            None,
+            RecipeFileFormat::Yaml,
+        )
+        .unwrap();
+        assert_eq!(
+            recipe.parameters.as_ref().unwrap()[0].default.as_deref(),
+            Some("15")
+        );
+    }
+
+    #[test]
     fn scheduling_rejects_duplicate_fields_like_runtime_load() {
         let error = scheduling_error("title: First\ntitle: Second\ndescription: hi\nprompt: Run\n");
         assert_eq!(error.to_string(), "Invalid YAML recipe");
@@ -483,7 +576,11 @@ parameters:
         let error = scheduling_error(
             "title: Test\ndescription: hi\nprompt: hi\nparameters:\n  - key: foo\n    input_type: yaml-secret-242\n    requirement: required\n    description: hi\n",
         );
-        assert_eq!(error.to_string(), "Invalid YAML recipe");
+        assert_eq!(
+            error.to_string(),
+            "Invalid recipe: parameters[0].input_type is invalid"
+        );
+        assert!(!error.to_string().contains("yaml-secret-242"));
     }
 
     #[test]
@@ -526,7 +623,11 @@ parameters:
             RecipeFileFormat::Json,
         )
         .unwrap_err();
-        assert_eq!(error.to_string(), "Invalid JSON recipe");
+        assert_eq!(
+            error.to_string(),
+            "Invalid recipe: parameters[0].input_type is invalid"
+        );
+        assert!(!error.to_string().contains("yaml-secret-242"));
     }
 
     #[test]
