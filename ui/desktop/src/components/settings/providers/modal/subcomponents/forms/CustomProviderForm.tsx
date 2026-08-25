@@ -303,7 +303,12 @@ export default function CustomProviderForm({
 
   useEffect(() => {
     if (initialData) {
-      setEngine(normalizeEngine(initialData.engine));
+      const engineMap: Record<string, string> = {
+        openai: 'openai_compatible',
+        anthropic: 'anthropic_compatible',
+        ollama: 'ollama_compatible',
+      };
+      setEngine((engineMap[initialData.engine] || 'openai_compatible') as ProviderEngine);
       setDisplayName(initialData.display_name);
       setApiUrl(initialData.api_url);
       setBasePath(initialData.base_path ?? '');
