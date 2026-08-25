@@ -2,8 +2,8 @@ use super::*;
 #[cfg(feature = "local-inference")]
 use crate::dictation::providers::transcribe_local;
 use crate::dictation::providers::{
-    all_providers, get_provider_def, is_configured, transcribe_with_model,
-    transcribe_with_provider, DictationProvider,
+    all_providers, is_configured, transcribe_with_model, transcribe_with_provider,
+    DictationProvider,
 };
 #[cfg(feature = "local-inference")]
 use crate::dictation::whisper;

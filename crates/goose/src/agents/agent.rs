@@ -43,8 +43,8 @@ use crate::agents::state_machine::{
     UnknownToolOperation, MAX_TURNS_MESSAGE,
 };
 use crate::agents::types::{
-    FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver,
-    DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
+    SessionConfig, SharedProvider, DEFAULT_ON_FAILURE_TIMEOUT_SECONDS,
+    DEFAULT_RETRY_TIMEOUT_SECONDS,
 };
 use crate::agents::AgentEvent;
 use crate::config::extensions::name_to_key;
@@ -60,7 +60,6 @@ use crate::conversation::message::{
 use crate::conversation::{
     debug_conversation_fix, fix_conversation, merge_consecutive_messages_for_request, Conversation,
 };
-use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
 use crate::permission::{Permission, PermissionConfirmation};
@@ -1604,6 +1603,27 @@ impl Agent {
             }
         }
         false
+    }
+
+    pub async fn handle_confirmation(
+        &self,
+        session_id: &str,
+        request_id: String,
+        confirmation: PermissionConfirmation,
+    ) {
+        if self
+            .try_route_tool_confirmation_to_provider(&request_id, &confirmation)
+            .await
+        {
+            return;
+        }
+        if !self
+            .tool_confirmation_router
+            .deliver(session_id, &request_id, confirmation)
+            .await
+        {
+            error!("Failed to deliver confirmation");
+        }
     }
 
     pub async fn supports_action_required_permissions(&self) -> bool {
