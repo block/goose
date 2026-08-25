@@ -416,8 +416,7 @@ export function reasoningConsumedOutputBudget(messages: Message[], messageIndex:
     if (getToolRequests(previous).length > 0) {
       break;
     }
-    if (messageHasVisibleOutput(previous)) {
-      hasVisibleOutput = true;
+    if (messageHasVisibleOutput(previous) || previous.metadata.outputTokenLimitReached) {
       break;
     }
 
