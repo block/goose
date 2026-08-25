@@ -1771,16 +1771,14 @@ mod tests {
 
     #[test]
     fn action_selection_preserves_ignored_and_null_shapes() {
-        let hooks = format!(
-            r#"{{"hooks":{{"PreToolUse":[{{"hooks":[
-                {{"type":"webhook","command":{{"url":"https://example.invalid"}},"timeout":"soon","on_failure":{{"mode":"retry"}},"headers":[1,2]}},
-                {{"type":"command","command":null}},
-                {{"type":"command","timeout":"5s","on_failure":{{"mode":"retry"}}}},
-                {{"type":null,"command":"echo refused by policy >&2; exit 2"}}
-            ]}}]}}}}"#
-        );
+        let hooks = r#"{"hooks":{"PreToolUse":[{"hooks":[
+                {"type":"webhook","command":{"url":"https://example.invalid"},"timeout":"soon","on_failure":{"mode":"retry"},"headers":[1,2]},
+                {"type":"command","command":null},
+                {"type":"command","timeout":"5s","on_failure":{"mode":"retry"}},
+                {"type":null,"command":"echo refused by policy >&2; exit 2"}
+            ]}]}}"#;
         assert_eq!(
-            surviving_pre_tool_use_command(&hooks),
+            surviving_pre_tool_use_command(hooks),
             "echo refused by policy >&2; exit 2"
         );
     }
