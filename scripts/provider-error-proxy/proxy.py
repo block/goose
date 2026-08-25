@@ -94,6 +94,7 @@ COMPLETION_PATHS = [
 METADATA_PATH_SUFFIXES = [
     '/models',      # model listing (OpenAI-compatible)
     '/api/tags',    # Ollama model listing
+    '/api/show',    # Ollama model info (POSTed before completions for context limits)
     '/embeddings',  # embeddings are not turn completions
 ]
 
