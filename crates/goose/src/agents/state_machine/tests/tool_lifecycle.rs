@@ -505,3 +505,22 @@ async fn stale_orphaned_tool_request_is_not_executed() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn confirmation_delivered_while_state_machine_is_running() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_goose_mode(GooseMode::Approve).await;
+    pipeline.set_permission(ADD, PermissionLevel::AskBefore);
+    api.on("add after approval")
+        .call(ADD, json!({ "value": 3 }));
+    api.on("result: 3").reply("approved");
+
+    let result = pipeline
+        .run_with_confirmation("add after approval", Permission::AllowOnce)
+        .await?;
+
+    result.assert_message(-2, ToolResponse, "result: 3");
+    result.assert_message(-1, Agent, "approved");
+    assert_eq!(pipeline.calculator_total(), 3);
+    Ok(())
+}

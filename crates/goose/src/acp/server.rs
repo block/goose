@@ -1369,11 +1369,12 @@ impl GooseAcpAgent {
         content_item: &MessageContent,
         message: &Message,
         session_id: &SessionId,
-        target: &SessionAgentTarget,
-        tool_requests: &HashMap<String, ToolRequest>,
+        agent: &Arc<Agent>,
+        tool_context: (&HashMap<String, ToolRequest>, bool),
         cx: &ConnectionTo<Client>,
     ) -> Result<(), agent_client_protocol::Error> {
         let role = &message.role;
+        let (tool_requests, use_state_machine) = tool_context;
 
         match content_item {
             MessageContent::Text(text) => {
@@ -1418,14 +1419,13 @@ impl GooseAcpAgent {
                 } => {
                     self.handle_tool_permission_request(
                         cx,
+                        agent,
                         session_id,
-                        PendingToolPermission {
-                            request_id: id.clone(),
-                            tool_name: tool_name.clone(),
-                            arguments: arguments.clone(),
-                            prompt: prompt.clone(),
-                        },
-                        target.clone(),
+                        id.clone(),
+                        tool_name.clone(),
+                        arguments.clone(),
+                        prompt.clone(),
+                        use_state_machine,
                     )?;
                 }
                 ActionRequiredData::Elicitation {
@@ -1567,21 +1567,27 @@ impl GooseAcpAgent {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn handle_tool_permission_request(
         &self,
         cx: &ConnectionTo<Client>,
+        agent: &Arc<Agent>,
         session_id: &SessionId,
-        request: PendingToolPermission,
-        target: SessionAgentTarget,
+        request_id: String,
+        tool_name: String,
+        arguments: serde_json::Map<String, serde_json::Value>,
+        prompt: Option<String>,
+        use_state_machine: bool,
     ) -> Result<(), agent_client_protocol::Error> {
         let cx = cx.clone();
+        let agent = agent.clone();
         let session_id = session_id.clone();
 
         let tool_call_update = build_permission_tool_call_update(
-            &request.request_id,
-            &request.tool_name,
-            request.arguments,
-            request.prompt,
+            &request_id,
+            &tool_name,
+            arguments,
+            prompt,
         );
 
         fn option(kind: PermissionOptionKind) -> PermissionOption {
@@ -1601,34 +1607,37 @@ impl GooseAcpAgent {
 
         let permission_request =
             RequestPermissionRequest::new(session_id, tool_call_update, options);
-        let request_id = request.request_id;
 
         cx.send_request(permission_request)
             .on_receiving_result(move |result| async move {
-                let permission = match result {
-                    Ok(response) => outcome_to_confirmation(&response.outcome).permission,
+                match result {
+                    Ok(response) => {
+                        let confirmation = outcome_to_confirmation(&response.outcome);
+                        if use_state_machine {
+                            agent
+                                .handle_state_machine_confirmation(request_id, confirmation)
+                                .await;
+                        } else {
+                            agent.handle_confirmation(request_id, confirmation).await;
+                        }
+                        Ok(())
+                    }
                     Err(e) => {
                         error!(error = ?e, "permission request failed");
-                        Permission::Cancel
-                    }
-                };
-
-                if let Err(error) = target
-                    .agent
-                    .submit_tool_confirmation(&target.session_id, &request_id, permission)
-                    .await
-                {
-                    error!(
-                        session_id = %target.session_id,
-                        request_id = %request_id,
-                        %error,
-                        "failed to submit tool confirmation"
-                    );
-                    if let Some(cancel_token) = target.cancel_token {
-                        cancel_token.cancel();
+                        let confirmation = PermissionConfirmation {
+                            principal_type: PrincipalType::Tool,
+                            permission: Permission::Cancel,
+                        };
+                        if use_state_machine {
+                            agent
+                                .handle_state_machine_confirmation(request_id, confirmation)
+                                .await;
+                        } else {
+                            agent.handle_confirmation(request_id, confirmation).await;
+                        }
+                        Ok(())
                     }
                 }
-                Ok(())
             })?;
 
         Ok(())
@@ -2336,19 +2345,125 @@ impl GooseAcpAgent {
                     .data(format!("Error getting agent reply: {error}")));
             }
         };
-        let stream_result = self
-            .forward_agent_stream(
-                cx,
-                &args.session_id,
-                &session_id,
-                &agent,
-                &cancel_token,
-                stream,
-            )
-            .await;
+
+        let mut was_cancelled = false;
+        let mut output_token_limit_reached = false;
+        let mut tool_requests = HashMap::new();
+        let mut chain_tracker = ToolChainTracker::default();
+        let mut stream_error = None;
+
+        while let Some(event) = stream.next().await {
+            if cancel_token.is_cancelled() {
+                was_cancelled = true;
+                break;
+            }
+
+            match event {
+                Ok(crate::agents::AgentEvent::Message(mut message)) => {
+                    update_output_token_limit_reached(&mut output_token_limit_reached, &message);
+
+                    let sessions = self.sessions.lock().await;
+                    if !sessions.contains_key(&session_id) {
+                        stream_error = Some(
+                            agent_client_protocol::Error::invalid_params()
+                                .data(format!("Session not found: {}", session_id)),
+                        );
+                        break;
+                    }
+
+                    populate_output_token_limit_content(&mut message);
+                    for content_item in &message.content {
+                        if let Some(error) = prompt_error_from_message_content(content_item) {
+                            stream_error = Some(error);
+                            break;
+                        }
+
+                        if let MessageContent::ToolRequest(tool_request) = content_item {
+                            tool_requests.insert(tool_request.id.clone(), tool_request.clone());
+                        }
+
+                        if let Err(error) = self
+                            .handle_message_content(
+                                content_item,
+                                &message,
+                                &args.session_id,
+                                &agent,
+                                (&tool_requests, use_state_machine),
+                                cx,
+                            )
+                            .await
+                        {
+                            stream_error = Some(error);
+                            break;
+                        }
+
+                        let ready_chain = match content_item {
+                            MessageContent::ToolRequest(tool_request) => {
+                                chain_tracker.record_request(tool_request.clone());
+                                None
+                            }
+                            MessageContent::ToolResponse(tool_response) => {
+                                chain_tracker.record_response(&tool_response.id)
+                            }
+                            content if breaks_consecutive_tool_calls(content) => {
+                                chain_tracker.close_current_chain()
+                            }
+                            _ => None,
+                        };
+
+                        if let Some(chain) = ready_chain {
+                            self.spawn_ready_chain_summary(chain, &agent, &args.session_id, cx);
+                        }
+                    }
+
+                    if stream_error.is_some() {
+                        break;
+                    }
+                }
+                Ok(crate::agents::AgentEvent::McpNotification((request_id, notification))) => {
+                    if let Some(update) =
+                        tool_notifications::tool_notification_update(request_id, notification)
+                    {
+                        let tool_call_notifier = ToolCallNotifier::new(cx, &args.session_id);
+                        tool_call_notifier.send_update(update)?;
+                    }
+                }
+                Ok(crate::agents::AgentEvent::MessageUsage { message_id, usage }) => {
+                    if self.supports_goose_custom_notifications() {
+                        cx.send_notification(GooseSessionNotification {
+                            session_id: session_id.clone(),
+                            update: GooseSessionUpdate::MessageUsage(message_usage_update(
+                                message_id, &usage,
+                            )),
+                        })?;
+                    }
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    stream_error = Some(
+                        agent_client_protocol::Error::internal_error()
+                            .data(format!("Error in agent response stream: {}", e)),
+                    );
+                    break;
+                }
+            }
+        }
+
+        if !was_cancelled && stream_error.is_none() {
+            if let Some(chain) = chain_tracker.close_current_chain() {
+                self.spawn_ready_chain_summary(chain, &agent, &args.session_id, cx);
+            }
+        }
+
         self.clear_active_run(&session_id, &run_id).await;
         Self::send_active_run_update(cx, &args.session_id, None)?;
-        let outcome = stream_result?;
+        if let Some(error) = stream_error {
+            return Err(error);
+        }
+        let outcome = AgentStreamOutcome {
+            was_cancelled,
+            output_token_limit_reached,
+        };
 
         let session = self
             .send_session_usage_updates(cx, &args.session_id, &session_id, &agent)

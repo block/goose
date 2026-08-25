@@ -22,6 +22,7 @@ use crate::agents::state_machine::{
     SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
     ToolExecutionOperation, ToolPairCompactionOperation, UnknownToolOperation,
 };
+use crate::agents::tool_confirmation_router::ToolConfirmationRouter;
 use crate::agents::AgentEvent;
 use crate::config::permission::{PermissionLevel, PermissionManager};
 use crate::config::GooseMode;
@@ -93,6 +94,7 @@ pub(super) struct TestPipeline {
     goose_mode: TokioMutex<GooseMode>,
     prompt_manager: TokioMutex<PromptManager>,
     tool_inspection_manager: ToolInspectionManager,
+    tool_confirmation_router: ToolConfirmationRouter,
     permission_manager: Arc<PermissionManager>,
     hook_manager: HookManager,
     stop_hook_block_cap: u32,
@@ -143,6 +145,7 @@ impl TestPipeline {
             Arc::new(ToolApprovalOperation::new(
                 &self.goose_mode,
                 &self.tool_inspection_manager,
+                &self.tool_confirmation_router,
             )),
             Arc::new(DoctorOperation),
             Arc::new(ProjectOperation),
@@ -555,6 +558,72 @@ impl TestPipeline {
         Ok(TestRun::new(session, events))
     }
 
+    pub(super) async fn run_with_confirmation(
+        &self,
+        message: &str,
+        permission: Permission,
+    ) -> Result<TestRun> {
+        self.session_manager
+            .add_message(&self.session_id, &Message::user().with_text(message))
+            .await?;
+        let cancel = CancellationToken::new();
+        let machine = self.machine(cancel.clone());
+        let (tx, mut rx) = mpsc::channel(1024);
+        let emit = Emitter::new(tx, cancel);
+        let mut events = Vec::new();
+        let mut answered = false;
+
+        loop {
+            let session = self.session().await?;
+            let step = machine.step(&session, &emit);
+            tokio::pin!(step);
+            let mut result = loop {
+                tokio::select! {
+                    result = &mut step => break result?,
+                    Some(event) = rx.recv() => {
+                        if let AgentEvent::Message(message) = &event {
+                            if let Some(id) = message.content.iter().find_map(|content| match content {
+                                MessageContent::ActionRequired(action) => match &action.data {
+                                    ActionRequiredData::ToolConfirmation { id, .. } => Some(id.clone()),
+                                    _ => None,
+                                },
+                                _ => None,
+                            }) {
+                                assert!(self.tool_confirmation_router.deliver(
+                                    id,
+                                    crate::permission::PermissionConfirmation {
+                                        principal_type: crate::permission::permission_confirmation::PrincipalType::Tool,
+                                        permission: permission.clone(),
+                                    },
+                                ).await);
+                                answered = true;
+                            }
+                        }
+                        events.push(event);
+                    }
+                }
+            };
+            let Some(ref mut result) = result else {
+                break;
+            };
+            machine
+                .apply(self.session_manager.as_ref(), &session, result, &emit)
+                .await?;
+            while let Ok(event) = rx.try_recv() {
+                events.push(event);
+            }
+            if result.yield_to_client {
+                break;
+            }
+        }
+        assert!(answered, "tool did not request confirmation");
+        drop(emit);
+        while let Some(event) = rx.recv().await {
+            events.push(event);
+        }
+        Ok(TestRun::new(self.session().await?, events))
+    }
+
     pub(super) async fn run_with_elicitation(
         &self,
         message: &str,
@@ -807,6 +876,7 @@ async fn build_test_pipeline(
         goose_mode: TokioMutex::new(session.goose_mode),
         prompt_manager: TokioMutex::new(PromptManager::new()),
         tool_inspection_manager,
+        tool_confirmation_router: ToolConfirmationRouter::new(),
         permission_manager,
         hook_manager: HookManager::default(),
         stop_hook_block_cap: 3,
