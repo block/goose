@@ -5196,6 +5196,7 @@ dependencies = [
  "aws-lc-rs",
  "aws-sdk-bedrockruntime",
  "aws-sdk-sagemakerruntime",
+ "aws-smithy-runtime-api",
  "aws-smithy-types",
  "axum",
  "axum-server",
@@ -5559,7 +5560,7 @@ dependencies = [
 
 [[package]]
 name = "goose-roaming"
-version = "1.47.0"
+version = "1.48.0"
 dependencies = [
  "anyhow",
  "base64 0.23.1",

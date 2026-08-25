@@ -276,6 +276,9 @@ impl BedrockProvider {
                     token.clone(),
                     None,
                 ))
+                .auth_scheme_preference([
+                    aws_smithy_runtime_api::client::auth::http::HTTP_BEARER_AUTH_SCHEME_ID,
+                ])
                 .build();
 
             Client::from_conf(bedrock_config)
