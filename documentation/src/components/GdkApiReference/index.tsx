@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import Link from "@docusaurus/Link";
 import useBrokenLinks from "@docusaurus/useBrokenLinks";
+import { useHistory, useLocation } from "@docusaurus/router";
 import { useAnchorTargetClassName } from "@docusaurus/theme-common";
 import CodeBlock from "@theme/CodeBlock";
 import apiData from "@site/src/data/gdk-api.json";
@@ -42,6 +43,25 @@ type GdkApiDoc = {
 };
 
 const VERSIONS = (apiData as { versions: GdkApiDoc[] }).versions;
+
+const DEFAULT_VERSION = VERSIONS[0].docVersion;
+const VERSION_PARAM = "version";
+
+const isKnownVersion = (docVersion: string | null): docVersion is string =>
+  VERSIONS.some((entry) => entry.docVersion === docVersion);
+
+const readVersionParam = (search: string) =>
+  new URLSearchParams(search).get(VERSION_PARAM);
+
+const versionSearch = (docVersion: string, search: string) => {
+  const params = new URLSearchParams(search);
+  params.set(VERSION_PARAM, docVersion);
+  return `?${params.toString()}`;
+};
+
+const VersionSearchContext = React.createContext(
+  `?${VERSION_PARAM}=${DEFAULT_VERSION}`,
+);
 
 const KIND_LABELS: Record<GdkItem["kind"], string> = {
   object: "Class",
@@ -132,9 +152,16 @@ function signature(func: GdkFunc, language: Language, owner?: string): string {
 }
 
 function HashLink({ anchor, label }: { anchor: string; label: string }) {
+  const search = useContext(VersionSearchContext);
   const title = `Direct link to ${label}`;
   return (
-    <Link className="hash-link" to={`#${anchor}`} aria-label={title} title={title} translate="no">
+    <Link
+      className="hash-link"
+      to={`${search}#${anchor}`}
+      aria-label={title}
+      title={title}
+      translate="no"
+    >
       &#8203;
     </Link>
   );
@@ -320,8 +347,23 @@ function ItemEntry({ item, language }: { item: GdkItem; language: Language }) {
 
 export default function GdkApiReference() {
   const [languageId, setLanguageId] = useState<LanguageId>("rust");
-  const [docVersion, setDocVersion] = useState(VERSIONS[0].docVersion);
+  const [docVersion, setDocVersion] = useState(DEFAULT_VERSION);
   const brokenLinks = useBrokenLinks();
+  const history = useHistory();
+  const location = useLocation();
+
+  useEffect(() => {
+    const requested = readVersionParam(location.search);
+    if (isKnownVersion(requested)) {
+      setDocVersion(requested);
+      return;
+    }
+    setDocVersion(DEFAULT_VERSION);
+    history.replace({
+      search: versionSearch(DEFAULT_VERSION, location.search),
+      hash: location.hash,
+    });
+  }, [history, location.hash, location.search]);
 
   const language = LANGUAGES.find((entry) => entry.id === languageId)!;
   const doc = useMemo(
@@ -329,9 +371,13 @@ export default function GdkApiReference() {
     [docVersion],
   );
 
-  // Register every version's anchors, not just the rendered one, so links into
-  // an older reference version are not reported as broken.
-  VERSIONS.flatMap(anchorsForDoc).forEach((anchor) => brokenLinks.collectAnchor(anchor));
+  anchorsForDoc(VERSIONS[0]).forEach((anchor) => brokenLinks.collectAnchor(anchor));
+
+  useEffect(() => {
+    const anchor = location.hash.slice(1);
+    if (!anchor) return;
+    document.getElementById(decodeURIComponent(anchor))?.scrollIntoView();
+  }, [docVersion, location.hash]);
 
   const grouped = useMemo(() => {
     const order: GdkItem["kind"][] = ["object", "callback", "record", "enum", "error"];
@@ -341,64 +387,71 @@ export default function GdkApiReference() {
   }, [doc]);
 
   return (
-    <div>
-      <div className={styles.toolbar}>
-        <div className={styles.tabs} role="tablist" aria-label="GDK language">
-          {LANGUAGES.map((entry) => (
-            <button
-              key={entry.id}
-              type="button"
-              role="tab"
-              aria-selected={entry.id === languageId}
-              className={entry.id === languageId ? styles.tabActive : styles.tab}
-              onClick={() => setLanguageId(entry.id)}
+    <VersionSearchContext.Provider value={versionSearch(docVersion, location.search)}>
+      <div>
+        <div className={styles.toolbar}>
+          <div className={styles.tabs} role="tablist" aria-label="GDK language">
+            {LANGUAGES.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                role="tab"
+                aria-selected={entry.id === languageId}
+                className={entry.id === languageId ? styles.tabActive : styles.tab}
+                onClick={() => setLanguageId(entry.id)}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </div>
+
+          <label className={styles.version}>
+            Version
+            <select
+              value={docVersion}
+              onChange={(event) =>
+                history.replace({
+                  search: versionSearch(event.target.value, location.search),
+                  hash: location.hash,
+                })
+              }
+              aria-label="GDK version"
             >
-              {entry.label}
-            </button>
-          ))}
+              {VERSIONS.map((entry) => (
+                <option key={entry.docVersion} value={entry.docVersion}>
+                  {entry.docVersion}.x
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
-        <label className={styles.version}>
-          Version
-          <select
-            value={docVersion}
-            onChange={(event) => setDocVersion(event.target.value)}
-            aria-label="GDK version"
-          >
-            {VERSIONS.map((entry) => (
-              <option key={entry.docVersion} value={entry.docVersion}>
-                {entry.docVersion}.x
-              </option>
+        <p className={styles.meta}>
+          Generated from <code>{doc.source}</code> at <code>goose-sdk {doc.version}</code>.
+        </p>
+
+        <Anchored as="h2" anchor="functions" label="Functions">
+          Functions
+        </Anchored>
+        {doc.functions.map((func) => (
+          <FuncEntry key={func.name} func={func} language={language} />
+        ))}
+
+        {grouped.map((group) => (
+          <React.Fragment key={group.kind}>
+            <Anchored
+              as="h2"
+              anchor={slug(group.kind, "types")}
+              label={KIND_HEADINGS[group.kind]}
+            >
+              {KIND_HEADINGS[group.kind]}
+            </Anchored>
+            {group.items.map((item) => (
+              <ItemEntry key={item.name} item={item} language={language} />
             ))}
-          </select>
-        </label>
+          </React.Fragment>
+        ))}
       </div>
-
-      <p className={styles.meta}>
-        Generated from <code>{doc.source}</code> at <code>goose-sdk {doc.version}</code>.
-      </p>
-
-      <Anchored as="h2" anchor="functions" label="Functions">
-        Functions
-      </Anchored>
-      {doc.functions.map((func) => (
-        <FuncEntry key={func.name} func={func} language={language} />
-      ))}
-
-      {grouped.map((group) => (
-        <React.Fragment key={group.kind}>
-          <Anchored
-            as="h2"
-            anchor={slug(group.kind, "types")}
-            label={KIND_HEADINGS[group.kind]}
-          >
-            {KIND_HEADINGS[group.kind]}
-          </Anchored>
-          {group.items.map((item) => (
-            <ItemEntry key={item.name} item={item} language={language} />
-          ))}
-        </React.Fragment>
-      ))}
-    </div>
+    </VersionSearchContext.Provider>
   );
 }
