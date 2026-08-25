@@ -55,8 +55,8 @@ const OLLAMA_MAX_RETRY_INTERVAL_MS: u64 = 15_000;
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct OllamaOptions {
     /// Explicit context window override from `GOOSE_INPUT_LIMIT`.
-    /// `None` when unset, zero, or invalid; the model's context limit is then
-    /// used as the fallback.
+    /// `None` when unset, zero, or invalid; `num_ctx` is then omitted so Ollama
+    /// uses its model default.
     pub input_limit: Option<usize>,
     /// Whether to keep `stream_options` in the request (`OLLAMA_STREAM_USAGE`,
     /// default `true`).
@@ -257,7 +257,7 @@ fn apply_ollama_options(payload: &mut Value, options: &OllamaOptions, _model_con
             }
         }
 
-        // Apply num_ctx from context limit settings.
+        // Only an explicit GOOSE_INPUT_LIMIT overrides Ollama's num_ctx.
         if let Some(limit) = resolve_ollama_num_ctx(options) {
             let options_value = obj.entry("options").or_insert_with(|| json!({}));
             if let Some(options_obj) = options_value.as_object_mut() {

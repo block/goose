@@ -86,6 +86,25 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                             match agent.on_load_session(&cx_clone, req).await {
                                 Ok(response) => {
                                     responder.respond(response)?;
+                                    let session_setup =
+                                        agent.prepare_session_setup_by_id(&session_id).await;
+                                    if let Err(error) = session_setup.and_then(
+                                        |(session, totals, context_limit)| {
+                                            send_session_setup_notifications(
+                                                &cx_clone,
+                                                &session,
+                                                &totals,
+                                                context_limit,
+                                                agent.supports_goose_custom_notifications(),
+                                            )
+                                        },
+                                    ) {
+                                        tracing::warn!(
+                                            session_id = %session_id,
+                                            error = ?error,
+                                            "Failed to send ACP session setup notifications"
+                                        );
+                                    }
                                 }
                                 Err(e) => {
                                     tracing::error!(

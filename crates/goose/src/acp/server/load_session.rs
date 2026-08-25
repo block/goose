@@ -323,8 +323,6 @@ impl GooseAcpAgent {
         )
         .await?;
 
-        self.notify_session_setup(cx, &session).await?;
-
         let mut response = LoadSessionResponse::new().modes(mode_state);
         if let Some(co) = config_options {
             response = response.config_options(co);

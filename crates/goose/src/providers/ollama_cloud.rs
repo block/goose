@@ -13,18 +13,16 @@ use goose_providers::openai::OpenAiProvider;
 use rmcp::model::Tool;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::sync::{LazyLock, Mutex};
+use std::sync::Mutex;
 use tokio::sync::OnceCell;
 
 const OLLAMA_CLOUD_PROVIDER_NAME: &str = "ollama_cloud";
-
-static SHOW_INFO_CACHE: LazyLock<Mutex<HashMap<String, usize>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub struct OllamaCloudProvider {
     inner: OpenAiProvider,
     ollama_api_client: ApiClient,
     model_names: OnceCell<Vec<String>>,
+    context_limits: Mutex<HashMap<String, Option<usize>>>,
     custom_models: Option<Vec<ModelInfo>>,
     dynamic_models: Option<bool>,
 }
@@ -62,6 +60,7 @@ impl OllamaCloudProvider {
             inner,
             ollama_api_client,
             model_names: OnceCell::new(),
+            context_limits: Mutex::new(HashMap::new()),
             custom_models,
             dynamic_models: config.dynamic_models,
         })
@@ -218,19 +217,18 @@ impl Provider for OllamaCloudProvider {
         goose_providers::context_limit::ContextLimitResolver::new(self.get_name())
             .with_configured_limits(configured_limits)
             .resolve(model, override_limit, || async {
-                if let Some(cached) = SHOW_INFO_CACHE
+                if let Some(cached) = self
+                    .context_limits
                     .lock()
                     .ok()
                     .and_then(|cache| cache.get(model).copied())
                 {
-                    return Ok(Some(cached));
+                    return Ok(cached);
                 }
 
                 let limit = self.fetch_context_limit_from_show(model).await;
-                if let Some(limit) = limit {
-                    if let Ok(mut cache) = SHOW_INFO_CACHE.lock() {
-                        cache.insert(model.to_string(), limit);
-                    }
+                if let Ok(mut cache) = self.context_limits.lock() {
+                    cache.insert(model.to_string(), limit);
                 }
                 Ok(limit)
             })
@@ -371,19 +369,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_context_limit_falls_back_on_missing_model_info() {
+    async fn get_context_limit_caches_missing_model_info() {
         let server = mock_show_server_no_model_info().await;
-        let provider = build_provider(
-            server.uri(),
-            Some(true),
-            vec![ModelInfo::new("unknown-model").with_context_limit(8000)],
-        );
+        let provider = build_provider(server.uri(), Some(true), vec![]);
 
-        let model_config = ModelConfig::new("unknown-model");
-        let limit = provider
-            .get_context_limit(&model_config.model_name, None)
-            .await;
-        assert_eq!(limit, 8000);
+        for _ in 0..2 {
+            assert_eq!(
+                provider.get_context_limit("unknown-model", None).await,
+                goose_providers::model::DEFAULT_CONTEXT_LIMIT
+            );
+        }
+
+        assert_eq!(server.received_requests().await.unwrap().len(), 1);
     }
 
     fn build_provider(

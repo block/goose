@@ -253,7 +253,33 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
     };
 
     if editable {
-        let model_infos = params.models;
+        let model_infos = params
+            .models
+            .into_iter()
+            .map(|mut model| {
+                if let Some(existing) = existing_config
+                    .models
+                    .iter()
+                    .find(|existing| existing.name == model.name)
+                {
+                    model.resolved_model = model.resolved_model.or(existing.resolved_model.clone());
+                    model.context_limit = model.context_limit.or(existing.context_limit);
+                    model.input_token_cost = model.input_token_cost.or(existing.input_token_cost);
+                    model.output_token_cost =
+                        model.output_token_cost.or(existing.output_token_cost);
+                    model.currency = model.currency.or(existing.currency.clone());
+                    model.supports_cache_control = model
+                        .supports_cache_control
+                        .or(existing.supports_cache_control);
+                    model.reasoning |= existing.reasoning;
+                    model.thinking_preservation_format = model
+                        .thinking_preservation_format
+                        .or(existing.thinking_preservation_format);
+                    model.request_params = model.request_params.or(existing.request_params.clone());
+                }
+                model
+            })
+            .collect();
 
         let engine = ProviderEngine::from_str(&params.engine)?;
         let preserves_thinking = match params.preserves_thinking {
@@ -672,17 +698,22 @@ mod tests {
     }
 
     #[test]
-    fn custom_provider_update_preserves_context_limit() {
+    fn custom_provider_update_preserves_model_metadata() {
         let temp_dir = tempfile::tempdir().unwrap();
         let temp_root = temp_dir.path().display().to_string();
         let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(temp_root.as_str()))]);
 
+        let mut model = ModelInfo::with_cost("large-model", 1_048_576, 0.000002, 0.000006);
+        model.request_params = Some(HashMap::from([(
+            "temperature".to_string(),
+            serde_json::json!(0.25),
+        )]));
         let created = create_custom_provider(CreateCustomProviderParams {
             engine: "openai".to_string(),
             display_name: "Large Context".to_string(),
             api_url: "https://example.invalid/v1".to_string(),
             api_key: None,
-            models: vec![ModelInfo::new("large-model").with_context_limit(1_048_576)],
+            models: vec![model],
             supports_streaming: Some(true),
             headers: None,
             requires_auth: false,
@@ -698,7 +729,7 @@ mod tests {
             display_name: created.display_name.clone(),
             api_url: created.base_url.clone(),
             api_key: None,
-            models: created.models.clone(),
+            models: vec![ModelInfo::new("large-model").with_context_limit(2_097_152)],
             supports_streaming: Some(true),
             headers: None,
             requires_auth: false,
@@ -709,7 +740,14 @@ mod tests {
         .unwrap();
 
         let loaded = load_provider(&created.name).unwrap();
-        assert_eq!(loaded.config.models[0].context_limit, Some(1_048_576));
+        let model = &loaded.config.models[0];
+        assert_eq!(model.context_limit, Some(2_097_152));
+        assert_eq!(model.input_token_cost, Some(0.000002));
+        assert_eq!(model.output_token_cost, Some(0.000006));
+        assert_eq!(
+            model.request_params.as_ref().unwrap()["temperature"],
+            serde_json::json!(0.25)
+        );
     }
 
     #[test]

@@ -887,6 +887,18 @@ impl Provider for BedrockProvider {
         self.retry_config.clone()
     }
 
+    async fn get_context_limit(&self, model: &str, override_limit: Option<usize>) -> usize {
+        let configured_limits = BEDROCK_MODEL_TABLE.iter().filter_map(|entry| {
+            entry
+                .context_limit
+                .map(|limit| (entry.name.to_string(), limit as usize))
+        });
+        goose_providers::context_limit::ContextLimitResolver::new(&self.name)
+            .with_configured_limits(configured_limits)
+            .resolve(model, override_limit, || async { Ok(None) })
+            .await
+    }
+
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         Ok(BEDROCK_MODEL_TABLE
             .iter()
@@ -1886,6 +1898,21 @@ mod tests {
             .find(|model| model.name == "google.gemma-4-31b")
             .unwrap();
         assert!(model.context_limit.is_some_and(|limit| limit >= 262144));
+    }
+
+    #[tokio::test]
+    async fn test_gemma_context_limit_resolution() {
+        let (provider, _) = create_mock_provider_and_model("google.gemma-4-31b");
+        assert_eq!(
+            provider.get_context_limit("google.gemma-4-31b", None).await,
+            262_144
+        );
+        assert_eq!(
+            provider
+                .get_context_limit("google.gemma-4-31b", Some(64_000))
+                .await,
+            64_000
+        );
     }
     #[test]
     fn test_converse_model_not_mantle() {

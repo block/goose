@@ -743,37 +743,6 @@ impl GooseAcpAgent {
             .unwrap_or(false)
     }
 
-    pub(super) async fn notify_session_setup(
-        &self,
-        cx: &ConnectionTo<Client>,
-        session: &Session,
-    ) -> Result<(), agent_client_protocol::Error> {
-        let totals = self
-            .session_manager
-            .get_session_usage_totals(&session.id)
-            .await
-            .unwrap_or_default();
-        let agent = self.get_session_agent(&session.id).await?;
-        let provider = agent
-            .provider()
-            .await
-            .internal_err_ctx("Failed to resolve session provider")?;
-        let model = session.model_config.as_ref().ok_or_else(|| {
-            agent_client_protocol::Error::internal_error().data("Session has no model")
-        })?;
-        let context_limit =
-            crate::context_limit::get_context_limit(provider.as_ref(), &model.model_name)
-                .await
-                .internal_err_ctx("Failed to resolve context limit")?;
-        send_session_setup_notifications(
-            cx,
-            session,
-            &totals,
-            context_limit,
-            self.supports_goose_custom_notifications(),
-        )
-    }
-
     pub(super) async fn prepare_session_setup_by_id(
         &self,
         session_id: &str,

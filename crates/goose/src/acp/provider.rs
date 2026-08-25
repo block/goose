@@ -3088,6 +3088,7 @@ mod tests {
 
     #[tokio::test]
     async fn failed_handoff_send_consumes_the_claim() {
+        let _guard = env_lock::lock_env([("GOOSE_CONTEXT_LIMIT", None::<&str>)]);
         let (tx, rx) = mpsc::channel(1);
         drop(rx);
         let (provider, model) = test_provider_with_tx(Some(tx));
