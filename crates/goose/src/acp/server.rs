@@ -2172,6 +2172,41 @@ impl GooseAcpAgent {
         // The ACP session_id IS the thread ID.
         let session_id = args.session_id.0.to_string();
 
+        let tool_confirmation = args
+            .meta
+            .as_ref()
+            .and_then(|meta| meta.get("goose"))
+            .and_then(|goose| goose.get("toolConfirmation"));
+        let user_message = if let Some(confirmation) = tool_confirmation {
+            let id = confirmation
+                .get("id")
+                .and_then(|id| id.as_str())
+                .ok_or_else(|| {
+                    agent_client_protocol::Error::invalid_params()
+                        .data("toolConfirmation.id must be a string")
+                })?;
+            let permission = confirmation
+                .get("permission")
+                .cloned()
+                .ok_or_else(|| {
+                    agent_client_protocol::Error::invalid_params()
+                        .data("toolConfirmation.permission is required")
+                })
+                .and_then(|permission| {
+                    serde_json::from_value(permission).map_err(|error| {
+                        agent_client_protocol::Error::invalid_params()
+                            .data(format!("invalid toolConfirmation.permission: {error}"))
+                    })
+                })?;
+            Message::user()
+                .with_content(MessageContent::action_required_tool_confirmation_response(
+                    id, permission,
+                ))
+                .with_visibility(false, false)
+        } else {
+            Self::convert_acp_prompt_to_message(&args.prompt)
+        };
+
         let run_id = format!("run_{}", Uuid::new_v4());
         let cancel_token = CancellationToken::new();
 
@@ -2216,41 +2251,6 @@ impl GooseAcpAgent {
             let _ = Self::send_active_run_update(cx, &args.session_id, None);
             return Err(error);
         }
-
-        let tool_confirmation = args
-            .meta
-            .as_ref()
-            .and_then(|meta| meta.get("goose"))
-            .and_then(|goose| goose.get("toolConfirmation"));
-        let user_message = if let Some(confirmation) = tool_confirmation {
-            let id = confirmation
-                .get("id")
-                .and_then(|id| id.as_str())
-                .ok_or_else(|| {
-                    agent_client_protocol::Error::invalid_params()
-                        .data("toolConfirmation.id must be a string")
-                })?;
-            let permission = confirmation
-                .get("permission")
-                .cloned()
-                .ok_or_else(|| {
-                    agent_client_protocol::Error::invalid_params()
-                        .data("toolConfirmation.permission is required")
-                })
-                .and_then(|permission| {
-                    serde_json::from_value(permission).map_err(|error| {
-                        agent_client_protocol::Error::invalid_params()
-                            .data(format!("invalid toolConfirmation.permission: {error}"))
-                    })
-                })?;
-            Message::user()
-                .with_content(MessageContent::action_required_tool_confirmation_response(
-                    id, permission,
-                ))
-                .with_visibility(false, false)
-        } else {
-            Self::convert_acp_prompt_to_message(&args.prompt)
-        };
 
         let use_state_machine = args
             .meta
