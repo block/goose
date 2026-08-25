@@ -10,7 +10,6 @@ use crate::agents::state_machine::{
     applied, messages_since_kickoff, not_applicable, ConversationEffect, Emitter, GooseEffect,
     Operation, OperationResult,
 };
-use crate::agents::tool_confirmation_router::ToolConfirmationRouter;
 use crate::config::permission::PermissionLevel;
 use crate::config::GooseMode;
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent, ToolRequest};
@@ -27,19 +26,16 @@ pub const TOOL_EXECUTABLE_KEY: &str = "goose.executable";
 pub struct ToolApprovalOperation<'a> {
     goose_mode: &'a Mutex<GooseMode>,
     tool_inspection_manager: &'a ToolInspectionManager,
-    tool_confirmation_router: &'a ToolConfirmationRouter,
 }
 
 impl<'a> ToolApprovalOperation<'a> {
     pub fn new(
         goose_mode: &'a Mutex<GooseMode>,
         tool_inspection_manager: &'a ToolInspectionManager,
-        tool_confirmation_router: &'a ToolConfirmationRouter,
     ) -> Self {
         Self {
             goose_mode,
             tool_inspection_manager,
-            tool_confirmation_router,
         }
     }
 }
@@ -126,10 +122,6 @@ impl Operation<Session, GooseEffect> for ToolApprovalOperation<'_> {
                         _ => None,
                     });
 
-                let confirmation = self
-                    .tool_confirmation_router
-                    .register(request.id.clone())
-                    .await;
                 let action_required = Message::assistant()
                     .with_action_required(
                         request.id.clone(),
@@ -139,17 +131,6 @@ impl Operation<Session, GooseEffect> for ToolApprovalOperation<'_> {
                     )
                     .user_only();
                 effects.push(action_required.into());
-
-                let permission = confirmation.await?.permission;
-                effects.push(
-                    Message::user()
-                        .with_content(MessageContent::action_required_tool_confirmation_response(
-                            request.id.clone(),
-                            permission,
-                        ))
-                        .with_visibility(false, false)
-                        .into(),
-                );
 
                 if let Some(finding_id) =
                     get_security_finding_id_from_results(&request.id, &inspection_results)

@@ -1365,7 +1365,7 @@ impl GooseAcpAgent {
     }
 
     async fn handle_message_content(
-        &self,
+        self: &Arc<Self>,
         content_item: &MessageContent,
         message: &Message,
         session_id: &SessionId,
@@ -1569,7 +1569,7 @@ impl GooseAcpAgent {
 
     #[allow(clippy::too_many_arguments)]
     fn handle_tool_permission_request(
-        &self,
+        self: &Arc<Self>,
         cx: &ConnectionTo<Client>,
         agent: &Arc<Agent>,
         session_id: &SessionId,
@@ -1579,6 +1579,7 @@ impl GooseAcpAgent {
         prompt: Option<String>,
         use_state_machine: bool,
     ) -> Result<(), agent_client_protocol::Error> {
+        let server = self.clone();
         let cx = cx.clone();
         let agent = agent.clone();
         let session_id = session_id.clone();
@@ -1606,38 +1607,43 @@ impl GooseAcpAgent {
         ];
 
         let permission_request =
-            RequestPermissionRequest::new(session_id, tool_call_update, options);
+            RequestPermissionRequest::new(session_id.clone(), tool_call_update, options);
 
         cx.send_request(permission_request)
             .on_receiving_result(move |result| async move {
-                match result {
-                    Ok(response) => {
-                        let confirmation = outcome_to_confirmation(&response.outcome);
-                        if use_state_machine {
-                            agent
-                                .handle_state_machine_confirmation(request_id, confirmation)
-                                .await;
-                        } else {
-                            agent.handle_confirmation(request_id, confirmation).await;
-                        }
-                        Ok(())
-                    }
-                    Err(e) => {
-                        error!(error = ?e, "permission request failed");
-                        let confirmation = PermissionConfirmation {
+                let confirmation = match result {
+                    Ok(response) => outcome_to_confirmation(&response.outcome),
+                    Err(error) => {
+                        error!(?error, "permission request failed");
+                        PermissionConfirmation {
                             principal_type: PrincipalType::Tool,
                             permission: Permission::Cancel,
-                        };
-                        if use_state_machine {
-                            agent
-                                .handle_state_machine_confirmation(request_id, confirmation)
-                                .await;
-                        } else {
-                            agent.handle_confirmation(request_id, confirmation).await;
                         }
-                        Ok(())
                     }
+                };
+
+                if !use_state_machine || agent.supports_action_required_permissions().await {
+                    agent.handle_confirmation(request_id, confirmation).await;
+                    return Ok(());
                 }
+
+                let mut goose = serde_json::Map::new();
+                goose.insert(
+                    "toolConfirmation".to_string(),
+                    serde_json::json!({
+                        "id": request_id,
+                        "permission": confirmation.permission,
+                    }),
+                );
+                goose.insert(
+                    "unrolledAgentLoop".to_string(),
+                    serde_json::Value::Bool(true),
+                );
+                let mut meta = serde_json::Map::new();
+                meta.insert("goose".to_string(), serde_json::Value::Object(goose));
+                let request = PromptRequest::new(session_id, Vec::new()).meta(meta);
+                server.on_prompt(&cx, request).await?;
+                Ok(())
             })?;
 
         Ok(())
@@ -2259,7 +2265,7 @@ impl GooseAcpAgent {
     }
 
     async fn on_prompt(
-        &self,
+        self: &Arc<Self>,
         cx: &ConnectionTo<Client>,
         args: PromptRequest,
     ) -> Result<PromptResponse, agent_client_protocol::Error> {
@@ -2311,7 +2317,40 @@ impl GooseAcpAgent {
             return Err(error);
         }
 
-        let user_message = Self::convert_acp_prompt_to_message(&args.prompt);
+        let tool_confirmation = args
+            .meta
+            .as_ref()
+            .and_then(|meta| meta.get("goose"))
+            .and_then(|goose| goose.get("toolConfirmation"));
+        let user_message = if let Some(confirmation) = tool_confirmation {
+            let id = confirmation
+                .get("id")
+                .and_then(|id| id.as_str())
+                .ok_or_else(|| {
+                    agent_client_protocol::Error::invalid_params()
+                        .data("toolConfirmation.id must be a string")
+                })?;
+            let permission = confirmation
+                .get("permission")
+                .cloned()
+                .ok_or_else(|| {
+                    agent_client_protocol::Error::invalid_params()
+                        .data("toolConfirmation.permission is required")
+                })
+                .and_then(|permission| {
+                    serde_json::from_value(permission).map_err(|error| {
+                        agent_client_protocol::Error::invalid_params()
+                            .data(format!("invalid toolConfirmation.permission: {error}"))
+                    })
+                })?;
+            Message::user()
+                .with_content(MessageContent::action_required_tool_confirmation_response(
+                    id, permission,
+                ))
+                .with_visibility(false, false)
+        } else {
+            Self::convert_acp_prompt_to_message(&args.prompt)
+        };
 
         let use_state_machine = args
             .meta

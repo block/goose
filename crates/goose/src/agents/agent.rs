@@ -1606,20 +1606,6 @@ impl Agent {
         false
     }
 
-    pub(crate) async fn handle_state_machine_confirmation(
-        &self,
-        request_id: String,
-        confirmation: PermissionConfirmation,
-    ) {
-        if !self
-            .tool_confirmation_router
-            .deliver(request_id, confirmation)
-            .await
-        {
-            error!("Failed to deliver state-machine confirmation");
-        }
-    }
-
     pub async fn supports_action_required_permissions(&self) -> bool {
         if let Some(provider) = self.provider.lock().await.as_ref() {
             return provider.permission_routing() == PermissionRouting::ActionRequired;
@@ -1692,7 +1678,6 @@ impl Agent {
             Arc::new(ToolApprovalOperation::new(
                 &self.current_goose_mode,
                 &self.tool_inspection_manager,
-                &self.tool_confirmation_router,
             )),
             Arc::new(DoctorOperation),
             Arc::new(ProjectOperation),

@@ -219,7 +219,7 @@ fn replay_conversation_to_client(
 
 impl GooseAcpAgent {
     fn resend_pending_tool_permissions(
-        &self,
+        self: &Arc<Self>,
         cx: &ConnectionTo<Client>,
         agent: &Arc<Agent>,
         session_id: &str,
