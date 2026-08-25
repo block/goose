@@ -43,6 +43,7 @@ The remote server works anonymously on a rate-limited free tier, so no API key i
   <TabItem value="cli" label="goose CLI">
     <CLIExtensionInstructions
       name="toolradar"
+      description="Search, compare, and get verified pricing for 8,600+ software tools"
       type="http"
       url="https://toolradar.com/api/mcp"
       timeout={300}
