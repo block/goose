@@ -22,6 +22,8 @@ use tracing::log::warn;
 
 pub use goose_context_management::DEFAULT_COMPACTION_THRESHOLD;
 
+pub(crate) const TOOLCALL_SUMMARIZATION_BATCH_SIZE: usize = 10;
+
 pub(crate) fn tool_pair_summarization_enabled() -> bool {
     Config::global()
         .get_param::<bool>("GOOSE_TOOL_PAIR_SUMMARIZATION")
@@ -395,19 +397,16 @@ pub fn tool_ids_to_summarize(
         }
     }
 
-    // Never summarize the last N tool calls (current turn). Let the rewrite
-    // interval scale with the retention window so large-context models do not
-    // churn the prompt prefix every fixed-size batch.
+    // Never summarize the last N tool calls (current turn)
     let eligible = tool_call_ids.len().saturating_sub(protect_last_n);
-    if eligible <= cutoff.saturating_mul(2) {
+    if eligible <= cutoff + TOOLCALL_SUMMARIZATION_BATCH_SIZE {
         return Vec::new();
     }
 
-    // Drain the backlog to the configured retention window in one rewrite.
-    // Since we take from the oldest end, the protected current-turn calls are
-    // never included.
-    let summarize_count = eligible - cutoff;
-    tool_call_ids.into_iter().take(summarize_count).collect()
+    tool_call_ids
+        .into_iter()
+        .take(TOOLCALL_SUMMARIZATION_BATCH_SIZE)
+        .collect()
 }
 
 fn agent_visible_tool_pair(conversation: &Conversation, tool_id: &str) -> Result<Vec<Message>> {
@@ -628,6 +627,7 @@ mod tests {
         config: ModelConfig,
         max_tool_responses: Option<usize>,
         captured_system: std::sync::Mutex<Option<String>>,
+        calls: std::sync::atomic::AtomicUsize,
     }
 
     impl MockProvider {
@@ -648,12 +648,17 @@ mod tests {
                 },
                 max_tool_responses: None,
                 captured_system: std::sync::Mutex::new(None),
+                calls: std::sync::atomic::AtomicUsize::new(0),
             }
         }
 
         fn with_max_tool_responses(mut self, max: usize) -> Self {
             self.max_tool_responses = Some(max);
             self
+        }
+
+        fn call_count(&self) -> usize {
+            self.calls.load(std::sync::atomic::Ordering::Relaxed)
         }
     }
 
@@ -670,6 +675,8 @@ mod tests {
             messages: &[Message],
             _tools: &[Tool],
         ) -> Result<MessageStream, ProviderError> {
+            self.calls
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             *self.captured_system.lock().unwrap() = Some(system.to_string());
             // If max_tool_responses is set, fail if we have too many
             if let Some(max) = self.max_tool_responses {
@@ -1172,6 +1179,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn parallel_tool_calls_share_one_summary_request() {
+        let provider = Arc::new(MockProvider::new(
+            Message::assistant().with_text("summary"),
+            1000,
+        ));
+        let mut messages = vec![Message::user().with_text("start")];
+        for index in 0..7 {
+            let first_id = format!("tool_{index}a");
+            let second_id = format!("tool_{index}b");
+            messages.push(
+                Message::assistant()
+                    .with_tool_request(&first_id, Ok(CallToolRequestParams::new("read_file")))
+                    .with_tool_request(&second_id, Ok(CallToolRequestParams::new("read_file")))
+                    .with_id(format!("request_{index}")),
+            );
+            messages.push(
+                Message::user()
+                    .with_tool_response(
+                        &first_id,
+                        Ok(rmcp::model::CallToolResult::success(vec![
+                            ContentBlock::text("first result"),
+                        ])),
+                    )
+                    .with_tool_response(
+                        &second_id,
+                        Ok(rmcp::model::CallToolResult::success(vec![
+                            ContentBlock::text("second result"),
+                        ])),
+                    )
+                    .with_id(format!("response_{index}")),
+            );
+        }
+
+        let conversation = Conversation::new_unvalidated(messages);
+        let summaries = maybe_summarize_tool_pairs(
+            provider.clone(),
+            provider.config.clone(),
+            "test-session-id".to_string(),
+            conversation,
+            2,
+            0,
+        )
+        .unwrap()
+        .await
+        .unwrap();
+
+        assert_eq!(summaries.len(), 5);
+        assert_eq!(provider.call_count(), 5);
+    }
+
+    #[tokio::test]
     async fn test_progressive_removal_on_context_exceeded() {
         let response_message = Message::assistant().with_text("<mock summary>");
         // Set max to 2 tool responses - will trigger progressive removal
@@ -1230,23 +1288,10 @@ mod tests {
     }
 
     #[test]
-    fn test_tool_ids_to_summarize_scales_rewrite_interval_with_cutoff() {
-        // cutoff=5, so exactly 10 eligible calls are the boundary and do not trigger.
+    fn test_tool_ids_to_summarize_triggers_at_cutoff_plus_batch() {
+        // cutoff=5, so we need >5+10=15 to trigger. 15 exactly should NOT trigger.
         let mut messages = vec![Message::user().with_text("hello")];
-        for i in 0..10 {
-            messages.extend(create_tool_pair(
-                &format!("call{}", i),
-                &format!("resp{}", i),
-                "read_file",
-                "content",
-            ));
-        }
-        let conversation = Conversation::new_unvalidated(messages);
-        assert!(tool_ids_to_summarize(&conversation, 5, 0).is_empty());
-
-        // Crossing 2*cutoff drains the backlog to cutoff in one pass.
-        let mut messages = vec![Message::user().with_text("hello")];
-        for i in 0..11 {
+        for i in 0..15 {
             messages.extend(create_tool_pair(
                 &format!("call{}", i),
                 &format!("resp{}", i),
@@ -1256,13 +1301,11 @@ mod tests {
         }
         let conversation = Conversation::new_unvalidated(messages);
         let result = tool_ids_to_summarize(&conversation, 5, 0);
-        assert_eq!(result.len(), 6);
-        assert_eq!(result.first().map(String::as_str), Some("call0"));
-        assert_eq!(result.last().map(String::as_str), Some("call5"));
+        assert!(result.is_empty(), "Exactly cutoff+batch should not trigger");
 
-        // A larger backlog is still drained by the same single selection.
+        // 16 tool calls: now exceeds cutoff+10, should return a batch of 10
         let mut messages = vec![Message::user().with_text("hello")];
-        for i in 0..25 {
+        for i in 0..16 {
             messages.extend(create_tool_pair(
                 &format!("call{}", i),
                 &format!("resp{}", i),
@@ -1272,12 +1315,14 @@ mod tests {
         }
         let conversation = Conversation::new_unvalidated(messages);
         let result = tool_ids_to_summarize(&conversation, 5, 0);
-        assert_eq!(result.len(), 20);
-        assert_eq!(result.last().map(String::as_str), Some("call19"));
+        assert_eq!(result.len(), TOOLCALL_SUMMARIZATION_BATCH_SIZE);
+        assert_eq!(result[0], "call0");
+        assert_eq!(result[9], "call9");
     }
 
     #[test]
     fn test_tool_ids_to_summarize_protects_current_turn() {
+        // 20 tool pairs, cutoff=2 → 20 > 12, would normally trigger
         let mut messages = vec![Message::user().with_text("hello")];
         for i in 0..20 {
             messages.extend(create_tool_pair(
@@ -1289,20 +1334,20 @@ mod tests {
         }
         let conversation = Conversation::new_unvalidated(messages);
 
-        // No protection: 20 eligible calls drain to the cutoff of 5.
-        let result = tool_ids_to_summarize(&conversation, 5, 0);
-        assert_eq!(result.len(), 15);
-        assert_eq!(result.last().map(String::as_str), Some("call14"));
+        // No protection: 20 eligible, 20 > 12 → batch of 10
+        let result = tool_ids_to_summarize(&conversation, 2, 0);
+        assert_eq!(result.len(), TOOLCALL_SUMMARIZATION_BATCH_SIZE);
 
-        // Protect last 10: 10 eligible is exactly 2*cutoff, so nothing moves.
-        let result = tool_ids_to_summarize(&conversation, 5, 10);
-        assert!(result.is_empty());
+        // Protect last 8: 12 eligible, 12 <= 12 → nothing
+        let result = tool_ids_to_summarize(&conversation, 2, 8);
+        assert!(
+            result.is_empty(),
+            "Should not summarize when protected count leaves eligible <= cutoff + batch"
+        );
 
-        // Protect last 9: 11 eligible crosses the boundary, so six old calls
-        // are summarized and all protected current-turn calls remain untouched.
-        let result = tool_ids_to_summarize(&conversation, 5, 9);
-        assert_eq!(result.len(), 6);
-        assert_eq!(result.first().map(String::as_str), Some("call0"));
-        assert_eq!(result.last().map(String::as_str), Some("call5"));
+        // Protect last 7: 13 eligible, 13 > 12 → batch of 10
+        let result = tool_ids_to_summarize(&conversation, 2, 7);
+        assert_eq!(result.len(), TOOLCALL_SUMMARIZATION_BATCH_SIZE);
+        assert_eq!(result[0], "call0");
     }
 }

@@ -7,7 +7,7 @@ use super::dummy_api::ProviderFeatures;
 use super::pipeline::{self, test_pipeline, MessageKind::Agent};
 use crate::agents::state_machine;
 use crate::agents::state_machine::ops_compaction::MAX_CONTEXT_ERROR_COMPACTIONS;
-use crate::context_mgmt::compute_tool_call_cutoff;
+use crate::context_mgmt::{compute_tool_call_cutoff, TOOLCALL_SUMMARIZATION_BATCH_SIZE};
 use crate::conversation::message::{Message, MessageErrorKind};
 use crate::conversation::Conversation;
 
@@ -248,11 +248,10 @@ async fn repeated_context_errors_stop_compacting() -> Result<()> {
 }
 
 #[tokio::test]
-async fn tool_pairs_are_compacted_when_the_scaled_window_is_exceeded() -> Result<()> {
+async fn tool_pairs_are_compacted_only_after_the_current_turn() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
     let cutoff = compute_tool_call_cutoff(pipeline.context_limit(), pipeline::COMPACTION_THRESHOLD);
-    let boundary = cutoff * 2;
-    let replaced_tool_ids = boundary + 1 - cutoff;
+    let boundary = cutoff + TOOLCALL_SUMMARIZATION_BATCH_SIZE;
 
     api.on("do a lot of work").call(ADD, value(1));
     api.on("result:").call(ADD, value(1));
@@ -276,29 +275,33 @@ async fn tool_pairs_are_compacted_when_the_scaled_window_is_exceeded() -> Result
         ])
         .await?;
     current_turn.assert_message(-1, Agent, "all work done");
-    let current_visible_tool_ids = current_turn
+    assert_eq!(
+        current_turn
+            .conversation()
+            .messages()
+            .iter()
+            .filter(|message| message.is_agent_visible() && message.is_tool_call())
+            .count(),
+        boundary + 1
+    );
+    assert!(!current_turn
         .conversation()
         .messages()
         .iter()
-        .filter(|message| message.is_agent_visible())
-        .map(|message| message.get_tool_request_ids().len())
-        .sum::<usize>();
-    assert_eq!(current_visible_tool_ids, cutoff + 1);
-    let current_summaries = current_turn
-        .conversation()
-        .messages()
-        .iter()
-        .filter(|message| {
-            message.as_concat_text() == "summary of the pair"
-                && message.is_agent_visible()
-                && !message.is_user_visible()
-        })
-        .count();
-    assert_eq!(current_summaries, replaced_tool_ids);
+        .any(|message| message.as_concat_text() == "summary of the pair"));
 
+    let calls_before = api.call_count();
     let next_turn = pipeline.run(["carry on"]).await?;
     next_turn.assert_message(-1, Agent, "carried on");
 
+    // The batch is one provider call per pair plus the turn's own inference. A
+    // pair whose summary call fails is left alone, so check that every call was
+    // made before reading the counts it produced.
+    assert_eq!(
+        api.call_count() - calls_before,
+        TOOLCALL_SUMMARIZATION_BATCH_SIZE + 1,
+        "expected a summary request per pair"
+    );
     let summaries = next_turn
         .conversation()
         .messages()
@@ -309,25 +312,19 @@ async fn tool_pairs_are_compacted_when_the_scaled_window_is_exceeded() -> Result
                 && !message.is_user_visible()
         })
         .count();
-    assert_eq!(
-        summaries, replaced_tool_ids,
-        "each eligible tool pair should be replaced with one summary"
-    );
-
-    let visible_tool_ids = next_turn
+    let visible_tool_calls = next_turn
         .conversation()
         .messages()
         .iter()
-        .filter(|message| message.is_agent_visible())
-        .map(|message| message.get_tool_request_ids().len())
-        .sum::<usize>();
+        .filter(|message| message.is_agent_visible() && message.is_tool_call())
+        .count();
     assert_eq!(
-        visible_tool_ids, current_visible_tool_ids,
-        "the next turn should retain the compacted history"
-    );
-    assert_eq!(
-        summaries, current_summaries,
-        "the next turn should not create duplicate summaries"
+        (summaries, visible_tool_calls),
+        (
+            TOOLCALL_SUMMARIZATION_BATCH_SIZE,
+            boundary + 1 - TOOLCALL_SUMMARIZATION_BATCH_SIZE
+        ),
+        "summaries and the tool calls they replaced disagree"
     );
 
     Ok(())
@@ -338,10 +335,10 @@ async fn parallel_and_failed_tool_pairs_are_compacted_as_complete_messages() -> 
     let (pipeline, api) = test_pipeline().await?;
     let cutoff = compute_tool_call_cutoff(pipeline.context_limit(), pipeline::COMPACTION_THRESHOLD);
     let calls_per_message = 2;
-    let pairs = cutoff + 1;
-    let total_calls = pairs * calls_per_message;
-    let selected_calls = total_calls - cutoff;
-    let summarized_messages = selected_calls.div_ceil(calls_per_message);
+    let batches = 2;
+    let summarized_messages = batches * TOOLCALL_SUMMARIZATION_BATCH_SIZE / calls_per_message;
+    let pairs =
+        (cutoff + batches * TOOLCALL_SUMMARIZATION_BATCH_SIZE).div_ceil(calls_per_message) + 1;
 
     api.on_system(SUMMARIZE_TOOL_PAIR).reply("pair summary");
     api.on("carry on").reply("done");
