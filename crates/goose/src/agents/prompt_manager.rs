@@ -369,6 +369,43 @@ mod tests {
     }
 
     #[test]
+    fn project_git_metadata_does_not_reach_system_prompt() {
+        let project = tempfile::tempdir().unwrap();
+        std::fs::create_dir(project.path().join(".git")).unwrap();
+        std::fs::create_dir(project.path().join("docs")).unwrap();
+        std::fs::write(
+            project.path().join(".git/config"),
+            "url = https://oauth2:PROMPT_SECRET@example.invalid/repo.git",
+        )
+        .unwrap();
+        std::fs::write(
+            project.path().join("docs/config.md"),
+            "legitimate project configuration",
+        )
+        .unwrap();
+        std::fs::write(
+            project.path().join(crate::hints::AGENTS_MD_FILENAME),
+            "project instructions\n@.git/config\n@docs/config.md",
+        )
+        .unwrap();
+        let ignore_patterns = build_gitignore(project.path());
+        let hints = load_hint_files(
+            project.path(),
+            &[crate::hints::AGENTS_MD_FILENAME.to_string()],
+            &ignore_patterns,
+        );
+
+        let prompt = PromptManager::new()
+            .builder()
+            .with_prompt_extras([("hints".to_string(), hints)])
+            .build();
+
+        assert!(prompt.contains("project instructions"));
+        assert!(prompt.contains("legitimate project configuration"));
+        assert!(!prompt.contains("PROMPT_SECRET"));
+    }
+
+    #[test]
     fn test_build_system_prompt_sanitizes_multiple_extras() {
         let mut manager = PromptManager::new();
         manager

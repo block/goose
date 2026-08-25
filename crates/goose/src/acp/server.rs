@@ -234,9 +234,61 @@ struct GooseAcpSession {
     agent: Arc<Agent>,
 }
 
-struct ActivePromptRun {
+pub struct ActivePromptRun {
     run_id: String,
     cancel_token: CancellationToken,
+    /// The agent actually running this prompt. Roaming gives each connection
+    /// its own agent, so a steer arriving on a second connection must be
+    /// routed here rather than to the caller's connection-local agent.
+    agent: Arc<Agent>,
+}
+
+/// Per-session active-run registry, shared by every `GooseAcpAgent` created
+/// from one `AcpServer`. Roaming spawns a fresh agent per connection, so two
+/// paired clients loading the same session get distinct agents; sharing this
+/// map across them is what makes the "session already has an active run" guard
+/// fire between connections instead of letting two loops interleave writes on
+/// one session.
+pub type ActiveRunRegistry = Arc<Mutex<HashMap<String, ActivePromptRun>>>;
+
+/// Releases a registry entry if the owning `on_prompt` future is dropped
+/// without reaching its explicit `clear_active_run` — e.g. a roaming
+/// connection is revoked or lost mid-prompt and the transport drops the
+/// request future. Without this, the shared registry retains the run forever
+/// and every later connection gets "session already has active run".
+///
+/// The explicit clear still runs on normal paths; this drop is then a no-op
+/// because the entry (matched by run id) is already gone.
+struct ActiveRunDropGuard {
+    registry: ActiveRunRegistry,
+    session_id: String,
+    run_id: String,
+    cancel_token: CancellationToken,
+}
+
+impl Drop for ActiveRunDropGuard {
+    fn drop(&mut self) {
+        self.cancel_token.cancel();
+        let registry = self.registry.clone();
+        let session_id = std::mem::take(&mut self.session_id);
+        let run_id = std::mem::take(&mut self.run_id);
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            handle.spawn(async move {
+                let agent = {
+                    let mut runs = registry.lock().await;
+                    match runs.get(&session_id) {
+                        Some(run) if run.run_id == run_id => {
+                            runs.remove(&session_id).map(|run| run.agent)
+                        }
+                        _ => None,
+                    }
+                };
+                if let Some(agent) = agent {
+                    agent.discard_pending_steers(&session_id).await;
+                }
+            });
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -270,6 +322,13 @@ pub struct GooseAcpAgentOptions {
     pub goose_platform: GoosePlatform,
     pub additional_source_roots: Vec<SourceRoot>,
     pub scheduler: Option<Arc<dyn SchedulerTrait>>,
+    /// When set, new sessions use this host-controlled working directory instead
+    /// of the `cwd` the connecting client sends (see `AcpServerFactoryConfig`).
+    pub session_cwd: Option<std::path::PathBuf>,
+    /// Active-run registry shared across all agents from one `AcpServer`, so the
+    /// active-run guard holds across roaming connections that each get a fresh
+    /// agent for the same session.
+    pub active_prompt_runs: ActiveRunRegistry,
 }
 
 pub struct GooseAcpAgent {
@@ -296,6 +355,7 @@ pub struct GooseAcpAgent {
     disable_session_naming: bool,
     provider_inventory: ProviderInventoryService,
     additional_source_roots: Vec<SourceRoot>,
+    session_cwd: Option<PathBuf>,
     recipe_path_cache: Arc<Mutex<HashMap<String, PathBuf>>>,
 }
 
@@ -723,6 +783,13 @@ pub(super) fn build_usage_updates(
     })
 }
 
+/// Resolve the cwd an existing session should be activated with: a
+/// host-imposed cwd (roaming) wins, otherwise the client-requested cwd is
+/// honored as-is, preserving standard ACP semantics.
+pub(super) fn effective_session_cwd(host_cwd: Option<&Path>, requested: &Path) -> PathBuf {
+    host_cwd.unwrap_or(requested).to_path_buf()
+}
+
 pub(super) fn validate_absolute_cwd(cwd: &Path) -> Result<(), agent_client_protocol::Error> {
     if !cwd.is_absolute() {
         return Err(
@@ -738,6 +805,41 @@ pub(super) fn validate_absolute_cwd(cwd: &Path) -> Result<(), agent_client_proto
 }
 
 impl GooseAcpAgent {
+    #[cfg(test)]
+    pub(crate) fn active_run_registry(&self) -> &ActiveRunRegistry {
+        &self.active_prompt_runs
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn test_start_active_run(
+        &self,
+        session_id: &str,
+        run_id: String,
+        agent: Arc<Agent>,
+    ) -> Result<(), agent_client_protocol::Error> {
+        self.start_active_run(session_id, run_id, CancellationToken::new(), agent)
+            .await
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test_drop_active_run_guard(&self, session_id: &str, run_id: &str) {
+        drop(ActiveRunDropGuard {
+            registry: self.active_prompt_runs.clone(),
+            session_id: session_id.to_string(),
+            run_id: run_id.to_string(),
+            cancel_token: CancellationToken::new(),
+        });
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn test_require_active_run(
+        &self,
+        session_id: &str,
+        expected_run_id: &str,
+    ) -> Result<(String, Arc<Agent>), agent_client_protocol::Error> {
+        self.require_active_run(session_id, expected_run_id).await
+    }
+
     pub fn permission_manager(&self) -> Arc<PermissionManager> {
         Arc::clone(&self.permission_manager)
     }
@@ -830,7 +932,7 @@ impl GooseAcpAgent {
 
         Ok(Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
-            active_prompt_runs: Arc::new(Mutex::new(HashMap::new())),
+            active_prompt_runs: options.active_prompt_runs,
             closed_session_ids: Arc::new(Mutex::new(HashSet::new())),
             agent_manager,
             provider_factory: options.provider_factory,
@@ -852,6 +954,7 @@ impl GooseAcpAgent {
             disable_session_naming: options.disable_session_naming,
             provider_inventory,
             additional_source_roots: options.additional_source_roots,
+            session_cwd: options.session_cwd,
             recipe_path_cache: Arc::new(Mutex::new(HashMap::new())),
         })
     }
@@ -876,39 +979,46 @@ impl GooseAcpAgent {
         .await
     }
 
-    async fn maybe_refresh_provider_inventory_with_agent(
-        &self,
-        goose_session: &Session,
-        agent: &Arc<Agent>,
-    ) {
-        let Some(provider_name) = goose_session.provider_name.as_deref() else {
+    /// Warm the provider model-list cache after session creation.
+    ///
+    /// This is a best-effort cache refresh, never a prerequisite for using the
+    /// session, so it runs as a detached background task. Keeping it off the
+    /// `session/new` critical path avoids stalling session creation on slow or
+    /// blocking work such as a synchronous keychain read while resolving the
+    /// provider's inventory identity.
+    fn spawn_provider_inventory_refresh(&self, goose_session: &Session, agent: &Arc<Agent>) {
+        let Some(provider_name) = goose_session.provider_name.clone() else {
             return;
         };
-        let Some(mut inventory) = self
-            .provider_inventory
-            .find_entry_for_provider(provider_name)
-            .await
-        else {
-            return;
-        };
-        if !should_refresh_inventory_for_session_init(&inventory) {
-            return;
-        }
-        let provider = match agent.provider().await {
-            Ok(provider) => provider,
-            Err(error) => {
-                warn!(
-                    provider = %provider_name,
-                    session = %goose_session.id,
-                    error = %error,
-                    "agent has no provider available for inventory refresh"
-                );
+        let inventory_service = self.provider_inventory.clone();
+        let agent = agent.clone();
+        let session_id = goose_session.id.clone();
+        tokio::spawn(async move {
+            let Some(mut inventory) = inventory_service
+                .find_entry_for_provider(&provider_name)
+                .await
+            else {
+                return;
+            };
+            if !should_refresh_inventory_for_session_init(&inventory) {
                 return;
             }
-        };
-        self.provider_inventory
-            .refresh_with_provider(provider_name, &provider, &mut inventory, "session init")
-            .await;
+            let provider = match agent.provider().await {
+                Ok(provider) => provider,
+                Err(error) => {
+                    warn!(
+                        provider = %provider_name,
+                        session = %session_id,
+                        error = %error,
+                        "agent has no provider available for inventory refresh"
+                    );
+                    return;
+                }
+            };
+            inventory_service
+                .refresh_with_provider(&provider_name, &provider, &mut inventory, "session init")
+                .await;
+        });
     }
 
     async fn get_or_create_session_agent_with_results(
@@ -1003,8 +1113,7 @@ impl GooseAcpAgent {
         let agent = agent_result.agent.clone();
         self.apply_acp_extension_overrides(cx, &agent, session)
             .await;
-        self.maybe_refresh_provider_inventory_with_agent(session, &agent)
-            .await;
+        self.spawn_provider_inventory_refresh(session, &agent);
 
         Ok((agent, agent_result.extension_results))
     }
@@ -1746,6 +1855,7 @@ impl GooseAcpAgent {
         session_id: &str,
         run_id: String,
         cancel_token: CancellationToken,
+        agent: Arc<Agent>,
     ) -> Result<(), agent_client_protocol::Error> {
         if self.closed_session_ids.lock().await.contains(session_id) {
             return Err(agent_client_protocol::Error::resource_not_found(Some(
@@ -1767,13 +1877,14 @@ impl GooseAcpAgent {
             ActivePromptRun {
                 run_id,
                 cancel_token,
+                agent,
             },
         );
         Ok(())
     }
 
     async fn clear_active_run(&self, session_id: &str, run_id: &str) {
-        {
+        let agent = {
             let mut active_prompt_runs = self.active_prompt_runs.lock().await;
             let Some(active_run) = active_prompt_runs.get(session_id) else {
                 return;
@@ -1783,15 +1894,13 @@ impl GooseAcpAgent {
                 return;
             }
 
-            active_prompt_runs.remove(session_id);
-        }
-
-        let agent = {
-            let sessions = self.sessions.lock().await;
-            sessions
-                .get(session_id)
-                .map(|session| session.agent.clone())
+            active_prompt_runs
+                .remove(session_id)
+                .map(|active_run| active_run.agent)
         };
+
+        // Discard steers on the agent that owned the run; under roaming it may
+        // not be this connection's agent.
         if let Some(agent) = agent {
             agent.discard_pending_steers(session_id).await;
         }
@@ -1816,7 +1925,7 @@ impl GooseAcpAgent {
         &self,
         session_id: &str,
         expected_run_id: &str,
-    ) -> Result<String, agent_client_protocol::Error> {
+    ) -> Result<(String, Arc<Agent>), agent_client_protocol::Error> {
         if expected_run_id.is_empty() {
             return Err(agent_client_protocol::Error::invalid_params()
                 .data("expectedRunId must not be empty"));
@@ -1838,7 +1947,7 @@ impl GooseAcpAgent {
                 })),
             );
         }
-        Ok(active_run.run_id.clone())
+        Ok((active_run.run_id.clone(), active_run.agent.clone()))
     }
 
     fn active_run_meta(active_run_id: Option<&str>) -> Meta {
@@ -1947,15 +2056,27 @@ impl GooseAcpAgent {
 
         let run_id = format!("run_{}", Uuid::new_v4());
         let cancel_token = CancellationToken::new();
-        self.start_active_run(&session_id, run_id.clone(), cancel_token.clone())
-            .await?;
 
-        let agent = match self.get_session_agent(&session_id).await {
-            Ok(agent) => agent,
-            Err(error) => {
-                self.clear_active_run(&session_id, &run_id).await;
-                return Err(error);
-            }
+        // Resolve the agent before claiming the run so the registry can record
+        // which agent owns it; registration stays atomic, so the cross-connection
+        // guard still admits only one run per session.
+        let agent = self.get_session_agent(&session_id).await?;
+        self.start_active_run(
+            &session_id,
+            run_id.clone(),
+            cancel_token.clone(),
+            agent.clone(),
+        )
+        .await?;
+
+        // Frees the run if this future is dropped mid-prompt (e.g. the roaming
+        // connection carrying it is revoked or lost); a normal completion's
+        // explicit clear wins and makes the guard's cleanup a no-op.
+        let _run_guard = ActiveRunDropGuard {
+            registry: self.active_prompt_runs.clone(),
+            session_id: session_id.clone(),
+            run_id: run_id.clone(),
+            cancel_token: cancel_token.clone(),
         };
 
         if cancel_token.is_cancelled() {
@@ -2156,10 +2277,10 @@ impl GooseAcpAgent {
             );
         }
 
-        self.require_active_run(&req.session_id, &req.expected_run_id)
-            .await?;
-        let agent = self.get_session_agent(&req.session_id).await?;
-        let active_run_id = self
+        // Route to the agent that owns the run, not this connection's agent:
+        // under roaming the steering client may be a different connection than
+        // the one running the prompt.
+        let (active_run_id, agent) = self
             .require_active_run(&req.session_id, &req.expected_run_id)
             .await?;
 
@@ -2509,6 +2630,7 @@ pub async fn run(builtins: Vec<String>, enable_scheduler: bool) -> Result<()> {
             config_dir: Paths::config_dir(),
             goose_platform: GoosePlatform::GooseCli,
             additional_source_roots: Vec::new(),
+            session_cwd: None,
             enable_scheduler,
         },
     );
@@ -2589,6 +2711,35 @@ mod tests {
         ) -> Result<crate::providers::base::MessageStream, ProviderError> {
             Ok(Box::pin(futures::stream::empty()))
         }
+    }
+
+    #[test]
+    fn effective_session_cwd_prefers_host_cwd_over_client_path() {
+        let cwd = effective_session_cwd(
+            Some(Path::new("/host/share")),
+            Path::new("/client/only/path"),
+        );
+
+        assert_eq!(cwd, PathBuf::from("/host/share"));
+    }
+
+    #[test]
+    fn effective_session_cwd_uses_client_path_without_host_override() {
+        let cwd = effective_session_cwd(None, Path::new("/client/path"));
+
+        assert_eq!(cwd, PathBuf::from("/client/path"));
+    }
+
+    #[test]
+    fn effective_session_cwd_is_validated_instead_of_client_path() {
+        let host = tempfile::tempdir().unwrap();
+        let client_path = Path::new("/does/not/exist/on/host");
+
+        assert!(validate_absolute_cwd(client_path).is_err());
+
+        let cwd = effective_session_cwd(Some(host.path()), client_path);
+
+        assert!(validate_absolute_cwd(&cwd).is_ok());
     }
 
     #[test]
@@ -3368,6 +3519,8 @@ print(\"hello, world\")
                 goose_platform: GoosePlatform::GooseCli,
                 additional_source_roots: Vec::new(),
                 scheduler: None,
+                session_cwd: None,
+                active_prompt_runs: Default::default(),
             })
             .await
             .unwrap(),
