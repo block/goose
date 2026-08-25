@@ -53,10 +53,11 @@ struct DatabricksUpstreamModel {
 
 #[derive(Debug, Clone)]
 struct CachedDatabricksEndpointInfo {
-    info: DatabricksEndpointInfo,
+    info: Option<DatabricksEndpointInfo>,
     fetched_at: Instant,
 }
 
+const DATABRICKS_ENDPOINT_METADATA_TIMEOUT_SECS: u64 = 5;
 const DATABRICKS_ENDPOINT_METADATA_TTL_SECS: u64 = 60;
 static DATABRICKS_ENDPOINT_INFO_CACHE: LazyLock<
     Mutex<std::collections::HashMap<String, CachedDatabricksEndpointInfo>>,
@@ -436,11 +437,21 @@ impl DatabricksProvider {
             if cached.fetched_at.elapsed()
                 < Duration::from_secs(DATABRICKS_ENDPOINT_METADATA_TTL_SECS)
             {
-                return Ok(cached.info);
+                return cached.info.ok_or_else(|| {
+                    ProviderError::RequestFailed(
+                        "Databricks endpoint metadata is unavailable".to_string(),
+                    )
+                });
             }
         }
 
-        let info = self.resolve_endpoint_info(endpoint_name).await?;
+        let info = tokio::time::timeout(
+            Duration::from_secs(DATABRICKS_ENDPOINT_METADATA_TIMEOUT_SECS),
+            self.resolve_endpoint_info(endpoint_name),
+        )
+        .await
+        .ok()
+        .and_then(Result::ok);
         DATABRICKS_ENDPOINT_INFO_CACHE.lock().unwrap().insert(
             cache_key,
             CachedDatabricksEndpointInfo {
@@ -448,7 +459,9 @@ impl DatabricksProvider {
                 fetched_at: Instant::now(),
             },
         );
-        Ok(info)
+        info.ok_or_else(|| {
+            ProviderError::RequestFailed("Databricks endpoint metadata is unavailable".to_string())
+        })
     }
 
     fn model_info_from_endpoint(info: DatabricksEndpointInfo) -> ModelInfo {
