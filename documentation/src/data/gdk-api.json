@@ -863,6 +863,21 @@
               "isAsync": false
             },
             {
+              "name": "context_limit",
+              "docs": "",
+              "params": [
+                {
+                  "name": "model",
+                  "type": "ProviderModelConfig",
+                  "default": null,
+                  "docs": ""
+                }
+              ],
+              "returns": "u64",
+              "throws": null,
+              "isAsync": true
+            },
+            {
               "name": "stream",
               "docs": "",
               "params": [
