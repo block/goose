@@ -543,6 +543,18 @@ pub trait Provider: Send + Sync {
         false
     }
 
+    /// Fetches provider-reported context windows keyed by model id.
+    ///
+    /// Providers that expose model metadata APIs (e.g. OpenRouter's
+    /// `context_length`) override this so goose can size sessions correctly
+    /// for models missing from the bundled canonical catalog. The default
+    /// implementation reports no limits.
+    async fn fetch_model_context_limits(
+        &self,
+    ) -> Result<std::collections::HashMap<String, usize>, ProviderError> {
+        Ok(std::collections::HashMap::new())
+    }
+
     /// Fetch inventory models filtered by canonical registry and usability.
     ///
     /// When `toolshim` is true, models that lack native tool-call support are

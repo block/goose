@@ -1018,6 +1018,37 @@ impl GooseAcpAgent {
             inventory_service
                 .refresh_with_provider(&provider_name, &provider, &mut inventory, "session init")
                 .await;
+            // First-run case: this refresh may have just persisted a
+            // provider-reported window for this session's model. Rebuild the
+            // session config so it applies immediately instead of waiting for
+            // an explicit model reselection.
+            let Ok(current) = agent.model_config_for_session(&session_id).await else {
+                return;
+            };
+            let global_override = crate::config::Config::global()
+                .get_goose_context_limit()
+                .ok()
+                .flatten();
+            if current.context_limit.is_none() && global_override.is_none() {
+                if let Some(limit) = inventory_service
+                    .known_context_limit(&provider_name, &current.model_name)
+                    .await
+                {
+                    if let Ok(rebuilt) =
+                        crate::model_config::model_config_from_user_config_with_session_settings(
+                            &provider_name,
+                            &current.model_name,
+                            Some(&current),
+                            None,
+                            Some(limit),
+                        )
+                    {
+                        let _ = agent
+                            .recreate_provider_for_session(&session_id, &provider_name, rebuilt)
+                            .await;
+                    }
+                }
+            }
         });
     }
 
@@ -2348,13 +2379,29 @@ impl GooseAcpAgent {
             .model_config_for_session(session_id)
             .await
             .internal_err_ctx("Failed to resolve model config")?;
+        // Prefer the provider-reported window persisted during inventory
+        // refresh, but never on top of an explicit GOOSE_CONTEXT_LIMIT
+        // override: passing Some here would replace the configured value via
+        // with_context_limit instead of letting with_default_context_limit
+        // install it. Stored rows already respect canonical precedence.
+        let global_override = crate::config::Config::global()
+            .get_goose_context_limit()
+            .ok()
+            .flatten();
+        let context_limit = if global_override.is_none() {
+            self.provider_inventory
+                .known_context_limit(&provider_name, model_id)
+                .await
+        } else {
+            None
+        };
         let model_config =
             crate::model_config::model_config_from_user_config_with_session_settings(
                 &provider_name,
                 model_id,
                 Some(&current_model_config),
                 None,
-                None,
+                context_limit,
             )
             .invalid_params_err_ctx("Invalid model config")?;
         agent

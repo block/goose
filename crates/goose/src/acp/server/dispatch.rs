@@ -1,5 +1,7 @@
 use super::*;
-use crate::providers::inventory::ensure_refresh_identity_current;
+use crate::providers::inventory::{
+    ensure_refresh_identity_current, fetch_models_with_context_limits,
+};
 
 impl HandleDispatchFrom<Client> for GooseAcpHandler {
     fn describe_chain(&self) -> impl std::fmt::Debug {
@@ -250,22 +252,22 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                         )
                                         .await
                                         {
-                                            Ok(()) => match AssertUnwindSafe(
-                                                provider.fetch_recommended_models(
-                                                    crate::model_config::global_toolshim(),
-                                                ),
-                                            )
-                                            .catch_unwind()
-                                            .await
-                                            {
-                                                Ok(Ok(models)) => Ok(models),
-                                                Ok(Err(error)) => {
-                                                    Err(anyhow::anyhow!(error.to_string()))
+                                            Ok(()) => {
+                                                match AssertUnwindSafe(
+                                                    fetch_models_with_context_limits(&provider),
+                                                )
+                                                .catch_unwind()
+                                                .await
+                                                {
+                                                    Ok(Ok(pair)) => Ok(pair),
+                                                    Ok(Err(error)) => {
+                                                        Err(anyhow::anyhow!(error.to_string()))
+                                                    }
+                                                    Err(_) => Err(anyhow::anyhow!(
+                                                        "provider inventory refresh task panicked"
+                                                    )),
                                                 }
-                                                Err(_) => Err(anyhow::anyhow!(
-                                                    "provider inventory refresh task panicked"
-                                                )),
-                                            },
+                                            }
                                             Err(error) => Err(error),
                                         }
                                     }
@@ -273,11 +275,12 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                 };
 
                                 match fetch_result {
-                                    Ok(models) => match agent_bg
+                                    Ok((models, context_limits)) => match agent_bg
                                         .provider_inventory
                                         .store_refreshed_models_for_identity(
                                             &refresh_identity,
                                             &models,
+                                            &context_limits,
                                         )
                                         .await
                                     {
