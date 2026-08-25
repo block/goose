@@ -986,6 +986,50 @@ impl GooseAcpAgent {
     /// `session/new` critical path avoids stalling session creation on slow or
     /// blocking work such as a synchronous keychain read while resolving the
     /// provider's inventory identity.
+    /// Applies a persisted provider-reported context window to the session's
+    /// active model config when it has none yet and no explicit
+    /// GOOSE_CONTEXT_LIMIT override is set.
+    async fn apply_inventory_window_to_session(
+        inventory_service: &ProviderInventoryService,
+        session_id: &str,
+        provider_name: &str,
+        agent: &Arc<Agent>,
+    ) {
+        if crate::config::Config::global()
+            .get_goose_context_limit()
+            .ok()
+            .flatten()
+            .is_some()
+        {
+            return;
+        }
+        let Ok(current) = agent.model_config_for_session(session_id).await else {
+            return;
+        };
+        if current.context_limit.is_some() {
+            return;
+        }
+        let Some(limit) = inventory_service
+            .known_context_limit(provider_name, &current.model_name)
+            .await
+        else {
+            return;
+        };
+        if let Ok(rebuilt) =
+            crate::model_config::model_config_from_user_config_with_session_settings(
+                provider_name,
+                &current.model_name,
+                Some(&current),
+                None,
+                Some(limit),
+            )
+        {
+            let _ = agent
+                .recreate_provider_for_session(session_id, provider_name, rebuilt)
+                .await;
+        }
+    }
+
     fn spawn_provider_inventory_refresh(&self, goose_session: &Session, agent: &Arc<Agent>) {
         let Some(provider_name) = goose_session.provider_name.clone() else {
             return;
@@ -994,6 +1038,17 @@ impl GooseAcpAgent {
         let agent = agent.clone();
         let session_id = goose_session.id.clone();
         tokio::spawn(async move {
+            // Pre-existing sessions created before provider-reported windows
+            // carry context_limit None; apply the cached value even when the
+            // snapshot is fresh enough that no refresh will run.
+            Self::apply_inventory_window_to_session(
+                &inventory_service,
+                &session_id,
+                &provider_name,
+                &agent,
+            )
+            .await;
+
             let Some(mut inventory) = inventory_service
                 .find_entry_for_provider(&provider_name)
                 .await
@@ -1018,37 +1073,16 @@ impl GooseAcpAgent {
             inventory_service
                 .refresh_with_provider(&provider_name, &provider, &mut inventory, "session init")
                 .await;
-            // First-run case: this refresh may have just persisted a
-            // provider-reported window for this session's model. Rebuild the
-            // session config so it applies immediately instead of waiting for
-            // an explicit model reselection.
-            let Ok(current) = agent.model_config_for_session(&session_id).await else {
-                return;
-            };
-            let global_override = crate::config::Config::global()
-                .get_goose_context_limit()
-                .ok()
-                .flatten();
-            if current.context_limit.is_none() && global_override.is_none() {
-                if let Some(limit) = inventory_service
-                    .known_context_limit(&provider_name, &current.model_name)
-                    .await
-                {
-                    if let Ok(rebuilt) =
-                        crate::model_config::model_config_from_user_config_with_session_settings(
-                            &provider_name,
-                            &current.model_name,
-                            Some(&current),
-                            None,
-                            Some(limit),
-                        )
-                    {
-                        let _ = agent
-                            .recreate_provider_for_session(&session_id, &provider_name, rebuilt)
-                            .await;
-                    }
-                }
-            }
+
+            // First-run case: the refresh above may have just persisted the
+            // window this session's config is missing.
+            Self::apply_inventory_window_to_session(
+                &inventory_service,
+                &session_id,
+                &provider_name,
+                &agent,
+            )
+            .await;
         });
     }
 
